@@ -1,0 +1,363 @@
+-- Developer-only observer for isolated copies of the actual production skins.
+-- No external commands are executed; only scalar preference controls are used.
+local tick, done, checks, previous_checks, stage, kind = 0, false, 0, 0, 1, ''
+local glyph_report=''
+local function is_settings() return kind:match('Settings$')~=nil end
+local function check(ok, message) checks=checks+1; assert(ok, message) end
+local function read(path)
+    local file=assert(io.open(path,'rb')); local value=file:read('*a'); file:close(); return value
+end
+local function write(path, value)
+    local file=assert(io.open(path,'wb')); assert(file:write(value)); assert(file:close())
+end
+local function preferences()
+    local bytes=read(SELF:GetOption('PreferencesPath'))
+    if bytes:sub(1,2)=='\255\254' then
+        bytes=bytes:sub(3):gsub('(.).', '%1')
+    elseif bytes:sub(1,2)=='\254\255' then
+        bytes=bytes:sub(3):gsub('.(.)', '%1')
+    end
+    local values={}
+    for key,value in bytes:gmatch('([%w_]+)=([^\r\n]+)') do values[key]=value end
+    check(values.UnrelatedSentinel=='preserve-me','Unrelated preference changed')
+    check(values.PanelHeight=='162' and values.MediaInterval=='1000','Base height/cadence changed')
+    check(tonumber(values.Scale)==SELF:GetNumberOption('ExpectedScale'),'Scale preference changed')
+    check(tonumber(values.ColumnWidth)==SELF:GetNumberOption('ExpectedWidth'),'ColumnWidth preference changed')
+    local allowed={Columns=true,PanelHeight=true,MediaInterval=true,QueueExpanded=true,QueueRowLimit=true,
+        QueueShowDetails=true,QueuePollSeconds=true,Scale=true,ColumnWidth=true,UnrelatedSentinel=true}
+    for key in pairs(values) do check(allowed[key],'Unexpected preference written: '..key) end
+    return values
+end
+local function text(name) return assert(SKIN:GetMeter(name)):GetOption('Text','') end
+local function dimensions(expanded, rows)
+    local scale=SELF:GetNumberOption('ExpectedScale')
+    local width=SELF:GetNumberOption('ExpectedWidth')
+    local columns=is_settings() and 2 or SELF:GetNumberOption('ExpectedColumns')
+    local gap=2*math.floor(tonumber(SKIN:GetVariable('Gutter'))*scale/2+0.5)
+    local height=is_settings() and 360 or (162+(expanded and (8+18*rows) or 0))
+    local expected_w=columns*(math.floor(width*scale+0.5)+gap)
+    local expected_h=math.floor(height*scale+0.5)+gap
+    check(SKIN:GetW()==expected_w and SKIN:GetH()==expected_h,
+        string.format('Native skin bounds %dx%d expected %dx%d',SKIN:GetW(),SKIN:GetH(),expected_w,expected_h))
+    return expected_w,expected_h
+end
+local function inside(name, width, height)
+    local meter=assert(SKIN:GetMeter(name)); local x,y,w,h=meter:GetX(true),meter:GetY(true),meter:GetW(),meter:GetH()
+    if w==0 or h==0 then return end
+    local alignment=meter:GetOption('StringAlign','Left')
+    if alignment:match('^Center') then x=x-w/2 elseif alignment:match('^Right') then x=x-w end
+    local vertical=alignment:match('^Left(.*)$') or alignment:match('^Right(.*)$') or alignment:match('^Center(.*)$') or ''
+    if vertical=='Center' then y=y-h/2 elseif vertical=='Bottom' then y=y-h end
+    check(x>=0 and y>=0 and x+w<=width+1 and y+h<=height+1,
+        string.format('%s outside skin %.2f,%.2f,%.2f,%.2f',name,x,y,w,h))
+end
+local function accordion(expanded, count, details)
+    local width,height=dimensions(expanded,count)
+    local measure=assert(SKIN:GetMeasure('MeasureQueueStatus'))
+    check(measure:GetOption('QueueCachePath')==SELF:GetOption('SyntheticCachePath'),'Synthetic cache not injected')
+    check(measure:GetStringValue()=='Next '..count,'Footer display count wrong: '..measure:GetStringValue())
+    check(SKIN:GetMeasure('MeasureMediaOptions'):GetStringValue()==(expanded and 'Queue -' or 'Queue +'),'Accordion label wrong')
+    for index=1,5 do
+        local name='MeterQueueRow'..index; local meter=assert(SKIN:GetMeter(name))
+        if expanded and index<=count then
+            check(meter:GetW()>0 and meter:GetH()>0,'Expanded row hidden: '..index)
+            check(text(name)=='Synthetic item '..index..(details and (' / Test artist '..index) or ''),'Row detail preference ignored')
+            inside(name,width,height)
+        else
+            check(meter:GetW()==0,'Collapsed or excess row visible: '..index)
+            check(text(name)=='','Collapsed or excess row retains text: '..index)
+        end
+    end
+    for _,name in ipairs({'MeterBounds','MeterPanel','MeterHeading','MeterMediaIcon','MeterQueueRule','MeterQueueHeading','MeterQueueStatus'}) do inside(name,width,height) end
+    check(SKIN:GetMeter('MeterMediaOptions'):GetW()==0,'Gear is not hidden initially')
+    local enter,leave=SELF:GetOption('HoverEnter'),SELF:GetOption('HoverLeave')
+    check(enter:find('!ShowMeter',1,true) and leave:find('!HideMeter',1,true),'Hover actions missing')
+    SKIN:Bang(enter)
+    check(SKIN:GetMeter('MeterMediaOptions'):GetW()>0,'Hover did not reveal gear')
+    inside('MeterMediaOptions',width,height)
+    SKIN:Bang(leave)
+    check(SKIN:GetMeter('MeterMediaOptions'):GetW()==0,'Mouse leave did not hide gear')
+end
+local function command(measure, action) SKIN:Bang('!CommandMeasure',measure,action..'()') end
+local function advance(next_stage, action)
+    write(SELF:GetOption('StageFile'),tostring(next_stage)..'|'..tostring(previous_checks+checks))
+    if action then command('MeasureMediaOptions',action) else SKIN:Bang('!Refresh') end
+end
+local function accordion_stage()
+    local prefs=preferences()
+    if stage==1 then
+        accordion(false,5,true); check(prefs.QueueExpanded=='0','Initial fixture changed')
+        advance(2,'ToggleQueue')
+    elseif stage==2 then
+        accordion(true,5,true); check(prefs.QueueExpanded=='1','Expand preference not saved')
+        SKIN:Bang('!WriteKeyValue','Variables','QueueRowLimit','3',SELF:GetOption('PreferencesPath'))
+        SKIN:Bang('!WriteKeyValue','Variables','QueueShowDetails','0',SELF:GetOption('PreferencesPath'))
+        advance(3)
+    elseif stage==3 then
+        accordion(true,3,false); check(prefs.QueueRowLimit=='3' and prefs.QueueShowDetails=='0','Presentation fixture did not reload')
+        advance(4,'ToggleQueue')
+    elseif stage==4 then
+        accordion(false,3,false); check(prefs.QueueExpanded=='0','Collapse preference not saved')
+        advance(5,'ToggleQueue')
+    elseif stage==5 then
+        accordion(true,3,false); check(prefs.QueueExpanded=='1','Second expand did not persist')
+        return true
+    else error('Unexpected accordion stage') end
+    return false
+end
+local function settings_bounds()
+    local width,height=dimensions(false,0)
+    for _,name in ipairs({'MeterBounds','MeterPanel','MeterTitle','MeterClose','MeterWidthLabel','MeterWidthValue',
+        'MeterQueueExpandedLabel','MeterQueueExpandedValue','MeterQueueRowsLabel','MeterQueueRowsValue','MeterQueueDetailsLabel',
+        'MeterQueueDetailsValue','MeterQueuePollLabel','MeterQueuePollValue','MeterStatus','MeterQueueRule','MeterQueueHeading',
+        'MeterSourceLabel','MeterSourceStart','MeterSourceStop','MeterSignIn','MeterStart','MeterStop','MeterRestart','MeterDisconnect','MeterLinksRule','MeterOpenQueue','MeterPlayerSetup','MeterHelp'}) do inside(name,width,height) end
+end
+local function settings_stage()
+    settings_bounds()
+    local prefs=preferences()
+    if stage==1 then
+        check(prefs.Columns=='2' and prefs.QueuePollSeconds=='30','Settings fixture changed on load')
+        check(text('MeterWidthValue')=='2 columns' and text('MeterQueueExpandedValue')=='Collapsed','Initial preference labels wrong')
+        for _,action in ipairs({'ToggleColumns','ToggleQueueExpanded','CycleQueueRows','CycleQueueRows','ToggleQueueDetails','CycleQueuePoll','CycleQueuePoll'}) do command('MeasureMediaSettings',action) end
+        prefs=preferences()
+        check(prefs.Columns=='1' and prefs.QueueExpanded=='1' and prefs.QueueRowLimit=='3' and prefs.QueueShowDetails=='0' and prefs.QueuePollSeconds=='120','Preference controls did not save expected keys')
+        check(text('MeterStatus')=='Use Restart to apply interval.','Refresh interval lacks explicit restart status')
+        check(text('MeterQueuePollValue')=='120 seconds','Refresh interval label not updated')
+        check(SKIN:GetVariable('QueuePollSeconds')=='120','Service actions interval not updated')
+        advance(2)
+    elseif stage==2 then
+        check(prefs.Columns=='1' and prefs.QueueExpanded=='1' and prefs.QueueRowLimit=='3' and prefs.QueueShowDetails=='0' and prefs.QueuePollSeconds=='120','Saved preferences changed after reload')
+        check(text('MeterWidthValue')=='1 column' and text('MeterQueueExpandedValue')=='Expanded','Width/expanded labels did not reload')
+        check(text('MeterQueueRowsValue')=='3 items' and text('MeterQueueDetailsValue')=='Hidden' and text('MeterQueuePollValue')=='120 seconds','Queue labels did not reload')
+        for _,name in ipairs({'MeterSignIn','MeterStart','MeterRestart'}) do
+            local action=SKIN:GetMeter(name):GetOption('LeftMouseUpAction','')
+            check(action:find('"-PollSeconds" "120"',1,true),'Helper action does not use saved interval: '..name)
+        end
+        SKIN:Bang('!WriteKeyValue','Variables','QueueRowLimit','2',SELF:GetOption('PreferencesPath'))
+        SKIN:Bang('!WriteKeyValue','Variables','QueuePollSeconds','45',SELF:GetOption('PreferencesPath'))
+        advance(3)
+    elseif stage==3 then
+        check(prefs.QueueRowLimit=='2' and prefs.QueuePollSeconds=='45','Custom fixture not persisted')
+        check(text('MeterQueueRowsValue')=='2 items' and text('MeterQueuePollValue')=='45 seconds','Valid custom preferences not rendered')
+        check(SKIN:GetVariable('QueuePollSeconds')=='45','Custom interval ignored by actions')
+        command('MeasureMediaSettings','CycleQueueRows')
+        command('MeasureMediaSettings','CycleQueuePoll')
+        prefs=preferences()
+        check(prefs.QueueRowLimit=='3' and prefs.QueuePollSeconds=='60','Custom values do not advance to next preset')
+        advance(4)
+    elseif stage==4 then
+        check(prefs.QueueRowLimit=='3' and prefs.QueuePollSeconds=='60','Next presets not retained across reload')
+        check(text('MeterQueueRowsValue')=='3 items' and text('MeterQueuePollValue')=='60 seconds','Next preset labels not reloaded')
+        return true
+    else error('Unexpected settings stage') end
+    return false
+end
+local function sync_stage()
+    local expected=stage==2 and 'Expanded' or 'Collapsed'
+    accordion(stage==2,5,true)
+    check(read(SELF:GetOption('SyncLabelFile'))==expected,'Open Settings label did not synchronize: expected '..expected)
+    if stage<3 then advance(stage+1,'ToggleQueue') else return true end
+    return false
+end
+local function probe_names()
+    if is_settings() then return {'MeterTitle','MeterQueueHeading','MeterQueuePollLabel','MeterQueuePollValue',
+        'MeterStatus','MeterDisconnect','MeterPlayerSetup','MeterClose','MeterSourceLabel','MeterSourceStart','MeterSourceStop'} end
+    local names={'MeterHeading','MeterQueueHeading','MeterQueueStatus','MeterQueueRow1'}
+    local other=kind:find('Player',1,true) and {'MeterTrackTitle','MeterArtist','MeterAlbum','MeterPlayerName','MeterTiming','MeterPrevious','MeterPlayPause','MeterNext'} or
+        {'MeterSetupInstructions','MeterDesktopNote','MeterWNPDocs','MeterLoadPlayer'}
+    for _,name in ipairs(other) do names[#names+1]=name end
+    return names
+end
+local function prepare_probes()
+    for _,name in ipairs(probe_names()) do
+        local target=assert(SKIN:GetMeter(name))
+        check(SKIN:GetMeter('Probe'..name)~=nil,'Missing glyph probe '..name)
+        for option,default in pairs({FontFace='Arial',FontSize='10',FontWeight='400',StringStyle='Normal',StringCase='None',CharacterSpacing='0'}) do
+            SKIN:Bang('!SetOption','Probe'..name,option,target:GetOption(option,default))
+        end
+    end
+    if not is_settings() then
+        local target=SKIN:GetMeter('MeterQueueStatus')
+        for index=1,5 do
+            for option,default in pairs({FontFace='Arial',FontSize='10',FontWeight='400',StringStyle='Normal',StringCase='None',CharacterSpacing='0'}) do
+                SKIN:Bang('!SetOption','ProbeStatus'..index,option,target:GetOption(option,default))
+            end
+        end
+    end
+    SKIN:Bang('!UpdateMeterGroup','TypographyProbes')
+end
+local function typography()
+    local info={}
+    if not is_settings() then
+        local statuses={}
+        for index=1,5 do
+            local probe=assert(SKIN:GetMeter('ProbeStatus'..index))
+            probe:Show(); local w,h=probe:GetW(),probe:GetH(); probe:Hide()
+            statuses[#statuses+1]=probe:GetOption('Text')..'='..w..'x'..h
+        end
+        glyph_report='status widths: '..table.concat(statuses,',')
+    end
+    for _,name in ipairs(probe_names()) do
+        local target,probe=assert(SKIN:GetMeter(name)),assert(SKIN:GetMeter('Probe'..name))
+        probe:Show(); local w,h=probe:GetW(),probe:GetH(); probe:Hide()
+        local detail=string.format('%s=%dx%d/%dx%d',name,w,h,target:GetW(),target:GetH())
+        info[#info+1]=detail
+        check(w>0 and h>0 and w<=target:GetW() and h<=target:GetH(),'Native glyph clipping: '..detail)
+    end
+    glyph_report=table.concat(info,',')
+    local function color(meter,variable)
+        check(SKIN:GetMeter(meter):GetOption('FontColor')==SKIN:GetVariable(variable),meter..' ignores '..variable)
+    end
+    color(is_settings() and 'MeterTitle' or 'MeterHeading','TitleTextColor')
+    color('MeterQueueHeading','HeaderTextColor')
+    if is_settings() then
+        color('MeterQueuePollLabel','TextColor'); color('MeterStatus','TextColor')
+        color('MeterStart','AccentColor'); color('MeterStop','AccentColor2'); color('MeterPlayerSetup','AccentColor2')
+        color('MeterSourceLabel','TextColor'); color('MeterSourceStart','AccentColor'); color('MeterSourceStop','AccentColor2')
+    else
+        color('MeterQueueRow1','TextColor'); color('MeterQueueStatus','MediaColor')
+        if kind:find('Player',1,true) then
+            color('MeterArtist','TextColor'); color('MeterAlbum','TextColor'); color('MeterPrevious','AccentColor')
+            color('MeterPlayerName','TextColor')
+        else
+            color('MeterSetupStatus','WarningColor'); color('MeterDesktopNote','TextColor')
+            color('MeterLoadPlayer','AccentColor'); color('MeterWNPDocs','AccentColor2')
+        end
+    end
+    local rule=SKIN:GetMeter('MeterQueueRule'):GetOption('Shape')
+    check(rule:find('Stroke Color '..SKIN:GetVariable('DividerColor'),1,true)~=nil,'Divider color override not inherited')
+end
+local function typography_stage()
+    preferences()
+    if is_settings() then settings_bounds() else accordion(true,5,true) end
+    if kind:find('Player',1,true) then
+        check(SKIN:GetMeasure('MeasureConnection'):GetOption('Measure')=='Calc','Player fixture contains non-synthetic connection')
+        check(SKIN:GetMeasure('MeasureMediaUI'):GetStringValue()=='Playing','Synthetic player not connected')
+        check(SKIN:GetMeter('MeterTrackTitle'):GetW()>0,'Synthetic track row hidden')
+        check(SKIN:GetMeter('MeterProgress'):GetW()>0,'Synthetic timeline hidden')
+        check(SKIN:GetMeasure('MeasureMediaSource'):GetOption('Measure')=='String','Real source reader loaded in UI fixture')
+        check(SKIN:GetMeasure('MeasureSourceArtist'):GetOption('Measure')=='String','Raw artist fixture is not synthetic')
+        check(SKIN:GetMeter('MeterPlayerName'):GetOption('MeasureName')=='MeasureMediaSource','Source label still binds raw player name')
+        check(SKIN:GetMeasure('MeasureMediaSource'):GetStringValue()=='Spotify','Synthetic Spotify source was not retained')
+        check(SKIN:GetMeasure('MeasurePlayer'):GetStringValue()=='Windows Media Session','Raw player fixture does not distinguish source binding')
+    end
+    return true
+end
+local function artwork_bounds(expanded)
+    local scale=SELF:GetNumberOption('ExpectedScale')
+    local columns=SELF:GetNumberOption('ExpectedColumns')
+    local wide=columns==2
+    local inset=math.floor(tonumber(SKIN:GetVariable('Gutter'))*scale/2+0.5)
+    local padding=tonumber(SKIN:GetVariable('PanelPadding'))*scale
+    local art_x=inset+(wide and 0 or padding)
+    local art_y=inset+(wide and 9 or 44)*scale
+    local art_size=(wide and 144 or 48)*scale
+    local content_x=inset+(wide and 156*scale or padding)
+    local width,height=dimensions(expanded,5)
+    local panel=SKIN:GetMeter('MeterPanel')
+    check(math.abs(panel:GetX(true)-(inset+(wide and 96*scale or 0)))<=1,'Surface left offset wrong')
+    check(math.abs(panel:GetX(true)+panel:GetW()-(width-inset))<=1,'Surface right edge changed pitch')
+    local function art(name,visible)
+        local meter=assert(SKIN:GetMeter(name))
+        if visible then
+            check(math.abs(meter:GetX(true)-art_x)<=1 and math.abs(meter:GetY(true)-art_y)<=1,name..' position changed')
+            check(meter:GetW()==art_size and meter:GetH()==art_size,name..' is not the expected square')
+            inside(name,width,height)
+        else check(meter:GetW()==0,name..' unexpectedly visible') end
+    end
+    art('MeterArtworkPlaceholder',wide)
+    local player=kind:find('Player',1,true)~=nil
+    check((SKIN:GetMeter('MeterArtworkLabel'):GetW()>0)==(wide and not player),'Wide artwork underlay label visibility wrong')
+    local names={'MeterMediaIcon','MeterHeading','MeterQueueHeading','MeterQueueStatus'}
+    if kind:find('Player',1,true) then
+        local missing=kind=='ArtworkPlayerMissing'
+        local cover=SKIN:GetMeasure('MeasureCover')
+        check(cover:GetOption('Measure')=='String','Artwork fixture is not synthetic')
+        check(missing and cover:GetStringValue()=='' or not missing and cover:GetStringValue():match('synthetic%-cover%.png$'),'Artwork fixture state incorrect')
+        check(SKIN:GetMeasure('MeasureMediaUI'):GetStringValue()=='Playing','Missing artwork changed playback state')
+        check(SKIN:GetMeasure('MeasureMediaSource'):GetOption('Measure')=='String' and SKIN:GetMeasure('MeasureMediaSource'):GetStringValue()=='Spotify','Synthetic source replaced or changed')
+        check(SKIN:GetMeasure('MeasureSourceArtist'):GetOption('Measure')=='String','Raw artist fixture not synthetic')
+        art('MeterCoverPlaceholder',true)
+        art('MeterCover',not missing)
+        check((SKIN:GetMeter('MeterCoverLabel'):GetW()>0)==missing and text('MeterCoverLabel')=='No art','No art label must show only when artwork is missing')
+        check(SKIN:GetMeter('MeterCover'):GetOption('PreserveAspectRatio')=='2','Artwork crop behavior changed')
+        for _,name in ipairs({'MeterTrackTitle','MeterArtist','MeterAlbum','MeterConnection','MeterPlayerName','MeterTiming','MeterPrevious','MeterPlayPause','MeterNext','MeterProgress'}) do names[#names+1]=name end
+        local progress=SKIN:GetMeter('MeterProgress')
+        check(math.abs(progress:GetX(true)-content_x)<=1,'Progress does not begin at content edge')
+        check(math.abs(progress:GetX(true)+progress:GetW()-(width-inset-padding))<=1,'Progress does not end at content edge')
+        local title=SKIN:GetMeter('MeterTrackTitle')
+        check(math.abs(title:GetX(true)-(content_x+(wide and 0 or 54*scale)))<=1,'Track title layout changed')
+    else
+        check(SKIN:GetMeasure('MeasureMediaSource')==nil,'Setup loaded a source reader')
+        for _,name in ipairs({'MeterSetupStatus','MeterSetupInstructions','MeterDesktopNote','MeterWNPDocs','MeterLoadPlayer'}) do names[#names+1]=name end
+    end
+    if expanded then for row=1,5 do names[#names+1]='MeterQueueRow'..row end end
+    for _,name in ipairs(names) do
+        local meter=SKIN:GetMeter(name)
+        inside(name,width,height)
+        if wide then
+            local left=meter:GetX(true)
+            if meter:GetOption('StringAlign','Left'):match('^Center') then left=left-meter:GetW()/2 end
+            check(left>=art_x+art_size+12*scale-1,name..' intrudes into artwork gap')
+        end
+    end
+end
+local function artwork_stage()
+    local prefs=preferences()
+    check(tonumber(prefs.Columns)==SELF:GetNumberOption('ExpectedColumns'),'Artwork changed saved width')
+    local expanded=stage==2
+    accordion(expanded,5,true)
+    artwork_bounds(expanded)
+    check(prefs.QueueExpanded==(expanded and '1' or '0'),'Artwork queue preference did not persist')
+    if stage==1 then advance(2,'ToggleQueue')
+    elseif stage==2 then
+        typography()
+        if SELF:GetNumberOption('ExpectedWidth')==200 then advance(3,'ToggleQueue') else return true end
+    elseif stage==3 then return true
+    else error('Unexpected artwork stage') end
+    return false
+end
+local function write_status(state)
+    local lines={'PARALLAX_QUEUE_V2','state='..state,'observed=0','valid_until=0','retry_not_before=0','count=0'}
+    for index=1,5 do lines[#lines+1]='title'..index..'='; lines[#lines+1]='detail'..index..'=' end
+    write(SELF:GetOption('SyntheticCachePath'),table.concat(lines,'\n')..'\n')
+end
+local function compact_status_stage()
+    local expected=({[2]='Queue error',[3]='Quota reached',[4]='Stopped'})[stage]
+    check(SKIN:GetMeasure('MeasureQueueStatus'):GetStringValue()==expected,'Compact footer substitution failed: '..tostring(expected))
+    if stage==4 then return true end
+    write_status(stage==2 and 'quota_exceeded' or 'stopped')
+    advance(stage+1)
+    return false
+end
+function Initialize()
+    kind=SELF:GetOption('Kind')
+    local saved_stage,saved_checks=read(SELF:GetOption('StageFile')):match('^(%d+)|(%d+)')
+    stage=tonumber(saved_stage) or 1; previous_checks=tonumber(saved_checks) or 0
+end
+function Update()
+    if kind=='SyncSettings' then
+        write(SELF:GetOption('SyncLabelFile'),text('MeterQueueExpandedValue'))
+        return 0
+    end
+    tick=tick+1
+    if tick==1 and kind~='SyncMain' then prepare_probes() end
+    if done or tick<3 then return 0 end
+    done=true
+    local status_only=SELF:GetOption('StatusProbeOnly','0')=='1'
+    local scenario=status_only and stage>1 and compact_status_stage or kind:match('^Artwork') and artwork_stage or kind:match('^Typography') and typography_stage or kind=='Accordion' and accordion_stage or kind=='SyncMain' and sync_stage or settings_stage
+    local ok,finished=pcall(scenario)
+    if ok and finished and kind~='SyncMain' and not kind:match('^Artwork') and not (status_only and stage>1) then ok,finished=pcall(function() typography(); return true end) end
+    if ok and finished and status_only and stage==1 then
+        write_status('error'); advance(2); finished=false
+    end
+    if not ok or finished then
+        local report=string.format('%s kind=%s width=%d scale=%g columns=%d stage=%d checks=%d',
+            ok and 'PASS' or 'FAIL',kind,SELF:GetNumberOption('ExpectedWidth'),SELF:GetNumberOption('ExpectedScale'),
+            SELF:GetNumberOption('ExpectedColumns'),stage,previous_checks+checks)
+        if not ok then report=report..'\n'..tostring(finished) end
+        if glyph_report~='' then report=report..'\nglyphs='..glyph_report end
+        write(SELF:GetOption('ResultFile'),report..'\n')
+    end
+    return 0
+end

@@ -1,0 +1,10 @@
+{
+  "name": "Parallax",
+  "author": "",
+  "version": "0.1.0-alpha",
+  "minimumRainmeter": "",
+  "minimumWindows": "",
+  "loadSkin": "Parallax\\Settings\\Settings.ini",
+  "mergeSkins": false,
+  "notes": "Release metadata template only. Author and minimum supported versions must be selected and tested before creating a distributable package. Variables files are enumerated by Stage-Parallax.ps1."
+}

@@ -1,0 +1,13 @@
+[Variables]
+UnitWidth=(Round(#ColumnWidth#*#Scale#))
+Gap=(2*Round(#Gutter#*#Scale#/2))
+Inset=(#Gap#/2)
+Pitch=(#UnitWidth#+#Gap#)
+WindowWidth=(#Columns#*#Pitch#)
+PanelWidth=(#WindowWidth#-#Gap#)
+PanelHeightPx=(Round(#PanelHeight#*#Scale#))
+WindowHeight=(#PanelHeightPx#+#Gap#)
+Padding=(Round(#PanelPadding#*#Scale#))
+ContentX=(#Inset#+#Padding#)
+ContentY=(#Inset#+#Padding#)
+ContentWidth=(#PanelWidth#-2*#Padding#)

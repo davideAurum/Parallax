@@ -1,0 +1,165 @@
+-- Test-only instrument for copied production Queue.ini, using synthetic data.
+-- Every snapshot path is explicitly injected under the fresh test run root.
+local tick, checks, failures, stages = 0, 0, {}, {}
+local probes = {
+    {'Heading', 'MeterHeading', 'Spotify queue'},
+    {'Status', 'MeterQueueStatus', 'Storage unavailable'},
+    {'Row', 'MeterQueueRow1', 'Synthetic title / Artist'},
+    {'Connect', 'MeterQueueConnect', 'Sign in'},
+    {'Start', 'MeterQueueStart', 'Start'},
+    {'Stop', 'MeterQueueStop', 'Stop'}
+}
+local font_options = {FontFace='Arial', FontSize='10', FontWeight='400',
+    StringStyle='Normal', StringCase='None', CharacterSpacing='0'}
+local meter_names = {'MeterBounds','MeterPanel','MeterHeading','MeterMediaOptions','MeterQueueStatus',
+    'MeterQueueRow1','MeterQueueRow2','MeterQueueRow3','MeterQueueRow4','MeterQueueRow5',
+    'MeterQueueRule','MeterQueueConnect','MeterQueueStart','MeterQueueStop'}
+
+local function check(condition, message)
+    checks = checks + 1
+    assert(condition, message)
+end
+local function hex(text)
+    return (text:gsub('.', function(c) return string.format('%02X', c:byte()) end))
+end
+local function rows()
+    return {
+        {'Synthetic duplicate', 'Test artist'}, {'Synthetic duplicate', 'Test artist'},
+        {'Synthetic #Scale# [MeterBounds] %1', 'Caf\195\169'},
+        {string.rep('Synthetic long title ', 12), 'Long text clips inside the row'},
+        {'Synthetic Caf\195\169', 'Test album'}
+    }
+end
+local function write_snapshot(state, count, expired, malformed)
+    local cache = SELF:GetOption('SyntheticCachePath')
+    check(cache ~= '', 'Synthetic snapshot path must be explicit')
+    local now = os.time()
+    local observed = state == 'ready' and (expired and now-60 or now) or 0
+    local expiry = state == 'ready' and (expired and now-1 or now+120) or 0
+    local lines = {'PARALLAX_QUEUE_V2','state='..state,'observed='..observed,
+        'valid_until='..expiry,'retry_not_before=0','count='..count}
+    local fixture = rows()
+    for index=1,5 do
+        local row = index <= count and fixture[index] or {'',''}
+        lines[#lines+1] = 'title'..index..'='..hex(row[1])
+        lines[#lines+1] = 'detail'..index..'='..hex(row[2])
+    end
+    if malformed then lines[#lines+1] = 'count=0' end
+    local file = assert(io.open(cache,'wb'))
+    assert(file:write(table.concat(lines,'\n')..'\n')); assert(file:close())
+end
+local function glyphs()
+    local details = {}
+    for _, spec in ipairs(probes) do
+        local target, probe = assert(SKIN:GetMeter(spec[2])), assert(SKIN:GetMeter('MeterQueueProbe'..spec[1]))
+        probe:Show()
+        local width, height = probe:GetW(), probe:GetH()
+        probe:Hide()
+        local detail = string.format('%s=%dx%d/%dx%d', spec[1],width,height,target:GetW(),target:GetH())
+        details[#details+1] = detail
+        check(width>0 and height>0 and width<=target:GetW() and height<=target:GetH(),
+            'Native glyph clipping: '..detail)
+    end
+    for _,spec in ipairs({{'MeterHeading','TitleTextColor'},{'MeterQueueStatus','TextColor'},
+        {'MeterQueueRow1','TextColor'},{'MeterQueueConnect','AccentColor'},{'MeterQueueStart','AccentColor'},{'MeterQueueStop','AccentColor2'}}) do
+        check(SKIN:GetMeter(spec[1]):GetOption('FontColor')==SKIN:GetVariable(spec[2]),spec[1]..' ignores '..spec[2])
+    end
+    check(SKIN:GetMeter('MeterQueueRule'):GetOption('Shape'):find('Stroke Color '..SKIN:GetVariable('DividerColor'),1,true)~=nil,'Divider color override not inherited')
+    return table.concat(details, ',')
+end
+local function validate(status, count)
+    local measure = assert(SKIN:GetMeasure('MeasureQueueStatus'))
+    check(measure:GetStringValue()==status, 'Unexpected queue status: '..measure:GetStringValue()..' expected '..status)
+    for index=1,5 do
+        local meter = assert(SKIN:GetMeter('MeterQueueRow'..index))
+        local text = meter:GetOption('Text','')
+        if index<=count then
+            check(meter:GetW()>0 and meter:GetH()>0, 'Ready row '..index..' hidden')
+            check(text~='', 'Ready row '..index..' empty')
+            check(not text:find('[#%[%]%%%z\001-\031\127]'), 'Unsafe metadata reached native Text option')
+        else
+            check(meter:GetW()==0, 'Unavailable row '..index..' visible')
+            check(text=='', 'Unavailable row '..index..' retains metadata')
+        end
+    end
+    if count>=2 then
+        check(SKIN:GetMeter('MeterQueueRow1'):GetOption('Text')==SKIN:GetMeter('MeterQueueRow2'):GetOption('Text'),
+            'Duplicate queue entries not preserved')
+    end
+    if count>=3 then
+        check(SKIN:GetMeter('MeterQueueRow3'):GetOption('Text') ==
+            'Synthetic \239\188\131Scale\239\188\131 \239\188\187MeterBounds\239\188\189 \239\188\1331 / Caf\195\169',
+            'Native Unicode metadata or neutralized metacharacters corrupted')
+    end
+    if count>=5 then
+        check(SKIN:GetMeter('MeterQueueRow5'):GetOption('Text') == 'Synthetic Caf\195\169 / Test album',
+            'Native accented title corrupted')
+    end
+    local scale, columns, width = SELF:GetNumberOption('ExpectedScale'),SELF:GetNumberOption('ExpectedColumns'),SELF:GetNumberOption('ExpectedWidth')
+    check(tonumber(SKIN:GetVariable('Scale'))==scale, 'Scale override missing')
+    check(tonumber(SKIN:GetVariable('Columns'))==columns, 'Columns override missing')
+    check(tonumber(SKIN:GetVariable('ColumnWidth'))==width, 'Width override missing')
+    local gap=2*math.floor(tonumber(SKIN:GetVariable('Gutter'))*scale/2+0.5)
+    local expected_w=columns*(math.floor(width*scale+0.5)+gap)
+    local expected_h=math.floor(tonumber(SKIN:GetVariable('PanelHeight'))*scale+0.5)+gap
+    check(SKIN:GetW()==expected_w and SKIN:GetH()==expected_h,
+        string.format('Skin bounds %dx%d != %dx%d',SKIN:GetW(),SKIN:GetH(),expected_w,expected_h))
+    for _, name in ipairs(meter_names) do
+        local meter=assert(SKIN:GetMeter(name))
+        local x,y,w,h=meter:GetX(true),meter:GetY(true),meter:GetW(),meter:GetH()
+        local alignment=meter:GetOption('StringAlign','Left')
+        if alignment:match('^Center') then x=x-w/2 elseif alignment:match('^Right') then x=x-w end
+        if w>0 and h>0 then
+            check(x>=0 and y>=0 and x+w<=expected_w and y+h<=expected_h,
+                string.format('%s outside skin: %.2f %.2f %.2f %.2f',name,x,y,w,h))
+        end
+    end
+    stages[#stages+1]=status
+end
+function Initialize() end
+function Update()
+    tick=tick+1
+    if tick==1 then
+        local ok,message=pcall(function()
+            local measure=assert(SKIN:GetMeasure('MeasureQueueStatus'))
+            check(measure:GetOption('QueueCachePath')==SELF:GetOption('SyntheticCachePath'), 'Production reader path was not injected')
+            for _,spec in ipairs(probes) do
+                local target=assert(SKIN:GetMeter(spec[2]))
+                for option,default in pairs(font_options) do
+                    SKIN:Bang('!SetOption','MeterQueueProbe'..spec[1],option,target:GetOption(option,default))
+                end
+            end
+            SKIN:Bang('!UpdateMeterGroup','QueueTestProbes')
+            write_snapshot('ready',5)
+        end)
+        if not ok then failures[#failures+1]=tostring(message) end
+    end
+    local expectations={ [3]={'Next 5',5}, [5]={'Queue empty',0}, [7]={'Queue stale',0},
+        [9]={'Access denied',0}, [11]={'Queue unavailable',0}, [13]={'Next 2',2}, [15]={'Next 5',5} }
+    local expectation=expectations[tick]
+    if expectation then
+        local ok,message=pcall(function()
+            validate(expectation[1],expectation[2])
+            if tick==15 then stages[#stages+1]=glyphs() end
+        end)
+        if not ok then failures[#failures+1]='tick '..tick..': '..tostring(message) end
+        local written,write_error=pcall(function()
+            if tick==3 then write_snapshot('ready',0)
+            elseif tick==5 then write_snapshot('ready',5,true)
+            elseif tick==7 then write_snapshot('forbidden',0)
+            elseif tick==9 then write_snapshot('ready',0,false,true)
+            elseif tick==11 then write_snapshot('ready',2)
+            elseif tick==13 then write_snapshot('ready',5) end
+        end)
+        if not written then failures[#failures+1]=tostring(write_error) end
+    end
+    if tick==15 then
+        local report=string.format('%s width=%d scale=%g columns=%d checks=%d stages=%s',
+            #failures==0 and 'PASS' or 'FAIL',SELF:GetNumberOption('ExpectedWidth'),SELF:GetNumberOption('ExpectedScale'),
+            SELF:GetNumberOption('ExpectedColumns'),checks,table.concat(stages,'; '))
+        if #failures>0 then report=report..'\n'..table.concat(failures,'\n') end
+        local file=assert(io.open(SELF:GetOption('ResultFile'),'wb'))
+        assert(file:write(report..'\n'));assert(file:close())
+    end
+    return 0
+end

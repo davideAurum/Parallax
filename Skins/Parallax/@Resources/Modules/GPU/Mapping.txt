@@ -1,0 +1,115 @@
+PARALLAX GPU - SENSOR MAPPING
+
+GPU NAME AND CAPABILITIES
+
+The inset beneath the header identifies Windows' preferred high-performance
+discrete graphics adapter. A one-time query at skin load/refresh reads the
+Windows DXCore hardware and integrated flags, excluding integrated and
+software graphics. It does not guess from a vendor name or memory size.
+Hover the name for its full text. An external GPU may be preferred over an
+internal discrete GPU; this is not necessarily the display-driving adapter.
+
+The original AdapterInfo.cs.txt source is compiled by Windows PowerShell
+once per refresh. No plugin download or dependency installation is needed.
+This metadata requires DXCore and a compatible D3D12 graphics driver.
+Unsupported/query-failure states display GPU name unavailable. No match
+displays No discrete GPU found; multiple discrete adapters without supported
+performance ordering display Multiple discrete GPUs. Refresh to retry after
+hardware or driver changes. No integrated adapter is used as a fallback.
+
+The five rows beneath the name describe that same discrete GPU:
+  VRAM: dedicated video memory capacity in GiB (not usage or shared RAM).
+  Direct3D: highest hardware feature level reported by the installed driver.
+  Shader: highest shader model exposed by Windows and the installed driver.
+  Ray tracing: DirectX ray-tracing API tier, or explicitly Unsupported.
+  Driver: Windows driver version, which may differ from a vendor package.
+Hover any value for its meaning and full text. Unknown means that individual
+query failed or is unavailable; it does not mean a feature is unsupported.
+DirectX ray-tracing support does not establish dedicated RT cores or speed.
+Feature levels describe functionality, not performance or the installed
+DirectX version. These details refresh with the name, without extra polling.
+
+ACTIVITY SCOPE
+
+The activity percentage is one process's reported contribution to one GPU
+engine, selected as the highest exposed instance across all adapters. The
+PID and engine type identify that observation. It is not an adapter total
+or Task Manager's GPU total. Hover the value for the complete counter name.
+
+-- / Idle / unavailable means there is no ranked nonzero observation.
+Startup, no activity and an unsupported / missing counter look the same.
+The counter has no freshness timestamp; a collection error can retain an
+older observation. Unsupported counter format means scope could not be
+verified. On Rainmeter 4.5, another skin's GPU counter can affect name
+translation; unload conflicting GPU skins and refresh to troubleshoot.
+
+OPTIONAL HWiNFO REGISTRY EXPORT
+
+The three extra readings start Off. This skin installs nothing and does
+not need the external HWiNFO plugin or Shared Memory support.
+
+1. If you choose to use HWiNFO, follow its license for your use. In HWiNFO's
+   sensor settings, enable reporting to Gadget and select Report value in
+   Gadget only for the GPU temperature, power and clock sensors you want.
+   Read each sensor's explanation so you know whether power is board or
+   chip power, temperature is core or hotspot, and clock is core or memory.
+
+2. Hover over GPU and click the gear to open the separate GPU Settings
+   utility. It can stay open beside the GPU meter. The official Rainmeter
+   guide covers HWiNFO Gadget setup:
+   https://docs.rainmeter.net/tips/hwinfo/
+
+3. Choose the registry hive holding your exports (Current user or Local
+   machine). Click Temperature, Power or Clock to read the exported list.
+   Use Previous/Next to browse, and hover a candidate for its complete
+   identity and value. Select the correct GPU and measurement yourself;
+   the list does not guess which reading you intended. Clear removes only
+   that row's mapping. Rescan reads the list again after HWiNFO changes.
+
+4. Switch HWiNFO sensors On to enable the mapped readings. Selecting a
+   mapping alone does not enable sensors. Each control saves immediately
+   to GPU.inc and refreshes only the GPU meter. X closes only settings.
+
+Advanced opens GPU.inc for custom registry paths or manual mappings.
+The default key is SOFTWARE\HWiNFO64\VSB. A manual mapping consists of
+the actual index N plus exact SensorN and LabelN strings in the matching
+GPU<Temperature/Power/Clock>Index/Sensor/Label options. Do not guess indices
+or copy another computer's mappings. Save advanced edits, reopen settings,
+then Refresh GPU. Sensor names with active Rainmeter syntax are not accepted
+by the picker; ordinary HWiNFO ordinal markers such as [#0] are supported.
+
+Values retain the unit provided in ValueN. Hover a value to see its full
+sensor and element identity. There is no assumed Celsius, watt or MHz
+conversion. A raw numeric zero is valid when the identity, registry
+membership and formatted value are present.
+
+Off: optional reads disabled. Unmapped: the index or identity is absent.
+Unavailable: required exports or valid values are absent. Check mapping:
+the index is invalid or the exported sensor / label no longer matches.
+
+Adding or removing Gadget exports can change indices. Recheck mappings
+after any such change. Exact identity checks help detect index drift but
+cannot distinguish two sensors with identical names and labels.
+
+Snapshot / age unknown is deliberate. These registry exports have no
+sample timestamp; HWiNFO may leave values behind after it stops. A repeated
+value does not prove a stall, and a running process would not prove fresh
+sensor data. Do not use these snapshots as temperature or power alarms.
+
+Registry reads follow SensorInterval (normally 2000 ms), rounded up to a
+whole number of skin updates. HWiNFO controls its own collection cadence.
+The UsageMonitor GPU category polls independently at 1 Hz. To release this
+skin's GPU category consumer, unload GPU; changing MetricsInterval does
+not throttle that worker. Another loaded consumer can keep it running.
+
+LAYOUT AND PERSISTENCE
+
+GPU.inc is a persistent [Variables] file. Columns=1 or 2 selects its width;
+default PanelHeight=288 provides room for the GPU capabilities and every row.
+GPU Settings offers Meter width and Fit panel height controls. If an older
+preserved height clips the lower rows, click Fit panel height to use 288.
+The settings window uses its own two-column layout, independently of GPU.
+The gear replaces the header activity value only while hovered; activity
+continues updating. Global settings opens the shared appearance controls.
+Export discovery runs only when choosing a sensor row or pressing Rescan.
+No history, user sensor listing or runtime cache is written by this skin.

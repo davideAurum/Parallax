@@ -1,0 +1,372 @@
+// Original Parallax C# source. The .cs.txt extension permits source-only packaging;
+// Rainmeter's once-per-refresh PowerShell query compiles this with Add-Type.
+// Uses Windows DXCore, DXGI and D3D12 APIs. No files, processes or live settings are changed.
+// API contract: https://learn.microsoft.com/en-us/windows/win32/dxcore/dxcore-enum-adapters
+// ABI reference: https://github.com/microsoft/DirectX-Headers/blob/main/include/directx/dxcore_interface.h
+// D3D12 ABI: https://github.com/microsoft/DirectX-Headers/blob/main/include/directx/d3d12.h
+// DXGI ABI: https://github.com/microsoft/win32metadata/blob/main/generation/WinSDK/RecompiledIdlHeaders/shared/dxgi1_4.h
+using System;
+using System.Globalization;
+using System.Runtime.InteropServices;
+using System.Text;
+
+public static class ParallaxGpuInfo
+{
+    private static readonly Guid FactoryId = new Guid("78ee5945-c36e-4b13-a669-005dd11c0f06");
+    private static readonly Guid ListId = new Guid("526c7776-40e9-459b-b711-f32ad76dfc28");
+    private static readonly Guid AdapterId = new Guid("f0db4c7f-fe5a-42a2-bd62-f2a6cf6fc83e");
+    private static readonly Guid GraphicsAttribute = new Guid("0c9ece4d-2f6e-4f01-8c96-e89e331b47b1");
+    private static readonly Guid DxgiFactoryId = new Guid("1bc6ea02-ef36-464f-bf0c-21ca39e5168a");
+    private static readonly Guid DxgiAdapterId = new Guid("29038f61-3839-4626-91fd-086879011a05");
+    private static readonly Guid DeviceId = new Guid("189819f1-1db6-4b57-be54-1821339b85f7");
+    private const uint InstanceLuid = 0;
+    private const uint DriverVersion = 1;
+    private const uint DriverDescription = 2;
+    private const uint DedicatedAdapterMemory = 7;
+    private const uint IsHardware = 11;
+    private const uint IsIntegrated = 12;
+    private const uint HighPerformance = 2;
+    private const int InvalidArgument = unchecked((int)0x80070057);
+
+    [DllImport("dxcore.dll", ExactSpelling = true, CallingConvention = CallingConvention.StdCall)]
+    [DefaultDllImportSearchPaths(DllImportSearchPath.System32)]
+    private static extern int DXCoreCreateAdapterFactory(ref Guid interfaceId, out IntPtr factory);
+
+    [DllImport("dxgi.dll", ExactSpelling = true, CallingConvention = CallingConvention.StdCall)]
+    [DefaultDllImportSearchPaths(DllImportSearchPath.System32)]
+    private static extern int CreateDXGIFactory1(ref Guid interfaceId, out IntPtr factory);
+
+    [DllImport("d3d12.dll", ExactSpelling = true, CallingConvention = CallingConvention.StdCall)]
+    [DefaultDllImportSearchPaths(DllImportSearchPath.System32)]
+    private static extern int D3D12CreateDevice(IntPtr adapter, uint minimumFeatureLevel, ref Guid interfaceId, out IntPtr device);
+
+    [UnmanagedFunctionPointer(CallingConvention.StdCall)]
+    private delegate int CreateList(IntPtr self, uint count, [In] Guid[] attributes, ref Guid interfaceId, out IntPtr list);
+    [UnmanagedFunctionPointer(CallingConvention.StdCall)]
+    private delegate int GetAdapter(IntPtr self, uint index, ref Guid interfaceId, out IntPtr adapter);
+    [UnmanagedFunctionPointer(CallingConvention.StdCall)]
+    private delegate uint GetCount(IntPtr self);
+    [UnmanagedFunctionPointer(CallingConvention.StdCall)]
+    [return: MarshalAs(UnmanagedType.I1)]
+    private delegate bool GetFlag(IntPtr self);
+    [UnmanagedFunctionPointer(CallingConvention.StdCall)]
+    [return: MarshalAs(UnmanagedType.I1)]
+    private delegate bool Supports(IntPtr self, uint value);
+    [UnmanagedFunctionPointer(CallingConvention.StdCall)]
+    private delegate int SortList(IntPtr self, uint count, [In] uint[] preferences);
+    [UnmanagedFunctionPointer(CallingConvention.StdCall)]
+    private delegate int GetProperty(IntPtr self, uint property, UIntPtr bufferSize, IntPtr buffer);
+    [UnmanagedFunctionPointer(CallingConvention.StdCall)]
+    private delegate int GetPropertySize(IntPtr self, uint property, out UIntPtr size);
+    [UnmanagedFunctionPointer(CallingConvention.StdCall)]
+    private delegate int EnumAdapterByLuid(IntPtr self, Luid luid, ref Guid interfaceId, out IntPtr adapter);
+    [UnmanagedFunctionPointer(CallingConvention.StdCall)]
+    private delegate int CheckFeatureSupport(IntPtr self, uint feature, IntPtr data, uint size);
+
+    [StructLayout(LayoutKind.Sequential)]
+    private struct Luid
+    {
+        public uint Low;
+        public int High;
+    }
+
+    [StructLayout(LayoutKind.Sequential)]
+    private struct FeatureLevels
+    {
+        public uint Count;
+        public IntPtr Requested;
+        public uint Maximum;
+    }
+
+    [StructLayout(LayoutKind.Sequential)]
+    private struct ShaderModel
+    {
+        public uint Highest;
+    }
+
+    [StructLayout(LayoutKind.Sequential)]
+    private struct Options5
+    {
+        public int SrvOnlyTiledResourceTier3; // Native BOOL, four bytes.
+        public uint RenderPassesTier;
+        public uint RaytracingTier;
+    }
+
+    // One-line success protocol, exactly seven fields:
+    // OK|model|dedicatedVideoMemoryBytes|d3dFeatureLevel|shaderModel|rayTracingTier|driverVersion
+    // An unknown individual capability is "?"; DXR unsupported is "NONE".
+    // Other results remain NONE, UNAVAILABLE, or AMBIGUOUS.
+    // "Main" means the first discrete GPU in Windows' high-performance order.
+    // This list covers D3D12 graphics adapters; it is not a display-ownership query.
+    // Capabilities describe the installed driver and system D3D12 runtime. DXR
+    // support does not establish dedicated RT cores or ray-tracing performance.
+    public static string Read()
+    {
+        IntPtr factory = IntPtr.Zero;
+        IntPtr list = IntPtr.Zero;
+        IntPtr selected = IntPtr.Zero;
+        try
+        {
+            Guid factoryId = FactoryId;
+            Check(DXCoreCreateAdapterFactory(ref factoryId, out factory));
+            Guid listId = ListId;
+            Check(Method<CreateList>(factory, 3)(factory, 1, new Guid[] { GraphicsAttribute }, ref listId, out list));
+
+            bool canSort = Method<Supports>(list, 8)(list, HighPerformance);
+            if (canSort)
+                Check(Method<SortList>(list, 7)(list, 1, new uint[] { HighPerformance }));
+
+            uint count = Method<GetCount>(list, 4)(list);
+            if (count > 512) return "UNAVAILABLE";
+            int discreteCount = 0;
+            for (uint index = 0; index < count; ++index)
+            {
+                IntPtr adapter = IntPtr.Zero;
+                try
+                {
+                    Guid adapterId = AdapterId;
+                    Check(Method<GetAdapter>(list, 3)(list, index, ref adapterId, out adapter));
+                    if (!Method<GetFlag>(adapter, 3)(adapter)) return "UNAVAILABLE";
+                    if (!ReadBoolean(adapter, IsHardware)) continue;
+                    if (ReadBoolean(adapter, IsIntegrated)) continue;
+                    ++discreteCount;
+                    if (selected == IntPtr.Zero)
+                    {
+                        Marshal.AddRef(adapter);
+                        selected = adapter;
+                    }
+                }
+                finally
+                {
+                    if (adapter != IntPtr.Zero) Marshal.Release(adapter);
+                }
+            }
+            // Device arrival/removal during enumeration invalidates this snapshot.
+            if (Method<GetFlag>(list, 5)(list)) return "UNAVAILABLE";
+            if (discreteCount == 0) return "NONE";
+            if (!canSort && discreteCount > 1) return "AMBIGUOUS";
+            string name = ReadName(selected);
+            if (String.IsNullOrEmpty(name)) return "UNAVAILABLE";
+            ulong value;
+            string memory = TryReadUInt64(selected, DedicatedAdapterMemory, out value)
+                ? value.ToString(CultureInfo.InvariantCulture) : "?";
+            string driver = TryReadUInt64(selected, DriverVersion, out value)
+                ? FormatDriverVersion(value) : "?";
+            string featureLevel, shaderModel, rayTracing;
+            ReadD3D12(selected, out featureLevel, out shaderModel, out rayTracing);
+            if (!Method<GetFlag>(selected, 3)(selected) || Method<GetFlag>(list, 5)(list)) return "UNAVAILABLE";
+            return String.Join("|", new string[] { "OK", name, memory, featureLevel, shaderModel, rayTracing, driver });
+        }
+        catch
+        {
+            // Old Windows, unsupported properties, unavailable drivers and query
+            // failures must never silently select an integrated or guessed GPU.
+            return "UNAVAILABLE";
+        }
+        finally
+        {
+            if (selected != IntPtr.Zero) Marshal.Release(selected);
+            if (list != IntPtr.Zero) Marshal.Release(list);
+            if (factory != IntPtr.Zero) Marshal.Release(factory);
+        }
+    }
+
+    private static T Method<T>(IntPtr instance, int slot) where T : class
+    {
+        if (instance == IntPtr.Zero) throw new InvalidOperationException();
+        IntPtr address = Marshal.ReadIntPtr(Marshal.ReadIntPtr(instance), slot * IntPtr.Size);
+        return (T)(object)Marshal.GetDelegateForFunctionPointer(address, typeof(T));
+    }
+
+    private static void Check(int result)
+    {
+        if (result < 0) Marshal.ThrowExceptionForHR(result);
+    }
+
+    private static bool TryReadUInt64(IntPtr adapter, uint property, out ulong value)
+    {
+        value = 0;
+        IntPtr buffer = IntPtr.Zero;
+        try
+        {
+            if (!Method<Supports>(adapter, 5)(adapter, property)) return false;
+            UIntPtr size;
+            Check(Method<GetPropertySize>(adapter, 7)(adapter, property, out size));
+            if (size.ToUInt64() != 8) return false;
+            buffer = Marshal.AllocHGlobal(8);
+            Marshal.WriteInt64(buffer, 0);
+            Check(Method<GetProperty>(adapter, 6)(adapter, property, size, buffer));
+            value = unchecked((ulong)Marshal.ReadInt64(buffer));
+            return true;
+        }
+        catch { return false; }
+        finally { if (buffer != IntPtr.Zero) Marshal.FreeHGlobal(buffer); }
+    }
+
+    private static string FormatDriverVersion(ulong version)
+    {
+        return String.Format(CultureInfo.InvariantCulture, "{0}.{1}.{2}.{3}",
+            (version >> 48) & 0xffff, (version >> 32) & 0xffff,
+            (version >> 16) & 0xffff, version & 0xffff);
+    }
+
+    private static void ReadD3D12(IntPtr selected, out string featureLevel, out string shaderModel, out string rayTracing)
+    {
+        featureLevel = shaderModel = rayTracing = "?";
+        IntPtr factory = IntPtr.Zero;
+        IntPtr adapter = IntPtr.Zero;
+        IntPtr device = IntPtr.Zero;
+        try
+        {
+            ulong luidValue;
+            if (!TryReadUInt64(selected, InstanceLuid, out luidValue)) return;
+            Luid luid = new Luid { Low = (uint)luidValue, High = unchecked((int)(luidValue >> 32)) };
+            Guid factoryId = DxgiFactoryId;
+            Check(CreateDXGIFactory1(ref factoryId, out factory));
+            Guid adapterId = DxgiAdapterId;
+            // IDXGIFactory4 slot 26 selects precisely the same adapter. Never
+            // pass NULL to D3D12CreateDevice: that would choose the default GPU.
+            Check(Method<EnumAdapterByLuid>(factory, 26)(factory, luid, ref adapterId, out adapter));
+            if (adapter == IntPtr.Zero) return;
+            Guid deviceId = DeviceId;
+            Check(D3D12CreateDevice(adapter, 0xb000, ref deviceId, out device));
+            featureLevel = ReadFeatureLevel(device);
+            shaderModel = ReadShaderModel(device);
+            rayTracing = ReadRayTracing(device);
+        }
+        catch { /* Keep known DXCore metadata even when D3D12 is unavailable. */ }
+        finally
+        {
+            if (device != IntPtr.Zero) Marshal.Release(device);
+            if (adapter != IntPtr.Zero) Marshal.Release(adapter);
+            if (factory != IntPtr.Zero) Marshal.Release(factory);
+        }
+    }
+
+    private static int QueryFeature<T>(IntPtr device, uint feature, ref T data) where T : struct
+    {
+        int size = Marshal.SizeOf(typeof(T));
+        IntPtr buffer = Marshal.AllocHGlobal(size);
+        try
+        {
+            Marshal.StructureToPtr(data, buffer, false);
+            // ID3D12Device inherits seven IUnknown/ID3D12Object methods; its
+            // CheckFeatureSupport method occupies vtable slot 13.
+            int result = Method<CheckFeatureSupport>(device, 13)(device, feature, buffer, (uint)size);
+            if (result >= 0) data = (T)Marshal.PtrToStructure(buffer, typeof(T));
+            return result;
+        }
+        finally { Marshal.FreeHGlobal(buffer); }
+    }
+
+    private static string ReadFeatureLevel(IntPtr device)
+    {
+        IntPtr requested = IntPtr.Zero;
+        try
+        {
+            int[] levels = new int[] { 0xc200, 0xc100, 0xc000, 0xb100, 0xb000 };
+            requested = Marshal.AllocHGlobal(levels.Length * 4);
+            Marshal.Copy(levels, 0, requested, levels.Length);
+            for (int start = 0; start < levels.Length; ++start)
+            {
+                FeatureLevels data = new FeatureLevels {
+                    Count = (uint)(levels.Length - start), Requested = IntPtr.Add(requested, start * 4), Maximum = 0
+                };
+                int result = QueryFeature(device, 2, ref data);
+                if (result == InvalidArgument) continue; // Older runtime may not know 12_2.
+                if (result < 0 || Array.IndexOf(levels, (int)data.Maximum, start) < 0) return "?";
+                return String.Format(CultureInfo.InvariantCulture, "{0}.{1}", data.Maximum >> 12, (data.Maximum >> 8) & 0xf);
+            }
+        }
+        catch { }
+        finally { if (requested != IntPtr.Zero) Marshal.FreeHGlobal(requested); }
+        return "?";
+    }
+
+    private static string ReadShaderModel(IntPtr device)
+    {
+        try
+        {
+            // Known SDK enum values through SM 6.10. An old runtime reports
+            // E_INVALIDARG for an unknown requested version; try the next one.
+            uint[] versions = new uint[] { 0x6a, 0x69, 0x68, 0x67, 0x66, 0x65, 0x64, 0x63, 0x62, 0x61, 0x60, 0x51 };
+            foreach (uint version in versions)
+            {
+                ShaderModel data = new ShaderModel { Highest = version };
+                int result = QueryFeature(device, 7, ref data);
+                if (result == InvalidArgument) continue;
+                if (result < 0 || data.Highest > version || Array.IndexOf(versions, data.Highest) < 0) return "?";
+                return String.Format(CultureInfo.InvariantCulture, "{0}.{1}", data.Highest >> 4, data.Highest & 0xf);
+            }
+        }
+        catch { }
+        return "?";
+    }
+
+    private static string ReadRayTracing(IntPtr device)
+    {
+        try
+        {
+            Options5 data = new Options5();
+            if (QueryFeature(device, 27, ref data) < 0) return "?";
+            switch (data.RaytracingTier)
+            {
+                case 0: return "NONE";
+                case 10: return "1.0";
+                case 11: return "1.1";
+                case 12: return "1.2";
+                default: return "?";
+            }
+        }
+        catch { return "?"; }
+    }
+
+    private static bool ReadBoolean(IntPtr adapter, uint property)
+    {
+        if (!Method<Supports>(adapter, 5)(adapter, property)) throw new NotSupportedException();
+        IntPtr buffer = Marshal.AllocHGlobal(1);
+        try
+        {
+            Marshal.WriteByte(buffer, 0);
+            Check(Method<GetProperty>(adapter, 6)(adapter, property, new UIntPtr(1), buffer));
+            byte value = Marshal.ReadByte(buffer);
+            if (value > 1) throw new InvalidOperationException();
+            return value != 0;
+        }
+        finally { Marshal.FreeHGlobal(buffer); }
+    }
+
+    private static string ReadName(IntPtr adapter)
+    {
+        if (!Method<Supports>(adapter, 5)(adapter, DriverDescription)) throw new NotSupportedException();
+        UIntPtr nativeSize;
+        Check(Method<GetPropertySize>(adapter, 7)(adapter, DriverDescription, out nativeSize));
+        ulong length = nativeSize.ToUInt64();
+        if (length == 0 || length > 16384) throw new InvalidOperationException();
+        IntPtr buffer = Marshal.AllocHGlobal((int)length);
+        try
+        {
+            Check(Method<GetProperty>(adapter, 6)(adapter, DriverDescription, nativeSize, buffer));
+            byte[] bytes = new byte[(int)length];
+            Marshal.Copy(buffer, bytes, 0, bytes.Length);
+            int end = Array.IndexOf(bytes, (byte)0);
+            if (end < 0) throw new InvalidOperationException();
+            string name = new UTF8Encoding(false, true).GetString(bytes, 0, end);
+            StringBuilder clean = new StringBuilder();
+            bool space = false;
+            foreach (char character in name)
+            {
+                if (character == '|' || Char.IsControl(character) || Char.IsWhiteSpace(character))
+                {
+                    space = clean.Length > 0;
+                    continue;
+                }
+                if (space) clean.Append(' ');
+                clean.Append(character);
+                space = false;
+            }
+            return clean.ToString();
+        }
+        finally { Marshal.FreeHGlobal(buffer); }
+    }
+}

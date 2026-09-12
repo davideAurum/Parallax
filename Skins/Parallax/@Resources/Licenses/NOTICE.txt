@@ -1,0 +1,11 @@
+Parallax includes unmodified IBM Plex Sans Regular, Medium, SemiBold and Bold.
+Copyright 2017 IBM Corp. with Reserved Font Name "Plex".
+License: SIL Open Font License 1.1; full terms in IBM-Plex-OFL.txt.
+Source: https://github.com/IBM/plex/tree/master/packages/plex-sans/fonts/complete/ttf
+Retrieved from IBM's official repository on 2026-09-11.
+The fonts are loaded privately by Rainmeter from @Resources/Fonts.
+
+Visual inspiration: ModernGadgets by raiguard.
+Reference: https://github.com/raiguard/ModernGadgets
+Parallax's Rainmeter code and vector meters are independently implemented.
+No ModernGadgets code, preview artwork or icon assets are distributed here.

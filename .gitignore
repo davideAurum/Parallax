@@ -1,0 +1,36 @@
+build/
+dist/
+*.log
+*.rmskin
+**/Cache/
+**/Runtime/
+**/tokens*.json
+**/.env
+
+# Local Rainmeter plugin installations are not Parallax source.
+/@Vault/
+/Skins/@Vault/
+/Skins/WebNowPlayingRedux/
+
+# Keep reusable test harnesses; omit only their generated runs and captures.
+**/.runtime/
+**/.preview/
+**/__pycache__/
+*.py[cod]
+/Skins/Parallax/@Resources/Modules/Network/QA/run-*/
+/Skins/Parallax/@Resources/Modules/Network/QA/connection-run-*/
+
+# Runtime state, authentication material, and transient files.
+*.tmp
+*.bak
+Rainmeter.data
+Rainmeter.stats
+Parallax-Chronometer-*.state
+*.dpapi
+queue.snapshot
+source.snapshot
+queue.retry.json
+auth.lock
+stop.request
+.env.*
+!.env.example

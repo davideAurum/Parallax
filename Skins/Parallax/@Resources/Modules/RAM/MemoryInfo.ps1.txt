@@ -1,0 +1,31 @@
+# Read once on skin refresh. No polling, elevation, identifiers or file output.
+# Numeric RAMINFO1 wire format: slots|capacity,type,configuredRate,form;...
+$ErrorActionPreference = 'Stop'
+try {
+    $devices = @(Get-CimInstance -ClassName Win32_PhysicalMemory -Property Capacity,SMBIOSMemoryType,ConfiguredClockSpeed,FormFactor -ErrorAction Stop)
+    if ($devices.Count -eq 0 -or $devices.Count -gt 512) { throw 'No usable memory inventory.' }
+    $rows = foreach ($device in $devices) {
+        '{0},{1},{2},{3}' -f [uint64]$device.Capacity, [uint32]$device.SMBIOSMemoryType, [uint32]$device.ConfiguredClockSpeed, [uint16]$device.FormFactor
+    }
+    # An unavailable or inconsistent array count must not discard device data.
+    $slots = 0
+    try {
+        $inventory = @(Get-CimInstance -ClassName Win32_PhysicalMemoryArray -Property Use,MemoryDevices -ErrorAction Stop)
+        # Unknown array uses can hide part of system memory. Never present a
+        # partial denominator as the machine's full slot/socket count.
+        foreach ($array in $inventory) {
+            if ([uint16]$array.Use -notin 1,3,4,5,6,7) { throw 'Unknown memory array use.' }
+        }
+        $arrays = @($inventory | Where-Object { $_.Use -eq 3 })
+        if ($arrays.Count -gt 0) {
+            foreach ($array in $arrays) {
+                if ([uint32]$array.MemoryDevices -eq 0) { throw 'Unknown socket count.' }
+                $slots += [uint32]$array.MemoryDevices
+            }
+            if ($slots -gt 65535) { $slots = 0 }
+        }
+    } catch { $slots = 0 }
+    [Console]::Write('RAMINFO1|' + $slots + '|' + ($rows -join ';'))
+} catch {
+    [Console]::Write('UNAVAILABLE')
+}

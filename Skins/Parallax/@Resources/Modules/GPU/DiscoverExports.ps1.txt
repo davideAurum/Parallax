@@ -1,0 +1,137 @@
+# Original executable PowerShell source; .ps1.txt is preserved by the suite's
+# source-only packager. Invoked from a fixed trusted StartInFolder / ScriptBlock.
+# Original Parallax one-shot HWiNFO export browser. Registry access is read-only.
+# Called only by an explicit GPU Settings Browse / Rescan action; no polling.
+# Data-only ASCII protocol (text payloads are hexadecimal UTF-8):
+# GPU_EXPORTS|1|status|hiveHex|keyHex|skippedCount|limited0or1
+# ITEM|index|sensorHex|labelHex|formattedValueHex|rawValueHex
+# status: OK, EMPTY, MISSING, UNAVAILABLE, INVALID_CONFIG, TOO_MANY.
+# The settings include is read from its fixed module-relative path. No arguments,
+# provider strings, commands, environment expansion, writes or saved snapshots.
+[CmdletBinding()]
+param()
+
+Set-StrictMode -Version 2.0
+$ErrorActionPreference = 'Stop'
+[Console]::OutputEncoding = [Text.UTF8Encoding]::new($false)
+
+function ConvertTo-GPUHex([string] $Text) {
+    return [BitConverter]::ToString([Text.Encoding]::UTF8.GetBytes($Text)).Replace('-', '')
+}
+
+function Read-GPUExportSource {
+    $path = [IO.Path]::GetFullPath((Join-Path (Get-Location).Path '..\..\User\GPU.inc'))
+    $info = [IO.FileInfo]::new($path)
+    if (-not $info.Exists -or $info.Length -gt 65536) { throw 'Invalid settings file' }
+    $text = [IO.File]::ReadAllText($path)
+    $variables = @{}
+    $inVariables = $false
+    foreach ($line in ($text -split '\r?\n')) {
+        if ($line -match '^\s*\[([^\]]+)\]\s*(?:;.*)?$') {
+            $inVariables = $Matches[1] -ieq 'Variables'
+        }
+        elseif ($inVariables -and $line -match '^\s*([^;=\s]+)\s*=(.*)$') {
+            $variables[$Matches[1]] = $Matches[2].Trim()
+        }
+    }
+    $hive = if ($variables.ContainsKey('GPURegHKey')) { $variables.GPURegHKey } else { 'HKEY_CURRENT_USER' }
+    $key = if ($variables.ContainsKey('GPURegKey')) { $variables.GPURegKey } else { 'SOFTWARE\HWiNFO64\VSB' }
+    if ($hive -cnotin @('HKEY_CURRENT_USER', 'HKEY_LOCAL_MACHINE') -or
+            $key.Length -eq 0 -or $key.Length -gt 1024 -or $key -match '[\x00-\x1F\x7F#\[\]"]') {
+        throw 'Unsupported registry source'
+    }
+    return @{ Hive = $hive; Key = $key }
+}
+
+function ConvertTo-GPUExport {
+    param([Collections.IDictionary] $Values, [int] $Index)
+    foreach ($prefix in @('Sensor', 'Label', 'Value', 'ValueRaw')) {
+        $name = $prefix + $Index
+        if (-not $Values.Contains($name) -or $Values[$name] -isnot [string] -or
+                $Values[$name].Length -eq 0 -or $Values[$name].Length -gt 512) { return $null }
+    }
+    # Do not alter identity text. The controller validates that an exact mapping
+    # can be safely represented in Rainmeter before it offers to persist it.
+    $sensor = $Values['Sensor' + $Index]
+    $label = $Values['Label' + $Index]
+    $formatted = $Values['Value' + $Index].Trim()
+    $raw = $Values['ValueRaw' + $Index].Trim()
+    if ($sensor.Trim().Length -eq 0 -or $label.Trim().Length -eq 0 -or
+            $formatted.Length -eq 0 -or $formatted -notmatch '[0-9]') { return $null }
+    [double] $number = 0
+    if (-not [double]::TryParse($raw, [Globalization.NumberStyles]::Float,
+            [Globalization.CultureInfo]::InvariantCulture, [ref] $number) -or
+            [double]::IsNaN($number) -or [double]::IsInfinity($number)) { return $null }
+    # Live GPU readers require ValueN to include a unit, not just another bare
+    # numeric field. Do not infer which GPU or kind of measurement it represents.
+    [double] $bare = 0
+    if ([double]::TryParse($formatted, [Globalization.NumberStyles]::Float,
+            [Globalization.CultureInfo]::InvariantCulture, [ref] $bare)) { return $null }
+    return 'ITEM|' + $Index + '|' + (ConvertTo-GPUHex $sensor) + '|' +
+        (ConvertTo-GPUHex $label) + '|' + (ConvertTo-GPUHex $formatted) + '|' + (ConvertTo-GPUHex $raw)
+}
+
+function Get-GPUExportSnapshot {
+    $hive = ''
+    $path = ''
+    try {
+        $source = Read-GPUExportSource
+        $hive = $source.Hive
+        $path = $source.Key
+    }
+    catch { return 'GPU_EXPORTS|1|INVALID_CONFIG|||0|0' }
+
+    $base = $null
+    $key = $null
+    $status = 'UNAVAILABLE'
+    $skipped = 0
+    $limited = 0
+    $lines = [Collections.Generic.List[string]]::new()
+    $outputLength = 0
+    try {
+        $hiveId = if ($hive -eq 'HKEY_CURRENT_USER') {
+            [Microsoft.Win32.RegistryHive]::CurrentUser
+        } else { [Microsoft.Win32.RegistryHive]::LocalMachine }
+        # HWiNFO64 exports use the native 64-bit view, as do the monitor's native
+        # Registry measures on supported 64-bit Rainmeter.
+        $base = [Microsoft.Win32.RegistryKey]::OpenBaseKey($hiveId, [Microsoft.Win32.RegistryView]::Registry64)
+        $key = $base.OpenSubKey($path, $false)
+        if ($null -eq $key) { $status = 'MISSING' }
+        elseif ($key.ValueCount -gt 4096) { $status = 'TOO_MANY' }
+        else {
+            $indices = @($key.GetValueNames() | ForEach-Object {
+                if ($_ -cmatch '^Sensor(0|[1-9][0-9]{0,4})$') { [int] $Matches[1] }
+            } | Sort-Object -Unique)
+            foreach ($index in $indices) {
+                $values = @{}
+                foreach ($prefix in @('Sensor', 'Label', 'Value', 'ValueRaw')) {
+                    $name = $prefix + $index
+                    $values[$name] = $key.GetValue($name, $null,
+                        [Microsoft.Win32.RegistryValueOptions]::DoNotExpandEnvironmentNames)
+                }
+                $line = ConvertTo-GPUExport -Values $values -Index $index
+                if ($null -eq $line) { $skipped++; continue }
+                if ($lines.Count -ge 256 -or $outputLength + $line.Length -gt 750000) {
+                    $limited = 1
+                    break
+                }
+                $lines.Add($line)
+                $outputLength += $line.Length + 1
+            }
+            $status = if ($lines.Count -gt 0) { 'OK' } else { 'EMPTY' }
+        }
+    }
+    catch {
+        $status = 'UNAVAILABLE'
+        $lines.Clear()
+    }
+    finally {
+        if ($null -ne $key) { $key.Dispose() }
+        if ($null -ne $base) { $base.Dispose() }
+    }
+    'GPU_EXPORTS|1|' + $status + '|' + (ConvertTo-GPUHex $hive) + '|' +
+        (ConvertTo-GPUHex $path) + '|' + $skipped + '|' + $limited
+    foreach ($line in $lines) { $line }
+}
+
+Get-GPUExportSnapshot

@@ -1,0 +1,21 @@
+# Initial integration evidence
+
+The appearance revision 2 and subsequent utility features supersede the original geometry, palette and capabilities below. [APPEARANCE-REVIEW.md](APPEARANCE-REVIEW.md) records the earlier visual revision; [SETTINGS-REVIEW.md](SETTINGS-REVIEW.md) records the current Global Settings and color picker checks. Consult each document under `docs/modules/` for its latest utility evidence. Counts, dimensions, pending features and staging paths below are historical snapshots, not claims about the current build.
+
+Checked 2026-09-11 during parallel utility development. This is a snapshot; utility tasks may refine their sources after these checks.
+
+- Whole source tree: `tools/Test-Parallax.ps1 -RequireAllModules` passed with 11 configs (including variants), 41 INI/include files, zero errors and zero warnings. All nine required module/settings directories are represented.
+- Shared settings: `tools/tests/Test-Settings.ps1` passed 164 Lua assertions and native meter-bound checks using Rainmeter 4.5.26.3894 / Lua 5.1 in an isolated instance. The default Settings window is 576 x 568 px; include precedence and in-window meter bounds passed. The isolated log contained no errors. The user's existing Rainmeter instance remained running.
+- Global sizing: `tools/tests/test_settings_geometry.py` passed 60 combinations of scale, column width and gutter, checking text/control bounds and padding.
+- Packaging tooling: `tools/tests/Test-PackagingTools.ps1` passed its positive and negative fixtures under PowerShell 7.6.5. Negative fixtures intentionally report rejected inputs. Windows PowerShell 5.1 remains unverified under its current local execution policy.
+- Development snapshot staged successfully at `build/Parallax-0.1.0-dev-20260911T170655752Z-26c2de4a/`: 53 files, 11 excluded developer/runtime files, SHA-256 manifest and nine exact User variables-file paths. The staged copy also passed all-module static checks. This is a source snapshot, not a `.rmskin`.
+
+Each utility's own report is under `docs/modules/`. Module-native tests and hardware checks have separate coverage. Source assertions and invisible native checks do not prove visual appearance, fonts/mixed DPI, every provider, CPU overhead, or upgrade migration. Public-release gates remain in PACKAGING.md. Authenticated Spotify queue implementation is pending. Re-stage after utility tasks finish and after any source changes.
+
+## Received utility completion reports
+
+Drive I/O delivered native capacity (`IO.ini`) and optional disk read/write counters (`IO-Disk.ini`) with network monitoring removed. Its module owner reports 168 geometry checks plus capacity/cadence checks and read-only Windows capacity/PDH probes passed. Rainmeter/Lua execution and visual/performance checks remain pending for this module. Default to `IO.ini` and preserve `User/IO.inc`. Optional disk rates are explicitly provider-reported: idle zero and unavailable cannot reliably be separated, and sample freshness is unverified. See `docs/modules/IO.md` for the tested scope and release checklist.
+
+Network delivered its independently loadable `Network/Network.ini`, native one-second throughput/status, configurable adapter and graph ceilings, bits/bytes display and 60-sample histories. Its owner reports 27 Lua logic/controller tests and ten full-skin isolated native smoke cases passed in Rainmeter 4.5.26.3894 with no log errors. Cases cover both widths at four scales, independence from slow MetricsInterval settings, and invalid selector suppression. Preserve `User/Network.inc`; exclude module Tests/QA folders. Sustained transfer accuracy, adapter transitions, visual/mixed-DPI inspection and performance are still manual acceptance work. See `docs/modules/Network.md`.
+
+After the Network completion report, staging was refreshed at `build/Parallax-0.1.0-dev-20260911T171122606Z-966578ca/`: 53 distributable files and 18 exclusions. Both source and stage passed static validation (11 configs, 41 INI/include files, zero errors/warnings). The stage contains the Network entrypoint and its settings-preservation path; no Test/Tests, QA or Fixtures paths are included. This newer development snapshot remains a source stage, not an installer.

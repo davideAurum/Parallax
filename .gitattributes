@@ -1,0 +1,7 @@
+# Keep binary assets and Rainmeter's intentionally UTF-16LE readers intact.
+* text=auto
+*.ttf binary
+*.exe binary
+Skins/Parallax/@Resources/Licenses/IBM-Plex-OFL.txt -text
+Skins/Parallax/@Resources/Modules/Media/Queue/QueueReader.lua -text
+Skins/Parallax/@Resources/Modules/Media/Source/SourceReader.lua -text

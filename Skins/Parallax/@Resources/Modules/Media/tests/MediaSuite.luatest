@@ -1,0 +1,347 @@
+-- Developer-only synthetic behavior tests (.luatest excludes packaging).
+-- No provider/plugin or real SKIN calls.
+-- Production Media.lua runs unchanged under a mock SKIN in Rainmeter's Lua 5.1.
+local suite = {}
+
+function suite.run(sourcePath)
+    local passed, cases = 0, {}
+    local function check(condition, message)
+        assert(condition, message)
+        passed = passed + 1
+    end
+    local function scenario(name, test)
+        local before = passed
+        test()
+        cases[#cases + 1] = name .. ': ' .. (passed - before) .. ' assertions'
+    end
+    local function fixture()
+        local calls = {}
+        local values = {
+            MeasureConnection = { value = 1 },
+            MeasureTitle = { text = 'Synthetic title for tests only' },
+            MeasureCover = { text = 'synthetic-cover-no-file.png' },
+            MeasureState = { value = 1 },
+            MeasurePosition = { value = 30 },
+            MeasureDuration = { value = 180 },
+            MeasureCanPrevious = { value = 1 },
+            MeasureCanPlayPause = { value = 1 },
+            MeasureCanNext = { value = 1 }
+        }
+        local variables = {
+            MediaColor = '71,120,160',
+            MutedColor = '111,112,113',
+            AccentColor = '137,190,250',
+            Columns = '2'
+        }
+        local mock = {}
+        function mock:GetMeasure(name)
+            local value = values[name]
+            if value == false then return nil end
+            assert(value, 'Unexpected measure lookup: ' .. tostring(name))
+            return {
+                GetValue = function() return value.value end,
+                GetStringValue = function() return value.text end
+            }
+        end
+        function mock:GetVariable(name)
+            assert(variables[name], 'Unexpected variable lookup: ' .. tostring(name))
+            return variables[name]
+        end
+        function mock:Bang(...)
+            calls[#calls + 1] = { ... }
+        end
+        local env = setmetatable({ SKIN = mock }, { __index = _G })
+        local chunk = assert(loadfile(sourcePath))
+        setfenv(chunk, env)
+        chunk()
+        env.Initialize()
+        check(#calls == 0, 'Initialize must not issue commands')
+        local instance = { env = env, values = values, variables = variables }
+        function instance.reset() calls = {} end
+        function instance.calls() return calls end
+        function instance.count(bang, target)
+            local count = 0
+            for _, call in ipairs(calls) do
+                if call[1] == bang and (target == nil or call[2] == target) then count = count + 1 end
+            end
+            return count
+        end
+        function instance.option(target, key)
+            local found = nil
+            for _, call in ipairs(calls) do
+                if call[1] == '!SetOption' and call[2] == target and call[3] == key then found = call[4] end
+            end
+            return found
+        end
+        function instance.visible(target, isGroup)
+            local show = isGroup and '!ShowMeterGroup' or '!ShowMeter'
+            local hide = isGroup and '!HideMeterGroup' or '!HideMeter'
+            local found = nil
+            for _, call in ipairs(calls) do
+                if call[2] == target then
+                    if call[1] == show then found = true end
+                    if call[1] == hide then found = false end
+                end
+            end
+            return found
+        end
+        function instance.assertOneRedraw()
+            check(instance.count('!UpdateMeterGroup', 'MediaDynamic') == 1, 'Changed UI must update MediaDynamic exactly once')
+            check(instance.count('!Redraw') == 1, 'Changed UI must redraw exactly once')
+            check(instance.count('!CommandMeasure') == 0, 'Update must not send playback commands')
+        end
+        return instance
+    end
+
+    scenario('connected playing baseline', function()
+        local f = fixture()
+        check(f.env.Update() == 'Playing', 'Playing status was lost')
+        check(f.visible('MediaTrack', true) == true, 'Connected title must show track')
+        check(f.visible('MeterNoMedia') == false, 'Track must hide no-media fallback')
+        check(f.visible('MediaTimeline', true) == true, 'Valid timing must show timeline')
+        check(f.visible('MeterTimingUnavailable') == false, 'Valid timing must hide unavailable marker')
+        check(f.visible('MeterCover') == true, 'Nonempty cover must show')
+        check(f.visible('MeterCoverLabel') == false, 'No art label must not show through transparent artwork')
+        check(f.visible('MeterArtworkLabel') == false, 'Idle label must not show behind a track')
+        check(f.option('MeterPlayPause', 'Text') == '||', 'Playing must use pause symbol ||')
+        for _, meter in ipairs({ 'MeterPrevious', 'MeterPlayPause', 'MeterNext' }) do
+            check(f.option(meter, 'FontColor') == '137,190,250', 'Enabled control must use AccentColor independently of MediaColor')
+            check(f.option(meter, 'MouseActionCursor') == '1', 'Supported control must have active cursor')
+            check(f.option(meter, 'ToolTipText'):find('reported supported', 1, true) ~= nil, 'Supported control tooltip missing')
+        end
+        f.assertOneRedraw()
+    end)
+
+    scenario('repeated and metadata-only samples avoid redundant bangs', function()
+        local f = fixture()
+        f.env.Update()
+        f.reset()
+        check(f.env.Update() == 'Playing' and #f.calls() == 0, 'Identical sample caused redundant display work')
+        f.values.MeasurePosition.value = 31
+        f.values.MeasureTitle.text = 'Another synthetic title'
+        f.values.MeasureCover.text = 'another-synthetic-cover-no-file.png'
+        check(f.env.Update() == 'Playing' and #f.calls() == 0, 'Bound measure metadata caused unnecessary bangs')
+        f.values.MeasureState.value = 2
+        check(f.env.Update() == 'Paused', 'Paused status incorrect')
+        check(f.option('MeterPlayPause', 'Text') == '>', 'Paused must use play symbol >')
+        check(f.count('!SetOption') == 1, 'State-only transition should change only symbol')
+        f.assertOneRedraw()
+        f.reset()
+        check(f.env.Update() == 'Paused' and #f.calls() == 0, 'Paused repeat caused redundant bangs')
+    end)
+
+    scenario('disconnected hides stale content and gates controls', function()
+        local f = fixture()
+        f.values.MeasureConnection.value = 0
+        check(f.env.Update() == 'WNP disconnected', 'Disconnected status incorrect')
+        check(f.visible('MediaTrack', true) == false and f.visible('MeterNoMedia') == true, 'Disconnected track visibility incorrect')
+        check(f.visible('MediaTimeline', true) == false and f.visible('MeterTimingUnavailable') == true, 'Disconnected timing visibility incorrect')
+        check(f.visible('MeterCover') == false, 'Disconnected stale cover shown')
+        check(f.option('MeterPlayPause', 'Text') == '>', 'Disconnected symbol must not suggest playing')
+        for _, meter in ipairs({ 'MeterPrevious', 'MeterPlayPause', 'MeterNext' }) do
+            check(f.option(meter, 'FontColor') == '111,112,113', 'Disconnected control must use MutedColor')
+            check(f.option(meter, 'MouseActionCursor') == '0', 'Disconnected cursor must be inactive')
+            check(f.option(meter, 'ToolTipText'):find('unavailable', 1, true) ~= nil, 'Disconnected tooltip must explain unavailability')
+        end
+        f.assertOneRedraw()
+        f.reset()
+        for _, command in ipairs({ 'Previous', 'PlayPause', 'Next' }) do check(f.env.Control(command) == false, 'Disconnected playback command accepted') end
+        check(#f.calls() == 0, 'Disconnected control invoked bang')
+    end)
+
+    scenario('blank title is idle without fabricated track or timing', function()
+        for _, title in ipairs({ '', ' ', '\r\n\t' }) do
+            local f = fixture()
+            f.values.MeasureTitle.text = title
+            check(f.env.Update() == 'WNP idle', 'Blank title must report idle')
+            check(f.visible('MediaTrack', true) == false and f.visible('MeterNoMedia') == true, 'Idle fallback incorrect')
+            check(f.visible('MediaTimeline', true) == false and f.visible('MeterCover') == false, 'Idle state leaked timing or cover')
+            check(f.option('MeterPlayPause', 'FontColor') == '137,190,250', 'Independent capability should remain usable with AccentColor while idle')
+        end
+    end)
+
+    scenario('known unknown and nonfinite playback states', function()
+        local samples = {
+            { value = 0, status = 'Stopped', symbol = '>' },
+            { value = 1, status = 'Playing', symbol = '||' },
+            { value = 2, status = 'Paused', symbol = '>' },
+            { value = '1', status = 'Playing', symbol = '||' },
+            { value = 3, status = 'State unknown', symbol = '>' },
+            { value = -1, status = 'State unknown', symbol = '>' },
+            { value = 'bogus', status = 'State unknown', symbol = '>' },
+            { value = 0 / 0, status = 'State unknown', symbol = '>' },
+            { value = math.huge, status = 'State unknown', symbol = '>' },
+            { value = -math.huge, status = 'State unknown', symbol = '>' },
+            { status = 'State unknown', symbol = '>' }
+        }
+        for _, sample in ipairs(samples) do
+            local f = fixture()
+            f.values.MeasureState.value = sample.value
+            check(f.env.Update() == sample.status, 'Incorrect playback-state classification')
+            check(f.option('MeterPlayPause', 'Text') == sample.symbol, 'Incorrect playback-state symbol')
+        end
+    end)
+
+    scenario('invalid connection cannot enable UI or playback', function()
+        for _, value in ipairs({ -1, 2, 'bogus', 0 / 0, math.huge, -math.huge }) do
+            local f = fixture()
+            f.values.MeasureConnection.value = value
+            check(f.env.Update() == 'WNP disconnected', 'Only connection==1 may be connected')
+            f.reset()
+            check(f.env.Control('PlayPause') == false and #f.calls() == 0, 'Invalid connection allowed playback')
+        end
+    end)
+
+    scenario('transport support is independent and rechecked on click', function()
+        local commandMap = {
+            { 'Previous', 'MeasureCanPrevious', 'MeterPrevious' },
+            { 'PlayPause', 'MeasureCanPlayPause', 'MeterPlayPause' },
+            { 'Next', 'MeasureCanNext', 'MeterNext' }
+        }
+        for _, spec in ipairs(commandMap) do
+            local f = fixture()
+            f.env.Update()
+            for _, invalid in ipairs({ 0, 2, -1, 0.5, 'invalid', 0 / 0, math.huge }) do
+                f.values[spec[2]].value = invalid
+                f.reset()
+                check(f.env.Control(spec[1]) == false and #f.calls() == 0, 'Stale enabled UI bypassed latest capability')
+            end
+            f.env.Update()
+            check(f.option(spec[3], 'FontColor') == '111,112,113', 'Unsupported control must use MutedColor')
+            check(f.option(spec[3], 'MouseActionCursor') == '0', 'Unsupported control cursor must be inactive')
+            f.values[spec[2]].value = '1'
+            f.reset()
+            check(f.env.Control(spec[1]) == true, 'Supported string numeric capability rejected')
+            local calls = f.calls()
+            check(#calls == 1 and calls[1][1] == '!CommandMeasure' and calls[1][2] == 'MeasureConnection' and calls[1][3] == spec[1], 'Playback escaped expected command target')
+            f.values.MeasureConnection.value = 0
+            f.reset()
+            check(f.env.Control(spec[1]) == false and #f.calls() == 0, 'Click-time disconnection was ignored')
+        end
+        local f = fixture()
+        f.reset()
+        for _, invalid in ipairs({ '', 'playpause', 'PlayPause][!Quit]', '!Quit', 'Seek' }) do check(f.env.Control(invalid) == false, 'Unrecognized playback command accepted') end
+        check(f.env.Control(nil) == false and #f.calls() == 0, 'Nil command or injection invoked bang')
+    end)
+
+    scenario('missing measures stay unavailable', function()
+        local f = fixture()
+        for name in pairs(f.values) do f.values[name] = false end
+        f.env.Initialize()
+        check(f.env.Update() == 'WNP disconnected', 'Missing measures must be disconnected')
+        check(f.visible('MediaTrack', true) == false and f.visible('MediaTimeline', true) == false, 'Missing measures exposed data')
+        f.reset()
+        check(f.env.Control('PlayPause') == false and #f.calls() == 0, 'Missing measure allowed control')
+    end)
+
+    scenario('invalid timing is unavailable while valid position zero is shown', function()
+        local samples = {
+            { duration = 0, position = 0 }, { duration = -1, position = 0 },
+            { duration = math.huge, position = 0 }, { duration = 180, position = -1 },
+            { duration = 180, position = math.huge }, { duration = 180, position = 0 / 0 },
+            { position = 0 }, { duration = 180 }, { duration = 'invalid', position = 0 }
+        }
+        for _, sample in ipairs(samples) do
+            local f = fixture()
+            f.values.MeasureDuration.value, f.values.MeasurePosition.value = sample.duration, sample.position
+            check(f.env.Update() == 'Playing', 'Missing timing must not fabricate playback state')
+            check(f.visible('MediaTimeline', true) == false and f.visible('MeterTimingUnavailable') == true, 'Invalid timing shown as measured data')
+        end
+        local f = fixture()
+        f.values.MeasurePosition.value = 0
+        f.env.Update()
+        check(f.visible('MediaTimeline', true) == true and f.visible('MeterTimingUnavailable') == false, 'Measured position zero must be valid')
+    end)
+
+    scenario('cover group transitions reapply explicit cover visibility', function()
+        local f = fixture()
+        f.values.MeasureCover.text = ''
+        f.env.Update()
+        check(f.visible('MeterCover') == false, 'Empty cover should hide')
+        f.values.MeasureConnection.value = 0
+        f.env.Update()
+        f.reset()
+        f.values.MeasureConnection.value = 1
+        f.env.Update()
+        check(f.visible('MediaTrack', true) == true, 'Reconnect must restore track group')
+        check(f.count('!HideMeter', 'MeterCover') == 1, 'Reconnect group show must re-hide empty cover')
+        check(f.count('!ShowMeter', 'MeterCoverLabel') == 1, 'Reconnect group must restore the missing-art label')
+        f.reset()
+        f.values.MeasureCover.text = 'synthetic-cover-no-file.png'
+        f.env.Update()
+        check(f.visible('MeterCover') == true, 'New nonblank cover should show')
+        check(f.visible('MeterCoverLabel') == false, 'New artwork must hide its missing-art label')
+        f.assertOneRedraw()
+        f.reset()
+        f.values.MeasureCover.text = ' \t\n'
+        f.env.Update()
+        check(f.visible('MeterCover') == false, 'Whitespace cover should hide')
+        check(f.visible('MeterCoverLabel') == true, 'Missing artwork must restore its label')
+        f.assertOneRedraw()
+    end)
+
+    scenario('idle placeholder follows width and survives track transitions', function()
+        for _,columns in ipairs({'1','2'}) do
+            local f=fixture()
+            f.variables.Columns=columns
+            f.values.MeasureConnection.value=0
+            f.env.Update()
+            check(f.visible('MeterArtworkLabel') == (columns=='2'), 'Idle tile label must follow width')
+            check(f.visible('MeterCoverLabel') == false, 'Disconnected track label must hide')
+            f.reset()
+            f.values.MeasureConnection.value=1
+            f.env.Update()
+            check(f.count('!HideMeter','MeterCoverLabel')==1, 'Group show must re-hide label beneath valid cover')
+            f.reset()
+            f.values.MeasureTitle.text=''
+            f.env.Update()
+            check(f.visible('MeterCoverLabel')==false, 'Idle transition must hide track label')
+            check(f.visible('MeterArtworkLabel') == (columns=='2' and true or nil), 'Wide idle label must return without redundant compact bangs')
+        end
+    end)
+
+    scenario('AccentColor updates supported controls independently of MediaColor', function()
+        local f = fixture()
+        f.values.MeasureCanNext.value = 0
+        f.env.Update()
+        f.reset()
+        f.variables.MediaColor = '9,88,177'
+        f.env.Update()
+        check(#f.calls() == 0, 'Metric MediaColor must not change transport controls')
+        f.variables.AccentColor = '181,161,226'
+        f.env.Update()
+        check(f.option('MeterPrevious', 'FontColor') == '181,161,226', 'Previous failed to follow AccentColor')
+        check(f.option('MeterPlayPause', 'FontColor') == '181,161,226', 'PlayPause failed to follow AccentColor')
+        check(f.option('MeterNext', 'FontColor') == nil, 'AccentColor changed unsupported control')
+        check(f.variables.MediaColor == '9,88,177', 'Action accent update must preserve the independent metric MediaColor')
+        check(f.count('!SetOption') == 2, 'Color update changed unrelated options')
+        f.assertOneRedraw()
+    end)
+
+    scenario('metadata is never promoted into action arguments', function()
+        local f = fixture()
+        local injection = '[!Quit]#MediaColor#\r\nSynthetic fixture only'
+        f.values.MeasureTitle.text = injection
+        f.values.MeasureCover.text = injection
+        f.env.Update()
+        for _, call in ipairs(f.calls()) do
+            for _, argument in ipairs(call) do check(argument ~= injection, 'Metadata was used as a bang argument') end
+        end
+        check(f.count('!CommandMeasure') == 0, 'Metadata caused playback action')
+    end)
+
+    scenario('Initialize resets cached display for refresh', function()
+        local f = fixture()
+        f.env.Update()
+        f.reset()
+        f.env.Initialize()
+        check(#f.calls() == 0, 'Refresh initialization emitted a command')
+        check(f.env.Update() == 'Playing', 'Refresh lost sampled state')
+        check(f.count('!ShowMeterGroup', 'MediaTrack') == 1, 'Refresh failed to restore visibility options')
+        f.assertOneRedraw()
+    end)
+
+    return passed, cases
+end
+
+return suite

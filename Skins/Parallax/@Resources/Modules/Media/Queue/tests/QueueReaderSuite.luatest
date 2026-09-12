@@ -1,0 +1,551 @@
+-- Developer-only synthetic snapshots, never used by a production skin.
+local Suite = {}
+
+function Suite.run(sourcePath, scratchPath)
+    local passed, cases = 0, {}
+    local function check(condition, message)
+        assert(condition, message)
+        passed = passed + 1
+    end
+    local function equal(actual, expected, message)
+        check(actual == expected, (message or 'value') .. ': expected ' .. tostring(expected) .. ', got ' .. tostring(actual))
+    end
+    local function scenario(name, body)
+        local before = passed
+        local ok, message = pcall(body)
+        assert(ok, name .. ': ' .. tostring(message))
+        cases[#cases + 1] = name .. ': ' .. (passed - before) .. ' assertions'
+    end
+    local function hex(text)
+        return (text:gsub('.', function(character) return string.format('%02X', character:byte()) end))
+    end
+    local function snapshot(overrides, rows)
+        local fields = { state = 'ready', observed = '1000', valid_until = '1030', retry_not_before = '0', count = '0' }
+        for key, value in pairs(overrides or {}) do fields[key] = tostring(value) end
+        local lines = { 'PARALLAX_QUEUE_V2' }
+        for _, key in ipairs({ 'state', 'observed', 'valid_until', 'retry_not_before', 'count' }) do
+            lines[#lines + 1] = key .. '=' .. fields[key]
+        end
+        for index = 1, 5 do
+            local row = rows and rows[index] or {}
+            lines[#lines + 1] = 'title' .. index .. '=' .. hex(row[1] or '')
+            lines[#lines + 1] = 'detail' .. index .. '=' .. hex(row[2] or '')
+        end
+        return table.concat(lines, '\n') .. '\n'
+    end
+    local function blocked(overrides)
+        local fields = { state = 'offline', observed = '0', valid_until = '0', count = '0' }
+        for key, value in pairs(overrides or {}) do fields[key] = value end
+        return snapshot(fields)
+    end
+    local forbidden_io = function() error('Unexpected noninjected I/O') end
+    local forbidden_os = function() error('Unexpected noninjected OS access') end
+    local module_env = setmetatable({ io = { open = forbidden_io },
+        os = { time = forbidden_os, getenv = forbidden_os } }, { __index = _G })
+    local chunk = assert(loadfile(sourcePath))
+    setfenv(chunk, module_env)
+    local Reader = chunk()
+    local function valid(data, now)
+        local value = Reader.parse(data, now or 1001)
+        check(value ~= nil, 'expected valid snapshot')
+        return value
+    end
+    local function invalid(data)
+        equal(Reader.parse(data, 1001), nil, 'invalid snapshot rejected')
+    end
+    local function fixture(data, options)
+        options = options or {}
+        local calls, texts, visible, positions = {}, {}, {}, {}
+        local state = { data = data, time = 1001, reads = 0, closes = 0, opens = 0 }
+        local skin = {}
+        function skin:GetMeter(name)
+            if options.noMeters or name == options.absentMeter then return nil end
+            return {}
+        end
+        if options.variables then
+            function skin:GetVariable(name, fallback)
+                state.variableReads = (state.variableReads or 0) + 1
+                local value = options.variables[name]
+                return value == nil and fallback or value
+            end
+        end
+        function skin:Bang(...)
+            local args = {...}
+            calls[#calls + 1] = args
+            local bang, target = args[1], args[2]
+            if bang == '!SetOption' then
+                equal(#args, 4, 'SetOption uses separate arguments')
+                if args[3] == 'Y' then
+                    check(options.inline, 'only inline queue may reposition rows')
+                    check(args[4] == '#Inset#' or args[4]:match('^%(#Inset#%+%(#PanelHeight#%+%d+%)%*#Scale#%)$'),
+                        'inline geometry contains only a fixed trusted formula')
+                    positions[target] = args[4]
+                else
+                    equal(args[3], 'Text', 'only text or inline Y mutation')
+                    check(not args[4]:find('[#%[%]%%%z\001-\031\127]'), 'no active delimiters/control bytes reach meters')
+                    texts[target] = args[4]
+                end
+            elseif bang == '!ShowMeterGroup' or bang == '!HideMeterGroup' then
+                equal(target, 'QueueRows', 'only queue row group')
+                for index = 1, 5 do visible['MeterQueueRow' .. index] = bang == '!ShowMeterGroup' end
+            elseif bang == '!ShowMeter' or bang == '!HideMeter' then
+                check(target:match('^MeterQueueRow[1-5]$'), 'only row meter visibility')
+                visible[target] = bang == '!ShowMeter'
+            else
+                check(bang == '!UpdateMeterGroup' or bang == '!Redraw', 'no command/action bang')
+            end
+        end
+        local function open(path, mode)
+            state.opens = state.opens + 1
+            equal(path, 'SYNTHETIC\\queue.snapshot', 'fixed test path')
+            equal(mode, 'rb', 'snapshot never opened writable')
+            if options.openThrow then error('synthetic open exception') end
+            if options.missing then return nil, 'synthetic missing', 2 end
+            if options.denied then return nil, 'synthetic denied', 13 end
+            return {
+                read = function(_, bytes)
+                    state.reads = state.reads + 1
+                    equal(bytes, 32769, 'bounded read includes oversize sentinel byte')
+                    if options.readThrow then error('synthetic read exception') end
+                    if options.readNil then return nil, 'synthetic read error' end
+                    return state.data:sub(1, bytes)
+                end,
+                close = function()
+                    state.closes = state.closes + 1
+                    if options.closeThrow then error('synthetic close exception') end
+                    if options.closeFalse then return nil, 'synthetic close error' end
+                    return true
+                end
+            }
+        end
+        state.env = { skin = skin, open = open, now = function()
+            if options.timeThrow then error('synthetic clock error') end
+            return state.time
+        end, getenv = forbidden_os, cachePath = 'SYNTHETIC\\queue.snapshot',
+            rowLimit = options.rowLimit, showDetails = options.showDetails, expanded = options.expanded,
+            inline = options.inline }
+        state.reader = Reader.new(state.env)
+        state.calls, state.texts, state.visible, state.positions = calls, texts, visible, positions
+        return state
+    end
+
+    scenario('fresh empty and five-row queues retain honest counts and duplicate order', function()
+        local empty = valid(snapshot())
+        equal(empty.status, 'Queue empty')
+        equal(empty.count, 0)
+        local rows = { {'A','artist'}, {'A','artist'}, {'B','artist'}, {'C','album'}, {'D','detail'} }
+        local full = valid(snapshot({ count = 5 }, rows))
+        equal(full.status, 'Next 5')
+        equal(full.count, 5)
+        equal(full.rows[1].text, 'A / artist')
+        equal(full.rows[2].text, full.rows[1].text, 'duplicates preserved')
+        equal(full.rows[5].title, 'D')
+    end)
+    scenario('line endings and lowercase hex remain compatible', function()
+        local data = snapshot({ count = 1 }, {{'ABC', 'Caf\195\169'}})
+        equal(valid((data:gsub('\n', '\r\n'))).rows[1].detail, 'Caf\195\169')
+        equal(valid((data:gsub('436166C3A9', '436166c3a9'))).rows[1].detail, 'Caf\195\169')
+        equal(valid(data:sub(1, -2)).count, 1, 'terminal newline optional')
+    end)
+    scenario('expiry, observation skew and maximum lifetime are enforced', function()
+        equal(valid(snapshot(), 1029).state, 'ready')
+        local stale = valid(snapshot({ count = 1 }, {{'Secret old row',''}}), 1030)
+        equal(stale.state, 'stale')
+        equal(stale.status, 'Queue stale')
+        equal(stale.count, 0)
+        equal(#stale.rows, 0)
+        valid(snapshot({ observed = 1006, valid_until = 1030 }))
+        invalid(snapshot({ observed = 1007 }))
+        invalid(snapshot({ observed = 0 }))
+        invalid(snapshot({ valid_until = 999 }))
+        invalid(snapshot({ valid_until = 1301 }))
+        valid(snapshot({ valid_until = 1300 }))
+    end)
+    scenario('every nonready state hides data with zero observation and expiry', function()
+        local states = { onboarding_required='Setup required', connecting='Connecting',
+            reauth_required='Sign in again', forbidden='Access denied', rate_limited='Rate limited',
+            quota_exceeded='App quota reached', offline='Offline', service_unavailable='Spotify unavailable',
+            error='Queue unavailable', stopped='Provider stopped' }
+        for state, label in pairs(states) do
+            local value = valid(blocked({ state = state, retry_not_before = 1200 }))
+            equal(value.status, label)
+            equal(value.count, 0)
+            equal(#value.rows, 0)
+            invalid(blocked({ state = state, observed = 1 }))
+            invalid(blocked({ state = state, valid_until = 1 }))
+            invalid(blocked({ state = state, count = 1 }))
+        end
+    end)
+    scenario('strict schema rejects version, unknown, duplicate and missing keys', function()
+        local data = snapshot()
+        invalid(data:gsub('PARALLAX_QUEUE_V2', 'PARALLAX_QUEUE_V1'))
+        invalid('\239\187\191' .. data)
+        invalid(data .. 'access_token=FORBIDDEN_TEST_ONLY\n')
+        invalid(data .. 'count=0\n')
+        invalid(data:gsub('detail5=\n', ''))
+        invalid(data:gsub('state=ready', 'state=stale'))
+        invalid(data:gsub('state=ready', 'State=ready'))
+        invalid(data:gsub('state=ready', 'state =ready'))
+        invalid(data .. '\n')
+        invalid(data .. '\000')
+        invalid(data:gsub('state=ready', 'state=\tready'))
+        invalid(data:gsub('\n', '\r'))
+        invalid(data:gsub('title1=', 'title0='))
+        invalid(data:gsub('title1=', 'title6='))
+    end)
+    scenario('integer fields reject fractions, signs, exponent forms and unsafe magnitudes', function()
+        for _, key in ipairs({'count', 'observed', 'valid_until', 'retry_not_before'}) do
+            for _, value in ipairs({'-1', '+1', '01', '1.0', '1e3', 'NaN', 'inf', '', '9007199254740992'}) do
+                invalid(snapshot({[key] = value}))
+            end
+        end
+        invalid(snapshot({ count = 6 }))
+        equal(Reader.parse(snapshot(), 0/0), nil)
+        equal(Reader.parse(snapshot(), math.huge), nil)
+        equal(Reader.parse(snapshot(), -1), nil)
+    end)
+    scenario('inert UTF8 text keeps Unicode while neutralizing Rainmeter substitution', function()
+        local hostile = ' A#FontFace#[!Quit]%1\n\r\t\000\127\194\128\226\128\174Z '
+        local row = valid(snapshot({ count = 1 }, {{hostile, 'Caf\195\169 \240\159\142\181'}})).rows[1]
+        check(not row.title:find('[#%[%]%%%z\001-\031\127]'), 'ASCII metacharacters and controls stripped')
+        equal(row.title, 'A\239\188\131FontFace\239\188\131\239\188\187!Quit\239\188\189\239\188\1331Z')
+        equal(row.detail, 'Caf\195\169 \240\159\142\181')
+        equal(valid(snapshot({ count = 1 }, {{'\n', ''}})).rows[1].text, 'Untitled')
+    end)
+    scenario('malformed UTF8 and invalid hexadecimal reject the complete snapshot', function()
+        for _, bytes in ipairs({'\128', '\192\175', '\224\128\175', '\237\160\128',
+            '\240\128\128\175', '\244\144\128\128', '\245\128\128\128', '\195', '\195A'}) do
+            invalid(snapshot({ count = 1 }, {{bytes, ''}}))
+        end
+        invalid(snapshot():gsub('title1=', 'title1=F'))
+        invalid(snapshot():gsub('title1=', 'title1=GG'))
+        valid(snapshot({ count = 1 }, {{string.rep('x', 512), string.rep('y', 512)}}))
+        invalid(snapshot({ count = 1 }, {{string.rep('x', 513), ''}}))
+        invalid(string.rep('x', 32769))
+        invalid('')
+    end)
+    scenario('unused rows must be empty, even when control text sanitizes empty', function()
+        invalid(snapshot({ count = 0 }, {{'Old title', ''}}))
+        invalid(snapshot({ count = 1 }, {{'Good', ''}, {'', 'Old detail'}}))
+        invalid(snapshot({ count = 0 }, {{'\n', ''}}))
+        invalid(blocked():gsub('title1=', 'title1=78'))
+    end)
+    scenario('bounded I/O closes files on success and every read failure', function()
+        for _, options in ipairs({{}, {readThrow=true}, {readNil=true}, {closeThrow=true}, {closeFalse=true}, {timeThrow=true}}) do
+            local state = fixture(snapshot(), options)
+            local value = state.reader:read()
+            equal(state.reads, 1)
+            equal(state.closes, 1)
+            equal(value.status, next(options) and 'Queue unavailable' or 'Queue empty')
+        end
+        local oversized = fixture(string.rep('x', 100000))
+        equal(oversized.reader:read().status, 'Queue unavailable')
+        equal(oversized.closes, 1)
+    end)
+    scenario('missing, denied, throwing and absent-storage cases cannot fabricate empty queues', function()
+        for _, options in ipairs({{missing=true}, {denied=true}, {openThrow=true}}) do
+            local state = fixture('', options)
+            equal(state.reader:read().status, options.missing and 'Setup required' or 'Queue unavailable')
+            equal(state.reads, 0)
+            equal(state.closes, 0)
+        end
+        local reader = Reader.new({ getenv = function(name) equal(name, 'LOCALAPPDATA'); return nil end,
+            open = forbidden_io, now = forbidden_os })
+        equal(reader:update(), 'Storage unavailable')
+        for _, path in ipairs({'BAD\000PATH', 'BAD\nPATH', 'BAD\rPATH'}) do
+            local invalid_path = Reader.new({cachePath=path, open=forbidden_io, now=forbidden_os,
+                getenv=forbidden_os})
+            equal(invalid_path:update(), 'Storage unavailable')
+        end
+        local path = Reader.new({ getenv = function() return 'SYNTHETIC\\' end,
+            open = forbidden_io, now = forbidden_os }).path
+        equal(path, 'SYNTHETIC\\Parallax\\Media\\Spotify\\queue.snapshot')
+    end)
+    scenario('ready, stale, recovery and count decreases clear/hide the correct rows', function()
+        local state = fixture(snapshot({ count=5 }, {{'One',''}, {'Two',''}, {'Three',''}, {'Four',''}, {'Five',''}}))
+        equal(state.reader:update(), 'Next 5')
+        for index = 1, 5 do equal(state.visible['MeterQueueRow' .. index], true) end
+        local calls_before = #state.calls
+        state.reader:update()
+        equal(#state.calls, calls_before, 'unchanged presentation avoids repeated bangs')
+        state.time = 1030
+        equal(state.reader:update(), 'Queue stale')
+        for index = 1, 5 do
+            equal(state.visible['MeterQueueRow' .. index], false)
+            equal(state.texts['MeterQueueRow' .. index], '')
+        end
+        state.data = snapshot({count=2, observed=1030, valid_until=1060}, {{'Repeat','same'}, {'Repeat','same'}})
+        equal(state.reader:update(), 'Next 2')
+        equal(state.visible.MeterQueueRow1, true)
+        equal(state.visible.MeterQueueRow2, true)
+        for index = 3, 5 do equal(state.visible['MeterQueueRow' .. index], false) end
+        equal(state.texts.MeterQueueRow1, state.texts.MeterQueueRow2)
+        state.data = snapshot({count=1, observed=1030, valid_until=1060}, {{'Only',''}})
+        equal(state.reader:update(), 'Next 1')
+        equal(state.visible.MeterQueueRow2, false)
+        equal(state.texts.MeterQueueRow2, '')
+        state.data = blocked({ state='forbidden' })
+        equal(state.reader:update(), 'Access denied')
+        equal(state.visible.MeterQueueRow1, false)
+        equal(state.texts.MeterQueueRow1, '')
+    end)
+    scenario('footer-only and partially present meters never receive nonexistent row actions', function()
+        local footer = fixture(snapshot({count=1}, {{'Test',''}}), {noMeters=true})
+        equal(footer.reader:update(), 'Next 1')
+        equal(#footer.calls, 0)
+        local partial = fixture(snapshot(), {absentMeter='MeterQueueRow4'})
+        partial.reader:update()
+        for _, call in ipairs(partial.calls) do check(call[2] ~= 'MeterQueueRow4', 'absent meter skipped') end
+    end)
+    scenario('display preferences limit rows and details without changing cache parsing', function()
+        local data = snapshot({count=5}, {{'One','A'}, {'Two','B'}, {'Three','C'}, {'Four','D'}, {'Five','E'}})
+        for _, limit in ipairs({1, 3, 5}) do
+            for _, details in ipairs({0, 1}) do
+                local state = fixture(data, {rowLimit=limit, showDetails=details})
+                equal(state.reader:read().count, 5, 'raw reader keeps full queue count')
+                local status, display = state.reader:update()
+                equal(status, 'Next ' .. limit)
+                equal(display.count, limit, 'display count follows preference')
+                equal(#display.rows, limit, 'display rows follow preference')
+                for index = 1, 5 do
+                    local name = 'MeterQueueRow' .. index
+                    equal(state.visible[name], index <= limit, 'only preferred rows visible')
+                    if index <= limit then
+                        local row = Reader.parse(data, 1001).rows[index]
+                        equal(state.texts[name], details == 1 and row.text or row.title)
+                    else
+                        equal(state.texts[name], '', 'hidden excess rows cleared')
+                    end
+                end
+                local calls_before = #state.calls
+                equal(state.reader:update(), status)
+                equal(#state.calls, calls_before, 'preferences retain unchanged-display optimization')
+            end
+        end
+        local footer = fixture(data, {noMeters=true, rowLimit=2, showDetails=0})
+        local label, display = footer.reader:update()
+        equal(label, 'Next 2', 'footer count follows visible row limit')
+        equal(display.count, 2)
+        equal(#footer.calls, 0)
+        equal(Reader.parse(data, 1001).count, 5, 'standalone parser remains preference-free')
+    end)
+    scenario('saved skin preferences load once, environment overrides win, invalid values use defaults', function()
+        local data = snapshot({count=5}, {{'One','A'}, {'Two','B'}, {'Three','C'}, {'Four','D'}, {'Five','E'}})
+        local variables = {QueueRowLimit='3', QueueShowDetails='0'}
+        local state = fixture(data, {variables=variables})
+        equal(state.variableReads, 2, 'saved settings read once at initialization')
+        equal(state.reader:update(), 'Next 3')
+        equal(state.texts.MeterQueueRow1, 'One')
+        variables.QueueRowLimit, variables.QueueShowDetails = '1', '1'
+        equal(state.reader:update(), 'Next 3', 'saved changes apply at next initialization')
+        equal(state.variableReads, 2, 'updates do not poll skin variables')
+        state.reader = Reader.new(state.env)
+        equal(state.variableReads, 4)
+        equal(state.reader:update(), 'Next 1')
+        equal(state.texts.MeterQueueRow1, 'One / A')
+        equal(state.texts.MeterQueueRow2, '')
+        local override = fixture(data, {variables=variables, rowLimit=2, showDetails=0})
+        equal(override.variableReads, nil, 'explicit overrides skip saved-variable reads')
+        equal(override.reader:update(), 'Next 2')
+        equal(override.texts.MeterQueueRow1, 'One')
+        for _, value in ipairs({'', '0', '6', '-1', '1.5', '1e0', '01', ' 2', 'NaN', 'inf', true, false, {}, math.huge}) do
+            local invalid = fixture(data, {rowLimit=value})
+            equal(invalid.reader.rowLimit, 5, 'invalid row limit defaults to five')
+        end
+        for _, value in ipairs({'', '2', '-1', '0.5', '1e0', '01', ' 1', 'NaN', true, false, {}, math.huge}) do
+            local invalid = fixture(data, {showDetails=value})
+            equal(invalid.reader.showDetails, true, 'invalid detail setting defaults on')
+        end
+        local invalid_saved = fixture(data, {variables={QueueRowLimit='9', QueueShowDetails='no'}})
+        equal(invalid_saved.reader.rowLimit, 5)
+        equal(invalid_saved.reader.showDetails, true)
+        local absent_saved = fixture(data, {variables={}})
+        equal(absent_saved.reader.rowLimit, 5)
+        equal(absent_saved.reader.showDetails, true)
+        local throwing = Reader.new({skin={GetVariable=function() error('unavailable') end,
+            GetMeter=function() return nil end}, cachePath='SYNTHETIC', open=forbidden_io, now=forbidden_os})
+        equal(throwing.rowLimit, 5, 'unavailable GetVariable defaults safely')
+        equal(throwing.showDetails, true)
+    end)
+    scenario('collapsed queue keeps the available count and never reveals rows', function()
+        local data = snapshot({count=5}, {{'One','A'}, {'Two','B'}, {'Three','C'}, {'Four','D'}, {'Five','E'}})
+        for _, collapsed in ipairs({false, 0, '0'}) do
+            local state = fixture(data, {expanded=collapsed, rowLimit=3})
+            local status, display = state.reader:update()
+            equal(status, 'Next 3', 'collapsed footer still announces available display count')
+            equal(display.count, 3)
+            for index = 1, 5 do
+                equal(state.visible['MeterQueueRow' .. index], false)
+                equal(state.texts['MeterQueueRow' .. index], '')
+            end
+            for _, call in ipairs(state.calls) do
+                check(call[1] ~= '!ShowMeterGroup' and call[1] ~= '!ShowMeter', 'collapsed update never shows rows')
+            end
+            state.env.expanded = true
+            state.reader = Reader.new(state.env)
+            equal(state.reader:update(), 'Next 3')
+            equal(state.visible.MeterQueueRow1, true)
+            equal(state.visible.MeterQueueRow3, true)
+            equal(state.visible.MeterQueueRow4, false)
+            state.env.expanded = false
+            state.reader = Reader.new(state.env)
+            equal(state.reader:update(), 'Next 3')
+            equal(state.visible.MeterQueueRow1, false)
+            equal(state.texts.MeterQueueRow1, '')
+        end
+        local footer = fixture(data, {noMeters=true, expanded=false, rowLimit=2})
+        equal(footer.reader:update(), 'Next 2')
+        equal(#footer.calls, 0)
+    end)
+    scenario('limited title-only rows still clear on expiry, errors and empty queues', function()
+        local data = snapshot({count=5}, {{'One','A'}, {'Two','B'}, {'Three','C'}, {'Four','D'}, {'Five','E'}})
+        local state = fixture(data, {rowLimit=2, showDetails=0})
+        equal(state.reader:update(), 'Next 2')
+        state.time = 1030
+        equal(state.reader:update(), 'Queue stale')
+        for index = 1, 5 do
+            equal(state.visible['MeterQueueRow' .. index], false)
+            equal(state.texts['MeterQueueRow' .. index], '')
+        end
+        state.time = 1001
+        equal(state.reader:update(), 'Next 2')
+        state.data = 'invalid snapshot'
+        equal(state.reader:update(), 'Queue unavailable')
+        for index = 1, 5 do
+            equal(state.visible['MeterQueueRow' .. index], false)
+            equal(state.texts['MeterQueueRow' .. index], '')
+        end
+        state.data = snapshot()
+        equal(state.reader:update(), 'Queue empty')
+        state.data = blocked({state='offline'})
+        equal(state.reader:update(), 'Offline')
+        equal(state.visible.MeterQueueRow1, false)
+        equal(state.texts.MeterQueueRow1, '')
+    end)
+    scenario('inline rows use trusted positions and hidden rows return inside the base panel', function()
+        local data = snapshot({count=5}, {{'#One#','A'}, {'Two','B'}, {'Three','C'}, {'Four','D'}, {'Five','E'}})
+        local state = fixture(data, {inline=true, expanded=false, rowLimit=3})
+        equal(state.reader:update(), 'Next 3')
+        for index = 1, 5 do equal(state.positions['MeterQueueRow' .. index], '#Inset#', 'collapsed row stays inside panel') end
+        state.env.expanded = true
+        state.reader = Reader.new(state.env)
+        equal(state.reader:update(), 'Next 3')
+        for index = 1, 3 do
+            equal(state.positions['MeterQueueRow' .. index], '(#Inset#+(#PanelHeight#+' .. (2+18*(index-1)) .. ')*#Scale#)',
+                'visible row uses fixed index-based geometry')
+        end
+        for index = 4, 5 do equal(state.positions['MeterQueueRow' .. index], '#Inset#', 'excess row stays inside panel') end
+        local before = #state.calls
+        equal(state.reader:update(), 'Next 3')
+        equal(#state.calls, before, 'unchanged positions do not trigger repeated bangs')
+        state.data = snapshot({count=1}, {{'Only',''}})
+        equal(state.reader:update(), 'Next 1')
+        equal(state.positions.MeterQueueRow1, '(#Inset#+(#PanelHeight#+2)*#Scale#)')
+        equal(state.positions.MeterQueueRow2, '#Inset#', 'decreased count returns former row inside panel')
+        state.data = data
+        equal(state.reader:update(), 'Next 3')
+        state.data = 'invalid snapshot'
+        equal(state.reader:update(), 'Queue unavailable')
+        for index = 1, 5 do equal(state.positions['MeterQueueRow' .. index], '#Inset#', 'error resets all row extents') end
+        state.data = data
+        equal(state.reader:update(), 'Next 3')
+        state.time = 1030
+        equal(state.reader:update(), 'Queue stale')
+        for index = 1, 5 do equal(state.positions['MeterQueueRow' .. index], '#Inset#', 'stale resets all row extents') end
+        state.time = 1001
+        equal(state.reader:update(), 'Next 3')
+        state.env.expanded = false
+        state.reader = Reader.new(state.env)
+        equal(state.reader:update(), 'Next 3')
+        for index = 1, 5 do equal(state.positions['MeterQueueRow' .. index], '#Inset#', 'collapse resets every row extent') end
+        local standalone = fixture(data)
+        equal(standalone.reader:update(), 'Next 5')
+        equal(next(standalone.positions), nil, 'standalone reader never changes Y positions')
+    end)
+    scenario('Rainmeter callbacks use injected I/O and return status strings', function()
+        local state = fixture(snapshot({ count=1 }, {{'#Danger#[Measure]%', 'Details'}}))
+        local env = setmetatable({SKIN=state.env.skin, SELF={GetOption=function(_, name, default)
+            if name == 'QueueCachePath' then
+                equal(default, ''); return 'SYNTHETIC\\queue.snapshot'
+            end
+            if name == 'QueueExpanded' then equal(default, '1'); return default end
+            equal(name, 'QueueInline'); equal(default, '0'); return default
+        end}, io={open=state.env.open}, os={time=state.env.now, getenv=forbidden_os}}, {__index=_G})
+        local runtime = assert(loadfile(sourcePath))
+        setfenv(runtime, env)
+        runtime()
+        env.Initialize()
+        equal(env.Update(), 'Next 1')
+        check(state.texts.MeterQueueRow1:find('Details', 1, true), 'sanitized bound row is readable')
+    end)
+    scenario('Rainmeter reinitialization reads per-measure expansion and saved display preferences', function()
+        local state = fixture(snapshot({count=5}, {{'One','A'}, {'Two','B'}, {'Three','C'}, {'Four','D'}, {'Five','E'}}),
+            {variables={QueueRowLimit='2', QueueShowDetails='0'}})
+        local expanded = '0'
+        local env = setmetatable({SKIN=state.env.skin, SELF={GetOption=function(_, name, default)
+            if name == 'QueueCachePath' then return 'SYNTHETIC\\queue.snapshot' end
+            if name == 'QueueExpanded' then equal(default, '1'); return expanded end
+            equal(name, 'QueueInline'); equal(default, '0'); return default
+        end}, io={open=state.env.open}, os={time=state.env.now, getenv=forbidden_os}}, {__index=_G})
+        local runtime = assert(loadfile(sourcePath))
+        setfenv(runtime, env)
+        runtime()
+        env.Initialize()
+        equal(env.Update(), 'Next 2')
+        equal(state.visible.MeterQueueRow1, false)
+        expanded = '1'
+        env.Initialize()
+        equal(env.Update(), 'Next 2')
+        equal(state.visible.MeterQueueRow1, true)
+        equal(state.texts.MeterQueueRow1, 'One')
+        equal(state.visible.MeterQueueRow3, false)
+    end)
+    scenario('Rainmeter callback reads the explicit inline measure option', function()
+        local state = fixture(snapshot({count=1}, {{'Inline','Details'}}), {inline=true})
+        local env = setmetatable({SKIN=state.env.skin, SELF={GetOption=function(_, name, default)
+            if name == 'QueueCachePath' then return 'SYNTHETIC\\queue.snapshot' end
+            if name == 'QueueExpanded' then equal(default, '1'); return '1' end
+            equal(name, 'QueueInline'); equal(default, '0'); return '1'
+        end}, io={open=state.env.open}, os={time=state.env.now, getenv=forbidden_os}}, {__index=_G})
+        local runtime = assert(loadfile(sourcePath))
+        setfenv(runtime, env)
+        runtime()
+        env.Initialize()
+        equal(env.Update(), 'Next 1')
+        equal(state.positions.MeterQueueRow1, '(#Inset#+(#PanelHeight#+2)*#Scale#)')
+        equal(state.positions.MeterQueueRow2, '#Inset#')
+    end)
+    scenario('actual file I/O reads only an explicitly injected synthetic temp snapshot', function()
+        local output = assert(io.open(scratchPath, 'wb'))
+        local data = snapshot({count=5}, {{'Synthetic disk fixture', 'No provider'},
+            {'Two','B'}, {'Three','C'}, {'Four','D'}, {'Five','E'}})
+        assert(output:write(data))
+        assert(output:close())
+        local state = fixture(data)
+        local reader = Reader.new({ skin=state.env.skin, rowLimit=3, showDetails=0,
+            cachePath=scratchPath, now=function() return 1001 end,
+            getenv=forbidden_os, open=function(path, mode)
+                equal(path, scratchPath, 'only the generated test snapshot is read')
+                equal(mode, 'rb')
+                return io.open(path, mode)
+            end })
+        equal(reader:read().count, 5, 'real file retains all five parsed rows')
+        equal(reader:update(), 'Next 3')
+        equal(state.texts.MeterQueueRow1, 'Synthetic disk fixture', 'real cache honors title-only display')
+        equal(state.texts.MeterQueueRow3, 'Three')
+        equal(state.texts.MeterQueueRow4, '')
+        equal(state.visible.MeterQueueRow3, true)
+        equal(state.visible.MeterQueueRow4, false)
+        local missing_path = scratchPath .. '.never-created'
+        local missing = Reader.new({ cachePath=missing_path, now=forbidden_os, getenv=forbidden_os,
+            open=function(path, mode)
+                equal(path, missing_path, 'missing-file probe stays under synthetic temp path')
+                equal(mode, 'rb')
+                return io.open(path, mode)
+            end })
+        equal(missing:update(), 'Setup required', 'Windows ENOENT maps to onboarding')
+    end)
+    return passed, cases
+end
+
+return Suite

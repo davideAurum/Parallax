@@ -2,7 +2,7 @@
 [MeterMediaOptions]
 Meter=Shape
 X=(#ContentX#+#ContentWidth#-18*#Scale#)
-Y=(#Inset#+6*#Scale#)
+Y=(#MediaHeaderY#+#TitleRowCenterY#-#Inset#-9*#Scale#)
 W=(18*#Scale#)
 H=(18*#Scale#)
 SolidColor=0,0,0,1

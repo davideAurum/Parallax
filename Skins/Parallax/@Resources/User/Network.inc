@@ -1,4 +1,4 @@
-; Preserved module choices. Edit, save, then refresh loaded Network/Connection panels.
+; Preserved module choices. Edit, save, then Apply or refresh the combined Network utility.
 [Variables]
 Columns=1
 PanelHeight=236
@@ -12,7 +12,8 @@ NetworkUnits=bits
 NetworkInCeilingMbps=100
 NetworkOutCeilingMbps=25
 
-; Matching Connection companion: independent width, shared adapter and appearance.
+; Legacy companion geometry retained for saved-file compatibility; no longer used.
+; The combined utility uses Columns and the saved PanelHeight minimum above.
 NetworkConnectionColumns=1
 NetworkConnectionHeight=236
 ; This only enables module queries; it never turns the Windows Wi-Fi radio on/off.

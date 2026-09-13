@@ -1,92 +1,27 @@
-; Compact static inventory block, styled like the CPU/GPU hardware inset.
-[StyleRAMInfoLabel]
-X=(#ContentX#+6*#Scale#)
-W=(#ContentWidth#*0.34)
-H=(18*#Scale#)
-FontSize=(#FontSize#*#Scale#)
-UpdateDivider=-1
-
-[StyleRAMInfoValue]
-X=(#ContentX#+#ContentWidth#-6*#Scale#)
-W=(#ContentWidth#*0.60-6*#Scale#)
-H=(18*#Scale#)
-StringAlign=Right
-FontColor=#TextColor#
-FontSize=(#FontSize#*#Scale#)
-Text=Checking...
-ToolTipText=Reading Windows memory inventory once on refresh.
-Group=RAMHardwareInfo
-UpdateDivider=-1
-
+; One compact, wrapping summary per distinct module configuration.
 [MeterRAMInfoPanel]
 Meter=Shape
 X=#ContentX#
 Y=(#Inset#+28*#Scale#)
-Shape=Rectangle (0.5*#Scale#),(0.5*#Scale#),(#ContentWidth#-#Scale#),(118*#Scale#-#Scale#),(2*#Scale#) | Fill Color #GraphBackgroundColor# | Stroke Color #BorderColor# | StrokeWidth #Scale#
+Shape=Rectangle (0.5*#Scale#),(0.5*#Scale#),(#ContentWidth#-#Scale#),(#RAMInfoHeight#*#Scale#-#Scale#),(2*#Scale#) | Fill Color #GraphBackgroundColor# | Stroke Color #BorderColor# | StrokeWidth #Scale#
+Group=RAMLayout
+DynamicVariables=1
 UpdateDivider=-1
 
-[MeterRAMInfoHeading]
+[MeterRAMInfoSummary]
 Meter=String
-MeterStyle=StyleHeader
+FontFace=#FontFace#
+FontSize=(#FontSize#*#Scale#)
+FontWeight=500
+FontColor=#TextColor#
+AntiAlias=1
+StringAlign=Left
+ClipString=2
 X=(#ContentX#+6*#Scale#)
 Y=(#Inset#+32*#Scale#)
 W=(#ContentWidth#-12*#Scale#)
-H=(18*#Scale#)
-Text=MEMORY HARDWARE
+Text=Checking...
+ToolTipText=Reading each memory module once on refresh.
+Group=RAMHardwareInfo
+DynamicVariables=1
 UpdateDivider=-1
-
-[MeterRAMInfoInstalledLabel]
-Meter=String
-MeterStyle=StyleLabel | StyleRAMInfoLabel
-Y=(#Inset#+52*#Scale#)
-Text=Installed
-
-[MeterRAMInfoInstalled]
-Meter=String
-MeterStyle=StyleLabel | StyleRAMInfoValue
-Y=(#Inset#+52*#Scale#)
-
-[MeterRAMInfoTypeLabel]
-Meter=String
-MeterStyle=StyleLabel | StyleRAMInfoLabel
-Y=(#Inset#+70*#Scale#)
-Text=Type
-
-[MeterRAMInfoType]
-Meter=String
-MeterStyle=StyleLabel | StyleRAMInfoValue
-Y=(#Inset#+70*#Scale#)
-
-[MeterRAMInfoSpeedLabel]
-Meter=String
-MeterStyle=StyleLabel | StyleRAMInfoLabel
-Y=(#Inset#+88*#Scale#)
-Text=Rate
-
-[MeterRAMInfoSpeed]
-Meter=String
-MeterStyle=StyleLabel | StyleRAMInfoValue
-Y=(#Inset#+88*#Scale#)
-
-[MeterRAMInfoDevicesLabel]
-Meter=String
-MeterStyle=StyleLabel | StyleRAMInfoLabel
-Y=(#Inset#+106*#Scale#)
-Text=Devices
-
-[MeterRAMInfoDevices]
-Meter=String
-MeterStyle=StyleLabel | StyleRAMInfoValue
-Y=(#Inset#+106*#Scale#)
-
-[MeterRAMInfoFormLabel]
-Meter=String
-MeterStyle=StyleLabel | StyleRAMInfoLabel
-Y=(#Inset#+124*#Scale#)
-Text=Format
-
-[MeterRAMInfoForm]
-Meter=String
-MeterStyle=StyleLabel | StyleRAMInfoValue
-Y=(#Inset#+124*#Scale#)
-

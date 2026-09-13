@@ -1,6 +1,7 @@
 ; Main utility only. Hidden sections contribute no height; timers keep updating.
 [Variables]
-ChronometerTitleExtra=(Max(0,2*(#TitleFontSize#-10)))
+; The shared centered title row ends at logical Y=26; smaller titles still reserve that box.
+ChronometerTitleExtra=(Max(2,2*(#TitleFontSize#-10)))
 ChronometerBodyExtra=(Max(0,2*(#FontSize#-9)))
 ChronometerHeaderExtra=(Max(0,2*(#HeaderFontSize#-8)))
 ChronometerRuleExtra=(Max(0,#DividerThickness#-1))

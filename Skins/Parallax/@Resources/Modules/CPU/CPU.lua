@@ -33,24 +33,138 @@ local function save(key, value)
     SKIN:Bang('!WriteKeyValue', 'Variables', key, tostring(value), state.userFile)
 end
 
+-- The first twelve colors are deliberately distinct for the common 12-thread
+-- layout. Higher thread counts repeat the editable palette rather than
+-- inventing a measurement-specific color at runtime.
+local threadPalette = {
+    '235,55,75', '255,145,77', '240,225,40', '166,219,91',
+    '79,205,120', '60,200,194', '77,170,255', '122,139,255',
+    '182,130,255', '238,111,196', '245,139,168', '190,190,190'
+}
+
+local function defaultThreadColor(index)
+    return threadPalette[(index - 1) % #threadPalette + 1]
+end
+
+local function normalizeThreadColor(value, fallback)
+    local text = tostring(value or ''):match('^%s*(.-)%s*$')
+    local hex = text:gsub('^#', '')
+    if (#hex == 6 or #hex == 8) and hex:match('^%x+$') then
+        return table.concat({
+            tostring(tonumber(hex:sub(1, 2), 16)),
+            tostring(tonumber(hex:sub(3, 4), 16)),
+            tostring(tonumber(hex:sub(5, 6), 16))
+        }, ',')
+    end
+    local red, green, blue = text:match('^(%d+)%s*,%s*(%d+)%s*,%s*(%d+)')
+    red, green, blue = tonumber(red), tonumber(green), tonumber(blue)
+    if red and green and blue and red <= 255 and green <= 255 and blue <= 255 then
+        return string.format('%d,%d,%d', red, green, blue)
+    end
+    return fallback
+end
+
+local function configuredThreadColor(index)
+    local fallback = defaultThreadColor(index)
+    return normalizeThreadColor(SKIN:GetVariable('CPUThreadColor' .. index, fallback), fallback)
+end
+
+local function syncThreadColors()
+    state.threadColors = state.threadColors or {}
+    local changed = false
+    for index = 1, 64 do
+        local color = configuredThreadColor(index)
+        if state.threadColors[index] ~= color then
+            state.threadColors[index] = color
+            changed = true
+        end
+    end
+    return changed
+end
+
+local function normalizeClock(frequency, unit)
+    frequency = tonumber(frequency)
+    if not frequency or frequency ~= frequency or math.abs(frequency) == math.huge then return nil end
+    if unit and unit:lower() == 'm' then frequency = frequency / 1000 end
+    if frequency <= 0 or frequency > 20 then return nil end
+    return frequency, string.format('%.2f GHz', frequency)
+end
+
+local function configuredTurboClock()
+    -- Rated turbo is intentionally explicit: the available Windows/HWiNFO paths only expose
+    -- firmware limits or live clocks, neither of which is a portable advertised turbo spec.
+    local frequency, unit = tostring(SKIN:GetVariable('CPUTurboClock') or '')
+        :match('^%s*(%d+%.?%d*)%s*([GgMm])[Hh][Zz]%s*$')
+    return normalizeClock(frequency, unit)
+end
+
+local graphTotalHeight = 62
+local renderHistory
+
+local function graphThreadRange()
+    -- History collection is absolute-thread based, independent of table paging.
+    return 1, state.count or 0
+end
+
+local function graphHeight()
+    return graphTotalHeight
+end
+
+local function shapeName(index)
+    return index == 1 and 'Shape' or ('Shape' .. index)
+end
+
+local function configureHistoryTrack()
+    state.graphFirst, state.graphRows = graphThreadRange()
+    state.graphHeight = graphHeight()
+    set('MeterHistoryTrack', 'H', '(' .. state.graphHeight .. '*#Scale#)')
+    set('MeterHistory', 'H', '(' .. state.graphHeight .. '*#Scale#)')
+
+    local height = state.graphHeight
+    local shapes = {
+        'Rectangle 0.5,0.5,(#ContentWidth#-1),(' .. height .. '*#Scale#-1) | Fill Color #GraphBackgroundColor# | Stroke Color #BorderColor# | StrokeWidth 1'
+    }
+    for index = 1, 3 do
+        local y = height * index / 4
+        shapes[#shapes + 1] = 'Line 1,(' .. y .. '*#Scale#),(#ContentWidth#-1),(' .. y .. '*#Scale#) | Stroke Color #GridColor# | StrokeWidth 1'
+    end
+    local count = math.max(#shapes, state.trackShapeCount or 4)
+    for index = 1, count do
+        set('MeterHistoryTrack', shapeName(index), shapes[index] or '')
+    end
+    state.trackShapeCount = #shapes
+end
+
 local function layout()
     local cursor = 30
     local function y(meter, top)
         set(meter, 'Y', '(#Inset#+' .. top .. '*#Scale#)')
     end
+    local function centeredBarY(meter, top)
+        -- The shared thickness is already physical pixels. Center it in this
+        -- 16-logical-pixel row so the full supported 1-12px range clears both
+        -- adjacent rows at every suite scale.
+        set(meter, 'Y', '(#Inset#+' .. top .. '*#Scale#+((16*#Scale#-#DataBarThicknessPx#)/2))')
+    end
     SKIN:Bang(state.showInfo and '!ShowMeterGroup' or '!HideMeterGroup', 'CPUInfo')
-    visible('MeterProcessorClock', state.showInfo and state.infoWrap)
     if state.showInfo then
         local top = cursor
-        local infoHeight = state.infoWrap and 50 or 34
+        local infoHeight = 34
         for meter, offset in pairs({ MeterProcessorPanel = 0,
-            MeterProcessorName = 2, MeterProcessorDetails = 18, MeterProcessorClock = 34 }) do y(meter, top + offset) end
+            MeterProcessorName = 2, MeterProcessorDetails = 18 }) do y(meter, top + offset) end
         set('MeterProcessorPanel', 'H', '(' .. infoHeight .. '*#Scale#)')
         set('MeterProcessorPanel', 'Shape', 'Rectangle 0.5,0.5,(#ContentWidth#-1),(' .. infoHeight .. '*#Scale#-1),(2*#Scale#) | Fill Color #GraphBackgroundColor# | Stroke Color #BorderColor# | StrokeWidth 1')
         cursor = top + infoHeight + 8
+        y('MeterCurrentClockLabel', cursor)
+        y('MeterCurrentClockValue', cursor)
+        cursor = cursor + 24
+    else
+        y('MeterCurrentClockLabel', 0)
+        y('MeterCurrentClockValue', 0)
     end
     SKIN:Bang(state.showCores and '!ShowMeterGroup' or '!HideMeterGroup', 'CPUTableFrame')
     visible('MeterCoreState', state.showCores and (state.count == 0 or state.warmup > 0))
+    for _, meter in ipairs({'MeterPrevious', 'MeterPage', 'MeterNext'}) do y(meter, 0) end
     if state.showCores then
         for _, meter in ipairs({'MeterTableCoreHeader','MeterTableVoltageHeader','MeterTableTemperatureHeader','MeterTableUsageHeader'}) do y(meter, cursor) end
         y('MeterTableHeaderRule', cursor + 16)
@@ -60,9 +174,9 @@ local function layout()
             local top = slot <= state.rows and state.coreY + (slot - 1) * 16 or 0
             y('MeterCoreLabel' .. slot, top)
             y('MeterCoreValue' .. slot, top)
-            y('MeterCoreBar' .. slot, top + 7)
             y('MeterCoreVoltage' .. slot, top)
             y('MeterCoreTemperature' .. slot, top)
+            centeredBarY('MeterCoreBar' .. slot, top)
         end
         cursor = state.coreY + (state.count > 0 and state.rows or 2) * 16
         y('MeterTableFooterRule', cursor + 2)
@@ -71,6 +185,16 @@ local function layout()
             for _, meter in ipairs({'MeterPrevious', 'MeterPage', 'MeterNext'}) do y(meter, cursor) end
             cursor = cursor + 18
         end
+    else
+        for slot = 1, 64 do
+            y('MeterCoreLabel' .. slot, 0)
+            y('MeterCoreValue' .. slot, 0)
+            y('MeterCoreVoltage' .. slot, 0)
+            y('MeterCoreTemperature' .. slot, 0)
+            y('MeterCoreBar' .. slot, 0)
+        end
+        for _, meter in ipairs({'MeterTableCoreHeader', 'MeterTableVoltageHeader', 'MeterTableTemperatureHeader', 'MeterTableUsageHeader',
+            'MeterTableHeaderRule', 'MeterTableFooterRule', 'MeterCoreState'}) do y(meter, 0) end
     end
     SKIN:Bang(state.showProcesses and '!ShowMeterGroup' or '!HideMeterGroup', 'CPUProcessFrame')
     if state.showProcesses then
@@ -83,20 +207,17 @@ local function layout()
             local top = slot <= state.processCount and state.processY + (slot - 1) * 16 or 0
             y('MeterProcessName' .. slot, top)
             y('MeterProcessValue' .. slot, top)
-            y('MeterProcessBar' .. slot, top + 7)
         end
         cursor = state.processY + state.processCount * 16
         y('MeterProcessFooterRule', cursor + 2)
         cursor = cursor + 10
     end
-    visible('MeterHistoryLabel', state.showHistory)
+    configureHistoryTrack()
     visible('MeterHistoryTrack', state.showHistory)
-    visible('MeterHistory', state.showHistory and #state.history >= 2)
     if state.showHistory then
-        y('MeterHistoryLabel', cursor)
-        y('MeterHistoryTrack', cursor + 16)
-        y('MeterHistory', cursor + 16)
-        cursor = cursor + 70
+        y('MeterHistoryTrack', cursor)
+        y('MeterHistory', cursor)
+        cursor = cursor + state.graphHeight + 8
     end
     local height = math.max(state.minimumHeight, cursor + 20)
     y('MeterSensors', height - 20)
@@ -104,6 +225,7 @@ local function layout()
     SKIN:Bang('!SetVariable', 'PanelHeight', tostring(height))
     set('MeterBounds', 'H', '(Round(' .. height .. '*#Scale#)+#Gap#)')
     set('MeterPanel', 'Shape', 'Rectangle (#BorderThickness#*#Scale#/2),(#BorderThickness#*#Scale#/2),(#PanelWidth#-#BorderThickness#*#Scale#),(Round(' .. height .. '*#Scale#)-#BorderThickness#*#Scale#),(#CornerRadius#*#Scale#) | Fill Color #BackgroundColor# | Stroke Color #BorderColor# | StrokeWidth (#BorderThickness#*#Scale#)')
+    if renderHistory then renderHistory() else visible('MeterHistory', false) end
     SKIN:Bang('!UpdateMeter', '*')
 end
 
@@ -113,6 +235,8 @@ local function bindCores()
     state.pages = state.count > 0 and math.ceil(state.count / state.rows) or 1
     state.page = math.max(1, math.min(state.page, state.pages))
     local first = (state.page - 1) * state.rows + 1
+    -- Reuse the sensor reader's current values for this absolute thread page.
+    SKIN:Bang('!CommandMeasure', 'MeasureCPUSensors', 'SetThreadPage(' .. first .. ')')
     for slot = 1, 64 do
         local measure = 'MeasureCPU' .. slot
         local index = first + slot - 1
@@ -126,9 +250,10 @@ local function bindCores()
             set(measure, 'Processor', index)
             set(measure, 'Disabled', 0)
             SKIN:Bang('!EnableMeasure', measure)
-            set('MeterCoreLabel' .. slot, 'Text', 'LP ' .. index)
-            set('MeterCoreLabel' .. slot, 'ToolTipText', 'Logical processor ' .. index .. '; not a physical-core identifier.')
+            set('MeterCoreLabel' .. slot, 'Text', tostring(index))
+            set('MeterCoreLabel' .. slot, 'ToolTipText', 'Windows hardware thread ' .. index .. '. The bar and percentage show this thread utilization.')
             set('MeterCoreValue' .. slot, 'NumOfDecimals', state.decimals)
+            set('MeterCoreBar' .. slot, 'BarColor', state.threadColors[index] or defaultThreadColor(index))
         end
     end
     -- A changed Processor resets native timing. Discard its first sample.
@@ -142,6 +267,16 @@ local function bindCores()
         set('MeterCoreState', 'Text', 'Sampling logical CPUs...')
     else
         set('MeterCoreState', 'Text', state.showCores and state.countError or 'Core display off')
+    end
+end
+
+local function applyThreadBarColors()
+    local first = ((state.page or 1) - 1) * (state.rows or 1) + 1
+    for slot = 1, math.min(state.rows or 0, 64) do
+        local index = first + slot - 1
+        if index <= (state.count or 0) then
+            set('MeterCoreBar' .. slot, 'BarColor', state.threadColors[index] or defaultThreadColor(index))
+        end
     end
 end
 
@@ -178,46 +313,169 @@ local function updateProcesses()
     set('MeterProcessesState', 'Text', 'No active process data')
 end
 
+local function clearHistoryPath(index)
+    set('MeterHistory', 'HistoryPath' .. index, '')
+    set('MeterHistory', shapeName(index), 'Rectangle 0,0,0,0 | Fill Color 0,0,0,0 | StrokeWidth 0')
+    state.renderedThreadPath[index] = false
+end
+
+local function clearHistoryShape()
+    for index = 1, 64 do clearHistoryPath(index) end
+end
+
 local function clearHistory()
-    state.history = {}
+    state.totalHistory = {}
+    state.threadHistory = {}
+    clearHistoryShape()
     visible('MeterHistory', false)
     visible('MeterHistoryTrack', state.showHistory)
-    set('MeterHistoryLabel', 'Text', state.showHistory and 'Graph | warming up' or '')
 end
 
 local function historyTooltip()
-    set('MeterHistory', 'ToolTipText', string.format('%d samples, approximately %.1f seconds between full-buffer endpoints. 0-100%%, newest at right. Unobserved history stays blank; refresh clears it.', state.samples, (state.samples - 1) * state.interval / 1000))
+    local duration = (state.samples - 1) * state.interval / 1000
+    local text
+    if state.historySource == 1 then
+        text = string.format('Per-thread utilization: %d samples, approximately %.1f seconds between full-buffer endpoints. Every Windows logical processor is drawn as an overlaid trace on the shared 0-100%% scale and time axis, newest at right. Each trace uses its matching Thread bar color. An invalid reading clears only that trace; unobserved history stays blank. Changing source, capacity, visibility or refreshing starts fresh history.', state.samples, duration)
+    else
+        text = string.format('Total CPU utilization: %d samples, approximately %.1f seconds between full-buffer endpoints. 0-100%%, newest at right. Unobserved history stays blank; changing source, capacity, visibility or refreshing starts fresh history.', state.samples, duration)
+    end
+    set('MeterHistory', 'ToolTipText', text)
+    set('MeterHistoryTrack', 'ToolTipText', text)
 end
 
-local function appendHistory(value)
-    if not state.showHistory then return end
-    local history = state.history
+local function graphDimensions()
+    local width = SKIN:ParseFormula('(' .. SKIN:ReplaceVariables('#ContentWidth#') .. ')')
+    local height = (state.graphHeight or graphTotalHeight) * state.scale
+    if not width or width <= 0 or not height or height <= 0 then return nil end
+    return width, height
+end
+
+local function tracePoints(history, width, top, height)
+    if #history < 2 then return nil end
+    local inset = math.max(1, state.scale)
+    local usableWidth = width - 2 * inset
+    local usableHeight = height - 2 * inset
+    if usableWidth <= 0 or usableHeight <= 0 then return nil end
+    -- Retain every requested observation, but draw no more than one point per
+    -- horizontal pixel. This bounds a 64-thread, 300-sample redraw.
+    local maximum = math.max(2, math.floor(usableWidth) + 1)
+    local stride = math.max(1, math.ceil(#history / maximum))
+    local step = usableWidth / (state.samples - 1)
+    local points = {}
+    local function add(index)
+        local sample = history[index]
+        points[#points + 1] = {
+            x = inset + (state.samples - #history + index - 1) * step,
+            y = top + height - inset - sample / 100 * usableHeight
+        }
+    end
+    for index = 1, #history, stride do add(index) end
+    if (#history - 1) % stride ~= 0 then add(#history) end
+    return #points >= 2 and points or nil
+end
+
+local function formatPoint(point)
+    return string.format('%.3f,%.3f', point.x, point.y)
+end
+
+local function drawHistoryPath(index, path, color)
+    if not path then return end
+    set('MeterHistory', 'HistoryPath' .. index, path)
+    set('MeterHistory', shapeName(index), 'Path HistoryPath' .. index .. ' | StrokeWidth ' .. math.max(1, state.scale)
+        .. ' | Stroke Color ' .. color
+        .. ' | Fill Color 0,0,0,0 | StrokeLineJoin Round')
+end
+
+local function totalHistoryPath()
+    local width, height = graphDimensions()
+    if not width then return nil end
+    local points = tracePoints(state.totalHistory, width, 0, height)
+    if not points then return nil end
+    local path = {formatPoint(points[1])}
+    for index = 2, #points do path[#path + 1] = 'LineTo ' .. formatPoint(points[index]) end
+    path[#path + 1] = 'ClosePath 0'
+    return table.concat(path, ' | ')
+end
+
+local function threadHistoryPath(index)
+    local width, height = graphDimensions()
+    if not width then return nil end
+    local points = tracePoints(state.threadHistory[index] or {}, width, 0, height)
+    if not points then return nil end
+    local path = {formatPoint(points[1])}
+    for point = 2, #points do path[#path + 1] = 'LineTo ' .. formatPoint(points[point]) end
+    path[#path + 1] = 'ClosePath 0'
+    return table.concat(path, ' | ')
+end
+
+renderHistory = function()
+    if not state.showHistory then
+        visible('MeterHistory', false)
+        return
+    end
+    if state.historySource == 0 then
+        local path = totalHistoryPath()
+        if not path and state.renderedThreadPath[1] then clearHistoryPath(1) end
+        drawHistoryPath(1, path, SKIN:GetVariable('CPUColor'))
+        state.renderedThreadPath[1] = path ~= nil
+        visible('MeterHistory', path ~= nil)
+        return
+    end
+    local hasTrace = false
+    for index = 1, state.count do
+        local path = threadHistoryPath(index)
+        if path then
+            drawHistoryPath(index, path, state.threadColors[index] or defaultThreadColor(index))
+            state.renderedThreadPath[index] = true
+            hasTrace = true
+        elseif state.renderedThreadPath[index] then
+            clearHistoryPath(index)
+        end
+    end
+    visible('MeterHistory', hasTrace)
+end
+
+local function appendSample(history, value)
     history[#history + 1] = value
     if #history > state.samples then table.remove(history, 1) end
-    set('MeterHistoryLabel', 'Text', string.format('Graph | %d/%d | 0-100%%', #history, state.samples))
-    if #history < 2 then return end
-    local meter = SKIN:GetMeter('MeterHistory')
-    -- GetW/GetH return zero for a hidden meter; use declared dimensions while
-    -- preparing the first path after startup or a visibility toggle.
-    local width = SKIN:ParseFormula('(' .. SKIN:ReplaceVariables(meter:GetOption('W')) .. ')')
-    local height = SKIN:ParseFormula('(' .. SKIN:ReplaceVariables(meter:GetOption('H')) .. ')')
-    -- Keep the stroke inside the declared meter, including at exactly 0/100%.
-    local inset = math.max(1, state.scale)
-    local step = math.max(0, width - 2 * inset) / (state.samples - 1)
-    local path = {}
-    for index, sample in ipairs(history) do
-        local x = inset + (state.samples - #history + index - 1) * step
-        local y = height - inset - sample / 100 * math.max(0, height - 2 * inset)
-        path[#path + 1] = (index == 1 and '' or 'LineTo ') .. string.format('%.3f,%.3f', x, y)
+end
+
+local function appendTotalHistory(value)
+    if not state.showHistory or state.historySource ~= 0 then return end
+    appendSample(state.totalHistory, value)
+    renderHistory()
+end
+
+local function appendThreadHistory()
+    if not state.showHistory or state.historySource ~= 1 or state.historyWarmup > 0 then return end
+    for index = 1, state.count do
+        local value = SKIN:GetMeasure('MeasureCPUHistory' .. index):GetValue()
+        if value == value and value >= 0 and value <= 100 then
+            local history = state.threadHistory[index] or {}
+            state.threadHistory[index] = history
+            appendSample(history, value)
+        else
+            -- Do not draw an apparently continuous trace over a known-invalid sample.
+            state.threadHistory[index] = {}
+        end
     end
-    path[#path + 1] = 'ClosePath 0'
-    set('MeterHistory', 'HistoryPath', table.concat(path, ' | '))
-    set('MeterHistory', 'Shape', 'Path HistoryPath | StrokeWidth ' .. state.scale .. ' | Stroke Color ' .. SKIN:GetVariable('CPUColor') .. ' | Fill Color 0,0,0,0')
-    visible('MeterHistory', true)
+    renderHistory()
+end
+
+local function bindHistoryMeasures()
+    local enabled = state.showHistory and state.historySource == 1 and state.count > 0
+    for index = 1, 64 do
+        local measure = 'MeasureCPUHistory' .. index
+        local active = enabled and index <= state.count
+        SKIN:Bang(active and '!EnableMeasure' or '!DisableMeasure', measure)
+        set(measure, 'Disabled', active and 0 or 1)
+    end
+    -- Enabling a native Processor measure resets its timing state.
+    state.historyWarmup = enabled and 2 or 0
 end
 
 function Initialize()
-    state = { ready = false, history = {} }
+    state = { ready = false, totalHistory = {}, threadHistory = {}, threadColors = {}, renderedThreadPath = {}, trackShapeCount = 4 }
 end
 
 local function showProcessorName()
@@ -225,10 +483,11 @@ local function showProcessorName()
     -- Only an explicit nominal frequency in the brand string is used here.
     -- Current/maximum clock measures are not substitutes for the base clock.
     local frequency, unit = raw:match('@%s*(%d+%.?%d*)%s*([GgMm])[Hh][Zz]%s*$')
-    frequency = tonumber(frequency)
-    if frequency and unit:lower() == 'm' then frequency = frequency / 1000 end
-    state.baseClock = frequency and frequency > 0 and frequency <= 20
-        and string.format('%.2f GHz', frequency) or nil
+    state.baseClockGHz, state.baseClock = normalizeClock(frequency, unit)
+    state.turboClockGHz, state.turboClock = configuredTurboClock()
+    if not state.baseClockGHz or not state.turboClockGHz or state.turboClockGHz <= state.baseClockGHz then
+        state.turboClockGHz, state.turboClock = nil, nil
+    end
     local name = raw:gsub('%([Rr]%)', ''):gsub('%([Tt][Mm]%)', '')
     name = name:gsub('%s+[Cc][Pp][Uu]%s*@%s*[%d%.]+%s*[GgMm][Hh][Zz]%s*$', '')
     name = name:gsub('%s*@%s*[%d%.]+%s*[GgMm][Hh][Zz]%s*$', '')
@@ -250,18 +509,18 @@ function ApplyProcessorInfo()
     local counts = valid and (physical .. '-cores (' .. logical .. '-threads)') or '?-cores (?-threads)'
     local clock = state.baseClock or 'Unavailable'
     local summary = counts .. ' @ ' .. clock
-    local width = SKIN:ParseFormula('(' .. SKIN:ReplaceVariables('#ContentWidth#') .. ')') / state.scale - 8
-    -- Reflow at a conservative text-width threshold; never shrink the selected
-    -- body font. Breaking before @ keeps the clock and unit together.
-    state.infoWrap = #summary * (tonumber(SKIN:GetVariable('FontSize')) or 9) * 0.72 > width
-    set('MeterProcessorDetails', 'Text', state.infoWrap and counts or summary)
-    set('MeterProcessorClock', 'Text', '@ ' .. clock)
+    if state.turboClock then
+        summary = counts .. string.format(' @ %.2f (%.2f) GHz', state.baseClockGHz, state.turboClockGHz)
+    end
+    set('MeterProcessorDetails', 'Text', summary)
     local detail = valid and (physical .. ' physical cores; ' .. logical .. ' hardware threads (logical processors). ')
         or 'Windows processor topology unavailable. Refresh to retry. '
-    detail = detail .. (state.baseClock and ('Base clock: ' .. state.baseClock .. ', from the primary processor model string; not current or turbo frequency.')
+    detail = detail .. (state.baseClock and ('Base clock: ' .. state.baseClock .. ', from the primary processor model string; not a current reading.')
         or 'Base clock unavailable: the primary processor model does not report a nominal frequency.')
+    detail = detail .. (state.turboClock and (' Configured turbo boost clock: ' .. state.turboClock
+        .. '. This is an advertised limit supplied in CPU settings, not a live measurement or a guaranteed all-core frequency.')
+        or ' Turbo boost clock is not configured with a valid value above the base clock.')
     set('MeterProcessorDetails', 'ToolTipText', detail)
-    set('MeterProcessorClock', 'ToolTipText', detail)
     state.processorInfoDone = true
     layout()
     redraw()
@@ -273,13 +532,19 @@ function ApplyPreferences()
     for key, spec in pairs({
         CPUShowInfo = {'showInfo', 1, 0, 1}, CPUShowCores = {'showCores', 1, 0, 1},
         CPUShowProcesses = {'showProcesses', 1, 0, 1}, CPUShowHistory = {'showHistory', 1, 0, 1},
-        CPUProcessCount = {'processCount', 5, 1, 10}, CPUHistorySamples = {'samples', 60, 10, 300},
+        CPUProcessCount = {'processCount', 5, 1, 10}, CPUHistorySource = {'historySource', 0, 0, 1},
+        CPUHistorySamples = {'samples', 60, 10, 300},
         CPUDecimals = {'decimals', 0, 0, 1}
     }) do
         local current = state[spec[1]]
         if type(current) == 'boolean' then current = current and 1 or 0 end
         local desired = option(key, spec[2], spec[3], spec[4])
         if desired ~= current then ApplySetting(key, desired) end
+    end
+    if syncThreadColors() then
+        applyThreadBarColors()
+        renderHistory()
+        redraw()
     end
 end
 
@@ -298,8 +563,9 @@ function Update()
         state.samples = option('CPUHistorySamples', 60, 10, 300)
         state.showCores = option('CPUShowCores', 1, 0, 1) == 1
         state.showHistory = option('CPUShowHistory', 1, 0, 1) == 1
+        state.historySource = option('CPUHistorySource', 0, 0, 1)
         state.scale = tonumber(SKIN:GetVariable('Scale')) or 1
-        state.interval = tonumber(SKIN:GetVariable('MetricsInterval')) or 1000
+        state.interval = tonumber(SKIN:GetVariable('CPUUpdateInterval')) or 1000
         state.count = 0
         state.countError = 'Core count unavailable'
         local detected = tonumber(SELF:GetOption('DetectedCount', ''))
@@ -314,9 +580,11 @@ function Update()
             state.rows = state.count > 0 and state.count or 8
             state.page = 1
         end
+        syncThreadColors()
         historyTooltip()
         bindCores()
         bindProcesses()
+        bindHistoryMeasures()
         layout()
         clearHistory()
         state.ready = true
@@ -326,15 +594,22 @@ function Update()
 
     ApplyProcessorInfo()
     updateProcesses()
-    -- The first overall sample was intentionally skipped during setup.
     local value = SKIN:GetMeasure('MeasureCPUTotal'):GetValue()
     if value == value and value >= 0 and value <= 100 then
         set('MeterTotal', 'Text', string.format('%.' .. state.decimals .. 'f%%', value))
-        appendHistory(value)
     else
         set('MeterTotal', 'Text', 'Unavailable')
-        -- Do not bridge a known-invalid sample with an apparently continuous trace.
-        clearHistory()
+    end
+    if state.historySource == 0 then
+        if value == value and value >= 0 and value <= 100 then
+            appendTotalHistory(value)
+        else
+            -- Do not bridge a known-invalid total sample with a continuous trace.
+            clearHistory()
+        end
+    else
+        if state.historyWarmup > 0 then state.historyWarmup = state.historyWarmup - 1 end
+        appendThreadHistory()
     end
     if state.active > 0 and state.warmup > 0 then
         state.warmup = state.warmup - 1
@@ -382,6 +657,13 @@ function ApplySetting(key, value)
     elseif key == 'CPUShowHistory' then
         state.showHistory = value == 1
         clearHistory()
+        bindHistoryMeasures()
+        historyTooltip()
+    elseif key == 'CPUHistorySource' then
+        state.historySource = value
+        clearHistory()
+        bindHistoryMeasures()
+        historyTooltip()
     elseif key == 'CPUHistorySamples' then
         state.samples = value
         clearHistory()

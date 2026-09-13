@@ -8,6 +8,10 @@ VisualizerSensitivityDb=(Max(10,Min(80,#VisualizerSensitivity#)))
 VisualizerIdleFloor=(Max(0.00001,Min(0.1,#VisualizerIdleThreshold#)))
 ; Runtime-only provider evidence. Never written to the user's settings.
 VisualizerFormatInvalid=0
-; Keep large titles below a thick inside border without changing saved height.
+VisualizerVolumeAvailable=0
+VisualizerVolumeDivider=(Max(1,Round(250/#VisualizerEffectiveInterval#)))
+; Reclaim the status row and footer for the spectrum; keep thick-border clearance.
 VisualizerTopShift=(Max(0,#BorderThickness#-2))
-VisualizerPlotHeight=(42-#VisualizerTopShift#)
+VisualizerPlotTop=(43+#VisualizerTopShift#)
+VisualizerPlotHeight=(#PanelHeight#-66-#VisualizerTopShift#)
+VisualizerBandGapPx=(Max(0,Round(Max(0,Min(4,#VisualizerBandGap#))*#Scale#)))

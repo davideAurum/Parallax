@@ -11,6 +11,8 @@ dist/
 /@Vault/
 /Skins/@Vault/
 /Skins/WebNowPlayingRedux/
+/Skins/Gadgets/
+/Skins/HWiNFO/
 
 # Keep reusable test harnesses; omit only their generated runs and captures.
 **/.runtime/
@@ -19,6 +21,8 @@ dist/
 *.py[cod]
 /Skins/Parallax/@Resources/Modules/Network/QA/run-*/
 /Skins/Parallax/@Resources/Modules/Network/QA/connection-run-*/
+/Skins/Parallax/@Resources/Modules/Network/QA/settings-run-*/
+/Skins/Parallax/@Resources/Modules/Network/QA/unified-run-*/
 
 # Runtime state, authentication material, and transient files.
 *.tmp
@@ -32,5 +36,7 @@ source.snapshot
 queue.retry.json
 auth.lock
 stop.request
+enabled.intent
+launch.id
 .env.*
 !.env.example

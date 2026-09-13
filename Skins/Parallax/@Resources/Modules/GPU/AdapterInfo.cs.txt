@@ -1,10 +1,19 @@
 // Original Parallax C# source. The .cs.txt extension permits source-only packaging;
 // Rainmeter's once-per-refresh PowerShell query compiles this with Add-Type.
-// Uses Windows DXCore, DXGI and D3D12 APIs. No files, processes or live settings are changed.
+// Uses Windows DXCore and the existing NVIDIA driver. No files, processes or live settings are changed.
 // API contract: https://learn.microsoft.com/en-us/windows/win32/dxcore/dxcore-enum-adapters
 // ABI reference: https://github.com/microsoft/DirectX-Headers/blob/main/include/directx/dxcore_interface.h
-// D3D12 ABI: https://github.com/microsoft/DirectX-Headers/blob/main/include/directx/d3d12.h
-// DXGI ABI: https://github.com/microsoft/win32metadata/blob/main/generation/WinSDK/RecompiledIdlHeaders/shared/dxgi1_4.h
+// Public NVAPI ABI / IDs: https://github.com/NVIDIA/nvapi/blob/main/nvapi.h
+// https://github.com/NVIDIA/nvapi/blob/main/nvapi_interface.h
+// Base/boost graphics clock semantics: https://docs.nvidia.com/nvapi/group__gpuclock.html
+// Private read-only RAM type/maker ABI and enum references (not a bundled dependency):
+// https://github.com/falahati/NvAPIWrapper/blob/master/NvAPIWrapper/Native/Delegates/GPU.cs
+// https://github.com/falahati/NvAPIWrapper/blob/master/NvAPIWrapper/Native/Helpers/FunctionId.cs
+// https://github.com/falahati/NvAPIWrapper/blob/master/NvAPIWrapper/Native/GPU/GPUMemoryType.cs
+// https://github.com/falahati/NvAPIWrapper/blob/master/NvAPIWrapper/Native/GPU/GPUMemoryMaker.cs
+// Extended type codes: Fastfetch 2.67.0 src/detection/gpu/nvapi.h, original source
+// reproduced at https://fossies.org/linux/fastfetch/src/detection/gpu/nvapi.h
+// Private entry points are optional and unsupported codes remain unknown.
 using System;
 using System.Globalization;
 using System.Runtime.InteropServices;
@@ -16,29 +25,35 @@ public static class ParallaxGpuInfo
     private static readonly Guid ListId = new Guid("526c7776-40e9-459b-b711-f32ad76dfc28");
     private static readonly Guid AdapterId = new Guid("f0db4c7f-fe5a-42a2-bd62-f2a6cf6fc83e");
     private static readonly Guid GraphicsAttribute = new Guid("0c9ece4d-2f6e-4f01-8c96-e89e331b47b1");
-    private static readonly Guid DxgiFactoryId = new Guid("1bc6ea02-ef36-464f-bf0c-21ca39e5168a");
-    private static readonly Guid DxgiAdapterId = new Guid("29038f61-3839-4626-91fd-086879011a05");
-    private static readonly Guid DeviceId = new Guid("189819f1-1db6-4b57-be54-1821339b85f7");
     private const uint InstanceLuid = 0;
-    private const uint DriverVersion = 1;
     private const uint DriverDescription = 2;
     private const uint DedicatedAdapterMemory = 7;
     private const uint IsHardware = 11;
     private const uint IsIntegrated = 12;
     private const uint HighPerformance = 2;
-    private const int InvalidArgument = unchecked((int)0x80070057);
+    private const int MaximumNvidiaGpus = 64;
+    private const int MaximumNvidiaClockDomains = 32;
+    private const int NvidiaIncompatibleStructVersion = -9;
+    private const uint NvidiaBaseClock = 1;
+    private const uint NvidiaBoostClock = 2;
+    private const uint LoadLibrarySearchSystem32 = 0x00000800;
 
     [DllImport("dxcore.dll", ExactSpelling = true, CallingConvention = CallingConvention.StdCall)]
     [DefaultDllImportSearchPaths(DllImportSearchPath.System32)]
     private static extern int DXCoreCreateAdapterFactory(ref Guid interfaceId, out IntPtr factory);
 
-    [DllImport("dxgi.dll", ExactSpelling = true, CallingConvention = CallingConvention.StdCall)]
+    [DllImport("kernel32.dll", CharSet = CharSet.Unicode, ExactSpelling = true, SetLastError = true)]
     [DefaultDllImportSearchPaths(DllImportSearchPath.System32)]
-    private static extern int CreateDXGIFactory1(ref Guid interfaceId, out IntPtr factory);
+    private static extern IntPtr LoadLibraryExW(string name, IntPtr file, uint flags);
 
-    [DllImport("d3d12.dll", ExactSpelling = true, CallingConvention = CallingConvention.StdCall)]
+    [DllImport("kernel32.dll", CharSet = CharSet.Ansi, ExactSpelling = true, SetLastError = true)]
     [DefaultDllImportSearchPaths(DllImportSearchPath.System32)]
-    private static extern int D3D12CreateDevice(IntPtr adapter, uint minimumFeatureLevel, ref Guid interfaceId, out IntPtr device);
+    private static extern IntPtr GetProcAddress(IntPtr module, string name);
+
+    [DllImport("kernel32.dll", ExactSpelling = true)]
+    [DefaultDllImportSearchPaths(DllImportSearchPath.System32)]
+    [return: MarshalAs(UnmanagedType.Bool)]
+    private static extern bool FreeLibrary(IntPtr module);
 
     [UnmanagedFunctionPointer(CallingConvention.StdCall)]
     private delegate int CreateList(IntPtr self, uint count, [In] Guid[] attributes, ref Guid interfaceId, out IntPtr list);
@@ -58,49 +73,75 @@ public static class ParallaxGpuInfo
     private delegate int GetProperty(IntPtr self, uint property, UIntPtr bufferSize, IntPtr buffer);
     [UnmanagedFunctionPointer(CallingConvention.StdCall)]
     private delegate int GetPropertySize(IntPtr self, uint property, out UIntPtr size);
-    [UnmanagedFunctionPointer(CallingConvention.StdCall)]
-    private delegate int EnumAdapterByLuid(IntPtr self, Luid luid, ref Guid interfaceId, out IntPtr adapter);
-    [UnmanagedFunctionPointer(CallingConvention.StdCall)]
-    private delegate int CheckFeatureSupport(IntPtr self, uint feature, IntPtr data, uint size);
+    [UnmanagedFunctionPointer(CallingConvention.Cdecl)]
+    private delegate IntPtr NvidiaQueryInterface(uint id);
+    [UnmanagedFunctionPointer(CallingConvention.Cdecl)]
+    private delegate int NvidiaLifecycle();
+    [UnmanagedFunctionPointer(CallingConvention.Cdecl)]
+    private delegate int NvidiaEnumerate([Out, MarshalAs(UnmanagedType.LPArray, SizeConst = MaximumNvidiaGpus)] IntPtr[] handles, out uint count);
+    [UnmanagedFunctionPointer(CallingConvention.Cdecl)]
+    private delegate int NvidiaLogicalInfo(IntPtr logicalGpu, ref NvidiaLogicalData data);
+    [UnmanagedFunctionPointer(CallingConvention.Cdecl)]
+    private delegate int NvidiaScalar(IntPtr physicalGpu, out uint value);
+    [UnmanagedFunctionPointer(CallingConvention.Cdecl)]
+    private delegate int NvidiaClockQuery(IntPtr physicalGpu, ref NvidiaClockFrequencies data);
 
-    [StructLayout(LayoutKind.Sequential)]
-    private struct Luid
+    // NV_LOGICAL_GPU_DATA_V1 uses the SDK's pack(8); pointers follow process
+    // bitness. AdapterId points to caller-owned eight-byte Windows LUID storage.
+    [StructLayout(LayoutKind.Sequential, Pack = 8)]
+    private struct NvidiaLogicalData
     {
-        public uint Low;
-        public int High;
+        public uint Version;
+        public IntPtr AdapterId;
+        public uint PhysicalCount;
+        [MarshalAs(UnmanagedType.ByValArray, SizeConst = MaximumNvidiaGpus)]
+        public IntPtr[] PhysicalHandles;
+        [MarshalAs(UnmanagedType.ByValArray, SizeConst = 8)]
+        public uint[] Reserved;
     }
 
-    [StructLayout(LayoutKind.Sequential)]
-    private struct FeatureLevels
+    [StructLayout(LayoutKind.Sequential, Pack = 8)]
+    private struct NvidiaClockDomain
     {
-        public uint Count;
-        public IntPtr Requested;
-        public uint Maximum;
+        public uint Flags; // bIsPresent is bit 0; all other bits are reserved.
+        public uint Frequency; // kHz.
     }
 
-    [StructLayout(LayoutKind.Sequential)]
-    private struct ShaderModel
+    // NV_GPU_CLOCK_FREQUENCIES_V2 / version 3 have identical 264-byte layouts.
+    // ClockType is the low four bits; the other 28 input bits must remain zero.
+    [StructLayout(LayoutKind.Sequential, Pack = 8)]
+    private struct NvidiaClockFrequencies
     {
-        public uint Highest;
+        public uint Version;
+        public uint ClockType;
+        [MarshalAs(UnmanagedType.ByValArray, SizeConst = MaximumNvidiaClockDomains)]
+        public NvidiaClockDomain[] Domains;
     }
 
-    [StructLayout(LayoutKind.Sequential)]
-    private struct Options5
-    {
-        public int SrvOnlyTiledResourceTier3; // Native BOOL, four bytes.
-        public uint RenderPassesTier;
-        public uint RaytracingTier;
-    }
-
-    // One-line success protocol, exactly seven fields:
-    // OK|model|dedicatedVideoMemoryBytes|d3dFeatureLevel|shaderModel|rayTracingTier|driverVersion
-    // An unknown individual capability is "?"; DXR unsupported is "NONE".
+    // One-line success protocol, exactly eight fields:
+    // OK|model|memoryBytes|memoryType|memoryVendor|memorySource|baseKHz|boostKHz
+    // An unknown individual field is "?". PHYSICAL means driver-reported
+    // physical framebuffer; DEDICATED means DXCore dedicated-adapter bytes.
+    // Base/boost are independent driver-reported graphics clock specifications,
+    // never the current clock, memory clock, or an observed maximum.
     // Other results remain NONE, UNAVAILABLE, or AMBIGUOUS.
     // "Main" means the first discrete GPU in Windows' high-performance order.
     // This list covers D3D12 graphics adapters; it is not a display-ownership query.
-    // Capabilities describe the installed driver and system D3D12 runtime. DXR
-    // support does not establish dedicated RT cores or ray-tracing performance.
+    // Memory type/vendor are queried from the selected hardware, never inferred
+    // from a model name or a machine-specific profile.
     public static string Read()
+    {
+        return ReadMetadata(false);
+    }
+
+    // The skin also needs the selected adapter's exact identity for its
+    // persistent temperature provider. No hardware identity is saved to settings.
+    public static string ReadForSkin()
+    {
+        return ReadMetadata(true);
+    }
+
+    private static string ReadMetadata(bool includeIdentity)
     {
         IntPtr factory = IntPtr.Zero;
         IntPtr list = IntPtr.Zero;
@@ -148,14 +189,20 @@ public static class ParallaxGpuInfo
             string name = ReadName(selected);
             if (String.IsNullOrEmpty(name)) return "UNAVAILABLE";
             ulong value;
-            string memory = TryReadUInt64(selected, DedicatedAdapterMemory, out value)
+            string memory = TryReadUInt64(selected, DedicatedAdapterMemory, out value) && value > 0
                 ? value.ToString(CultureInfo.InvariantCulture) : "?";
-            string driver = TryReadUInt64(selected, DriverVersion, out value)
-                ? FormatDriverVersion(value) : "?";
-            string featureLevel, shaderModel, rayTracing;
-            ReadD3D12(selected, out featureLevel, out shaderModel, out rayTracing);
+            string memoryType = "?", memoryVendor = "?";
+            string memorySource = "DEDICATED";
+            string baseClock = "?", boostClock = "?";
+            string adapterIdentity = "?";
+            if (TryReadUInt64(selected, InstanceLuid, out value))
+            {
+                adapterIdentity = value.ToString("X16", CultureInfo.InvariantCulture);
+                ReadNvidiaMetadata(value, ref memory, ref memoryType, ref memoryVendor, ref memorySource, ref baseClock, ref boostClock);
+            }
             if (!Method<GetFlag>(selected, 3)(selected) || Method<GetFlag>(list, 5)(list)) return "UNAVAILABLE";
-            return String.Join("|", new string[] { "OK", name, memory, featureLevel, shaderModel, rayTracing, driver });
+            string metadata = String.Join("|", new string[] { "OK", name, memory, memoryType, memoryVendor, memorySource, baseClock, boostClock });
+            return metadata + (includeIdentity ? "\nGPU_ADAPTER|1|" + adapterIdentity : "");
         }
         catch
         {
@@ -203,122 +250,195 @@ public static class ParallaxGpuInfo
         finally { if (buffer != IntPtr.Zero) Marshal.FreeHGlobal(buffer); }
     }
 
-    private static string FormatDriverVersion(ulong version)
+    private static T NvidiaFunction<T>(NvidiaQueryInterface query, uint id) where T : class
     {
-        return String.Format(CultureInfo.InvariantCulture, "{0}.{1}.{2}.{3}",
-            (version >> 48) & 0xffff, (version >> 32) & 0xffff,
-            (version >> 16) & 0xffff, version & 0xffff);
+        IntPtr address = query(id);
+        return address == IntPtr.Zero ? null
+            : (T)(object)Marshal.GetDelegateForFunctionPointer(address, typeof(T));
     }
 
-    private static void ReadD3D12(IntPtr selected, out string featureLevel, out string shaderModel, out string rayTracing)
+    private static bool TryNvidiaScalar(NvidiaQueryInterface query, uint id, IntPtr gpu, out uint value)
     {
-        featureLevel = shaderModel = rayTracing = "?";
-        IntPtr factory = IntPtr.Zero;
-        IntPtr adapter = IntPtr.Zero;
-        IntPtr device = IntPtr.Zero;
+        value = 0;
         try
         {
-            ulong luidValue;
-            if (!TryReadUInt64(selected, InstanceLuid, out luidValue)) return;
-            Luid luid = new Luid { Low = (uint)luidValue, High = unchecked((int)(luidValue >> 32)) };
-            Guid factoryId = DxgiFactoryId;
-            Check(CreateDXGIFactory1(ref factoryId, out factory));
-            Guid adapterId = DxgiAdapterId;
-            // IDXGIFactory4 slot 26 selects precisely the same adapter. Never
-            // pass NULL to D3D12CreateDevice: that would choose the default GPU.
-            Check(Method<EnumAdapterByLuid>(factory, 26)(factory, luid, ref adapterId, out adapter));
-            if (adapter == IntPtr.Zero) return;
-            Guid deviceId = DeviceId;
-            Check(D3D12CreateDevice(adapter, 0xb000, ref deviceId, out device));
-            featureLevel = ReadFeatureLevel(device);
-            shaderModel = ReadShaderModel(device);
-            rayTracing = ReadRayTracing(device);
+            NvidiaScalar read = NvidiaFunction<NvidiaScalar>(query, id);
+            return read != null && read(gpu, out value) == 0;
         }
-        catch { /* Keep known DXCore metadata even when D3D12 is unavailable. */ }
+        catch { return false; }
+    }
+
+    private static NvidiaLogicalData NewNvidiaLogicalData(IntPtr luidBuffer)
+    {
+        return new NvidiaLogicalData {
+            Version = (uint)Marshal.SizeOf(typeof(NvidiaLogicalData)) | 0x10000,
+            AdapterId = luidBuffer,
+            PhysicalHandles = new IntPtr[MaximumNvidiaGpus],
+            Reserved = new uint[8]
+        };
+    }
+
+    private static string ReadNvidiaClock(NvidiaQueryInterface query, IntPtr gpu, uint clockType)
+    {
+        try
+        {
+            if (clockType != NvidiaBaseClock && clockType != NvidiaBoostClock) return "?";
+            NvidiaClockQuery read = NvidiaFunction<NvidiaClockQuery>(query, 0xdcb616c3);
+            if (read == null) return "?";
+            foreach (uint version in new uint[] { 3, 2 })
+            {
+                NvidiaClockFrequencies data = new NvidiaClockFrequencies {
+                    Version = (uint)Marshal.SizeOf(typeof(NvidiaClockFrequencies)) | (version << 16),
+                    ClockType = clockType,
+                    Domains = new NvidiaClockDomain[MaximumNvidiaClockDomains]
+                };
+                int status = read(gpu, ref data);
+                if (status == NvidiaIncompatibleStructVersion) continue;
+                if (status != 0 || (data.ClockType & 0xf) != clockType || data.Domains == null ||
+                    data.Domains.Length != MaximumNvidiaClockDomains) return "?";
+                // NVAPI_GPU_PUBLIC_CLOCK_GRAPHICS is domain 0. Domain 4 is
+                // memory and must not be used for either requested GPU clock.
+                NvidiaClockDomain graphics = data.Domains[0];
+                if ((graphics.Flags & 1) == 0 || graphics.Frequency == 0) return "?";
+                return graphics.Frequency.ToString(CultureInfo.InvariantCulture);
+            }
+            // V1 has no ClockType selector; falling back to it could silently
+            // substitute a current frequency for the requested specification.
+        }
+        catch { /* A missing clock feature must not discard other metadata. */ }
+        return "?";
+    }
+
+    private static void ReadNvidiaMetadata(ulong selectedLuid, ref string memory, ref string memoryType,
+        ref string memoryVendor, ref string memorySource, ref string baseClock, ref string boostClock)
+    {
+        IntPtr module = IntPtr.Zero;
+        IntPtr luidBuffer = IntPtr.Zero;
+        NvidiaLifecycle unload = null;
+        bool initialized = false;
+        try
+        {
+            // Full system path plus restricted dependency search. Windows' normal
+            // WOW64 redirection selects the x86 system DLL for a 32-bit process.
+            string dll = IntPtr.Size == 8 ? "nvapi64.dll" : "nvapi.dll";
+            string path = System.IO.Path.Combine(Environment.SystemDirectory, dll);
+            module = LoadLibraryExW(path, IntPtr.Zero, LoadLibrarySearchSystem32);
+            if (module == IntPtr.Zero) return;
+            IntPtr entry = GetProcAddress(module, "nvapi_QueryInterface");
+            if (entry == IntPtr.Zero) return;
+            NvidiaQueryInterface query = (NvidiaQueryInterface)Marshal.GetDelegateForFunctionPointer(entry, typeof(NvidiaQueryInterface));
+            NvidiaLifecycle initialize = NvidiaFunction<NvidiaLifecycle>(query, 0x0150e828);
+            unload = NvidiaFunction<NvidiaLifecycle>(query, 0xd22bdd7e);
+            if (initialize == null || unload == null || initialize() != 0) return;
+            initialized = true;
+            NvidiaEnumerate enumerate = NvidiaFunction<NvidiaEnumerate>(query, 0x48b3ea59);
+            NvidiaLogicalInfo logicalInfo = NvidiaFunction<NvidiaLogicalInfo>(query, 0x842b066e);
+            if (enumerate == null || logicalInfo == null) return;
+
+            IntPtr[] logicalGpus = new IntPtr[MaximumNvidiaGpus];
+            uint count;
+            if (enumerate(logicalGpus, out count) != 0 || count > MaximumNvidiaGpus) return;
+            luidBuffer = Marshal.AllocHGlobal(8);
+            IntPtr selectedPhysical = IntPtr.Zero;
+            IntPtr selectedLogical = IntPtr.Zero;
+            for (int index = 0; index < count; ++index)
+            {
+                if (logicalGpus[index] == IntPtr.Zero) return;
+                Marshal.WriteInt64(luidBuffer, 0);
+                NvidiaLogicalData data = NewNvidiaLogicalData(luidBuffer);
+                if (logicalInfo(logicalGpus[index], ref data) != 0) return;
+                if (data.AdapterId != luidBuffer || data.PhysicalCount > MaximumNvidiaGpus) return;
+                if (unchecked((ulong)Marshal.ReadInt64(luidBuffer)) != selectedLuid) continue;
+                // Linked multi-GPU adapters do not establish one physical card.
+                // Never choose the first NVIDIA card or guess from its name.
+                if (selectedPhysical != IntPtr.Zero || data.PhysicalCount != 1 || data.PhysicalHandles[0] == IntPtr.Zero) return;
+                selectedPhysical = data.PhysicalHandles[0];
+                selectedLogical = logicalGpus[index];
+            }
+            if (selectedPhysical == IntPtr.Zero) return;
+
+            uint value;
+            string physicalMemory = "?", type = "?", vendor = "?";
+            // Public API returns physical framebuffer size in KiB, excluding
+            // dedicated system RAM. Cast before multiplication to avoid overflow.
+            if (TryNvidiaScalar(query, 0x46fbeb03, selectedPhysical, out value) && value > 0)
+                physicalMemory = ((ulong)value * 1024).ToString(CultureInfo.InvariantCulture);
+            if (TryNvidiaScalar(query, 0x57f7caac, selectedPhysical, out value))
+                type = NvidiaMemoryType(value);
+            if (TryNvidiaScalar(query, 0x42aea16a, selectedPhysical, out value))
+                vendor = NvidiaMemoryVendor(value);
+            string baseFrequency = ReadNvidiaClock(query, selectedPhysical, NvidiaBaseClock);
+            string boostFrequency = ReadNvidiaClock(query, selectedPhysical, NvidiaBoostClock);
+
+            // Recheck the association after the bounded read in case topology
+            // changed. A failure preserves only the earlier DXCore fallback.
+            Marshal.WriteInt64(luidBuffer, 0);
+            NvidiaLogicalData verified = NewNvidiaLogicalData(luidBuffer);
+            if (logicalInfo(selectedLogical, ref verified) != 0 || verified.AdapterId != luidBuffer ||
+                unchecked((ulong)Marshal.ReadInt64(luidBuffer)) != selectedLuid ||
+                verified.PhysicalCount != 1 || verified.PhysicalHandles[0] != selectedPhysical) return;
+            if (physicalMemory != "?")
+            {
+                memory = physicalMemory;
+                memorySource = "PHYSICAL";
+            }
+            memoryType = type;
+            memoryVendor = vendor;
+            baseClock = baseFrequency;
+            boostClock = boostFrequency;
+        }
+        catch { /* Missing/unsupported NVIDIA driver keeps the known DXCore metadata. */ }
         finally
         {
-            if (device != IntPtr.Zero) Marshal.Release(device);
-            if (adapter != IntPtr.Zero) Marshal.Release(adapter);
-            if (factory != IntPtr.Zero) Marshal.Release(factory);
+            if (luidBuffer != IntPtr.Zero) Marshal.FreeHGlobal(luidBuffer);
+            try { if (initialized) unload(); }
+            catch { /* Cleanup must not discard a completed metadata result. */ }
+            finally { if (module != IntPtr.Zero) FreeLibrary(module); }
         }
     }
 
-    private static int QueryFeature<T>(IntPtr device, uint feature, ref T data) where T : struct
+    private static string NvidiaMemoryType(uint value)
     {
-        int size = Marshal.SizeOf(typeof(T));
-        IntPtr buffer = Marshal.AllocHGlobal(size);
-        try
+        // Verified enum values, not a GPU model database. Unknown/new codes must
+        // remain unknown until their meanings have an independent ABI reference.
+        switch (value)
         {
-            Marshal.StructureToPtr(data, buffer, false);
-            // ID3D12Device inherits seven IUnknown/ID3D12Object methods; its
-            // CheckFeatureSupport method occupies vtable slot 13.
-            int result = Method<CheckFeatureSupport>(device, 13)(device, feature, buffer, (uint)size);
-            if (result >= 0) data = (T)Marshal.PtrToStructure(buffer, typeof(T));
-            return result;
+            case 1: return "SDRAM";
+            case 2: return "DDR";
+            case 3: return "DDR2";
+            case 4: return "GDDR2";
+            case 5: return "GDDR3";
+            case 6: return "GDDR4";
+            case 7: return "DDR3";
+            case 8: return "GDDR5";
+            case 9: return "LPDDR2";
+            case 10: return "GDDR5X";
+            case 11: return "LPDDR3";
+            case 12: return "LPDDR4";
+            case 13: return "LPDDR5";
+            case 14: return "GDDR6";
+            case 15: return "GDDR6X";
+            case 16: return "GDDR7";
+            default: return "?";
         }
-        finally { Marshal.FreeHGlobal(buffer); }
     }
 
-    private static string ReadFeatureLevel(IntPtr device)
+    private static string NvidiaMemoryVendor(uint value)
     {
-        IntPtr requested = IntPtr.Zero;
-        try
+        switch (value)
         {
-            int[] levels = new int[] { 0xc200, 0xc100, 0xc000, 0xb100, 0xb000 };
-            requested = Marshal.AllocHGlobal(levels.Length * 4);
-            Marshal.Copy(levels, 0, requested, levels.Length);
-            for (int start = 0; start < levels.Length; ++start)
-            {
-                FeatureLevels data = new FeatureLevels {
-                    Count = (uint)(levels.Length - start), Requested = IntPtr.Add(requested, start * 4), Maximum = 0
-                };
-                int result = QueryFeature(device, 2, ref data);
-                if (result == InvalidArgument) continue; // Older runtime may not know 12_2.
-                if (result < 0 || Array.IndexOf(levels, (int)data.Maximum, start) < 0) return "?";
-                return String.Format(CultureInfo.InvariantCulture, "{0}.{1}", data.Maximum >> 12, (data.Maximum >> 8) & 0xf);
-            }
+            case 1: return "Samsung";
+            case 2: return "Qimonda";
+            case 3: return "Elpida";
+            case 4: return "Etron";
+            case 5: return "Nanya";
+            case 6: return "SK Hynix";
+            case 7: return "Mosel";
+            case 8: return "Winbond";
+            case 9: return "ESMT";
+            case 10: return "Micron";
+            default: return "?";
         }
-        catch { }
-        finally { if (requested != IntPtr.Zero) Marshal.FreeHGlobal(requested); }
-        return "?";
-    }
-
-    private static string ReadShaderModel(IntPtr device)
-    {
-        try
-        {
-            // Known SDK enum values through SM 6.10. An old runtime reports
-            // E_INVALIDARG for an unknown requested version; try the next one.
-            uint[] versions = new uint[] { 0x6a, 0x69, 0x68, 0x67, 0x66, 0x65, 0x64, 0x63, 0x62, 0x61, 0x60, 0x51 };
-            foreach (uint version in versions)
-            {
-                ShaderModel data = new ShaderModel { Highest = version };
-                int result = QueryFeature(device, 7, ref data);
-                if (result == InvalidArgument) continue;
-                if (result < 0 || data.Highest > version || Array.IndexOf(versions, data.Highest) < 0) return "?";
-                return String.Format(CultureInfo.InvariantCulture, "{0}.{1}", data.Highest >> 4, data.Highest & 0xf);
-            }
-        }
-        catch { }
-        return "?";
-    }
-
-    private static string ReadRayTracing(IntPtr device)
-    {
-        try
-        {
-            Options5 data = new Options5();
-            if (QueryFeature(device, 27, ref data) < 0) return "?";
-            switch (data.RaytracingTier)
-            {
-                case 0: return "NONE";
-                case 10: return "1.0";
-                case 11: return "1.1";
-                case 12: return "1.2";
-                default: return "?";
-            }
-        }
-        catch { return "?"; }
     }
 
     private static bool ReadBoolean(IntPtr adapter, uint property)

@@ -6,6 +6,8 @@ Read `docs/ARCHITECTURE.md` and the revised `docs/APPEARANCE.md` before editing.
 
 Each utility owns `Skins/Parallax/<Module>/`, `Skins/Parallax/@Resources/Modules/<Module>/`, `Skins/Parallax/@Resources/User/<Module>.inc`, and `docs/modules/<Module>.md`. Module names: Chronometer, CPU, RAM, GPU, IO, Network, Media, Visualizer. IO owns disk activity; Network owns NIC traffic. Shared tooling is in `tools/` and `packaging/`.
 
+Maintain a Dependencies section in each utility's module document whenever an implementation changes its runtime, plugin, helper, service or asset requirements. Distinguish required, bundled and optional components; record the enabled feature, setup or version constraints actually known, and behavior when unavailable. Planned integrations are not installed dependencies. The integration task maintains the shared requirements and utility index in `docs/DEPENDENCIES.md`, plus Global Settings and ColorPicker dependency sections in their respective documents.
+
 Use built-in measures first. Optional plugins/providers must be explicit and show honest missing/unsupported states. No fabricated telemetry. No repeated shell/process launches for polling. No credentials, machine-specific sensor IDs, binary downloads, or user data in distribution. Do not install dependencies, change the user's live Rainmeter configuration, or publish releases as part of initial implementation.
 
 Explicit user-approved exception, 2026-09-11: the global integration task may download and bundle unmodified IBM Plex Sans fonts from IBM's official repository with the SIL Open Font License. This is skin-local font bundling, not system-wide font installation. Module tasks inherit FontFace and do not provision fonts independently.

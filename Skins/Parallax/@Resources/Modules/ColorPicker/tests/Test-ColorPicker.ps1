@@ -123,7 +123,7 @@ foreach ($case in @(@{Name='default';Scale='1';ColumnWidth='200';Rounding='3';Ba
     Copy-Item -LiteralPath "$sourceRoot\@Resources\Modules\ColorPicker" -Destination "$parallaxRoot\@Resources\Modules\ColorPicker" -Recurse
     $userPath=Join-Path $parallaxRoot '@Resources\User\Settings.inc'
     $user=Get-Content -LiteralPath $userPath -Raw
-    $sentinels=@{Scale=$case.Scale;ColumnWidth=$case.ColumnWidth;Gutter='8';CornerRadius=$case.Rounding;AccentColor='12,34,56';AccentColor2='181,161,226';TitleTextColor='0,0,0';HeaderTextColor='10,12,15';TextColor='0,0,0';BackgroundColor=$case.Background;BorderColor='0,0,0,255';DividerColor='50,50,50,255';MetricsInterval='2000';SensorInterval='4000';CapacityInterval='60000';VisualizerInterval='100';CustomPickerSentinel='preserve-me'}
+    $sentinels=@{Scale=$case.Scale;ColumnWidth=$case.ColumnWidth;Gutter='8';CornerRadius=$case.Rounding;AccentColor='12,34,56';AccentColor2='181,161,226';TitleTextColor='0,0,0';HeaderTextColor='10,12,15';TextColor='0,0,0';BackgroundColor=$case.Background;BorderColor='0,0,0,255';DividerColor='50,50,50,255';TableHeaderBorderColor='70,80,90,128';BorderThickness='3';DividerThickness='1';TableHeaderBorderThickness='2';MetricsInterval='2000';SensorInterval='4000';CapacityInterval='60000';VisualizerInterval='100';CustomPickerSentinel='preserve-me'}
     foreach ($key in $sentinels.Keys) { $user=Set-IniValue $user $key $sentinels[$key] }
     Write-Isolated $userPath $user
     $before=Read-Variables $userPath
@@ -173,7 +173,7 @@ foreach ($case in @(@{Name='default';Scale='1';ColumnWidth='200';Rounding='3';Ba
         if ([IO.File]::ReadAllText($overridePath) -ne $override) { throw 'Picker modified module overrides.' }
         if ([int]([IO.File]::ReadAllText((Join-Path $caseRoot 'generations.txt'))) -gt 2) { throw 'Unexpected picker refresh loop.' }
         $launchSequence=0
-        $targetLabels=[ordered]@{AccentColor='Accent Color 1';AccentColor2='Accent Color 2';TitleTextColor='Title Text Color';HeaderTextColor='Header Text Color';TextColor='Body Text Color';BackgroundColor='Background Color';BorderColor='Border Color';DividerColor='Divider Color'}
+        $targetLabels=[ordered]@{AccentColor='Accent Color 1';AccentColor2='Accent Color 2';TitleTextColor='Title Text Color';HeaderTextColor='Header Text Color';TextColor='Body Text Color';BackgroundColor='Background Color';BorderColor='Border Color';DividerColor='Divider Color';TableHeaderBorderColor='Table header border'}
         foreach ($targetKey in $targetLabels.Keys) {
             $snapshot=[IO.File]::ReadAllText($userPath)
             $previous=Read-Variables $userPath
@@ -183,7 +183,7 @@ foreach ($case in @(@{Name='default';Scale='1';ColumnWidth='200';Rounding='3';Ba
             if ($opened -notmatch ('(?m)^Title='+[regex]::Escape($targetLabels[$targetKey])+'\r?$')) { throw "Wrong target title for $targetKey." }
             $previousRGB=($previous[$targetKey].Split(',')[0..2] -join ',')
             if ($opened -notmatch ('(?m)^Original='+[regex]::Escape($previousRGB)+'\r?$')) { throw "Wrong current color for $targetKey." }
-            if ($targetKey -in @('AccentColor2','TextColor','BackgroundColor','BorderColor','DividerColor')) { $records.Add((Capture-OwnWindow $process (Join-Path $caseRoot "captures\target-$targetKey.png") $case.Width $case.Height)) }
+            if ($targetKey -in @('AccentColor2','TextColor','BackgroundColor','BorderColor','DividerColor','TableHeaderBorderColor')) { $records.Add((Capture-OwnWindow $process (Join-Path $caseRoot "captures\target-$targetKey.png") $case.Width $case.Height)) }
             $sequence++; Write-Isolated (Join-Path $caseRoot 'request.txt') "$sequence|invalid"
             $rejected=Await-Report (Join-Path $caseRoot "result-$sequence.txt")
             if ($rejected -notmatch ('(?m)^Title='+[regex]::Escape($targetLabels[$targetKey])+'\r?$')) { throw 'Invalid target changed the active target.' }
@@ -239,6 +239,6 @@ foreach ($case in @(@{Name='default';Scale='1';ColumnWidth='200';Rounding='3';Ba
         }
     }
 }
-$report=[ordered]@{Status='PASS';Runs=2;Math='sRGB/HSV primaries, D50 Lab white/black, published W3C leaf vector, 125-color roundtrips, explicit gamut clipping; Background RGB/RGBA and hex6/8 alpha0/128/255 retention';Actions='Native source modes, channels, spectra, Apply and Cancel; separate config ActivateConfig+OpenTarget with all eight targets closed/open/reopened';Persistence='Preview and invalid targets never write; Apply changes only selected key; BackgroundColor retains alpha; Cancel preserves exact bytes; module override unchanged';Captures=$records.ToArray();Limitations='Executes source actions in isolated Rainmeter. Mouse percentages are substituted from test values; does not simulate system cursor hit testing, mixed DPI, or a live user configuration.'}
+$report=[ordered]@{Status='PASS';Runs=2;Math='sRGB/HSV primaries, D50 Lab white/black, published W3C leaf vector, 125-color roundtrips, explicit gamut clipping; Background RGB/RGBA and hex6/8 alpha0/128/255 retention';Actions='Native source modes, channels, spectra, Apply and Cancel; separate config ActivateConfig+OpenTarget with all nine targets closed/open/reopened';Persistence='Preview and invalid targets never write; Apply changes only selected key; independent panel/divider/table-header colors and thicknesses; BackgroundColor retains alpha; Cancel preserves exact bytes; module override unchanged';Captures=$records.ToArray();Limitations='Executes source actions in isolated Rainmeter. Mouse percentages are substituted from test values; does not simulate system cursor hit testing, mixed DPI, or a live user configuration.'}
 Write-Isolated (Join-Path $runRoot 'report.json') ($report | ConvertTo-Json -Depth 6)
 [pscustomobject]@{Status='PASS';RunRoot=$runRoot;Captures=$records.ToArray()}

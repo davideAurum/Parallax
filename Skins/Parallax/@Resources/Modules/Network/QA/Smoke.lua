@@ -1,6 +1,7 @@
 -- Test-only harness appended to a temporary copy of the actual Network entrypoint.
 local ticks = 0
 local probeError
+local glyphLayouts = {}
 local probes = {
     { 'Width1', 'Width', '1x' }, { 'Width2', 'Width', '2x' },
     { 'UnitsBytes', 'Units', 'bytes' }, { 'TitleNetwork', 'Title', 'Network' },
@@ -11,6 +12,12 @@ local probes = {
 }
 local fontOptions = { FontFace = 'Arial', FontSize = '10', FontWeight = '400',
     StringStyle = 'Normal', StringCase = 'None', CharacterSpacing = '0' }
+
+function Initialize()
+    if SELF:GetNumberOption('HeaderFocus', 0) == 1 then
+        while #probes > 4 do table.remove(probes) end
+    end
+end
 
 local function prepareGlyphs()
     for _, spec in ipairs(probes) do
@@ -48,6 +55,7 @@ local function measureGlyphs()
         probe:Show()
         local width, height = probe:GetW(), probe:GetH()
         probe:Hide()
+        glyphLayouts[spec[1]] = {width = width, height = height}
         local availableW, availableH = textBox(target)
         local detail = string.format('%s=%dx%d/%dx%d', spec[3], width, height, availableW, availableH)
         measurements[#measurements + 1] = detail
@@ -82,6 +90,57 @@ local function run()
         if color then assert(meter(suffix):GetOption('FontColor') == SKIN:GetVariable(color), suffix .. ' does not follow ' .. color) end
     end
     role('Title', 'TitleFontSize', 'TitleTextColor')
+    local center = assert(SKIN:ParseFormula(SKIN:ReplaceVariables(SKIN:GetVariable('TitleRowCenterY'))))
+    local iconScale = scale * tonumber(SKIN:GetVariable('TitleFontSize')) / 10
+    local icon, title = meter('Icon'), meter('Title')
+    local function numberOption(target, key)
+        return assert(SKIN:ParseFormula(SKIN:ReplaceVariables(target:GetOption(key))), key .. ' formula invalid')
+    end
+    assert(title:GetOption('StringAlign'):lower() == 'leftcenter', 'Title does not use common vertical center')
+    assert(math.abs(title:GetY(true) - center) < 1, 'Title center differs from shared row')
+    assert(math.abs(icon:GetY(false) + icon:GetH()/2 - title:GetY(true)) <= 1, 'Rounded icon center differs by more than one pixel')
+    assert(math.abs(icon:GetW() - 14*iconScale) < 1 and math.abs(icon:GetH() - 14*iconScale) < 1, 'Icon canvas does not scale with title')
+    assert(math.abs(numberOption(title, 'X') - (numberOption(icon, 'X') + 14*iconScale + 4*scale)) < 0.001,
+        'Title does not follow growing icon and gap')
+    for _, suffix in ipairs({'Units','Width'}) do
+        assert(meter(suffix):GetOption('StringAlign'):lower() == 'leftcenter', suffix .. ' is not vertically centered')
+        assert(meter(suffix):GetY(true) == title:GetY(true), suffix .. ' center differs from title')
+        assert(meter(suffix):GetY(false) + meter(suffix):GetH() <= meter('Adapter'):GetY(false),
+            suffix .. ' padded click target overlaps first content row')
+    end
+    for shapeIndex = 1, 7 do
+        local shape = icon:GetOption(shapeIndex == 1 and 'Shape' or ('Shape' .. shapeIndex))
+        local geometry = assert(shape:match('^[^ ]+ (.-) |'), 'Icon geometry missing')
+        local dimension = 0
+        for token in geometry:gmatch('[^,]+') do
+            local n = assert(SKIN:ParseFormula(SKIN:ReplaceVariables(token)))
+            assert(n >= 0 and n <= 14*iconScale, 'Icon path exceeds scaled canvas')
+            dimension = dimension + 1
+        end
+        assert(dimension == 4, 'Unexpected icon primitive')
+        if shapeIndex >= 2 and shapeIndex <= 5 then
+            local stroke = assert(shape:match('StrokeWidth%s+(.+)$'))
+            assert(math.abs(SKIN:ParseFormula(SKIN:ReplaceVariables(stroke)) - iconScale) < 0.001, 'Icon stroke does not scale with title')
+        end
+    end
+    assert(title:GetX(false) >= icon:GetX(false) + icon:GetW(), 'Title overlaps icon')
+    assert(title:GetX(false) + title:GetW() <= meter('Units'):GetX(false), 'Title overlaps units')
+    assert(meter('Units'):GetX(false) + meter('Units'):GetW() <= meter('Width'):GetX(false), 'Units overlap width')
+    for _, spec in ipairs({{'Title','TitleNetwork'},{'Units','UnitsBytes'},{'Width','Width1'}}) do
+        -- The shared row box is taller than its text. Check centered intrinsic glyphs
+        -- against the preserved content row, allowing native integer rounding only.
+        assert(meter(spec[1]):GetY(true) + glyphLayouts[spec[2]].height/2 <= meter('Adapter'):GetY(false) + 1,
+            spec[1] .. ' glyphs collide with first content row')
+    end
+    if SELF:GetNumberOption('HeaderFocus', 0) == 1 then
+        for _, suffix in ipairs({'Icon','Title','Units','Width'}) do
+            local m = meter(suffix)
+            assert(m:GetX(false) >= 0 and m:GetY(false) >= 0 and m:GetX(false)+m:GetW() <= expectedW and m:GetY(false)+m:GetH() <= expectedH,
+                suffix .. ' outside window')
+        end
+        return string.format('PASS header width=%d scale=%g title=%s icon=%dx%d center=%g glyphs[%s]',
+            columnWidth, scale, SKIN:GetVariable('TitleFontSize'), icon:GetW(), icon:GetH(), center, glyphs)
+    end
     role('InLabel', 'HeaderFontSize', 'HeaderTextColor'); role('OutLabel', 'HeaderFontSize', 'HeaderTextColor')
     for _, suffix in ipairs({'Adapter', 'Status', 'InRate', 'OutRate', 'InCeiling', 'OutCeiling', 'Footer', 'Units', 'Width'}) do
         role(suffix, 'FontSize')
@@ -97,7 +156,7 @@ local function run()
     assert(meter('Footer'):GetY(true) + meter('Footer'):GetH() <= innerBottom, 'Footer overlaps inside panel border')
     assert(meter('Title'):GetX(true) + meter('Title'):GetW() <= meter('Units'):GetX(true), 'Title overlaps units')
     assert(meter('Units'):GetX(true) + meter('Units'):GetW() <= meter('Width'):GetX(true), 'Units overlap width')
-    for _, pair in ipairs({{'Title','Adapter'}, {'Units','Adapter'}, {'Width','Adapter'}, {'Adapter','Status'},
+    for _, pair in ipairs({{'Adapter','Status'},
         {'Status','InLabel'}, {'InLabel','InCeiling'}, {'InRate','InCeiling'}, {'InCeiling','InGrid'},
         {'InGrid','OutLabel'}, {'OutLabel','OutCeiling'}, {'OutRate','OutCeiling'}, {'OutCeiling','OutGrid'}, {'OutGrid','Footer'}}) do
         assert(meter(pair[1]):GetY(true) + meter(pair[1]):GetH() <= meter(pair[2]):GetY(true),
@@ -106,9 +165,7 @@ local function run()
     for _, suffix in ipairs({'Bounds', 'Panel', 'Icon', 'Title', 'Units', 'Width', 'Adapter', 'Status',
         'InLabel', 'InRate', 'InCeiling', 'InGrid', 'InGraph', 'OutLabel', 'OutRate', 'OutCeiling', 'OutGrid', 'OutGraph', 'Footer'}) do
         local meter = assert(SKIN:GetMeter('MeterNetwork' .. suffix), suffix .. ' missing')
-        local x, y, w, h = meter:GetX(true), meter:GetY(true), meter:GetW(), meter:GetH()
-        -- GetX(true) resolves relative placement but preserves a String meter's anchor.
-        if meter:GetOption('StringAlign'):lower() == 'right' then x = x - w end
+        local x, y, w, h = meter:GetX(false), meter:GetY(false), meter:GetW(), meter:GetH()
         assert(x >= 0 and y >= 0 and x + w <= expectedW and y + h <= expectedH,
             string.format('%s out of bounds: %.2f %.2f %.2f %.2f', suffix, x, y, w, h))
     end

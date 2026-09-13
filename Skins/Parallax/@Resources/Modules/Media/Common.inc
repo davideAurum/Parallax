@@ -24,17 +24,18 @@ MeterStyle=StyleBounds
 Meter=Shape
 MeterStyle=StylePanel
 X=#MediaSurfaceX#
-Shape=Rectangle (#BorderThickness#*#Scale#/2),(#BorderThickness#*#Scale#/2),(#MediaSurfaceWidth#-#BorderThickness#*#Scale#),(#PanelHeightPx#-#BorderThickness#*#Scale#),(#CornerRadius#*#Scale#) | Fill Color #BackgroundColor# | Stroke Color #BorderColor# | StrokeWidth (#BorderThickness#*#Scale#)
+Y=#MediaSurfaceY#
+Shape=Rectangle (#BorderThickness#*#Scale#/2),(#BorderThickness#*#Scale#/2),(#MediaSurfaceWidth#-#BorderThickness#*#Scale#),(#PanelHeightPx#-#MediaSurfaceOffset#-#BorderThickness#*#Scale#),(#CornerRadius#*#Scale#) | Fill Color #BackgroundColor# | Stroke Color #BorderColor# | StrokeWidth (#BorderThickness#*#Scale#)
 
-; Keep the double-column tile present during idle and plugin-free Setup states.
-; The player draws its normal cover/placeholder on top when a track is available.
+; Rounded fallback for idle and plugin-free Setup; the player hides it for tracks.
 [MeterArtworkPlaceholder]
-Meter=Image
+Meter=Shape
+AntiAlias=1
 X=#MediaCoverX#
 Y=#MediaCoverY#
 W=#MediaCoverSize#
 H=#MediaCoverSize#
-SolidColor=#GraphBackgroundColor#
+Shape=Rectangle (#Scale#/2),(#Scale#/2),(#MediaCoverSize#-#Scale#),(#MediaCoverSize#-#Scale#),(#MediaCoverRadius#-#Scale#/2) | Fill Color #GraphBackgroundColor# | Stroke Color 255,255,255 | StrokeWidth #Scale#
 Hidden=(1-#MediaWide#)
 UpdateDivider=-1
 
@@ -42,46 +43,73 @@ UpdateDivider=-1
 Meter=String
 MeterStyle=StyleLabel|MediaSecondaryStyle
 X=(#MediaCoverX#+#MediaCoverSize#/2)
-Y=(#MediaCoverY#+(16+48*#MediaWide#)*#Scale#)
+Y=(#MediaCoverY#+(#MediaCoverSize#-18*#Scale#)/2)
 W=(#MediaCoverSize#-6*#Scale#)
 StringAlign=Center
-Text=No art
+Text=N/A
+ToolTipText=No artwork available.
 Hidden=(1-#MediaWide#)
 UpdateDivider=-1
 
 [MeterHeading]
 Meter=String
-MeterStyle=StyleTitle
-X=(#ContentX#+18*#Scale#)
-Y=(#Inset#+3*#Scale#)
-W=(#ContentWidth#-42*#Scale#)
-H=(22*#Scale#)
-Text=Media
+MeterStyle=StyleTitle|StyleTitleRow
+X=(#ContentX#+#TitleIconSize#+#TitleIconGap#)
+Y=(#TitleRowCenterY#+#MediaSurfaceOffset#)
+W=(#ContentWidth#-#TitleIconSize#-#TitleIconGap#-24*#Scale#)
+Text=Media Player
 UpdateDivider=-1
 
-[MeterMediaIcon]
-Meter=Shape
-X=#ContentX#
-Y=(#Inset#+8*#Scale#)
-W=(14*#Scale#)
-H=(14*#Scale#)
-Shape=Rectangle (7*#Scale#),(1*#Scale#),(2*#Scale#),(9*#Scale#) | Fill Color #MediaColor# | StrokeWidth 0
-Shape2=Ellipse (5*#Scale#),(10*#Scale#),(3*#Scale#),(2*#Scale#) | Fill Color #MediaColor# | StrokeWidth 0
-Shape3=Rectangle (7*#Scale#),(1*#Scale#),(5*#Scale#),(2*#Scale#) | Fill Color #MediaColor# | StrokeWidth 0
-UpdateDivider=-1
+[MeterPlayerName]
+Meter=String
+MeterStyle=StyleLabel
+X=(#MediaPlayerRowX#+18*#Scale#)
+Y=#MediaPlayerRowY#
+W=(#ContentX#+#ContentWidth#-#MediaPlayerRowX#-18*#Scale#)
+H=(18*#Scale#)
+Padding=0,0,0,0
+MeasureName=MeasureMediaHeader
+Text=%1
+ToolTipText=%1
+UpdateDivider=1
 
 [MeterQueueRule]
 Meter=Shape
 MeterStyle=StyleRule
-Y=(#Inset#+133*#Scale#)
+X=#MediaQueueX#
+Y=(#Inset#+#MediaBodyHeightPx#-29*#Scale#)
+Shape=Line 0,0,#MediaQueueWidth#,0 | Stroke Color #DividerColor# | StrokeWidth (#DividerThickness#*#Scale#)
 
 [MeterQueueHeading]
 Meter=String
 MeterStyle=StyleHeader
-Y=(#Inset#+141*#Scale#)
-W=(56*#Scale#)
+X=#MediaQueueX#
+Y=(#Inset#+#MediaBodyHeightPx#-12*#Scale#)
+W=(42*#Scale#)
+StringAlign=LeftCenter
 MeasureName=MeasureMediaOptions
 Text=%1
+ToolTipText=Expand or collapse the Spotify queue below Media. This display choice is remembered.
+MouseActionCursor=1
+LeftMouseUpAction=[!CommandMeasure MeasureMediaOptions "ToggleQueue()"]
+
+[MeterQueueToggle]
+Meter=Shape
+X=(#MediaQueueX#+44*#Scale#)
+Y=(#Inset#+#MediaBodyHeightPx#-21*#Scale#)
+W=(18*#Scale#)
+H=(18*#Scale#)
+AntiAlias=1
+DynamicVariables=1
+UpdateDivider=-1
+; Lucide List Plus / List Minus from the user-supplied SVGs in Icons\Lucide.
+Shape=Rectangle 0,0,(18*#Scale#),(18*#Scale#) | Fill Color 0,0,0,1 | StrokeWidth 0
+Shape2=Line (16*14*#Scale#/24),(5*14*#Scale#/24),(3*14*#Scale#/24),(5*14*#Scale#/24) | Extend MediaQueueToggleStroke
+Shape3=Line (11*14*#Scale#/24),(12*14*#Scale#/24),(3*14*#Scale#/24),(12*14*#Scale#/24) | Extend MediaQueueToggleStroke
+Shape4=Line (16*14*#Scale#/24),(19*14*#Scale#/24),(3*14*#Scale#/24),(19*14*#Scale#/24) | Extend MediaQueueToggleStroke
+Shape5=Line (21*14*#Scale#/24),(12*14*#Scale#/24),(15*14*#Scale#/24),(12*14*#Scale#/24) | Extend MediaQueueToggleStroke
+Shape6=Line (18*14*#Scale#/24),(9*14*#Scale#/24),(18*14*#Scale#/24),(15*14*#Scale#/24) | Stroke Color #HeaderTextColor# | StrokeWidth (2*14*#Scale#/24*(1-#QueueExpanded#)) | StrokeStartCap Round | StrokeEndCap Round | Offset (2*#Scale#),(2*#Scale#)
+MediaQueueToggleStroke=Stroke Color #HeaderTextColor# | StrokeWidth (2*14*#Scale#/24) | StrokeStartCap Round | StrokeEndCap Round | Offset (2*#Scale#),(2*#Scale#)
 ToolTipText=Expand or collapse the Spotify queue below Media. This display choice is remembered.
 MouseActionCursor=1
 LeftMouseUpAction=[!CommandMeasure MeasureMediaOptions "ToggleQueue()"]
@@ -90,9 +118,10 @@ LeftMouseUpAction=[!CommandMeasure MeasureMediaOptions "ToggleQueue()"]
 Meter=String
 MeterStyle=StyleLabel|MediaSecondaryStyle
 MeasureName=MeasureQueueStatus
-X=(#ContentX#+60*#Scale#)
-Y=(#Inset#+141*#Scale#)
-W=(#ContentWidth#-60*#Scale#)
+X=(#MediaQueueX#+66*#Scale#)
+Y=(#Inset#+#MediaBodyHeightPx#-12*#Scale#)
+W=(#MediaQueueWidth#-66*#Scale#)
+StringAlign=LeftCenter
 FontColor=#MediaColor#
 Text=%1
 ToolTipText=Expand or collapse the Spotify queue. Use the gear for queue display and connection settings. The Spotify account queue may differ from WebNowPlaying's player.

@@ -5,3 +5,12 @@
 Skins/Parallax/@Resources/Licenses/IBM-Plex-OFL.txt -text
 Skins/Parallax/@Resources/Modules/Media/Queue/QueueReader.lua -text
 Skins/Parallax/@Resources/Modules/Media/Source/SourceReader.lua -text
+Skins/Parallax/@Resources/Modules/Media/MediaHeader.lua -text
+Skins/Parallax/@Resources/Modules/Media/Icons/Lucide/LICENSE -text
+Skins/Parallax/@Resources/Modules/Media/Icons/Lucide/*.svg -text
+Skins/Parallax/@Resources/Modules/GPU/Icons/Lucide/gpu.svg -text
+Skins/Parallax/@Resources/Modules/GPU/Icons/Lucide/LICENSE.txt -text
+Skins/Parallax/@Resources/Modules/RAM/Icons/Lucide/memory-stick.svg -text
+Skins/Parallax/@Resources/Modules/RAM/Icons/Lucide/LICENSE -text
+Skins/Parallax/@Resources/Modules/IO/Icons/Lucide/hard-drive.svg -text
+Skins/Parallax/@Resources/Modules/IO/Icons/Lucide/LICENSE -text

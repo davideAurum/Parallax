@@ -1,5 +1,8 @@
-; Original compact controls for the independent Drive I/O settings utility.
-; Fixed actions call validated presets; saved labels never form commands.
+; Original compact value fields for the independent Disk Meter settings utility.
+; Fixed actions call validated choices; saved labels never form commands.
+
+[IOStyleSettingsGroup]
+Group=IOSettingsUI
 
 [IOStyleSettingsText]
 FontFace=#FontFace#
@@ -9,7 +12,7 @@ FontColor=#TextColor#
 AntiAlias=1
 ClipString=1
 X=#ContentX#
-W=#IOSettingsCellW#
+W=#ContentWidth#
 H=(18*#Scale#)
 Group=IOSettingsUI
 
@@ -17,403 +20,752 @@ Group=IOSettingsUI
 FontColor=#AccentColor#
 MouseActionCursor=1
 
-[IOStyleSettingsClickable]
-MouseActionCursor=1
-
 [IOStyleSettingsMetadata]
 FontSize=((#FontSize#-1)*#Scale#)
 FontColor=#MutedColor#
 
-[IOStyleSettingsSection]
-FontSize=(#HeaderFontSize#*#Scale#)
-FontColor=#HeaderTextColor#
-FontWeight=600
+[IOStyleSettingsLabel]
+X=#ContentX#
+W=(110*#Scale#)
+MouseActionCursor=1
+
+[IOStyleSettingsValue]
+X=(#ContentX#+120*#Scale#)
+W=(56*#Scale#)
+StringAlign=Left
+
+[IOStyleSettingsDrive]
+Y=0
+Hidden=1
+
+[IOStyleSettingsDriveLabel]
+; Fixed width with natural single-line height lets ClipString ellipsize names.
+FontFace=#FontFace#
+FontSize=(#FontSize#*#Scale#)
+FontWeight=500
+FontColor=#TextColor#
+AntiAlias=1
+ClipString=1
+StringAlign=Left
+X=#ContentX#
+W=(#ContentWidth#-78*#Scale#)
+MouseActionCursor=1
+
+[IOStyleSettingsDriveValue]
+X=(#ContentX#+#ContentWidth#-62*#Scale#)
+W=(56*#Scale#)
+
+[IOStyleSettingsRule]
+W=#ContentWidth#
+H=(Max(1,#DividerThickness#*#Scale#))
+Shape=Line 0,(#DividerThickness#*#Scale#/2),#ContentWidth#,(#DividerThickness#*#Scale#/2) | Stroke Color #DividerColor# | StrokeWidth (#DividerThickness#*#Scale#)
 
 [MeterIOSettingsTitle]
 Meter=String
-MeterStyle=StyleTitle
+MeterStyle=StyleTitle|StyleTitleRow|IOStyleSettingsGroup
 X=#ContentX#
-Y=(#Inset#+6*#Scale#)
 W=(#ContentWidth#-26*#Scale#)
-H=(20*#Scale#)
-Text=Drive I/O Settings
-Group=IOSettingsUI
+Text=Disk Meter Settings
 
 [MeterIOSettingsClose]
 Meter=String
 MeterStyle=IOStyleSettingsText|IOStyleSettingsButton|StyleSecondaryButton
 X=(#ContentX#+#ContentWidth#-18*#Scale#)
-Y=(#Inset#+6*#Scale#)
+Y=#TitleRowCenterY#
 W=(18*#Scale#)
+H=(18*#Scale#)
+StringAlign=LeftCenter
 Text=X
 LeftMouseUpAction=[!CommandMeasure MeasureIOSettings "Close()"]
-ToolTipText=Close only these settings. Drive I/O remains loaded; saved choices remain active.
+ToolTipText=Close only these settings. Disk Meter remains loaded; saved choices remain active.
 
-[MeterIOSettingsSubtitle]
+[MeterIOSettingsDrivesSection]
+Meter=String
+MeterStyle=StyleUtilitySettingsSection|IOStyleSettingsGroup
+Y=(#Inset#+74*#Scale#)
+Text=Drives
+
+[MeterIOSettingsDrivesRule]
+Meter=Shape
+MeterStyle=StyleRule|IOStyleSettingsRule|IOStyleSettingsGroup
+Y=(#Inset#+94*#Scale#)
+
+[MeterIOSettingsAllLabel]
+Meter=String
+MeterStyle=StyleUtilitySettingsLabel|IOStyleSettingsLabel|IOStyleSettingsGroup
+Y=(#Inset#+104*#Scale#)
+Text=All drives
+LeftMouseUpAction=[!CommandMeasure MeasureIOSettings "ToggleAllDrives()"]
+ToolTipText=On automatically selects all detected drive letters. Turning it off clears the selection. Individual drive edits leave automatic All mode.
+
+[MeterIOSettingsAllValue]
+Meter=String
+MeterStyle=StyleUtilitySettingsValue|IOStyleSettingsValue|IOStyleSettingsGroup
+Y=(#Inset#+102*#Scale#)
+Text=Off
+LeftMouseUpAction=[!CommandMeasure MeasureIOSettings "ToggleAllDrives()"]
+ToolTipText=On automatically selects all detected drive letters. Turning it off clears the selection. Individual drive edits leave automatic All mode.
+
+[MeterIOSettingsNamesLabel]
+Meter=String
+MeterStyle=StyleUtilitySettingsLabel|IOStyleSettingsLabel|IOStyleSettingsGroup
+Y=(#Inset#+132*#Scale#)
+Text=Drive names
+LeftMouseUpAction=[!CommandMeasure MeasureIOSettings "CycleNamesMode()"]
+ToolTipText=Choose letters only, volume labels, physical drive models, or both names. Long names stay available in drive tooltips.
+
+[MeterIOSettingsNamesDecrease]
+Meter=String
+MeterStyle=StyleSettingsStepperButton|IOStyleSettingsGroup
+X=(#ContentX#+129*#Scale#)
+Y=(#Inset#+131*#Scale#)
+Text=<
+LeftMouseUpAction=[!CommandMeasure MeasureIOSettings "CycleNamesMode(-1)"]
+ToolTipText=Previous value. Letters only, Volume labels, Drive models or Both. Center cycles forward; arrows select the previous or next choice.
+
+[MeterIOSettingsNamesFrame]
+Meter=Shape
+MeterStyle=StyleSettingsStepperFrame|IOStyleSettingsGroup
+X=(#ContentX#+140*#Scale#)
+Y=(#Inset#+130*#Scale#)
+W=(126*#Scale#)
+Shape=Rectangle (#Scale#/2),(#Scale#/2),(126*#Scale#-#Scale#),(19*#Scale#),(2*#Scale#) | Fill Color #GraphBackgroundColor# | Stroke Color #BorderColor# | StrokeWidth #Scale#
+LeftMouseUpAction=[!CommandMeasure MeasureIOSettings "CycleNamesMode()"]
+ToolTipText=Letters only, Volume labels, Drive models or Both. Center cycles forward; arrows select the previous or next choice.
+
+[MeterIOSettingsNamesValue]
+Meter=String
+MeterStyle=StyleSettingsStepperValue|IOStyleSettingsGroup
+X=(#ContentX#+203*#Scale#)
+Y=(#Inset#+131*#Scale#)
+W=(126*#Scale#)
+Text=Volume labels
+LeftMouseUpAction=[!CommandMeasure MeasureIOSettings "CycleNamesMode()"]
+ToolTipText=Letters only, Volume labels, Drive models or Both. Center cycles forward; arrows select the previous or next choice.
+
+[MeterIOSettingsNamesIncrease]
+Meter=String
+MeterStyle=StyleSettingsStepperButton|IOStyleSettingsGroup
+X=(#ContentX#+277*#Scale#)
+Y=(#Inset#+131*#Scale#)
+Text=>
+LeftMouseUpAction=[!CommandMeasure MeasureIOSettings "CycleNamesMode(1)"]
+ToolTipText=Next value. Letters only, Volume labels, Drive models or Both. Center cycles forward; arrows select the previous or next choice.
+[MeterIOSettingsCOnly]
+Meter=String
+MeterStyle=IOStyleSettingsText|IOStyleSettingsButton
+X=#ContentX#
+Y=(#Inset#+160*#Scale#)
+W=(112*#Scale#)
+Text=Select C: only
+LeftMouseUpAction=[!CommandMeasure MeasureIOSettings "SelectCDrive()"]
+ToolTipText=Select only C: for the capacity and transfer rows. Graph mode remains unchanged.
+
+[MeterIOSettingsDriveValue]
 Meter=String
 MeterStyle=IOStyleSettingsText|IOStyleSettingsMetadata
-X=#ContentX#
-Y=(#Inset#+27*#Scale#)
-W=#ContentWidth#
-H=(16*#Scale#)
-Text=Capacity drives and optional transfer counters
+X=(#ContentX#+124*#Scale#)
+Y=(#Inset#+160*#Scale#)
+W=(#ContentWidth#-244*#Scale#)
+Text=1 selected
+ToolTipText=Selected drive letters. Volumes without letters are outside this selector.
 
-[MeterIOSettingsCapacitySection]
-Meter=String
-MeterStyle=IOStyleSettingsText|IOStyleSettingsSection
-X=#ContentX#
-Y=(#Inset#+46*#Scale#)
-Text=Capacity
-
-[MeterIOSettingsTransfersSection]
-Meter=String
-MeterStyle=IOStyleSettingsText|IOStyleSettingsSection
-X=#IOSettingsRightX#
-Y=(#Inset#+46*#Scale#)
-Text=Transfers
-
-[MeterIOSettingsDrive1Label]
-Meter=String
-MeterStyle=IOStyleSettingsText
-X=#ContentX#
-Y=(#Inset#+68*#Scale#)
-W=(#IOSettingsCellW#-102*#Scale#)
-Text=Main drive
-
-[MeterIOSettingsDrive1Previous]
+[MeterIOSettingsInventoryRefresh]
 Meter=String
 MeterStyle=IOStyleSettingsText|IOStyleSettingsButton
-X=(#ContentX#+#IOSettingsCellW#-98*#Scale#)
-Y=(#Inset#+68*#Scale#)
-W=(18*#Scale#)
+X=(#ContentX#+#ContentWidth#-108*#Scale#)
+Y=(#Inset#+160*#Scale#)
+W=(108*#Scale#)
+Text=Refresh drives
+LeftMouseUpAction=[!CommandMeasure MeasureIOSettings "RefreshInventory()"]
+ToolTipText=Refresh the native drive list in this settings utility. Disconnected saved selections remain visible; other offline letters can be selected in the options file.
+
+[MeterIOSettingsDriveALabel]
+Meter=String
+MeterStyle=IOStyleSettingsDriveLabel|IOStyleSettingsDrive|IOStyleSettingsGroup
+Text=A:
+LeftMouseUpAction=[!CommandMeasure MeasureIOSettings "ToggleDrive('A')"]
+ToolTipText=Drive availability is read from the native inventory.
+
+[MeterIOSettingsDriveA]
+Meter=String
+MeterStyle=StyleUtilitySettingsValue|IOStyleSettingsValue|IOStyleSettingsDrive|IOStyleSettingsDriveValue|IOStyleSettingsGroup
+Text=Off
+LeftMouseUpAction=[!CommandMeasure MeasureIOSettings "ToggleDrive('A')"]
+ToolTipText=Drive availability is read from the native inventory.
+
+[MeterIOSettingsDriveBLabel]
+Meter=String
+MeterStyle=IOStyleSettingsDriveLabel|IOStyleSettingsDrive|IOStyleSettingsGroup
+Text=B:
+LeftMouseUpAction=[!CommandMeasure MeasureIOSettings "ToggleDrive('B')"]
+ToolTipText=Drive availability is read from the native inventory.
+
+[MeterIOSettingsDriveB]
+Meter=String
+MeterStyle=StyleUtilitySettingsValue|IOStyleSettingsValue|IOStyleSettingsDrive|IOStyleSettingsDriveValue|IOStyleSettingsGroup
+Text=Off
+LeftMouseUpAction=[!CommandMeasure MeasureIOSettings "ToggleDrive('B')"]
+ToolTipText=Drive availability is read from the native inventory.
+
+[MeterIOSettingsDriveCLabel]
+Meter=String
+MeterStyle=IOStyleSettingsDriveLabel|IOStyleSettingsDrive|IOStyleSettingsGroup
+Text=C:
+LeftMouseUpAction=[!CommandMeasure MeasureIOSettings "ToggleDrive('C')"]
+ToolTipText=Drive availability is read from the native inventory.
+
+[MeterIOSettingsDriveC]
+Meter=String
+MeterStyle=StyleUtilitySettingsValue|IOStyleSettingsValue|IOStyleSettingsDrive|IOStyleSettingsDriveValue|IOStyleSettingsGroup
+Text=Off
+LeftMouseUpAction=[!CommandMeasure MeasureIOSettings "ToggleDrive('C')"]
+ToolTipText=Drive availability is read from the native inventory.
+
+[MeterIOSettingsDriveDLabel]
+Meter=String
+MeterStyle=IOStyleSettingsDriveLabel|IOStyleSettingsDrive|IOStyleSettingsGroup
+Text=D:
+LeftMouseUpAction=[!CommandMeasure MeasureIOSettings "ToggleDrive('D')"]
+ToolTipText=Drive availability is read from the native inventory.
+
+[MeterIOSettingsDriveD]
+Meter=String
+MeterStyle=StyleUtilitySettingsValue|IOStyleSettingsValue|IOStyleSettingsDrive|IOStyleSettingsDriveValue|IOStyleSettingsGroup
+Text=Off
+LeftMouseUpAction=[!CommandMeasure MeasureIOSettings "ToggleDrive('D')"]
+ToolTipText=Drive availability is read from the native inventory.
+
+[MeterIOSettingsDriveELabel]
+Meter=String
+MeterStyle=IOStyleSettingsDriveLabel|IOStyleSettingsDrive|IOStyleSettingsGroup
+Text=E:
+LeftMouseUpAction=[!CommandMeasure MeasureIOSettings "ToggleDrive('E')"]
+ToolTipText=Drive availability is read from the native inventory.
+
+[MeterIOSettingsDriveE]
+Meter=String
+MeterStyle=StyleUtilitySettingsValue|IOStyleSettingsValue|IOStyleSettingsDrive|IOStyleSettingsDriveValue|IOStyleSettingsGroup
+Text=Off
+LeftMouseUpAction=[!CommandMeasure MeasureIOSettings "ToggleDrive('E')"]
+ToolTipText=Drive availability is read from the native inventory.
+
+[MeterIOSettingsDriveFLabel]
+Meter=String
+MeterStyle=IOStyleSettingsDriveLabel|IOStyleSettingsDrive|IOStyleSettingsGroup
+Text=F:
+LeftMouseUpAction=[!CommandMeasure MeasureIOSettings "ToggleDrive('F')"]
+ToolTipText=Drive availability is read from the native inventory.
+
+[MeterIOSettingsDriveF]
+Meter=String
+MeterStyle=StyleUtilitySettingsValue|IOStyleSettingsValue|IOStyleSettingsDrive|IOStyleSettingsDriveValue|IOStyleSettingsGroup
+Text=Off
+LeftMouseUpAction=[!CommandMeasure MeasureIOSettings "ToggleDrive('F')"]
+ToolTipText=Drive availability is read from the native inventory.
+
+[MeterIOSettingsDriveGLabel]
+Meter=String
+MeterStyle=IOStyleSettingsDriveLabel|IOStyleSettingsDrive|IOStyleSettingsGroup
+Text=G:
+LeftMouseUpAction=[!CommandMeasure MeasureIOSettings "ToggleDrive('G')"]
+ToolTipText=Drive availability is read from the native inventory.
+
+[MeterIOSettingsDriveG]
+Meter=String
+MeterStyle=StyleUtilitySettingsValue|IOStyleSettingsValue|IOStyleSettingsDrive|IOStyleSettingsDriveValue|IOStyleSettingsGroup
+Text=Off
+LeftMouseUpAction=[!CommandMeasure MeasureIOSettings "ToggleDrive('G')"]
+ToolTipText=Drive availability is read from the native inventory.
+
+[MeterIOSettingsDriveHLabel]
+Meter=String
+MeterStyle=IOStyleSettingsDriveLabel|IOStyleSettingsDrive|IOStyleSettingsGroup
+Text=H:
+LeftMouseUpAction=[!CommandMeasure MeasureIOSettings "ToggleDrive('H')"]
+ToolTipText=Drive availability is read from the native inventory.
+
+[MeterIOSettingsDriveH]
+Meter=String
+MeterStyle=StyleUtilitySettingsValue|IOStyleSettingsValue|IOStyleSettingsDrive|IOStyleSettingsDriveValue|IOStyleSettingsGroup
+Text=Off
+LeftMouseUpAction=[!CommandMeasure MeasureIOSettings "ToggleDrive('H')"]
+ToolTipText=Drive availability is read from the native inventory.
+
+[MeterIOSettingsDriveILabel]
+Meter=String
+MeterStyle=IOStyleSettingsDriveLabel|IOStyleSettingsDrive|IOStyleSettingsGroup
+Text=I:
+LeftMouseUpAction=[!CommandMeasure MeasureIOSettings "ToggleDrive('I')"]
+ToolTipText=Drive availability is read from the native inventory.
+
+[MeterIOSettingsDriveI]
+Meter=String
+MeterStyle=StyleUtilitySettingsValue|IOStyleSettingsValue|IOStyleSettingsDrive|IOStyleSettingsDriveValue|IOStyleSettingsGroup
+Text=Off
+LeftMouseUpAction=[!CommandMeasure MeasureIOSettings "ToggleDrive('I')"]
+ToolTipText=Drive availability is read from the native inventory.
+
+[MeterIOSettingsDriveJLabel]
+Meter=String
+MeterStyle=IOStyleSettingsDriveLabel|IOStyleSettingsDrive|IOStyleSettingsGroup
+Text=J:
+LeftMouseUpAction=[!CommandMeasure MeasureIOSettings "ToggleDrive('J')"]
+ToolTipText=Drive availability is read from the native inventory.
+
+[MeterIOSettingsDriveJ]
+Meter=String
+MeterStyle=StyleUtilitySettingsValue|IOStyleSettingsValue|IOStyleSettingsDrive|IOStyleSettingsDriveValue|IOStyleSettingsGroup
+Text=Off
+LeftMouseUpAction=[!CommandMeasure MeasureIOSettings "ToggleDrive('J')"]
+ToolTipText=Drive availability is read from the native inventory.
+
+[MeterIOSettingsDriveKLabel]
+Meter=String
+MeterStyle=IOStyleSettingsDriveLabel|IOStyleSettingsDrive|IOStyleSettingsGroup
+Text=K:
+LeftMouseUpAction=[!CommandMeasure MeasureIOSettings "ToggleDrive('K')"]
+ToolTipText=Drive availability is read from the native inventory.
+
+[MeterIOSettingsDriveK]
+Meter=String
+MeterStyle=StyleUtilitySettingsValue|IOStyleSettingsValue|IOStyleSettingsDrive|IOStyleSettingsDriveValue|IOStyleSettingsGroup
+Text=Off
+LeftMouseUpAction=[!CommandMeasure MeasureIOSettings "ToggleDrive('K')"]
+ToolTipText=Drive availability is read from the native inventory.
+
+[MeterIOSettingsDriveLLabel]
+Meter=String
+MeterStyle=IOStyleSettingsDriveLabel|IOStyleSettingsDrive|IOStyleSettingsGroup
+Text=L:
+LeftMouseUpAction=[!CommandMeasure MeasureIOSettings "ToggleDrive('L')"]
+ToolTipText=Drive availability is read from the native inventory.
+
+[MeterIOSettingsDriveL]
+Meter=String
+MeterStyle=StyleUtilitySettingsValue|IOStyleSettingsValue|IOStyleSettingsDrive|IOStyleSettingsDriveValue|IOStyleSettingsGroup
+Text=Off
+LeftMouseUpAction=[!CommandMeasure MeasureIOSettings "ToggleDrive('L')"]
+ToolTipText=Drive availability is read from the native inventory.
+
+[MeterIOSettingsDriveMLabel]
+Meter=String
+MeterStyle=IOStyleSettingsDriveLabel|IOStyleSettingsDrive|IOStyleSettingsGroup
+Text=M:
+LeftMouseUpAction=[!CommandMeasure MeasureIOSettings "ToggleDrive('M')"]
+ToolTipText=Drive availability is read from the native inventory.
+
+[MeterIOSettingsDriveM]
+Meter=String
+MeterStyle=StyleUtilitySettingsValue|IOStyleSettingsValue|IOStyleSettingsDrive|IOStyleSettingsDriveValue|IOStyleSettingsGroup
+Text=Off
+LeftMouseUpAction=[!CommandMeasure MeasureIOSettings "ToggleDrive('M')"]
+ToolTipText=Drive availability is read from the native inventory.
+
+[MeterIOSettingsDriveNLabel]
+Meter=String
+MeterStyle=IOStyleSettingsDriveLabel|IOStyleSettingsDrive|IOStyleSettingsGroup
+Text=N:
+LeftMouseUpAction=[!CommandMeasure MeasureIOSettings "ToggleDrive('N')"]
+ToolTipText=Drive availability is read from the native inventory.
+
+[MeterIOSettingsDriveN]
+Meter=String
+MeterStyle=StyleUtilitySettingsValue|IOStyleSettingsValue|IOStyleSettingsDrive|IOStyleSettingsDriveValue|IOStyleSettingsGroup
+Text=Off
+LeftMouseUpAction=[!CommandMeasure MeasureIOSettings "ToggleDrive('N')"]
+ToolTipText=Drive availability is read from the native inventory.
+
+[MeterIOSettingsDriveOLabel]
+Meter=String
+MeterStyle=IOStyleSettingsDriveLabel|IOStyleSettingsDrive|IOStyleSettingsGroup
+Text=O:
+LeftMouseUpAction=[!CommandMeasure MeasureIOSettings "ToggleDrive('O')"]
+ToolTipText=Drive availability is read from the native inventory.
+
+[MeterIOSettingsDriveO]
+Meter=String
+MeterStyle=StyleUtilitySettingsValue|IOStyleSettingsValue|IOStyleSettingsDrive|IOStyleSettingsDriveValue|IOStyleSettingsGroup
+Text=Off
+LeftMouseUpAction=[!CommandMeasure MeasureIOSettings "ToggleDrive('O')"]
+ToolTipText=Drive availability is read from the native inventory.
+
+[MeterIOSettingsDrivePLabel]
+Meter=String
+MeterStyle=IOStyleSettingsDriveLabel|IOStyleSettingsDrive|IOStyleSettingsGroup
+Text=P:
+LeftMouseUpAction=[!CommandMeasure MeasureIOSettings "ToggleDrive('P')"]
+ToolTipText=Drive availability is read from the native inventory.
+
+[MeterIOSettingsDriveP]
+Meter=String
+MeterStyle=StyleUtilitySettingsValue|IOStyleSettingsValue|IOStyleSettingsDrive|IOStyleSettingsDriveValue|IOStyleSettingsGroup
+Text=Off
+LeftMouseUpAction=[!CommandMeasure MeasureIOSettings "ToggleDrive('P')"]
+ToolTipText=Drive availability is read from the native inventory.
+
+[MeterIOSettingsDriveQLabel]
+Meter=String
+MeterStyle=IOStyleSettingsDriveLabel|IOStyleSettingsDrive|IOStyleSettingsGroup
+Text=Q:
+LeftMouseUpAction=[!CommandMeasure MeasureIOSettings "ToggleDrive('Q')"]
+ToolTipText=Drive availability is read from the native inventory.
+
+[MeterIOSettingsDriveQ]
+Meter=String
+MeterStyle=StyleUtilitySettingsValue|IOStyleSettingsValue|IOStyleSettingsDrive|IOStyleSettingsDriveValue|IOStyleSettingsGroup
+Text=Off
+LeftMouseUpAction=[!CommandMeasure MeasureIOSettings "ToggleDrive('Q')"]
+ToolTipText=Drive availability is read from the native inventory.
+
+[MeterIOSettingsDriveRLabel]
+Meter=String
+MeterStyle=IOStyleSettingsDriveLabel|IOStyleSettingsDrive|IOStyleSettingsGroup
+Text=R:
+LeftMouseUpAction=[!CommandMeasure MeasureIOSettings "ToggleDrive('R')"]
+ToolTipText=Drive availability is read from the native inventory.
+
+[MeterIOSettingsDriveR]
+Meter=String
+MeterStyle=StyleUtilitySettingsValue|IOStyleSettingsValue|IOStyleSettingsDrive|IOStyleSettingsDriveValue|IOStyleSettingsGroup
+Text=Off
+LeftMouseUpAction=[!CommandMeasure MeasureIOSettings "ToggleDrive('R')"]
+ToolTipText=Drive availability is read from the native inventory.
+
+[MeterIOSettingsDriveSLabel]
+Meter=String
+MeterStyle=IOStyleSettingsDriveLabel|IOStyleSettingsDrive|IOStyleSettingsGroup
+Text=S:
+LeftMouseUpAction=[!CommandMeasure MeasureIOSettings "ToggleDrive('S')"]
+ToolTipText=Drive availability is read from the native inventory.
+
+[MeterIOSettingsDriveS]
+Meter=String
+MeterStyle=StyleUtilitySettingsValue|IOStyleSettingsValue|IOStyleSettingsDrive|IOStyleSettingsDriveValue|IOStyleSettingsGroup
+Text=Off
+LeftMouseUpAction=[!CommandMeasure MeasureIOSettings "ToggleDrive('S')"]
+ToolTipText=Drive availability is read from the native inventory.
+
+[MeterIOSettingsDriveTLabel]
+Meter=String
+MeterStyle=IOStyleSettingsDriveLabel|IOStyleSettingsDrive|IOStyleSettingsGroup
+Text=T:
+LeftMouseUpAction=[!CommandMeasure MeasureIOSettings "ToggleDrive('T')"]
+ToolTipText=Drive availability is read from the native inventory.
+
+[MeterIOSettingsDriveT]
+Meter=String
+MeterStyle=StyleUtilitySettingsValue|IOStyleSettingsValue|IOStyleSettingsDrive|IOStyleSettingsDriveValue|IOStyleSettingsGroup
+Text=Off
+LeftMouseUpAction=[!CommandMeasure MeasureIOSettings "ToggleDrive('T')"]
+ToolTipText=Drive availability is read from the native inventory.
+
+[MeterIOSettingsDriveULabel]
+Meter=String
+MeterStyle=IOStyleSettingsDriveLabel|IOStyleSettingsDrive|IOStyleSettingsGroup
+Text=U:
+LeftMouseUpAction=[!CommandMeasure MeasureIOSettings "ToggleDrive('U')"]
+ToolTipText=Drive availability is read from the native inventory.
+
+[MeterIOSettingsDriveU]
+Meter=String
+MeterStyle=StyleUtilitySettingsValue|IOStyleSettingsValue|IOStyleSettingsDrive|IOStyleSettingsDriveValue|IOStyleSettingsGroup
+Text=Off
+LeftMouseUpAction=[!CommandMeasure MeasureIOSettings "ToggleDrive('U')"]
+ToolTipText=Drive availability is read from the native inventory.
+
+[MeterIOSettingsDriveVLabel]
+Meter=String
+MeterStyle=IOStyleSettingsDriveLabel|IOStyleSettingsDrive|IOStyleSettingsGroup
+Text=V:
+LeftMouseUpAction=[!CommandMeasure MeasureIOSettings "ToggleDrive('V')"]
+ToolTipText=Drive availability is read from the native inventory.
+
+[MeterIOSettingsDriveV]
+Meter=String
+MeterStyle=StyleUtilitySettingsValue|IOStyleSettingsValue|IOStyleSettingsDrive|IOStyleSettingsDriveValue|IOStyleSettingsGroup
+Text=Off
+LeftMouseUpAction=[!CommandMeasure MeasureIOSettings "ToggleDrive('V')"]
+ToolTipText=Drive availability is read from the native inventory.
+
+[MeterIOSettingsDriveWLabel]
+Meter=String
+MeterStyle=IOStyleSettingsDriveLabel|IOStyleSettingsDrive|IOStyleSettingsGroup
+Text=W:
+LeftMouseUpAction=[!CommandMeasure MeasureIOSettings "ToggleDrive('W')"]
+ToolTipText=Drive availability is read from the native inventory.
+
+[MeterIOSettingsDriveW]
+Meter=String
+MeterStyle=StyleUtilitySettingsValue|IOStyleSettingsValue|IOStyleSettingsDrive|IOStyleSettingsDriveValue|IOStyleSettingsGroup
+Text=Off
+LeftMouseUpAction=[!CommandMeasure MeasureIOSettings "ToggleDrive('W')"]
+ToolTipText=Drive availability is read from the native inventory.
+
+[MeterIOSettingsDriveXLabel]
+Meter=String
+MeterStyle=IOStyleSettingsDriveLabel|IOStyleSettingsDrive|IOStyleSettingsGroup
+Text=X:
+LeftMouseUpAction=[!CommandMeasure MeasureIOSettings "ToggleDrive('X')"]
+ToolTipText=Drive availability is read from the native inventory.
+
+[MeterIOSettingsDriveX]
+Meter=String
+MeterStyle=StyleUtilitySettingsValue|IOStyleSettingsValue|IOStyleSettingsDrive|IOStyleSettingsDriveValue|IOStyleSettingsGroup
+Text=Off
+LeftMouseUpAction=[!CommandMeasure MeasureIOSettings "ToggleDrive('X')"]
+ToolTipText=Drive availability is read from the native inventory.
+
+[MeterIOSettingsDriveYLabel]
+Meter=String
+MeterStyle=IOStyleSettingsDriveLabel|IOStyleSettingsDrive|IOStyleSettingsGroup
+Text=Y:
+LeftMouseUpAction=[!CommandMeasure MeasureIOSettings "ToggleDrive('Y')"]
+ToolTipText=Drive availability is read from the native inventory.
+
+[MeterIOSettingsDriveY]
+Meter=String
+MeterStyle=StyleUtilitySettingsValue|IOStyleSettingsValue|IOStyleSettingsDrive|IOStyleSettingsDriveValue|IOStyleSettingsGroup
+Text=Off
+LeftMouseUpAction=[!CommandMeasure MeasureIOSettings "ToggleDrive('Y')"]
+ToolTipText=Drive availability is read from the native inventory.
+
+[MeterIOSettingsDriveZLabel]
+Meter=String
+MeterStyle=IOStyleSettingsDriveLabel|IOStyleSettingsDrive|IOStyleSettingsGroup
+Text=Z:
+LeftMouseUpAction=[!CommandMeasure MeasureIOSettings "ToggleDrive('Z')"]
+ToolTipText=Drive availability is read from the native inventory.
+
+[MeterIOSettingsDriveZ]
+Meter=String
+MeterStyle=StyleUtilitySettingsValue|IOStyleSettingsValue|IOStyleSettingsDrive|IOStyleSettingsDriveValue|IOStyleSettingsGroup
+Text=Off
+LeftMouseUpAction=[!CommandMeasure MeasureIOSettings "ToggleDrive('Z')"]
+ToolTipText=Drive availability is read from the native inventory.
+
+[MeterIOSettingsGraphSection]
+Meter=String
+MeterStyle=StyleUtilitySettingsSection|IOStyleSettingsGroup
+Y=(#Inset#+216*#Scale#)
+Text=Graph / display
+
+[MeterIOSettingsGraphRule]
+Meter=Shape
+MeterStyle=StyleRule|IOStyleSettingsRule|IOStyleSettingsGroup
+Y=(#Inset#+236*#Scale#)
+
+[MeterIOSettingsGraphLabel]
+Meter=String
+MeterStyle=StyleUtilitySettingsLabel|IOStyleSettingsLabel|IOStyleSettingsGroup
+Y=(#Inset#+246*#Scale#)
+Text=Graph mode
+LeftMouseUpAction=[!CommandMeasure MeasureIOSettings "CycleGraphMode()"]
+ToolTipText=One graph: C: only, Combined, Overlay or Split + / -. Split sums reads above zero and writes below zero. Click to cycle forward.
+
+[MeterIOSettingsGraphDecrease]
+Meter=String
+MeterStyle=StyleSettingsStepperButton|IOStyleSettingsGroup
+X=(#ContentX#+129*#Scale#)
+Y=(#Inset#+245*#Scale#)
 Text=<
-LeftMouseUpAction=[!CommandMeasure MeasureIOSettings "CycleDrive(1,-1)"]
-ToolTipText=Choose the main capacity drive letter. Arrows cycle A: to Z:. Custom volume roots can be set with Edit file.
+LeftMouseUpAction=[!CommandMeasure MeasureIOSettings "CycleGraphMode(-1)"]
+ToolTipText=Previous value. One graph: C: only, Combined, Overlay or Split + / -. Split sums reads above zero and writes below zero. Center cycles forward; arrows select the previous or next choice.
 
-[MeterIOSettingsDrive1Value]
+[MeterIOSettingsGraphFrame]
+Meter=Shape
+MeterStyle=StyleSettingsStepperFrame|IOStyleSettingsGroup
+X=(#ContentX#+140*#Scale#)
+Y=(#Inset#+244*#Scale#)
+W=(126*#Scale#)
+Shape=Rectangle (#Scale#/2),(#Scale#/2),(126*#Scale#-#Scale#),(19*#Scale#),(2*#Scale#) | Fill Color #GraphBackgroundColor# | Stroke Color #BorderColor# | StrokeWidth #Scale#
+LeftMouseUpAction=[!CommandMeasure MeasureIOSettings "CycleGraphMode()"]
+ToolTipText=One graph: C: only, Combined, Overlay or Split + / -. Split sums reads above zero and writes below zero. Center cycles forward; arrows select the previous or next choice.
+
+[MeterIOSettingsGraphValue]
 Meter=String
-MeterStyle=IOStyleSettingsText
-X=(#ContentX#+#IOSettingsCellW#-22*#Scale#)
-Y=(#Inset#+68*#Scale#)
-W=(54*#Scale#)
-StringAlign=Right
+MeterStyle=StyleSettingsStepperValue|IOStyleSettingsGroup
+X=(#ContentX#+203*#Scale#)
+Y=(#Inset#+245*#Scale#)
+W=(126*#Scale#)
 Text=...
-ToolTipText=Choose the main capacity drive letter. Arrows cycle A: to Z:. Custom volume roots can be set with Edit file.
+LeftMouseUpAction=[!CommandMeasure MeasureIOSettings "CycleGraphMode()"]
+ToolTipText=One graph: C: only, Combined, Overlay or Split + / -. Split sums reads above zero and writes below zero. Center cycles forward; arrows select the previous or next choice.
 
-[MeterIOSettingsDrive1Next]
+[MeterIOSettingsGraphIncrease]
 Meter=String
-MeterStyle=IOStyleSettingsText|IOStyleSettingsButton
-X=(#ContentX#+#IOSettingsCellW#-18*#Scale#)
-Y=(#Inset#+68*#Scale#)
-W=(18*#Scale#)
+MeterStyle=StyleSettingsStepperButton|IOStyleSettingsGroup
+X=(#ContentX#+277*#Scale#)
+Y=(#Inset#+245*#Scale#)
 Text=>
-LeftMouseUpAction=[!CommandMeasure MeasureIOSettings "CycleDrive(1,1)"]
-ToolTipText=Choose the main capacity drive letter. Arrows cycle A: to Z:. Custom volume roots can be set with Edit file.
-
-[MeterIOSettingsDrive2Label]
-Meter=String
-MeterStyle=IOStyleSettingsText
-X=#ContentX#
-Y=(#Inset#+92*#Scale#)
-W=(#IOSettingsCellW#-102*#Scale#)
-Text=Second
-
-[MeterIOSettingsDrive2Previous]
-Meter=String
-MeterStyle=IOStyleSettingsText|IOStyleSettingsButton
-X=(#ContentX#+#IOSettingsCellW#-98*#Scale#)
-Y=(#Inset#+92*#Scale#)
-W=(18*#Scale#)
-Text=<
-LeftMouseUpAction=[!CommandMeasure MeasureIOSettings "CycleDrive(2,-1)"]
-ToolTipText=Choose the second capacity drive letter. Enable its row below. A missing drive remains unavailable.
-
-[MeterIOSettingsDrive2Value]
-Meter=String
-MeterStyle=IOStyleSettingsText
-X=(#ContentX#+#IOSettingsCellW#-22*#Scale#)
-Y=(#Inset#+92*#Scale#)
-W=(54*#Scale#)
-StringAlign=Right
-Text=...
-ToolTipText=Choose the second capacity drive letter. Enable its row below. A missing drive remains unavailable.
-
-[MeterIOSettingsDrive2Next]
-Meter=String
-MeterStyle=IOStyleSettingsText|IOStyleSettingsButton
-X=(#ContentX#+#IOSettingsCellW#-18*#Scale#)
-Y=(#Inset#+92*#Scale#)
-W=(18*#Scale#)
-Text=>
-LeftMouseUpAction=[!CommandMeasure MeasureIOSettings "CycleDrive(2,1)"]
-ToolTipText=Choose the second capacity drive letter. Enable its row below. A missing drive remains unavailable.
-
-[MeterIOSettingsSecondLabel]
-Meter=String
-MeterStyle=IOStyleSettingsText|IOStyleSettingsClickable
-X=#ContentX#
-Y=(#Inset#+116*#Scale#)
-W=(#IOSettingsCellW#-78*#Scale#)
-Text=Show second
-LeftMouseUpAction=[!CommandMeasure MeasureIOSettings "Toggle('IOShowDrive2')"]
-ToolTipText=Enable or disable the second capacity row and its native drive measures.
-
-[MeterIOSettingsSecondValue]
-Meter=String
-MeterStyle=IOStyleSettingsText|IOStyleSettingsButton
-X=(#ContentX#+#IOSettingsCellW#)
-Y=(#Inset#+116*#Scale#)
-W=(70*#Scale#)
-StringAlign=Right
-Text=...
-LeftMouseUpAction=[!CommandMeasure MeasureIOSettings "Toggle('IOShowDrive2')"]
-ToolTipText=Enable or disable the second capacity row and its native drive measures.
-
-[MeterIOSettingsRemovableLabel]
-Meter=String
-MeterStyle=IOStyleSettingsText|IOStyleSettingsClickable
-X=#ContentX#
-Y=(#Inset#+140*#Scale#)
-W=(#IOSettingsCellW#-78*#Scale#)
-Text=Removable
-LeftMouseUpAction=[!CommandMeasure MeasureIOSettings "Toggle('IOIgnoreRemovable')"]
-ToolTipText=Include or ignore removable drives. Optical capacity remains unsupported.
-
-[MeterIOSettingsRemovableValue]
-Meter=String
-MeterStyle=IOStyleSettingsText|IOStyleSettingsButton
-X=(#ContentX#+#IOSettingsCellW#)
-Y=(#Inset#+140*#Scale#)
-W=(70*#Scale#)
-StringAlign=Right
-Text=...
-LeftMouseUpAction=[!CommandMeasure MeasureIOSettings "Toggle('IOIgnoreRemovable')"]
-ToolTipText=Include or ignore removable drives. Optical capacity remains unsupported.
-
-[MeterIOSettingsQuotaLabel]
-Meter=String
-MeterStyle=IOStyleSettingsText|IOStyleSettingsClickable
-X=#ContentX#
-Y=(#Inset#+164*#Scale#)
-W=(#IOSettingsCellW#-78*#Scale#)
-Text=Disk quotas
-LeftMouseUpAction=[!CommandMeasure MeasureIOSettings "Toggle('IODiskQuota')"]
-ToolTipText=On: respect the current user's Windows disk quota. Off: use whole-volume capacity.
-
-[MeterIOSettingsQuotaValue]
-Meter=String
-MeterStyle=IOStyleSettingsText|IOStyleSettingsButton
-X=(#ContentX#+#IOSettingsCellW#)
-Y=(#Inset#+164*#Scale#)
-W=(70*#Scale#)
-StringAlign=Right
-Text=...
-LeftMouseUpAction=[!CommandMeasure MeasureIOSettings "Toggle('IODiskQuota')"]
-ToolTipText=On: respect the current user's Windows disk quota. Off: use whole-volume capacity.
-
+LeftMouseUpAction=[!CommandMeasure MeasureIOSettings "CycleGraphMode(1)"]
+ToolTipText=Next value. One graph: C: only, Combined, Overlay or Split + / -. Split sums reads above zero and writes below zero. Center cycles forward; arrows select the previous or next choice.
 [MeterIOSettingsUnitsLabel]
 Meter=String
-MeterStyle=IOStyleSettingsText|IOStyleSettingsClickable
-X=#IOSettingsRightX#
-Y=(#Inset#+68*#Scale#)
-W=(#IOSettingsCellW#-78*#Scale#)
+MeterStyle=StyleUtilitySettingsLabel|IOStyleSettingsLabel|IOStyleSettingsGroup
+Y=(#Inset#+274*#Scale#)
 Text=Rate units
 LeftMouseUpAction=[!CommandMeasure MeasureIOSettings "CycleUnits()"]
-ToolTipText=Bytes use binary B/s, KiB/s and MiB/s. Bits use decimal bit/s, kbit/s and Mbit/s. Capacity always uses binary bytes.
+ToolTipText=Decimal B/s, KB/s and MB/s. Bits use decimal bit/s, kbit/s and Mbit/s. Capacity uses decimal GB.
+
+[MeterIOSettingsUnitsDecrease]
+Meter=String
+MeterStyle=StyleSettingsStepperButton|IOStyleSettingsGroup
+X=(#ContentX#+129*#Scale#)
+Y=(#Inset#+273*#Scale#)
+Text=<
+LeftMouseUpAction=[!CommandMeasure MeasureIOSettings "CycleUnits(-1)"]
+ToolTipText=Previous value. Choose decimal byte or bit rate units. Capacity remains decimal GB. Center cycles forward; arrows select the previous or next choice.
+
+[MeterIOSettingsUnitsFrame]
+Meter=Shape
+MeterStyle=StyleSettingsStepperFrame|IOStyleSettingsGroup
+X=(#ContentX#+140*#Scale#)
+Y=(#Inset#+272*#Scale#)
+W=(56*#Scale#)
+Shape=Rectangle (#Scale#/2),(#Scale#/2),(56*#Scale#-#Scale#),(19*#Scale#),(2*#Scale#) | Fill Color #GraphBackgroundColor# | Stroke Color #BorderColor# | StrokeWidth #Scale#
+LeftMouseUpAction=[!CommandMeasure MeasureIOSettings "CycleUnits()"]
+ToolTipText=Choose decimal byte or bit rate units. Capacity remains decimal GB. Center cycles forward; arrows select the previous or next choice.
 
 [MeterIOSettingsUnitsValue]
 Meter=String
-MeterStyle=IOStyleSettingsText|IOStyleSettingsButton
-X=(#IOSettingsRightX#+#IOSettingsCellW#)
-Y=(#Inset#+68*#Scale#)
-W=(70*#Scale#)
-StringAlign=Right
+MeterStyle=StyleSettingsStepperValue|IOStyleSettingsGroup
+X=(#ContentX#+168*#Scale#)
+Y=(#Inset#+273*#Scale#)
+W=(56*#Scale#)
 Text=...
 LeftMouseUpAction=[!CommandMeasure MeasureIOSettings "CycleUnits()"]
-ToolTipText=Bytes use binary B/s, KiB/s and MiB/s. Bits use decimal bit/s, kbit/s and Mbit/s. Capacity always uses binary bytes.
+ToolTipText=Choose decimal byte or bit rate units. Capacity remains decimal GB. Center cycles forward; arrows select the previous or next choice.
 
-[MeterIOSettingsCategoryLabel]
+[MeterIOSettingsUnitsIncrease]
 Meter=String
-MeterStyle=IOStyleSettingsText|IOStyleSettingsClickable
-X=#IOSettingsRightX#
-Y=(#Inset#+92*#Scale#)
-W=(#IOSettingsCellW#-78*#Scale#)
-Text=Category
-LeftMouseUpAction=[!CommandMeasure MeasureIOSettings "CycleCategory()"]
-ToolTipText=Switch PhysicalDisk or LogicalDisk. The exact instance is preserved: choose All, Main, Second, or edit a matching custom Perfmon name.
-
-[MeterIOSettingsCategoryValue]
-Meter=String
-MeterStyle=IOStyleSettingsText|IOStyleSettingsButton
-X=(#IOSettingsRightX#+#IOSettingsCellW#)
-Y=(#Inset#+92*#Scale#)
-W=(70*#Scale#)
-StringAlign=Right
-Text=...
-LeftMouseUpAction=[!CommandMeasure MeasureIOSettings "CycleCategory()"]
-ToolTipText=Switch PhysicalDisk or LogicalDisk. The exact instance is preserved: choose All, Main, Second, or edit a matching custom Perfmon name.
-
+MeterStyle=StyleSettingsStepperButton|IOStyleSettingsGroup
+X=(#ContentX#+207*#Scale#)
+Y=(#Inset#+273*#Scale#)
+Text=>
+LeftMouseUpAction=[!CommandMeasure MeasureIOSettings "CycleUnits(1)"]
+ToolTipText=Next value. Choose decimal byte or bit rate units. Capacity remains decimal GB. Center cycles forward; arrows select the previous or next choice.
 [MeterIOSettingsLimitLabel]
 Meter=String
-MeterStyle=IOStyleSettingsText
-X=#IOSettingsRightX#
-Y=(#Inset#+116*#Scale#)
-W=(#IOSettingsCellW#-102*#Scale#)
-Text=MiB/s cap
+MeterStyle=StyleUtilitySettingsLabel|IOStyleSettingsLabel|IOStyleSettingsGroup
+Y=(#Inset#+302*#Scale#)
+Text=MB/s cap
+LeftMouseUpAction=[!CommandMeasure MeasureIOSettings "BeginLimitInput()"]
+ToolTipText=Click to enter 0.0001 to 1000000000 MB/s with up to four decimals. Enter applies; Esc cancels. Arrows choose adjacent presets without wrapping; custom saved values remain until a valid edit.
 
-[MeterIOSettingsLimitPrevious]
+[MeterIOSettingsLimitDecrease]
 Meter=String
-MeterStyle=IOStyleSettingsText|IOStyleSettingsButton
-X=(#IOSettingsRightX#+#IOSettingsCellW#-98*#Scale#)
-Y=(#Inset#+116*#Scale#)
-W=(18*#Scale#)
+MeterStyle=StyleSettingsStepperButton|IOStyleSettingsGroup
+X=(#ContentX#+129*#Scale#)
+Y=(#Inset#+301*#Scale#)
 Text=<
 LeftMouseUpAction=[!CommandMeasure MeasureIOSettings "CycleLimit(-1)"]
-ToolTipText=Cycle fixed per-direction graph ceilings: 10, 50, 100, 250, 500, 1000, 2000 or 5000 MiB/s. Custom limits are preserved until changed.
+ToolTipText=Previous value. Arrows choose the adjacent graph-cap preset and stop at the limits. Center accepts 0.0001 to 1000000000 MB/s with up to four decimals; Enter applies and Esc cancels. Use Edit file for saved values outside this editor range.
+
+[MeterIOSettingsLimitFrame]
+Meter=Shape
+MeterStyle=StyleSettingsStepperFrame|IOStyleSettingsGroup
+X=(#ContentX#+140*#Scale#)
+Y=(#Inset#+300*#Scale#)
+W=(104*#Scale#)
+Shape=Rectangle (#Scale#/2),(#Scale#/2),(104*#Scale#-#Scale#),(19*#Scale#),(2*#Scale#) | Fill Color #GraphBackgroundColor# | Stroke Color #BorderColor# | StrokeWidth #Scale#
+LeftMouseUpAction=[!CommandMeasure MeasureIOSettings "BeginLimitInput()"]
+ToolTipText=Arrows choose the adjacent graph-cap preset and stop at the limits. Center accepts 0.0001 to 1000000000 MB/s with up to four decimals; Enter applies and Esc cancels. Use Edit file for saved values outside this editor range.
 
 [MeterIOSettingsLimitValue]
 Meter=String
-MeterStyle=IOStyleSettingsText
-X=(#IOSettingsRightX#+#IOSettingsCellW#-22*#Scale#)
-Y=(#Inset#+116*#Scale#)
-W=(54*#Scale#)
-StringAlign=Right
+MeterStyle=StyleSettingsStepperValue|IOStyleSettingsGroup
+X=(#ContentX#+192*#Scale#)
+Y=(#Inset#+301*#Scale#)
+W=(104*#Scale#)
 Text=...
-ToolTipText=Cycle fixed per-direction graph ceilings: 10, 50, 100, 250, 500, 1000, 2000 or 5000 MiB/s. Custom limits are preserved until changed.
+LeftMouseUpAction=[!CommandMeasure MeasureIOSettings "BeginLimitInput()"]
+ToolTipText=Arrows choose the adjacent graph-cap preset and stop at the limits. Center accepts 0.0001 to 1000000000 MB/s with up to four decimals; Enter applies and Esc cancels. Use Edit file for saved values outside this editor range.
 
-[MeterIOSettingsLimitNext]
+[MeterIOSettingsLimitIncrease]
 Meter=String
-MeterStyle=IOStyleSettingsText|IOStyleSettingsButton
-X=(#IOSettingsRightX#+#IOSettingsCellW#-18*#Scale#)
-Y=(#Inset#+116*#Scale#)
-W=(18*#Scale#)
+MeterStyle=StyleSettingsStepperButton|IOStyleSettingsGroup
+X=(#ContentX#+255*#Scale#)
+Y=(#Inset#+301*#Scale#)
 Text=>
 LeftMouseUpAction=[!CommandMeasure MeasureIOSettings "CycleLimit(1)"]
-ToolTipText=Cycle fixed per-direction graph ceilings: 10, 50, 100, 250, 500, 1000, 2000 or 5000 MiB/s. Custom limits are preserved until changed.
-
-[MeterIOSettingsInstanceLabel]
+ToolTipText=Next value. Arrows choose the adjacent graph-cap preset and stop at the limits. Center accepts 0.0001 to 1000000000 MB/s with up to four decimals; Enter applies and Esc cancels. Use Edit file for saved values outside this editor range.
+[MeterIOSettingsCapacitySection]
 Meter=String
-MeterStyle=IOStyleSettingsText
-X=#IOSettingsRightX#
-Y=(#Inset#+140*#Scale#)
-Text=Exact disk instance
+MeterStyle=StyleUtilitySettingsSection|IOStyleSettingsGroup
+Y=(#Inset#+332*#Scale#)
+Text=Capacity
 
-[MeterIOSettingsInstanceValue]
+[MeterIOSettingsCapacityRule]
+Meter=Shape
+MeterStyle=StyleRule|IOStyleSettingsRule|IOStyleSettingsGroup
+Y=(#Inset#+352*#Scale#)
+
+[MeterIOSettingsQuotaLabel]
 Meter=String
-MeterStyle=IOStyleSettingsText
-X=#IOSettingsRightX#
-Y=(#Inset#+158*#Scale#)
-W=#IOSettingsCellW#
+MeterStyle=StyleUtilitySettingsLabel|IOStyleSettingsLabel|IOStyleSettingsGroup
+Y=(#Inset#+362*#Scale#)
+Text=Disk quotas
+LeftMouseUpAction=[!CommandMeasure MeasureIOSettings "Toggle('IODiskQuota')"]
+ToolTipText=On respects the current user's Windows disk quota. Off requests free space without applying that quota.
+
+[MeterIOSettingsQuotaValue]
+Meter=String
+MeterStyle=StyleUtilitySettingsValue|IOStyleSettingsValue|IOStyleSettingsGroup
+Y=(#Inset#+360*#Scale#)
+W=(56*#Scale#)
 Text=...
-ToolTipText=Exact Perfmon instance. Use Edit file for a custom physical disk name.
+LeftMouseUpAction=[!CommandMeasure MeasureIOSettings "Toggle('IODiskQuota')"]
+ToolTipText=On respects the current user's Windows disk quota. Off requests free space without applying that quota.
 
-[MeterIOSettingsInstanceAll]
-Meter=String
-MeterStyle=IOStyleSettingsText|IOStyleSettingsButton
-X=#IOSettingsRightX#
-Y=(#Inset#+182*#Scale#)
-W=(38*#Scale#)
-Text=All
-LeftMouseUpAction=[!CommandMeasure MeasureIOSettings "UseTotal()"]
-ToolTipText=Select _Total in the current category. Capacity drive rows are independent.
-
-[MeterIOSettingsInstanceMain]
-Meter=String
-MeterStyle=IOStyleSettingsText|IOStyleSettingsButton
-X=(#IOSettingsRightX#+46*#Scale#)
-Y=(#Inset#+182*#Scale#)
-W=(48*#Scale#)
-Text=Main
-LeftMouseUpAction=[!CommandMeasure MeasureIOSettings "UseCapacityDrive(1)"]
-ToolTipText=Select LogicalDisk and the main capacity drive letter. Custom roots require an exact instance in Edit file.
-
-[MeterIOSettingsInstanceSecond]
-Meter=String
-MeterStyle=IOStyleSettingsText|IOStyleSettingsButton
-X=(#IOSettingsRightX#+102*#Scale#)
-Y=(#Inset#+182*#Scale#)
-W=(#IOSettingsCellW#-102*#Scale#)
-Text=Second
-LeftMouseUpAction=[!CommandMeasure MeasureIOSettings "UseCapacityDrive(2)"]
-ToolTipText=Select LogicalDisk and the second capacity drive letter, even when its capacity row is hidden.
-
-[MeterIOSettingsCustomHint]
-Meter=String
-MeterStyle=IOStyleSettingsText|IOStyleSettingsMetadata
-X=#ContentX#
-Y=(#Inset#+208*#Scale#)
-W=#ContentWidth#
-H=(16*#Scale#)
-FontColor=#MutedColor#
-Text=Custom instance/root: Edit file, then Reload.
-ToolTipText=Open IO.inc for exact Perfmon instance names, custom volume roots or graph limits. Save, then click Reload; only Drive I/O and these settings refresh.
-
-[MeterIOSettingsNative]
+[MeterIOSettingsOpen]
 Meter=String
 MeterStyle=IOStyleSettingsText|IOStyleSettingsButton
 X=#ContentX#
-Y=(#Inset#+230*#Scale#)
-W=#IOSettingsCellW#
-Text=Load native capacity
-LeftMouseUpAction=[!CommandMeasure MeasureIOSettings "Activate('native')"]
-ToolTipText=Load IO.ini: native capacity only. Removes this display's UsageMonitor queries; another skin may still use the same category worker.
-
-[MeterIOSettingsCounters]
-Meter=String
-MeterStyle=IOStyleSettingsText|IOStyleSettingsButton
-X=#IOSettingsRightX#
-Y=(#Inset#+230*#Scale#)
-W=#IOSettingsCellW#
-Text=Load disk counters
-LeftMouseUpAction=[!CommandMeasure MeasureIOSettings "Activate('counters')"]
-ToolTipText=Load IO-Disk.ini: native capacity plus optional UsageMonitor disk read/write counters. Adds an independent 1 Hz category worker.
+Y=(#Inset#+400*#Scale#)
+W=(132*#Scale#)
+Text=Open Disk Meter
+LeftMouseUpAction=[!CommandMeasure MeasureIOSettings "Open()"]
+ToolTipText=Open Disk Meter with the selected drives and graph mode. UsageMonitor uses one independent LogicalDisk worker; zero rates and sample freshness may be unknown.
 
 [MeterIOSettingsEditFile]
 Meter=String
 MeterStyle=IOStyleSettingsText|IOStyleSettingsButton|StyleSecondaryButton
-X=#ContentX#
-Y=(#Inset#+254*#Scale#)
-W=(70*#Scale#)
+X=(#ContentX#+144*#Scale#)
+Y=(#Inset#+400*#Scale#)
+W=(74*#Scale#)
 Text=Edit file
 LeftMouseUpAction=["notepad.exe" "#@#User\IO.inc"]
-ToolTipText=Edit advanced IO.inc values in Notepad. Save and click Reload. No input text is embedded in a Rainmeter action.
+ToolTipText=Edit Disk Meter options, including offline letters and legacy graph caps outside the numeric editor range or precision. IODiskDrives accepts all, none, or a sorted uppercase comma list such as C,D,F. IODiskMaxMiBs retains its compatibility storage units. Save and click Reload.
 
 [MeterIOSettingsReload]
 Meter=String
 MeterStyle=IOStyleSettingsText|IOStyleSettingsButton
-X=(#ContentX#+82*#Scale#)
-Y=(#Inset#+254*#Scale#)
-W=(62*#Scale#)
+X=(#ContentX#+230*#Scale#)
+Y=(#Inset#+400*#Scale#)
+W=(70*#Scale#)
 Text=Reload
 LeftMouseUpAction=[!CommandMeasure MeasureIOSettings "Apply()"]
-ToolTipText=Read manual file edits by refreshing only the Drive I/O group and this settings utility.
+ToolTipText=Read manual file edits by refreshing only the Disk Meter group and this settings utility.
 
 [MeterIOSettingsProviderHint]
 Meter=String
 MeterStyle=IOStyleSettingsText|IOStyleSettingsMetadata
-X=#IOSettingsRightX#
-Y=(#Inset#+254*#Scale#)
-W=#IOSettingsCellW#
-FontColor=#MutedColor#
-Text=Zero / age may be unknown
-ToolTipText=UsageMonitor cannot prove freshness or distinguish zero activity from unavailable counters. The display preserves those limitations.
+Y=(#Inset#+426*#Scale#)
+H=(16*#Scale#)
+Text=Zero activity and unavailable counters can look alike.
+ToolTipText=UsageMonitor cannot prove freshness or distinguish zero activity from unavailable counters. Capacity availability does not prove that transfer counters exist.
 
 [MeterIOSettingsNotice]
 Meter=String
 MeterStyle=IOStyleSettingsText|IOStyleSettingsMetadata
-X=#ContentX#
-Y=(#Inset#+280*#Scale#)
-W=#ContentWidth#
+Y=(#Inset#+448*#Scale#)
 H=(16*#Scale#)
-FontColor=#MutedColor#
 Text=Changes save immediately.
 
 [MeterIOSettingsIndependence]
 Meter=String
 MeterStyle=IOStyleSettingsText|IOStyleSettingsMetadata
-X=#ContentX#
-Y=(#Inset#+302*#Scale#)
-W=#ContentWidth#
+Y=(#Inset#+470*#Scale#)
 H=(16*#Scale#)
-FontColor=#MutedColor#
-Text=Close settings independently of Drive I/O.
+Text=Close settings independently of Disk Meter.

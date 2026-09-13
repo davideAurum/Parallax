@@ -51,7 +51,7 @@ if ((Test-Path -LiteralPath $runtimeRoot) -and ((Get-Item -LiteralPath $runtimeR
     throw 'Smoke runtime root must not be a junction or symbolic link.'
 }
 foreach ($column in $Columns) { if ($column -notin @(1, 2)) { throw 'Columns must be 1 or 2.' } }
-foreach ($width in $ColumnWidths) { if ($width -notin @(180, 200, 240, 280, 320)) { throw 'ColumnWidth must be 180, 200, 240, 280 or 320.' } }
+foreach ($width in $ColumnWidths) { if ($width -notin @(180, 200, 220, 240, 280, 320)) { throw 'ColumnWidth must be 180, 200, 220, 240, 280 or 320.' } }
 foreach ($scale in $Scales) { if ($scale -notin @(0.75, 1, 1.25, 1.5, 2)) { throw 'Scale must be 0.75, 1, 1.25, 1.5 or 2.' } }
 $productionIni = Get-Content -LiteralPath (Join-Path $suiteRoot 'Chronometer\Chronometer.ini') -Raw
 $meterNames = @([regex]::Matches($productionIni, '(?m)^\[(Meter[^\]]+)\]') | ForEach-Object { $_.Groups[1].Value }) -join '|'

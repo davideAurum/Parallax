@@ -1,5 +1,6 @@
--- Media accordion. Only the explicit toggle writes a fixed scalar preference.
-local settingsPath, expanded
+-- Media accordion. Explicit toggles and confirmed-empty collapse write a fixed
+-- scalar preference; the queue reader deduplicates automatic empty transitions.
+local settingsPath
 
 local function readExpanded()
     local file = io.open(settingsPath, 'rb')
@@ -37,18 +38,18 @@ end
 
 function Initialize()
     settingsPath = SKIN:GetVariable('@') .. 'User\\Media.inc'
-    expanded = SKIN:GetVariable('QueueExpanded', '0') == '1'
 end
 
-function Update() return expanded and 'Queue -' or 'Queue +' end
+function Update() return 'Queue' end
 
-function ToggleQueue()
+local function setExpanded(requested)
     local before = readExpanded()
     if not before then
         SKIN:Bang('!SetOption', 'MeterQueueStatus', 'ToolTipText', 'Cannot read Media settings. Check file access.')
         return false
     end
-    local value = before == '1' and '0' or '1'
+    local value = requested or (before == '1' and '0' or '1')
+    if before == value then return false end
     SKIN:Bang('!WriteKeyValue', 'Variables', 'QueueExpanded', value, settingsPath)
     if readExpanded() ~= value then
         SKIN:Bang('!SetOption', 'MeterQueueStatus', 'ToolTipText', 'Could not save the queue display preference.')
@@ -59,3 +60,8 @@ function ToggleQueue()
     SKIN:Bang('!Refresh')
     return true
 end
+
+function ToggleQueue() return setExpanded(nil) end
+
+-- Called only by the inline reader after a fresh, fully validated empty queue.
+function CollapseEmptyQueue() return setExpanded('0') end

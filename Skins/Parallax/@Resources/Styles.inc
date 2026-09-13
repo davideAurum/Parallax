@@ -46,6 +46,13 @@ X=#ContentX#
 W=#ContentWidth#
 H=(18*#Scale#)
 
+; Layer after StyleTitle. Keep opt-in so existing unrelated String meters do
+; not change their anchor until their module explicitly adopts the header row.
+[StyleTitleRow]
+Y=#TitleRowCenterY#
+H=#TitleRowHeight#
+StringAlign=LeftCenter
+
 [StyleValue]
 FontFace=#FontFace#
 FontSize=((#FontSize#+3)*#Scale#)
@@ -76,6 +83,99 @@ UpdateDivider=-1
 
 [StyleSecondaryButton]
 FontColor=#AccentColor2#
+
+; Independent utility settings follow Global Settings labels and value fields.
+; Define Y and module groups locally; adjust label/field widths together for
+; longer labels or compact option cells. Row is an optional value-field backing.
+[StyleUtilitySettingsSection]
+FontFace=#FontFace#
+FontSize=(#HeaderFontSize#*#Scale#)
+FontWeight=600
+FontColor=#AccentColor#
+AntiAlias=1
+ClipString=1
+StringAlign=Left
+X=#ContentX#
+W=#ContentWidth#
+H=(18*#Scale#)
+
+[StyleUtilitySettingsLabel]
+FontFace=#FontFace#
+FontSize=(#FontSize#*#Scale#)
+FontWeight=500
+FontColor=#TextColor#
+AntiAlias=1
+ClipString=1
+StringAlign=Left
+X=#ContentX#
+W=(70*#Scale#)
+H=(18*#Scale#)
+MouseActionCursor=1
+
+[StyleUtilitySettingsValue]
+FontFace=#FontFace#
+FontSize=(#FontSize#*#Scale#)
+FontWeight=500
+FontColor=#TextColor#
+AntiAlias=1
+ClipString=1
+StringAlign=Left
+X=(#ContentX#+76*#Scale#)
+W=(#ContentWidth#-82*#Scale#)
+H=(18*#Scale#)
+Padding=(3*#Scale#),#Scale#,(3*#Scale#),#Scale#
+SolidColor=#GraphBackgroundColor#
+MouseActionCursor=1
+
+[StyleUtilitySettingsRow]
+X=(#ContentX#+76*#Scale#)
+W=(#ContentWidth#-76*#Scale#)
+H=(20*#Scale#)
+Shape=Rectangle 0,0,(#ContentWidth#-76*#Scale#),(20*#Scale#) | Fill Color #GraphBackgroundColor# | StrokeWidth 0
+MouseActionCursor=1
+
+[StyleTableHeaderRule]
+X=#ContentX#
+Shape=Line 0,0,#ContentWidth#,0 | Stroke Color #TableHeaderBorderColor# | StrokeWidth (#TableHeaderBorderThickness#*#Scale#)
+UpdateDivider=-1
+
+; CPU-inspired previous / editable value / next controls. Declare X/Y and
+; actions locally. String X is its horizontal center; frame X is its left edge.
+; Default group: 18 px arrow, 2 px gap, 56 px field, 2 px gap, 18 px arrow.
+[StyleSettingsStepperButton]
+FontFace=#FontFace#
+FontSize=(#FontSize#*#Scale#)
+FontWeight=600
+FontColor=#AccentColor#
+AntiAlias=1
+ClipString=1
+StringAlign=Center
+W=(18*#Scale#)
+H=(18*#Scale#)
+Padding=0,0,0,0
+SolidColor=0,0,0,0
+MouseActionCursor=1
+
+[StyleSettingsStepperValue]
+FontFace=#FontFace#
+FontSize=(#FontSize#*#Scale#)
+FontWeight=500
+FontColor=#TextColor#
+AntiAlias=1
+ClipString=1
+StringAlign=Center
+W=(56*#Scale#)
+H=(18*#Scale#)
+Padding=0,0,0,0
+SolidColor=0,0,0,0
+MouseActionCursor=1
+
+[StyleSettingsStepperFrame]
+W=(56*#Scale#)
+H=(20*#Scale#)
+Shape=Rectangle (#Scale#/2),(#Scale#/2),(56*#Scale#-#Scale#),(19*#Scale#),(2*#Scale#) | Fill Color #GraphBackgroundColor# | Stroke Color #BorderColor# | StrokeWidth #Scale#
+MouseActionCursor=1
+UpdateDivider=-1
 
 [StyleGraph]
 X=#ContentX#

@@ -4,8 +4,10 @@ local targets = {
     AccentColor='Accent Color 1', AccentColor2='Accent Color 2',
     TitleTextColor='Title Text Color', HeaderTextColor='Header Text Color',
     TextColor='Body Text Color', BackgroundColor='Background Color',
-    BorderColor='Border Color', DividerColor='Divider Color'
+    BorderColor='Border Color', DividerColor='Divider Color',
+    TableHeaderBorderColor='Table header border'
 }
+local targetDefaults={TableHeaderBorderColor='50,50,50,255'}
 local rows, stops = 48,24
 local names = {RGB={'R','G','B'},HSV={'H','S','V'},LAB={'L*','a*','b*'}}
 local limits = {RGB={{0,255},{0,255},{0,255}},HSV={{0,360},{0,100},{0,100}},LAB={{0,100},{-128,127},{-128,127}}}
@@ -111,7 +113,7 @@ function Render() ready=true; paint(true) end
 function OpenTarget(key)
     if type(key)~='string' or not targets[key] then return false end
     targetKey=key
-    local value=SKIN:GetVariable(targetKey)
+    local value=SKIN:GetVariable(targetKey,targetDefaults[targetKey])
     original=C.Parse(value)
     originalAlpha=targetKey=='BackgroundColor' and C.Alpha(value) or 255
     mode='HSV'; setChannels(original)

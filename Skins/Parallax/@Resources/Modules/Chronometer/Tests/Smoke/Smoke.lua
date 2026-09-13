@@ -143,6 +143,11 @@ local function gearVisible()
         'Visible settings gear must remain inside the painted panel')
     check(gear:GetOption('MouseActionCursor') == '1', 'Visible gear must expose an action cursor')
     check(gear:GetOption('ToolTipText') ~= '', 'Visible gear must describe its settings action')
+    check(math.abs(y + h / 2 - numberVariable('TitleRowCenterY')) <= 1,
+        'Visible gear shares the title center within native pixel quantization')
+    local title = meter('MeterTitle')
+    check(title:GetX() + title:GetW() + math.floor(numberVariable('TitleIconGap')) <= x,
+        'Title preserves the gap before the visible gear')
 end
 
 local function rect(name)
@@ -160,6 +165,36 @@ local function beforeY(top, bottom)
     local a, b = rect(top), rect(bottom)
     if not sectionVisible(top) or not sectionVisible(bottom) then return end
     check(a.y + a.h <= b.y, top .. ' overlaps ' .. bottom .. ' vertically by ' .. (a.y + a.h - b.y) .. 'px')
+end
+
+local function headerLayout()
+    local title, icon = meter('MeterTitle'), meter('MeterIcon')
+    local scale, center = numberVariable('Scale'), numberVariable('TitleRowCenterY')
+    local iconSize, gap = numberVariable('TitleIconSize'), numberVariable('TitleIconGap')
+    local availableW = numberVariable('ContentWidth') - iconSize - 2 * gap - 18 * scale
+    check(title:GetOption('StringAlign'):lower() == 'leftcenter', 'Title uses a left anchor with vertical centering')
+    check(math.abs(title:GetX(true) - (numberVariable('ContentX') + iconSize + gap)) < 1,
+        'Title begins immediately after the identity icon and shared gap')
+    check(math.abs(title:GetY(true) - center) < 1, 'Title anchor uses the shared row center')
+    check(math.abs(title:GetH() - numberVariable('TitleRowHeight')) < 1, 'Title uses the shared row height')
+    check(math.abs(title:GetW() - availableW) < 1, 'Title width reserves the identity icon, gear and their gaps')
+    check(math.abs(icon:GetW() - iconSize) < 1 and math.abs(icon:GetH() - iconSize) < 1,
+        'Clock icon canvas scales with TitleFontSize and Scale')
+    -- Shape paths retain fractional coordinates even though GetH() truncates
+    -- the canvas. Check the drawn clock center, not half the truncated height.
+    check(math.abs(icon:GetY() + iconSize / 2 - center) < 1,
+        'Clock artwork shares the title center within native Y quantization')
+    check(icon:GetX() + icon:GetW() + math.floor(gap) <= title:GetX(),
+        'Title preserves the gap after the identity icon')
+    if sectionVisible('MeterClock') then
+        local clock = meter('MeterClock')
+        local clockY = numberVariable('Inset') + numberVariable('ChronometerClockY') * scale
+        check(clock:GetY() == math.floor(clockY), 'Clock keeps its existing first-content-row coordinate')
+        check(center < clock:GetY(), 'Clock begins below the header center')
+    end
+    report[#report + 1] = 'Header: TitleFontSize=' .. numberVariable('TitleFontSize') ..
+        '; center=' .. center .. '; title=' .. title:GetW() .. 'x' .. title:GetH() ..
+        '; icon=' .. icon:GetW() .. 'x' .. icon:GetH()
 end
 
 local function sectionDividers()
@@ -194,6 +229,7 @@ end
 
 local function layout()
     sectionDividers()
+    headerLayout()
     beforeY('MeterTitle', 'MeterClock')
     beforeY('MeterClock', 'MeterDate')
     beforeY('MeterDate', 'MeterUptimeRule')

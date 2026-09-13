@@ -9,13 +9,57 @@ param(
     [string]$Width = '80',
     [string]$Height = '22',
     [string]$Scale = '1',
+    [string]$Minimum,
+    [string]$Maximum,
+    [string]$DecimalPlaces,
     [switch]$ValidateOnly,
     [string]$Value,
     [switch]$Cancel
 )
 
 function ConvertTo-ParallaxInputValue {
-    param([string]$InputKey, [AllowNull()][string]$Text)
+    param(
+        [string]$InputKey,
+        [AllowNull()][string]$Text,
+        [AllowNull()][string]$Minimum,
+        [AllowNull()][string]$Maximum,
+        [AllowNull()][string]$DecimalPlaces
+    )
+    if ($InputKey -ceq 'UtilityNumber') {
+        # Range arguments are data from a fixed caller-owned definition, never code.
+        # Keep all validation state local so one invocation cannot affect another.
+        $invalidRange = [pscustomobject]@{ Valid = $false; Value = ''; Error = 'Invalid numeric range.' }
+        if ($DecimalPlaces -cnotmatch '\A[0-4]\z') { return $invalidRange }
+        $precision = [int]$DecimalPlaces
+        $pattern = if ($precision -eq 0) { '\A[+-]?[0-9]+\z' }
+            else { '\A[+-]?[0-9]+(?:\.[0-9]{1,' + $precision + '})?\z' }
+        $culture = [Globalization.CultureInfo]::InvariantCulture
+        $styles = [Globalization.NumberStyles]::AllowLeadingSign -bor [Globalization.NumberStyles]::AllowDecimalPoint
+        $range = @()
+        foreach ($bound in @($Minimum, $Maximum)) {
+            $number = [decimal]0
+            if ($null -eq $bound -or $bound.Length -gt 32 -or $bound -cnotmatch $pattern -or
+                    -not [decimal]::TryParse($bound, $styles, $culture, [ref]$number) -or
+                    $number -lt -1000000000 -or $number -gt 1000000000) {
+                return $invalidRange
+            }
+            $range += $number
+        }
+        if ($range[0] -gt $range[1]) { return $invalidRange }
+        $format = if ($precision -eq 0) { '0' } else { '0.' + ('#' * $precision) }
+        $message = if ($precision -eq 0) { 'Enter {0} to {1} as a whole number.' }
+            else { 'Enter {0} to {1}, with up to ' + $precision + ' decimals.' }
+        $message = $message -f $range[0].ToString($format, $culture), $range[1].ToString($format, $culture)
+        $number = [decimal]0
+        # Trim only horizontal ASCII whitespace; line breaks remain invalid data.
+        $cleanText = if ($null -eq $Text) { '' } else { $Text.Trim([char[]]@(' ', "`t")) }
+        if ($null -eq $Text -or $Text.Length -gt 64 -or $cleanText -cnotmatch $pattern -or
+                -not [decimal]::TryParse($cleanText, $styles, $culture, [ref]$number) -or
+                $number -lt $range[0] -or $number -gt $range[1]) {
+            return [pscustomobject]@{ Valid = $false; Value = ''; Error = $message }
+        }
+        return [pscustomobject]@{ Valid = $true; Value = $number.ToString($format, $culture); Error = '' }
+    }
     $limits = @{
         Scale = @(75, 200)
         ColumnWidth = @(180, 320)
@@ -27,13 +71,15 @@ function ConvertTo-ParallaxInputValue {
         BackgroundTransparency = @(0, 100)
         BorderThickness = @(0, 4)
         DividerThickness = @(0, 4)
+        TableHeaderBorderThickness = @(0, 4)
+        DataBarThickness = @(1, 12)
     }
     if (-not $limits.ContainsKey($InputKey)) {
         return [pscustomobject]@{ Valid = $false; Value = ''; Error = 'Unknown setting.' }
     }
     $isFontSize = $InputKey -in @('TitleFontSize', 'HeaderFontSize', 'FontSize')
     $isPercent = $InputKey -in @('Scale', 'BackgroundTransparency')
-    $isDecimalPixel = $InputKey -in @('BorderThickness', 'DividerThickness')
+    $isDecimalPixel = $InputKey -in @('BorderThickness', 'DividerThickness', 'TableHeaderBorderThickness', 'DataBarThickness')
     $message = if ($isPercent) { 'Enter {0} to {1}%, with up to 2 decimals.' -f $limits[$InputKey][0], $limits[$InputKey][1] }
         elseif ($isFontSize) { 'Enter {0} to {1} pt, with up to 2 decimals.' -f $limits[$InputKey][0], $limits[$InputKey][1] }
         elseif ($isDecimalPixel) { 'Enter {0} to {1} px, with up to 2 decimals.' -f $limits[$InputKey][0], $limits[$InputKey][1] }
@@ -57,9 +103,16 @@ function ConvertTo-ParallaxInputValue {
 }
 
 function Get-ParallaxInputResponse {
-    param([string]$InputKey, [AllowNull()][string]$Text, [switch]$Cancelled)
+    param(
+        [string]$InputKey,
+        [AllowNull()][string]$Text,
+        [switch]$Cancelled,
+        [AllowNull()][string]$Minimum,
+        [AllowNull()][string]$Maximum,
+        [AllowNull()][string]$DecimalPlaces
+    )
     if (-not $Cancelled) {
-        $parsed = ConvertTo-ParallaxInputValue -InputKey $InputKey -Text $Text
+        $parsed = ConvertTo-ParallaxInputValue -InputKey $InputKey -Text $Text -Minimum $Minimum -Maximum $Maximum -DecimalPlaces $DecimalPlaces
         if ($parsed.Valid) { return 'PARALLAX_INPUT_V1|ok|' + $parsed.Value }
     }
     return 'PARALLAX_INPUT_V1|cancel|'
@@ -78,10 +131,10 @@ try {
         $response = Get-ParallaxInputResponse -Cancelled
     }
     elseif ($ValidateOnly) {
-        $response = Get-ParallaxInputResponse -InputKey $Key -Text $Value
+        $response = Get-ParallaxInputResponse -InputKey $Key -Text $Value -Minimum $Minimum -Maximum $Maximum -DecimalPlaces $DecimalPlaces
     }
     else {
-        $initialValue = ConvertTo-ParallaxInputValue -InputKey $Key -Text $Initial
+        $initialValue = ConvertTo-ParallaxInputValue -InputKey $Key -Text $Initial -Minimum $Minimum -Maximum $Maximum -DecimalPlaces $DecimalPlaces
         if (-not $initialValue.Valid) { throw 'Invalid initial setting.' }
         $culture = [Globalization.CultureInfo]::InvariantCulture
         $positions = @{}
@@ -154,9 +207,9 @@ try {
             }
             elseif ($eventArgs.KeyCode -eq [Windows.Forms.Keys]::Enter) {
                 $eventArgs.SuppressKeyPress = $true
-                $submitted = ConvertTo-ParallaxInputValue -InputKey $Key -Text $box.Text
+                $submitted = ConvertTo-ParallaxInputValue -InputKey $Key -Text $box.Text -Minimum $Minimum -Maximum $Maximum -DecimalPlaces $DecimalPlaces
                 if ($submitted.Valid) {
-                    $form.Tag.Response = Get-ParallaxInputResponse -InputKey $Key -Text $submitted.Value
+                    $form.Tag.Response = Get-ParallaxInputResponse -InputKey $Key -Text $submitted.Value -Minimum $Minimum -Maximum $Maximum -DecimalPlaces $DecimalPlaces
                     $form.Close()
                 }
                 else {

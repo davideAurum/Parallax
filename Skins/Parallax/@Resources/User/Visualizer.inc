@@ -3,6 +3,11 @@
 [Variables]
 Columns=2
 PanelHeight=146
+; Spectrum appearance. Height presets use PanelHeight 126 / 146 / 186.
+; Gap is logical pixels (0..4); colors follow shared palette choices.
+; Color: 0 Media, 1 Accent 1, 2 Accent 2, 3 left-to-right Accent 1/2 gradient.
+VisualizerBandGap=3
+VisualizerColorMode=0
 ; Appearance inherits shared FontFace, MediaColor, GraphBackgroundColor and GridColor.
 
 ; 0 follows global VisualizerInterval (shipped 50 ms). Local choices: 33, 50, 100.

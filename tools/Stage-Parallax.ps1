@@ -25,7 +25,7 @@ $null = & (Join-Path $PSScriptRoot 'Test-Parallax.ps1') -SkinRoot $skinRoot -Req
 $excluded = [Collections.Generic.List[object]]::new()
 $sourceFiles = @(Get-ParallaxFiles $skinRoot -ProductionOnly -ExcludedEntries $excluded | Sort-Object FullName)
 $allowedExtensions = @('.ini', '.inc', '.lua', '.png', '.jpg', '.jpeg', '.gif', '.bmp', '.ico', '.svg', '.wav', '.ogg', '.mp3', '.ttf', '.otf', '.txt', '.md')
-# Reviewed helper payloads and their original build sources only. Exact paths do not override private,
+# Reviewed helper/build payloads and extensionless license notices. Exact paths do not override private,
 # hidden, test, fixture, runtime, or cache exclusions above or below.
 $allowedExactPaths = [Collections.Generic.HashSet[string]]::new([StringComparer]::OrdinalIgnoreCase)
 foreach ($path in @(
@@ -37,11 +37,17 @@ foreach ($path in @(
     '@Resources\Modules\CPU\DiscoverSensors.ps1',
     '@Resources\Modules\GPU\DiscoverExports.ps1.txt',
     '@Resources\Modules\GPU\AdapterInfo.cs.txt',
+    '@Resources\Modules\GPU\DriverTemperature.cs.txt',
+    '@Resources\Modules\IO\DriveModels.ps1.txt',
     '@Resources\Modules\RAM\MemoryInfo.ps1.txt',
+    '@Resources\Modules\RAM\PageFileHost.cs.txt',
     '@Resources\Modules\Media\Queue\QueueProvider.ps1',
     '@Resources\Modules\Media\Queue\QueueCore.psm1',
     '@Resources\Modules\Media\Queue\QueueAuth.psm1',
-    '@Resources\Modules\Media\Source\SourceProvider.ps1'
+    '@Resources\Modules\Media\Source\SourceProvider.ps1',
+    '@Resources\Modules\Media\Icons\Lucide\LICENSE',
+    '@Resources\Modules\RAM\Icons\Lucide\LICENSE',
+    '@Resources\Modules\IO\Icons\Lucide\LICENSE'
 )) { $null = $allowedExactPaths.Add($path) }
 $selected = [Collections.Generic.List[object]]::new()
 foreach ($file in $sourceFiles) {

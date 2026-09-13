@@ -1,0 +1,93 @@
+# One explicit, read-only local CIM batch. No polling, elevation or file output.
+# Association keys stay transient; output contains only A-Z letters and models.
+# https://learn.microsoft.com/en-us/windows/win32/cimwin32prov/win32-diskdrivetodiskpartition
+# https://learn.microsoft.com/en-us/windows/win32/cimwin32prov/win32-logicaldisktopartition
+# https://learn.microsoft.com/en-us/windows/win32/cimwin32prov/win32-cdromdrive
+$ErrorActionPreference = 'Stop'
+$ProgressPreference = 'SilentlyContinue'
+
+function ConvertTo-IOModelText([object] $Value) {
+    $text = ([string]$Value -replace '[\p{Cc}\p{Cf}#%\[\]|]', ' ' -replace '\s+', ' ').Trim()
+    $encoding = [Text.UTF8Encoding]::new($false, $true)
+    try {
+        while ($encoding.GetByteCount($text) -gt 512) {
+            $length = $text.Length - 1
+            if ($length -gt 0 -and [char]::IsHighSurrogate($text[$length - 1])) { $length-- }
+            $text = $text.Substring(0, $length)
+        }
+        return $text.Trim()
+    } catch { return '' }
+}
+
+function Get-IOReferenceKey([object] $Reference) {
+    if ($null -eq $Reference) { return '' }
+    # Get-CimInstance exposes typed reference instances with their DeviceID key.
+    # Do not execute or interpolate a textual WMI path as a query.
+    return [string]$Reference.DeviceID
+}
+
+function Add-IOModel([hashtable] $Rows, [string] $Letter, [string] $Model) {
+    if ($Letter -cnotmatch '^[A-Z]$' -or [string]::IsNullOrWhiteSpace($Model)) { return }
+    if (-not $Rows.ContainsKey($Letter)) {
+        $Rows[$Letter] = [Collections.Generic.HashSet[string]]::new([StringComparer]::Ordinal)
+    }
+    [void]$Rows[$Letter].Add($Model)
+}
+
+try {
+    $disks = @(Get-CimInstance -ClassName Win32_DiskDrive -Property DeviceID,Model -ErrorAction Stop)
+    $diskPartitions = @(Get-CimInstance -ClassName Win32_DiskDriveToDiskPartition -Property Antecedent,Dependent -ErrorAction Stop)
+    $logicalPartitions = @(Get-CimInstance -ClassName Win32_LogicalDiskToPartition -Property Antecedent,Dependent -ErrorAction Stop)
+    if ($disks.Count -gt 256 -or $diskPartitions.Count -gt 4096 -or $logicalPartitions.Count -gt 4096) { throw 'Inventory limit exceeded.' }
+    $diskModels, $partitionModels, $rows = @{}, @{}, @{}
+    foreach ($disk in $disks) {
+        $key = [string]$disk.DeviceID
+        $model = ConvertTo-IOModelText $disk.Model
+        if ($key -ne '' -and $model -ne '') { $diskModels[$key] = $model }
+    }
+    foreach ($association in $diskPartitions) {
+        $diskKey = Get-IOReferenceKey $association.Antecedent
+        $partitionKey = Get-IOReferenceKey $association.Dependent
+        if ($partitionKey -ne '' -and $diskModels.ContainsKey($diskKey)) {
+            if (-not $partitionModels.ContainsKey($partitionKey)) {
+                $partitionModels[$partitionKey] = [Collections.Generic.HashSet[string]]::new([StringComparer]::Ordinal)
+            }
+            [void]$partitionModels[$partitionKey].Add($diskModels[$diskKey])
+        }
+    }
+    foreach ($association in $logicalPartitions) {
+        $partitionKey = Get-IOReferenceKey $association.Antecedent
+        $logicalKey = Get-IOReferenceKey $association.Dependent
+        if ($logicalKey -cmatch '^([A-Z]):$' -and $partitionModels.ContainsKey($partitionKey)) {
+            $letter = $Matches[1]
+            foreach ($model in $partitionModels[$partitionKey]) { Add-IOModel $rows $letter $model }
+        }
+    }
+    # Optical device names do not depend on a mounted disc. An unavailable
+    # optical provider must not discard successful disk/partition associations.
+    try {
+        $optical = @(Get-CimInstance -ClassName Win32_CDROMDrive -Property Drive,Name -ErrorAction Stop)
+        if ($optical.Count -le 256) {
+            foreach ($device in $optical) {
+                # Windows documents forms such as d:\. Accept only an ASCII
+                # letter root, normalize its case, and reject all other paths.
+                if ([string]$device.Drive -cmatch '\A([A-Za-z]):\\?\z') {
+                    $letter = $Matches[1].ToUpperInvariant()
+                    Add-IOModel $rows $letter (ConvertTo-IOModelText $device.Name)
+                }
+            }
+        }
+    } catch { }
+    $output = [Collections.Generic.List[string]]::new()
+    $output.Add('IO_MODELS_V1')
+    $output.Add('OK')
+    foreach ($letter in @($rows.Keys | Sort-Object)) {
+        $models = [string[]]@($rows[$letter])
+        [Array]::Sort($models, [StringComparer]::Ordinal)
+        $model = ConvertTo-IOModelText ($models -join '; ')
+        if ($model -ne '') { $output.Add($letter + '|' + $model) }
+    }
+    [Console]::Write($output -join "`n")
+} catch {
+    [Console]::Write("IO_MODELS_V1`nUNAVAILABLE")
+}

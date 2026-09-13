@@ -1,14 +1,15 @@
 # Optional Spotify queue helper. Windows PowerShell 5.1 / built-in .NET only.
-# Imports are passive. Run/Connect require an explicit command; no autostart.
+# Imports are passive. Resume honors only the user's saved Start/Connect intent.
 #requires -Version 5.1
 [CmdletBinding()]
 param(
-    [ValidateSet('Help','Configure','Connect','Start','Run','Stop','Restart','Disconnect')][string]$Command = 'Help',
+    [ValidateSet('Help','Configure','Connect','Start','Resume','Run','Stop','Restart','Disconnect')][string]$Command = 'Help',
     [string]$ClientId = '',
     [ValidateRange(30,150)][int]$PollSeconds = 30,
     [switch]$Once,
     [switch]$Quiet,
     [switch]$ResumeAfterQuota,
+    [ValidatePattern('\A(?:[a-f0-9]{32})?\z')][string]$LaunchId = '',
     [string]$DataRoot = ''
 )
 Set-StrictMode -Version Latest
@@ -25,12 +26,14 @@ Parallax Spotify queue (read-only)
 3. Run this script with -Command Connect. Enter the public Client ID if asked.
 4. Sign in and consent in Spotify's browser page. The queue helper starts after login.
 
-Commands: Connect (sign in), Start (background), Run (foreground), Stop, Restart,
+Commands: Connect (sign in), Start (background), Resume (saved intent), Run, Stop, Restart,
           Disconnect (stop and remove local tokens/listening cache), Configure.
 Run accepts -Once, -PollSeconds 30..150 and -ResumeAfterQuota for an explicit retry
 after resolving exhausted quota. Ordinary server Retry-After waits are retained.
 No client secret is needed. Development apps require owner Premium and allowlisting.
-Tokens and display cache stay in LocalAppData, outside skins. No automatic startup.
+Tokens and display cache stay in LocalAppData, outside skins. Skin-load Resume
+continues an enabled helper without opening sign-in. Stop/Disconnect disable it.
+Direct Run honors an earlier Stop; use Start or Restart to enable it again.
 '@
 }
 
@@ -45,13 +48,14 @@ function Get-QueueMutexName {
 }
 
 function New-QueueRunMutex { param([string]$Root); return [Threading.Mutex]::new($false, (Get-QueueMutexName $Root)) }
+function New-QueueControlMutex { param([string]$Root); return [Threading.Mutex]::new($false, ((Get-QueueMutexName $Root) + '.Control')) }
 function Wait-QueueMutex {
     param([Threading.Mutex]$Mutex, [int]$Milliseconds)
     try { return $Mutex.WaitOne($Milliseconds) } catch [Threading.AbandonedMutexException] { return $true }
 }
 
 function Get-QueueRuntimeFile {
-    param([string]$Root, [ValidateSet('stop.request','queue.retry.json','queue.snapshot')][string]$Name)
+    param([string]$Root, [ValidateSet('stop.request','queue.retry.json','queue.snapshot','enabled.intent','launch.id')][string]$Name)
     $path = Join-Path ([IO.Path]::GetFullPath($Root)) $Name
     if (Test-Path -LiteralPath $path) {
         $item = Get-Item -LiteralPath $path -Force
@@ -67,6 +71,73 @@ function Request-QueueStop {
 }
 
 function Test-QueueStop { param([string]$Root); return [IO.File]::Exists((Get-QueueRuntimeFile $Root 'stop.request')) }
+
+function Clear-QueueStop {
+    param([string]$Root)
+    # Only an explicit enabling command calls this, while holding control ownership.
+    $path = Get-QueueRuntimeFile $Root 'stop.request'
+    if ([IO.File]::Exists($path)) { [IO.File]::Delete($path) }
+}
+
+function Test-QueueEnabledIntent {
+    param([string]$Root)
+    $path = Get-QueueRuntimeFile $Root 'enabled.intent'
+    if (-not [IO.File]::Exists($path)) { return $false }
+    $expected = [Text.Encoding]::ASCII.GetBytes("PARALLAX_AUTOSTART_V1|1`n")
+    if ([IO.FileInfo]::new($path).Length -ne $expected.Length) { return $false }
+    $actual = [IO.File]::ReadAllBytes($path)
+    if ($actual.Length -ne $expected.Length) { return $false }
+    for ($index = 0; $index -lt $expected.Length; $index++) {
+        if ($actual[$index] -ne $expected[$index]) { return $false }
+    }
+    return $true
+}
+
+function Set-QueueEnabledIntent {
+    param([string]$Root, [bool]$Enabled)
+    $value = if ($Enabled) { '1' } else { '0' }
+    Write-QueueControlFile $Root 'enabled.intent' "PARALLAX_AUTOSTART_V1|$value`n"
+}
+
+function Write-QueueControlFile {
+    param([string]$Root, [ValidateSet('enabled.intent','launch.id')][string]$Name, [string]$Text)
+    $path = Get-QueueRuntimeFile $Root $Name
+    $temporary = Join-Path $Root ('.queue-control-' + [Guid]::NewGuid().ToString('N') + '.tmp')
+    $bytes = [Text.Encoding]::ASCII.GetBytes($Text)
+    $stream = $null
+    try {
+        $stream = [IO.FileStream]::new($temporary, [IO.FileMode]::CreateNew, [IO.FileAccess]::Write, [IO.FileShare]::None)
+        $stream.Write($bytes, 0, $bytes.Length)
+        $stream.Flush($true)
+        $stream.Dispose(); $stream = $null
+        $null = Get-QueueRuntimeFile $Root $Name
+        if ([IO.File]::Exists($path)) { [IO.File]::Replace($temporary, $path, [Management.Automation.Language.NullString]::Value) }
+        else { [IO.File]::Move($temporary, $path) }
+    } finally {
+        if ($null -ne $stream) { $stream.Dispose() }
+        if ([IO.File]::Exists($temporary)) { [IO.File]::Delete($temporary) }
+    }
+}
+
+function New-QueueLaunchId {
+    param([string]$Root)
+    $identifier = [Guid]::NewGuid().ToString('N')
+    Write-QueueControlFile $Root 'launch.id' "$identifier`n"
+    return $identifier
+}
+
+function Test-QueueLaunchId {
+    param([string]$Root, [string]$Identifier)
+    if ($Identifier -cnotmatch '\A[a-f0-9]{32}\z') { return $false }
+    $path = Get-QueueRuntimeFile $Root 'launch.id'
+    if (-not [IO.File]::Exists($path) -or [IO.FileInfo]::new($path).Length -ne 33) { return $false }
+    $bytes = [IO.File]::ReadAllBytes($path)
+    if ($bytes.Length -ne 33) { return $false }
+    for ($index=0; $index -lt 32; $index++) {
+        if ($bytes[$index] -ne [byte][char]$Identifier[$index]) { return $false }
+    }
+    return $bytes[32] -eq 10
+}
 
 function Set-QueueRetry {
     param([string]$Root, [object]$Decision)
@@ -133,20 +204,34 @@ function Start-QueueBackground {
     param([string]$Root, [int]$Interval, [switch]$RetryQuota)
     $hostPath = Join-Path $env:SystemRoot 'System32\WindowsPowerShell\v1.0\powershell.exe'
     if ($script:ProviderPath.Contains('"') -or $Root.Contains('"')) { throw 'Unsupported helper path.' }
-    $arguments = '-NoLogo -NoProfile -ExecutionPolicy Bypass -File "' + $script:ProviderPath + '" -Command Run -Quiet -PollSeconds ' + $Interval + ' -DataRoot "' + $Root + '"'
+    # The controller owns the lifecycle mutex here. A later launch replaces this
+    # permit, preventing a delayed child from applying obsolete cadence/flags.
+    $identifier = New-QueueLaunchId $Root
+    $arguments = '-NoLogo -NoProfile -ExecutionPolicy Bypass -File "' + $script:ProviderPath + '" -Command Run -Quiet -PollSeconds ' + $Interval + ' -LaunchId ' + $identifier + ' -DataRoot "' + $Root + '"'
     if ($RetryQuota) { $arguments += ' -ResumeAfterQuota' }
     $null = Start-Process -FilePath $hostPath -ArgumentList $arguments -WindowStyle Hidden -PassThru
 }
 
 function Invoke-QueueRun {
-    param([string]$Root, [int]$Interval=30, [switch]$Single, [switch]$RetryQuota, [switch]$Silent)
+    param([string]$Root, [int]$Interval=30, [switch]$Single, [switch]$RetryQuota, [switch]$Silent, [string]$LaunchId = '')
+    $control = New-QueueControlMutex $Root
+    $controlOwned = $false
     $mutex = New-QueueRunMutex $Root
     $owned = $false
     try {
+        # Match controller lock order. A delayed child must not enter the window
+        # between clearing Stop and publishing the replacement launch permit.
+        $controlOwned = Wait-QueueMutex $control 10000
+        if (-not $controlOwned) { return }
         $owned = Wait-QueueMutex $mutex 0
         if (-not $owned) { if (-not $Silent) { Write-Output 'The queue helper is already running.' }; return }
-        $stopPath = Get-QueueRuntimeFile $Root 'stop.request'
-        if ([IO.File]::Exists($stopPath)) { [IO.File]::Delete($stopPath) }
+        # A child may start after Stop/Disconnect has completed. Never erase its
+        # stop barrier or overwrite the account action's resulting snapshot.
+        if (Test-QueueStop $Root) { return }
+        if ($LaunchId -and -not (Test-QueueLaunchId $Root $LaunchId)) { return }
+        # Only bootstrap needs control ownership; Stop must be able to signal a
+        # live worker during token refresh, HTTP requests and retry waits.
+        $control.ReleaseMutex(); $controlOwned = $false
         $retry = Get-QueueRetry $Root
         # Reauthorization fixes auth errors; a new run does not bypass quota waits.
         if ($null -ne $retry -and $retry.State -eq 'quota_exceeded' -and $retry.Pause -and -not $RetryQuota) {
@@ -189,6 +274,8 @@ function Invoke-QueueRun {
     } finally {
         if ($owned) { $mutex.ReleaseMutex() }
         $mutex.Dispose()
+        if ($controlOwned) { $control.ReleaseMutex() }
+        $control.Dispose()
     }
 }
 
@@ -196,68 +283,105 @@ function Invoke-QueueCommand {
     if ($Command -eq 'Help') { Show-QueueHelp; return }
     if ($PSVersionTable.PSEdition -ne 'Desktop') { throw 'Use Windows PowerShell 5.1 to run QueueProvider.ps1.' }
     if (-not $DataRoot) { $DataRoot = Get-QueueDataRoot }
+    if ($Command -eq 'Resume') {
+        # Reuse Auth's passive path validation without creating the directory or
+        # modifying its ACL. Missing/disabled/malformed intent is a true no-op.
+        $candidate = & (Get-Module -Name QueueAuth) { param($Path) Resolve-QueuePrivatePath $Path } $DataRoot
+        if (-not (Test-QueueEnabledIntent $candidate) -or (Test-QueueStop $candidate)) { return }
+    }
     $DataRoot = Initialize-QueuePrivateDirectory -DataRoot $DataRoot
-    if ($Command -eq 'Start') { Start-QueueBackground $DataRoot $PollSeconds -RetryQuota:$ResumeAfterQuota; return }
-    if ($Command -eq 'Run') { Invoke-QueueRun $DataRoot $PollSeconds -Single:$Once -RetryQuota:$ResumeAfterQuota -Silent:$Quiet; return }
-    # Account/configuration changes serialize with the single polling process.
-    Request-QueueStop $DataRoot
+    if ($Command -eq 'Run') { Invoke-QueueRun $DataRoot $PollSeconds -Single:$Once -RetryQuota:$ResumeAfterQuota -Silent:$Quiet -LaunchId $LaunchId; return }
+    # Control ownership spans the launch, so Stop cannot finish between an
+    # enabling command clearing its marker and requesting the child process.
+    $control = New-QueueControlMutex $DataRoot
+    $controlOwned = $false
     $mutex = New-QueueRunMutex $DataRoot
     $owned = $false
-    $startAfterLogin = $false
     try {
-        $owned = Wait-QueueMutex $mutex 40000
-        if (-not $owned) { throw 'The queue helper is busy. Stop it and try again.' }
-        if ($Command -eq 'Stop') { Publish-QueueSnapshot $DataRoot (New-QueueSnapshot -State stopped); return }
-        if ($Command -eq 'Restart') {
-            # Stop is observed and the old worker released the mutex before this
-            # replacement starts. Persisted server/quota barriers remain intact.
-            Publish-QueueSnapshot $DataRoot (New-QueueSnapshot -State stopped)
-            $startAfterLogin = $true
-        }
-        if ($Command -eq 'Disconnect') {
-            Clear-QueueTokens -DataRoot $DataRoot
-            Publish-QueueSnapshot $DataRoot (New-QueueSnapshot -State onboarding_required)
-            if (-not $Quiet) { Write-Output 'Disconnected. Local tokens and queue rows removed. App configuration is retained; you can also revoke access in Spotify account settings.' }
+        $controlOwned = Wait-QueueMutex $control 10000
+        if (-not $controlOwned) { throw 'Another queue lifecycle action is still running.' }
+        if ($Command -in @('Start','Resume')) {
+            if ($Command -eq 'Resume') {
+                # No auth reads, token renewal, login, intent writes or stop-marker
+                # clearing occur in this bootstrap. Run retains all retry gates.
+                if (-not (Test-QueueEnabledIntent $DataRoot) -or (Test-QueueStop $DataRoot)) { return }
+            } else {
+                Set-QueueEnabledIntent $DataRoot $true
+            }
+            $owned = Wait-QueueMutex $mutex 0
+            if (-not $owned) { return }
+            if ($Command -eq 'Start') { Clear-QueueStop $DataRoot }
+            # A fast child must not mistake this controller for a live worker.
+            $mutex.ReleaseMutex(); $owned = $false
+            Start-QueueBackground $DataRoot $PollSeconds -RetryQuota:($Command -eq 'Start' -and $ResumeAfterQuota)
             return
         }
-        if ($Command -in @('Configure','Connect')) {
-            $saved = Get-QueueClientId -DataRoot $DataRoot
-            if (-not $ClientId -and -not $saved) {
-                if ($Quiet) { Publish-QueueSnapshot $DataRoot (New-QueueSnapshot -State onboarding_required); return }
-                Show-QueueHelp
-                $ClientId = Read-Host 'Public Spotify Client ID (not the client secret)'
+        # Account/configuration changes keep the existing bounded worker wait.
+        # The stop marker is written first: even a failed intent save leaves a
+        # durable veto that delayed Run/Resume cannot clear.
+        Request-QueueStop $DataRoot
+        Set-QueueEnabledIntent $DataRoot $false
+        $startAfterLogin = $false
+        try {
+            $owned = Wait-QueueMutex $mutex 40000
+            if (-not $owned) { throw 'The queue helper is busy. Stop it and try again.' }
+            if ($Command -eq 'Stop') { Publish-QueueSnapshot $DataRoot (New-QueueSnapshot -State stopped); return }
+            if ($Command -eq 'Restart') {
+                # Stop is observed before the replacement requests its mutex.
+                Publish-QueueSnapshot $DataRoot (New-QueueSnapshot -State stopped)
+                $startAfterLogin = $true
             }
-            if ($ClientId) {
-                if ($ClientId -notmatch '^[a-fA-F0-9]{32}$') { throw 'Enter the 32-character public Client ID from Spotify app settings.' }
-                if ($saved -and $ClientId -ine $saved) { Clear-QueueTokens -DataRoot $DataRoot }
-                Set-QueueClientId -DataRoot $DataRoot -ClientId $ClientId
-            }
-            if ($Command -eq 'Configure') { Publish-QueueSnapshot $DataRoot (New-QueueSnapshot -State onboarding_required); return }
-            $retry = Get-QueueRetry $DataRoot
-            if ($null -ne $retry -and (($retry.State -eq 'quota_exceeded' -and $retry.Pause -and -not $ResumeAfterQuota) -or $retry.RetryNotBefore -gt (Get-QueueUnixTime))) {
-                Publish-QueueSnapshot $DataRoot (New-QueueSnapshot -State $retry.State -RetryNotBefore $retry.RetryNotBefore)
-                if (-not $Quiet) { Write-Output 'Spotify requested a wait or exhausted its quota. See the queue setup guide before retrying.' }
+            if ($Command -eq 'Disconnect') {
+                Clear-QueueTokens -DataRoot $DataRoot
+                Publish-QueueSnapshot $DataRoot (New-QueueSnapshot -State onboarding_required)
+                if (-not $Quiet) { Write-Output 'Disconnected. Local tokens and queue rows removed. App configuration is retained; you can also revoke access in Spotify account settings.' }
                 return
             }
-            Publish-QueueSnapshot $DataRoot (New-QueueSnapshot -State connecting)
-            $null = Connect-QueueSpotify -DataRoot $DataRoot
-            $startAfterLogin = $true
+            if ($Command -in @('Configure','Connect')) {
+                $saved = Get-QueueClientId -DataRoot $DataRoot
+                if (-not $ClientId -and -not $saved) {
+                    if ($Quiet) { Publish-QueueSnapshot $DataRoot (New-QueueSnapshot -State onboarding_required); return }
+                    Show-QueueHelp
+                    $ClientId = Read-Host 'Public Spotify Client ID (not the client secret)'
+                }
+                if ($ClientId) {
+                    if ($ClientId -notmatch '^[a-fA-F0-9]{32}$') { throw 'Enter the 32-character public Client ID from Spotify app settings.' }
+                    if ($saved -and $ClientId -ine $saved) { Clear-QueueTokens -DataRoot $DataRoot }
+                    Set-QueueClientId -DataRoot $DataRoot -ClientId $ClientId
+                }
+                if ($Command -eq 'Configure') { Publish-QueueSnapshot $DataRoot (New-QueueSnapshot -State onboarding_required); return }
+                $retry = Get-QueueRetry $DataRoot
+                if ($null -ne $retry -and (($retry.State -eq 'quota_exceeded' -and $retry.Pause -and -not $ResumeAfterQuota) -or $retry.RetryNotBefore -gt (Get-QueueUnixTime))) {
+                    Publish-QueueSnapshot $DataRoot (New-QueueSnapshot -State $retry.State -RetryNotBefore $retry.RetryNotBefore)
+                    if (-not $Quiet) { Write-Output 'Spotify requested a wait or exhausted its quota. See the queue setup guide before retrying.' }
+                    return
+                }
+                Publish-QueueSnapshot $DataRoot (New-QueueSnapshot -State connecting)
+                $null = Connect-QueueSpotify -DataRoot $DataRoot
+                $startAfterLogin = $true
+            }
+        } catch {
+            $decision = Get-QueueExceptionDecision $_.Exception 0
+            if ($decision.State -in @('rate_limited','quota_exceeded')) { Set-QueueRetry $DataRoot $decision }
+            Publish-QueueSnapshot $DataRoot (New-QueueSnapshot -State $decision.State -RetryNotBefore $decision.RetryNotBefore)
+            if (-not $Quiet) { Write-Output ('Queue setup did not finish: ' + $decision.State + '. Check the setup guide and try again.') }
+        } finally {
+            if ($owned) { $mutex.ReleaseMutex(); $owned = $false }
         }
-    } catch {
-        $decision = Get-QueueExceptionDecision $_.Exception 0
-        if ($decision.State -in @('rate_limited','quota_exceeded')) { Set-QueueRetry $DataRoot $decision }
-        Publish-QueueSnapshot $DataRoot (New-QueueSnapshot -State $decision.State -RetryNotBefore $decision.RetryNotBefore)
-        if (-not $Quiet) { Write-Output ('Queue setup did not finish: ' + $decision.State + '. Check the setup guide and try again.') }
+        if ($startAfterLogin) {
+            Set-QueueEnabledIntent $DataRoot $true
+            Clear-QueueStop $DataRoot
+            Start-QueueBackground $DataRoot $PollSeconds -RetryQuota:$ResumeAfterQuota
+            if (-not $Quiet) {
+                if ($Command -eq 'Restart') { Write-Output 'The queue helper is restarting with the selected interval.' }
+                else { Write-Output 'Spotify authorization saved. The queue helper is starting in the background.' }
+            }
+        }
     } finally {
         if ($owned) { $mutex.ReleaseMutex() }
         $mutex.Dispose()
-    }
-    if ($startAfterLogin) {
-        Start-QueueBackground $DataRoot $PollSeconds -RetryQuota:$ResumeAfterQuota
-        if (-not $Quiet) {
-            if ($Command -eq 'Restart') { Write-Output 'The queue helper is restarting with the selected interval.' }
-            else { Write-Output 'Spotify authorization saved. The queue helper is starting in the background.' }
-        }
+        if ($controlOwned) { $control.ReleaseMutex() }
+        $control.Dispose()
     }
 }
 

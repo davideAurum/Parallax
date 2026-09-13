@@ -11,12 +11,12 @@ Group=CPUCore1|CPUUI
 Meter=Bar
 MeterStyle=CPUStyleRowBar
 MeasureName=MeasureCPU1
-Y=(#Inset#+127*#Scale#)
+Y=(#Inset#+120*#Scale#+((16*#Scale#-#DataBarThicknessPx#)/2))
 Group=CPUCore1|CPUUI
 
 [MeterCoreValue1]
 Meter=String
-MeterStyle=CPUStyleRowValue
+MeterStyle=CPUStyleTableUsageValue
 MeasureName=MeasureCPU1
 Y=(#Inset#+120*#Scale#)
 Group=CPUCore1|CPUUI
@@ -32,12 +32,12 @@ Group=CPUCore2|CPUUI
 Meter=Bar
 MeterStyle=CPUStyleRowBar
 MeasureName=MeasureCPU2
-Y=(#Inset#+127*#Scale#)
+Y=(#Inset#+120*#Scale#+((16*#Scale#-#DataBarThicknessPx#)/2))
 Group=CPUCore2|CPUUI
 
 [MeterCoreValue2]
 Meter=String
-MeterStyle=CPUStyleRowValue
+MeterStyle=CPUStyleTableUsageValue
 MeasureName=MeasureCPU2
 Y=(#Inset#+120*#Scale#)
 Group=CPUCore2|CPUUI
@@ -53,12 +53,12 @@ Group=CPUCore3|CPUUI
 Meter=Bar
 MeterStyle=CPUStyleRowBar
 MeasureName=MeasureCPU3
-Y=(#Inset#+127*#Scale#)
+Y=(#Inset#+120*#Scale#+((16*#Scale#-#DataBarThicknessPx#)/2))
 Group=CPUCore3|CPUUI
 
 [MeterCoreValue3]
 Meter=String
-MeterStyle=CPUStyleRowValue
+MeterStyle=CPUStyleTableUsageValue
 MeasureName=MeasureCPU3
 Y=(#Inset#+120*#Scale#)
 Group=CPUCore3|CPUUI
@@ -74,12 +74,12 @@ Group=CPUCore4|CPUUI
 Meter=Bar
 MeterStyle=CPUStyleRowBar
 MeasureName=MeasureCPU4
-Y=(#Inset#+127*#Scale#)
+Y=(#Inset#+120*#Scale#+((16*#Scale#-#DataBarThicknessPx#)/2))
 Group=CPUCore4|CPUUI
 
 [MeterCoreValue4]
 Meter=String
-MeterStyle=CPUStyleRowValue
+MeterStyle=CPUStyleTableUsageValue
 MeasureName=MeasureCPU4
 Y=(#Inset#+120*#Scale#)
 Group=CPUCore4|CPUUI
@@ -95,12 +95,12 @@ Group=CPUCore5|CPUUI
 Meter=Bar
 MeterStyle=CPUStyleRowBar
 MeasureName=MeasureCPU5
-Y=(#Inset#+127*#Scale#)
+Y=(#Inset#+120*#Scale#+((16*#Scale#-#DataBarThicknessPx#)/2))
 Group=CPUCore5|CPUUI
 
 [MeterCoreValue5]
 Meter=String
-MeterStyle=CPUStyleRowValue
+MeterStyle=CPUStyleTableUsageValue
 MeasureName=MeasureCPU5
 Y=(#Inset#+120*#Scale#)
 Group=CPUCore5|CPUUI
@@ -116,12 +116,12 @@ Group=CPUCore6|CPUUI
 Meter=Bar
 MeterStyle=CPUStyleRowBar
 MeasureName=MeasureCPU6
-Y=(#Inset#+127*#Scale#)
+Y=(#Inset#+120*#Scale#+((16*#Scale#-#DataBarThicknessPx#)/2))
 Group=CPUCore6|CPUUI
 
 [MeterCoreValue6]
 Meter=String
-MeterStyle=CPUStyleRowValue
+MeterStyle=CPUStyleTableUsageValue
 MeasureName=MeasureCPU6
 Y=(#Inset#+120*#Scale#)
 Group=CPUCore6|CPUUI
@@ -137,12 +137,12 @@ Group=CPUCore7|CPUUI
 Meter=Bar
 MeterStyle=CPUStyleRowBar
 MeasureName=MeasureCPU7
-Y=(#Inset#+127*#Scale#)
+Y=(#Inset#+120*#Scale#+((16*#Scale#-#DataBarThicknessPx#)/2))
 Group=CPUCore7|CPUUI
 
 [MeterCoreValue7]
 Meter=String
-MeterStyle=CPUStyleRowValue
+MeterStyle=CPUStyleTableUsageValue
 MeasureName=MeasureCPU7
 Y=(#Inset#+120*#Scale#)
 Group=CPUCore7|CPUUI
@@ -158,12 +158,12 @@ Group=CPUCore8|CPUUI
 Meter=Bar
 MeterStyle=CPUStyleRowBar
 MeasureName=MeasureCPU8
-Y=(#Inset#+127*#Scale#)
+Y=(#Inset#+120*#Scale#+((16*#Scale#-#DataBarThicknessPx#)/2))
 Group=CPUCore8|CPUUI
 
 [MeterCoreValue8]
 Meter=String
-MeterStyle=CPUStyleRowValue
+MeterStyle=CPUStyleTableUsageValue
 MeasureName=MeasureCPU8
 Y=(#Inset#+120*#Scale#)
 Group=CPUCore8|CPUUI
@@ -179,12 +179,12 @@ Group=CPUCore9|CPUUI
 Meter=Bar
 MeterStyle=CPUStyleRowBar
 MeasureName=MeasureCPU9
-Y=(#Inset#+127*#Scale#)
+Y=(#Inset#+120*#Scale#+((16*#Scale#-#DataBarThicknessPx#)/2))
 Group=CPUCore9|CPUUI
 
 [MeterCoreValue9]
 Meter=String
-MeterStyle=CPUStyleRowValue
+MeterStyle=CPUStyleTableUsageValue
 MeasureName=MeasureCPU9
 Y=(#Inset#+120*#Scale#)
 Group=CPUCore9|CPUUI
@@ -200,12 +200,12 @@ Group=CPUCore10|CPUUI
 Meter=Bar
 MeterStyle=CPUStyleRowBar
 MeasureName=MeasureCPU10
-Y=(#Inset#+127*#Scale#)
+Y=(#Inset#+120*#Scale#+((16*#Scale#-#DataBarThicknessPx#)/2))
 Group=CPUCore10|CPUUI
 
 [MeterCoreValue10]
 Meter=String
-MeterStyle=CPUStyleRowValue
+MeterStyle=CPUStyleTableUsageValue
 MeasureName=MeasureCPU10
 Y=(#Inset#+120*#Scale#)
 Group=CPUCore10|CPUUI
@@ -221,12 +221,12 @@ Group=CPUCore11|CPUUI
 Meter=Bar
 MeterStyle=CPUStyleRowBar
 MeasureName=MeasureCPU11
-Y=(#Inset#+127*#Scale#)
+Y=(#Inset#+120*#Scale#+((16*#Scale#-#DataBarThicknessPx#)/2))
 Group=CPUCore11|CPUUI
 
 [MeterCoreValue11]
 Meter=String
-MeterStyle=CPUStyleRowValue
+MeterStyle=CPUStyleTableUsageValue
 MeasureName=MeasureCPU11
 Y=(#Inset#+120*#Scale#)
 Group=CPUCore11|CPUUI
@@ -242,12 +242,12 @@ Group=CPUCore12|CPUUI
 Meter=Bar
 MeterStyle=CPUStyleRowBar
 MeasureName=MeasureCPU12
-Y=(#Inset#+127*#Scale#)
+Y=(#Inset#+120*#Scale#+((16*#Scale#-#DataBarThicknessPx#)/2))
 Group=CPUCore12|CPUUI
 
 [MeterCoreValue12]
 Meter=String
-MeterStyle=CPUStyleRowValue
+MeterStyle=CPUStyleTableUsageValue
 MeasureName=MeasureCPU12
 Y=(#Inset#+120*#Scale#)
 Group=CPUCore12|CPUUI
@@ -263,12 +263,12 @@ Group=CPUCore13|CPUUI
 Meter=Bar
 MeterStyle=CPUStyleRowBar
 MeasureName=MeasureCPU13
-Y=(#Inset#+127*#Scale#)
+Y=(#Inset#+120*#Scale#+((16*#Scale#-#DataBarThicknessPx#)/2))
 Group=CPUCore13|CPUUI
 
 [MeterCoreValue13]
 Meter=String
-MeterStyle=CPUStyleRowValue
+MeterStyle=CPUStyleTableUsageValue
 MeasureName=MeasureCPU13
 Y=(#Inset#+120*#Scale#)
 Group=CPUCore13|CPUUI
@@ -284,12 +284,12 @@ Group=CPUCore14|CPUUI
 Meter=Bar
 MeterStyle=CPUStyleRowBar
 MeasureName=MeasureCPU14
-Y=(#Inset#+127*#Scale#)
+Y=(#Inset#+120*#Scale#+((16*#Scale#-#DataBarThicknessPx#)/2))
 Group=CPUCore14|CPUUI
 
 [MeterCoreValue14]
 Meter=String
-MeterStyle=CPUStyleRowValue
+MeterStyle=CPUStyleTableUsageValue
 MeasureName=MeasureCPU14
 Y=(#Inset#+120*#Scale#)
 Group=CPUCore14|CPUUI
@@ -305,12 +305,12 @@ Group=CPUCore15|CPUUI
 Meter=Bar
 MeterStyle=CPUStyleRowBar
 MeasureName=MeasureCPU15
-Y=(#Inset#+127*#Scale#)
+Y=(#Inset#+120*#Scale#+((16*#Scale#-#DataBarThicknessPx#)/2))
 Group=CPUCore15|CPUUI
 
 [MeterCoreValue15]
 Meter=String
-MeterStyle=CPUStyleRowValue
+MeterStyle=CPUStyleTableUsageValue
 MeasureName=MeasureCPU15
 Y=(#Inset#+120*#Scale#)
 Group=CPUCore15|CPUUI
@@ -326,12 +326,12 @@ Group=CPUCore16|CPUUI
 Meter=Bar
 MeterStyle=CPUStyleRowBar
 MeasureName=MeasureCPU16
-Y=(#Inset#+127*#Scale#)
+Y=(#Inset#+120*#Scale#+((16*#Scale#-#DataBarThicknessPx#)/2))
 Group=CPUCore16|CPUUI
 
 [MeterCoreValue16]
 Meter=String
-MeterStyle=CPUStyleRowValue
+MeterStyle=CPUStyleTableUsageValue
 MeasureName=MeasureCPU16
 Y=(#Inset#+120*#Scale#)
 Group=CPUCore16|CPUUI
@@ -347,12 +347,12 @@ Group=CPUCore17|CPUUI
 Meter=Bar
 MeterStyle=CPUStyleRowBar
 MeasureName=MeasureCPU17
-Y=(#Inset#+127*#Scale#)
+Y=(#Inset#+120*#Scale#+((16*#Scale#-#DataBarThicknessPx#)/2))
 Group=CPUCore17|CPUUI
 
 [MeterCoreValue17]
 Meter=String
-MeterStyle=CPUStyleRowValue
+MeterStyle=CPUStyleTableUsageValue
 MeasureName=MeasureCPU17
 Y=(#Inset#+120*#Scale#)
 Group=CPUCore17|CPUUI
@@ -368,12 +368,12 @@ Group=CPUCore18|CPUUI
 Meter=Bar
 MeterStyle=CPUStyleRowBar
 MeasureName=MeasureCPU18
-Y=(#Inset#+127*#Scale#)
+Y=(#Inset#+120*#Scale#+((16*#Scale#-#DataBarThicknessPx#)/2))
 Group=CPUCore18|CPUUI
 
 [MeterCoreValue18]
 Meter=String
-MeterStyle=CPUStyleRowValue
+MeterStyle=CPUStyleTableUsageValue
 MeasureName=MeasureCPU18
 Y=(#Inset#+120*#Scale#)
 Group=CPUCore18|CPUUI
@@ -389,12 +389,12 @@ Group=CPUCore19|CPUUI
 Meter=Bar
 MeterStyle=CPUStyleRowBar
 MeasureName=MeasureCPU19
-Y=(#Inset#+127*#Scale#)
+Y=(#Inset#+120*#Scale#+((16*#Scale#-#DataBarThicknessPx#)/2))
 Group=CPUCore19|CPUUI
 
 [MeterCoreValue19]
 Meter=String
-MeterStyle=CPUStyleRowValue
+MeterStyle=CPUStyleTableUsageValue
 MeasureName=MeasureCPU19
 Y=(#Inset#+120*#Scale#)
 Group=CPUCore19|CPUUI
@@ -410,12 +410,12 @@ Group=CPUCore20|CPUUI
 Meter=Bar
 MeterStyle=CPUStyleRowBar
 MeasureName=MeasureCPU20
-Y=(#Inset#+127*#Scale#)
+Y=(#Inset#+120*#Scale#+((16*#Scale#-#DataBarThicknessPx#)/2))
 Group=CPUCore20|CPUUI
 
 [MeterCoreValue20]
 Meter=String
-MeterStyle=CPUStyleRowValue
+MeterStyle=CPUStyleTableUsageValue
 MeasureName=MeasureCPU20
 Y=(#Inset#+120*#Scale#)
 Group=CPUCore20|CPUUI
@@ -431,12 +431,12 @@ Group=CPUCore21|CPUUI
 Meter=Bar
 MeterStyle=CPUStyleRowBar
 MeasureName=MeasureCPU21
-Y=(#Inset#+127*#Scale#)
+Y=(#Inset#+120*#Scale#+((16*#Scale#-#DataBarThicknessPx#)/2))
 Group=CPUCore21|CPUUI
 
 [MeterCoreValue21]
 Meter=String
-MeterStyle=CPUStyleRowValue
+MeterStyle=CPUStyleTableUsageValue
 MeasureName=MeasureCPU21
 Y=(#Inset#+120*#Scale#)
 Group=CPUCore21|CPUUI
@@ -452,12 +452,12 @@ Group=CPUCore22|CPUUI
 Meter=Bar
 MeterStyle=CPUStyleRowBar
 MeasureName=MeasureCPU22
-Y=(#Inset#+127*#Scale#)
+Y=(#Inset#+120*#Scale#+((16*#Scale#-#DataBarThicknessPx#)/2))
 Group=CPUCore22|CPUUI
 
 [MeterCoreValue22]
 Meter=String
-MeterStyle=CPUStyleRowValue
+MeterStyle=CPUStyleTableUsageValue
 MeasureName=MeasureCPU22
 Y=(#Inset#+120*#Scale#)
 Group=CPUCore22|CPUUI
@@ -473,12 +473,12 @@ Group=CPUCore23|CPUUI
 Meter=Bar
 MeterStyle=CPUStyleRowBar
 MeasureName=MeasureCPU23
-Y=(#Inset#+127*#Scale#)
+Y=(#Inset#+120*#Scale#+((16*#Scale#-#DataBarThicknessPx#)/2))
 Group=CPUCore23|CPUUI
 
 [MeterCoreValue23]
 Meter=String
-MeterStyle=CPUStyleRowValue
+MeterStyle=CPUStyleTableUsageValue
 MeasureName=MeasureCPU23
 Y=(#Inset#+120*#Scale#)
 Group=CPUCore23|CPUUI
@@ -494,12 +494,12 @@ Group=CPUCore24|CPUUI
 Meter=Bar
 MeterStyle=CPUStyleRowBar
 MeasureName=MeasureCPU24
-Y=(#Inset#+127*#Scale#)
+Y=(#Inset#+120*#Scale#+((16*#Scale#-#DataBarThicknessPx#)/2))
 Group=CPUCore24|CPUUI
 
 [MeterCoreValue24]
 Meter=String
-MeterStyle=CPUStyleRowValue
+MeterStyle=CPUStyleTableUsageValue
 MeasureName=MeasureCPU24
 Y=(#Inset#+120*#Scale#)
 Group=CPUCore24|CPUUI
@@ -515,12 +515,12 @@ Group=CPUCore25|CPUUI
 Meter=Bar
 MeterStyle=CPUStyleRowBar
 MeasureName=MeasureCPU25
-Y=(#Inset#+127*#Scale#)
+Y=(#Inset#+120*#Scale#+((16*#Scale#-#DataBarThicknessPx#)/2))
 Group=CPUCore25|CPUUI
 
 [MeterCoreValue25]
 Meter=String
-MeterStyle=CPUStyleRowValue
+MeterStyle=CPUStyleTableUsageValue
 MeasureName=MeasureCPU25
 Y=(#Inset#+120*#Scale#)
 Group=CPUCore25|CPUUI
@@ -536,12 +536,12 @@ Group=CPUCore26|CPUUI
 Meter=Bar
 MeterStyle=CPUStyleRowBar
 MeasureName=MeasureCPU26
-Y=(#Inset#+127*#Scale#)
+Y=(#Inset#+120*#Scale#+((16*#Scale#-#DataBarThicknessPx#)/2))
 Group=CPUCore26|CPUUI
 
 [MeterCoreValue26]
 Meter=String
-MeterStyle=CPUStyleRowValue
+MeterStyle=CPUStyleTableUsageValue
 MeasureName=MeasureCPU26
 Y=(#Inset#+120*#Scale#)
 Group=CPUCore26|CPUUI
@@ -557,12 +557,12 @@ Group=CPUCore27|CPUUI
 Meter=Bar
 MeterStyle=CPUStyleRowBar
 MeasureName=MeasureCPU27
-Y=(#Inset#+127*#Scale#)
+Y=(#Inset#+120*#Scale#+((16*#Scale#-#DataBarThicknessPx#)/2))
 Group=CPUCore27|CPUUI
 
 [MeterCoreValue27]
 Meter=String
-MeterStyle=CPUStyleRowValue
+MeterStyle=CPUStyleTableUsageValue
 MeasureName=MeasureCPU27
 Y=(#Inset#+120*#Scale#)
 Group=CPUCore27|CPUUI
@@ -578,12 +578,12 @@ Group=CPUCore28|CPUUI
 Meter=Bar
 MeterStyle=CPUStyleRowBar
 MeasureName=MeasureCPU28
-Y=(#Inset#+127*#Scale#)
+Y=(#Inset#+120*#Scale#+((16*#Scale#-#DataBarThicknessPx#)/2))
 Group=CPUCore28|CPUUI
 
 [MeterCoreValue28]
 Meter=String
-MeterStyle=CPUStyleRowValue
+MeterStyle=CPUStyleTableUsageValue
 MeasureName=MeasureCPU28
 Y=(#Inset#+120*#Scale#)
 Group=CPUCore28|CPUUI
@@ -599,12 +599,12 @@ Group=CPUCore29|CPUUI
 Meter=Bar
 MeterStyle=CPUStyleRowBar
 MeasureName=MeasureCPU29
-Y=(#Inset#+127*#Scale#)
+Y=(#Inset#+120*#Scale#+((16*#Scale#-#DataBarThicknessPx#)/2))
 Group=CPUCore29|CPUUI
 
 [MeterCoreValue29]
 Meter=String
-MeterStyle=CPUStyleRowValue
+MeterStyle=CPUStyleTableUsageValue
 MeasureName=MeasureCPU29
 Y=(#Inset#+120*#Scale#)
 Group=CPUCore29|CPUUI
@@ -620,12 +620,12 @@ Group=CPUCore30|CPUUI
 Meter=Bar
 MeterStyle=CPUStyleRowBar
 MeasureName=MeasureCPU30
-Y=(#Inset#+127*#Scale#)
+Y=(#Inset#+120*#Scale#+((16*#Scale#-#DataBarThicknessPx#)/2))
 Group=CPUCore30|CPUUI
 
 [MeterCoreValue30]
 Meter=String
-MeterStyle=CPUStyleRowValue
+MeterStyle=CPUStyleTableUsageValue
 MeasureName=MeasureCPU30
 Y=(#Inset#+120*#Scale#)
 Group=CPUCore30|CPUUI
@@ -641,12 +641,12 @@ Group=CPUCore31|CPUUI
 Meter=Bar
 MeterStyle=CPUStyleRowBar
 MeasureName=MeasureCPU31
-Y=(#Inset#+127*#Scale#)
+Y=(#Inset#+120*#Scale#+((16*#Scale#-#DataBarThicknessPx#)/2))
 Group=CPUCore31|CPUUI
 
 [MeterCoreValue31]
 Meter=String
-MeterStyle=CPUStyleRowValue
+MeterStyle=CPUStyleTableUsageValue
 MeasureName=MeasureCPU31
 Y=(#Inset#+120*#Scale#)
 Group=CPUCore31|CPUUI
@@ -662,12 +662,12 @@ Group=CPUCore32|CPUUI
 Meter=Bar
 MeterStyle=CPUStyleRowBar
 MeasureName=MeasureCPU32
-Y=(#Inset#+127*#Scale#)
+Y=(#Inset#+120*#Scale#+((16*#Scale#-#DataBarThicknessPx#)/2))
 Group=CPUCore32|CPUUI
 
 [MeterCoreValue32]
 Meter=String
-MeterStyle=CPUStyleRowValue
+MeterStyle=CPUStyleTableUsageValue
 MeasureName=MeasureCPU32
 Y=(#Inset#+120*#Scale#)
 Group=CPUCore32|CPUUI
@@ -683,12 +683,12 @@ Group=CPUCore33|CPUUI
 Meter=Bar
 MeterStyle=CPUStyleRowBar
 MeasureName=MeasureCPU33
-Y=(#Inset#+127*#Scale#)
+Y=(#Inset#+120*#Scale#+((16*#Scale#-#DataBarThicknessPx#)/2))
 Group=CPUCore33|CPUUI
 
 [MeterCoreValue33]
 Meter=String
-MeterStyle=CPUStyleRowValue
+MeterStyle=CPUStyleTableUsageValue
 MeasureName=MeasureCPU33
 Y=(#Inset#+120*#Scale#)
 Group=CPUCore33|CPUUI
@@ -704,12 +704,12 @@ Group=CPUCore34|CPUUI
 Meter=Bar
 MeterStyle=CPUStyleRowBar
 MeasureName=MeasureCPU34
-Y=(#Inset#+127*#Scale#)
+Y=(#Inset#+120*#Scale#+((16*#Scale#-#DataBarThicknessPx#)/2))
 Group=CPUCore34|CPUUI
 
 [MeterCoreValue34]
 Meter=String
-MeterStyle=CPUStyleRowValue
+MeterStyle=CPUStyleTableUsageValue
 MeasureName=MeasureCPU34
 Y=(#Inset#+120*#Scale#)
 Group=CPUCore34|CPUUI
@@ -725,12 +725,12 @@ Group=CPUCore35|CPUUI
 Meter=Bar
 MeterStyle=CPUStyleRowBar
 MeasureName=MeasureCPU35
-Y=(#Inset#+127*#Scale#)
+Y=(#Inset#+120*#Scale#+((16*#Scale#-#DataBarThicknessPx#)/2))
 Group=CPUCore35|CPUUI
 
 [MeterCoreValue35]
 Meter=String
-MeterStyle=CPUStyleRowValue
+MeterStyle=CPUStyleTableUsageValue
 MeasureName=MeasureCPU35
 Y=(#Inset#+120*#Scale#)
 Group=CPUCore35|CPUUI
@@ -746,12 +746,12 @@ Group=CPUCore36|CPUUI
 Meter=Bar
 MeterStyle=CPUStyleRowBar
 MeasureName=MeasureCPU36
-Y=(#Inset#+127*#Scale#)
+Y=(#Inset#+120*#Scale#+((16*#Scale#-#DataBarThicknessPx#)/2))
 Group=CPUCore36|CPUUI
 
 [MeterCoreValue36]
 Meter=String
-MeterStyle=CPUStyleRowValue
+MeterStyle=CPUStyleTableUsageValue
 MeasureName=MeasureCPU36
 Y=(#Inset#+120*#Scale#)
 Group=CPUCore36|CPUUI
@@ -767,12 +767,12 @@ Group=CPUCore37|CPUUI
 Meter=Bar
 MeterStyle=CPUStyleRowBar
 MeasureName=MeasureCPU37
-Y=(#Inset#+127*#Scale#)
+Y=(#Inset#+120*#Scale#+((16*#Scale#-#DataBarThicknessPx#)/2))
 Group=CPUCore37|CPUUI
 
 [MeterCoreValue37]
 Meter=String
-MeterStyle=CPUStyleRowValue
+MeterStyle=CPUStyleTableUsageValue
 MeasureName=MeasureCPU37
 Y=(#Inset#+120*#Scale#)
 Group=CPUCore37|CPUUI
@@ -788,12 +788,12 @@ Group=CPUCore38|CPUUI
 Meter=Bar
 MeterStyle=CPUStyleRowBar
 MeasureName=MeasureCPU38
-Y=(#Inset#+127*#Scale#)
+Y=(#Inset#+120*#Scale#+((16*#Scale#-#DataBarThicknessPx#)/2))
 Group=CPUCore38|CPUUI
 
 [MeterCoreValue38]
 Meter=String
-MeterStyle=CPUStyleRowValue
+MeterStyle=CPUStyleTableUsageValue
 MeasureName=MeasureCPU38
 Y=(#Inset#+120*#Scale#)
 Group=CPUCore38|CPUUI
@@ -809,12 +809,12 @@ Group=CPUCore39|CPUUI
 Meter=Bar
 MeterStyle=CPUStyleRowBar
 MeasureName=MeasureCPU39
-Y=(#Inset#+127*#Scale#)
+Y=(#Inset#+120*#Scale#+((16*#Scale#-#DataBarThicknessPx#)/2))
 Group=CPUCore39|CPUUI
 
 [MeterCoreValue39]
 Meter=String
-MeterStyle=CPUStyleRowValue
+MeterStyle=CPUStyleTableUsageValue
 MeasureName=MeasureCPU39
 Y=(#Inset#+120*#Scale#)
 Group=CPUCore39|CPUUI
@@ -830,12 +830,12 @@ Group=CPUCore40|CPUUI
 Meter=Bar
 MeterStyle=CPUStyleRowBar
 MeasureName=MeasureCPU40
-Y=(#Inset#+127*#Scale#)
+Y=(#Inset#+120*#Scale#+((16*#Scale#-#DataBarThicknessPx#)/2))
 Group=CPUCore40|CPUUI
 
 [MeterCoreValue40]
 Meter=String
-MeterStyle=CPUStyleRowValue
+MeterStyle=CPUStyleTableUsageValue
 MeasureName=MeasureCPU40
 Y=(#Inset#+120*#Scale#)
 Group=CPUCore40|CPUUI
@@ -851,12 +851,12 @@ Group=CPUCore41|CPUUI
 Meter=Bar
 MeterStyle=CPUStyleRowBar
 MeasureName=MeasureCPU41
-Y=(#Inset#+127*#Scale#)
+Y=(#Inset#+120*#Scale#+((16*#Scale#-#DataBarThicknessPx#)/2))
 Group=CPUCore41|CPUUI
 
 [MeterCoreValue41]
 Meter=String
-MeterStyle=CPUStyleRowValue
+MeterStyle=CPUStyleTableUsageValue
 MeasureName=MeasureCPU41
 Y=(#Inset#+120*#Scale#)
 Group=CPUCore41|CPUUI
@@ -872,12 +872,12 @@ Group=CPUCore42|CPUUI
 Meter=Bar
 MeterStyle=CPUStyleRowBar
 MeasureName=MeasureCPU42
-Y=(#Inset#+127*#Scale#)
+Y=(#Inset#+120*#Scale#+((16*#Scale#-#DataBarThicknessPx#)/2))
 Group=CPUCore42|CPUUI
 
 [MeterCoreValue42]
 Meter=String
-MeterStyle=CPUStyleRowValue
+MeterStyle=CPUStyleTableUsageValue
 MeasureName=MeasureCPU42
 Y=(#Inset#+120*#Scale#)
 Group=CPUCore42|CPUUI
@@ -893,12 +893,12 @@ Group=CPUCore43|CPUUI
 Meter=Bar
 MeterStyle=CPUStyleRowBar
 MeasureName=MeasureCPU43
-Y=(#Inset#+127*#Scale#)
+Y=(#Inset#+120*#Scale#+((16*#Scale#-#DataBarThicknessPx#)/2))
 Group=CPUCore43|CPUUI
 
 [MeterCoreValue43]
 Meter=String
-MeterStyle=CPUStyleRowValue
+MeterStyle=CPUStyleTableUsageValue
 MeasureName=MeasureCPU43
 Y=(#Inset#+120*#Scale#)
 Group=CPUCore43|CPUUI
@@ -914,12 +914,12 @@ Group=CPUCore44|CPUUI
 Meter=Bar
 MeterStyle=CPUStyleRowBar
 MeasureName=MeasureCPU44
-Y=(#Inset#+127*#Scale#)
+Y=(#Inset#+120*#Scale#+((16*#Scale#-#DataBarThicknessPx#)/2))
 Group=CPUCore44|CPUUI
 
 [MeterCoreValue44]
 Meter=String
-MeterStyle=CPUStyleRowValue
+MeterStyle=CPUStyleTableUsageValue
 MeasureName=MeasureCPU44
 Y=(#Inset#+120*#Scale#)
 Group=CPUCore44|CPUUI
@@ -935,12 +935,12 @@ Group=CPUCore45|CPUUI
 Meter=Bar
 MeterStyle=CPUStyleRowBar
 MeasureName=MeasureCPU45
-Y=(#Inset#+127*#Scale#)
+Y=(#Inset#+120*#Scale#+((16*#Scale#-#DataBarThicknessPx#)/2))
 Group=CPUCore45|CPUUI
 
 [MeterCoreValue45]
 Meter=String
-MeterStyle=CPUStyleRowValue
+MeterStyle=CPUStyleTableUsageValue
 MeasureName=MeasureCPU45
 Y=(#Inset#+120*#Scale#)
 Group=CPUCore45|CPUUI
@@ -956,12 +956,12 @@ Group=CPUCore46|CPUUI
 Meter=Bar
 MeterStyle=CPUStyleRowBar
 MeasureName=MeasureCPU46
-Y=(#Inset#+127*#Scale#)
+Y=(#Inset#+120*#Scale#+((16*#Scale#-#DataBarThicknessPx#)/2))
 Group=CPUCore46|CPUUI
 
 [MeterCoreValue46]
 Meter=String
-MeterStyle=CPUStyleRowValue
+MeterStyle=CPUStyleTableUsageValue
 MeasureName=MeasureCPU46
 Y=(#Inset#+120*#Scale#)
 Group=CPUCore46|CPUUI
@@ -977,12 +977,12 @@ Group=CPUCore47|CPUUI
 Meter=Bar
 MeterStyle=CPUStyleRowBar
 MeasureName=MeasureCPU47
-Y=(#Inset#+127*#Scale#)
+Y=(#Inset#+120*#Scale#+((16*#Scale#-#DataBarThicknessPx#)/2))
 Group=CPUCore47|CPUUI
 
 [MeterCoreValue47]
 Meter=String
-MeterStyle=CPUStyleRowValue
+MeterStyle=CPUStyleTableUsageValue
 MeasureName=MeasureCPU47
 Y=(#Inset#+120*#Scale#)
 Group=CPUCore47|CPUUI
@@ -998,12 +998,12 @@ Group=CPUCore48|CPUUI
 Meter=Bar
 MeterStyle=CPUStyleRowBar
 MeasureName=MeasureCPU48
-Y=(#Inset#+127*#Scale#)
+Y=(#Inset#+120*#Scale#+((16*#Scale#-#DataBarThicknessPx#)/2))
 Group=CPUCore48|CPUUI
 
 [MeterCoreValue48]
 Meter=String
-MeterStyle=CPUStyleRowValue
+MeterStyle=CPUStyleTableUsageValue
 MeasureName=MeasureCPU48
 Y=(#Inset#+120*#Scale#)
 Group=CPUCore48|CPUUI
@@ -1019,12 +1019,12 @@ Group=CPUCore49|CPUUI
 Meter=Bar
 MeterStyle=CPUStyleRowBar
 MeasureName=MeasureCPU49
-Y=(#Inset#+127*#Scale#)
+Y=(#Inset#+120*#Scale#+((16*#Scale#-#DataBarThicknessPx#)/2))
 Group=CPUCore49|CPUUI
 
 [MeterCoreValue49]
 Meter=String
-MeterStyle=CPUStyleRowValue
+MeterStyle=CPUStyleTableUsageValue
 MeasureName=MeasureCPU49
 Y=(#Inset#+120*#Scale#)
 Group=CPUCore49|CPUUI
@@ -1040,12 +1040,12 @@ Group=CPUCore50|CPUUI
 Meter=Bar
 MeterStyle=CPUStyleRowBar
 MeasureName=MeasureCPU50
-Y=(#Inset#+127*#Scale#)
+Y=(#Inset#+120*#Scale#+((16*#Scale#-#DataBarThicknessPx#)/2))
 Group=CPUCore50|CPUUI
 
 [MeterCoreValue50]
 Meter=String
-MeterStyle=CPUStyleRowValue
+MeterStyle=CPUStyleTableUsageValue
 MeasureName=MeasureCPU50
 Y=(#Inset#+120*#Scale#)
 Group=CPUCore50|CPUUI
@@ -1061,12 +1061,12 @@ Group=CPUCore51|CPUUI
 Meter=Bar
 MeterStyle=CPUStyleRowBar
 MeasureName=MeasureCPU51
-Y=(#Inset#+127*#Scale#)
+Y=(#Inset#+120*#Scale#+((16*#Scale#-#DataBarThicknessPx#)/2))
 Group=CPUCore51|CPUUI
 
 [MeterCoreValue51]
 Meter=String
-MeterStyle=CPUStyleRowValue
+MeterStyle=CPUStyleTableUsageValue
 MeasureName=MeasureCPU51
 Y=(#Inset#+120*#Scale#)
 Group=CPUCore51|CPUUI
@@ -1082,12 +1082,12 @@ Group=CPUCore52|CPUUI
 Meter=Bar
 MeterStyle=CPUStyleRowBar
 MeasureName=MeasureCPU52
-Y=(#Inset#+127*#Scale#)
+Y=(#Inset#+120*#Scale#+((16*#Scale#-#DataBarThicknessPx#)/2))
 Group=CPUCore52|CPUUI
 
 [MeterCoreValue52]
 Meter=String
-MeterStyle=CPUStyleRowValue
+MeterStyle=CPUStyleTableUsageValue
 MeasureName=MeasureCPU52
 Y=(#Inset#+120*#Scale#)
 Group=CPUCore52|CPUUI
@@ -1103,12 +1103,12 @@ Group=CPUCore53|CPUUI
 Meter=Bar
 MeterStyle=CPUStyleRowBar
 MeasureName=MeasureCPU53
-Y=(#Inset#+127*#Scale#)
+Y=(#Inset#+120*#Scale#+((16*#Scale#-#DataBarThicknessPx#)/2))
 Group=CPUCore53|CPUUI
 
 [MeterCoreValue53]
 Meter=String
-MeterStyle=CPUStyleRowValue
+MeterStyle=CPUStyleTableUsageValue
 MeasureName=MeasureCPU53
 Y=(#Inset#+120*#Scale#)
 Group=CPUCore53|CPUUI
@@ -1124,12 +1124,12 @@ Group=CPUCore54|CPUUI
 Meter=Bar
 MeterStyle=CPUStyleRowBar
 MeasureName=MeasureCPU54
-Y=(#Inset#+127*#Scale#)
+Y=(#Inset#+120*#Scale#+((16*#Scale#-#DataBarThicknessPx#)/2))
 Group=CPUCore54|CPUUI
 
 [MeterCoreValue54]
 Meter=String
-MeterStyle=CPUStyleRowValue
+MeterStyle=CPUStyleTableUsageValue
 MeasureName=MeasureCPU54
 Y=(#Inset#+120*#Scale#)
 Group=CPUCore54|CPUUI
@@ -1145,12 +1145,12 @@ Group=CPUCore55|CPUUI
 Meter=Bar
 MeterStyle=CPUStyleRowBar
 MeasureName=MeasureCPU55
-Y=(#Inset#+127*#Scale#)
+Y=(#Inset#+120*#Scale#+((16*#Scale#-#DataBarThicknessPx#)/2))
 Group=CPUCore55|CPUUI
 
 [MeterCoreValue55]
 Meter=String
-MeterStyle=CPUStyleRowValue
+MeterStyle=CPUStyleTableUsageValue
 MeasureName=MeasureCPU55
 Y=(#Inset#+120*#Scale#)
 Group=CPUCore55|CPUUI
@@ -1166,12 +1166,12 @@ Group=CPUCore56|CPUUI
 Meter=Bar
 MeterStyle=CPUStyleRowBar
 MeasureName=MeasureCPU56
-Y=(#Inset#+127*#Scale#)
+Y=(#Inset#+120*#Scale#+((16*#Scale#-#DataBarThicknessPx#)/2))
 Group=CPUCore56|CPUUI
 
 [MeterCoreValue56]
 Meter=String
-MeterStyle=CPUStyleRowValue
+MeterStyle=CPUStyleTableUsageValue
 MeasureName=MeasureCPU56
 Y=(#Inset#+120*#Scale#)
 Group=CPUCore56|CPUUI
@@ -1187,12 +1187,12 @@ Group=CPUCore57|CPUUI
 Meter=Bar
 MeterStyle=CPUStyleRowBar
 MeasureName=MeasureCPU57
-Y=(#Inset#+127*#Scale#)
+Y=(#Inset#+120*#Scale#+((16*#Scale#-#DataBarThicknessPx#)/2))
 Group=CPUCore57|CPUUI
 
 [MeterCoreValue57]
 Meter=String
-MeterStyle=CPUStyleRowValue
+MeterStyle=CPUStyleTableUsageValue
 MeasureName=MeasureCPU57
 Y=(#Inset#+120*#Scale#)
 Group=CPUCore57|CPUUI
@@ -1208,12 +1208,12 @@ Group=CPUCore58|CPUUI
 Meter=Bar
 MeterStyle=CPUStyleRowBar
 MeasureName=MeasureCPU58
-Y=(#Inset#+127*#Scale#)
+Y=(#Inset#+120*#Scale#+((16*#Scale#-#DataBarThicknessPx#)/2))
 Group=CPUCore58|CPUUI
 
 [MeterCoreValue58]
 Meter=String
-MeterStyle=CPUStyleRowValue
+MeterStyle=CPUStyleTableUsageValue
 MeasureName=MeasureCPU58
 Y=(#Inset#+120*#Scale#)
 Group=CPUCore58|CPUUI
@@ -1229,12 +1229,12 @@ Group=CPUCore59|CPUUI
 Meter=Bar
 MeterStyle=CPUStyleRowBar
 MeasureName=MeasureCPU59
-Y=(#Inset#+127*#Scale#)
+Y=(#Inset#+120*#Scale#+((16*#Scale#-#DataBarThicknessPx#)/2))
 Group=CPUCore59|CPUUI
 
 [MeterCoreValue59]
 Meter=String
-MeterStyle=CPUStyleRowValue
+MeterStyle=CPUStyleTableUsageValue
 MeasureName=MeasureCPU59
 Y=(#Inset#+120*#Scale#)
 Group=CPUCore59|CPUUI
@@ -1250,12 +1250,12 @@ Group=CPUCore60|CPUUI
 Meter=Bar
 MeterStyle=CPUStyleRowBar
 MeasureName=MeasureCPU60
-Y=(#Inset#+127*#Scale#)
+Y=(#Inset#+120*#Scale#+((16*#Scale#-#DataBarThicknessPx#)/2))
 Group=CPUCore60|CPUUI
 
 [MeterCoreValue60]
 Meter=String
-MeterStyle=CPUStyleRowValue
+MeterStyle=CPUStyleTableUsageValue
 MeasureName=MeasureCPU60
 Y=(#Inset#+120*#Scale#)
 Group=CPUCore60|CPUUI
@@ -1271,12 +1271,12 @@ Group=CPUCore61|CPUUI
 Meter=Bar
 MeterStyle=CPUStyleRowBar
 MeasureName=MeasureCPU61
-Y=(#Inset#+127*#Scale#)
+Y=(#Inset#+120*#Scale#+((16*#Scale#-#DataBarThicknessPx#)/2))
 Group=CPUCore61|CPUUI
 
 [MeterCoreValue61]
 Meter=String
-MeterStyle=CPUStyleRowValue
+MeterStyle=CPUStyleTableUsageValue
 MeasureName=MeasureCPU61
 Y=(#Inset#+120*#Scale#)
 Group=CPUCore61|CPUUI
@@ -1292,12 +1292,12 @@ Group=CPUCore62|CPUUI
 Meter=Bar
 MeterStyle=CPUStyleRowBar
 MeasureName=MeasureCPU62
-Y=(#Inset#+127*#Scale#)
+Y=(#Inset#+120*#Scale#+((16*#Scale#-#DataBarThicknessPx#)/2))
 Group=CPUCore62|CPUUI
 
 [MeterCoreValue62]
 Meter=String
-MeterStyle=CPUStyleRowValue
+MeterStyle=CPUStyleTableUsageValue
 MeasureName=MeasureCPU62
 Y=(#Inset#+120*#Scale#)
 Group=CPUCore62|CPUUI
@@ -1313,12 +1313,12 @@ Group=CPUCore63|CPUUI
 Meter=Bar
 MeterStyle=CPUStyleRowBar
 MeasureName=MeasureCPU63
-Y=(#Inset#+127*#Scale#)
+Y=(#Inset#+120*#Scale#+((16*#Scale#-#DataBarThicknessPx#)/2))
 Group=CPUCore63|CPUUI
 
 [MeterCoreValue63]
 Meter=String
-MeterStyle=CPUStyleRowValue
+MeterStyle=CPUStyleTableUsageValue
 MeasureName=MeasureCPU63
 Y=(#Inset#+120*#Scale#)
 Group=CPUCore63|CPUUI
@@ -1334,12 +1334,12 @@ Group=CPUCore64|CPUUI
 Meter=Bar
 MeterStyle=CPUStyleRowBar
 MeasureName=MeasureCPU64
-Y=(#Inset#+127*#Scale#)
+Y=(#Inset#+120*#Scale#+((16*#Scale#-#DataBarThicknessPx#)/2))
 Group=CPUCore64|CPUUI
 
 [MeterCoreValue64]
 Meter=String
-MeterStyle=CPUStyleRowValue
+MeterStyle=CPUStyleTableUsageValue
 MeasureName=MeasureCPU64
 Y=(#Inset#+120*#Scale#)
 Group=CPUCore64|CPUUI
@@ -1347,897 +1347,1025 @@ Group=CPUCore64|CPUUI
 [MeterCoreVoltage1]
 Meter=String
 MeterStyle=CPUStyleRowSensor
-X=(#ContentX#+#CPUCoreColumnWidth#+16*#Scale#)
+X=(#ContentX#+#CPUCoreColumnWidth#+22*#Scale#)
 Y=(#Inset#+120*#Scale#)
+W=(44*#Scale#)
 Group=CPUCore1|CPUUI
 
 [MeterCoreTemperature1]
 Meter=String
-MeterStyle=CPUStyleRowSensor
-X=(#ContentX#+#CPUCoreColumnWidth#+48*#Scale#)
+MeterStyle=CPUStyleRowTemperature
+X=(#ContentX#+#CPUCoreColumnWidth#+78*#Scale#)
 Y=(#Inset#+120*#Scale#)
+W=(34*#Scale#)
 Group=CPUCore1|CPUUI
 
 [MeterCoreVoltage2]
 Meter=String
 MeterStyle=CPUStyleRowSensor
-X=(#ContentX#+#CPUCoreColumnWidth#+16*#Scale#)
+X=(#ContentX#+#CPUCoreColumnWidth#+22*#Scale#)
 Y=(#Inset#+120*#Scale#)
+W=(44*#Scale#)
 Group=CPUCore2|CPUUI
 
 [MeterCoreTemperature2]
 Meter=String
-MeterStyle=CPUStyleRowSensor
-X=(#ContentX#+#CPUCoreColumnWidth#+48*#Scale#)
+MeterStyle=CPUStyleRowTemperature
+X=(#ContentX#+#CPUCoreColumnWidth#+78*#Scale#)
 Y=(#Inset#+120*#Scale#)
+W=(34*#Scale#)
 Group=CPUCore2|CPUUI
 
 [MeterCoreVoltage3]
 Meter=String
 MeterStyle=CPUStyleRowSensor
-X=(#ContentX#+#CPUCoreColumnWidth#+16*#Scale#)
+X=(#ContentX#+#CPUCoreColumnWidth#+22*#Scale#)
 Y=(#Inset#+120*#Scale#)
+W=(44*#Scale#)
 Group=CPUCore3|CPUUI
 
 [MeterCoreTemperature3]
 Meter=String
-MeterStyle=CPUStyleRowSensor
-X=(#ContentX#+#CPUCoreColumnWidth#+48*#Scale#)
+MeterStyle=CPUStyleRowTemperature
+X=(#ContentX#+#CPUCoreColumnWidth#+78*#Scale#)
 Y=(#Inset#+120*#Scale#)
+W=(34*#Scale#)
 Group=CPUCore3|CPUUI
 
 [MeterCoreVoltage4]
 Meter=String
 MeterStyle=CPUStyleRowSensor
-X=(#ContentX#+#CPUCoreColumnWidth#+16*#Scale#)
+X=(#ContentX#+#CPUCoreColumnWidth#+22*#Scale#)
 Y=(#Inset#+120*#Scale#)
+W=(44*#Scale#)
 Group=CPUCore4|CPUUI
 
 [MeterCoreTemperature4]
 Meter=String
-MeterStyle=CPUStyleRowSensor
-X=(#ContentX#+#CPUCoreColumnWidth#+48*#Scale#)
+MeterStyle=CPUStyleRowTemperature
+X=(#ContentX#+#CPUCoreColumnWidth#+78*#Scale#)
 Y=(#Inset#+120*#Scale#)
+W=(34*#Scale#)
 Group=CPUCore4|CPUUI
 
 [MeterCoreVoltage5]
 Meter=String
 MeterStyle=CPUStyleRowSensor
-X=(#ContentX#+#CPUCoreColumnWidth#+16*#Scale#)
+X=(#ContentX#+#CPUCoreColumnWidth#+22*#Scale#)
 Y=(#Inset#+120*#Scale#)
+W=(44*#Scale#)
 Group=CPUCore5|CPUUI
 
 [MeterCoreTemperature5]
 Meter=String
-MeterStyle=CPUStyleRowSensor
-X=(#ContentX#+#CPUCoreColumnWidth#+48*#Scale#)
+MeterStyle=CPUStyleRowTemperature
+X=(#ContentX#+#CPUCoreColumnWidth#+78*#Scale#)
 Y=(#Inset#+120*#Scale#)
+W=(34*#Scale#)
 Group=CPUCore5|CPUUI
 
 [MeterCoreVoltage6]
 Meter=String
 MeterStyle=CPUStyleRowSensor
-X=(#ContentX#+#CPUCoreColumnWidth#+16*#Scale#)
+X=(#ContentX#+#CPUCoreColumnWidth#+22*#Scale#)
 Y=(#Inset#+120*#Scale#)
+W=(44*#Scale#)
 Group=CPUCore6|CPUUI
 
 [MeterCoreTemperature6]
 Meter=String
-MeterStyle=CPUStyleRowSensor
-X=(#ContentX#+#CPUCoreColumnWidth#+48*#Scale#)
+MeterStyle=CPUStyleRowTemperature
+X=(#ContentX#+#CPUCoreColumnWidth#+78*#Scale#)
 Y=(#Inset#+120*#Scale#)
+W=(34*#Scale#)
 Group=CPUCore6|CPUUI
 
 [MeterCoreVoltage7]
 Meter=String
 MeterStyle=CPUStyleRowSensor
-X=(#ContentX#+#CPUCoreColumnWidth#+16*#Scale#)
+X=(#ContentX#+#CPUCoreColumnWidth#+22*#Scale#)
 Y=(#Inset#+120*#Scale#)
+W=(44*#Scale#)
 Group=CPUCore7|CPUUI
 
 [MeterCoreTemperature7]
 Meter=String
-MeterStyle=CPUStyleRowSensor
-X=(#ContentX#+#CPUCoreColumnWidth#+48*#Scale#)
+MeterStyle=CPUStyleRowTemperature
+X=(#ContentX#+#CPUCoreColumnWidth#+78*#Scale#)
 Y=(#Inset#+120*#Scale#)
+W=(34*#Scale#)
 Group=CPUCore7|CPUUI
 
 [MeterCoreVoltage8]
 Meter=String
 MeterStyle=CPUStyleRowSensor
-X=(#ContentX#+#CPUCoreColumnWidth#+16*#Scale#)
+X=(#ContentX#+#CPUCoreColumnWidth#+22*#Scale#)
 Y=(#Inset#+120*#Scale#)
+W=(44*#Scale#)
 Group=CPUCore8|CPUUI
 
 [MeterCoreTemperature8]
 Meter=String
-MeterStyle=CPUStyleRowSensor
-X=(#ContentX#+#CPUCoreColumnWidth#+48*#Scale#)
+MeterStyle=CPUStyleRowTemperature
+X=(#ContentX#+#CPUCoreColumnWidth#+78*#Scale#)
 Y=(#Inset#+120*#Scale#)
+W=(34*#Scale#)
 Group=CPUCore8|CPUUI
 
 [MeterCoreVoltage9]
 Meter=String
 MeterStyle=CPUStyleRowSensor
-X=(#ContentX#+#CPUCoreColumnWidth#+16*#Scale#)
+X=(#ContentX#+#CPUCoreColumnWidth#+22*#Scale#)
 Y=(#Inset#+120*#Scale#)
+W=(44*#Scale#)
 Group=CPUCore9|CPUUI
 
 [MeterCoreTemperature9]
 Meter=String
-MeterStyle=CPUStyleRowSensor
-X=(#ContentX#+#CPUCoreColumnWidth#+48*#Scale#)
+MeterStyle=CPUStyleRowTemperature
+X=(#ContentX#+#CPUCoreColumnWidth#+78*#Scale#)
 Y=(#Inset#+120*#Scale#)
+W=(34*#Scale#)
 Group=CPUCore9|CPUUI
 
 [MeterCoreVoltage10]
 Meter=String
 MeterStyle=CPUStyleRowSensor
-X=(#ContentX#+#CPUCoreColumnWidth#+16*#Scale#)
+X=(#ContentX#+#CPUCoreColumnWidth#+22*#Scale#)
 Y=(#Inset#+120*#Scale#)
+W=(44*#Scale#)
 Group=CPUCore10|CPUUI
 
 [MeterCoreTemperature10]
 Meter=String
-MeterStyle=CPUStyleRowSensor
-X=(#ContentX#+#CPUCoreColumnWidth#+48*#Scale#)
+MeterStyle=CPUStyleRowTemperature
+X=(#ContentX#+#CPUCoreColumnWidth#+78*#Scale#)
 Y=(#Inset#+120*#Scale#)
+W=(34*#Scale#)
 Group=CPUCore10|CPUUI
 
 [MeterCoreVoltage11]
 Meter=String
 MeterStyle=CPUStyleRowSensor
-X=(#ContentX#+#CPUCoreColumnWidth#+16*#Scale#)
+X=(#ContentX#+#CPUCoreColumnWidth#+22*#Scale#)
 Y=(#Inset#+120*#Scale#)
+W=(44*#Scale#)
 Group=CPUCore11|CPUUI
 
 [MeterCoreTemperature11]
 Meter=String
-MeterStyle=CPUStyleRowSensor
-X=(#ContentX#+#CPUCoreColumnWidth#+48*#Scale#)
+MeterStyle=CPUStyleRowTemperature
+X=(#ContentX#+#CPUCoreColumnWidth#+78*#Scale#)
 Y=(#Inset#+120*#Scale#)
+W=(34*#Scale#)
 Group=CPUCore11|CPUUI
 
 [MeterCoreVoltage12]
 Meter=String
 MeterStyle=CPUStyleRowSensor
-X=(#ContentX#+#CPUCoreColumnWidth#+16*#Scale#)
+X=(#ContentX#+#CPUCoreColumnWidth#+22*#Scale#)
 Y=(#Inset#+120*#Scale#)
+W=(44*#Scale#)
 Group=CPUCore12|CPUUI
 
 [MeterCoreTemperature12]
 Meter=String
-MeterStyle=CPUStyleRowSensor
-X=(#ContentX#+#CPUCoreColumnWidth#+48*#Scale#)
+MeterStyle=CPUStyleRowTemperature
+X=(#ContentX#+#CPUCoreColumnWidth#+78*#Scale#)
 Y=(#Inset#+120*#Scale#)
+W=(34*#Scale#)
 Group=CPUCore12|CPUUI
 
 [MeterCoreVoltage13]
 Meter=String
 MeterStyle=CPUStyleRowSensor
-X=(#ContentX#+#CPUCoreColumnWidth#+16*#Scale#)
+X=(#ContentX#+#CPUCoreColumnWidth#+22*#Scale#)
 Y=(#Inset#+120*#Scale#)
+W=(44*#Scale#)
 Group=CPUCore13|CPUUI
 
 [MeterCoreTemperature13]
 Meter=String
-MeterStyle=CPUStyleRowSensor
-X=(#ContentX#+#CPUCoreColumnWidth#+48*#Scale#)
+MeterStyle=CPUStyleRowTemperature
+X=(#ContentX#+#CPUCoreColumnWidth#+78*#Scale#)
 Y=(#Inset#+120*#Scale#)
+W=(34*#Scale#)
 Group=CPUCore13|CPUUI
 
 [MeterCoreVoltage14]
 Meter=String
 MeterStyle=CPUStyleRowSensor
-X=(#ContentX#+#CPUCoreColumnWidth#+16*#Scale#)
+X=(#ContentX#+#CPUCoreColumnWidth#+22*#Scale#)
 Y=(#Inset#+120*#Scale#)
+W=(44*#Scale#)
 Group=CPUCore14|CPUUI
 
 [MeterCoreTemperature14]
 Meter=String
-MeterStyle=CPUStyleRowSensor
-X=(#ContentX#+#CPUCoreColumnWidth#+48*#Scale#)
+MeterStyle=CPUStyleRowTemperature
+X=(#ContentX#+#CPUCoreColumnWidth#+78*#Scale#)
 Y=(#Inset#+120*#Scale#)
+W=(34*#Scale#)
 Group=CPUCore14|CPUUI
 
 [MeterCoreVoltage15]
 Meter=String
 MeterStyle=CPUStyleRowSensor
-X=(#ContentX#+#CPUCoreColumnWidth#+16*#Scale#)
+X=(#ContentX#+#CPUCoreColumnWidth#+22*#Scale#)
 Y=(#Inset#+120*#Scale#)
+W=(44*#Scale#)
 Group=CPUCore15|CPUUI
 
 [MeterCoreTemperature15]
 Meter=String
-MeterStyle=CPUStyleRowSensor
-X=(#ContentX#+#CPUCoreColumnWidth#+48*#Scale#)
+MeterStyle=CPUStyleRowTemperature
+X=(#ContentX#+#CPUCoreColumnWidth#+78*#Scale#)
 Y=(#Inset#+120*#Scale#)
+W=(34*#Scale#)
 Group=CPUCore15|CPUUI
 
 [MeterCoreVoltage16]
 Meter=String
 MeterStyle=CPUStyleRowSensor
-X=(#ContentX#+#CPUCoreColumnWidth#+16*#Scale#)
+X=(#ContentX#+#CPUCoreColumnWidth#+22*#Scale#)
 Y=(#Inset#+120*#Scale#)
+W=(44*#Scale#)
 Group=CPUCore16|CPUUI
 
 [MeterCoreTemperature16]
 Meter=String
-MeterStyle=CPUStyleRowSensor
-X=(#ContentX#+#CPUCoreColumnWidth#+48*#Scale#)
+MeterStyle=CPUStyleRowTemperature
+X=(#ContentX#+#CPUCoreColumnWidth#+78*#Scale#)
 Y=(#Inset#+120*#Scale#)
+W=(34*#Scale#)
 Group=CPUCore16|CPUUI
 
 [MeterCoreVoltage17]
 Meter=String
 MeterStyle=CPUStyleRowSensor
-X=(#ContentX#+#CPUCoreColumnWidth#+16*#Scale#)
+X=(#ContentX#+#CPUCoreColumnWidth#+22*#Scale#)
 Y=(#Inset#+120*#Scale#)
+W=(44*#Scale#)
 Group=CPUCore17|CPUUI
 
 [MeterCoreTemperature17]
 Meter=String
-MeterStyle=CPUStyleRowSensor
-X=(#ContentX#+#CPUCoreColumnWidth#+48*#Scale#)
+MeterStyle=CPUStyleRowTemperature
+X=(#ContentX#+#CPUCoreColumnWidth#+78*#Scale#)
 Y=(#Inset#+120*#Scale#)
+W=(34*#Scale#)
 Group=CPUCore17|CPUUI
 
 [MeterCoreVoltage18]
 Meter=String
 MeterStyle=CPUStyleRowSensor
-X=(#ContentX#+#CPUCoreColumnWidth#+16*#Scale#)
+X=(#ContentX#+#CPUCoreColumnWidth#+22*#Scale#)
 Y=(#Inset#+120*#Scale#)
+W=(44*#Scale#)
 Group=CPUCore18|CPUUI
 
 [MeterCoreTemperature18]
 Meter=String
-MeterStyle=CPUStyleRowSensor
-X=(#ContentX#+#CPUCoreColumnWidth#+48*#Scale#)
+MeterStyle=CPUStyleRowTemperature
+X=(#ContentX#+#CPUCoreColumnWidth#+78*#Scale#)
 Y=(#Inset#+120*#Scale#)
+W=(34*#Scale#)
 Group=CPUCore18|CPUUI
 
 [MeterCoreVoltage19]
 Meter=String
 MeterStyle=CPUStyleRowSensor
-X=(#ContentX#+#CPUCoreColumnWidth#+16*#Scale#)
+X=(#ContentX#+#CPUCoreColumnWidth#+22*#Scale#)
 Y=(#Inset#+120*#Scale#)
+W=(44*#Scale#)
 Group=CPUCore19|CPUUI
 
 [MeterCoreTemperature19]
 Meter=String
-MeterStyle=CPUStyleRowSensor
-X=(#ContentX#+#CPUCoreColumnWidth#+48*#Scale#)
+MeterStyle=CPUStyleRowTemperature
+X=(#ContentX#+#CPUCoreColumnWidth#+78*#Scale#)
 Y=(#Inset#+120*#Scale#)
+W=(34*#Scale#)
 Group=CPUCore19|CPUUI
 
 [MeterCoreVoltage20]
 Meter=String
 MeterStyle=CPUStyleRowSensor
-X=(#ContentX#+#CPUCoreColumnWidth#+16*#Scale#)
+X=(#ContentX#+#CPUCoreColumnWidth#+22*#Scale#)
 Y=(#Inset#+120*#Scale#)
+W=(44*#Scale#)
 Group=CPUCore20|CPUUI
 
 [MeterCoreTemperature20]
 Meter=String
-MeterStyle=CPUStyleRowSensor
-X=(#ContentX#+#CPUCoreColumnWidth#+48*#Scale#)
+MeterStyle=CPUStyleRowTemperature
+X=(#ContentX#+#CPUCoreColumnWidth#+78*#Scale#)
 Y=(#Inset#+120*#Scale#)
+W=(34*#Scale#)
 Group=CPUCore20|CPUUI
 
 [MeterCoreVoltage21]
 Meter=String
 MeterStyle=CPUStyleRowSensor
-X=(#ContentX#+#CPUCoreColumnWidth#+16*#Scale#)
+X=(#ContentX#+#CPUCoreColumnWidth#+22*#Scale#)
 Y=(#Inset#+120*#Scale#)
+W=(44*#Scale#)
 Group=CPUCore21|CPUUI
 
 [MeterCoreTemperature21]
 Meter=String
-MeterStyle=CPUStyleRowSensor
-X=(#ContentX#+#CPUCoreColumnWidth#+48*#Scale#)
+MeterStyle=CPUStyleRowTemperature
+X=(#ContentX#+#CPUCoreColumnWidth#+78*#Scale#)
 Y=(#Inset#+120*#Scale#)
+W=(34*#Scale#)
 Group=CPUCore21|CPUUI
 
 [MeterCoreVoltage22]
 Meter=String
 MeterStyle=CPUStyleRowSensor
-X=(#ContentX#+#CPUCoreColumnWidth#+16*#Scale#)
+X=(#ContentX#+#CPUCoreColumnWidth#+22*#Scale#)
 Y=(#Inset#+120*#Scale#)
+W=(44*#Scale#)
 Group=CPUCore22|CPUUI
 
 [MeterCoreTemperature22]
 Meter=String
-MeterStyle=CPUStyleRowSensor
-X=(#ContentX#+#CPUCoreColumnWidth#+48*#Scale#)
+MeterStyle=CPUStyleRowTemperature
+X=(#ContentX#+#CPUCoreColumnWidth#+78*#Scale#)
 Y=(#Inset#+120*#Scale#)
+W=(34*#Scale#)
 Group=CPUCore22|CPUUI
 
 [MeterCoreVoltage23]
 Meter=String
 MeterStyle=CPUStyleRowSensor
-X=(#ContentX#+#CPUCoreColumnWidth#+16*#Scale#)
+X=(#ContentX#+#CPUCoreColumnWidth#+22*#Scale#)
 Y=(#Inset#+120*#Scale#)
+W=(44*#Scale#)
 Group=CPUCore23|CPUUI
 
 [MeterCoreTemperature23]
 Meter=String
-MeterStyle=CPUStyleRowSensor
-X=(#ContentX#+#CPUCoreColumnWidth#+48*#Scale#)
+MeterStyle=CPUStyleRowTemperature
+X=(#ContentX#+#CPUCoreColumnWidth#+78*#Scale#)
 Y=(#Inset#+120*#Scale#)
+W=(34*#Scale#)
 Group=CPUCore23|CPUUI
 
 [MeterCoreVoltage24]
 Meter=String
 MeterStyle=CPUStyleRowSensor
-X=(#ContentX#+#CPUCoreColumnWidth#+16*#Scale#)
+X=(#ContentX#+#CPUCoreColumnWidth#+22*#Scale#)
 Y=(#Inset#+120*#Scale#)
+W=(44*#Scale#)
 Group=CPUCore24|CPUUI
 
 [MeterCoreTemperature24]
 Meter=String
-MeterStyle=CPUStyleRowSensor
-X=(#ContentX#+#CPUCoreColumnWidth#+48*#Scale#)
+MeterStyle=CPUStyleRowTemperature
+X=(#ContentX#+#CPUCoreColumnWidth#+78*#Scale#)
 Y=(#Inset#+120*#Scale#)
+W=(34*#Scale#)
 Group=CPUCore24|CPUUI
 
 [MeterCoreVoltage25]
 Meter=String
 MeterStyle=CPUStyleRowSensor
-X=(#ContentX#+#CPUCoreColumnWidth#+16*#Scale#)
+X=(#ContentX#+#CPUCoreColumnWidth#+22*#Scale#)
 Y=(#Inset#+120*#Scale#)
+W=(44*#Scale#)
 Group=CPUCore25|CPUUI
 
 [MeterCoreTemperature25]
 Meter=String
-MeterStyle=CPUStyleRowSensor
-X=(#ContentX#+#CPUCoreColumnWidth#+48*#Scale#)
+MeterStyle=CPUStyleRowTemperature
+X=(#ContentX#+#CPUCoreColumnWidth#+78*#Scale#)
 Y=(#Inset#+120*#Scale#)
+W=(34*#Scale#)
 Group=CPUCore25|CPUUI
 
 [MeterCoreVoltage26]
 Meter=String
 MeterStyle=CPUStyleRowSensor
-X=(#ContentX#+#CPUCoreColumnWidth#+16*#Scale#)
+X=(#ContentX#+#CPUCoreColumnWidth#+22*#Scale#)
 Y=(#Inset#+120*#Scale#)
+W=(44*#Scale#)
 Group=CPUCore26|CPUUI
 
 [MeterCoreTemperature26]
 Meter=String
-MeterStyle=CPUStyleRowSensor
-X=(#ContentX#+#CPUCoreColumnWidth#+48*#Scale#)
+MeterStyle=CPUStyleRowTemperature
+X=(#ContentX#+#CPUCoreColumnWidth#+78*#Scale#)
 Y=(#Inset#+120*#Scale#)
+W=(34*#Scale#)
 Group=CPUCore26|CPUUI
 
 [MeterCoreVoltage27]
 Meter=String
 MeterStyle=CPUStyleRowSensor
-X=(#ContentX#+#CPUCoreColumnWidth#+16*#Scale#)
+X=(#ContentX#+#CPUCoreColumnWidth#+22*#Scale#)
 Y=(#Inset#+120*#Scale#)
+W=(44*#Scale#)
 Group=CPUCore27|CPUUI
 
 [MeterCoreTemperature27]
 Meter=String
-MeterStyle=CPUStyleRowSensor
-X=(#ContentX#+#CPUCoreColumnWidth#+48*#Scale#)
+MeterStyle=CPUStyleRowTemperature
+X=(#ContentX#+#CPUCoreColumnWidth#+78*#Scale#)
 Y=(#Inset#+120*#Scale#)
+W=(34*#Scale#)
 Group=CPUCore27|CPUUI
 
 [MeterCoreVoltage28]
 Meter=String
 MeterStyle=CPUStyleRowSensor
-X=(#ContentX#+#CPUCoreColumnWidth#+16*#Scale#)
+X=(#ContentX#+#CPUCoreColumnWidth#+22*#Scale#)
 Y=(#Inset#+120*#Scale#)
+W=(44*#Scale#)
 Group=CPUCore28|CPUUI
 
 [MeterCoreTemperature28]
 Meter=String
-MeterStyle=CPUStyleRowSensor
-X=(#ContentX#+#CPUCoreColumnWidth#+48*#Scale#)
+MeterStyle=CPUStyleRowTemperature
+X=(#ContentX#+#CPUCoreColumnWidth#+78*#Scale#)
 Y=(#Inset#+120*#Scale#)
+W=(34*#Scale#)
 Group=CPUCore28|CPUUI
 
 [MeterCoreVoltage29]
 Meter=String
 MeterStyle=CPUStyleRowSensor
-X=(#ContentX#+#CPUCoreColumnWidth#+16*#Scale#)
+X=(#ContentX#+#CPUCoreColumnWidth#+22*#Scale#)
 Y=(#Inset#+120*#Scale#)
+W=(44*#Scale#)
 Group=CPUCore29|CPUUI
 
 [MeterCoreTemperature29]
 Meter=String
-MeterStyle=CPUStyleRowSensor
-X=(#ContentX#+#CPUCoreColumnWidth#+48*#Scale#)
+MeterStyle=CPUStyleRowTemperature
+X=(#ContentX#+#CPUCoreColumnWidth#+78*#Scale#)
 Y=(#Inset#+120*#Scale#)
+W=(34*#Scale#)
 Group=CPUCore29|CPUUI
 
 [MeterCoreVoltage30]
 Meter=String
 MeterStyle=CPUStyleRowSensor
-X=(#ContentX#+#CPUCoreColumnWidth#+16*#Scale#)
+X=(#ContentX#+#CPUCoreColumnWidth#+22*#Scale#)
 Y=(#Inset#+120*#Scale#)
+W=(44*#Scale#)
 Group=CPUCore30|CPUUI
 
 [MeterCoreTemperature30]
 Meter=String
-MeterStyle=CPUStyleRowSensor
-X=(#ContentX#+#CPUCoreColumnWidth#+48*#Scale#)
+MeterStyle=CPUStyleRowTemperature
+X=(#ContentX#+#CPUCoreColumnWidth#+78*#Scale#)
 Y=(#Inset#+120*#Scale#)
+W=(34*#Scale#)
 Group=CPUCore30|CPUUI
 
 [MeterCoreVoltage31]
 Meter=String
 MeterStyle=CPUStyleRowSensor
-X=(#ContentX#+#CPUCoreColumnWidth#+16*#Scale#)
+X=(#ContentX#+#CPUCoreColumnWidth#+22*#Scale#)
 Y=(#Inset#+120*#Scale#)
+W=(44*#Scale#)
 Group=CPUCore31|CPUUI
 
 [MeterCoreTemperature31]
 Meter=String
-MeterStyle=CPUStyleRowSensor
-X=(#ContentX#+#CPUCoreColumnWidth#+48*#Scale#)
+MeterStyle=CPUStyleRowTemperature
+X=(#ContentX#+#CPUCoreColumnWidth#+78*#Scale#)
 Y=(#Inset#+120*#Scale#)
+W=(34*#Scale#)
 Group=CPUCore31|CPUUI
 
 [MeterCoreVoltage32]
 Meter=String
 MeterStyle=CPUStyleRowSensor
-X=(#ContentX#+#CPUCoreColumnWidth#+16*#Scale#)
+X=(#ContentX#+#CPUCoreColumnWidth#+22*#Scale#)
 Y=(#Inset#+120*#Scale#)
+W=(44*#Scale#)
 Group=CPUCore32|CPUUI
 
 [MeterCoreTemperature32]
 Meter=String
-MeterStyle=CPUStyleRowSensor
-X=(#ContentX#+#CPUCoreColumnWidth#+48*#Scale#)
+MeterStyle=CPUStyleRowTemperature
+X=(#ContentX#+#CPUCoreColumnWidth#+78*#Scale#)
 Y=(#Inset#+120*#Scale#)
+W=(34*#Scale#)
 Group=CPUCore32|CPUUI
 
 [MeterCoreVoltage33]
 Meter=String
 MeterStyle=CPUStyleRowSensor
-X=(#ContentX#+#CPUCoreColumnWidth#+16*#Scale#)
+X=(#ContentX#+#CPUCoreColumnWidth#+22*#Scale#)
 Y=(#Inset#+120*#Scale#)
+W=(44*#Scale#)
 Group=CPUCore33|CPUUI
 
 [MeterCoreTemperature33]
 Meter=String
-MeterStyle=CPUStyleRowSensor
-X=(#ContentX#+#CPUCoreColumnWidth#+48*#Scale#)
+MeterStyle=CPUStyleRowTemperature
+X=(#ContentX#+#CPUCoreColumnWidth#+78*#Scale#)
 Y=(#Inset#+120*#Scale#)
+W=(34*#Scale#)
 Group=CPUCore33|CPUUI
 
 [MeterCoreVoltage34]
 Meter=String
 MeterStyle=CPUStyleRowSensor
-X=(#ContentX#+#CPUCoreColumnWidth#+16*#Scale#)
+X=(#ContentX#+#CPUCoreColumnWidth#+22*#Scale#)
 Y=(#Inset#+120*#Scale#)
+W=(44*#Scale#)
 Group=CPUCore34|CPUUI
 
 [MeterCoreTemperature34]
 Meter=String
-MeterStyle=CPUStyleRowSensor
-X=(#ContentX#+#CPUCoreColumnWidth#+48*#Scale#)
+MeterStyle=CPUStyleRowTemperature
+X=(#ContentX#+#CPUCoreColumnWidth#+78*#Scale#)
 Y=(#Inset#+120*#Scale#)
+W=(34*#Scale#)
 Group=CPUCore34|CPUUI
 
 [MeterCoreVoltage35]
 Meter=String
 MeterStyle=CPUStyleRowSensor
-X=(#ContentX#+#CPUCoreColumnWidth#+16*#Scale#)
+X=(#ContentX#+#CPUCoreColumnWidth#+22*#Scale#)
 Y=(#Inset#+120*#Scale#)
+W=(44*#Scale#)
 Group=CPUCore35|CPUUI
 
 [MeterCoreTemperature35]
 Meter=String
-MeterStyle=CPUStyleRowSensor
-X=(#ContentX#+#CPUCoreColumnWidth#+48*#Scale#)
+MeterStyle=CPUStyleRowTemperature
+X=(#ContentX#+#CPUCoreColumnWidth#+78*#Scale#)
 Y=(#Inset#+120*#Scale#)
+W=(34*#Scale#)
 Group=CPUCore35|CPUUI
 
 [MeterCoreVoltage36]
 Meter=String
 MeterStyle=CPUStyleRowSensor
-X=(#ContentX#+#CPUCoreColumnWidth#+16*#Scale#)
+X=(#ContentX#+#CPUCoreColumnWidth#+22*#Scale#)
 Y=(#Inset#+120*#Scale#)
+W=(44*#Scale#)
 Group=CPUCore36|CPUUI
 
 [MeterCoreTemperature36]
 Meter=String
-MeterStyle=CPUStyleRowSensor
-X=(#ContentX#+#CPUCoreColumnWidth#+48*#Scale#)
+MeterStyle=CPUStyleRowTemperature
+X=(#ContentX#+#CPUCoreColumnWidth#+78*#Scale#)
 Y=(#Inset#+120*#Scale#)
+W=(34*#Scale#)
 Group=CPUCore36|CPUUI
 
 [MeterCoreVoltage37]
 Meter=String
 MeterStyle=CPUStyleRowSensor
-X=(#ContentX#+#CPUCoreColumnWidth#+16*#Scale#)
+X=(#ContentX#+#CPUCoreColumnWidth#+22*#Scale#)
 Y=(#Inset#+120*#Scale#)
+W=(44*#Scale#)
 Group=CPUCore37|CPUUI
 
 [MeterCoreTemperature37]
 Meter=String
-MeterStyle=CPUStyleRowSensor
-X=(#ContentX#+#CPUCoreColumnWidth#+48*#Scale#)
+MeterStyle=CPUStyleRowTemperature
+X=(#ContentX#+#CPUCoreColumnWidth#+78*#Scale#)
 Y=(#Inset#+120*#Scale#)
+W=(34*#Scale#)
 Group=CPUCore37|CPUUI
 
 [MeterCoreVoltage38]
 Meter=String
 MeterStyle=CPUStyleRowSensor
-X=(#ContentX#+#CPUCoreColumnWidth#+16*#Scale#)
+X=(#ContentX#+#CPUCoreColumnWidth#+22*#Scale#)
 Y=(#Inset#+120*#Scale#)
+W=(44*#Scale#)
 Group=CPUCore38|CPUUI
 
 [MeterCoreTemperature38]
 Meter=String
-MeterStyle=CPUStyleRowSensor
-X=(#ContentX#+#CPUCoreColumnWidth#+48*#Scale#)
+MeterStyle=CPUStyleRowTemperature
+X=(#ContentX#+#CPUCoreColumnWidth#+78*#Scale#)
 Y=(#Inset#+120*#Scale#)
+W=(34*#Scale#)
 Group=CPUCore38|CPUUI
 
 [MeterCoreVoltage39]
 Meter=String
 MeterStyle=CPUStyleRowSensor
-X=(#ContentX#+#CPUCoreColumnWidth#+16*#Scale#)
+X=(#ContentX#+#CPUCoreColumnWidth#+22*#Scale#)
 Y=(#Inset#+120*#Scale#)
+W=(44*#Scale#)
 Group=CPUCore39|CPUUI
 
 [MeterCoreTemperature39]
 Meter=String
-MeterStyle=CPUStyleRowSensor
-X=(#ContentX#+#CPUCoreColumnWidth#+48*#Scale#)
+MeterStyle=CPUStyleRowTemperature
+X=(#ContentX#+#CPUCoreColumnWidth#+78*#Scale#)
 Y=(#Inset#+120*#Scale#)
+W=(34*#Scale#)
 Group=CPUCore39|CPUUI
 
 [MeterCoreVoltage40]
 Meter=String
 MeterStyle=CPUStyleRowSensor
-X=(#ContentX#+#CPUCoreColumnWidth#+16*#Scale#)
+X=(#ContentX#+#CPUCoreColumnWidth#+22*#Scale#)
 Y=(#Inset#+120*#Scale#)
+W=(44*#Scale#)
 Group=CPUCore40|CPUUI
 
 [MeterCoreTemperature40]
 Meter=String
-MeterStyle=CPUStyleRowSensor
-X=(#ContentX#+#CPUCoreColumnWidth#+48*#Scale#)
+MeterStyle=CPUStyleRowTemperature
+X=(#ContentX#+#CPUCoreColumnWidth#+78*#Scale#)
 Y=(#Inset#+120*#Scale#)
+W=(34*#Scale#)
 Group=CPUCore40|CPUUI
 
 [MeterCoreVoltage41]
 Meter=String
 MeterStyle=CPUStyleRowSensor
-X=(#ContentX#+#CPUCoreColumnWidth#+16*#Scale#)
+X=(#ContentX#+#CPUCoreColumnWidth#+22*#Scale#)
 Y=(#Inset#+120*#Scale#)
+W=(44*#Scale#)
 Group=CPUCore41|CPUUI
 
 [MeterCoreTemperature41]
 Meter=String
-MeterStyle=CPUStyleRowSensor
-X=(#ContentX#+#CPUCoreColumnWidth#+48*#Scale#)
+MeterStyle=CPUStyleRowTemperature
+X=(#ContentX#+#CPUCoreColumnWidth#+78*#Scale#)
 Y=(#Inset#+120*#Scale#)
+W=(34*#Scale#)
 Group=CPUCore41|CPUUI
 
 [MeterCoreVoltage42]
 Meter=String
 MeterStyle=CPUStyleRowSensor
-X=(#ContentX#+#CPUCoreColumnWidth#+16*#Scale#)
+X=(#ContentX#+#CPUCoreColumnWidth#+22*#Scale#)
 Y=(#Inset#+120*#Scale#)
+W=(44*#Scale#)
 Group=CPUCore42|CPUUI
 
 [MeterCoreTemperature42]
 Meter=String
-MeterStyle=CPUStyleRowSensor
-X=(#ContentX#+#CPUCoreColumnWidth#+48*#Scale#)
+MeterStyle=CPUStyleRowTemperature
+X=(#ContentX#+#CPUCoreColumnWidth#+78*#Scale#)
 Y=(#Inset#+120*#Scale#)
+W=(34*#Scale#)
 Group=CPUCore42|CPUUI
 
 [MeterCoreVoltage43]
 Meter=String
 MeterStyle=CPUStyleRowSensor
-X=(#ContentX#+#CPUCoreColumnWidth#+16*#Scale#)
+X=(#ContentX#+#CPUCoreColumnWidth#+22*#Scale#)
 Y=(#Inset#+120*#Scale#)
+W=(44*#Scale#)
 Group=CPUCore43|CPUUI
 
 [MeterCoreTemperature43]
 Meter=String
-MeterStyle=CPUStyleRowSensor
-X=(#ContentX#+#CPUCoreColumnWidth#+48*#Scale#)
+MeterStyle=CPUStyleRowTemperature
+X=(#ContentX#+#CPUCoreColumnWidth#+78*#Scale#)
 Y=(#Inset#+120*#Scale#)
+W=(34*#Scale#)
 Group=CPUCore43|CPUUI
 
 [MeterCoreVoltage44]
 Meter=String
 MeterStyle=CPUStyleRowSensor
-X=(#ContentX#+#CPUCoreColumnWidth#+16*#Scale#)
+X=(#ContentX#+#CPUCoreColumnWidth#+22*#Scale#)
 Y=(#Inset#+120*#Scale#)
+W=(44*#Scale#)
 Group=CPUCore44|CPUUI
 
 [MeterCoreTemperature44]
 Meter=String
-MeterStyle=CPUStyleRowSensor
-X=(#ContentX#+#CPUCoreColumnWidth#+48*#Scale#)
+MeterStyle=CPUStyleRowTemperature
+X=(#ContentX#+#CPUCoreColumnWidth#+78*#Scale#)
 Y=(#Inset#+120*#Scale#)
+W=(34*#Scale#)
 Group=CPUCore44|CPUUI
 
 [MeterCoreVoltage45]
 Meter=String
 MeterStyle=CPUStyleRowSensor
-X=(#ContentX#+#CPUCoreColumnWidth#+16*#Scale#)
+X=(#ContentX#+#CPUCoreColumnWidth#+22*#Scale#)
 Y=(#Inset#+120*#Scale#)
+W=(44*#Scale#)
 Group=CPUCore45|CPUUI
 
 [MeterCoreTemperature45]
 Meter=String
-MeterStyle=CPUStyleRowSensor
-X=(#ContentX#+#CPUCoreColumnWidth#+48*#Scale#)
+MeterStyle=CPUStyleRowTemperature
+X=(#ContentX#+#CPUCoreColumnWidth#+78*#Scale#)
 Y=(#Inset#+120*#Scale#)
+W=(34*#Scale#)
 Group=CPUCore45|CPUUI
 
 [MeterCoreVoltage46]
 Meter=String
 MeterStyle=CPUStyleRowSensor
-X=(#ContentX#+#CPUCoreColumnWidth#+16*#Scale#)
+X=(#ContentX#+#CPUCoreColumnWidth#+22*#Scale#)
 Y=(#Inset#+120*#Scale#)
+W=(44*#Scale#)
 Group=CPUCore46|CPUUI
 
 [MeterCoreTemperature46]
 Meter=String
-MeterStyle=CPUStyleRowSensor
-X=(#ContentX#+#CPUCoreColumnWidth#+48*#Scale#)
+MeterStyle=CPUStyleRowTemperature
+X=(#ContentX#+#CPUCoreColumnWidth#+78*#Scale#)
 Y=(#Inset#+120*#Scale#)
+W=(34*#Scale#)
 Group=CPUCore46|CPUUI
 
 [MeterCoreVoltage47]
 Meter=String
 MeterStyle=CPUStyleRowSensor
-X=(#ContentX#+#CPUCoreColumnWidth#+16*#Scale#)
+X=(#ContentX#+#CPUCoreColumnWidth#+22*#Scale#)
 Y=(#Inset#+120*#Scale#)
+W=(44*#Scale#)
 Group=CPUCore47|CPUUI
 
 [MeterCoreTemperature47]
 Meter=String
-MeterStyle=CPUStyleRowSensor
-X=(#ContentX#+#CPUCoreColumnWidth#+48*#Scale#)
+MeterStyle=CPUStyleRowTemperature
+X=(#ContentX#+#CPUCoreColumnWidth#+78*#Scale#)
 Y=(#Inset#+120*#Scale#)
+W=(34*#Scale#)
 Group=CPUCore47|CPUUI
 
 [MeterCoreVoltage48]
 Meter=String
 MeterStyle=CPUStyleRowSensor
-X=(#ContentX#+#CPUCoreColumnWidth#+16*#Scale#)
+X=(#ContentX#+#CPUCoreColumnWidth#+22*#Scale#)
 Y=(#Inset#+120*#Scale#)
+W=(44*#Scale#)
 Group=CPUCore48|CPUUI
 
 [MeterCoreTemperature48]
 Meter=String
-MeterStyle=CPUStyleRowSensor
-X=(#ContentX#+#CPUCoreColumnWidth#+48*#Scale#)
+MeterStyle=CPUStyleRowTemperature
+X=(#ContentX#+#CPUCoreColumnWidth#+78*#Scale#)
 Y=(#Inset#+120*#Scale#)
+W=(34*#Scale#)
 Group=CPUCore48|CPUUI
 
 [MeterCoreVoltage49]
 Meter=String
 MeterStyle=CPUStyleRowSensor
-X=(#ContentX#+#CPUCoreColumnWidth#+16*#Scale#)
+X=(#ContentX#+#CPUCoreColumnWidth#+22*#Scale#)
 Y=(#Inset#+120*#Scale#)
+W=(44*#Scale#)
 Group=CPUCore49|CPUUI
 
 [MeterCoreTemperature49]
 Meter=String
-MeterStyle=CPUStyleRowSensor
-X=(#ContentX#+#CPUCoreColumnWidth#+48*#Scale#)
+MeterStyle=CPUStyleRowTemperature
+X=(#ContentX#+#CPUCoreColumnWidth#+78*#Scale#)
 Y=(#Inset#+120*#Scale#)
+W=(34*#Scale#)
 Group=CPUCore49|CPUUI
 
 [MeterCoreVoltage50]
 Meter=String
 MeterStyle=CPUStyleRowSensor
-X=(#ContentX#+#CPUCoreColumnWidth#+16*#Scale#)
+X=(#ContentX#+#CPUCoreColumnWidth#+22*#Scale#)
 Y=(#Inset#+120*#Scale#)
+W=(44*#Scale#)
 Group=CPUCore50|CPUUI
 
 [MeterCoreTemperature50]
 Meter=String
-MeterStyle=CPUStyleRowSensor
-X=(#ContentX#+#CPUCoreColumnWidth#+48*#Scale#)
+MeterStyle=CPUStyleRowTemperature
+X=(#ContentX#+#CPUCoreColumnWidth#+78*#Scale#)
 Y=(#Inset#+120*#Scale#)
+W=(34*#Scale#)
 Group=CPUCore50|CPUUI
 
 [MeterCoreVoltage51]
 Meter=String
 MeterStyle=CPUStyleRowSensor
-X=(#ContentX#+#CPUCoreColumnWidth#+16*#Scale#)
+X=(#ContentX#+#CPUCoreColumnWidth#+22*#Scale#)
 Y=(#Inset#+120*#Scale#)
+W=(44*#Scale#)
 Group=CPUCore51|CPUUI
 
 [MeterCoreTemperature51]
 Meter=String
-MeterStyle=CPUStyleRowSensor
-X=(#ContentX#+#CPUCoreColumnWidth#+48*#Scale#)
+MeterStyle=CPUStyleRowTemperature
+X=(#ContentX#+#CPUCoreColumnWidth#+78*#Scale#)
 Y=(#Inset#+120*#Scale#)
+W=(34*#Scale#)
 Group=CPUCore51|CPUUI
 
 [MeterCoreVoltage52]
 Meter=String
 MeterStyle=CPUStyleRowSensor
-X=(#ContentX#+#CPUCoreColumnWidth#+16*#Scale#)
+X=(#ContentX#+#CPUCoreColumnWidth#+22*#Scale#)
 Y=(#Inset#+120*#Scale#)
+W=(44*#Scale#)
 Group=CPUCore52|CPUUI
 
 [MeterCoreTemperature52]
 Meter=String
-MeterStyle=CPUStyleRowSensor
-X=(#ContentX#+#CPUCoreColumnWidth#+48*#Scale#)
+MeterStyle=CPUStyleRowTemperature
+X=(#ContentX#+#CPUCoreColumnWidth#+78*#Scale#)
 Y=(#Inset#+120*#Scale#)
+W=(34*#Scale#)
 Group=CPUCore52|CPUUI
 
 [MeterCoreVoltage53]
 Meter=String
 MeterStyle=CPUStyleRowSensor
-X=(#ContentX#+#CPUCoreColumnWidth#+16*#Scale#)
+X=(#ContentX#+#CPUCoreColumnWidth#+22*#Scale#)
 Y=(#Inset#+120*#Scale#)
+W=(44*#Scale#)
 Group=CPUCore53|CPUUI
 
 [MeterCoreTemperature53]
 Meter=String
-MeterStyle=CPUStyleRowSensor
-X=(#ContentX#+#CPUCoreColumnWidth#+48*#Scale#)
+MeterStyle=CPUStyleRowTemperature
+X=(#ContentX#+#CPUCoreColumnWidth#+78*#Scale#)
 Y=(#Inset#+120*#Scale#)
+W=(34*#Scale#)
 Group=CPUCore53|CPUUI
 
 [MeterCoreVoltage54]
 Meter=String
 MeterStyle=CPUStyleRowSensor
-X=(#ContentX#+#CPUCoreColumnWidth#+16*#Scale#)
+X=(#ContentX#+#CPUCoreColumnWidth#+22*#Scale#)
 Y=(#Inset#+120*#Scale#)
+W=(44*#Scale#)
 Group=CPUCore54|CPUUI
 
 [MeterCoreTemperature54]
 Meter=String
-MeterStyle=CPUStyleRowSensor
-X=(#ContentX#+#CPUCoreColumnWidth#+48*#Scale#)
+MeterStyle=CPUStyleRowTemperature
+X=(#ContentX#+#CPUCoreColumnWidth#+78*#Scale#)
 Y=(#Inset#+120*#Scale#)
+W=(34*#Scale#)
 Group=CPUCore54|CPUUI
 
 [MeterCoreVoltage55]
 Meter=String
 MeterStyle=CPUStyleRowSensor
-X=(#ContentX#+#CPUCoreColumnWidth#+16*#Scale#)
+X=(#ContentX#+#CPUCoreColumnWidth#+22*#Scale#)
 Y=(#Inset#+120*#Scale#)
+W=(44*#Scale#)
 Group=CPUCore55|CPUUI
 
 [MeterCoreTemperature55]
 Meter=String
-MeterStyle=CPUStyleRowSensor
-X=(#ContentX#+#CPUCoreColumnWidth#+48*#Scale#)
+MeterStyle=CPUStyleRowTemperature
+X=(#ContentX#+#CPUCoreColumnWidth#+78*#Scale#)
 Y=(#Inset#+120*#Scale#)
+W=(34*#Scale#)
 Group=CPUCore55|CPUUI
 
 [MeterCoreVoltage56]
 Meter=String
 MeterStyle=CPUStyleRowSensor
-X=(#ContentX#+#CPUCoreColumnWidth#+16*#Scale#)
+X=(#ContentX#+#CPUCoreColumnWidth#+22*#Scale#)
 Y=(#Inset#+120*#Scale#)
+W=(44*#Scale#)
 Group=CPUCore56|CPUUI
 
 [MeterCoreTemperature56]
 Meter=String
-MeterStyle=CPUStyleRowSensor
-X=(#ContentX#+#CPUCoreColumnWidth#+48*#Scale#)
+MeterStyle=CPUStyleRowTemperature
+X=(#ContentX#+#CPUCoreColumnWidth#+78*#Scale#)
 Y=(#Inset#+120*#Scale#)
+W=(34*#Scale#)
 Group=CPUCore56|CPUUI
 
 [MeterCoreVoltage57]
 Meter=String
 MeterStyle=CPUStyleRowSensor
-X=(#ContentX#+#CPUCoreColumnWidth#+16*#Scale#)
+X=(#ContentX#+#CPUCoreColumnWidth#+22*#Scale#)
 Y=(#Inset#+120*#Scale#)
+W=(44*#Scale#)
 Group=CPUCore57|CPUUI
 
 [MeterCoreTemperature57]
 Meter=String
-MeterStyle=CPUStyleRowSensor
-X=(#ContentX#+#CPUCoreColumnWidth#+48*#Scale#)
+MeterStyle=CPUStyleRowTemperature
+X=(#ContentX#+#CPUCoreColumnWidth#+78*#Scale#)
 Y=(#Inset#+120*#Scale#)
+W=(34*#Scale#)
 Group=CPUCore57|CPUUI
 
 [MeterCoreVoltage58]
 Meter=String
 MeterStyle=CPUStyleRowSensor
-X=(#ContentX#+#CPUCoreColumnWidth#+16*#Scale#)
+X=(#ContentX#+#CPUCoreColumnWidth#+22*#Scale#)
 Y=(#Inset#+120*#Scale#)
+W=(44*#Scale#)
 Group=CPUCore58|CPUUI
 
 [MeterCoreTemperature58]
 Meter=String
-MeterStyle=CPUStyleRowSensor
-X=(#ContentX#+#CPUCoreColumnWidth#+48*#Scale#)
+MeterStyle=CPUStyleRowTemperature
+X=(#ContentX#+#CPUCoreColumnWidth#+78*#Scale#)
 Y=(#Inset#+120*#Scale#)
+W=(34*#Scale#)
 Group=CPUCore58|CPUUI
 
 [MeterCoreVoltage59]
 Meter=String
 MeterStyle=CPUStyleRowSensor
-X=(#ContentX#+#CPUCoreColumnWidth#+16*#Scale#)
+X=(#ContentX#+#CPUCoreColumnWidth#+22*#Scale#)
 Y=(#Inset#+120*#Scale#)
+W=(44*#Scale#)
 Group=CPUCore59|CPUUI
 
 [MeterCoreTemperature59]
 Meter=String
-MeterStyle=CPUStyleRowSensor
-X=(#ContentX#+#CPUCoreColumnWidth#+48*#Scale#)
+MeterStyle=CPUStyleRowTemperature
+X=(#ContentX#+#CPUCoreColumnWidth#+78*#Scale#)
 Y=(#Inset#+120*#Scale#)
+W=(34*#Scale#)
 Group=CPUCore59|CPUUI
 
 [MeterCoreVoltage60]
 Meter=String
 MeterStyle=CPUStyleRowSensor
-X=(#ContentX#+#CPUCoreColumnWidth#+16*#Scale#)
+X=(#ContentX#+#CPUCoreColumnWidth#+22*#Scale#)
 Y=(#Inset#+120*#Scale#)
+W=(44*#Scale#)
 Group=CPUCore60|CPUUI
 
 [MeterCoreTemperature60]
 Meter=String
-MeterStyle=CPUStyleRowSensor
-X=(#ContentX#+#CPUCoreColumnWidth#+48*#Scale#)
+MeterStyle=CPUStyleRowTemperature
+X=(#ContentX#+#CPUCoreColumnWidth#+78*#Scale#)
 Y=(#Inset#+120*#Scale#)
+W=(34*#Scale#)
 Group=CPUCore60|CPUUI
 
 [MeterCoreVoltage61]
 Meter=String
 MeterStyle=CPUStyleRowSensor
-X=(#ContentX#+#CPUCoreColumnWidth#+16*#Scale#)
+X=(#ContentX#+#CPUCoreColumnWidth#+22*#Scale#)
 Y=(#Inset#+120*#Scale#)
+W=(44*#Scale#)
 Group=CPUCore61|CPUUI
 
 [MeterCoreTemperature61]
 Meter=String
-MeterStyle=CPUStyleRowSensor
-X=(#ContentX#+#CPUCoreColumnWidth#+48*#Scale#)
+MeterStyle=CPUStyleRowTemperature
+X=(#ContentX#+#CPUCoreColumnWidth#+78*#Scale#)
 Y=(#Inset#+120*#Scale#)
+W=(34*#Scale#)
 Group=CPUCore61|CPUUI
 
 [MeterCoreVoltage62]
 Meter=String
 MeterStyle=CPUStyleRowSensor
-X=(#ContentX#+#CPUCoreColumnWidth#+16*#Scale#)
+X=(#ContentX#+#CPUCoreColumnWidth#+22*#Scale#)
 Y=(#Inset#+120*#Scale#)
+W=(44*#Scale#)
 Group=CPUCore62|CPUUI
 
 [MeterCoreTemperature62]
 Meter=String
-MeterStyle=CPUStyleRowSensor
-X=(#ContentX#+#CPUCoreColumnWidth#+48*#Scale#)
+MeterStyle=CPUStyleRowTemperature
+X=(#ContentX#+#CPUCoreColumnWidth#+78*#Scale#)
 Y=(#Inset#+120*#Scale#)
+W=(34*#Scale#)
 Group=CPUCore62|CPUUI
 
 [MeterCoreVoltage63]
 Meter=String
 MeterStyle=CPUStyleRowSensor
-X=(#ContentX#+#CPUCoreColumnWidth#+16*#Scale#)
+X=(#ContentX#+#CPUCoreColumnWidth#+22*#Scale#)
 Y=(#Inset#+120*#Scale#)
+W=(44*#Scale#)
 Group=CPUCore63|CPUUI
 
 [MeterCoreTemperature63]
 Meter=String
-MeterStyle=CPUStyleRowSensor
-X=(#ContentX#+#CPUCoreColumnWidth#+48*#Scale#)
+MeterStyle=CPUStyleRowTemperature
+X=(#ContentX#+#CPUCoreColumnWidth#+78*#Scale#)
 Y=(#Inset#+120*#Scale#)
+W=(34*#Scale#)
 Group=CPUCore63|CPUUI
 
 [MeterCoreVoltage64]
 Meter=String
 MeterStyle=CPUStyleRowSensor
-X=(#ContentX#+#CPUCoreColumnWidth#+16*#Scale#)
+X=(#ContentX#+#CPUCoreColumnWidth#+22*#Scale#)
 Y=(#Inset#+120*#Scale#)
+W=(44*#Scale#)
 Group=CPUCore64|CPUUI
 
 [MeterCoreTemperature64]
 Meter=String
-MeterStyle=CPUStyleRowSensor
-X=(#ContentX#+#CPUCoreColumnWidth#+48*#Scale#)
+MeterStyle=CPUStyleRowTemperature
+X=(#ContentX#+#CPUCoreColumnWidth#+78*#Scale#)
 Y=(#Inset#+120*#Scale#)
+W=(34*#Scale#)
 Group=CPUCore64|CPUUI
 
 [MeterTableCoreHeader]
@@ -2249,53 +2377,60 @@ W=#CPUCoreColumnWidth#
 H=(16*#Scale#)
 FontColor=#HeaderTextColor#
 FontSize=(#HeaderFontSize#*#Scale#)
-Text=Core
+Text=Thread
 Hidden=1
 Group=CPUTableFrame|CPUUI
-ToolTipText=Logical processor labels. The bar at the right of this column shows utilization.
+ToolTipText=Windows hardware-thread numbers. The adjacent bar shows each thread utilization.
 
 [MeterTableVoltageHeader]
-Meter=String
-MeterStyle=CPUStyleRowSensor
-X=(#ContentX#+#CPUCoreColumnWidth#+16*#Scale#)
-Y=(#Inset#+30*#Scale#)
-Text=V
-FontColor=#HeaderTextColor#
+Meter=Image
+X=(#ContentX#+#CPUCoreColumnWidth#+15*#Scale#)
+Y=(#Inset#+31*#Scale#)
+W=(14*#Scale#)
+H=(14*#Scale#)
+; Official Lucide Zap artwork, exported from Icons/zap.svg at 128 px.
+ImageName=#@#Modules\CPU\Icons\zap.png
+Greyscale=1
+ImageTint=#WarningColor#,255
+Hidden=1
 Group=CPUTableFrame|CPUUI
-ToolTipText=Voltage in volts. A dash means no sensor value is available.
-FontSize=(#HeaderFontSize#*#Scale#)
-H=(16*#Scale#)
+ToolTipText=High-voltage Zap symbol: Core VID requested voltage in volts, shared by paired threads. VID is not a measured supply voltage.
 
 [MeterTableTemperatureHeader]
-Meter=String
-MeterStyle=CPUStyleRowSensor
-X=(#ContentX#+#CPUCoreColumnWidth#+48*#Scale#)
-Y=(#Inset#+30*#Scale#)
-Text=T
-FontColor=#HeaderTextColor#
+Meter=Image
+X=(#ContentX#+#CPUCoreColumnWidth#+54*#Scale#)
+Y=(#Inset#+31*#Scale#)
+W=(14*#Scale#)
+H=(14*#Scale#)
+; Official Lucide Flame artwork, exported from Icons/flame.svg at 128 px.
+ImageName=#@#Modules\CPU\Icons\flame.png
+Greyscale=1
+ImageTint=#CPUColor#,255
+Hidden=1
 Group=CPUTableFrame|CPUUI
-ToolTipText=Temperature in degrees Celsius. A dash means no sensor value is available.
-FontSize=(#HeaderFontSize#*#Scale#)
-H=(16*#Scale#)
+ToolTipText=Flame symbol: Per-core temperature in degrees Celsius, shared by paired threads. A dash means unavailable.
 
 [MeterTableUsageHeader]
-Meter=String
-MeterStyle=CPUStyleRowValue
-Y=(#Inset#+30*#Scale#)
-Text=%
-FontSize=(#HeaderFontSize#*#Scale#)
+Meter=Image
+X=(#ContentX#+#CPUCoreColumnWidth#+100*#Scale#)
+Y=(#Inset#+31*#Scale#)
+W=(14*#Scale#)
+H=(14*#Scale#)
+; Official Lucide Gauge artwork, exported from Icons/gauge.svg at 128 px.
+ImageName=#@#Modules\CPU\Icons\gauge.png
+Greyscale=1
+ImageTint=#HeaderTextColor#,255
 Group=CPUTableFrame|CPUUI
-ToolTipText=Logical processor utilization as a percentage.
-FontColor=#HeaderTextColor#
-H=(16*#Scale#)
+Hidden=1
+ToolTipText=Gauge symbol: logical processor utilization as a percentage.
 
 [MeterTableHeaderRule]
 Meter=Shape
 X=#ContentX#
 Y=(#Inset#+30*#Scale#)
 W=#ContentWidth#
-H=(#DividerThickness#*#Scale#)
-Shape=Line 0,(#DividerThickness#*#Scale#/2),#ContentWidth#,(#DividerThickness#*#Scale#/2) | Stroke Color #DividerColor# | StrokeWidth (#DividerThickness#*#Scale#)
+H=(#TableHeaderBorderThickness#*#Scale#)
+Shape=Line 0,(#TableHeaderBorderThickness#*#Scale#/2),#ContentWidth#,(#TableHeaderBorderThickness#*#Scale#/2) | Stroke Color #TableHeaderBorderColor# | StrokeWidth (#TableHeaderBorderThickness#*#Scale#)
 Hidden=1
 Group=CPUTableFrame|CPUUI
 
@@ -2308,4 +2443,3 @@ H=(#DividerThickness#*#Scale#)
 Shape=Line 0,(#DividerThickness#*#Scale#/2),#ContentWidth#,(#DividerThickness#*#Scale#/2) | Stroke Color #DividerColor# | StrokeWidth (#DividerThickness#*#Scale#)
 Hidden=1
 Group=CPUTableFrame|CPUUI
-

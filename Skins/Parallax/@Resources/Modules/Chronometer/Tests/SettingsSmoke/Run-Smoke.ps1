@@ -1,7 +1,8 @@
 [CmdletBinding()]
 param(
     [string]$RainmeterPath = (Join-Path $env:ProgramFiles 'Rainmeter\Rainmeter.exe'),
-    [ValidateRange(20, 30)][int]$TimeoutSeconds = 30,
+    [ValidateRange(20, 60)][int]$TimeoutSeconds = 30,
+    [switch]$NumberInput,
     [int[]]$Columns = @(1, 2),
     [int[]]$ColumnWidths = @(180),
     [double[]]$Scales = @(0.75, 1, 2),
@@ -44,17 +45,20 @@ function Set-FixtureVariable([string]$Contents, [string]$Key, [string]$Value) {
 }
 
 if (-not (Test-Path -LiteralPath $RainmeterPath -PathType Leaf)) { throw 'Existing Rainmeter required; nothing is installed.' }
+if (-not $NumberInput -and $TimeoutSeconds -gt 30) { throw 'Timeouts above 30 seconds are reserved for the optional NumberInput scenario.' }
+if ($NumberInput -and -not $PSBoundParameters.ContainsKey('TimeoutSeconds')) { $TimeoutSeconds = 60 }
 if ((Test-Path -LiteralPath $runtimeRoot) -and ((Get-Item -LiteralPath $runtimeRoot -Force).Attributes -band [IO.FileAttributes]::ReparsePoint)) {
     throw 'Settings smoke runtime root must not be a junction or symbolic link.'
 }
 foreach ($column in $Columns) { if ($column -notin @(1, 2)) { throw 'Columns must be 1 or 2.' } }
-foreach ($width in $ColumnWidths) { if ($width -notin @(180, 200, 240, 280, 320)) { throw 'Unsupported ColumnWidth.' } }
+foreach ($width in $ColumnWidths) { if ($width -notin @(180, 200, 220, 240, 280, 320)) { throw 'Unsupported ColumnWidth.' } }
 foreach ($scale in $Scales) { if ($scale -notin @(0.75, 1, 1.25, 1.5, 2)) { throw 'Unsupported Scale.' } }
 $countdownIni = Get-Content -LiteralPath (Join-Path $suiteRoot 'Chronometer\Chronometer.ini') -Raw
 $menuIni = Get-Content -LiteralPath (Join-Path $suiteRoot 'Chronometer\Settings\Settings.ini') -Raw
+$settingsNote = Get-Content -LiteralPath (Join-Path $resourceRoot 'UtilitySettingsNote.inc') -Raw
 # Enable only this copied menu's test orchestration. Production remains click-driven.
 $menuIni = [regex]::Replace($menuIni, '(?m)^Update=-1\s*$', 'Update=1000')
-$meterNames = @([regex]::Matches($menuIni, '(?m)^\[(Meter[^\]]+)\]') | ForEach-Object { $_.Groups[1].Value }) -join '|'
+$meterNames = @([regex]::Matches(($menuIni + "`n" + $settingsNote), '(?m)^\[(Meter[^\]]+)\]') | ForEach-Object { $_.Groups[1].Value }) -join '|'
 
 try {
     foreach ($width in $ColumnWidths) {
@@ -65,16 +69,19 @@ try {
                 $skinRoot = Join-Path $caseRoot 'Skins'
                 $skinDirectory = Join-Path $skinRoot 'Parallax\Chronometer'
                 $menuDirectory = Join-Path $skinDirectory 'Settings'
+                $navigationDirectory = Join-Path $skinRoot 'Parallax\Settings'
                 $resources = Join-Path $skinRoot 'Parallax\@Resources'
                 $scripts = Join-Path $resources 'Modules\Chronometer'
-                foreach ($directory in @($skinDirectory, $menuDirectory, $scripts, (Join-Path $resources 'User'),
+                foreach ($directory in @($skinDirectory, $menuDirectory, $navigationDirectory, $scripts, (Join-Path $resources 'User'),
+                    (Join-Path $resources 'Scripts'),
                     (Join-Path $caseRoot 'Layouts'), (Join-Path $caseRoot 'Plugins'), (Join-Path $caseRoot 'Addons'))) {
                     Assert-WithinRun $directory
                     New-Item -ItemType Directory -Path $directory -Force | Out-Null
                 }
-                foreach ($name in @('Defaults.inc', 'Geometry.inc', 'Styles.inc')) {
+                foreach ($name in @('Defaults.inc', 'Geometry.inc', 'Styles.inc', 'UtilitySettingsNote.inc')) {
                     Copy-IntoRun (Join-Path $resourceRoot $name) (Join-Path $resources $name)
                 }
+                Copy-IntoRun (Join-Path $resourceRoot 'Scripts\SettingsInput.ps1') (Join-Path $resources 'Scripts\SettingsInput.ps1')
                 foreach ($source in Get-ChildItem -LiteralPath $moduleRoot -File) {
                     if ($source.Extension -in @('.lua', '.inc')) { Copy-IntoRun $source.FullName (Join-Path $scripts $source.Name) }
                 }
@@ -103,6 +110,7 @@ try {
                 $moduleSettings = [regex]::Replace($moduleSettings, '(?m)^ChronometerClockFormat=.*$', 'ChronometerClockFormat=%H:%M:%S')
                 $moduleSettings = [regex]::Replace($moduleSettings, '(?m)^ChronometerList1Timer1Seconds=.*$', 'ChronometerList1Timer1Seconds=1500')
                 $moduleSettings = [regex]::Replace($moduleSettings, '(?m)^ChronometerList1Timer2Seconds=.*$', 'ChronometerList1Timer2Seconds=300')
+                if ($NumberInput) { $moduleSettings = Set-FixtureVariable $moduleSettings 'ChronometerList1Timer3Seconds' '600' }
                 foreach ($section in @('Clock', 'Uptime', 'Event', 'Timers')) {
                     $moduleSettings = Set-FixtureVariable $moduleSettings ('ChronometerShow' + $section) '1'
                 }
@@ -112,6 +120,57 @@ try {
                 $baselinePath = Join-Path $caseRoot 'baseline.txt'
                 $eventBaselinePath = Join-Path $caseRoot 'event-baseline.txt'
                 $visibilityAckPath = Join-Path $caseRoot 'visibility-ack.txt'
+                $navigationAckPath = Join-Path $caseRoot 'navigation-ack.txt'
+                $optionsBaselinePath = Join-Path $caseRoot 'options-baseline.txt'
+                $reopenStatePath = Join-Path $caseRoot 'menu-reopen-state.txt'
+                $inputFixturePath = Join-Path $caseRoot 'input-choice.txt'
+                $inputLaunchLogPath = Join-Path $caseRoot 'input-launches.txt'
+                $inputEvidencePath = Join-Path $caseRoot 'input-evidence.txt'
+                $inputEnabled = if ($NumberInput) { '1' } else { '0' }
+                $lifecycleLimit = if ($NumberInput) { '50' } else { '16' }
+                if ($NumberInput) {
+                    Write-Utf8 $inputFixturePath 'valid'
+                    Write-Utf8 $inputLaunchLogPath ''
+                    # Only this isolated helper copy selects its existing headless
+                    # validation/Cancel modes. Production launch arguments, stdout
+                    # protocol and the RunCommand FinishAction remain unchanged.
+                    $inputPrelude = @'
+# SettingsSmoke fixture: fixed ASCII choices are data, never commands.
+$testChoice = [IO.File]::ReadAllText('__CHOICE_PATH__').Trim()
+if ($testChoice -notin @('valid', 'invalid', 'cancel')) { throw 'Invalid SettingsSmoke input fixture.' }
+[IO.File]::AppendAllText('__LAUNCH_PATH__', $testChoice + [Environment]::NewLine)
+$ValidateOnly = [switch]$true
+$Cancel = [switch]($testChoice -eq 'cancel')
+$Value = if ($testChoice -eq 'invalid') { '604801' } else { '1599' }
+
+'@
+                    $inputPrelude = $inputPrelude.Replace('__CHOICE_PATH__', $inputFixturePath.Replace("'", "''")).Replace('__LAUNCH_PATH__', $inputLaunchLogPath.Replace("'", "''"))
+                    $copiedHelper = Join-Path $resources 'Scripts\SettingsInput.ps1'
+                    $helperSource = Get-Content -LiteralPath $copiedHelper -Raw
+                    $marker = 'function ConvertTo-ParallaxInputValue {'
+                    if (-not $helperSource.Contains($marker)) { throw 'Shared helper validation entry point changed.' }
+                    Write-Utf8 $copiedHelper ($helperSource.Replace($marker, $inputPrelude + $marker))
+                }
+                # A harmless test-only destination exercises the real link without
+                # staging or activating the user's production Global Settings UI.
+                Write-Utf8 (Join-Path $navigationDirectory 'Settings.ini') @"
+[Rainmeter]
+Update=1000
+AccurateText=1
+DynamicWindowSize=1
+
+[MeasureSettingsNavigationSmoke]
+Measure=Script
+ScriptFile=#@#Modules\Chronometer\SettingsSmoke.lua
+Role=Navigation
+NavigationAckPath=$navigationAckPath
+
+[MeterNavigationBounds]
+Meter=Image
+W=1
+H=1
+SolidColor=0,0,0,0
+"@
                 Write-Utf8 (Join-Path $skinDirectory 'Chronometer.ini') ($countdownIni + "`n" + @"
 [MeasureSettingsLifecycleSmoke]
 Measure=Script
@@ -122,6 +181,7 @@ MenuResultPath=$menuResultPath
 BaselinePath=$baselinePath
 EventBaselinePath=$eventBaselinePath
 VisibilityAckPath=$visibilityAckPath
+LifecycleLimitTicks=$lifecycleLimit
 "@)
                 Write-Utf8 (Join-Path $menuDirectory 'Settings.ini') ($menuIni + "`n" + @"
 [MeasureSettingsMenuSmoke]
@@ -132,9 +192,18 @@ ResultPath=$menuResultPath
 MeterNames=$meterNames
 EventBaselinePath=$eventBaselinePath
 VisibilityAckPath=$visibilityAckPath
+NavigationAckPath=$navigationAckPath
+OptionsBaselinePath=$optionsBaselinePath
+ReopenStatePath=$reopenStatePath
+NumberInputEnabled=$inputEnabled
+InputFixturePath=$inputFixturePath
+InputLaunchLogPath=$inputLaunchLogPath
+InputEvidencePath=$inputEvidencePath
 "@)
                 $probeIni = ''
-                foreach ($probe in @('Title', 'ClockVisibility', 'TimerSeconds1', 'Status')) {
+                foreach ($probe in @('Title', 'ClockVisibility', 'WidthValue', 'ClockValue', 'DateValue', 'StepValue', 'TimerSeconds1', 'Status',
+                    'WidthLabel', 'ClockVisibilityLabel', 'ClockLabel', 'SecondsLabel', 'DateLabel', 'UptimeVisibilityLabel',
+                    'EventVisibilityLabel', 'EventConfigureLabel', 'TimersVisibilityLabel', 'ListLabel', 'StepLabel')) {
                     $probeIni += "`n[MeterSettingsSmoke$probe]`nMeter=String`nFontColor=0,0,0,0`nDynamicVariables=1`nX=0`nY=0`n"
                 }
                 $stagedMenu = Join-Path $menuDirectory 'Settings.ini'
@@ -164,6 +233,14 @@ WindowY=0
 Draggable=0
 ClickThrough=1
 AlphaValue=0
+
+[Parallax\Settings]
+Active=0
+WindowX=0
+WindowY=0
+Draggable=0
+ClickThrough=1
+AlphaValue=0
 "@
                 Write-Utf8 (Join-Path $caseRoot 'Rainmeter.data') "[Rainmeter]`n"
                 if (-not (Test-Path -LiteralPath $skinRoot -PathType Container)) { throw 'Missing isolated SkinPath; refusing launch.' }
@@ -172,6 +249,12 @@ AlphaValue=0
                 if (-not $testProcess.WaitForExit($TimeoutSeconds * 1000)) {
                     Stop-Process -InputObject $testProcess -Force
                     $testProcess.WaitForExit(5000) | Out-Null
+                    foreach ($diagnosticPath in @($menuResultPath, $resultPath, $inputEvidencePath, $inputLaunchLogPath, (Join-Path $caseRoot 'Rainmeter.log'))) {
+                        if (Test-Path -LiteralPath $diagnosticPath -PathType Leaf) {
+                            Write-Output ('Timeout diagnostic: ' + (Split-Path -Leaf $diagnosticPath))
+                            Write-Output (Get-Content -LiteralPath $diagnosticPath -Raw)
+                        }
+                    }
                     throw 'Isolated settings smoke process timed out.'
                 }
                 $testProcess.Dispose()
@@ -181,6 +264,7 @@ AlphaValue=0
                 foreach ($path in @($menuResultPath, $resultPath)) {
                     if (Test-Path -LiteralPath $path -PathType Leaf) { Write-Output (Get-Content -LiteralPath $path -Raw) }
                 }
+                if ($NumberInput -and (Test-Path -LiteralPath $inputEvidencePath -PathType Leaf)) { Write-Output (Get-Content -LiteralPath $inputEvidencePath -Raw) }
                 foreach ($path in @($menuResultPath, $resultPath)) {
                     if (-not (Test-Path -LiteralPath $path -PathType Leaf)) { Write-Output $log; throw "Missing settings smoke report: $path" }
                     $report = Get-Content -LiteralPath $path -Raw
@@ -189,10 +273,19 @@ AlphaValue=0
                 }
                 if ($log -match '(?m)^ERRO|\bError:|Script:.*(not valid|error)') { Write-Output $log; throw 'Rainmeter logged a settings error.' }
                 $savedIni = Get-Content -LiteralPath $iniPath -Raw
-                foreach ($expected in @(@('Parallax\Chronometer', '1'), @('Parallax\Chronometer\Settings', '0'))) {
+                foreach ($expected in @(@('Parallax\Chronometer', '1'), @('Parallax\Chronometer\Settings', '0'), @('Parallax\Settings', '0'))) {
                     $sectionPattern = '(?ms)^\[' + [regex]::Escape($expected[0]) + '\]\s*\r?\n(.*?)(?=^\[|\z)'
                     $section = [regex]::Match($savedIni, $sectionPattern).Groups[1].Value
                     if ($section -notmatch ('(?m)^Active=' + $expected[1] + '\s*$')) { throw "Unexpected saved active state for $($expected[0])." }
+                    $totalChecks++
+                }
+                if ((Get-Content -LiteralPath (Join-Path $resources 'User\Settings.inc') -Raw) -cne $globalSettings) {
+                    throw 'Settings navigation or module controls changed isolated global preferences.'
+                }
+                $totalChecks++
+                if ($NumberInput) {
+                    $launches = @(Get-Content -LiteralPath $inputLaunchLogPath)
+                    if (($launches -join '|') -cne 'valid|invalid|cancel') { throw 'Expected exactly three numeric helper launches; hidden controls must launch none.' }
                     $totalChecks++
                 }
                 $caseCount++

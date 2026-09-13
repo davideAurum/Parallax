@@ -1,57 +1,71 @@
 ; Styles contain no Meter key. Every visible or bounds meter below declares it.
 [StyleRAMRowLabel]
-W=(#ContentWidth#*0.38)
+W=(42*#Scale#)
 H=(18*#Scale#)
+Group=RAMLayout
+DynamicVariables=1
 UpdateDivider=-1
 
 [StyleRAMRowValue]
 X=(#ContentX#+#ContentWidth#)
-W=(#ContentWidth#*0.60)
+W=(#ContentWidth#-46*#Scale#)
 H=(18*#Scale#)
 StringAlign=Right
 FontColor=#TextColor#
 NumOfDecimals=#RAMDecimals#
 AutoScale=0
+Group=RAMLayout
 DynamicVariables=1
 
 [MeterRAMBounds]
 Meter=Image
 MeterStyle=StyleBounds
 ; Honor larger custom heights, while old saved 170px skins still fit the UI.
-H=(Max(#PanelHeightPx#,Round((262+#GraphHeight#)*#Scale#))+#Gap#)
+H=(Max(#PanelHeightPx#,Round((242+#RAMInfoHeight#+#GraphHeight#+2*Max(0,#DataBarThickness#-6))*#Scale#))+#Gap#)
+Group=RAMLayout
+DynamicVariables=1
 
 [MeterRAMPanel]
 Meter=Shape
 MeterStyle=StylePanel
-Shape=Rectangle (#BorderThickness#*#Scale#/2),(#BorderThickness#*#Scale#/2),(#PanelWidth#-#BorderThickness#*#Scale#),(Max(#PanelHeightPx#,Round((262+#GraphHeight#)*#Scale#))-#BorderThickness#*#Scale#),(#CornerRadius#*#Scale#) | Fill Color #BackgroundColor# | Stroke Color #BorderColor# | StrokeWidth (#BorderThickness#*#Scale#)
+Shape=Rectangle (#BorderThickness#*#Scale#/2),(#BorderThickness#*#Scale#/2),(#PanelWidth#-#BorderThickness#*#Scale#),(Max(#PanelHeightPx#,Round((242+#RAMInfoHeight#+#GraphHeight#+2*Max(0,#DataBarThickness#-6))*#Scale#))-#BorderThickness#*#Scale#),(#CornerRadius#*#Scale#) | Fill Color #BackgroundColor# | Stroke Color #BorderColor# | StrokeWidth (#BorderThickness#*#Scale#)
+Group=RAMLayout
+DynamicVariables=1
 
 [MeterRAMTitle]
 Meter=String
-MeterStyle=StyleTitle
-X=(#ContentX#+17*#Scale#)
-Y=(#Inset#+5*#Scale#)
-W=(#ContentWidth#-81*#Scale#)
-H=(22*#Scale#)
+MeterStyle=StyleTitle | StyleTitleRow
+X=(#ContentX#+#TitleIconSize#+#TitleIconGap#)
+W=(#ContentWidth#-#TitleIconSize#-#TitleIconGap#-64*#Scale#)
 Text=#RAMTitle#
 UpdateDivider=-1
 
-; Original small DIMM outline and pins, drawn with native primitives.
+; User-selected Lucide memory-stick SVG, adapted to native Shapes. Source and
+; license notices are in Icons/Lucide/. Preserve its 24x24 coordinates, round
+; caps/joins and 2-unit strokes while fitting the shared title icon canvas.
 [MeterRAMIcon]
 Meter=Shape
-X=(#ContentX#+1*#Scale#)
-Y=(#Inset#+10*#Scale#)
-Shape=Rectangle 0,0,(12*#Scale#),(7*#Scale#),(0.5*#Scale#) | Fill Color 0,0,0,0 | Stroke Color #RAMColor# | StrokeWidth #Scale#
-Shape2=Rectangle (2*#Scale#),(2*#Scale#),(3*#Scale#),(3*#Scale#) | Fill Color #RAMColor# | StrokeWidth 0
-Shape3=Rectangle (7*#Scale#),(2*#Scale#),(3*#Scale#),(3*#Scale#) | Fill Color #RAMColor# | StrokeWidth 0
-Shape4=Line (2*#Scale#),(7*#Scale#),(2*#Scale#),(10*#Scale#) | Stroke Color #RAMColor# | StrokeWidth #Scale#
-Shape5=Line (6*#Scale#),(7*#Scale#),(6*#Scale#),(10*#Scale#) | Stroke Color #RAMColor# | StrokeWidth #Scale#
-Shape6=Line (10*#Scale#),(7*#Scale#),(10*#Scale#),(10*#Scale#) | Stroke Color #RAMColor# | StrokeWidth #Scale#
+X=#ContentX#
+Y=(#TitleRowCenterY#-#TitleIconSize#/2)
+W=#TitleIconSize#
+H=#TitleIconSize#
+Shape=Line (12*#TitleIconSize#/24),(12*#TitleIconSize#/24),(12*#TitleIconSize#/24),(10*#TitleIconSize#/24) | Stroke Color #RAMColor# | StrokeWidth (2*#TitleIconSize#/24) | StrokeStartCap Round | StrokeEndCap Round | StrokeLineJoin Round
+Shape2=Line (12*#TitleIconSize#/24),(18*#TitleIconSize#/24),(12*#TitleIconSize#/24),(16*#TitleIconSize#/24) | Stroke Color #RAMColor# | StrokeWidth (2*#TitleIconSize#/24) | StrokeStartCap Round | StrokeEndCap Round | StrokeLineJoin Round
+Shape3=Line (16*#TitleIconSize#/24),(12*#TitleIconSize#/24),(16*#TitleIconSize#/24),(10*#TitleIconSize#/24) | Stroke Color #RAMColor# | StrokeWidth (2*#TitleIconSize#/24) | StrokeStartCap Round | StrokeEndCap Round | StrokeLineJoin Round
+Shape4=Line (16*#TitleIconSize#/24),(18*#TitleIconSize#/24),(16*#TitleIconSize#/24),(16*#TitleIconSize#/24) | Stroke Color #RAMColor# | StrokeWidth (2*#TitleIconSize#/24) | StrokeStartCap Round | StrokeEndCap Round | StrokeLineJoin Round
+Shape5=Line (2*#TitleIconSize#/24),(11*#TitleIconSize#/24),(3.5*#TitleIconSize#/24),(11*#TitleIconSize#/24) | Stroke Color #RAMColor# | StrokeWidth (2*#TitleIconSize#/24) | StrokeStartCap Round | StrokeEndCap Round | StrokeLineJoin Round
+Shape6=Line (20*#TitleIconSize#/24),(18*#TitleIconSize#/24),(20*#TitleIconSize#/24),(16*#TitleIconSize#/24) | Stroke Color #RAMColor# | StrokeWidth (2*#TitleIconSize#/24) | StrokeStartCap Round | StrokeEndCap Round | StrokeLineJoin Round
+Shape7=Line (20.5*#TitleIconSize#/24),(11*#TitleIconSize#/24),(22*#TitleIconSize#/24),(11*#TitleIconSize#/24) | Stroke Color #RAMColor# | StrokeWidth (2*#TitleIconSize#/24) | StrokeStartCap Round | StrokeEndCap Round | StrokeLineJoin Round
+Shape8=Line (4*#TitleIconSize#/24),(18*#TitleIconSize#/24),(4*#TitleIconSize#/24),(16*#TitleIconSize#/24) | Stroke Color #RAMColor# | StrokeWidth (2*#TitleIconSize#/24) | StrokeStartCap Round | StrokeEndCap Round | StrokeLineJoin Round
+Shape9=Line (8*#TitleIconSize#/24),(12*#TitleIconSize#/24),(8*#TitleIconSize#/24),(10*#TitleIconSize#/24) | Stroke Color #RAMColor# | StrokeWidth (2*#TitleIconSize#/24) | StrokeStartCap Round | StrokeEndCap Round | StrokeLineJoin Round
+Shape10=Line (8*#TitleIconSize#/24),(18*#TitleIconSize#/24),(8*#TitleIconSize#/24),(16*#TitleIconSize#/24) | Stroke Color #RAMColor# | StrokeWidth (2*#TitleIconSize#/24) | StrokeStartCap Round | StrokeEndCap Round | StrokeLineJoin Round
+Shape11=Rectangle (2*#TitleIconSize#/24),(6*#TitleIconSize#/24),(20*#TitleIconSize#/24),(10*#TitleIconSize#/24),(2*#TitleIconSize#/24) | Fill Color 0,0,0,0 | Stroke Color #RAMColor# | StrokeWidth (2*#TitleIconSize#/24) | StrokeLineJoin Round
 UpdateDivider=-1
 
 [MeterRAMOptions]
 Meter=Shape
 X=(#ContentX#+#ContentWidth#-18*#Scale#)
-Y=(#Inset#+6*#Scale#)
+Y=(#TitleRowCenterY#-9*#Scale#)
 W=(18*#Scale#)
 H=(18*#Scale#)
 ; Original eight-tooth gear; hidden meters have no mouse hit target.
@@ -64,27 +78,15 @@ MouseActionCursor=1
 LeftMouseUpAction=[!ActivateConfig "Parallax\RAM\Settings" "Settings.ini"]
 ToolTipText=Open the RAM Settings utility. Changes apply and save immediately.
 
-[MeterRAMSubtitle]
-Meter=String
-MeterStyle=StyleHeader
-Y=(#Inset#+151*#Scale#)
-W=#ContentWidth#
-H=(18*#Scale#)
-Text=PHYSICAL RAM
-ToolTipText=Operating-system usable physical RAM. Commit and pagefile usage are separate metrics.
-UpdateDivider=-1
-
 [MeterRAMPercent]
 Meter=String
-MeterStyle=StyleTitle
+MeterStyle=StyleTitle | StyleTitleRow
 FontSize=((#FontSize#+1)*#Scale#)
 FontColor=#TextColor#
 MeasureName=MeasureRAMUsed
 X=(#ContentX#+#ContentWidth#)
-Y=(#Inset#+5*#Scale#)
 W=(62*#Scale#)
-H=(21*#Scale#)
-StringAlign=Right
+StringAlign=RightCenter
 Percentual=1
 Hidden=0
 NumOfDecimals=#RAMPercentDecimals#
@@ -96,101 +98,94 @@ ToolTipText=Used physical RAM divided by the native total physical RAM range.
 Meter=Bar
 MeasureName=MeasureRAMUsed
 X=#ContentX#
-Y=(#Inset#+230*#Scale#)
+Y=(#Inset#+(#RAMInfoHeight#+Max(54,57-#DataBarThickness#/2))*#Scale#)
+Group=RAMLayout
+DynamicVariables=1
 W=#ContentWidth#
-H=(2*#Scale#)
+H=#DataBarThicknessPx#
 BarOrientation=Horizontal
 BarColor=#RAMColor#
 SolidColor=#TrackColor#
 Hidden=(1-#RAMShowBar#)
+ToolTipText=Used physical RAM / OS-usable total. Used: [MeasureRAMUsed:0] bytes; total: [MeasureRAMTotal:0] bytes.
+
+[MeterRAMPageBar]
+Meter=Bar
+MeasureName=MeasureRAMPageRatio
+X=#ContentX#
+Y=(#Inset#+(#RAMInfoHeight#+Max(86,89-#DataBarThickness#/2)+Max(0,#DataBarThickness#-6))*#Scale#)
+Group=RAMLayout
+DynamicVariables=1
+W=#ContentWidth#
+H=#DataBarThicknessPx#
+BarOrientation=Horizontal
+BarColor=#RAMColor#
+SolidColor=#TrackColor#
+; The controller shows this only when enabled and current allocation is known.
+Hidden=1
+ToolTipText=Paging-file space in use / current allocated capacity. Waiting for Windows paging-file enumeration.
 
 [MeterRAMUsedLabel]
 Meter=String
 MeterStyle=StyleLabel | StyleRAMRowLabel
-Y=(#Inset#+171*#Scale#)
-Text=Used
+Y=(#Inset#+(#RAMInfoHeight#+34)*#Scale#)
+Text=RAM:
+ToolTipText=Used physical RAM / OS-usable total. Available: [MeasureRAMAvailable:0] bytes; used: [MeasureRAMUsed:0] bytes; total: [MeasureRAMTotal:0] bytes.
 
 [MeterRAMUsedGiB]
 Meter=String
 MeterStyle=StyleLabel | StyleRAMRowValue
 MeasureName=MeasureRAMUsed
-Y=(#Inset#+171*#Scale#)
-Scale=1073741824.0
-Text=%1 GiB
+MeasureName2=MeasureRAMTotal
+Y=(#Inset#+(#RAMInfoHeight#+34)*#Scale#)
+Scale=1000000000.0
+Text=%1/%2 GB
 Hidden=#RAMUseMiB#
-ToolTipText=Used physical RAM: [MeasureRAMUsed:0] bytes.
+ToolTipText=Used physical RAM / OS-usable total. Available: [MeasureRAMAvailable:0] bytes; used: [MeasureRAMUsed:0] bytes; total: [MeasureRAMTotal:0] bytes.
 
 [MeterRAMUsedMiB]
 Meter=String
 MeterStyle=StyleLabel | StyleRAMRowValue
 MeasureName=MeasureRAMUsed
-Y=(#Inset#+171*#Scale#)
-Scale=1048576.0
-Text=%1 MiB
+MeasureName2=MeasureRAMTotal
+Y=(#Inset#+(#RAMInfoHeight#+34)*#Scale#)
+Scale=1000000.0
+Text=%1/%2 MB
 Hidden=(1-#RAMUseMiB#)
-ToolTipText=Used physical RAM: [MeasureRAMUsed:0] bytes.
+ToolTipText=Used physical RAM / OS-usable total. Available: [MeasureRAMAvailable:0] bytes; used: [MeasureRAMUsed:0] bytes; total: [MeasureRAMTotal:0] bytes.
 
-[MeterRAMAvailableLabel]
+[MeterRAMPageLabel]
 Meter=String
 MeterStyle=StyleLabel | StyleRAMRowLabel
-Y=(#Inset#+190*#Scale#)
-Text=Available
-ToolTipText=Physical RAM available to allocate, including reclaimable standby memory. This is not only the Windows Free list.
+Y=(#Inset#+(#RAMInfoHeight#+66+Max(0,#DataBarThickness#-6))*#Scale#)
+Text=PAGE:
+ToolTipText=Paging-file space in use / current allocated capacity, excluding physical RAM. Waiting for Windows paging-file enumeration.
 
-[MeterRAMAvailableGiB]
+[MeterRAMPageGiB]
 Meter=String
 MeterStyle=StyleLabel | StyleRAMRowValue
-MeasureName=MeasureRAMAvailable
-Y=(#Inset#+190*#Scale#)
-Scale=1073741824.0
-Text=%1 GiB
+Y=(#Inset#+(#RAMInfoHeight#+66+Max(0,#DataBarThickness#-6))*#Scale#)
+Text=Checking...
 Hidden=#RAMUseMiB#
-ToolTipText=Available physical RAM: [MeasureRAMAvailable:0] bytes.
+ToolTipText=Paging-file space in use / current allocated capacity, excluding physical RAM. Waiting for Windows paging-file enumeration.
 
-[MeterRAMAvailableMiB]
+[MeterRAMPageMiB]
 Meter=String
 MeterStyle=StyleLabel | StyleRAMRowValue
-MeasureName=MeasureRAMAvailable
-Y=(#Inset#+190*#Scale#)
-Scale=1048576.0
-Text=%1 MiB
+Y=(#Inset#+(#RAMInfoHeight#+66+Max(0,#DataBarThickness#-6))*#Scale#)
+Text=Checking...
 Hidden=(1-#RAMUseMiB#)
-ToolTipText=Available physical RAM: [MeasureRAMAvailable:0] bytes.
-
-[MeterRAMTotalLabel]
-Meter=String
-MeterStyle=StyleLabel | StyleRAMRowLabel
-Y=(#Inset#+209*#Scale#)
-Text=Total
-ToolTipText=Physical RAM available to Windows. Hardware-reserved memory can make this lower than installed RAM.
-
-[MeterRAMTotalGiB]
-Meter=String
-MeterStyle=StyleLabel | StyleRAMRowValue
-MeasureName=MeasureRAMTotal
-Y=(#Inset#+209*#Scale#)
-Scale=1073741824.0
-Text=%1 GiB
-Hidden=#RAMUseMiB#
-ToolTipText=OS-usable physical RAM total: [MeasureRAMTotal:0] bytes.
-
-[MeterRAMTotalMiB]
-Meter=String
-MeterStyle=StyleLabel | StyleRAMRowValue
-MeasureName=MeasureRAMTotal
-Y=(#Inset#+209*#Scale#)
-Scale=1048576.0
-Text=%1 MiB
-Hidden=(1-#RAMUseMiB#)
-ToolTipText=OS-usable physical RAM total: [MeasureRAMTotal:0] bytes.
+ToolTipText=Paging-file space in use / current allocated capacity, excluding physical RAM. Waiting for Windows paging-file enumeration.
 
 [MeterRAMHistoryLabel]
 Meter=String
 MeterStyle=StyleHeader
-Y=(#Inset#+236*#Scale#)
+Y=(#Inset#+(#RAMInfoHeight#+216+2*Max(0,#DataBarThickness#-6))*#Scale#)
 W=(#ContentWidth#-60*#Scale#)
 H=(18*#Scale#)
 Text=History
+Group=RAMLayout
+DynamicVariables=1
 Hidden=(1-#RAMShowHistory#)
 ToolTipText=Used physical RAM, newest at right. History starts over on refresh and fills one sample per update. Uncollected history is not a measurement.
 UpdateDivider=-1
@@ -199,12 +194,14 @@ UpdateDivider=-1
 Meter=String
 MeterStyle=StyleLabel
 X=(#ContentX#+#ContentWidth#)
-Y=(#Inset#+236*#Scale#)
+Y=(#Inset#+(#RAMInfoHeight#+216+2*Max(0,#DataBarThickness#-6))*#Scale#)
 W=(58*#Scale#)
 H=(18*#Scale#)
 FontSize=(#FontSize#*#Scale#)
 StringAlign=Right
 Text=0 - 100%
+Group=RAMLayout
+DynamicVariables=1
 Hidden=(1-#RAMShowHistory#)
 UpdateDivider=-1
 
@@ -212,7 +209,7 @@ UpdateDivider=-1
 Meter=Line
 MeasureName=MeasureRAMUsed
 X=#ContentX#
-Y=(#Inset#+256*#Scale#)
+Y=(#Inset#+(#RAMInfoHeight#+236+2*Max(0,#DataBarThickness#-6))*#Scale#)
 W=#ContentWidth#
 H=(#GraphHeight#*#Scale#)
 LineCount=1
@@ -224,6 +221,7 @@ Scale=1
 GraphStart=Right
 GraphOrientation=Vertical
 AntiAlias=1
+DynamicVariables=1
 Hidden=(1-#RAMShowHistory#)
 UpdateDivider=1
 ToolTipText=Native physical RAM history with a fixed 0-100% range. Each horizontal pixel holds one update; width, suite scale and MetricsInterval change the nominal time span. Refresh clears history.
@@ -234,9 +232,10 @@ ToolTipText=Native physical RAM history with a fixed 0-100% range. Each horizont
 [MeterRAMHistoryUncollected]
 Meter=Shape
 X=#ContentX#
-Y=(#Inset#+256*#Scale#)
+Y=(#Inset#+(#RAMInfoHeight#+236+2*Max(0,#DataBarThickness#-6))*#Scale#)
 Shape=Rectangle 0,0,(Min(#ContentWidth#,Max(0,(#ContentWidth#-[MeasureRAMHistorySamples]+2*#Scale#)*([MeasureRAMHistorySamples]<#ContentWidth#)))),(#GraphHeight#*#Scale#) | Fill Color #RAMHistoryEmptyColor#,255 | StrokeWidth 0
 Hidden=(1-#RAMShowHistory#)
+Group=RAMLayout
 DynamicVariables=1
 UpdateDivider=1
 ToolTipText=This blank area has no collected samples yet. History fills from the right and restarts on refresh.
@@ -245,6 +244,8 @@ ToolTipText=This blank area has no collected samples yet. History fills from the
 [MeterRAMHistoryFrame]
 Meter=Shape
 MeterStyle=StyleGraph
-Y=(#Inset#+256*#Scale#)
+Y=(#Inset#+(#RAMInfoHeight#+236+2*Max(0,#DataBarThickness#-6))*#Scale#)
 Shape=Rectangle 0.5,0.5,(#ContentWidth#-1),(#GraphHeight#*#Scale#-1),(2*#Scale#) | Fill Color 0,0,0,0 | Stroke Color #BorderColor# | StrokeWidth 1
 Hidden=(1-#RAMShowHistory#)
+Group=RAMLayout
+DynamicVariables=1

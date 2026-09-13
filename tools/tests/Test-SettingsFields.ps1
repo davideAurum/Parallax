@@ -62,9 +62,9 @@ function Await-Report([string]$Path,[int]$TimeoutMs=15000) {
 }
 function Assert-State($Native,$Expected,[int]$Generation) {
     Require ($Native.Generation -eq "$Generation") 'Unexpected native refresh generation.'
-    foreach ($key in 'Scale','ColumnWidth','Gutter','CornerRadius','TitleFontSize','HeaderFontSize','FontSize','BackgroundColor','BorderThickness','DividerThickness') { Require ($Native[$key] -eq $Expected[$key]) "Native setting mismatch: $key" }
+    foreach ($key in 'Scale','ColumnWidth','Gutter','CornerRadius','TitleFontSize','HeaderFontSize','FontSize','BackgroundColor','BorderThickness','DividerThickness','TableHeaderBorderThickness','DataBarThickness') { Require ($Native[$key] -eq $Expected[$key]) "Native setting mismatch: $key" }
     Require ($Native.Columns -eq '2') 'Settings must retain two columns.'
-    Require ($Native.PanelHeight -eq '644') 'Unexpected Global Settings panel height.'
+    Require ($Native.PanelHeight -eq '758') 'Unexpected Global Settings panel height.'
     Require ($Native.BackgroundTransparencyVariable -eq '<unset>') 'Transparency must derive from BackgroundColor, not a separate variable.'
     $scale=[double]::Parse($Expected.Scale,[Globalization.CultureInfo]::InvariantCulture)
     $single=[int][Math]::Floor([int]$Expected.ColumnWidth*$scale+0.5)
@@ -73,7 +73,7 @@ function Assert-State($Native,$Expected,[int]$Generation) {
     Require ([int]$Native.Width -eq 2*($single+$gap) -and [int]$Native.Height -eq $height) 'Native bounds do not reflect persisted geometry.'
     $percent=($scale*100).ToString('0.####',[Globalization.CultureInfo]::InvariantCulture)
     Require ($Native.ScaleText -eq ($percent+'%')) 'Scale field did not update.'
-    foreach ($key in 'ColumnWidth','Gutter','CornerRadius','BorderThickness','DividerThickness') { Require ($Native[$key+'Text'] -eq ($Expected[$key]+' px')) "$key field did not update." }
+    foreach ($key in 'ColumnWidth','Gutter','CornerRadius','BorderThickness','DividerThickness','TableHeaderBorderThickness','DataBarThickness') { Require ($Native[$key+'Text'] -eq ($Expected[$key]+' px')) "$key field did not update." }
     foreach ($key in 'TitleFontSize','HeaderFontSize','FontSize') { Require ($Native[$key+'Text'] -eq ($Expected[$key]+' pt')) "$key field did not update." }
     Require ($Native.BackgroundTransparencyText -eq ((Get-Transparency $Expected.BackgroundColor)+'%')) 'Transparency field did not reflect persisted alpha.'
     $geometry='Panels: {0} / {1} px   Gap: {2} px   Scale: {3}%' -f $single,($single*2+$gap),$gap,$percent
@@ -104,7 +104,7 @@ $settings+="`n[MeasureSettingsFieldsHarness]`nMeasure=Script`nScriptFile=$runRoo
 Write-Isolated $settingsPath $settings
 $userPath=Join-Path $parallaxRoot '@Resources\User\Settings.inc'
 $user=Get-Content -LiteralPath $userPath -Raw
-$expected=@{Scale='1';ColumnWidth='200';Gutter='8';CornerRadius='3';AccentColor='137,190,250';TitleFontSize='10';HeaderFontSize='8';FontSize='9';BackgroundColor='15,15,15,255';BorderThickness='1';DividerThickness='1'}
+$expected=@{Scale='1';ColumnWidth='220';Gutter='8';CornerRadius='3';AccentColor='137,190,250';TitleFontSize='10';HeaderFontSize='8';FontSize='9';BackgroundColor='15,15,15,255';BorderThickness='1';DividerThickness='1';TableHeaderBorderThickness='1';DataBarThickness='6'}
 foreach ($key in $expected.Keys) {
     Require ($user -match ('(?im)^'+$key+'=')) "Missing persisted default: $key"
     $user=[regex]::Replace($user,('(?im)^'+$key+'=[^\r\n]*'),($key+'='+$expected[$key]))
@@ -124,13 +124,15 @@ Write-Isolated $iniPath $ini
 Write-Isolated (Join-Path $runRoot 'Rainmeter.data') "[Rainmeter]`n"
 Write-Isolated (Join-Path $runRoot 'TEST-ONLY.txt') "Instrumented disposable field QA. Do not distribute. No live Rainmeter configuration is used.`n"
 $cases=[Collections.Generic.List[object]]::new()
-$fieldKeys=@('Scale','ColumnWidth','Gutter','CornerRadius','TitleFontSize','HeaderFontSize','FontSize','BackgroundTransparency','BorderThickness','DividerThickness')
+$fieldKeys=@('Scale','ColumnWidth','Gutter','CornerRadius','TitleFontSize','HeaderFontSize','FontSize','BackgroundTransparency','BorderThickness','DividerThickness','TableHeaderBorderThickness','DataBarThickness')
 foreach ($entry in @(
     @('Scale','112.5','1.125','112.50 %','Scale'),@('ColumnWidth','237','237','237px','ColumnWidth'),
     @('Gutter','5','5','5 PX','Gutter'),@('CornerRadius','14','14','14 px','CornerRadius'),
     @('TitleFontSize','11.25','11.25','11.25 pt','TitleFontSize'),@('HeaderFontSize','9.5','9.5','9.50 PT','HeaderFontSize'),
     @('FontSize','6.75','6.75','6.75pt','FontSize'),@('BackgroundTransparency','37.5','15,15,15,159','37.50 %','BackgroundColor'),
-    @('BorderThickness','2.25','2.25','2.25 px','BorderThickness'),@('DividerThickness','0.5','0.5','0.50 PX','DividerThickness')
+    @('BorderThickness','2.25','2.25','2.25 px','BorderThickness'),@('DividerThickness','0.5','0.5','0.50 PX','DividerThickness'),
+    @('TableHeaderBorderThickness','0.25','0.25','0.25 px','TableHeaderBorderThickness'),
+    @('DataBarThickness','8.75','8.75','8.75 PX','DataBarThickness')
 )) {
     $cases.Add([pscustomobject]@{Key=$entry[0];Response=('PARALLAX_INPUT_V1|ok|'+$entry[1]);Saved=$entry[2];Input=$entry[3];SavedKey=$entry[4];Kind='valid'})
 }
@@ -142,7 +144,9 @@ foreach ($entry in @(
     @('Gutter','PARALLAX_INPUT_V1|ok|5|extra'),@('CornerRadius',"PARALLAX_INPUT_V1|ok|14`nextra"),
     @('TitleFontSize','PARALLAX_INPUT_V1|ok|12.01'),@('HeaderFontSize','PARALLAX_INPUT_V1|ok|9.001'),
     @('FontSize','PARALLAX_INPUT_V1|ok|6.75;os.execute("calc")'),@('BackgroundTransparency','PARALLAX_INPUT_V1|ok|100.01'),
-    @('BorderThickness','PARALLAX_INPUT_V1|ok|4.01'),@('DividerThickness','PARALLAX_INPUT_V1|ok|0.5|cancel|')
+    @('BorderThickness','PARALLAX_INPUT_V1|ok|4.01'),@('DividerThickness','PARALLAX_INPUT_V1|ok|0.5|cancel|'),
+    @('TableHeaderBorderThickness','PARALLAX_INPUT_V1|ok|0.001'),
+    @('DataBarThickness','PARALLAX_INPUT_V1|ok|0')
 )) {
     $cases.Add([pscustomobject]@{Key=$entry[0];Response=$entry[1];Saved='';Input='';SavedKey='';Kind='malformed'})
 }
@@ -201,7 +205,7 @@ try {
     }
     Require ((Get-FileHash -LiteralPath (Join-Path $scripts 'Settings.lua') -Algorithm SHA256).Hash -eq $sourceHashes['@Resources\Scripts\Settings.lua']) 'Copied production Settings.lua changed during the test.'
     Require ((Get-FileHash -LiteralPath (Join-Path $scripts 'SettingsFieldsProductionInput.ps1') -Algorithm SHA256).Hash -eq $sourceHashes['@Resources\Scripts\SettingsInput.ps1']) 'Copied production validator bytes changed.'
-    $report=[ordered]@{Status='PASS';RainmeterVersion=(Get-Item -LiteralPath $RainmeterPath).VersionInfo.FileVersion;SourceSHA256=$sourceHashes;Cases=$records.ToArray();ValidSaves=10;Cancelled=10;Malformed=10;SettingsGenerations=$generation;GroupWitnessGenerations=$generation;UnrelatedGenerations=1;Limitations='All ten native source actions, bundled RunCommand, fixed FinishAction, production helper validation/Lua and actual isolated writes verified. Transparency persists only background RGBA alpha. Textbox GUI, mouse hit testing, mixed DPI and the live user configuration are not exercised.'}
+    $report=[ordered]@{Status='PASS';RainmeterVersion=(Get-Item -LiteralPath $RainmeterPath).VersionInfo.FileVersion;SourceSHA256=$sourceHashes;Cases=$records.ToArray();ValidSaves=12;Cancelled=12;Malformed=12;SettingsGenerations=$generation;GroupWitnessGenerations=$generation;UnrelatedGenerations=1;Limitations='All twelve native source actions, bundled RunCommand, fixed FinishAction, production helper validation/Lua and actual isolated writes verified. Transparency persists only background RGBA alpha. Textbox GUI, mouse hit testing, mixed DPI and the live user configuration are not exercised.'}
     Write-Isolated (Join-Path $runRoot 'report.json') ($report|ConvertTo-Json -Depth 6)
     [pscustomobject]@{Status='PASS';Cases=$records.Count;RunRoot=$runRoot;SettingsGenerations=$generation;GroupWitnessGenerations=$generation;UnrelatedGenerations=1}
 } finally {

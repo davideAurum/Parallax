@@ -1,0 +1,168 @@
+-- Developer-only synthetic tests; excluded from skin packaging.
+-- The native runner decodes the unchanged UTF-16 production text for loadfile.
+local suite = {}
+
+function suite.run(sourcePath)
+    local passed, cases = 0, {}
+    local function check(condition, message)
+        assert(condition, message)
+        passed = passed + 1
+    end
+    local function scenario(name, test)
+        local before = passed
+        test()
+        cases[#cases + 1] = name .. ': ' .. (passed - before) .. ' assertions'
+    end
+    local function fixture(overrides)
+        local values = {
+            MeasureConnection = { value = 1 }, MeasurePlayer = { text = 'Spotify' },
+            MeasureMediaSource = { text = 'Spotify' }, MeasureTitle = { text = 'Synthetic fixture title' },
+            MeasureState = { value = 1 }
+        }
+        for name, value in pairs(overrides or {}) do values[name] = value end
+        local calls = 0
+        local mock = {}
+        function mock:GetMeasure(name)
+            local value = values[name]
+            assert(value ~= nil, 'Unexpected measure lookup: ' .. tostring(name))
+            if value == false then return nil end
+            return { GetValue = function() return value.value end, GetStringValue = function() return value.text end }
+        end
+        function mock:Bang(...)
+            calls = calls + 1
+            error('The name-only header must never issue a bang')
+        end
+        local env = setmetatable({ SKIN = mock }, { __index = _G })
+        local chunk = assert(loadfile(sourcePath))
+        setfenv(chunk, env)
+        chunk()
+        env.Initialize()
+        check(calls == 0, 'Initialize must not issue commands')
+        local f = { env = env, values = values }
+        function f.expect(name)
+            check(env.Update() == name, 'Incorrect detected name')
+            check(env.GetPlayerName() == name, 'Getter identity disagrees with Update')
+            check(calls == 0, 'A name update must not alter the constant icon or issue actions')
+        end
+        return f
+    end
+
+    scenario('specific player and metadata changes remain passive', function()
+        local f = fixture()
+        f.expect('Spotify')
+        f.expect('Spotify')
+        f.values.MeasureTitle.text = 'Another synthetic title'
+        f.expect('Spotify')
+        for _, name in ipairs({ 'YouTube', 'VLC', 'Firefox', 'Windows Media Player', 'Apple Music', 'Synthetic unknown player', 'Spotify' }) do
+            f.values.MeasurePlayer.text = name
+            f.expect(name)
+        end
+    end)
+
+    scenario('Windows identity requires the correlated source reader', function()
+        local f = fixture()
+        for _, raw in ipairs({ 'Windows', 'Windows Media Session', ' WINDOWS MEDIA SESSION ', '\twInDoWs\n' }) do
+            f.values.MeasurePlayer.text = raw
+            for _, source in ipairs({ '', 'Windows', 'YouTube', 'Spotify.exe', 'Spotify Web', '[!Quit]Spotify' }) do
+                f.values.MeasureMediaSource.text = source
+                f.expect('Unknown')
+            end
+            f.values.MeasureMediaSource.text = ' \tSpOtIfY\n'
+            f.expect('Spotify')
+            f.values.MeasureMediaSource.text = 'Windows'
+            f.expect('Unknown')
+        end
+        f.values.MeasurePlayer.text = ''
+        f.values.MeasureMediaSource.text = 'Spotify'
+        f.expect('Unknown')
+        f.values.MeasurePlayer = false
+        f.env.Initialize()
+        f.expect('Unknown')
+    end)
+
+    scenario('setup disconnected and idle states cannot retain a player', function()
+        local setup = fixture({ MeasureConnection = false })
+        setup.expect('Setup')
+        local f = fixture()
+        f.expect('Spotify')
+        for _, connection in ipairs({ 0, -1, 2, 'invalid', 0 / 0, math.huge, -math.huge, false }) do
+            f.values.MeasureConnection.value = connection
+            f.expect('Not connected')
+        end
+        f.values.MeasureConnection.value = nil
+        f.expect('Not connected')
+        f.values.MeasureConnection.value = '1'
+        for _, title in ipairs({ '', ' ', '\t\r\n', false }) do
+            f.values.MeasureTitle.text = title
+            f.expect('Idle')
+        end
+        f.values.MeasureTitle.text = nil
+        f.expect('Idle')
+        f.values.MeasureTitle.text = 'Synthetic resumed title'
+        f.expect('Spotify')
+        f.values.MeasureTitle = false
+        f.env.Initialize()
+        f.expect('Idle')
+    end)
+
+    scenario('paused stopped and unknown playback state retain a known player', function()
+        local f = fixture()
+        f.values.MeasurePlayer.text = 'Windows Media Session'
+        f.expect('Spotify')
+        for _, state in ipairs({ 2, 0, 3, -1, 'invalid', 0 / 0, math.huge }) do
+            f.values.MeasureState.value = state
+            f.expect('Spotify')
+        end
+    end)
+
+    scenario('specific WNP names preserve case whitespace and stale-source priority', function()
+        local f = fixture()
+        for _, name in ipairs({ 'spotify', 'youtube music', 'vlc media player', 'google chrome', 'microsoft edge',
+            'mozilla firefox', 'brave', 'opera gx', 'vivaldi', 'groove music', 'apple music', 'itunes' }) do
+            for _, raw in ipairs({ name, ' \t' .. name:upper() .. '\r\n' }) do
+                f.values.MeasurePlayer.text = raw
+                f.expect(raw)
+            end
+        end
+    end)
+
+    scenario('missing source preserves specific WNP names without inference', function()
+        local f = fixture({ MeasureMediaSource = false })
+        f.expect('Spotify')
+        f.values.MeasurePlayer.text = 'Windows Media Session'
+        f.expect('Unknown')
+        f.values.MeasurePlayer.text = 'Windows Media Player'
+        f.expect('Windows Media Player')
+        f.values.MeasurePlayer.text = nil
+        f.expect('Unknown')
+        f.values.MeasurePlayer.text = 42
+        f.expect('Unknown')
+    end)
+
+    scenario('Unicode malformed bytes controls and injection remain data only', function()
+        local f = fixture()
+        for _, name in ipairs({
+            'Caf\195\169 \230\188\162 \240\159\142\181',
+            '[!Quit]#AccentColor#[MeasurePlayer][&MeasurePlayer:Update()]',
+            'Synthetic\r\n[Rainmeter]\nOnRefreshAction=[!Quit]',
+            'Synthetic\0player', 'Synthetic\255\192\128player',
+            'Spotify.exe', 'Spotify Web', 'YouTube Evil', 'Evil VLC', 'Apple Music plus',
+            'Windows Media Session extra', 'Media Player', string.rep('Synthetic ', 400)
+        }) do
+            f.values.MeasurePlayer.text = name
+            f.expect(name)
+        end
+    end)
+
+    scenario('read-only getter and refresh reset have no hidden actions', function()
+        local f = fixture()
+        check(f.env.GetPlayerName() == 'Spotify', 'Getter should read sampled identity before Update')
+        f.expect('Spotify')
+        f.env.Initialize()
+        f.expect('Spotify')
+    end)
+
+    return passed, cases
+end
+
+return suite

@@ -6,11 +6,12 @@ function Update()
     if reported then return 0 end
     local path = SELF:GetOption('ReportPath', '')
     if path == '' then return 0 end
-    local boundsName = 'MeterBounds'
-    local bounds = SKIN:GetMeter(boundsName)
-    if not bounds then
-        boundsName = 'MeterIOBounds'
-        bounds = SKIN:GetMeter(boundsName)
+    local boundsName, bounds
+    for _, name in ipairs({'MeterBounds','MeterIOBounds','MeterRAMSettingsBounds',
+        'MeterIOSettingsBounds','MeterVisualizerSettingsBounds','MeterNetworkSettingsBounds',
+        'MeterGPUSettingsBounds','MeterMediaSettingsBounds'}) do
+        bounds = SKIN:GetMeter(name)
+        if bounds then boundsName = name; break end
     end
     local file = io.open(path, 'wb')
     if file then

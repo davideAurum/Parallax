@@ -3,7 +3,8 @@ local root, role, generation, sequence, ticks, pending
 local fields = {
     Scale='MeterScaleInput', ColumnWidth='MeterWidthInput', Gutter='MeterGapInput', CornerRadius='MeterRoundingInput',
     TitleFontSize='MeterTitleSizeInput', HeaderFontSize='MeterHeaderSizeInput', FontSize='MeterBodySizeInput',
-    BackgroundTransparency='MeterBackgroundTransparencyInput', BorderThickness='MeterBorderSizeInput', DividerThickness='MeterDividerSizeInput'
+    BackgroundTransparency='MeterBackgroundTransparencyInput', BorderThickness='MeterBorderSizeInput', DividerThickness='MeterDividerSizeInput',
+    TableHeaderBorderThickness='MeterTableHeaderBorderSizeInput', DataBarThickness='MeterDataBarSizeInput'
 }
 local function read(path)
     local file=io.open(path,'rb'); if not file then return nil end
@@ -16,7 +17,7 @@ local function snapshot(path)
     local ok, result=pcall(function()
         local lines={'PASS','Generation='..generation,'Lua='.._VERSION}
         for _, name in ipairs({'Scale','ColumnWidth','Gutter','CornerRadius','TitleFontSize','HeaderFontSize','FontSize',
-                'BackgroundColor','BorderThickness','DividerThickness','Columns','PanelHeight','AccentColor'}) do
+                'BackgroundColor','BorderThickness','DividerThickness','TableHeaderBorderThickness','DataBarThickness','Columns','PanelHeight','AccentColor'}) do
             lines[#lines+1]=name..'='..SKIN:GetVariable(name)
         end
         lines[#lines+1]='BackgroundTransparencyVariable='..SKIN:GetVariable('BackgroundTransparency','<unset>')
@@ -26,7 +27,8 @@ local function snapshot(path)
             local meter=assert(SKIN:GetMeter(name))
             assert(meter:GetX()>=0 and meter:GetY()>=0 and meter:GetX()+meter:GetW()<=bounds:GetW()+1 and meter:GetY()+meter:GetH()<=bounds:GetH()+1, name..' outside window')
             lines[#lines+1]=key..'Text='..meter:GetOption('Text','')
-            lines[#lines+1]=key..'Bounds='..table.concat({math.floor(SKIN:GetX()+meter:GetX()),math.floor(SKIN:GetY()+meter:GetY()),math.max(40,math.floor(meter:GetW())),math.max(20,math.floor(meter:GetH()))},',')
+            local frame=assert(SKIN:GetMeter(name:gsub('Input$','Frame')))
+            lines[#lines+1]=key..'Bounds='..table.concat({math.floor(SKIN:GetX()+frame:GetX()),math.floor(SKIN:GetY()+frame:GetY()),math.max(40,math.floor(frame:GetW())),math.max(20,math.floor(frame:GetH()))},',')
         end
         for _,name in ipairs({'MeterGeometry','MeterAccentValue','MeterBackgroundColorValue','MeterInputStatus'}) do
             lines[#lines+1]=name..'='..assert(SKIN:GetMeter(name)):GetOption('Text','')

@@ -14,6 +14,44 @@ Measure=PhysicalMemory
 Total=1
 UpdateDivider=1
 
+; Paging-file-only accounting comes from one resident EnumPageFiles host.
+; Bootstrap runs once to allocate session names; no shell is launched per poll.
+[MeasureRAMPageBootstrap]
+Measure=Plugin
+Plugin=RunCommand
+Program=%SystemRoot%\System32\WindowsPowerShell\v1.0\powershell.exe
+StartInFolder=#@#Modules\RAM\
+Parameter=
+State=Hide
+OutputType=UTF8
+Timeout=12000
+UpdateDivider=1
+
+[MeasureRAMPageHost]
+Measure=Plugin
+Plugin=RunCommand
+Program=%SystemRoot%\System32\WindowsPowerShell\v1.0\powershell.exe
+StartInFolder=#@#Modules\RAM\
+Parameter=
+State=Hide
+OutputType=UTF8
+Timeout=-1
+UpdateDivider=1
+
+[MeasureRAMPageView]
+Measure=Script
+ScriptFile=#@#Modules\RAM\PageFile.lua
+UpdateDivider=1
+
+; Cached PAGE ratio only. The display bridge updates this Calc on new data;
+; it performs no query and does not sample physical-memory history.
+[MeasureRAMPageRatio]
+Measure=Calc
+Formula=0
+MinValue=0
+MaxValue=1
+UpdateDivider=-1
+
 ; Self reference starts at zero on load AND refresh; global Counter does not.
 ; Match the Line meter's update cadence. This is a sample count, not telemetry.
 [MeasureRAMHistorySamples]
@@ -42,8 +80,67 @@ Timeout=12000
 UpdateDivider=1
 FinishAction=[!UpdateMeasure MeasureRAMInfo][!CommandMeasure MeasureRAMInfoView "Complete()"]
 
-; Watches only the cached command status until settled, then disables updates.
+; Watches cached command status, settles wrapped layout, then disables updates.
 [MeasureRAMInfoView]
 Measure=Script
 ScriptFile=#@#Modules\RAM\Info.lua
+UpdateDivider=1
+
+; Bundled UsageMonitor ranks private resident memory in bytes. All five
+; measures share its Process category worker, which samples independently at 1 Hz.
+
+[MeasureRAMProcess1]
+Measure=Plugin
+Plugin=UsageMonitor
+Alias=RAM
+Index=1
+Rollup=1
+Percent=0
+Blacklist=_Total|Idle
+UpdateDivider=1
+
+[MeasureRAMProcess2]
+Measure=Plugin
+Plugin=UsageMonitor
+Alias=RAM
+Index=2
+Rollup=1
+Percent=0
+Blacklist=_Total|Idle
+UpdateDivider=1
+
+[MeasureRAMProcess3]
+Measure=Plugin
+Plugin=UsageMonitor
+Alias=RAM
+Index=3
+Rollup=1
+Percent=0
+Blacklist=_Total|Idle
+UpdateDivider=1
+
+[MeasureRAMProcess4]
+Measure=Plugin
+Plugin=UsageMonitor
+Alias=RAM
+Index=4
+Rollup=1
+Percent=0
+Blacklist=_Total|Idle
+UpdateDivider=1
+
+[MeasureRAMProcess5]
+Measure=Plugin
+Plugin=UsageMonitor
+Alias=RAM
+Index=5
+Rollup=1
+Percent=0
+Blacklist=_Total|Idle
+UpdateDivider=1
+
+; Runs after the ranked measures; preferences reformat its cached sample only.
+[MeasureRAMProcessView]
+Measure=Script
+ScriptFile=#@#Modules\RAM\Process.lua
 UpdateDivider=1

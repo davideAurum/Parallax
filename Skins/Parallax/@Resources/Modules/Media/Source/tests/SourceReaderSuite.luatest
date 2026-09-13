@@ -157,10 +157,14 @@ function suite.run(sourcePath, scratchPath)
         end,Bang=function(_,...)bangs[#bangs+1]={...}end}
         local instance=reader.new({skin=skin,cachePath=scratchPath,now=function()return 1000 end,
             open=function()return {read=function()return snapshot({{}})end,close=function()return true end}end})
-        equal(instance:update(),'Spotify');equal(instance:update(),'Spotify');equal(#bangs,1)
-        equal(bangs[1][1],'!SetOption');equal(bangs[1][2],'MeterPlayerName');equal(bangs[1][3],'ToolTipText')
-        equal(bangs[1][4],'Spotify desktop detected from one matching Windows media session.')
-        current.artist='';equal(instance:update(),'Windows');equal(#bangs,2)
+        equal(instance:update(),'Spotify');equal(instance:update(),'Spotify');equal(#bangs,2)
+        equal(bangs[1][1],'!SetOption');equal(bangs[1][2],'MeterSongIcon');equal(bangs[1][3],'ToolTipText')
+        equal(bangs[1][4],'Song. Spotify desktop detected from one matching Windows media session.')
+        equal(bangs[2][1],'!UpdateMeter');equal(bangs[2][2],'MeterSongIcon');equal(#bangs[2],2)
+        current.artist='';equal(instance:update(),'Windows');equal(#bangs,4)
+        equal(bangs[3][1],'!SetOption');equal(bangs[4][1],'!UpdateMeter')
+        equal(bangs[4][2],'MeterSongIcon')
+        equal(instance:update(),'Windows');equal(#bangs,4)
     end)
     return checks,cases
 end

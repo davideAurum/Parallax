@@ -4,12 +4,19 @@
 # HWINFOV1
 # TEMP|HKEY_CURRENT_USER|index|UTF8-hex sensor|UTF8-hex label|C or F
 # VOLT|HKEY_CURRENT_USER|index|UTF8-hex sensor|UTF8-hex label|V or mV|VCORE or VID
+# CLOCK|HKEY_CURRENT_USER|index|UTF8-hex sensor|UTF8-hex label|MHz or GHz
 # STATUS|human-readable ASCII explanation (one line for each unavailable kind)
 # With -List or positive -RequestId, append REQUEST|id. With -List only, also
 # append STATE|RUNNING or STOPPED, then up to 128 records:
-# CAND|TEMP or VOLT|hive|index|UTF8-hex sensor|UTF8-hex label|unit|VCORE or VID
-# TEMP candidates have an empty final field. Candidate lines contain no readings.
-# HKLM records use HKEY_LOCAL_MACHINE. There are no writes, saved IDs or helpers.
+# CAND|TEMP or VOLT or CLOCK|hive|index|UTF8-hex sensor|UTF8-hex label|unit|VCORE or VID
+# TEMP and CLOCK candidates have an empty final field. Candidate lines contain no readings.
+# With -CoreList or -List, append unique per-core mappings (at most 128):
+# CORE|TEMP or VOLT|coreId0..63|hive|index|UTF8-hex sensor|UTF8-hex label|unit|VID
+# TEMP core records have an empty final field. Core IDs are HWiNFO identities,
+# not Windows logical-processor indices; the consumer must establish topology.
+# HKLM records use HKEY_LOCAL_MACHINE. There are no writes or saved IDs.
+# With -PrecisionInput, output is PARALLAX_CPU_DECIMAL_V1|ok|integer or |cancel|.
+# That UI path runs only after an explicit CPU Settings click and does not inspect HWiNFO.
 [CmdletBinding()]
 param(
     [ValidateRange(-1, 4096)] [int] $TemperatureIndex = -1,
@@ -17,12 +24,193 @@ param(
     [ValidateSet('Auto', 'HKEY_CURRENT_USER', 'HKEY_LOCAL_MACHINE')]
     [string] $Hive = 'Auto',
     [switch] $List,
-    [ValidateRange(0, 2147483647)] [int] $RequestId = 0
+    [switch] $CoreList,
+    [ValidateRange(0, 2147483647)] [int] $RequestId = 0,
+    # Explicit CPU Settings action only: a bounded one-line precision editor.
+    [switch] $PrecisionInput,
+    [ValidateSet('CPUDecimals', 'CPUVoltageDecimals', 'CPUTemperatureDecimals')]
+    [string] $PrecisionKey,
+    [string] $PrecisionInitial,
+    [string] $PrecisionX = '0',
+    [string] $PrecisionY = '0',
+    [string] $PrecisionWidth = '28',
+    [string] $PrecisionHeight = '20',
+    [string] $PrecisionScale = '1',
+    [switch] $PrecisionValidateOnly,
+    [string] $PrecisionValue,
+    [switch] $PrecisionCancel
 )
 
 Set-StrictMode -Version 2.0
 $ErrorActionPreference = 'Stop'
 [Console]::OutputEncoding = [System.Text.ASCIIEncoding]::new()
+
+function ConvertTo-CPUPrecisionValue {
+    param([string]$InputKey, [AllowNull()][string]$Text)
+    $limits = @{
+        CPUDecimals = @(0, 1)
+        CPUVoltageDecimals = @(0, 3)
+        CPUTemperatureDecimals = @(0, 1)
+    }
+    if (-not $limits.ContainsKey($InputKey)) {
+        return [pscustomobject]@{ Valid = $false; Value = ''; Error = 'Unknown CPU precision setting.' }
+    }
+    $minimum, $maximum = $limits[$InputKey]
+    $message = 'Enter a whole number from {0} to {1}.' -f $minimum, $maximum
+    if ($null -eq $Text -or $Text.Length -gt 16) {
+        return [pscustomobject]@{ Valid = $false; Value = ''; Error = $message }
+    }
+    $candidate = $Text.Trim()
+    $number = 0
+    $culture = [Globalization.CultureInfo]::InvariantCulture
+    $valid = $candidate -match '\A[0-9]+\z' -and [int]::TryParse($candidate,
+        [Globalization.NumberStyles]::None, $culture, [ref]$number)
+    if (-not $valid -or $number -lt $minimum -or $number -gt $maximum) {
+        return [pscustomobject]@{ Valid = $false; Value = ''; Error = $message }
+    }
+    return [pscustomobject]@{ Valid = $true; Value = $number.ToString($culture); Error = '' }
+}
+
+function Get-CPUPrecisionResponse {
+    param([string]$InputKey, [AllowNull()][string]$Text, [switch]$Cancelled)
+    if (-not $Cancelled) {
+        $parsed = ConvertTo-CPUPrecisionValue -InputKey $InputKey -Text $Text
+        if ($parsed.Valid) { return 'PARALLAX_CPU_DECIMAL_V1|ok|' + $parsed.Value }
+    }
+    return 'PARALLAX_CPU_DECIMAL_V1|cancel|'
+}
+
+function Invoke-CPUPrecisionInput {
+    param(
+        [string]$InputKey, [string]$Initial, [string]$X, [string]$Y,
+        [string]$Width, [string]$Height, [string]$Scale,
+        [switch]$ValidateOnly, [string]$Value, [switch]$Cancelled
+    )
+    $response = 'PARALLAX_CPU_DECIMAL_V1|cancel|'
+    $form = $null
+    $inputFont = $null
+    $tip = $null
+    try {
+        if ($Cancelled) {
+            return Get-CPUPrecisionResponse -Cancelled
+        }
+        if ($ValidateOnly) {
+            return Get-CPUPrecisionResponse -InputKey $InputKey -Text $Value
+        }
+        $initialValue = ConvertTo-CPUPrecisionValue -InputKey $InputKey -Text $Initial
+        if (-not $initialValue.Valid) { throw 'Invalid initial CPU precision.' }
+        $culture = [Globalization.CultureInfo]::InvariantCulture
+        $positions = @{}
+        foreach ($entry in @(@('X', $X, -100000, 100000), @('Y', $Y, -100000, 100000),
+                @('Width', $Width, 24, 2048), @('Height', $Height, 12, 512))) {
+            $integer = 0
+            if (-not [int]::TryParse($entry[1], [Globalization.NumberStyles]::AllowLeadingSign,
+                    $culture, [ref]$integer) -or $integer -lt $entry[2] -or $integer -gt $entry[3]) {
+                throw 'Invalid editor bounds.'
+            }
+            $positions[$entry[0]] = $integer
+        }
+        $uiScale = [decimal]0
+        if (-not [decimal]::TryParse($Scale, [Globalization.NumberStyles]::AllowDecimalPoint,
+                $culture, [ref]$uiScale) -or $uiScale -lt 0.75 -or $uiScale -gt 2) {
+            throw 'Invalid editor scale.'
+        }
+        $null = Add-Type -AssemblyName System.Windows.Forms
+        $null = Add-Type -AssemblyName System.Drawing
+        [Windows.Forms.Application]::EnableVisualStyles()
+        $form = New-Object Windows.Forms.Form
+        $form.FormBorderStyle = [Windows.Forms.FormBorderStyle]::None
+        $form.MinimumSize = New-Object Drawing.Size(1, 1)
+        $form.StartPosition = [Windows.Forms.FormStartPosition]::Manual
+        $form.AutoScaleMode = [Windows.Forms.AutoScaleMode]::None
+        $form.Location = New-Object Drawing.Point($positions.X, $positions.Y)
+        $form.ClientSize = New-Object Drawing.Size($positions.Width, $positions.Height)
+        $form.ShowInTaskbar = $false
+        $form.TopMost = $true
+        $form.BackColor = [Drawing.Color]::FromArgb(137, 190, 250)
+        $form.Padding = New-Object Windows.Forms.Padding(1)
+        $form.KeyPreview = $true
+        $form.Text = 'CPU precision'
+        $form.Tag = [pscustomobject]@{ Response = $response; Active = $false }
+
+        $box = New-Object Windows.Forms.TextBox
+        $box.AutoSize = $false
+        $box.Multiline = $false
+        $box.BorderStyle = [Windows.Forms.BorderStyle]::None
+        $box.Dock = [Windows.Forms.DockStyle]::Fill
+        $box.BackColor = [Drawing.Color]::FromArgb(25, 25, 25)
+        $box.ForeColor = [Drawing.Color]::FromArgb(220, 220, 220)
+        $box.TextAlign = [Windows.Forms.HorizontalAlignment]::Center
+        $box.MaxLength = 16
+        $inputFont = New-Object Drawing.Font('Segoe UI', [single](9 * $uiScale), [Drawing.FontStyle]::Regular)
+        $box.Font = $inputFont
+        $box.Text = $initialValue.Value
+        $box.AccessibleName = 'CPU decimal precision'
+        $box.AccessibleDescription = 'Enter applies the typed whole number. Escape cancels.'
+        $form.Controls.Add($box)
+        $tip = New-Object Windows.Forms.ToolTip
+
+        $form.add_Shown({
+            $form.Tag.Active = $true
+            $form.Activate()
+            $box.Focus() | Out-Null
+            $box.SelectAll()
+        })
+        $form.add_Deactivate({ if ($form.Tag.Active) { $form.Close() } })
+        $box.add_KeyDown({
+            param($sender, $eventArgs)
+            if ($eventArgs.KeyCode -eq [Windows.Forms.Keys]::Escape) {
+                $eventArgs.SuppressKeyPress = $true
+                $form.Close()
+            }
+            elseif ($eventArgs.KeyCode -eq [Windows.Forms.Keys]::Enter) {
+                $eventArgs.SuppressKeyPress = $true
+                $submitted = ConvertTo-CPUPrecisionValue -InputKey $InputKey -Text $box.Text
+                if ($submitted.Valid) {
+                    $form.Tag.Response = Get-CPUPrecisionResponse -InputKey $InputKey -Text $submitted.Value
+                    $form.Close()
+                }
+                else {
+                    $form.BackColor = [Drawing.Color]::FromArgb(230, 90, 90)
+                    $tip.Show($submitted.Error, $box, 0, $box.Height + 3, 3500)
+                    $box.AccessibleDescription = $submitted.Error + ' Escape cancels.'
+                }
+            }
+        })
+        $box.add_TextChanged({
+            $form.BackColor = [Drawing.Color]::FromArgb(137, 190, 250)
+            $tip.Hide($box)
+        })
+        $null = $form.ShowDialog()
+        return [string]$form.Tag.Response
+    }
+    catch {
+        # No user text or exception detail is reflected into the command channel.
+        return 'PARALLAX_CPU_DECIMAL_V1|cancel|'
+    }
+    finally {
+        if ($null -ne $tip) { $tip.Dispose() }
+        if ($null -ne $form) { $form.Dispose() }
+        if ($null -ne $inputFont) { $inputFont.Dispose() }
+    }
+}
+
+if ($PrecisionInput) {
+    $precisionParameters = @{
+        InputKey = $PrecisionKey
+        Initial = $PrecisionInitial
+        X = $PrecisionX
+        Y = $PrecisionY
+        Width = $PrecisionWidth
+        Height = $PrecisionHeight
+        Scale = $PrecisionScale
+        ValidateOnly = [bool]$PrecisionValidateOnly
+        Value = $PrecisionValue
+        Cancelled = [bool]$PrecisionCancel
+    }
+    [Console]::WriteLine((Invoke-CPUPrecisionInput @precisionParameters))
+    exit 0
+}
 
 function ConvertTo-CPUSensorCandidate {
     param(
@@ -52,9 +240,10 @@ function ConvertTo-CPUSensorCandidate {
 
     # ValueRaw carries no unit. Require a recognized unit in the paired Value.
     # HWiNFO may format the number with decimal/thousands separators; only the
-    # raw field is used numerically. Preserve C/F and V/mV for the live reader.
+    # raw field is used numerically. Preserve C/F, V/mV and MHz/GHz for the
+    # live reader.
     $unitMatch = [regex]::Match($formatted,
-        '\A[+-]?[0-9][0-9.,\s]*\s*(?:\u00b0\s*)?(C|F|mV|V)\z')
+        '\A[+-]?[0-9][0-9.,\s]*\s*(?:\u00b0\s*)?(C|F|mV|V|MHz|GHz)\z')
     if (-not $unitMatch.Success) { return }
     $unit = $unitMatch.Groups[1].Value
     $isCPU0 = $sensor -match '^CPU\s*\[#0\](?::|$)'
@@ -62,10 +251,20 @@ function ConvertTo-CPUSensorCandidate {
     $isGraphics = $sensor -match '(?i)(?:\bGPU\b|\bGraphics\b|\bVRAM\b)'
     $kind = ''
     $voltageKind = ''
+    $scope = 'AGGREGATE'
+    $coreId = -1
 
-    if ($isCPU0 -and $label -in @('CPU Package', 'CPU (Tctl/Tdie)') -and
-            $unit -in @('C', 'F')) {
-        $kind = 'TEMP'
+    if ($isCPU0 -and $unit -in @('C', 'F')) {
+        if ($label -in @('CPU Package', 'CPU (Tctl/Tdie)', 'Core Temperatures')) {
+            # Core Temperatures is HWiNFO's current average across core sensors,
+            # not a package temperature. Preserve its label in the protocol.
+            $kind = 'TEMP'
+        }
+        elseif ($sensor -match ':\s*DTS$' -and $label -match '^Core ([0-9]|[1-5][0-9]|6[0-3])$') {
+            $kind = 'TEMP'
+            $scope = 'CORE'
+            $coreId = [int] $Matches[1]
+        }
     }
     elseif ($unit -in @('V', 'mV')) {
         # Exact voltage labels only. Motherboard Vcore/VR VOUT are CPU-wide;
@@ -80,10 +279,23 @@ function ConvertTo-CPUSensorCandidate {
             $kind = 'VOLT'
             $voltageKind = 'VID'
         }
+        elseif ($isCPU0 -and $label -match '^Core ([0-9]|[1-5][0-9]|6[0-3]) VID$') {
+            $kind = 'VOLT'
+            $voltageKind = 'VID'
+            $scope = 'CORE'
+            $coreId = [int] $Matches[1]
+        }
+    }
+    elseif ($isCPU0 -and $unit -in @('MHz', 'GHz') -and $label -eq 'Core Clocks') {
+        # This is HWiNFO's CPU-wide export. Do not substitute individual,
+        # effective, or bus clock readings for the requested aggregate line.
+        $kind = 'CLOCK'
     }
     if ($kind.Length -eq 0) { return }
     [pscustomobject]@{
         Kind = $kind
+        Scope = $scope
+        CoreId = $coreId
         Hive = $SourceHive
         Index = $Index
         # Preserve exact identity strings for the live Registry reader's checks.
@@ -137,13 +349,17 @@ function Get-CPUExportCandidates {
 function Select-CPUExport {
     param([object[]] $Candidates, [string] $Kind, [int] $RequestedIndex)
 
-    $matchingCandidates = @($Candidates | Where-Object { $_.Kind -eq $Kind })
+    $matchingCandidates = @($Candidates | Where-Object { $_.Scope -eq 'AGGREGATE' -and $_.Kind -eq $Kind })
     if ($RequestedIndex -ge 0) {
         $matchingCandidates = @($matchingCandidates | Where-Object { $_.Index -eq $RequestedIndex })
     }
     elseif ($Kind -eq 'VOLT') {
         $measured = @($matchingCandidates | Where-Object { $_.VoltageKind -eq 'VCORE' })
         if ($measured.Count -gt 0) { $matchingCandidates = $measured }
+    }
+    elseif ($Kind -eq 'TEMP') {
+        $primary = @($matchingCandidates | Where-Object { $_.Label.Trim() -in @('CPU Package', 'CPU (Tctl/Tdie)') })
+        if ($primary.Count -gt 0) { $matchingCandidates = $primary }
     }
 
     # HWiNFO normally mirrors exports into both hives. Collapse only identical
@@ -157,7 +373,9 @@ function Select-CPUExport {
         })
         if ($same.Count -eq 0) { $unique += $candidate }
     }
-    $description = if ($Kind -eq 'TEMP') { 'temperature' } else { 'voltage' }
+    $description = if ($Kind -eq 'TEMP') { 'temperature' }
+        elseif ($Kind -eq 'VOLT') { 'voltage' }
+        else { 'core clock' }
     if ($unique.Count -eq 0) {
         $detail = if ($RequestedIndex -ge 0) {
             'Requested CPU ' + $description + ' export is missing or unsupported'
@@ -167,6 +385,9 @@ function Select-CPUExport {
         return 'STATUS|' + $detail
     }
     if ($unique.Count -gt 1) {
+        if ($Kind -eq 'CLOCK') {
+            return 'STATUS|Ambiguous CPU core clock exports; choose a search scope with one mapping'
+        }
         return 'STATUS|Ambiguous CPU ' + $description + ' exports; select a unique index and hive'
     }
     $selected = $unique[0]
@@ -184,11 +405,40 @@ function Format-CPUExportCandidates {
     # Candidates already passed tuple, semantic, raw-number and unit checks.
     # Keep each hive available for explicit setup, including mirrored mappings.
     # Sorting before the cap makes the bounded list independent of registry order.
-    $ordered = @($Candidates | Sort-Object Kind, Hive, Index | Select-Object -First 128)
+    $ordered = @($Candidates | Where-Object { $_.Scope -eq 'AGGREGATE' } |
+        Sort-Object Kind, Hive, Index | Select-Object -First 128)
     foreach ($candidate in $ordered) {
         $sensorHex = [BitConverter]::ToString([Text.Encoding]::UTF8.GetBytes($candidate.Sensor)).Replace('-', '')
         $labelHex = [BitConverter]::ToString([Text.Encoding]::UTF8.GetBytes($candidate.Label)).Replace('-', '')
         'CAND|' + $candidate.Kind + '|' + $candidate.Hive + '|' + $candidate.Index + '|' +
+            $sensorHex + '|' + $labelHex + '|' + $candidate.Unit + '|' + $candidate.VoltageKind
+    }
+}
+
+function Format-CPUCoreCandidates {
+    param([object[]] $Candidates)
+
+    # Each kind/core identity must resolve to exactly one export. Collapse only
+    # identical HKCU/HKLM mirrors, preferring HKCU. A conflicting identity, index,
+    # unit, or voltage type suppresses this core instead of guessing a binding.
+    $selected = @()
+    $groups = @($Candidates | Where-Object { $_.Scope -eq 'CORE' } | Group-Object Kind, CoreId)
+    foreach ($group in $groups) {
+        $unique = @()
+        foreach ($candidate in @($group.Group | Sort-Object Hive, Index)) {
+            $same = @($unique | Where-Object {
+                $_.Index -eq $candidate.Index -and $_.Sensor -ceq $candidate.Sensor -and
+                $_.Label -ceq $candidate.Label -and $_.Unit -ceq $candidate.Unit -and
+                $_.VoltageKind -ceq $candidate.VoltageKind
+            })
+            if ($same.Count -eq 0) { $unique += $candidate }
+        }
+        if ($unique.Count -eq 1) { $selected += $unique[0] }
+    }
+    foreach ($candidate in @($selected | Sort-Object Kind, CoreId | Select-Object -First 128)) {
+        $sensorHex = [BitConverter]::ToString([Text.Encoding]::UTF8.GetBytes($candidate.Sensor)).Replace('-', '')
+        $labelHex = [BitConverter]::ToString([Text.Encoding]::UTF8.GetBytes($candidate.Label)).Replace('-', '')
+        'CORE|' + $candidate.Kind + '|' + $candidate.CoreId + '|' + $candidate.Hive + '|' + $candidate.Index + '|' +
             $sensorHex + '|' + $labelHex + '|' + $candidate.Unit + '|' + $candidate.VoltageKind
     }
 }
@@ -202,6 +452,7 @@ $candidates = @(
 'HWINFOV1'
 Select-CPUExport -Candidates $candidates -Kind 'TEMP' -RequestedIndex $TemperatureIndex
 Select-CPUExport -Candidates $candidates -Kind 'VOLT' -RequestedIndex $VoltageIndex
+Select-CPUExport -Candidates $candidates -Kind 'CLOCK' -RequestedIndex -1
 if ($List -or $RequestId -gt 0) {
     # Echo caller correlation as data; a late result cannot finish a newer scan.
     'REQUEST|' + $RequestId
@@ -215,4 +466,7 @@ if ($List) {
         'STATE|STOPPED'
     }
     Format-CPUExportCandidates -Candidates $candidates
+}
+if ($CoreList -or $List) {
+    Format-CPUCoreCandidates -Candidates $candidates
 }

@@ -2,7 +2,7 @@
 # No network, authentication, playback controls, or executable dependencies.
 [CmdletBinding()]
 param(
-    [ValidateSet('Help','Start','Run','Stop','Once')][string]$Command = 'Help',
+    [ValidateSet('Help','Start','Resume','Run','Stop','Once')][string]$Command = 'Help',
     [string]$DataRoot,
     [switch]$Quiet
 )
@@ -74,7 +74,7 @@ function Initialize-SourceStorage {
     $rule = New-Object Security.AccessControl.FileSystemAccessRule($sid, 'FullControl', 'ContainerInherit,ObjectInherit', 'None', 'Allow')
     $null = $security.AddAccessRule($rule)
     [IO.Directory]::SetAccessControl($root, $security)
-    foreach ($name in @('source.snapshot','stop.request')) {
+    foreach ($name in @('source.snapshot','stop.request','enabled.intent')) {
         $file = Get-SourceRuntimeFile $root $name
         if (Test-Path -LiteralPath $file) { Set-SourcePrivateFile $file }
     }
@@ -82,7 +82,7 @@ function Initialize-SourceStorage {
 }
 
 function Get-SourceRuntimeFile {
-    param([string]$Root, [ValidateSet('source.snapshot','stop.request')][string]$Name)
+    param([string]$Root, [ValidateSet('source.snapshot','stop.request','enabled.intent')][string]$Name)
     $root = Resolve-SourceDataRoot $Root
     $path = Join-Path $root $Name
     if (Test-Path -LiteralPath $path) {
@@ -162,7 +162,7 @@ function ConvertTo-SourceSnapshotText {
 }
 
 function Write-SourceAtomicFile {
-    param([string]$Root, [ValidateSet('source.snapshot','stop.request')][string]$Name, [string]$Text)
+    param([string]$Root, [ValidateSet('source.snapshot','stop.request','enabled.intent')][string]$Name, [string]$Text)
     $destination = Get-SourceRuntimeFile $Root $Name
     if ($Text -match '[^\x00-\x7F]' -or $Text.Length -gt 131072) { throw 'Invalid source output bytes.' }
     $temporary = Join-Path $Root ($Name+'.'+[Guid]::NewGuid().ToString('N')+'.tmp')
@@ -303,6 +303,30 @@ function Test-SourceStop {
     [IO.File]::Exists((Get-SourceRuntimeFile $Root 'stop.request'))
 }
 
+function Test-SourceEnabledIntent {
+    param([string]$Root)
+    $path = Get-SourceRuntimeFile $Root 'enabled.intent'
+    if (-not [IO.File]::Exists($path)) { return $false }
+    $expected = "PARALLAX_AUTOSTART_V1|1`n"
+    $stream = [IO.File]::Open($path, [IO.FileMode]::Open, [IO.FileAccess]::Read,
+        ([IO.FileShare]::ReadWrite -bor [IO.FileShare]::Delete))
+    try {
+        # Exact bounded ASCII bytes only. Missing, disabled, malformed, BOM or
+        # oversized intent is not authorization to resume a native observer.
+        if ($stream.Length -ne $expected.Length) { return $false }
+        foreach ($character in $expected.ToCharArray()) {
+            if ($stream.ReadByte() -ne [int]$character) { return $false }
+        }
+        return $stream.ReadByte() -eq -1
+    } finally { $stream.Dispose() }
+}
+
+function Set-SourceEnabledIntent {
+    param([string]$Root, [bool]$Enabled)
+    $value = if ($Enabled) { '1' } else { '0' }
+    Write-SourceAtomicFile $Root 'enabled.intent' ("PARALLAX_AUTOSTART_V1|$value`n")
+}
+
 function Invoke-SourceOnce {
     param([string]$Root, [scriptblock]$Collector = { Get-SourceCollection })
     $mutex = New-SourceMutex $Root; $owned = $false
@@ -343,7 +367,10 @@ function Stop-SourceObserver {
     try {
         $controlOwned = Enter-SourceMutex $control 10000
         if (-not $controlOwned) { throw 'Another source lifecycle action is still running.' }
+        # The Stop marker is the durable veto. If the following intent write
+        # fails, Resume must still leave this explicit Stop in force.
         Write-SourceAtomicFile $Root 'stop.request' "stop`n"
+        Set-SourceEnabledIntent $Root $false
         $owned = Enter-SourceMutex $mutex 10000
         if (-not $owned) { throw 'The source observer has not stopped yet.' }
         Publish-SourceSnapshot $Root (New-SourceSnapshot 'stopped')
@@ -354,7 +381,7 @@ function Stop-SourceObserver {
 }
 
 function Start-SourceObserver {
-    param([string]$Root)
+    param([string]$Root, [switch]$Resume)
     $executable = Join-Path $env:SystemRoot 'System32\WindowsPowerShell\v1.0\powershell.exe'
     if (-not [IO.File]::Exists($executable) -or $script:SourceProviderPath -match '["\r\n]') { throw 'Windows PowerShell is unavailable.' }
     $arguments = '-NoLogo -NoProfile -NonInteractive -ExecutionPolicy Bypass -File "{0}" -Command Run -DataRoot "{1}" -Quiet' -f $script:SourceProviderPath,$Root
@@ -363,13 +390,24 @@ function Start-SourceObserver {
     try {
         $controlOwned = Enter-SourceMutex $control 10000
         if (-not $controlOwned) { throw 'Another source lifecycle action is still running.' }
+        if ($Resume) {
+            # Recheck under lifecycle ownership: Stop may have completed after
+            # the entrypoint's initial passive intent check.
+            if (-not (Test-SourceEnabledIntent $Root) -or (Test-SourceStop $Root)) { return }
+        } else {
+            # A repeated explicit Start also opts an already-running observer
+            # into future resume, without launching a duplicate worker.
+            Set-SourceEnabledIntent $Root $true
+        }
         $owned = Enter-SourceMutex $mutex
         if (-not $owned) { return }
         # Do not retain worker ownership across asynchronous process startup:
         # a quickly starting child would otherwise mistake us for a worker.
         $mutex.ReleaseMutex(); $owned = $false
-        $stop = Get-SourceRuntimeFile $Root 'stop.request'
-        if ([IO.File]::Exists($stop)) { [IO.File]::Delete($stop) }
+        if (-not $Resume) {
+            $stop = Get-SourceRuntimeFile $Root 'stop.request'
+            if ([IO.File]::Exists($stop)) { [IO.File]::Delete($stop) }
+        }
         Start-Process -FilePath $executable -ArgumentList $arguments -WindowStyle Hidden -ErrorAction Stop
     } finally {
         if ($owned) { $mutex.ReleaseMutex() }; $mutex.Dispose()
@@ -377,16 +415,28 @@ function Start-SourceObserver {
     }
 }
 
+function Resume-SourceObserver {
+    param([string]$Root)
+    Start-SourceObserver $Root -Resume
+}
+
 function Invoke-SourceCommand {
     param([string]$Action, [string]$Path)
     if ($Action -eq 'Help') {
-        Write-Output 'Parallax native source observer (Windows PowerShell 5.1). Start enables one local worker; Stop ends it. Once publishes one bounded observation. No Spotify sign-in, network, or playback control is used.'
+        Write-Output 'Parallax native source observer (Windows PowerShell 5.1). Start enables one local worker and saves resume intent; Stop ends it and disables resume. Resume starts only a previously enabled, unstopped observer. Once publishes one bounded observation. No Spotify sign-in, network, or playback control is used.'
         return
     }
     if ($PSVersionTable.PSEdition -ne 'Desktop') { throw 'Use Windows PowerShell 5.1 for native media sessions.' }
+    if ($Action -eq 'Resume') {
+        $candidate = Resolve-SourceDataRoot $Path
+        # A load-time resume check must not create private runtime storage for
+        # a user who has never enabled source detection.
+        if (-not (Test-SourceEnabledIntent $candidate) -or (Test-SourceStop $candidate)) { return }
+    }
     $root = Initialize-SourceStorage $Path
     switch ($Action) {
         'Start' { Start-SourceObserver $root }
+        'Resume' { Resume-SourceObserver $root }
         'Run' { $null = Invoke-SourceRun $root }
         'Stop' { Stop-SourceObserver $root }
         'Once' { $null = Invoke-SourceOnce $root }

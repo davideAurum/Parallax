@@ -5,7 +5,8 @@
 local state
 local fields = { 'Temperature', 'Power', 'Clock' }
 local defaults = {
-    Columns = '1', PanelHeight = '288', GPUEnableSensors = '0',
+    Columns = '1', PanelHeight = '560', GPUEnableSensors = '0',
+    GPUPowerSource = '0', GPUClockSource = '0',
     GPURegHKey = 'HKEY_CURRENT_USER', GPURegKey = 'SOFTWARE\\HWiNFO64\\VSB'
 }
 for _, field in ipairs(fields) do
@@ -28,8 +29,9 @@ local function finite(value)
 end
 
 local function knownField(field)
-    for _, candidate in ipairs(fields) do if candidate == field then return true end end
-    return false
+    -- Legacy temperature mappings remain in the saved file, but the driver owns
+    -- temperature now. Only the optional power/clock readings can be mapped.
+    return field == 'Power' or field == 'Clock'
 end
 
 local function safeIdentity(value)
@@ -108,28 +110,39 @@ end
 local function render()
     if not state then return end
     local v = state.values
-    set('MeterSettingsColumnsValue', 'Text', v.Columns == '1' and '1 column' or v.Columns == '2' and '2 columns' or 'Custom')
-    set('MeterSettingsColumnsValue', 'ToolTipText', 'GPU monitor columns: ' .. v.Columns .. '. Click to choose one or two columns.')
+    set('MeterSettingsColumnsValue', 'Text', v.Columns == '1' and '1' or v.Columns == '2' and '2' or 'Custom')
+    set('MeterSettingsColumnsValue', 'ToolTipText', 'GPU monitor columns: ' .. v.Columns .. '. Click to enter 1 or 2. Arrows stop at these limits; settings keep their own width.')
     set('MeterSettingsHeightValue', 'Text', v.PanelHeight .. ' px / Fit')
-    set('MeterSettingsHeightValue', 'ToolTipText', 'GPU monitor height: ' .. v.PanelHeight .. ' logical pixels. Fit sets the current content height to 288.')
+    set('MeterSettingsHeightValue', 'ToolTipText', 'Saved GPU minimum height: ' .. v.PanelHeight .. ' logical pixels. Current content needs at least 560; Fit saves 560.')
     set('MeterSettingsSensorsValue', 'Text', v.GPUEnableSensors == '1' and 'On' or v.GPUEnableSensors == '0' and 'Off' or 'Custom')
+    for _, field in ipairs({'Power', 'Clock'}) do
+        local source = v['GPU' .. field .. 'Source']
+        set('MeterSettings' .. field .. 'SourceValue', 'Text', source == '0' and 'Driver' or source == '1' and 'HWiNFO' or 'Custom')
+        set('MeterSettings' .. field .. 'SourceValue', 'ToolTipText', 'Choose the ' .. field:lower() .. ' source: Driver reads the detected GPU directly; HWiNFO uses only the explicit override below and requires HWiNFO overrides On. Missing readings stay unavailable; sources do not switch automatically. Saved mappings are preserved.')
+    end
     set('MeterSettingsHiveValue', 'Text', v.GPURegHKey == 'HKEY_CURRENT_USER' and 'Current user'
         or v.GPURegHKey == 'HKEY_LOCAL_MACHINE' and 'Local machine' or 'Custom')
-    set('MeterSettingsHiveValue', 'ToolTipText', v.GPURegHKey .. '. Changes only the registry hive; existing exact mappings remain unchanged.')
+    set('MeterSettingsHiveValue', 'ToolTipText', v.GPURegHKey .. '. HWiNFO source for optional power and clock mappings and the picker. Temperature uses the NVIDIA driver independently.')
     set('MeterSettingsKeyValue', 'Text', v.GPURegKey)
-    set('MeterSettingsKeyValue', 'ToolTipText', 'Read-only registry source: ' .. v.GPURegHKey .. '\\' .. v.GPURegKey .. '. Advanced file opens custom settings.')
+    set('MeterSettingsKeyValue', 'ToolTipText', 'Optional power and clock source: ' .. v.GPURegHKey .. '\\' .. v.GPURegKey .. '. Advanced opens custom settings.')
     for _, field in ipairs(fields) do
         local prefix = 'GPU' .. field
         local mapped = v[prefix .. 'Index']:match('^%d+$') and v[prefix .. 'Sensor'] ~= '' and v[prefix .. 'Label'] ~= ''
-        set('MeterSettings' .. field .. 'Value', 'Text', mapped and v[prefix .. 'Label'] or 'Unmapped / choose')
-        set('MeterSettings' .. field .. 'Value', 'ToolTipText', mapped and
-            ('Index ' .. v[prefix .. 'Index'] .. ': ' .. v[prefix .. 'Sensor'] .. ' / ' .. v[prefix .. 'Label'])
-            or ('Choose the exported ' .. field:lower() .. ' measurement for your GPU.'))
+        if field == 'Temperature' then
+            set('MeterSettingsTemperatureValue', 'Text', 'Driver')
+            set('MeterSettingsTemperatureValue', 'ToolTipText', 'Regular GPU temperature from the installed NVIDIA driver for the detected card. Hotspot is a separate reading and is not reported here. HWiNFO is not required; missing driver readings show Unsupported or Unavailable.')
+        else
+            set('MeterSettings' .. field .. 'Value', 'Text', mapped and v[prefix .. 'Label'] or 'Unmapped / choose')
+            set('MeterSettings' .. field .. 'Value', 'ToolTipText', (mapped and
+                ('Index ' .. v[prefix .. 'Index'] .. ': ' .. v[prefix .. 'Sensor'] .. ' / ' .. v[prefix .. 'Label'])
+                or ('Choose the exported ' .. field:lower() .. ' measurement for your GPU.'))
+                .. '. Used only with source HWiNFO and overrides On. Choosing or clearing a mapping does not change the source.')
+        end
     end
     set('MeterSettingsNotice', 'Text', state.notice)
     set('MeterSettingsNotice', 'ToolTipText', state.detail or state.notice)
     set('MeterSettingsPickerTitle', 'Text', state.busy and 'Reading exported sensors...'
-        or state.target and ('Choose ' .. state.target:lower() .. ' export') or 'Choose a sensor row above')
+        or state.target and ('Choose ' .. state.target:lower() .. ' override') or 'Choose an override above')
     local pages = math.max(1, math.ceil(#state.items / 5))
     state.page = math.max(1, math.min(pages, state.page))
     set('MeterSettingsPage', 'Text', #state.items == 0 and '--' or (state.page .. ' / ' .. pages))
@@ -140,10 +153,10 @@ local function render()
         if #state.items == 0 and slot == 1 then
             placeholder = state.busy and 'Reading exported sensors...'
                 or state.target and 'No readings available. Check Guide or Rescan.'
-                or 'Choose Temperature, Power or Clock above.'
+                or 'Choose a Power or Clock override above.'
         end
         set(meter, 'Text', item and (item.index .. ': ' .. item.label .. ' / ' .. item.formatted) or placeholder)
-        set(meter, 'FontColor', SKIN:GetVariable(item and 'AccentColor' or 'MutedColor', '175,175,175'))
+        set(meter, 'FontColor', SKIN:GetVariable(item and 'TextColor' or 'MutedColor', '175,175,175'))
         set(meter, 'ToolTipText', item and (item.sensor .. ' / ' .. item.label .. ': ' .. item.formatted
             .. '. Registry snapshot; age unknown. Confirm this is your GPU and the selected measurement.'
             .. (item.safe and '' or ' This identity cannot be saved safely in Rainmeter.')) or placeholder)
@@ -172,8 +185,9 @@ end
 local function valid(key, value)
     if not defaults[key] or type(value) ~= 'string' then return false end
     if key == 'Columns' then return value == '1' or value == '2' end
-    if key == 'PanelHeight' then return value == '288' end
+    if key == 'PanelHeight' then return value == '560' end
     if key == 'GPUEnableSensors' then return value == '0' or value == '1' end
+    if key == 'GPUPowerSource' or key == 'GPUClockSource' then return value == '0' or value == '1' end
     if key == 'GPURegHKey' then return value == 'HKEY_CURRENT_USER' or value == 'HKEY_LOCAL_MACHINE' end
     if key == 'GPURegKey' then return false end
     for _, field in ipairs(fields) do
@@ -227,17 +241,100 @@ function ToggleSensors()
     return save({GPUEnableSensors = state.values.GPUEnableSensors == '1' and '0' or '1'})
 end
 
+local function cycled(current, choices, direction)
+    local index = direction == 1 and 0 or #choices + 1
+    for i, choice in ipairs(choices) do if choice == current then index = i; break end end
+    return choices[(index - 1 + direction) % #choices + 1]
+end
+
+function CycleSource(field, direction)
+    direction = direction == nil and 1 or direction
+    if not knownField(field) or (direction ~= -1 and direction ~= 1) or not refreshValues() then return false end
+    local key = 'GPU' .. field .. 'Source'
+    return save({[key] = cycled(state.values[key], {'0', '1'}, direction)})
+end
+
 function CycleColumns()
-    if not refreshValues() then return false end
+    if state.editing or not refreshValues() then return false end
     return save({Columns = state.values.Columns == '1' and '2' or '1'})
 end
 
-function FitHeight() return save({PanelHeight = '288'}) end
+function StepColumns(direction)
+    if state.editing or (direction ~= -1 and direction ~= 1) or not refreshValues() then return false end
+    local current = state.values.Columns
+    if current ~= '1' and current ~= '2' then return false end
+    local nextValue = tostring(math.max(1, math.min(2, tonumber(current) + direction)))
+    if nextValue == current then return false end
+    return save({Columns = nextValue})
+end
 
-function CycleHive()
+function BeginColumnsEdit()
+    if state.editing or not refreshValues() then return false end
+    local input = SKIN:GetMeasure('MeasureGPUSettingsInput')
+    local meter = SKIN:GetMeter('MeterSettingsColumnsFrame')
+    if not input or not meter then return false end
+    SKIN:Bang('!UpdateMeasure', 'MeasureGPUSettingsInput')
+    if input:GetValue() == 0 then return false end
+    local function whole(value, minimum, maximum)
+        if not finite(value) then return nil end
+        value = math.floor(value)
+        if value < minimum or value > maximum then return nil end
+        return value
+    end
+    local x = whole(SKIN:GetX() + meter:GetX(), -100000, 100000)
+    local y = whole(SKIN:GetY() + meter:GetY(), -100000, 100000)
+    local width = whole(meter:GetW(), 24, 2048)
+    local height = whole(meter:GetH(), 12, 512)
+    local scale = tonumber(SKIN:GetVariable('Scale', '1'))
+    if not x or not y or not width or not height or not finite(scale) or scale < .75 or scale > 2 then return false end
+    local initial = state.values.Columns == '2' and '2' or '1'
+    -- The shared helper receives only fixed names and canonical numeric arguments.
+    -- User text returns as data; no module key or destination path is passed.
+    local parameter = string.format('-NoLogo -NoProfile -NonInteractive -STA -Command "& ([ScriptBlock]::Create([IO.File]::ReadAllText(\'SettingsInput.ps1\'))) -Key UtilityNumber -Minimum 1 -Maximum 2 -DecimalPlaces 0 -Initial %s -X %d -Y %d -Width %d -Height %d -Scale %.4f"', initial, x, y, width, height, scale)
+    state.editing = { original = state.values.Columns }
+    notice('Enter 1 or 2 columns; Escape cancels.')
+    SKIN:Bang('!SetOption', 'MeasureGPUSettingsInput', 'Parameter', parameter)
+    SKIN:Bang('!UpdateMeasure', 'MeasureGPUSettingsInput')
+    SKIN:Bang('!CommandMeasure', 'MeasureGPUSettingsInput', 'Run')
+    return true
+end
+
+function CommitColumnsInput()
+    if not state.editing then return false end
+    local pending = state.editing
+    state.editing = nil
+    local input = SKIN:GetMeasure('MeasureGPUSettingsInput')
+    local output = input and input:GetStringValue() or ''
+    if not input or input:GetValue() ~= 1 or type(output) ~= 'string' or #output > 128 then
+        notice('Column input was not applied.'); return false
+    end
+    output = output:gsub('[\r\n]+$', '')
+    if output == 'PARALLAX_INPUT_V1|cancel|' then notice('Column input cancelled.'); return false end
+    local value = output:match('^PARALLAX_INPUT_V1|ok|([12])$')
+    if not value then notice('Column input was not applied.'); return false end
     if not refreshValues() then return false end
+    if state.values.Columns ~= pending.original then
+        notice('Monitor width changed; enter the value again.'); return false
+    end
+    return save({Columns = value})
+end
+
+function CancelInput()
+    if not state or not state.editing then return false end
+    state.editing = nil
+    SKIN:Bang('!UpdateMeasure', 'MeasureGPUSettingsInput')
+    local input = SKIN:GetMeasure('MeasureGPUSettingsInput')
+    if input and input:GetValue() == 0 then SKIN:Bang('!CommandMeasure', 'MeasureGPUSettingsInput', 'Kill') end
+    return true
+end
+
+function FitHeight() return save({PanelHeight = '560'}) end
+
+function CycleHive(direction)
+    direction = direction == nil and 1 or direction
+    if (direction ~= -1 and direction ~= 1) or not refreshValues() then return false end
     state.items, state.page, state.sourceHive, state.sourceKey = {}, 1, nil, nil
-    return save({GPURegHKey = state.values.GPURegHKey == 'HKEY_CURRENT_USER' and 'HKEY_LOCAL_MACHINE' or 'HKEY_CURRENT_USER'})
+    return save({GPURegHKey = cycled(state.values.GPURegHKey, {'HKEY_CURRENT_USER', 'HKEY_LOCAL_MACHINE'}, direction)})
 end
 
 function Browse(field)
@@ -255,7 +352,7 @@ function Browse(field)
 end
 
 function Rescan()
-    if not state.target then notice('Choose a sensor row first.'); return false end
+    if not state.target then notice('Choose a Power or Clock override first.'); return false end
     return Browse(state.target)
 end
 
@@ -346,7 +443,7 @@ end
 
 function RefreshGPU()
     SKIN:Bang('!RefreshGroup', 'ParallaxGPU')
-    notice('GPU refresh requested.', 'Only loaded GPU monitor configs refresh. GPU Settings remains open.')
+    notice('GPU refresh requested.', 'Loaded GPU monitor configs detect the card again and restart direct temperature, memory, activity, power and clock readings. GPU Settings remains open; saved preferences are unchanged.')
 end
 
-function Close() SKIN:Bang('!DeactivateConfig', 'Parallax\\GPU\\Settings') end
+function Close() CancelInput(); SKIN:Bang('!DeactivateConfig', 'Parallax\\GPU\\Settings') end

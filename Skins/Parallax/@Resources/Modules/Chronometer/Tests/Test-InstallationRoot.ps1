@@ -65,7 +65,7 @@ if (-not (Test-Path -LiteralPath $suitePath -PathType Container) -and
         '@Resources\Defaults.inc', '@Resources\Geometry.inc',
         '@Resources\Styles.inc', '@Resources\User\Settings.inc',
         'Chronometer\Chronometer.ini', 'CPU\CPU.ini', 'RAM\RAM.ini',
-        'GPU\GPU.ini', 'IO\IO.ini', 'Network\Network.ini',
+        'GPU\GPU.ini', 'IO\IO-Disk.ini', 'Network\Network.ini',
         'Media\Media.ini', 'Visualizer\Visualizer.ini', 'Settings\Settings.ini'
     )
     foreach ($relative in $requiredFiles) {

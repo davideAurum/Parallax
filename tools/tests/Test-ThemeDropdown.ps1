@@ -115,8 +115,9 @@ $defaults = Read-Variables "$sourceRoot\@Resources\Defaults.inc"
 # Explicit appearance contract; layout size and update cadence are excluded.
 $appearanceKeys = @('Theme','FontFace','FontSize','PanelPadding','CornerRadius','TextColor','MutedColor','AccentColor','BackgroundColor','BorderColor','TrackColor','GraphBackgroundColor','GridColor','GraphHeight','GoodColor','WarningColor','DangerColor','CPUColor','RAMColor','GPUColor','DiskReadColor','DiskWriteColor','NetworkInColor','NetworkOutColor','MediaColor','ClockColor')
 $appearanceKeys += @('AccentColor2','TitleFontSize','HeaderFontSize','TitleTextColor','HeaderTextColor','BorderThickness','DividerColor','DividerThickness')
+$appearanceKeys += @('TableHeaderBorderColor','TableHeaderBorderThickness','DataBarThickness')
 $records = [Collections.Generic.List[object]]::new()
-foreach ($case in @(@{Name='default';Scale='1';ColumnWidth='200';Width=416;Height=652},@{Name='narrow';Scale='0.75';ColumnWidth='180';Width=282;Height=489})) {
+foreach ($case in @(@{Name='default';Scale='1';ColumnWidth='220';Width=456;Height=766},@{Name='narrow';Scale='0.75';ColumnWidth='180';Width=282;Height=575})) {
     $caseRoot=Join-Path $runRoot $case.Name
     $skinRoot=Join-Path $caseRoot 'Skins'
     $parallaxRoot=Join-Path $skinRoot 'Parallax'
@@ -134,7 +135,7 @@ foreach ($case in @(@{Name='default';Scale='1';ColumnWidth='200';Width=416;Heigh
     $sentinels=@{Scale=$case.Scale;ColumnWidth=$case.ColumnWidth;Gutter='8';MetricsInterval='2000';SensorInterval='4000';CapacityInterval='60000';VisualizerInterval='100';CustomThemeSentinel='preserve-me'}
     foreach ($key in $sentinels.Keys) { $user=Set-IniValue $user $key $sentinels[$key] }
     foreach ($key in $appearanceKeys) {
-        $value=if ($key -eq 'Theme') {'custom-test'} elseif ($key -eq 'FontFace') {'Segoe UI'} elseif ($key -eq 'FontSize' -or $key -eq 'HeaderFontSize') {'10'} elseif ($key -eq 'TitleFontSize') {'12'} elseif ($key -eq 'BorderThickness' -or $key -eq 'DividerThickness') {'4'} elseif ($key -eq 'PanelPadding') {'8'} elseif ($key -eq 'CornerRadius') {'6'} elseif ($key -eq 'GraphHeight') {'41'} else {'101,102,103'}
+        $value=if ($key -eq 'Theme') {'custom-test'} elseif ($key -eq 'FontFace') {'Segoe UI'} elseif ($key -eq 'FontSize' -or $key -eq 'HeaderFontSize') {'10'} elseif ($key -eq 'TitleFontSize') {'12'} elseif ($key -eq 'BorderThickness' -or $key -eq 'DividerThickness' -or $key -eq 'TableHeaderBorderThickness') {'4'} elseif ($key -eq 'DataBarThickness') {'9.5'} elseif ($key -eq 'PanelPadding') {'8'} elseif ($key -eq 'CornerRadius') {'6'} elseif ($key -eq 'GraphHeight') {'41'} else {'101,102,103'}
         $user=Set-IniValue $user $key $value
     }
     Write-Isolated $userPath $user

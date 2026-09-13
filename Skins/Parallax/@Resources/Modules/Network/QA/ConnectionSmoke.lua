@@ -13,6 +13,10 @@ local function numberOption(target, key)
     return assert(SKIN:ParseFormula('(' .. SKIN:ReplaceVariables(target:GetOption(key)) .. ')'), 'Invalid numeric option: ' .. key)
 end
 
+local function numberVariable(key)
+    return assert(SKIN:ParseFormula('(' .. SKIN:ReplaceVariables(SKIN:GetVariable(key)) .. ')'), 'Invalid variable: ' .. key)
+end
+
 local function prepareGlyphs()
     for index = 1, SELF:GetNumberOption('GlyphCount') do
         probes[#probes + 1] = {tostring(index), SELF:GetOption('GlyphTarget' .. index),
@@ -65,28 +69,172 @@ end
 
 local function boundsCheck(suffix, expectedW, expectedH)
     local target = meter(suffix)
-    local x, y, w, h = target:GetX(true), target:GetY(true), target:GetW(), target:GetH()
-    if target:GetOption('StringAlign', ''):lower():match('^right') then x = x - w end
+    -- false returns the actual top-left, including centered/right anchor adjustment.
+    local x, y, w, h = target:GetX(false), target:GetY(false), target:GetW(), target:GetH()
     assert(x >= 0 and y >= 0 and x + w <= expectedW and y + h <= expectedH,
         string.format('%s outside skin: %.2f %.2f %.2f %.2f', suffix, x, y, w, h))
+end
+
+local function headerChecks(scale, titleSize)
+    local title, width, icon, adapter = meter('Title'), meter('Width'), meter('Icon'), meter('Adapter')
+    local center, iconScale = numberVariable('TitleRowCenterY'), numberVariable('TitleIconScale')
+    local iconSize, gap = numberVariable('TitleIconSize'), numberVariable('TitleIconGap')
+    assert(math.abs(iconScale - scale * titleSize / 10) < 0.001, 'Shared icon typography scaling differs')
+    assert(math.abs(numberOption(icon, 'W') - iconSize) < 0.001 and math.abs(iconSize - 14 * iconScale) < 0.001,
+        'Icon width does not scale with title size')
+    assert(math.abs(numberOption(icon, 'H') - 12 * iconScale) < 0.001, 'Icon aspect ratio changed')
+    assert(math.abs(icon:GetY(false) + icon:GetH() / 2 - center) <= 1.001,
+        string.format('Icon is not centered: top=%g height=%g center=%g', icon:GetY(false), icon:GetH(), center))
+    for _, target in ipairs({title, width}) do
+        assert(target:GetOption('StringAlign'):lower() == 'leftcenter', 'Header text must use a center anchor')
+        assert(math.abs(numberOption(target, 'Y') - center) < 0.001, 'Header control does not use shared row center')
+        assert(math.abs(target:GetY(false) + target:GetH() / 2 - center) <= 1, 'Native padded header center differs')
+    end
+    assert(math.abs(numberOption(title, 'H') - numberVariable('TitleRowHeight')) < 0.001, 'Title bypasses shared row height')
+    assert(math.abs(numberOption(title, 'X') - numberVariable('ContentX') - iconSize - gap) < 0.001,
+        'Title does not begin after the scaled icon and shared gap')
+    assert(title:GetX(false) >= icon:GetX(false) + icon:GetW() + gap - 1, 'Scaled icon collides with title')
+    assert(title:GetX(false) + title:GetW() <= width:GetX(false), 'Title overlaps the padded width control')
+    assert(math.abs(numberOption(adapter, 'Y') - numberVariable('Inset') - 26 * scale) < 0.001,
+        'First Connection content row moved')
+    for _, shape in ipairs({
+        {'Shape', 'Rectangle', {0,0,5,5}, 0}, {'Shape2', 'Rectangle', {9,7,5,5}, 0},
+        {'Shape3', 'Line', {5,2.5,11.5,2.5}, 1}, {'Shape4', 'Line', {11.5,2.5,11.5,7}, 1}
+    }) do
+        local path = icon:GetOption(shape[1])
+        local coordinates = assert(path:match('^' .. shape[2] .. '%s+([^|]+)'), 'Unexpected icon shape type')
+        local index = 0
+        for coordinate in coordinates:gmatch('[^,]+') do
+            index = index + 1
+            local actual = assert(SKIN:ParseFormula('(' .. SKIN:ReplaceVariables(coordinate:match('^%s*(.-)%s*$')) .. ')'),
+                'Invalid icon coordinate')
+            assert(shape[3][index] and math.abs(actual - shape[3][index] * iconScale) < 0.001,
+                string.format('%s coordinate %d differs: %g vs %g', shape[1], index, actual, (shape[3][index] or 0) * iconScale))
+        end
+        assert(index == #shape[3], 'Unexpected icon coordinate count')
+        local stroke = assert(path:match('StrokeWidth%s+([^|]+)'), 'Missing icon stroke')
+        assert(math.abs(SKIN:ParseFormula('(' .. SKIN:ReplaceVariables(stroke:match('^%s*(.-)%s*$')) .. ')') - shape[4] * iconScale) < 0.001,
+            shape[1] .. ' stroke does not scale with title')
+    end
+    local glyphBottom
+    for _, spec in ipairs(probes) do
+        if spec[2] == 'Title' then
+            local probe = meter('Glyph' .. spec[1])
+            probe:Show()
+            local intrinsicHeight = probe:GetH()
+            probe:Hide()
+            glyphBottom = title:GetY(true) + math.ceil(intrinsicHeight / 2)
+            assert(glyphBottom <= adapter:GetY(false) + 1, 'Centered title glyph overlaps first content row')
+        end
+    end
+    assert(width:GetY(false) + width:GetH() <= adapter:GetY(false) + 1, 'Padded width action overlaps first content row')
+    return string.format('center=%.2f icon=%.2fx%.2f glyphBottom=%g bodyTop=%g', center,
+        numberOption(icon, 'W'), numberOption(icon, 'H'), glyphBottom, adapter:GetY(false))
 end
 
 local function run()
     local scale = tonumber(SKIN:GetVariable('Scale'))
     local columns = tonumber(SKIN:GetVariable('Columns'))
     local columnWidth = tonumber(SKIN:GetVariable('ColumnWidth'))
-    local panelHeight = tonumber(SKIN:GetVariable('PanelHeight'))
+    local panelHeight = numberVariable('PanelHeight')
     local gutter = tonumber(SKIN:GetVariable('Gutter'))
     assert(columnWidth == SELF:GetNumberOption('ExpectedColumnWidth'), 'ColumnWidth fixture override failed')
     assert(scale == SELF:GetNumberOption('ExpectedScale'), 'Scale fixture override failed')
     assert(columns == SELF:GetNumberOption('ExpectedColumns'), 'Connection column override failed')
     assert(columns == tonumber(SKIN:GetVariable('NetworkConnectionColumns')), 'Connection uses throughput Columns')
-    assert(panelHeight == tonumber(SKIN:GetVariable('NetworkConnectionHeight')), 'Connection uses throughput PanelHeight')
+    local savedHeight, thickness = numberVariable('NetworkConnectionHeight'), numberVariable('DataBarThickness')
+    assert(panelHeight == math.max(savedHeight, 236 + thickness), 'Computed Connection panel height differs from saved minimum/bar clearance')
     local gap = 2 * math.floor(gutter * scale / 2 + 0.5)
     local expectedW = columns * (math.floor(columnWidth * scale + 0.5) + gap)
     local expectedH = math.floor(panelHeight * scale + 0.5) + gap
     assert(SKIN:GetW() == expectedW, 'Unexpected skin width: ' .. SKIN:GetW())
     assert(SKIN:GetH() == expectedH, 'Unexpected skin height: ' .. SKIN:GetH())
+    local titleSize, bodySize = tonumber(SKIN:GetVariable('TitleFontSize')), tonumber(SKIN:GetVariable('FontSize'))
+    if SELF:GetNumberOption('DataBarFocus') == 1 then
+        assert(thickness == SELF:GetNumberOption('ExpectedThickness') and titleSize == 12 and bodySize == 10,
+            'Signal-bar fixture overrides failed')
+        assert(numberVariable('BorderThickness') == 4, 'Signal-bar fixture must use maximum border thickness')
+        for _, suffix in ipairs({'Bounds','Panel','SignalLabel','Signal','SignalBar','Radio'}) do boundsCheck(suffix, expectedW, expectedH) end
+        local track, radio, signal = meter('SignalBar'), meter('Radio'), meter('Signal')
+        local controller = assert(SKIN:GetMeasure('MeasureConnectionController'), 'Connection controller missing')
+        local height, contentWidth, inset = math.max(1, math.floor(thickness * scale + 0.5)), numberVariable('ContentWidth'), numberVariable('Inset')
+        assert(math.abs(numberVariable('DataBarThicknessPx') - height) < 0.001, 'Shared bar-height geometry differs')
+        assert(math.abs(numberOption(track, 'H') - height) < 0.001 and math.abs(controller:GetNumberOption('SignalHeight') - height) < 0.001,
+            'Track or controller does not honor rounded global thickness')
+        assert(math.abs(numberOption(track, 'W') - contentWidth) < 0.001 and math.abs(controller:GetNumberOption('SignalWidth') - contentWidth) < 0.001,
+            'Track or controller width differs from content bounds')
+        assert(track:GetH() == height and track:GetH() >= 1 and math.abs(track:GetW() - contentWidth) < 1,
+            'Native track must match the visible whole-pixel shared height')
+        assert(math.abs(numberOption(track, 'Y') - inset - 211 * scale) < 0.001, 'Signal track top moved')
+        assert(math.abs(numberOption(radio, 'Y') - inset - 213 * scale - height) < 0.001,
+            'Radio row does not follow the bar thickness')
+        local function rectangle(path)
+            local fields = assert(path:match('^Rectangle%s+([^|]+)'), 'Expected rectangular signal track/fill')
+            -- Expanded shape options may contain Max/Round function arguments.
+            -- Only commas outside parentheses separate rectangle coordinates.
+            local tokens, depth, first = {}, 0, 1
+            for index = 1, #fields do
+                local character = fields:sub(index, index)
+                if character == '(' then depth = depth + 1 end
+                if character == ')' then depth = depth - 1 end
+                assert(depth >= 0, 'Unbalanced signal rectangle formula')
+                if character == ',' and depth == 0 then
+                    tokens[#tokens + 1], first = fields:sub(first, index - 1), index + 1
+                end
+            end
+            assert(depth == 0, 'Unbalanced signal rectangle formula')
+            tokens[#tokens + 1] = fields:sub(first)
+            local result = {}
+            for _, token in ipairs(tokens) do
+                result[#result + 1] = assert(SKIN:ParseFormula('(' .. SKIN:ReplaceVariables(token:match('^%s*(.-)%s*$')) .. ')'),
+                    'Invalid signal rectangle coordinate')
+            end
+            assert(#result == 4 and result[1] == 0 and result[2] == 0, 'Invalid signal rectangle origin')
+            return result[3], result[4]
+        end
+        local trackWidth, trackHeight = rectangle(track:GetOption('Shape'))
+        assert(math.abs(trackWidth - contentWidth) < 0.001 and math.abs(trackHeight - height) < 0.001,
+            'Painted track dimensions do not match configured thickness')
+        local signalText, fill = signal:GetOption('Text'), track:GetOption('Shape2')
+        if signalText:match('^%d+%%$') then
+            local fillWidth, fillHeight = rectangle(fill)
+            assert(controller:GetValue() == 1 and fillWidth >= 0 and fillWidth <= trackWidth + 0.001
+                and math.abs(fillHeight - height) < 0.001, 'Known signal fill escapes configured track')
+        else
+            assert(controller:GetValue() == 0 and fill == 'Line 0,0,0,0 | StrokeWidth 0',
+                'Unavailable signal has a fabricated fill')
+        end
+        for _, suffix in ipairs({'SignalLabel','Signal'}) do
+            local label = meter(suffix)
+            assert(label:GetY(false) + label:GetH() <= track:GetY(false), suffix .. ' overlaps the signal track')
+        end
+        assert(track:GetY(false) + track:GetH() <= radio:GetY(false), 'Signal bar overlaps Radio row')
+        assert(math.abs(numberOption(radio, 'Y') - numberOption(track, 'Y') - trackHeight - 2 * scale) < 0.001,
+            'Fractional track must keep two logical pixels before Radio')
+        local radioGap = radio:GetY(false) - track:GetY(false) - trackHeight
+        assert(radioGap > 0, 'Fractional painted track touches or overlaps Radio row')
+        local border = 4 * scale
+        local innerRight, innerBottom = inset + numberVariable('PanelWidth') - border,
+            inset + math.floor(panelHeight * scale + 0.5) - border
+        for _, target in ipairs({track, radio}) do
+            assert(target:GetX(false) >= inset + border and target:GetX(false) + target:GetW() <= innerRight,
+                'Signal/footer horizontal bounds overlap the inside border')
+            assert(target:GetY(false) + target:GetH() <= innerBottom, 'Signal/footer extends into bottom border')
+        end
+        local glyphs = glyphChecks()
+        return string.format('PASS databar width=%d scale=%g thickness=%g heightPx=%g nativeH=%g panelHeight=%g savedMinimum=%g size=%dx%d radioGapPx=%g signal=%s glyphs[%s]',
+            columnWidth, scale, thickness, height, track:GetH(), panelHeight, savedHeight, expectedW, expectedH, radioGap, signalText, glyphs)
+    end
+    if SELF:GetNumberOption('HeaderFocus') == 1 then
+        assert(titleSize == SELF:GetNumberOption('ExpectedTitleSize') and bodySize == 10, 'Header focus typography fixture failed')
+        for _, suffix in ipairs({'Bounds','Panel','Icon','Title','Width'}) do boundsCheck(suffix, expectedW, expectedH) end
+        assert(math.abs(numberOption(meter('Title'), 'FontSize') - titleSize * scale) < 0.001, 'Title bypasses shared font size')
+        assert(math.abs(numberOption(meter('Width'), 'FontSize') - bodySize * scale) < 0.001, 'Width control bypasses body font size')
+        local glyphs = glyphChecks()
+        local header = headerChecks(scale, titleSize)
+        return string.format('PASS header width=%d scale=%g title=%g body=%g size=%dx%d %s glyphs[%s]',
+            columnWidth, scale, titleSize, bodySize, expectedW, expectedH, header, glyphs)
+    end
     for _, suffix in ipairs({'Bounds', 'Panel', 'Icon', 'Title', 'Width', 'Adapter', 'Description', 'Status',
         'InternetLabel', 'Internet', 'IPLabel', 'IP', 'GatewayLabel', 'Gateway', 'RxLabel', 'Rx',
         'TxLabel', 'Tx', 'Rule', 'WiFi', 'SignalLabel', 'Signal', 'SignalBar', 'Radio'}) do
@@ -94,7 +242,6 @@ local function run()
     end
     assert(meter('Title'):GetX(true) + meter('Title'):GetW() <= meter('Width'):GetX(true),
         'Header title overlaps width control')
-    local titleSize, bodySize = tonumber(SKIN:GetVariable('TitleFontSize')), tonumber(SKIN:GetVariable('FontSize'))
     local typography = SELF:GetOption('Typography')
     if typography == 'maximum' then
         assert(titleSize == 12 and bodySize == 10 and tonumber(SKIN:GetVariable('HeaderFontSize')) == 10, 'Maximum typography fixture did not apply')
@@ -121,7 +268,7 @@ local function run()
     local rows = {'Title','Adapter','Description','Status','Internet','IP','Gateway','Rx','Tx','WiFi','Signal','SignalBar','Radio'}
     for index = 1, #rows - 1 do
         local previous, following = meter(rows[index]), meter(rows[index + 1])
-        assert(previous:GetY(true) + previous:GetH() <= following:GetY(true), rows[index] .. ' overlaps next row')
+        assert(previous:GetY(false) + previous:GetH() <= following:GetY(false), rows[index] .. ' overlaps next row')
     end
     for _, valueName in ipairs({'Internet','IP','Gateway','Rx','Tx','Signal'}) do
         local left, right = meter(valueName .. 'Label'), meter(valueName)
@@ -207,7 +354,8 @@ function Update()
             if spec[4] then SKIN:Bang('!SetOption', 'MeterConnectionGlyph' .. spec[1], 'Text', meter(spec[2]):GetOption('Text')) end
         end
     end
-    if ticks ~= 11 then return 0 end
+    local reportTick = (SELF:GetNumberOption('HeaderFocus') == 1 or SELF:GetNumberOption('DataBarFocus') == 1) and 4 or 11
+    if ticks ~= reportTick then return 0 end
     local ok, result = pcall(run)
     local output = assert(io.open(SELF:GetOption('ResultFile'), 'wb'))
     output:write(ok and result or ('FAIL ' .. tostring(result)))

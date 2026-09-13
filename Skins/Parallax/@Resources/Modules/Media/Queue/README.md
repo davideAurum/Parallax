@@ -51,33 +51,48 @@ Source: [quota modes](https://developer.spotify.com/documentation/web-api/concep
 
 ## Display settings and expansion
 
-Click **Queue +** at the bottom of Media or Setup to expand the queue beneath
-the player; click **Queue -** to collapse it. This state is remembered, and
+Click **Queue** or the **List Plus** icon at the bottom of Media or Setup to
+expand the queue beneath the player; the icon becomes **List Minus** while
+expanded. Click again to collapse it. This state is remembered, and
 collapsing the section does not stop the helper.
+A fresh, validated empty queue also collapses the inline section automatically
+and remembers that state. It stays collapsed when items return until you expand
+it. Missing data, connection errors and stale responses do not count as empty.
 
-The header gear opens Media settings: panel width, expanded/collapsed queue,
-1/3/5 visible items, artist/show details, and polling interval presets of
-30/60/120 seconds. Choices save immediately. Use **Restart** after changing the
-poll interval; changing a display preference never launches a helper. The
+The header gear opens Media settings: panel columns, expanded/collapsed queue,
+1–5 visible items, artist/show details, and a 30–150-second polling interval.
+Numeric arrows step by one without wrapping; click the centered number to type
+a whole value within its range. Enter saves and Escape cancels. Queue/details
+switches remain toggles. Use **Restart** after changing the
+poll interval; changing a display preference never launches a provider. The
 separate queue panel remains available through **Open queue** in settings.
 After adding this revision to an existing installation, use Rainmeter's
 **Refresh all** once so it discovers the new settings config.
 
 ## Start, stop, and disconnect
 
-**Start** launches one hidden background helper. A named mutex prevents another
+**Start** enables and launches one hidden background helper. A named mutex prevents another
 worker for the same Windows user and data directory. Default polling is every 30
 seconds; `-PollSeconds` accepts 30 through 150. Rainmeter reads its local snapshot
 every second and never launches a process for polling.
 
-**Stop** asks the helper to exit and clears rows after the in-flight request.
+**Stop** disables restart recovery, asks the helper to exit and clears rows after the in-flight request.
 **Disconnect** in the context menu stops it, deletes local tokens, and replaces
-the cache with an empty onboarding state. Public app configuration and retry
+the cache with an empty onboarding state. It also disables recovery. Public app configuration and retry
 barriers remain. Access can also be revoked in Spotify account app settings.
 Closing the skin alone does not stop the helper; use Stop when finished. There
-is no automatic startup task, service, or change to live Rainmeter settings.
+is no automatic startup task or service. Previously enabled collection resumes
+once when Player, Setup or the standalone Queue loads in the normal Rainmeter
+profile. This uses saved sign-in without opening a browser. Settings and isolated
+previews do not resume it. Custom/portable Rainmeter profiles retain explicit Start.
+Missing, disabled or invalid private `enabled.intent` never enables collection;
+older installations need Start once to record this choice. Stop remains a durable veto.
+A private launch permit and control/worker mutexes prevent delayed children from
+applying an older interval or quota override after a newer start. Resume preserves
+server waits and never grants a quota override. Interactive sign-in retains its
+existing bounded wait; Stop can time out while consent is pending.
 
-CLI commands: `Help`, `Configure`, `Connect`, `Start`, `Run`, `Stop`,
+CLI commands: `Help`, `Configure`, `Connect`, `Start`, `Resume`, `Run`, `Stop`,
 `Disconnect`, `Restart`. `Run -Once` makes at most one cycle subject to saved waits.
 HTTP401 gets exactly one forced token refresh and one queue retry, then pauses
 if still unauthorized. Returned token scopes may be a superset of the requested
@@ -170,7 +185,7 @@ Packaging needs exactly three script exceptions in this directory:
 `QueueProvider.ps1`, `QueueCore.psm1`, `QueueAuth.psm1`. The Lua reader, include,
 and Queue.ini are normal runtime assets. Exclude all tests/ descendants and
 developer fixtures. Never package runtime settings, tokens, snapshots, retries,
-or listening data. Shared packaging and release decisions belong to the root
+enabled intent, launch permits or listening data. Shared packaging and release decisions belong to the root
 coordinating task. No ModernGadgets code/assets were imported.
 
 

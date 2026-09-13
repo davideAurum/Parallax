@@ -1,6 +1,20 @@
 # Global color picker
 
-Open a color swatch in **Global Settings**, or load `Parallax\ColorPicker\ColorPicker.ini` in Rainmeter. The picker edits Accent Color 1, Accent Color 2, Title Text Color, Header Text Color, Body Text Color, Background Color, Border Color, or Divider Color; its title identifies the active target. A direct standalone load selects Accent Color 1. It uses the suite's two-column geometry, font, padding, and rounding. Its logical panel height is 376 pixels: the default window is 416 × 384 pixels, including the snapping gutter. At column width 180 and scale 0.75, the window is 282 × 288 pixels.
+## Dependencies
+
+Inherit the [shared platform and bundling requirements](DEPENDENCIES.md#shared-requirements). Keep this table current when the picker changes its implementation.
+
+| Component | Classification | Feature, lifecycle and unavailable behavior |
+| --- | --- | --- |
+| Rainmeter Script/Lua and native Shape/String/Image meters | Required; supplied by Rainmeter | Draws the spectrum and handles interaction without a background process or polling. |
+| `ColorPicker.ini`, `Modules/ColorPicker/ColorPicker.lua`, `ColorMath.lua` and shared Parallax includes | Bundled source; required | Local RGB/HSV/CIELAB calculations, editor state and geometry. Missing source is an incomplete installation. |
+| IBM Plex Sans fonts | Bundled, skin-local; SIL OFL 1.1 | Uses the suite font and typography. No system installation. |
+| Writable `@Resources/User/Settings.inc` | Required for Apply persistence | Apply writes the one selected key; preview and Cancel need no preference write. |
+| Global Settings | Optional launcher; bundled | Its swatches open and select a target. The picker can also load independently, starting with Accent 1. |
+
+The picker requires no PowerShell helper, external plugin, color-selection package, network service or account. Spectrum rendering uses original local Lua and native gradients rather than downloaded images.
+
+Open a color swatch in **Global Settings**, or load `Parallax\ColorPicker\ColorPicker.ini` in Rainmeter. The picker edits Accent Color 1, Accent Color 2, Title Text Color, Header Text Color, Body Text Color, Background Color, Border Color, Divider Color, or Table header border; its title identifies the active target. A direct standalone load selects Accent Color 1. It uses the suite's two-column geometry, font, padding, and rounding. Its logical panel height is 376 pixels: the default window is 456 × 384 pixels, including the snapping gutter. At column width 180 and scale 0.75, the window is 282 × 288 pixels.
 
 Click the spectrum to choose two channels, then click the horizontal strip to change the remaining channel. Channel **− / +** buttons and the mouse wheel over a channel value adjust it by one unit. The marker shows the selected position; Current and New swatches show the saved and proposed colors.
 
@@ -18,6 +32,8 @@ The seed accepts Rainmeter comma RGB/RGBA and six/eight-digit hexadecimal colors
 
 Other targets edit color without opacity: they ignore seed alpha and Apply saves an opaque comma-separated `R,G,B` value. The picker does not expose free-text input or interpolate user-entered strings into Rainmeter actions.
 
+Table header border is independent of section dividers and the outer panel border. Editing it changes only `TableHeaderBorderColor`; divider/border colors and all line thicknesses retain their saved values. If the new key is absent, the picker seeds it with `50,50,50,255` and Apply saves opaque `50,50,50` unless the preview changes.
+
 ## Integration contract
 
 `MeasureColorPicker` exposes `OpenTarget(key)`. The exact, case-sensitive allowlist is:
@@ -32,6 +48,7 @@ Other targets edit color without opacity: they ignore seed alpha and Apply saves
 | `BackgroundColor` | Background Color |
 | `BorderColor` | Border Color |
 | `DividerColor` | Divider Color |
+| `TableHeaderBorderColor` | Table header border |
 
 Use a static key in the existing swatch action, after activation, and explicitly address the picker config:
 
@@ -60,6 +77,8 @@ Run the focused test from the repository root with an existing Rainmeter install
 The test creates an isolated copy under `build/color-picker-test-<id>`, runs a hidden Rainmeter instance with its own absolute settings path, and stops only that process. It does not modify or capture the live Rainmeter configuration. PNG captures use `PrintWindow` on windows belonging to the test PID.
 
 Coverage includes sRGB/HSV primaries, D50 Lab white/black, the published W3C leaf-color example, 125-color conversion round trips, eight-digit hexadecimal seeds, gamut clipping, native geometry at default/narrow sizes, radius 24, mode/channel/plane/strip source actions, Apply, and Cancel. A separate isolated launcher config tests the exact activation/target action sequence with every allowed key, including opening, reopening an unsaved preview, and reopening a saved color. Each key is independently applied and cancelled; persistence checks compare every global key and an isolated module override. Background tests cover RGB/hex6 default alpha 255 and RGBA/hex8 alpha 0, 128, and 255; native persistence runs preserve both zero and partial background opacity. A direct mock of the production Lua API verifies the target allowlist with malformed strings, action-like strings, non-string inputs, and nil, keeping those test payloads as data. Captures include black title/body/border preferences and a fully transparent background to verify editor readability. The capture harness substitutes percentage coordinates into the actual source action strings; it does not test system cursor hit testing, keyboard focus, mixed DPI, or live configuration behavior.
+
+The table header border addition extends these existing harnesses with the ninth target. Its API cases cover independent line-color writes, preserved thicknesses, opaque saves from RGBA/hex8 seeds, and the missing-key fallback. This addition has source verification only; the expanded native harness has not been run for it.
 
 ## Primary references
 

@@ -5,6 +5,7 @@ local choices = {
     RAMDecimals = {default=1, count=3},
     RAMPercentDecimals = {default=0, count=3},
     RAMShowBar = {default=1, count=2},
+    RAMShowPageBar = {default=1, count=2},
     RAMShowHistory = {default=1, count=2}
 }
 local historyMeters = {'MeterRAMHistoryLabel', 'MeterRAMHistoryRange',
@@ -38,7 +39,9 @@ function ApplyPreferences()
         SKIN:Bang('!SetVariable', key, tostring(value))
     end
     if changed.RAMUseMiB or changed.RAMDecimals then
-        for _, kind in ipairs({'Used','Available','Total'}) do
+        -- Keep legacy section names and the saved unit key; displayed units
+        -- and their meter divisors are decimal GB / MB.
+        for _, kind in ipairs({'Used'}) do
             for _, unit in ipairs({'GiB','MiB'}) do
                 local name = 'MeterRAM'..kind..unit
                 show(name, (unit == 'MiB') == (values.RAMUseMiB == 1))
@@ -47,6 +50,10 @@ function ApplyPreferences()
             end
         end
         SKIN:Bang('!CommandMeasure', 'MeasureRAMInfoView', 'Display()')
+        SKIN:Bang('!CommandMeasure', 'MeasureRAMProcessView', 'Display()')
+    end
+    if changed.RAMUseMiB or changed.RAMDecimals or changed.RAMShowPageBar then
+        SKIN:Bang('!CommandMeasure', 'MeasureRAMPageView', 'Display()')
     end
     if changed.RAMPercentDecimals then
         SKIN:Bang('!SetOption', 'MeterRAMPercent', 'NumOfDecimals', tostring(values.RAMPercentDecimals))

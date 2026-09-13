@@ -1,10 +1,10 @@
 # Parallax
 
-A modular Rainmeter instrument suite: Chronometer with multiple countdown lists, CPU, RAM, GPU, Drive I/O, a dedicated Network Monitor, media controls with optional Spotify queue, and an independent audio visualizer.
+A modular Rainmeter instrument suite: Chronometer with multiple countdown lists, CPU, Memory Meter, GPU, Disk Meter, a dedicated Network Monitor, media controls with optional Spotify queue, and an independent audio visualizer.
 
-The revised design follows ModernGadgets' dense instrument layout: near-black bordered panels, IBM Plex Sans, aligned rows, colored hairline bars, and compact graphs. The default painted widths are 200 and 408 pixels with an 8-pixel gap. Width, scale, colors, fonts and module choices remain customizable. The original Codex task coordinates global settings and integration; each utility has its own task and file ownership.
+The revised design follows ModernGadgets' dense instrument layout: near-black bordered panels, IBM Plex Sans, aligned rows, colored data bars, and compact graphs. The default painted widths are 220 and 448 pixels with an 8-pixel gap. Width, scale, colors, fonts and module choices remain customizable. The original Codex task coordinates global settings and integration; each utility has its own task and file ownership.
 
-Global Settings includes a **Default** theme dropdown, size/gap/rounding fields, two accent colors, title/header/body typography, background color/transparency, and border/divider colors and thickness. Each color has a hex readout and swatch opening the shared RGB/HSV/Lab color picker. See [settings behavior](docs/SETTINGS.md) and [current validation and screenshots](docs/SETTINGS-REVIEW.md).
+Global Settings groups its controls into **Appearance** and **Performance**. Appearance includes a **Default** theme dropdown, size/gap/rounding fields, two accent colors, title/header/body typography, background color/transparency, border/divider/table-header colors and thickness, and shared data bar thickness (6 px by default). Performance contains refresh presets and the sampling summary. Each color has a hex readout and swatch opening the shared RGB/HSV/Lab color picker. See [settings behavior](docs/SETTINGS.md) and [current validation and screenshots](docs/SETTINGS-REVIEW.md).
 
 ## Development
 
@@ -14,6 +14,7 @@ Global Settings includes a **Default** theme dropdown, size/gap/rounding fields,
 - Appearance revision and screenshots: [docs/APPEARANCE-REVIEW.md](docs/APPEARANCE-REVIEW.md).
 - Task ownership/status: [docs/TASKS.md](docs/TASKS.md).
 - Capabilities and sources: [docs/PROVIDERS.md](docs/PROVIDERS.md).
+- Dependencies by utility: [docs/DEPENDENCIES.md](docs/DEPENDENCIES.md).
 - Development milestones: [docs/ROADMAP.md](docs/ROADMAP.md).
 - Validation and distribution: [docs/PACKAGING.md](docs/PACKAGING.md).
 - Initial check results: [docs/VALIDATION.md](docs/VALIDATION.md).

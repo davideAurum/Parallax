@@ -1,60 +1,31 @@
-; Visible controls for the independent CPU Settings utility.
-; Settings.lua updates values only on load and explicit user actions.
+; Independent CPU settings: shared label/value fields and bounded steppers.
+; Layout variables are event-driven by Settings.lua; hidden details have zero bounds.
 
 [CPUStyleSettingsSection]
-FontFace=#FontFace#
-FontSize=(#HeaderFontSize#*#Scale#)
-FontWeight=600
-FontColor=#HeaderTextColor#
-AntiAlias=1
-ClipString=1
-X=#ContentX#
-W=#ContentWidth#
-H=(18*#Scale#)
+MeterStyle=StyleUtilitySettingsSection
+FontColor=#AccentColor#
 Group=CPUSettingsUI
+DynamicVariables=1
 
 [CPUStyleSettingsLabel]
-FontFace=#FontFace#
-FontSize=(#FontSize#*#Scale#)
-FontWeight=500
-FontColor=#TextColor#
-AntiAlias=1
-ClipString=1
-X=(#ContentX#+8*#Scale#)
-W=(#ContentWidth#-62*#Scale#)
-H=(18*#Scale#)
-MouseActionCursor=1
+MeterStyle=StyleUtilitySettingsLabel
+X=#ContentX#
+W=(126*#Scale#)
 Group=CPUSettingsUI
+DynamicVariables=1
 
 [CPUStyleSettingsValue]
-FontFace=#FontFace#
-FontSize=(#FontSize#*#Scale#)
-FontWeight=600
-FontColor=#AccentColor#
-AntiAlias=1
-ClipString=1
-StringAlign=Right
-X=(#ContentX#+#ContentWidth#-8*#Scale#)
-W=(42*#Scale#)
-H=(18*#Scale#)
-MouseActionCursor=1
+MeterStyle=StyleUtilitySettingsValue
+X=(#ContentX#+132*#Scale#)
+W=(#ContentWidth#-138*#Scale#)
 Group=CPUSettingsUI
-
-[CPUStyleSettingsRow]
-X=(#ContentX#+4*#Scale#)
-W=(#ContentWidth#-8*#Scale#)
-H=(24*#Scale#)
-Shape=Rectangle 0,0,(#ContentWidth#-8*#Scale#),(24*#Scale#),(2*#Scale#) | Fill Color #GraphBackgroundColor# | StrokeWidth 0
-MouseActionCursor=1
-Group=CPUSettingsUI
+DynamicVariables=1
 
 [MeterSettingsTitle]
 Meter=String
-MeterStyle=StyleTitle
+MeterStyle=StyleTitle|StyleTitleRow
 X=#ContentX#
-Y=(#Inset#+6*#Scale#)
 W=(#ContentWidth#-28*#Scale#)
-H=(20*#Scale#)
 Text=CPU Settings
 Group=CPUSettingsUI
 
@@ -62,10 +33,10 @@ Group=CPUSettingsUI
 Meter=String
 MeterStyle=StyleButton
 X=(#ContentX#+#ContentWidth#)
-Y=(#Inset#+6*#Scale#)
+Y=#TitleRowCenterY#
 W=(18*#Scale#)
 H=(18*#Scale#)
-StringAlign=Right
+StringAlign=RightCenter
 Padding=0,0,0,0
 Text=X
 LeftMouseUpAction=[!DeactivateConfig]
@@ -73,225 +44,1084 @@ ToolTipText=Close CPU Settings. Saved choices stay active and the CPU meter keep
 Group=CPUSettingsUI
 FontSize=(#FontSize#*#Scale#)
 
-[MeterSettingsInfoSection]
+[MeterSettingsAppearanceSection]
 Meter=String
-MeterStyle=CPUStyleSettingsSection
-Y=(#Inset#+30*#Scale#)
-Text=Processor Info
+MeterStyle=StyleUtilitySettingsSection|CPUStyleSettingsSection
+Y=(#Inset#+#CPUSettingsAppearanceSectionY#*#Scale#)
+Text=Appearance
 
-[MeterSettingsInfoRow]
+[MeterSettingsAppearanceRule]
 Meter=Shape
-MeterStyle=CPUStyleSettingsRow
-Y=(#Inset#+48*#Scale#)
-LeftMouseUpAction=[!CommandMeasure MeasureCPUSettings "Toggle('CPUShowInfo')"]
-ToolTipText=Show or hide the processor name and physical/logical core counts.
-
-[MeterSettingsInfoLabel]
-Meter=String
-MeterStyle=CPUStyleSettingsLabel
-Y=(#Inset#+52*#Scale#)
-Text=Show processor info
-LeftMouseUpAction=[!CommandMeasure MeasureCPUSettings "Toggle('CPUShowInfo')"]
-ToolTipText=Show or hide the processor name and physical/logical core counts.
-
-[MeterSettingsInfoValue]
-Meter=String
-MeterStyle=CPUStyleSettingsValue
-Y=(#Inset#+52*#Scale#)
-Text=...
-LeftMouseUpAction=[!CommandMeasure MeasureCPUSettings "Toggle('CPUShowInfo')"]
-ToolTipText=Show or hide the processor name and physical/logical core counts.
-
-[MeterSettingsTableSection]
-Meter=String
-MeterStyle=CPUStyleSettingsSection
-Y=(#Inset#+80*#Scale#)
-Text=CPU Table
-
-[MeterSettingsCoresRow]
-Meter=Shape
-MeterStyle=CPUStyleSettingsRow
-Y=(#Inset#+98*#Scale#)
-LeftMouseUpAction=[!CommandMeasure MeasureCPUSettings "Toggle('CPUShowCores')"]
-ToolTipText=Show or hide individual logical processor usage rows.
-
-[MeterSettingsCoresLabel]
-Meter=String
-MeterStyle=CPUStyleSettingsLabel
-Y=(#Inset#+102*#Scale#)
-Text=Show CPU table
-LeftMouseUpAction=[!CommandMeasure MeasureCPUSettings "Toggle('CPUShowCores')"]
-ToolTipText=Show or hide individual logical processor usage rows.
-
-[MeterSettingsCoresValue]
-Meter=String
-MeterStyle=CPUStyleSettingsValue
-Y=(#Inset#+102*#Scale#)
-Text=...
-LeftMouseUpAction=[!CommandMeasure MeasureCPUSettings "Toggle('CPUShowCores')"]
-ToolTipText=Show or hide individual logical processor usage rows.
-
-[MeterSettingsDecimalsRow]
-Meter=Shape
-MeterStyle=CPUStyleSettingsRow
-Y=(#Inset#+126*#Scale#)
-LeftMouseUpAction=[!CommandMeasure MeasureCPUSettings "ToggleDecimals()"]
-ToolTipText=Switch CPU usage percentages between whole numbers and one decimal place. Applies to total and logical processor values.
-
-[MeterSettingsDecimalsLabel]
-Meter=String
-MeterStyle=CPUStyleSettingsLabel
-Y=(#Inset#+130*#Scale#)
-Text=Percentage decimals
-LeftMouseUpAction=[!CommandMeasure MeasureCPUSettings "ToggleDecimals()"]
-ToolTipText=Switch CPU usage percentages between whole numbers and one decimal place. Applies to total and logical processor values.
-
-[MeterSettingsDecimalsValue]
-Meter=String
-MeterStyle=CPUStyleSettingsValue
-Y=(#Inset#+130*#Scale#)
-Text=...
-LeftMouseUpAction=[!CommandMeasure MeasureCPUSettings "ToggleDecimals()"]
-ToolTipText=Switch CPU usage percentages between whole numbers and one decimal place. Applies to total and logical processor values.
+MeterStyle=StyleRule
+Y=(#Inset#+(#CPUSettingsAppearanceSectionY#-6)*#Scale#)
+Group=CPUSettingsUI
+DynamicVariables=1
 
 [MeterSettingsProcessesSection]
 Meter=String
-MeterStyle=CPUStyleSettingsSection
-Y=(#Inset#+158*#Scale#)
-Text=Top Process List
+MeterStyle=StyleUtilitySettingsSection|CPUStyleSettingsSection
+Y=(#Inset#+#CPUSettingsProcessesSectionY#*#Scale#)
+Text=Processes
 
-[MeterSettingsProcessesRow]
+[MeterSettingsProcessesRule]
 Meter=Shape
-MeterStyle=CPUStyleSettingsRow
-Y=(#Inset#+176*#Scale#)
-LeftMouseUpAction=[!CommandMeasure MeasureCPUSettings "Toggle('CPUShowProcesses')"]
-ToolTipText=Show or hide the list of processes using the most CPU.
+MeterStyle=StyleRule
+Y=(#Inset#+(#CPUSettingsProcessesSectionY#-6)*#Scale#)
+Group=CPUSettingsUI
+DynamicVariables=1
+
+[MeterSettingsGraphSection]
+Meter=String
+MeterStyle=StyleUtilitySettingsSection|CPUStyleSettingsSection
+Y=(#Inset#+#CPUSettingsGraphSectionY#*#Scale#)
+Text=History
+
+[MeterSettingsGraphRule]
+Meter=Shape
+MeterStyle=StyleRule
+Y=(#Inset#+(#CPUSettingsGraphSectionY#-6)*#Scale#)
+Group=CPUSettingsUI
+DynamicVariables=1
+
+[MeterSettingsRatesSection]
+Meter=String
+MeterStyle=StyleUtilitySettingsSection|CPUStyleSettingsSection
+Y=(#Inset#+#CPUSettingsRatesSectionY#*#Scale#)
+Text=Performance
+
+[MeterSettingsRatesRule]
+Meter=Shape
+MeterStyle=StyleRule
+Y=(#Inset#+(#CPUSettingsRatesSectionY#-6)*#Scale#)
+Group=CPUSettingsUI
+DynamicVariables=1
+
+[MeterSettingsSensorsSection]
+Meter=String
+MeterStyle=StyleUtilitySettingsSection|CPUStyleSettingsSection
+Y=(#Inset#+#CPUSettingsSensorsSectionY#*#Scale#)
+Text=HWiNFO setup
+
+[MeterSettingsSensorsRule]
+Meter=Shape
+MeterStyle=StyleRule
+Y=(#Inset#+(#CPUSettingsSensorsSectionY#-6)*#Scale#)
+Group=CPUSettingsUI
+DynamicVariables=1
+
+[MeterSettingsInfoLabel]
+Meter=String
+MeterStyle=StyleUtilitySettingsLabel|CPUStyleSettingsLabel
+X=#ContentX#
+Y=((1-#CPUSettingsInfoHidden#)*(#Inset#+(#CPUSettingsInfoY#+2)*#Scale#))
+W=((1-#CPUSettingsInfoHidden#)*(126*#Scale#))
+H=((1-#CPUSettingsInfoHidden#)*18*#Scale#)
+Hidden=#CPUSettingsInfoHidden#
+Group=CPUSettingsUI
+DynamicVariables=1
+Text=Processor info
+ToolTipText=Show or hide processor details and the current CPU-wide clock row.
+MouseActionCursor=0
+
+[MeterSettingsInfoRow]
+Meter=Shape
+MeterStyle=StyleUtilitySettingsRow
+X=(#ContentX#+132*#Scale#)
+Y=((1-#CPUSettingsInfoHidden#)*(#Inset#+(#CPUSettingsInfoY#+0)*#Scale#))
+W=((1-#CPUSettingsInfoHidden#)*(#ContentWidth#-132*#Scale#))
+H=((1-#CPUSettingsInfoHidden#)*20*#Scale#)
+Hidden=#CPUSettingsInfoHidden#
+Group=CPUSettingsUI
+DynamicVariables=1
+Shape=Rectangle 0,0,((1-#CPUSettingsInfoHidden#)*(#ContentWidth#-132*#Scale#)),((1-#CPUSettingsInfoHidden#)*20*#Scale#) | Fill Color #GraphBackgroundColor# | StrokeWidth 0
+LeftMouseUpAction=[!CommandMeasure MeasureCPUSettings "Toggle('CPUShowInfo')"]
+ToolTipText=Show or hide processor details and the current CPU-wide clock row.
+
+[MeterSettingsInfoValue]
+Meter=String
+MeterStyle=StyleUtilitySettingsValue|CPUStyleSettingsValue
+X=(#ContentX#+132*#Scale#)
+Y=((1-#CPUSettingsInfoHidden#)*(#Inset#+(#CPUSettingsInfoY#+0)*#Scale#))
+W=((1-#CPUSettingsInfoHidden#)*(#ContentWidth#-138*#Scale#))
+H=((1-#CPUSettingsInfoHidden#)*18*#Scale#)
+Hidden=#CPUSettingsInfoHidden#
+Group=CPUSettingsUI
+DynamicVariables=1
+Text=...
+LeftMouseUpAction=[!CommandMeasure MeasureCPUSettings "Toggle('CPUShowInfo')"]
+ToolTipText=Show or hide processor details and the current CPU-wide clock row.
+
+[MeterSettingsCoresLabel]
+Meter=String
+MeterStyle=StyleUtilitySettingsLabel|CPUStyleSettingsLabel
+X=#ContentX#
+Y=((1-#CPUSettingsCoresHidden#)*(#Inset#+(#CPUSettingsCoresY#+2)*#Scale#))
+W=((1-#CPUSettingsCoresHidden#)*(126*#Scale#))
+H=((1-#CPUSettingsCoresHidden#)*18*#Scale#)
+Hidden=#CPUSettingsCoresHidden#
+Group=CPUSettingsUI
+DynamicVariables=1
+Text=Thread table
+ToolTipText=Show or hide the thread table, including utilization and paired core voltage/temperature readings.
+MouseActionCursor=0
+
+[MeterSettingsCoresRow]
+Meter=Shape
+MeterStyle=StyleUtilitySettingsRow
+X=(#ContentX#+132*#Scale#)
+Y=((1-#CPUSettingsCoresHidden#)*(#Inset#+(#CPUSettingsCoresY#+0)*#Scale#))
+W=((1-#CPUSettingsCoresHidden#)*(#ContentWidth#-132*#Scale#))
+H=((1-#CPUSettingsCoresHidden#)*20*#Scale#)
+Hidden=#CPUSettingsCoresHidden#
+Group=CPUSettingsUI
+DynamicVariables=1
+Shape=Rectangle 0,0,((1-#CPUSettingsCoresHidden#)*(#ContentWidth#-132*#Scale#)),((1-#CPUSettingsCoresHidden#)*20*#Scale#) | Fill Color #GraphBackgroundColor# | StrokeWidth 0
+LeftMouseUpAction=[!CommandMeasure MeasureCPUSettings "Toggle('CPUShowCores')"]
+ToolTipText=Show or hide the thread table, including utilization and paired core voltage/temperature readings.
+
+[MeterSettingsCoresValue]
+Meter=String
+MeterStyle=StyleUtilitySettingsValue|CPUStyleSettingsValue
+X=(#ContentX#+132*#Scale#)
+Y=((1-#CPUSettingsCoresHidden#)*(#Inset#+(#CPUSettingsCoresY#+0)*#Scale#))
+W=((1-#CPUSettingsCoresHidden#)*(#ContentWidth#-138*#Scale#))
+H=((1-#CPUSettingsCoresHidden#)*18*#Scale#)
+Hidden=#CPUSettingsCoresHidden#
+Group=CPUSettingsUI
+DynamicVariables=1
+Text=...
+LeftMouseUpAction=[!CommandMeasure MeasureCPUSettings "Toggle('CPUShowCores')"]
+ToolTipText=Show or hide the thread table, including utilization and paired core voltage/temperature readings.
+
+[MeterSettingsDecimalsLabel]
+Meter=String
+MeterStyle=StyleUtilitySettingsLabel|CPUStyleSettingsLabel
+X=#ContentX#
+Y=((1-#CPUSettingsDecimalsHidden#)*(#Inset#+(#CPUSettingsDecimalsY#+2)*#Scale#))
+W=((1-#CPUSettingsDecimalsHidden#)*(126*#Scale#))
+H=((1-#CPUSettingsDecimalsHidden#)*18*#Scale#)
+Hidden=#CPUSettingsDecimalsHidden#
+Group=CPUSettingsUI
+DynamicVariables=1
+Text=Percent decimals
+ToolTipText=Enter an integer from 0 to 1. Arrows change by 1 and stop at the limits. Enter applies; Esc cancels.
+MouseActionCursor=0
+
+[MeterSettingsDecimalsInput]
+Meter=Shape
+MeterStyle=StyleSettingsStepperFrame
+X=(#ContentX#+152*#Scale#)
+Y=((1-#CPUSettingsDecimalsHidden#)*(#Inset#+(#CPUSettingsDecimalsY#+0)*#Scale#))
+W=((1-#CPUSettingsDecimalsHidden#)*((#ContentWidth#-172*#Scale#)))
+H=((1-#CPUSettingsDecimalsHidden#)*20*#Scale#)
+Hidden=#CPUSettingsDecimalsHidden#
+Group=CPUSettingsUI
+DynamicVariables=1
+Shape=Rectangle (#Scale#/2),(#Scale#/2),((1-#CPUSettingsDecimalsHidden#)*((#ContentWidth#-172*#Scale#)-#Scale#)),((1-#CPUSettingsDecimalsHidden#)*19*#Scale#),(2*#Scale#) | Fill Color #GraphBackgroundColor# | Stroke Color #BorderColor# | StrokeWidth #Scale#
+LeftMouseUpAction=[!CommandMeasure MeasureCPUSettings "BeginNumberInput('CPUDecimals')"]
+ToolTipText=Enter an integer from 0 to 1. Arrows change by 1 and stop at the limits. Enter applies; Esc cancels.
+
+[MeterSettingsDecimalsDecrease]
+Meter=String
+MeterStyle=StyleSettingsStepperButton
+X=(#ContentX#+141*#Scale#)
+Y=((1-#CPUSettingsDecimalsHidden#)*(#Inset#+(#CPUSettingsDecimalsY#+1)*#Scale#))
+W=((1-#CPUSettingsDecimalsHidden#)*(18*#Scale#))
+H=((1-#CPUSettingsDecimalsHidden#)*18*#Scale#)
+Hidden=#CPUSettingsDecimalsHidden#
+Group=CPUSettingsUI
+DynamicVariables=1
+Text=<
+LeftMouseUpAction=[!CommandMeasure MeasureCPUSettings "AdjustNumber('CPUDecimals',-1)"]
+ToolTipText=Enter an integer from 0 to 1. Arrows change by 1 and stop at the limits. Enter applies; Esc cancels.
+
+[MeterSettingsDecimalsValue]
+Meter=String
+MeterStyle=StyleSettingsStepperValue
+X=(#ContentX#+152*#Scale#+((#ContentWidth#-172*#Scale#))/2)
+Y=((1-#CPUSettingsDecimalsHidden#)*(#Inset#+(#CPUSettingsDecimalsY#+1)*#Scale#))
+W=((1-#CPUSettingsDecimalsHidden#)*((#ContentWidth#-172*#Scale#)))
+H=((1-#CPUSettingsDecimalsHidden#)*18*#Scale#)
+Hidden=#CPUSettingsDecimalsHidden#
+Group=CPUSettingsUI
+DynamicVariables=1
+Text=...
+LeftMouseUpAction=[!CommandMeasure MeasureCPUSettings "BeginNumberInput('CPUDecimals')"]
+ToolTipText=Enter an integer from 0 to 1. Arrows change by 1 and stop at the limits. Enter applies; Esc cancels.
+
+[MeterSettingsDecimalsIncrease]
+Meter=String
+MeterStyle=StyleSettingsStepperButton
+X=(#ContentX#+#ContentWidth#-9*#Scale#)
+Y=((1-#CPUSettingsDecimalsHidden#)*(#Inset#+(#CPUSettingsDecimalsY#+1)*#Scale#))
+W=((1-#CPUSettingsDecimalsHidden#)*(18*#Scale#))
+H=((1-#CPUSettingsDecimalsHidden#)*18*#Scale#)
+Hidden=#CPUSettingsDecimalsHidden#
+Group=CPUSettingsUI
+DynamicVariables=1
+Text=>
+LeftMouseUpAction=[!CommandMeasure MeasureCPUSettings "AdjustNumber('CPUDecimals',1)"]
+ToolTipText=Enter an integer from 0 to 1. Arrows change by 1 and stop at the limits. Enter applies; Esc cancels.
+
+[MeterSettingsVoltageDecimalsLabel]
+Meter=String
+MeterStyle=StyleUtilitySettingsLabel|CPUStyleSettingsLabel
+X=#ContentX#
+Y=((1-#CPUSettingsVoltageDecimalsHidden#)*(#Inset#+(#CPUSettingsVoltageDecimalsY#+2)*#Scale#))
+W=((1-#CPUSettingsVoltageDecimalsHidden#)*(126*#Scale#))
+H=((1-#CPUSettingsVoltageDecimalsHidden#)*18*#Scale#)
+Hidden=#CPUSettingsVoltageDecimalsHidden#
+Group=CPUSettingsUI
+DynamicVariables=1
+Text=Voltage decimals
+ToolTipText=Enter an integer from 0 to 3. Arrows change by 1 and stop at the limits. Enter applies; Esc cancels.
+MouseActionCursor=0
+
+[MeterSettingsVoltageDecimalsInput]
+Meter=Shape
+MeterStyle=StyleSettingsStepperFrame
+X=(#ContentX#+152*#Scale#)
+Y=((1-#CPUSettingsVoltageDecimalsHidden#)*(#Inset#+(#CPUSettingsVoltageDecimalsY#+0)*#Scale#))
+W=((1-#CPUSettingsVoltageDecimalsHidden#)*((#ContentWidth#-172*#Scale#)))
+H=((1-#CPUSettingsVoltageDecimalsHidden#)*20*#Scale#)
+Hidden=#CPUSettingsVoltageDecimalsHidden#
+Group=CPUSettingsUI
+DynamicVariables=1
+Shape=Rectangle (#Scale#/2),(#Scale#/2),((1-#CPUSettingsVoltageDecimalsHidden#)*((#ContentWidth#-172*#Scale#)-#Scale#)),((1-#CPUSettingsVoltageDecimalsHidden#)*19*#Scale#),(2*#Scale#) | Fill Color #GraphBackgroundColor# | Stroke Color #BorderColor# | StrokeWidth #Scale#
+LeftMouseUpAction=[!CommandMeasure MeasureCPUSettings "BeginNumberInput('CPUVoltageDecimals')"]
+ToolTipText=Enter an integer from 0 to 3. Arrows change by 1 and stop at the limits. Enter applies; Esc cancels.
+
+[MeterSettingsVoltageDecimalsDecrease]
+Meter=String
+MeterStyle=StyleSettingsStepperButton
+X=(#ContentX#+141*#Scale#)
+Y=((1-#CPUSettingsVoltageDecimalsHidden#)*(#Inset#+(#CPUSettingsVoltageDecimalsY#+1)*#Scale#))
+W=((1-#CPUSettingsVoltageDecimalsHidden#)*(18*#Scale#))
+H=((1-#CPUSettingsVoltageDecimalsHidden#)*18*#Scale#)
+Hidden=#CPUSettingsVoltageDecimalsHidden#
+Group=CPUSettingsUI
+DynamicVariables=1
+Text=<
+LeftMouseUpAction=[!CommandMeasure MeasureCPUSettings "AdjustNumber('CPUVoltageDecimals',-1)"]
+ToolTipText=Enter an integer from 0 to 3. Arrows change by 1 and stop at the limits. Enter applies; Esc cancels.
+
+[MeterSettingsVoltageDecimalsValue]
+Meter=String
+MeterStyle=StyleSettingsStepperValue
+X=(#ContentX#+152*#Scale#+((#ContentWidth#-172*#Scale#))/2)
+Y=((1-#CPUSettingsVoltageDecimalsHidden#)*(#Inset#+(#CPUSettingsVoltageDecimalsY#+1)*#Scale#))
+W=((1-#CPUSettingsVoltageDecimalsHidden#)*((#ContentWidth#-172*#Scale#)))
+H=((1-#CPUSettingsVoltageDecimalsHidden#)*18*#Scale#)
+Hidden=#CPUSettingsVoltageDecimalsHidden#
+Group=CPUSettingsUI
+DynamicVariables=1
+Text=...
+LeftMouseUpAction=[!CommandMeasure MeasureCPUSettings "BeginNumberInput('CPUVoltageDecimals')"]
+ToolTipText=Enter an integer from 0 to 3. Arrows change by 1 and stop at the limits. Enter applies; Esc cancels.
+
+[MeterSettingsVoltageDecimalsIncrease]
+Meter=String
+MeterStyle=StyleSettingsStepperButton
+X=(#ContentX#+#ContentWidth#-9*#Scale#)
+Y=((1-#CPUSettingsVoltageDecimalsHidden#)*(#Inset#+(#CPUSettingsVoltageDecimalsY#+1)*#Scale#))
+W=((1-#CPUSettingsVoltageDecimalsHidden#)*(18*#Scale#))
+H=((1-#CPUSettingsVoltageDecimalsHidden#)*18*#Scale#)
+Hidden=#CPUSettingsVoltageDecimalsHidden#
+Group=CPUSettingsUI
+DynamicVariables=1
+Text=>
+LeftMouseUpAction=[!CommandMeasure MeasureCPUSettings "AdjustNumber('CPUVoltageDecimals',1)"]
+ToolTipText=Enter an integer from 0 to 3. Arrows change by 1 and stop at the limits. Enter applies; Esc cancels.
+
+[MeterSettingsTemperatureDecimalsLabel]
+Meter=String
+MeterStyle=StyleUtilitySettingsLabel|CPUStyleSettingsLabel
+X=#ContentX#
+Y=((1-#CPUSettingsTemperatureDecimalsHidden#)*(#Inset#+(#CPUSettingsTemperatureDecimalsY#+2)*#Scale#))
+W=((1-#CPUSettingsTemperatureDecimalsHidden#)*(126*#Scale#))
+H=((1-#CPUSettingsTemperatureDecimalsHidden#)*18*#Scale#)
+Hidden=#CPUSettingsTemperatureDecimalsHidden#
+Group=CPUSettingsUI
+DynamicVariables=1
+Text=Temp decimals
+ToolTipText=Enter an integer from 0 to 1. Arrows change by 1 and stop at the limits. Enter applies; Esc cancels.
+MouseActionCursor=0
+
+[MeterSettingsTemperatureDecimalsInput]
+Meter=Shape
+MeterStyle=StyleSettingsStepperFrame
+X=(#ContentX#+152*#Scale#)
+Y=((1-#CPUSettingsTemperatureDecimalsHidden#)*(#Inset#+(#CPUSettingsTemperatureDecimalsY#+0)*#Scale#))
+W=((1-#CPUSettingsTemperatureDecimalsHidden#)*((#ContentWidth#-172*#Scale#)))
+H=((1-#CPUSettingsTemperatureDecimalsHidden#)*20*#Scale#)
+Hidden=#CPUSettingsTemperatureDecimalsHidden#
+Group=CPUSettingsUI
+DynamicVariables=1
+Shape=Rectangle (#Scale#/2),(#Scale#/2),((1-#CPUSettingsTemperatureDecimalsHidden#)*((#ContentWidth#-172*#Scale#)-#Scale#)),((1-#CPUSettingsTemperatureDecimalsHidden#)*19*#Scale#),(2*#Scale#) | Fill Color #GraphBackgroundColor# | Stroke Color #BorderColor# | StrokeWidth #Scale#
+LeftMouseUpAction=[!CommandMeasure MeasureCPUSettings "BeginNumberInput('CPUTemperatureDecimals')"]
+ToolTipText=Enter an integer from 0 to 1. Arrows change by 1 and stop at the limits. Enter applies; Esc cancels.
+
+[MeterSettingsTemperatureDecimalsDecrease]
+Meter=String
+MeterStyle=StyleSettingsStepperButton
+X=(#ContentX#+141*#Scale#)
+Y=((1-#CPUSettingsTemperatureDecimalsHidden#)*(#Inset#+(#CPUSettingsTemperatureDecimalsY#+1)*#Scale#))
+W=((1-#CPUSettingsTemperatureDecimalsHidden#)*(18*#Scale#))
+H=((1-#CPUSettingsTemperatureDecimalsHidden#)*18*#Scale#)
+Hidden=#CPUSettingsTemperatureDecimalsHidden#
+Group=CPUSettingsUI
+DynamicVariables=1
+Text=<
+LeftMouseUpAction=[!CommandMeasure MeasureCPUSettings "AdjustNumber('CPUTemperatureDecimals',-1)"]
+ToolTipText=Enter an integer from 0 to 1. Arrows change by 1 and stop at the limits. Enter applies; Esc cancels.
+
+[MeterSettingsTemperatureDecimalsValue]
+Meter=String
+MeterStyle=StyleSettingsStepperValue
+X=(#ContentX#+152*#Scale#+((#ContentWidth#-172*#Scale#))/2)
+Y=((1-#CPUSettingsTemperatureDecimalsHidden#)*(#Inset#+(#CPUSettingsTemperatureDecimalsY#+1)*#Scale#))
+W=((1-#CPUSettingsTemperatureDecimalsHidden#)*((#ContentWidth#-172*#Scale#)))
+H=((1-#CPUSettingsTemperatureDecimalsHidden#)*18*#Scale#)
+Hidden=#CPUSettingsTemperatureDecimalsHidden#
+Group=CPUSettingsUI
+DynamicVariables=1
+Text=...
+LeftMouseUpAction=[!CommandMeasure MeasureCPUSettings "BeginNumberInput('CPUTemperatureDecimals')"]
+ToolTipText=Enter an integer from 0 to 1. Arrows change by 1 and stop at the limits. Enter applies; Esc cancels.
+
+[MeterSettingsTemperatureDecimalsIncrease]
+Meter=String
+MeterStyle=StyleSettingsStepperButton
+X=(#ContentX#+#ContentWidth#-9*#Scale#)
+Y=((1-#CPUSettingsTemperatureDecimalsHidden#)*(#Inset#+(#CPUSettingsTemperatureDecimalsY#+1)*#Scale#))
+W=((1-#CPUSettingsTemperatureDecimalsHidden#)*(18*#Scale#))
+H=((1-#CPUSettingsTemperatureDecimalsHidden#)*18*#Scale#)
+Hidden=#CPUSettingsTemperatureDecimalsHidden#
+Group=CPUSettingsUI
+DynamicVariables=1
+Text=>
+LeftMouseUpAction=[!CommandMeasure MeasureCPUSettings "AdjustNumber('CPUTemperatureDecimals',1)"]
+ToolTipText=Enter an integer from 0 to 1. Arrows change by 1 and stop at the limits. Enter applies; Esc cancels.
+
+[MeterSettingsThreadColorsLabel]
+Meter=String
+MeterStyle=StyleUtilitySettingsLabel|CPUStyleSettingsLabel
+X=#ContentX#
+Y=((1-#CPUSettingsThreadColorsHidden#)*(#Inset#+(#CPUSettingsThreadColorsY#+2)*#Scale#))
+W=((1-#CPUSettingsThreadColorsHidden#)*(126*#Scale#))
+H=((1-#CPUSettingsThreadColorsHidden#)*18*#Scale#)
+Hidden=#CPUSettingsThreadColorsHidden#
+Group=CPUSettingsUI
+DynamicVariables=1
+Text=Thread colors
+ToolTipText=Open CPU-only Thread Colors. Each selected color is shared by its Thread bar and matching per-thread graph trace.
+MouseActionCursor=0
+
+[MeterSettingsThreadColorsRow]
+Meter=Shape
+MeterStyle=StyleUtilitySettingsRow
+X=(#ContentX#+132*#Scale#)
+Y=((1-#CPUSettingsThreadColorsHidden#)*(#Inset#+(#CPUSettingsThreadColorsY#+0)*#Scale#))
+W=((1-#CPUSettingsThreadColorsHidden#)*(#ContentWidth#-132*#Scale#))
+H=((1-#CPUSettingsThreadColorsHidden#)*20*#Scale#)
+Hidden=#CPUSettingsThreadColorsHidden#
+Group=CPUSettingsUI
+DynamicVariables=1
+Shape=Rectangle 0,0,((1-#CPUSettingsThreadColorsHidden#)*(#ContentWidth#-132*#Scale#)),((1-#CPUSettingsThreadColorsHidden#)*20*#Scale#) | Fill Color #GraphBackgroundColor# | StrokeWidth 0
+LeftMouseUpAction=[!ActivateConfig "Parallax\CPU\Colors" "Colors.ini"]
+ToolTipText=Open CPU-only Thread Colors. Each selected color is shared by its Thread bar and matching per-thread graph trace.
+
+[MeterSettingsThreadColorsValue]
+Meter=String
+MeterStyle=StyleUtilitySettingsValue|CPUStyleSettingsValue
+X=(#ContentX#+132*#Scale#)
+Y=((1-#CPUSettingsThreadColorsHidden#)*(#Inset#+(#CPUSettingsThreadColorsY#+0)*#Scale#))
+W=((1-#CPUSettingsThreadColorsHidden#)*(#ContentWidth#-138*#Scale#))
+H=((1-#CPUSettingsThreadColorsHidden#)*18*#Scale#)
+Hidden=#CPUSettingsThreadColorsHidden#
+Group=CPUSettingsUI
+DynamicVariables=1
+Text=Edit
+LeftMouseUpAction=[!ActivateConfig "Parallax\CPU\Colors" "Colors.ini"]
+ToolTipText=Open CPU-only Thread Colors. Each selected color is shared by its Thread bar and matching per-thread graph trace.
 
 [MeterSettingsProcessesLabel]
 Meter=String
-MeterStyle=CPUStyleSettingsLabel
-Y=(#Inset#+180*#Scale#)
-Text=Show top process list
+MeterStyle=StyleUtilitySettingsLabel|CPUStyleSettingsLabel
+X=#ContentX#
+Y=((1-#CPUSettingsProcessesHidden#)*(#Inset#+(#CPUSettingsProcessesY#+2)*#Scale#))
+W=((1-#CPUSettingsProcessesHidden#)*(126*#Scale#))
+H=((1-#CPUSettingsProcessesHidden#)*18*#Scale#)
+Hidden=#CPUSettingsProcessesHidden#
+Group=CPUSettingsUI
+DynamicVariables=1
+Text=Show processes
+ToolTipText=Show or hide the list of processes using the most CPU.
+MouseActionCursor=0
+
+[MeterSettingsProcessesRow]
+Meter=Shape
+MeterStyle=StyleUtilitySettingsRow
+X=(#ContentX#+132*#Scale#)
+Y=((1-#CPUSettingsProcessesHidden#)*(#Inset#+(#CPUSettingsProcessesY#+0)*#Scale#))
+W=((1-#CPUSettingsProcessesHidden#)*(#ContentWidth#-132*#Scale#))
+H=((1-#CPUSettingsProcessesHidden#)*20*#Scale#)
+Hidden=#CPUSettingsProcessesHidden#
+Group=CPUSettingsUI
+DynamicVariables=1
+Shape=Rectangle 0,0,((1-#CPUSettingsProcessesHidden#)*(#ContentWidth#-132*#Scale#)),((1-#CPUSettingsProcessesHidden#)*20*#Scale#) | Fill Color #GraphBackgroundColor# | StrokeWidth 0
 LeftMouseUpAction=[!CommandMeasure MeasureCPUSettings "Toggle('CPUShowProcesses')"]
 ToolTipText=Show or hide the list of processes using the most CPU.
 
 [MeterSettingsProcessesValue]
 Meter=String
-MeterStyle=CPUStyleSettingsValue
-Y=(#Inset#+180*#Scale#)
+MeterStyle=StyleUtilitySettingsValue|CPUStyleSettingsValue
+X=(#ContentX#+132*#Scale#)
+Y=((1-#CPUSettingsProcessesHidden#)*(#Inset#+(#CPUSettingsProcessesY#+0)*#Scale#))
+W=((1-#CPUSettingsProcessesHidden#)*(#ContentWidth#-138*#Scale#))
+H=((1-#CPUSettingsProcessesHidden#)*18*#Scale#)
+Hidden=#CPUSettingsProcessesHidden#
+Group=CPUSettingsUI
+DynamicVariables=1
 Text=...
 LeftMouseUpAction=[!CommandMeasure MeasureCPUSettings "Toggle('CPUShowProcesses')"]
 ToolTipText=Show or hide the list of processes using the most CPU.
 
-[MeterSettingsProcessCountRow]
-Meter=Shape
-MeterStyle=CPUStyleSettingsRow
-Y=(#Inset#+204*#Scale#)
-LeftMouseUpAction=[!CommandMeasure MeasureCPUSettings "CycleProcessCount()"]
-ToolTipText=Cycle the maximum number of listed processes through 3, 5 and 10.
-
 [MeterSettingsProcessCountLabel]
 Meter=String
-MeterStyle=CPUStyleSettingsLabel
-Y=(#Inset#+208*#Scale#)
-Text=Processes shown
-LeftMouseUpAction=[!CommandMeasure MeasureCPUSettings "CycleProcessCount()"]
-ToolTipText=Cycle the maximum number of listed processes through 3, 5 and 10.
+MeterStyle=StyleUtilitySettingsLabel|CPUStyleSettingsLabel
+X=#ContentX#
+Y=((1-#CPUSettingsProcessCountHidden#)*(#Inset#+(#CPUSettingsProcessCountY#+2)*#Scale#))
+W=((1-#CPUSettingsProcessCountHidden#)*(126*#Scale#))
+H=((1-#CPUSettingsProcessCountHidden#)*18*#Scale#)
+Hidden=#CPUSettingsProcessCountHidden#
+Group=CPUSettingsUI
+DynamicVariables=1
+Text=Process count
+ToolTipText=Enter an integer from 1 to 10. Arrows change by 1 and stop at the limits. Enter applies; Esc cancels.
+MouseActionCursor=0
+
+[MeterSettingsProcessCountInput]
+Meter=Shape
+MeterStyle=StyleSettingsStepperFrame
+X=(#ContentX#+152*#Scale#)
+Y=((1-#CPUSettingsProcessCountHidden#)*(#Inset#+(#CPUSettingsProcessCountY#+0)*#Scale#))
+W=((1-#CPUSettingsProcessCountHidden#)*((#ContentWidth#-172*#Scale#)))
+H=((1-#CPUSettingsProcessCountHidden#)*20*#Scale#)
+Hidden=#CPUSettingsProcessCountHidden#
+Group=CPUSettingsUI
+DynamicVariables=1
+Shape=Rectangle (#Scale#/2),(#Scale#/2),((1-#CPUSettingsProcessCountHidden#)*((#ContentWidth#-172*#Scale#)-#Scale#)),((1-#CPUSettingsProcessCountHidden#)*19*#Scale#),(2*#Scale#) | Fill Color #GraphBackgroundColor# | Stroke Color #BorderColor# | StrokeWidth #Scale#
+LeftMouseUpAction=[!CommandMeasure MeasureCPUSettings "BeginNumberInput('CPUProcessCount')"]
+ToolTipText=Enter an integer from 1 to 10. Arrows change by 1 and stop at the limits. Enter applies; Esc cancels.
+
+[MeterSettingsProcessCountDecrease]
+Meter=String
+MeterStyle=StyleSettingsStepperButton
+X=(#ContentX#+141*#Scale#)
+Y=((1-#CPUSettingsProcessCountHidden#)*(#Inset#+(#CPUSettingsProcessCountY#+1)*#Scale#))
+W=((1-#CPUSettingsProcessCountHidden#)*(18*#Scale#))
+H=((1-#CPUSettingsProcessCountHidden#)*18*#Scale#)
+Hidden=#CPUSettingsProcessCountHidden#
+Group=CPUSettingsUI
+DynamicVariables=1
+Text=<
+LeftMouseUpAction=[!CommandMeasure MeasureCPUSettings "AdjustNumber('CPUProcessCount',-1)"]
+ToolTipText=Enter an integer from 1 to 10. Arrows change by 1 and stop at the limits. Enter applies; Esc cancels.
 
 [MeterSettingsProcessCountValue]
 Meter=String
-MeterStyle=CPUStyleSettingsValue
-Y=(#Inset#+208*#Scale#)
+MeterStyle=StyleSettingsStepperValue
+X=(#ContentX#+152*#Scale#+((#ContentWidth#-172*#Scale#))/2)
+Y=((1-#CPUSettingsProcessCountHidden#)*(#Inset#+(#CPUSettingsProcessCountY#+1)*#Scale#))
+W=((1-#CPUSettingsProcessCountHidden#)*((#ContentWidth#-172*#Scale#)))
+H=((1-#CPUSettingsProcessCountHidden#)*18*#Scale#)
+Hidden=#CPUSettingsProcessCountHidden#
+Group=CPUSettingsUI
+DynamicVariables=1
 Text=...
-LeftMouseUpAction=[!CommandMeasure MeasureCPUSettings "CycleProcessCount()"]
-ToolTipText=Cycle the maximum number of listed processes through 3, 5 and 10.
+LeftMouseUpAction=[!CommandMeasure MeasureCPUSettings "BeginNumberInput('CPUProcessCount')"]
+ToolTipText=Enter an integer from 1 to 10. Arrows change by 1 and stop at the limits. Enter applies; Esc cancels.
 
-[MeterSettingsGraphSection]
+[MeterSettingsProcessCountIncrease]
 Meter=String
-MeterStyle=CPUStyleSettingsSection
-Y=(#Inset#+236*#Scale#)
-Text=Graph
-
-[MeterSettingsHistoryRow]
-Meter=Shape
-MeterStyle=CPUStyleSettingsRow
-Y=(#Inset#+254*#Scale#)
-LeftMouseUpAction=[!CommandMeasure MeasureCPUSettings "Toggle('CPUShowHistory')"]
-ToolTipText=Show or hide the CPU usage history graph. Changing this option starts a fresh history.
+MeterStyle=StyleSettingsStepperButton
+X=(#ContentX#+#ContentWidth#-9*#Scale#)
+Y=((1-#CPUSettingsProcessCountHidden#)*(#Inset#+(#CPUSettingsProcessCountY#+1)*#Scale#))
+W=((1-#CPUSettingsProcessCountHidden#)*(18*#Scale#))
+H=((1-#CPUSettingsProcessCountHidden#)*18*#Scale#)
+Hidden=#CPUSettingsProcessCountHidden#
+Group=CPUSettingsUI
+DynamicVariables=1
+Text=>
+LeftMouseUpAction=[!CommandMeasure MeasureCPUSettings "AdjustNumber('CPUProcessCount',1)"]
+ToolTipText=Enter an integer from 1 to 10. Arrows change by 1 and stop at the limits. Enter applies; Esc cancels.
 
 [MeterSettingsHistoryLabel]
 Meter=String
-MeterStyle=CPUStyleSettingsLabel
-Y=(#Inset#+258*#Scale#)
-Text=Show graph
+MeterStyle=StyleUtilitySettingsLabel|CPUStyleSettingsLabel
+X=#ContentX#
+Y=((1-#CPUSettingsHistoryHidden#)*(#Inset#+(#CPUSettingsHistoryY#+2)*#Scale#))
+W=((1-#CPUSettingsHistoryHidden#)*(126*#Scale#))
+H=((1-#CPUSettingsHistoryHidden#)*18*#Scale#)
+Hidden=#CPUSettingsHistoryHidden#
+Group=CPUSettingsUI
+DynamicVariables=1
+Text=Show history
+ToolTipText=Show or hide the CPU usage history graph. Changing this option starts a fresh history.
+MouseActionCursor=0
+
+[MeterSettingsHistoryRow]
+Meter=Shape
+MeterStyle=StyleUtilitySettingsRow
+X=(#ContentX#+132*#Scale#)
+Y=((1-#CPUSettingsHistoryHidden#)*(#Inset#+(#CPUSettingsHistoryY#+0)*#Scale#))
+W=((1-#CPUSettingsHistoryHidden#)*(#ContentWidth#-132*#Scale#))
+H=((1-#CPUSettingsHistoryHidden#)*20*#Scale#)
+Hidden=#CPUSettingsHistoryHidden#
+Group=CPUSettingsUI
+DynamicVariables=1
+Shape=Rectangle 0,0,((1-#CPUSettingsHistoryHidden#)*(#ContentWidth#-132*#Scale#)),((1-#CPUSettingsHistoryHidden#)*20*#Scale#) | Fill Color #GraphBackgroundColor# | StrokeWidth 0
 LeftMouseUpAction=[!CommandMeasure MeasureCPUSettings "Toggle('CPUShowHistory')"]
 ToolTipText=Show or hide the CPU usage history graph. Changing this option starts a fresh history.
 
 [MeterSettingsHistoryValue]
 Meter=String
-MeterStyle=CPUStyleSettingsValue
-Y=(#Inset#+258*#Scale#)
+MeterStyle=StyleUtilitySettingsValue|CPUStyleSettingsValue
+X=(#ContentX#+132*#Scale#)
+Y=((1-#CPUSettingsHistoryHidden#)*(#Inset#+(#CPUSettingsHistoryY#+0)*#Scale#))
+W=((1-#CPUSettingsHistoryHidden#)*(#ContentWidth#-138*#Scale#))
+H=((1-#CPUSettingsHistoryHidden#)*18*#Scale#)
+Hidden=#CPUSettingsHistoryHidden#
+Group=CPUSettingsUI
+DynamicVariables=1
 Text=...
 LeftMouseUpAction=[!CommandMeasure MeasureCPUSettings "Toggle('CPUShowHistory')"]
 ToolTipText=Show or hide the CPU usage history graph. Changing this option starts a fresh history.
 
-[MeterSettingsSamplesRow]
+[MeterSettingsSourceLabel]
+Meter=String
+MeterStyle=StyleUtilitySettingsLabel|CPUStyleSettingsLabel
+X=#ContentX#
+Y=((1-#CPUSettingsSourceHidden#)*(#Inset#+(#CPUSettingsSourceY#+2)*#Scale#))
+W=((1-#CPUSettingsSourceHidden#)*(126*#Scale#))
+H=((1-#CPUSettingsSourceHidden#)*18*#Scale#)
+Hidden=#CPUSettingsSourceHidden#
+Group=CPUSettingsUI
+DynamicVariables=1
+Text=History source
+ToolTipText=Previous/next choices wrap. Click the center for the next choice.
+MouseActionCursor=0
+
+[MeterSettingsSourceInput]
 Meter=Shape
-MeterStyle=CPUStyleSettingsRow
-Y=(#Inset#+282*#Scale#)
-LeftMouseUpAction=[!CommandMeasure MeasureCPUSettings "CycleHistorySamples()"]
-ToolTipText=Cycle the history capacity through 30, 60, 120 and 300 samples. Changing capacity starts a fresh history.
+MeterStyle=StyleSettingsStepperFrame
+X=(#ContentX#+152*#Scale#)
+Y=((1-#CPUSettingsSourceHidden#)*(#Inset#+(#CPUSettingsSourceY#+0)*#Scale#))
+W=((1-#CPUSettingsSourceHidden#)*((#ContentWidth#-172*#Scale#)))
+H=((1-#CPUSettingsSourceHidden#)*20*#Scale#)
+Hidden=#CPUSettingsSourceHidden#
+Group=CPUSettingsUI
+DynamicVariables=1
+Shape=Rectangle (#Scale#/2),(#Scale#/2),((1-#CPUSettingsSourceHidden#)*((#ContentWidth#-172*#Scale#)-#Scale#)),((1-#CPUSettingsSourceHidden#)*19*#Scale#),(2*#Scale#) | Fill Color #GraphBackgroundColor# | Stroke Color #BorderColor# | StrokeWidth #Scale#
+LeftMouseUpAction=[!CommandMeasure MeasureCPUSettings "CycleHistorySource()"]
+ToolTipText=Previous/next choices wrap. Click the center for the next choice.
+
+[MeterSettingsSourceDecrease]
+Meter=String
+MeterStyle=StyleSettingsStepperButton
+X=(#ContentX#+141*#Scale#)
+Y=((1-#CPUSettingsSourceHidden#)*(#Inset#+(#CPUSettingsSourceY#+1)*#Scale#))
+W=((1-#CPUSettingsSourceHidden#)*(18*#Scale#))
+H=((1-#CPUSettingsSourceHidden#)*18*#Scale#)
+Hidden=#CPUSettingsSourceHidden#
+Group=CPUSettingsUI
+DynamicVariables=1
+Text=<
+LeftMouseUpAction=[!CommandMeasure MeasureCPUSettings "CycleHistorySource(-1)"]
+ToolTipText=Previous/next choices wrap. Click the center for the next choice.
+
+[MeterSettingsSourceValue]
+Meter=String
+MeterStyle=StyleSettingsStepperValue
+X=(#ContentX#+152*#Scale#+((#ContentWidth#-172*#Scale#))/2)
+Y=((1-#CPUSettingsSourceHidden#)*(#Inset#+(#CPUSettingsSourceY#+1)*#Scale#))
+W=((1-#CPUSettingsSourceHidden#)*((#ContentWidth#-172*#Scale#)))
+H=((1-#CPUSettingsSourceHidden#)*18*#Scale#)
+Hidden=#CPUSettingsSourceHidden#
+Group=CPUSettingsUI
+DynamicVariables=1
+Text=...
+LeftMouseUpAction=[!CommandMeasure MeasureCPUSettings "CycleHistorySource()"]
+ToolTipText=Previous/next choices wrap. Click the center for the next choice.
+
+[MeterSettingsSourceIncrease]
+Meter=String
+MeterStyle=StyleSettingsStepperButton
+X=(#ContentX#+#ContentWidth#-9*#Scale#)
+Y=((1-#CPUSettingsSourceHidden#)*(#Inset#+(#CPUSettingsSourceY#+1)*#Scale#))
+W=((1-#CPUSettingsSourceHidden#)*(18*#Scale#))
+H=((1-#CPUSettingsSourceHidden#)*18*#Scale#)
+Hidden=#CPUSettingsSourceHidden#
+Group=CPUSettingsUI
+DynamicVariables=1
+Text=>
+LeftMouseUpAction=[!CommandMeasure MeasureCPUSettings "CycleHistorySource(1)"]
+ToolTipText=Previous/next choices wrap. Click the center for the next choice.
 
 [MeterSettingsSamplesLabel]
 Meter=String
-MeterStyle=CPUStyleSettingsLabel
-Y=(#Inset#+286*#Scale#)
+MeterStyle=StyleUtilitySettingsLabel|CPUStyleSettingsLabel
+X=#ContentX#
+Y=((1-#CPUSettingsSamplesHidden#)*(#Inset#+(#CPUSettingsSamplesY#+2)*#Scale#))
+W=((1-#CPUSettingsSamplesHidden#)*(126*#Scale#))
+H=((1-#CPUSettingsSamplesHidden#)*18*#Scale#)
+Hidden=#CPUSettingsSamplesHidden#
+Group=CPUSettingsUI
+DynamicVariables=1
 Text=History samples
-LeftMouseUpAction=[!CommandMeasure MeasureCPUSettings "CycleHistorySamples()"]
-ToolTipText=Cycle the history capacity through 30, 60, 120 and 300 samples. Changing capacity starts a fresh history.
+ToolTipText=Enter an integer from 10 to 300. Arrows change by 10 and stop at the limits. Enter applies; Esc cancels.
+MouseActionCursor=0
+
+[MeterSettingsSamplesInput]
+Meter=Shape
+MeterStyle=StyleSettingsStepperFrame
+X=(#ContentX#+152*#Scale#)
+Y=((1-#CPUSettingsSamplesHidden#)*(#Inset#+(#CPUSettingsSamplesY#+0)*#Scale#))
+W=((1-#CPUSettingsSamplesHidden#)*((#ContentWidth#-172*#Scale#)))
+H=((1-#CPUSettingsSamplesHidden#)*20*#Scale#)
+Hidden=#CPUSettingsSamplesHidden#
+Group=CPUSettingsUI
+DynamicVariables=1
+Shape=Rectangle (#Scale#/2),(#Scale#/2),((1-#CPUSettingsSamplesHidden#)*((#ContentWidth#-172*#Scale#)-#Scale#)),((1-#CPUSettingsSamplesHidden#)*19*#Scale#),(2*#Scale#) | Fill Color #GraphBackgroundColor# | Stroke Color #BorderColor# | StrokeWidth #Scale#
+LeftMouseUpAction=[!CommandMeasure MeasureCPUSettings "BeginNumberInput('CPUHistorySamples')"]
+ToolTipText=Enter an integer from 10 to 300. Arrows change by 10 and stop at the limits. Enter applies; Esc cancels.
+
+[MeterSettingsSamplesDecrease]
+Meter=String
+MeterStyle=StyleSettingsStepperButton
+X=(#ContentX#+141*#Scale#)
+Y=((1-#CPUSettingsSamplesHidden#)*(#Inset#+(#CPUSettingsSamplesY#+1)*#Scale#))
+W=((1-#CPUSettingsSamplesHidden#)*(18*#Scale#))
+H=((1-#CPUSettingsSamplesHidden#)*18*#Scale#)
+Hidden=#CPUSettingsSamplesHidden#
+Group=CPUSettingsUI
+DynamicVariables=1
+Text=<
+LeftMouseUpAction=[!CommandMeasure MeasureCPUSettings "AdjustNumber('CPUHistorySamples',-1)"]
+ToolTipText=Enter an integer from 10 to 300. Arrows change by 10 and stop at the limits. Enter applies; Esc cancels.
 
 [MeterSettingsSamplesValue]
 Meter=String
-MeterStyle=CPUStyleSettingsValue
-Y=(#Inset#+286*#Scale#)
+MeterStyle=StyleSettingsStepperValue
+X=(#ContentX#+152*#Scale#+((#ContentWidth#-172*#Scale#))/2)
+Y=((1-#CPUSettingsSamplesHidden#)*(#Inset#+(#CPUSettingsSamplesY#+1)*#Scale#))
+W=((1-#CPUSettingsSamplesHidden#)*((#ContentWidth#-172*#Scale#)))
+H=((1-#CPUSettingsSamplesHidden#)*18*#Scale#)
+Hidden=#CPUSettingsSamplesHidden#
+Group=CPUSettingsUI
+DynamicVariables=1
 Text=...
-LeftMouseUpAction=[!CommandMeasure MeasureCPUSettings "CycleHistorySamples()"]
-ToolTipText=Cycle the history capacity through 30, 60, 120 and 300 samples. Changing capacity starts a fresh history.
+LeftMouseUpAction=[!CommandMeasure MeasureCPUSettings "BeginNumberInput('CPUHistorySamples')"]
+ToolTipText=Enter an integer from 10 to 300. Arrows change by 10 and stop at the limits. Enter applies; Esc cancels.
 
-[MeterSettingsSensorsSection]
+[MeterSettingsSamplesIncrease]
 Meter=String
-MeterStyle=CPUStyleSettingsSection
-Y=(#Inset#+314*#Scale#)
-Text=HWiNFO Setup
+MeterStyle=StyleSettingsStepperButton
+X=(#ContentX#+#ContentWidth#-9*#Scale#)
+Y=((1-#CPUSettingsSamplesHidden#)*(#Inset#+(#CPUSettingsSamplesY#+1)*#Scale#))
+W=((1-#CPUSettingsSamplesHidden#)*(18*#Scale#))
+H=((1-#CPUSettingsSamplesHidden#)*18*#Scale#)
+Hidden=#CPUSettingsSamplesHidden#
+Group=CPUSettingsUI
+DynamicVariables=1
+Text=>
+LeftMouseUpAction=[!CommandMeasure MeasureCPUSettings "AdjustNumber('CPUHistorySamples',1)"]
+ToolTipText=Enter an integer from 10 to 300. Arrows change by 10 and stop at the limits. Enter applies; Esc cancels.
 
-[MeterSettingsSensorsRow]
+[MeterSettingsUpdateRateLabel]
+Meter=String
+MeterStyle=StyleUtilitySettingsLabel|CPUStyleSettingsLabel
+X=#ContentX#
+Y=((1-#CPUSettingsUpdateRateHidden#)*(#Inset#+(#CPUSettingsUpdateRateY#+2)*#Scale#))
+W=((1-#CPUSettingsUpdateRateHidden#)*(126*#Scale#))
+H=((1-#CPUSettingsUpdateRateHidden#)*18*#Scale#)
+Hidden=#CPUSettingsUpdateRateHidden#
+Group=CPUSettingsUI
+DynamicVariables=1
+Text=CPU refresh (ms)
+ToolTipText=Enter an integer from 500 to 2000. Arrows change by 500 and stop at the limits. Enter applies; Esc cancels.
+MouseActionCursor=0
+
+[MeterSettingsUpdateRateInput]
 Meter=Shape
-MeterStyle=CPUStyleSettingsRow
-Y=(#Inset#+332*#Scale#)
-LeftMouseUpAction=[!CommandMeasure MeasureCPUSettings "Toggle('CPUSensorsEnabled')"]
-ToolTipText=Enable CPU sensor readings exposed by HWiNFO. Shared CPU/package readings are repeated in logical-processor rows.
+MeterStyle=StyleSettingsStepperFrame
+X=(#ContentX#+152*#Scale#)
+Y=((1-#CPUSettingsUpdateRateHidden#)*(#Inset#+(#CPUSettingsUpdateRateY#+0)*#Scale#))
+W=((1-#CPUSettingsUpdateRateHidden#)*((#ContentWidth#-172*#Scale#)))
+H=((1-#CPUSettingsUpdateRateHidden#)*20*#Scale#)
+Hidden=#CPUSettingsUpdateRateHidden#
+Group=CPUSettingsUI
+DynamicVariables=1
+Shape=Rectangle (#Scale#/2),(#Scale#/2),((1-#CPUSettingsUpdateRateHidden#)*((#ContentWidth#-172*#Scale#)-#Scale#)),((1-#CPUSettingsUpdateRateHidden#)*19*#Scale#),(2*#Scale#) | Fill Color #GraphBackgroundColor# | Stroke Color #BorderColor# | StrokeWidth #Scale#
+LeftMouseUpAction=[!CommandMeasure MeasureCPUSettings "BeginNumberInput('CPUUpdateInterval')"]
+ToolTipText=Enter an integer from 500 to 2000. Arrows change by 500 and stop at the limits. Enter applies; Esc cancels.
+
+[MeterSettingsUpdateRateDecrease]
+Meter=String
+MeterStyle=StyleSettingsStepperButton
+X=(#ContentX#+141*#Scale#)
+Y=((1-#CPUSettingsUpdateRateHidden#)*(#Inset#+(#CPUSettingsUpdateRateY#+1)*#Scale#))
+W=((1-#CPUSettingsUpdateRateHidden#)*(18*#Scale#))
+H=((1-#CPUSettingsUpdateRateHidden#)*18*#Scale#)
+Hidden=#CPUSettingsUpdateRateHidden#
+Group=CPUSettingsUI
+DynamicVariables=1
+Text=<
+LeftMouseUpAction=[!CommandMeasure MeasureCPUSettings "AdjustNumber('CPUUpdateInterval',-1)"]
+ToolTipText=Enter an integer from 500 to 2000. Arrows change by 500 and stop at the limits. Enter applies; Esc cancels.
+
+[MeterSettingsUpdateRateValue]
+Meter=String
+MeterStyle=StyleSettingsStepperValue
+X=(#ContentX#+152*#Scale#+((#ContentWidth#-172*#Scale#))/2)
+Y=((1-#CPUSettingsUpdateRateHidden#)*(#Inset#+(#CPUSettingsUpdateRateY#+1)*#Scale#))
+W=((1-#CPUSettingsUpdateRateHidden#)*((#ContentWidth#-172*#Scale#)))
+H=((1-#CPUSettingsUpdateRateHidden#)*18*#Scale#)
+Hidden=#CPUSettingsUpdateRateHidden#
+Group=CPUSettingsUI
+DynamicVariables=1
+Text=...
+LeftMouseUpAction=[!CommandMeasure MeasureCPUSettings "BeginNumberInput('CPUUpdateInterval')"]
+ToolTipText=Enter an integer from 500 to 2000. Arrows change by 500 and stop at the limits. Enter applies; Esc cancels.
+
+[MeterSettingsUpdateRateIncrease]
+Meter=String
+MeterStyle=StyleSettingsStepperButton
+X=(#ContentX#+#ContentWidth#-9*#Scale#)
+Y=((1-#CPUSettingsUpdateRateHidden#)*(#Inset#+(#CPUSettingsUpdateRateY#+1)*#Scale#))
+W=((1-#CPUSettingsUpdateRateHidden#)*(18*#Scale#))
+H=((1-#CPUSettingsUpdateRateHidden#)*18*#Scale#)
+Hidden=#CPUSettingsUpdateRateHidden#
+Group=CPUSettingsUI
+DynamicVariables=1
+Text=>
+LeftMouseUpAction=[!CommandMeasure MeasureCPUSettings "AdjustNumber('CPUUpdateInterval',1)"]
+ToolTipText=Enter an integer from 500 to 2000. Arrows change by 500 and stop at the limits. Enter applies; Esc cancels.
+
+[MeterSettingsSensorRateLabel]
+Meter=String
+MeterStyle=StyleUtilitySettingsLabel|CPUStyleSettingsLabel
+X=#ContentX#
+Y=((1-#CPUSettingsSensorRateHidden#)*(#Inset#+(#CPUSettingsSensorRateY#+2)*#Scale#))
+W=((1-#CPUSettingsSensorRateHidden#)*(126*#Scale#))
+H=((1-#CPUSettingsSensorRateHidden#)*18*#Scale#)
+Hidden=#CPUSettingsSensorRateHidden#
+Group=CPUSettingsUI
+DynamicVariables=1
+Text=Sensor read (ms)
+ToolTipText=Enter an integer from 500 to 5000. Arrows change by 500 and stop at the limits. Enter applies; Esc cancels.
+MouseActionCursor=0
+
+[MeterSettingsSensorRateInput]
+Meter=Shape
+MeterStyle=StyleSettingsStepperFrame
+X=(#ContentX#+152*#Scale#)
+Y=((1-#CPUSettingsSensorRateHidden#)*(#Inset#+(#CPUSettingsSensorRateY#+0)*#Scale#))
+W=((1-#CPUSettingsSensorRateHidden#)*((#ContentWidth#-172*#Scale#)))
+H=((1-#CPUSettingsSensorRateHidden#)*20*#Scale#)
+Hidden=#CPUSettingsSensorRateHidden#
+Group=CPUSettingsUI
+DynamicVariables=1
+Shape=Rectangle (#Scale#/2),(#Scale#/2),((1-#CPUSettingsSensorRateHidden#)*((#ContentWidth#-172*#Scale#)-#Scale#)),((1-#CPUSettingsSensorRateHidden#)*19*#Scale#),(2*#Scale#) | Fill Color #GraphBackgroundColor# | Stroke Color #BorderColor# | StrokeWidth #Scale#
+LeftMouseUpAction=[!CommandMeasure MeasureCPUSettings "BeginNumberInput('CPUSensorInterval')"]
+ToolTipText=Enter an integer from 500 to 5000. Arrows change by 500 and stop at the limits. Enter applies; Esc cancels.
+
+[MeterSettingsSensorRateDecrease]
+Meter=String
+MeterStyle=StyleSettingsStepperButton
+X=(#ContentX#+141*#Scale#)
+Y=((1-#CPUSettingsSensorRateHidden#)*(#Inset#+(#CPUSettingsSensorRateY#+1)*#Scale#))
+W=((1-#CPUSettingsSensorRateHidden#)*(18*#Scale#))
+H=((1-#CPUSettingsSensorRateHidden#)*18*#Scale#)
+Hidden=#CPUSettingsSensorRateHidden#
+Group=CPUSettingsUI
+DynamicVariables=1
+Text=<
+LeftMouseUpAction=[!CommandMeasure MeasureCPUSettings "AdjustNumber('CPUSensorInterval',-1)"]
+ToolTipText=Enter an integer from 500 to 5000. Arrows change by 500 and stop at the limits. Enter applies; Esc cancels.
+
+[MeterSettingsSensorRateValue]
+Meter=String
+MeterStyle=StyleSettingsStepperValue
+X=(#ContentX#+152*#Scale#+((#ContentWidth#-172*#Scale#))/2)
+Y=((1-#CPUSettingsSensorRateHidden#)*(#Inset#+(#CPUSettingsSensorRateY#+1)*#Scale#))
+W=((1-#CPUSettingsSensorRateHidden#)*((#ContentWidth#-172*#Scale#)))
+H=((1-#CPUSettingsSensorRateHidden#)*18*#Scale#)
+Hidden=#CPUSettingsSensorRateHidden#
+Group=CPUSettingsUI
+DynamicVariables=1
+Text=...
+LeftMouseUpAction=[!CommandMeasure MeasureCPUSettings "BeginNumberInput('CPUSensorInterval')"]
+ToolTipText=Enter an integer from 500 to 5000. Arrows change by 500 and stop at the limits. Enter applies; Esc cancels.
+
+[MeterSettingsSensorRateIncrease]
+Meter=String
+MeterStyle=StyleSettingsStepperButton
+X=(#ContentX#+#ContentWidth#-9*#Scale#)
+Y=((1-#CPUSettingsSensorRateHidden#)*(#Inset#+(#CPUSettingsSensorRateY#+1)*#Scale#))
+W=((1-#CPUSettingsSensorRateHidden#)*(18*#Scale#))
+H=((1-#CPUSettingsSensorRateHidden#)*18*#Scale#)
+Hidden=#CPUSettingsSensorRateHidden#
+Group=CPUSettingsUI
+DynamicVariables=1
+Text=>
+LeftMouseUpAction=[!CommandMeasure MeasureCPUSettings "AdjustNumber('CPUSensorInterval',1)"]
+ToolTipText=Enter an integer from 500 to 5000. Arrows change by 500 and stop at the limits. Enter applies; Esc cancels.
 
 [MeterSettingsSensorsLabel]
 Meter=String
-MeterStyle=CPUStyleSettingsLabel
-Y=(#Inset#+336*#Scale#)
-Text=Enable sensor readings
+MeterStyle=StyleUtilitySettingsLabel|CPUStyleSettingsLabel
+X=#ContentX#
+Y=((1-#CPUSettingsSensorsHidden#)*(#Inset#+(#CPUSettingsSensorsY#+2)*#Scale#))
+W=((1-#CPUSettingsSensorsHidden#)*(126*#Scale#))
+H=((1-#CPUSettingsSensorsHidden#)*18*#Scale#)
+Hidden=#CPUSettingsSensorsHidden#
+Group=CPUSettingsUI
+DynamicVariables=1
+Text=Enable sensors
+ToolTipText=Enable individual HWiNFO core sensors, the CPU-wide current clock, and the optional CPU-wide summary. Each core reading appears on its two paired thread rows.
+MouseActionCursor=0
+
+[MeterSettingsSensorsRow]
+Meter=Shape
+MeterStyle=StyleUtilitySettingsRow
+X=(#ContentX#+132*#Scale#)
+Y=((1-#CPUSettingsSensorsHidden#)*(#Inset#+(#CPUSettingsSensorsY#+0)*#Scale#))
+W=((1-#CPUSettingsSensorsHidden#)*(#ContentWidth#-132*#Scale#))
+H=((1-#CPUSettingsSensorsHidden#)*20*#Scale#)
+Hidden=#CPUSettingsSensorsHidden#
+Group=CPUSettingsUI
+DynamicVariables=1
+Shape=Rectangle 0,0,((1-#CPUSettingsSensorsHidden#)*(#ContentWidth#-132*#Scale#)),((1-#CPUSettingsSensorsHidden#)*20*#Scale#) | Fill Color #GraphBackgroundColor# | StrokeWidth 0
 LeftMouseUpAction=[!CommandMeasure MeasureCPUSettings "Toggle('CPUSensorsEnabled')"]
-ToolTipText=Enable CPU sensor readings exposed by HWiNFO. Shared CPU/package readings are repeated in logical-processor rows.
+ToolTipText=Enable individual HWiNFO core sensors, the CPU-wide current clock, and the optional CPU-wide summary. Each core reading appears on its two paired thread rows.
 
 [MeterSettingsSensorsValue]
 Meter=String
-MeterStyle=CPUStyleSettingsValue
-Y=(#Inset#+336*#Scale#)
+MeterStyle=StyleUtilitySettingsValue|CPUStyleSettingsValue
+X=(#ContentX#+132*#Scale#)
+Y=((1-#CPUSettingsSensorsHidden#)*(#Inset#+(#CPUSettingsSensorsY#+0)*#Scale#))
+W=((1-#CPUSettingsSensorsHidden#)*(#ContentWidth#-138*#Scale#))
+H=((1-#CPUSettingsSensorsHidden#)*18*#Scale#)
+Hidden=#CPUSettingsSensorsHidden#
+Group=CPUSettingsUI
+DynamicVariables=1
 Text=...
 LeftMouseUpAction=[!CommandMeasure MeasureCPUSettings "Toggle('CPUSensorsEnabled')"]
-ToolTipText=Enable CPU sensor readings exposed by HWiNFO. Shared CPU/package readings are repeated in logical-processor rows.
+ToolTipText=Enable individual HWiNFO core sensors, the CPU-wide current clock, and the optional CPU-wide summary. Each core reading appears on its two paired thread rows.
+
+[MeterSettingsTemperatureLabel]
+Meter=String
+MeterStyle=StyleUtilitySettingsLabel|CPUStyleSettingsLabel
+X=#ContentX#
+Y=((1-#CPUSettingsTemperatureHidden#)*(#Inset#+(#CPUSettingsTemperatureY#+2)*#Scale#))
+W=((1-#CPUSettingsTemperatureHidden#)*(126*#Scale#))
+H=((1-#CPUSettingsTemperatureHidden#)*18*#Scale#)
+Hidden=#CPUSettingsTemperatureHidden#
+Group=CPUSettingsUI
+DynamicVariables=1
+Text=CPU-wide T
+ToolTipText=Choose automatic detection or one of the CPU temperature exports found in the last scan.
+MouseActionCursor=0
+
+[MeterSettingsTemperatureRow]
+Meter=Shape
+MeterStyle=StyleUtilitySettingsRow
+X=(#ContentX#+132*#Scale#)
+Y=((1-#CPUSettingsTemperatureHidden#)*(#Inset#+(#CPUSettingsTemperatureY#+0)*#Scale#))
+W=((1-#CPUSettingsTemperatureHidden#)*(#ContentWidth#-132*#Scale#))
+H=((1-#CPUSettingsTemperatureHidden#)*20*#Scale#)
+Hidden=#CPUSettingsTemperatureHidden#
+Group=CPUSettingsUI
+DynamicVariables=1
+Shape=Rectangle 0,0,((1-#CPUSettingsTemperatureHidden#)*(#ContentWidth#-132*#Scale#)),((1-#CPUSettingsTemperatureHidden#)*20*#Scale#) | Fill Color #GraphBackgroundColor# | StrokeWidth 0
+LeftMouseUpAction=[!CommandMeasure MeasureCPUSettings "CycleSensor('TEMP')"]
+ToolTipText=Choose automatic detection or one of the CPU temperature exports found in the last scan.
+
+[MeterSettingsTemperatureValue]
+Meter=String
+MeterStyle=StyleUtilitySettingsValue|CPUStyleSettingsValue
+X=(#ContentX#+132*#Scale#)
+Y=((1-#CPUSettingsTemperatureHidden#)*(#Inset#+(#CPUSettingsTemperatureY#+0)*#Scale#))
+W=((1-#CPUSettingsTemperatureHidden#)*(#ContentWidth#-138*#Scale#))
+H=((1-#CPUSettingsTemperatureHidden#)*18*#Scale#)
+Hidden=#CPUSettingsTemperatureHidden#
+Group=CPUSettingsUI
+DynamicVariables=1
+Text=...
+LeftMouseUpAction=[!CommandMeasure MeasureCPUSettings "CycleSensor('TEMP')"]
+ToolTipText=Choose automatic detection or one of the CPU temperature exports found in the last scan.
+
+[MeterSettingsVoltageLabel]
+Meter=String
+MeterStyle=StyleUtilitySettingsLabel|CPUStyleSettingsLabel
+X=#ContentX#
+Y=((1-#CPUSettingsVoltageHidden#)*(#Inset#+(#CPUSettingsVoltageY#+2)*#Scale#))
+W=((1-#CPUSettingsVoltageHidden#)*(126*#Scale#))
+H=((1-#CPUSettingsVoltageHidden#)*18*#Scale#)
+Hidden=#CPUSettingsVoltageHidden#
+Group=CPUSettingsUI
+DynamicVariables=1
+Text=CPU-wide V
+ToolTipText=Choose automatic detection or one of the Vcore or VID exports found in the last scan. VID is requested voltage.
+MouseActionCursor=0
+
+[MeterSettingsVoltageRow]
+Meter=Shape
+MeterStyle=StyleUtilitySettingsRow
+X=(#ContentX#+132*#Scale#)
+Y=((1-#CPUSettingsVoltageHidden#)*(#Inset#+(#CPUSettingsVoltageY#+0)*#Scale#))
+W=((1-#CPUSettingsVoltageHidden#)*(#ContentWidth#-132*#Scale#))
+H=((1-#CPUSettingsVoltageHidden#)*20*#Scale#)
+Hidden=#CPUSettingsVoltageHidden#
+Group=CPUSettingsUI
+DynamicVariables=1
+Shape=Rectangle 0,0,((1-#CPUSettingsVoltageHidden#)*(#ContentWidth#-132*#Scale#)),((1-#CPUSettingsVoltageHidden#)*20*#Scale#) | Fill Color #GraphBackgroundColor# | StrokeWidth 0
+LeftMouseUpAction=[!CommandMeasure MeasureCPUSettings "CycleSensor('VOLT')"]
+ToolTipText=Choose automatic detection or one of the Vcore or VID exports found in the last scan. VID is requested voltage.
+
+[MeterSettingsVoltageValue]
+Meter=String
+MeterStyle=StyleUtilitySettingsValue|CPUStyleSettingsValue
+X=(#ContentX#+132*#Scale#)
+Y=((1-#CPUSettingsVoltageHidden#)*(#Inset#+(#CPUSettingsVoltageY#+0)*#Scale#))
+W=((1-#CPUSettingsVoltageHidden#)*(#ContentWidth#-138*#Scale#))
+H=((1-#CPUSettingsVoltageHidden#)*18*#Scale#)
+Hidden=#CPUSettingsVoltageHidden#
+Group=CPUSettingsUI
+DynamicVariables=1
+Text=...
+LeftMouseUpAction=[!CommandMeasure MeasureCPUSettings "CycleSensor('VOLT')"]
+ToolTipText=Choose automatic detection or one of the Vcore or VID exports found in the last scan. VID is requested voltage.
+
+[MeterSettingsSensorHiveLabel]
+Meter=String
+MeterStyle=StyleUtilitySettingsLabel|CPUStyleSettingsLabel
+X=#ContentX#
+Y=((1-#CPUSettingsSensorHiveHidden#)*(#Inset#+(#CPUSettingsSensorHiveY#+2)*#Scale#))
+W=((1-#CPUSettingsSensorHiveHidden#)*(126*#Scale#))
+H=((1-#CPUSettingsSensorHiveHidden#)*18*#Scale#)
+Hidden=#CPUSettingsSensorHiveHidden#
+Group=CPUSettingsUI
+DynamicVariables=1
+Text=Search scope
+ToolTipText=Previous/next choices wrap. Click the center for the next choice.
+MouseActionCursor=0
+
+[MeterSettingsSensorHiveInput]
+Meter=Shape
+MeterStyle=StyleSettingsStepperFrame
+X=(#ContentX#+152*#Scale#)
+Y=((1-#CPUSettingsSensorHiveHidden#)*(#Inset#+(#CPUSettingsSensorHiveY#+0)*#Scale#))
+W=((1-#CPUSettingsSensorHiveHidden#)*((#ContentWidth#-172*#Scale#)))
+H=((1-#CPUSettingsSensorHiveHidden#)*20*#Scale#)
+Hidden=#CPUSettingsSensorHiveHidden#
+Group=CPUSettingsUI
+DynamicVariables=1
+Shape=Rectangle (#Scale#/2),(#Scale#/2),((1-#CPUSettingsSensorHiveHidden#)*((#ContentWidth#-172*#Scale#)-#Scale#)),((1-#CPUSettingsSensorHiveHidden#)*19*#Scale#),(2*#Scale#) | Fill Color #GraphBackgroundColor# | Stroke Color #BorderColor# | StrokeWidth #Scale#
+LeftMouseUpAction=[!CommandMeasure MeasureCPUSettings "CycleSensorHive()"]
+ToolTipText=Previous/next choices wrap. Click the center for the next choice.
+
+[MeterSettingsSensorHiveDecrease]
+Meter=String
+MeterStyle=StyleSettingsStepperButton
+X=(#ContentX#+141*#Scale#)
+Y=((1-#CPUSettingsSensorHiveHidden#)*(#Inset#+(#CPUSettingsSensorHiveY#+1)*#Scale#))
+W=((1-#CPUSettingsSensorHiveHidden#)*(18*#Scale#))
+H=((1-#CPUSettingsSensorHiveHidden#)*18*#Scale#)
+Hidden=#CPUSettingsSensorHiveHidden#
+Group=CPUSettingsUI
+DynamicVariables=1
+Text=<
+LeftMouseUpAction=[!CommandMeasure MeasureCPUSettings "CycleSensorHive(-1)"]
+ToolTipText=Previous/next choices wrap. Click the center for the next choice.
+
+[MeterSettingsSensorHiveValue]
+Meter=String
+MeterStyle=StyleSettingsStepperValue
+X=(#ContentX#+152*#Scale#+((#ContentWidth#-172*#Scale#))/2)
+Y=((1-#CPUSettingsSensorHiveHidden#)*(#Inset#+(#CPUSettingsSensorHiveY#+1)*#Scale#))
+W=((1-#CPUSettingsSensorHiveHidden#)*((#ContentWidth#-172*#Scale#)))
+H=((1-#CPUSettingsSensorHiveHidden#)*18*#Scale#)
+Hidden=#CPUSettingsSensorHiveHidden#
+Group=CPUSettingsUI
+DynamicVariables=1
+Text=...
+LeftMouseUpAction=[!CommandMeasure MeasureCPUSettings "CycleSensorHive()"]
+ToolTipText=Previous/next choices wrap. Click the center for the next choice.
+
+[MeterSettingsSensorHiveIncrease]
+Meter=String
+MeterStyle=StyleSettingsStepperButton
+X=(#ContentX#+#ContentWidth#-9*#Scale#)
+Y=((1-#CPUSettingsSensorHiveHidden#)*(#Inset#+(#CPUSettingsSensorHiveY#+1)*#Scale#))
+W=((1-#CPUSettingsSensorHiveHidden#)*(18*#Scale#))
+H=((1-#CPUSettingsSensorHiveHidden#)*18*#Scale#)
+Hidden=#CPUSettingsSensorHiveHidden#
+Group=CPUSettingsUI
+DynamicVariables=1
+Text=>
+LeftMouseUpAction=[!CommandMeasure MeasureCPUSettings "CycleSensorHive(1)"]
+ToolTipText=Previous/next choices wrap. Click the center for the next choice.
+
+[MeterSettingsReconnectLabel]
+Meter=String
+MeterStyle=StyleUtilitySettingsLabel|CPUStyleSettingsLabel
+X=#ContentX#
+Y=((1-#CPUSettingsReconnectHidden#)*(#Inset#+(#CPUSettingsReconnectY#+2)*#Scale#))
+W=((1-#CPUSettingsReconnectHidden#)*(126*#Scale#))
+H=((1-#CPUSettingsReconnectHidden#)*18*#Scale#)
+Hidden=#CPUSettingsReconnectHidden#
+Group=CPUSettingsUI
+DynamicVariables=1
+Text=Reconnect
+ToolTipText=Apply the chosen sensor selections, rescan HWiNFO exports, and reconnect the loaded CPU meter.
+MouseActionCursor=0
+
+[MeterSettingsReconnectRow]
+Meter=Shape
+MeterStyle=StyleUtilitySettingsRow
+X=(#ContentX#+132*#Scale#)
+Y=((1-#CPUSettingsReconnectHidden#)*(#Inset#+(#CPUSettingsReconnectY#+0)*#Scale#))
+W=((1-#CPUSettingsReconnectHidden#)*(#ContentWidth#-132*#Scale#))
+H=((1-#CPUSettingsReconnectHidden#)*20*#Scale#)
+Hidden=#CPUSettingsReconnectHidden#
+Group=CPUSettingsUI
+DynamicVariables=1
+Shape=Rectangle 0,0,((1-#CPUSettingsReconnectHidden#)*(#ContentWidth#-132*#Scale#)),((1-#CPUSettingsReconnectHidden#)*20*#Scale#) | Fill Color #GraphBackgroundColor# | StrokeWidth 0
+LeftMouseUpAction=[!CommandMeasure MeasureCPUSettings "ReconnectSensors()"]
+ToolTipText=Apply the chosen sensor selections, rescan HWiNFO exports, and reconnect the loaded CPU meter.
+
+[MeterSettingsReconnectValue]
+Meter=String
+MeterStyle=StyleUtilitySettingsValue|CPUStyleSettingsValue
+X=(#ContentX#+132*#Scale#)
+Y=((1-#CPUSettingsReconnectHidden#)*(#Inset#+(#CPUSettingsReconnectY#+0)*#Scale#))
+W=((1-#CPUSettingsReconnectHidden#)*(#ContentWidth#-138*#Scale#))
+H=((1-#CPUSettingsReconnectHidden#)*18*#Scale#)
+Hidden=#CPUSettingsReconnectHidden#
+Group=CPUSettingsUI
+DynamicVariables=1
+Text=Retry
+LeftMouseUpAction=[!CommandMeasure MeasureCPUSettings "ReconnectSensors()"]
+ToolTipText=Apply the chosen sensor selections, rescan HWiNFO exports, and reconnect the loaded CPU meter.
 
 [MeterSettingsOpenHWiNFO]
 Meter=String
 MeterStyle=StyleButton
 X=(#ContentX#+4*#Scale#+0*((#ContentWidth#-16*#Scale#)/3+4*#Scale#))
-Y=(#Inset#+364*#Scale#)
+Y=(#Inset#+#CPUSettingsOpenHWiNFOY#*#Scale#)
 W=((#ContentWidth#-16*#Scale#)/3)
 H=(24*#Scale#)
 Padding=0,0,0,0
@@ -302,12 +1132,14 @@ Text=Open HWiNFO
 LeftMouseUpAction=[!CommandMeasure MeasureCPUSettings "OpenHWiNFO()"]
 ToolTipText=Open the installed HWiNFO application so its Gadget reporting can be configured.
 Group=CPUSettingsUI
+DynamicVariables=1
+FontColor=#TextColor#
 
 [MeterSettingsGuide]
 Meter=String
 MeterStyle=StyleButton|StyleSecondaryButton
 X=(#ContentX#+4*#Scale#+1*((#ContentWidth#-16*#Scale#)/3+4*#Scale#))
-Y=(#Inset#+364*#Scale#)
+Y=(#Inset#+#CPUSettingsGuideY#*#Scale#)
 W=((#ContentWidth#-16*#Scale#)/3)
 H=(24*#Scale#)
 Padding=0,0,0,0
@@ -318,12 +1150,14 @@ Text=Setup guide
 LeftMouseUpAction=["https://docs.rainmeter.net/tips/hwinfo/"]
 ToolTipText=Open the official Rainmeter guide to configuring HWiNFO reporting.
 Group=CPUSettingsUI
+DynamicVariables=1
+FontColor=#TextColor#
 
 [MeterSettingsScan]
 Meter=String
 MeterStyle=StyleButton
 X=(#ContentX#+4*#Scale#+2*((#ContentWidth#-16*#Scale#)/3+4*#Scale#))
-Y=(#Inset#+364*#Scale#)
+Y=(#Inset#+#CPUSettingsScanY#*#Scale#)
 W=((#ContentWidth#-16*#Scale#)/3)
 H=(24*#Scale#)
 Padding=0,0,0,0
@@ -334,73 +1168,80 @@ Text=Scan sensors
 LeftMouseUpAction=[!CommandMeasure MeasureCPUSettings "ScanSensors()"]
 ToolTipText=Take a new snapshot of the available HWiNFO sensor exports for the selectors below.
 Group=CPUSettingsUI
+DynamicVariables=1
+FontColor=#TextColor#
 
 [MeterSettingsSensorGuide1]
 Meter=String
 MeterStyle=StyleLabel
 X=(#ContentX#+6*#Scale#)
-Y=(#Inset#+398*#Scale#)
+Y=(#Inset#+#CPUSettingsSensorGuide1Y#*#Scale#)
 W=(#ContentWidth#-12*#Scale#)
 H=(18*#Scale#)
 FontSize=(#FontSize#*#Scale#)
 Text=1. Open Sensors, then click the gear.
 Group=CPUSettingsUI
 ToolTipText=1. Open Sensors, then click the gear.
+DynamicVariables=1
 
 [MeterSettingsSensorGuide2]
 Meter=String
 MeterStyle=StyleLabel
 X=(#ContentX#+6*#Scale#)
-Y=(#Inset#+416*#Scale#)
+Y=(#Inset#+#CPUSettingsSensorGuide2Y#*#Scale#)
 W=(#ContentWidth#-12*#Scale#)
 H=(18*#Scale#)
 FontSize=(#FontSize#*#Scale#)
 Text=2. HWiNFO Gadget > Enable reporting to Gadget.
 Group=CPUSettingsUI
 ToolTipText=2. HWiNFO Gadget > Enable reporting to Gadget.
+DynamicVariables=1
 
 [MeterSettingsSensorGuide3]
 Meter=String
 MeterStyle=StyleLabel
 X=(#ContentX#+6*#Scale#)
-Y=(#Inset#+434*#Scale#)
+Y=(#Inset#+#CPUSettingsSensorGuide3Y#*#Scale#)
 W=(#ContentWidth#-12*#Scale#)
 H=(18*#Scale#)
 FontSize=(#FontSize#*#Scale#)
-Text=3. Pick CPU Package, then Vcore (or Core VIDs).
+Text=3. Pick Core Clocks, each Core temperature and Core N VID.
 Group=CPUSettingsUI
-ToolTipText=Select CPU Package temperature, enable Report value in Gadget, then repeat for Vcore or Core VIDs under CPU [#0].
+ToolTipText=Report CPU [#0] Core Clocks for the current CPU-wide clock. For each physical core, report Core N under CPU DTS and Core N VID under CPU. Distance to TjMAX is not a temperature. CPU Package/Core Temperatures and Vcore/Core VIDs are optional summary readings.
+DynamicVariables=1
 
 [MeterSettingsSensorGuide4]
 Meter=String
 MeterStyle=StyleLabel
 X=(#ContentX#+6*#Scale#)
-Y=(#Inset#+452*#Scale#)
+Y=(#Inset#+#CPUSettingsSensorGuide4Y#*#Scale#)
 W=(#ContentWidth#-12*#Scale#)
 H=(18*#Scale#)
 FontSize=(#FontSize#*#Scale#)
 Text=4. Report value in Gadget for each. OK, then scan.
 Group=CPUSettingsUI
 ToolTipText=Enable Report value in Gadget separately for each chosen sensor, click OK to save in HWiNFO, then click Scan sensors here.
+DynamicVariables=1
 
 [MeterSettingsSensorStatus]
 Meter=String
 MeterStyle=StyleLabel
 X=(#ContentX#+6*#Scale#)
-Y=(#Inset#+472*#Scale#)
+Y=(#Inset#+#CPUSettingsSensorStatusY#*#Scale#)
 W=(#ContentWidth#-12*#Scale#)
 H=(18*#Scale#)
 FontSize=(#FontSize#*#Scale#)
-ClipString=2
+ClipString=1
 Text=Last scan: not yet available
 ToolTipText=Results from the last sensor scan. Scanning is a snapshot, not continuous telemetry.
 Group=CPUSettingsUI
+DynamicVariables=1
 
 [MeterSettingsSensorDetail]
 Meter=String
 MeterStyle=StyleLabel
 X=(#ContentX#+6*#Scale#)
-Y=(#Inset#+490*#Scale#)
+Y=(#Inset#+#CPUSettingsSensorDetailY#*#Scale#)
 W=(#ContentWidth#-12*#Scale#)
 H=(36*#Scale#)
 FontSize=(#FontSize#*#Scale#)
@@ -408,136 +1249,42 @@ ClipString=2
 Text=Scan sensors to inspect the exported readings. These are snapshot results.
 ToolTipText=Results from the last sensor scan. Scanning is a snapshot, not continuous telemetry.
 Group=CPUSettingsUI
-
-[MeterSettingsTemperatureRow]
-Meter=Shape
-MeterStyle=CPUStyleSettingsRow
-Y=(#Inset#+528*#Scale#)
-LeftMouseUpAction=[!CommandMeasure MeasureCPUSettings "CycleSensor('TEMP')"]
-ToolTipText=Choose automatic detection or one of the CPU temperature exports found in the last scan.
-
-[MeterSettingsTemperatureLabel]
-Meter=String
-MeterStyle=CPUStyleSettingsLabel
-Y=(#Inset#+532*#Scale#)
-W=(90*#Scale#)
-Text=Temperature
-LeftMouseUpAction=[!CommandMeasure MeasureCPUSettings "CycleSensor('TEMP')"]
-ToolTipText=Choose automatic detection or one of the CPU temperature exports found in the last scan.
-
-[MeterSettingsTemperatureValue]
-Meter=String
-MeterStyle=CPUStyleSettingsValue
-Y=(#Inset#+532*#Scale#)
-W=(#ContentWidth#-115*#Scale#)
-Text=Auto
-LeftMouseUpAction=[!CommandMeasure MeasureCPUSettings "CycleSensor('TEMP')"]
-ToolTipText=Choose automatic detection or one of the CPU temperature exports found in the last scan.
-
-[MeterSettingsVoltageRow]
-Meter=Shape
-MeterStyle=CPUStyleSettingsRow
-Y=(#Inset#+560*#Scale#)
-LeftMouseUpAction=[!CommandMeasure MeasureCPUSettings "CycleSensor('VOLT')"]
-ToolTipText=Choose automatic detection or one of the Vcore or VID exports found in the last scan. VID is requested voltage.
-
-[MeterSettingsVoltageLabel]
-Meter=String
-MeterStyle=CPUStyleSettingsLabel
-Y=(#Inset#+564*#Scale#)
-W=(90*#Scale#)
-Text=Voltage
-LeftMouseUpAction=[!CommandMeasure MeasureCPUSettings "CycleSensor('VOLT')"]
-ToolTipText=Choose automatic detection or one of the Vcore or VID exports found in the last scan. VID is requested voltage.
-
-[MeterSettingsVoltageValue]
-Meter=String
-MeterStyle=CPUStyleSettingsValue
-Y=(#Inset#+564*#Scale#)
-W=(#ContentWidth#-115*#Scale#)
-Text=Auto
-LeftMouseUpAction=[!CommandMeasure MeasureCPUSettings "CycleSensor('VOLT')"]
-ToolTipText=Choose automatic detection or one of the Vcore or VID exports found in the last scan. VID is requested voltage.
-
-[MeterSettingsSensorHiveRow]
-Meter=Shape
-MeterStyle=CPUStyleSettingsRow
-Y=(#Inset#+592*#Scale#)
-LeftMouseUpAction=[!CommandMeasure MeasureCPUSettings "CycleSensorHive()"]
-ToolTipText=Cycle the registry search scope between automatic detection, current user (HKCU), and local machine (HKLM).
-
-[MeterSettingsSensorHiveLabel]
-Meter=String
-MeterStyle=CPUStyleSettingsLabel
-Y=(#Inset#+596*#Scale#)
-W=(90*#Scale#)
-Text=Search scope
-LeftMouseUpAction=[!CommandMeasure MeasureCPUSettings "CycleSensorHive()"]
-ToolTipText=Cycle the registry search scope between automatic detection, current user (HKCU), and local machine (HKLM).
-
-[MeterSettingsSensorHiveValue]
-Meter=String
-MeterStyle=CPUStyleSettingsValue
-Y=(#Inset#+596*#Scale#)
-W=(#ContentWidth#-115*#Scale#)
-Text=Auto
-LeftMouseUpAction=[!CommandMeasure MeasureCPUSettings "CycleSensorHive()"]
-ToolTipText=Cycle the registry search scope between automatic detection, current user (HKCU), and local machine (HKLM).
-
-[MeterSettingsReconnectRow]
-Meter=Shape
-MeterStyle=CPUStyleSettingsRow
-Y=(#Inset#+624*#Scale#)
-LeftMouseUpAction=[!CommandMeasure MeasureCPUSettings "ReconnectSensors()"]
-ToolTipText=Apply the chosen sensor selections, rescan HWiNFO exports, and reconnect the loaded CPU meter.
-
-[MeterSettingsReconnectLabel]
-Meter=String
-MeterStyle=CPUStyleSettingsLabel
-Y=(#Inset#+628*#Scale#)
-Text=Apply / reconnect
-LeftMouseUpAction=[!CommandMeasure MeasureCPUSettings "ReconnectSensors()"]
-ToolTipText=Apply the chosen sensor selections, rescan HWiNFO exports, and reconnect the loaded CPU meter.
-
-[MeterSettingsReconnectValue]
-Meter=String
-MeterStyle=CPUStyleSettingsValue
-Y=(#Inset#+628*#Scale#)
-Text=Retry
-LeftMouseUpAction=[!CommandMeasure MeasureCPUSettings "ReconnectSensors()"]
-ToolTipText=Apply the chosen sensor selections, rescan HWiNFO exports, and reconnect the loaded CPU meter.
+DynamicVariables=1
 
 [MeterSettingsSensorsHint]
 Meter=String
 MeterStyle=StyleLabel
 X=(#ContentX#+6*#Scale#)
-Y=(#Inset#+656*#Scale#)
+Y=(#Inset#+#CPUSettingsSensorsHintY#*#Scale#)
 W=(#ContentWidth#-12*#Scale#)
 H=(18*#Scale#)
 FontSize=(#FontSize#*#Scale#)
-Text=CPU-wide sensors: temperature + voltage / VID
-ToolTipText=These are shared CPU/package readings repeated in every logical-processor row, not per-thread sensors. Vcore is preferred; VID is requested voltage, not a measured supply voltage, and is labeled explicitly if used.
+Text=Clock: CPU-wide. VID: requested.
+ToolTipText=HWiNFO Core Clocks supplies the current CPU-wide clock row, not per-thread data. Each HWiNFO Core N supplies V and T to two adjacent thread rows: Core 0 to threads 1/2, Core 1 to threads 3/4, and so on. CPU-wide T/V selectors control the summary only. V displays VID (requested voltage), not measured Vcore.
 Group=CPUSettingsUI
+DynamicVariables=1
 
 [MeterSettingsHint]
 Meter=String
 MeterStyle=StyleLabel
 X=(#ContentX#+6*#Scale#)
-Y=(#Inset#+676*#Scale#)
+Y=(#Inset#+#CPUSettingsHintY#*#Scale#)
 W=(#ContentWidth#-12*#Scale#)
 H=(18*#Scale#)
 FontSize=(#FontSize#*#Scale#)
 Text=Changes apply immediately and are saved.
 Group=CPUSettingsUI
+DynamicVariables=1
 
 [MeterSettingsIndependence]
 Meter=String
 MeterStyle=StyleLabel
 X=(#ContentX#+6*#Scale#)
-Y=(#Inset#+694*#Scale#)
+Y=(#Inset#+#CPUSettingsIndependenceY#*#Scale#)
 W=(#ContentWidth#-12*#Scale#)
 H=(18*#Scale#)
 FontSize=(#FontSize#*#Scale#)
 Text=Close this window independently of the CPU meter.
 Group=CPUSettingsUI
+DynamicVariables=1
 

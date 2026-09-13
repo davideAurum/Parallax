@@ -65,6 +65,41 @@ foreach ($entry in $manifest.Files) {
     Assert-True ($hash -eq $entry.SHA256) 'Manifest hash must match actual staged bytes.'
 }
 
+$lucide = New-Fixture 'lucide-attribution'
+$lucideSource = Join-Path (Split-Path -Parent $toolsRoot) 'Skins\Parallax'
+$lucideGroups = @(
+    @{ Module='Media'; Names=@('LICENSE','README.md','music.svg','user-round-group.svg','disc-3.svg','play.svg','pause.svg','play-off.svg','rewind.svg','fast-forward.svg','list-plus.svg','list-minus.svg','monitor-play.svg','step-forward.svg','audio-lines.svg') },
+    @{ Module='GPU'; Names=@('LICENSE.txt','README.md','gpu.svg') },
+    @{ Module='RAM'; Names=@('LICENSE','README.md','memory-stick.svg') },
+    @{ Module='IO'; Names=@('LICENSE','README.md','hard-drive.svg') }
+)
+$lucideFiles = @(foreach ($group in $lucideGroups) {
+    foreach ($name in $group.Names) { '@Resources\Modules\{0}\Icons\Lucide\{1}' -f $group.Module,$name }
+})
+foreach ($relative in $lucideFiles) {
+    $destination = Join-Path $lucide.Skin $relative
+    Put-File $destination ''
+    Copy-Item -LiteralPath (Join-Path $lucideSource $relative) -Destination $destination
+}
+$excludedLucideFiles = @(foreach ($module in 'Media','RAM','IO') {
+    '@Resources\Modules\{0}\Icons\LICENSE' -f $module
+    '@Resources\Modules\{0}\Icons\Lucide\Private\LICENSE' -f $module
+})
+foreach ($relative in $excludedLucideFiles) { Put-File (Join-Path $lucide.Skin $relative) 'Synthetic unrelated or private extensionless fixture.' }
+$lucideStage = & (Join-Path $toolsRoot 'Stage-Parallax.ps1') -ProjectRoot $lucide.Project -Version 'test-lucide-attribution'
+$lucideManifest = Get-Content -LiteralPath (Join-Path $lucideStage.StageRoot 'stage-manifest.json') -Raw | ConvertFrom-Json
+Assert-True ($lucideManifest.Files.Count -eq 28) 'All sixteen Media/GPU/RAM/IO SVGs, four provenance READMEs and four full licenses must ship alongside baseline files.'
+foreach ($relative in $lucideFiles) {
+    $entries = @($lucideManifest.Files | Where-Object { $_.Path -eq "Skins\Parallax\$relative" })
+    Assert-True ($entries.Count -eq 1) "Missing Lucide provenance or license entry: $relative"
+    $sourceHash = (Get-FileHash -LiteralPath (Join-Path $lucideSource $relative) -Algorithm SHA256).Hash
+    $stagedHash = (Get-FileHash -LiteralPath (Join-Path $lucideStage.SkinRoot $relative) -Algorithm SHA256).Hash
+    Assert-True ($entries[0].SHA256 -eq $sourceHash -and $stagedHash -eq $sourceHash) "Lucide source, stage and manifest bytes must agree: $relative"
+}
+foreach ($relative in $excludedLucideFiles) {
+    Assert-True (-not (Test-Path -LiteralPath (Join-Path $lucideStage.SkinRoot $relative))) "Unrelated/private extensionless file must remain excluded: $relative"
+}
+
 $mediaHelpers = New-Fixture 'media-helper-exact-paths'
 $helperSource = Join-Path (Split-Path -Parent $toolsRoot) 'Skins\Parallax\@Resources\Modules\Media\Queue'
 $helperRelativeRoot = '@Resources\Modules\Media\Queue'
@@ -90,6 +125,9 @@ $excludedHelperCopies = @(
     '@Resources\Modules\Media\Queue\queue.snapshot',
     '@Resources\Modules\Media\Queue\client.json',
     '@Resources\Modules\Media\Queue\tokens.dpapi',
+    '@Resources\Modules\Media\Queue\enabled.intent',
+    '@Resources\Modules\Media\Queue\launch.id',
+    '@Resources\Modules\Media\Queue\stop.request',
     '@Resources\Modules\Media\Queue\queue.retry.json'
 )
 foreach ($path in $excludedHelperCopies) { Put-File (Join-Path $mediaHelpers.Skin $path) '# Synthetic packaging exclusion fixture only.' }
@@ -136,6 +174,7 @@ $excludedObserverCopies = @(
     '@Resources\User\SourceProvider.ps1',
     "$sourceObserverRoot\source.snapshot",
     "$sourceObserverRoot\stop.request",
+    "$sourceObserverRoot\enabled.intent",
     "$sourceObserverRoot\source.snapshot.synthetic.tmp"
 )
 foreach ($folder in 'Tests','Fixtures','Private','Runtime','Cache','.runtime') {
@@ -164,6 +203,23 @@ $hiddenObserverDirectory = Join-Path $sourceObserver.Skin $sourceObserverRoot
 [IO.File]::SetAttributes($hiddenObserverDirectory, ([IO.File]::GetAttributes($hiddenObserverDirectory) -bor [IO.FileAttributes]::Hidden))
 $hiddenObserverStage = & (Join-Path $toolsRoot 'Stage-Parallax.ps1') -ProjectRoot $sourceObserver.Project -Version 'test-hidden-media-source'
 Assert-True ($hiddenObserverStage.Files -eq 4) 'The source observer exception must never override a hidden parent exclusion.'
+
+$mediaLifecycle = New-Fixture 'media-lifecycle-source'
+$lifecyclePaths = @('@Resources\Modules\Media\MediaLifecycle.lua', '@Resources\Modules\Media\Lifecycle.inc')
+foreach ($relative in $lifecyclePaths) {
+    $destination = Join-Path $mediaLifecycle.Skin $relative
+    Put-File $destination ''
+    Copy-Item -LiteralPath (Join-Path (Split-Path -Parent $toolsRoot) "Skins\Parallax\$relative") -Destination $destination
+}
+$lifecycleStage = & (Join-Path $toolsRoot 'Stage-Parallax.ps1') -ProjectRoot $mediaLifecycle.Project -Version 'test-media-lifecycle'
+$lifecycleManifest = Get-Content -LiteralPath (Join-Path $lifecycleStage.StageRoot 'stage-manifest.json') -Raw | ConvertFrom-Json
+Assert-True ($lifecycleManifest.Files.Count -eq 6) 'Lifecycle Lua/include use normal source allowances alongside four baseline files.'
+foreach ($relative in $lifecyclePaths) {
+    $sourceHash = (Get-FileHash -LiteralPath (Join-Path (Split-Path -Parent $toolsRoot) "Skins\Parallax\$relative") -Algorithm SHA256).Hash
+    $stagedHash = (Get-FileHash -LiteralPath (Join-Path $lifecycleStage.SkinRoot $relative) -Algorithm SHA256).Hash
+    $entries = @($lifecycleManifest.Files | Where-Object { $_.Path -eq "Skins\Parallax\$relative" })
+    Assert-True ($entries.Count -eq 1 -and $entries[0].SHA256 -eq $sourceHash -and $stagedHash -eq $sourceHash) "Lifecycle source, staged bytes and manifest must agree: $relative"
+}
 
 $settingsInput = New-Fixture 'settings-input-exact-path'
 $settingsInputRelative = '@Resources\Scripts\SettingsInput.ps1'
@@ -246,7 +302,10 @@ $textHelpers = New-Fixture 'reviewed-text-suffix-helpers'
 $textHelperPaths = @(
     '@Resources\Modules\GPU\DiscoverExports.ps1.txt',
     '@Resources\Modules\GPU\AdapterInfo.cs.txt',
-    '@Resources\Modules\RAM\MemoryInfo.ps1.txt'
+    '@Resources\Modules\GPU\DriverTemperature.cs.txt',
+    '@Resources\Modules\IO\DriveModels.ps1.txt',
+    '@Resources\Modules\RAM\MemoryInfo.ps1.txt',
+    '@Resources\Modules\RAM\PageFileHost.cs.txt'
 )
 $textHelperSources = @{}
 $excludedTextHelpers = @()
@@ -277,7 +336,7 @@ foreach ($path in $excludedTextHelpers) { Put-File (Join-Path $textHelpers.Skin 
 Put-File (Join-Path $textHelpers.Skin '@Resources\Notes.txt') 'Ordinary text documentation remains distributable.'
 $textStage = & (Join-Path $toolsRoot 'Stage-Parallax.ps1') -ProjectRoot $textHelpers.Project -Version 'test-reviewed-text-helpers'
 $textManifest = Get-Content -LiteralPath (Join-Path $textStage.StageRoot 'stage-manifest.json') -Raw | ConvertFrom-Json
-Assert-True ($textManifest.Files.Count -eq 8) 'Only baseline files, ordinary documentation and the three reviewed text-suffix sources may ship.'
+Assert-True ($textManifest.Files.Count -eq 11) 'Only baseline files, ordinary documentation and the six reviewed text-suffix sources may ship.'
 foreach ($relative in $textHelperPaths) {
     $entries = @($textManifest.Files | Where-Object { $_.Path -eq "Skins\Parallax\$relative" })
     Assert-True ($entries.Count -eq 1) "Missing exact reviewed text-suffix source: $relative"
@@ -383,7 +442,8 @@ try {
     Assert-True ($prunedDirectories.Count -eq 8) 'Manifest must record excluded directory roots without traversing their contents.'
     $baseConfig = Get-Content -LiteralPath (Join-Path $developer.Skin 'Settings\Settings.ini') -Raw
     foreach ($module in 'Chronometer','CPU','RAM','GPU','IO','Network','Media','Visualizer') {
-        Put-File (Join-Path $developer.Skin "$module\$module.ini") $baseConfig
+        $entrypoint = if ($module -eq 'IO') { 'IO-Disk.ini' } else { "$module.ini" }
+        Put-File (Join-Path $developer.Skin "$module\$entrypoint") $baseConfig
     }
     $releaseStage = & (Join-Path $toolsRoot 'Stage-Parallax.ps1') -ProjectRoot $developer.Project -Version 'test-complete' -RequireAllModules
     Assert-True ($releaseStage.Files -eq 12) 'RequireAllModules staging must pass for complete production configs while the QA file remains locked.'

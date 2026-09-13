@@ -7,5 +7,33 @@ The fonts are loaded privately by Rainmeter from @Resources/Fonts.
 
 Visual inspiration: ModernGadgets by raiguard.
 Reference: https://github.com/raiguard/ModernGadgets
-Parallax's Rainmeter code and vector meters are independently implemented.
+Parallax's Rainmeter code is independently implemented. The attributed
+Lucide vectors are described below.
 No ModernGadgets code, preview artwork or icon assets are distributed here.
+
+Media title, metadata, queue and transport icons: Lucide Icons and Contributors (2026),
+ISC License, with the Feather-derived music icon also carrying the MIT notice
+for Cole Bemis (2013-present). The complete notices and source SVGs are in
+@Resources/Modules/Media/Icons/Lucide/LICENSE and the same folder's README.md.
+Six SVGs and LICENSE come from official Lucide revision
+a79b2d131dab2bf20cb224bd0937b439a9c4fa99. Six SVGs were provided by the user:
+rewind, fast-forward, list-plus, list-minus, monitor-play and step-forward.
+All twelve source SVGs are preserved. Native Rainmeter Shape adaptations
+add no dependency; hover artwork does not change playback actions.
+
+GPU and RAM title icons: user-supplied Lucide GPU and Memory Stick,
+copyright 2026 Lucide Icons and Contributors, ISC License. Native Rainmeter
+Shapes adapt the supplied artwork. Exact SVG bytes, provenance and full
+upstream ISC/Feather MIT notices are in these module-owned folders:
+@Resources/Modules/GPU/Icons/Lucide/ (gpu.svg, README.md, LICENSE.txt)
+@Resources/Modules/RAM/Icons/Lucide/ (memory-stick.svg, README.md, LICENSE).
+The license is pinned to revision a79b2d131dab2bf20cb224bd0937b439a9c4fa99;
+the supplied SVGs' upstream revisions are unknown. Neither icon is listed
+among the Feather-derived artwork in that notice.
+
+Disk Meter title icon: user-supplied Lucide Hard Drive, copyright 2026 Lucide
+Icons and Contributors, ISC License, adapted as native Rainmeter Shape paths.
+Exact supplied SVG bytes, provenance and complete upstream notices ship in
+@Resources/Modules/IO/Icons/Lucide/ (hard-drive.svg, README.md, LICENSE).
+The license is pinned to revision a79b2d131dab2bf20cb224bd0937b439a9c4fa99;
+the supplied SVG's upstream revision is unknown.

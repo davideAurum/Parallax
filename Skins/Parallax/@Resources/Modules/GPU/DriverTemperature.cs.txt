@@ -1,0 +1,1332 @@
+// Original Parallax resident GPU telemetry provider. Compiled by the existing
+// hidden PowerShell host; it launches no processes and never reads HWiNFO.
+// Identity: https://github.com/microsoft/DirectX-Headers/blob/main/include/directx/dxcore_interface.h
+// NVAPI ABI/IDs: https://github.com/NVIDIA/nvapi/blob/main/nvapi.h
+// https://github.com/NVIDIA/nvapi/blob/main/nvapi_interface.h
+// Memory ABI: https://github.com/NVIDIA/nvapi/blob/main/nvapi_lite_common.h
+// Regular GPU target, not hotspot: https://docs.nvidia.com/nvapi/group__gputhermal.html
+// Current graphics clock: https://docs.nvidia.com/nvapi/group__gpuclock.html
+// Installed NVML power (mW, GPU plus associated circuitry):
+// https://docs.nvidia.com/deploy/nvml-api/api/group__nvmlDeviceQueries.html
+// Process basename lookup (retained query-limited handles; no process enumeration):
+// https://learn.microsoft.com/en-us/windows/win32/api/winbase/nf-winbase-queryfullprocessimagenamew
+using System;
+using System.Collections.Generic;
+using System.Globalization;
+using System.IO;
+using System.Runtime.InteropServices;
+using System.Text;
+using System.Threading;
+
+public static class ParallaxGpuTemperature
+{
+    private const int MaximumSnapshotBytes = 4096;
+    private const int MaximumNameBytes = 1024;
+    private const int MaximumProcessNameBytes = 128;
+    private const long MaximumSequence = 9007199254740991L;
+    private static readonly DateTime Epoch = new DateTime(1970, 1, 1, 0, 0, 0, DateTimeKind.Utc);
+    private static readonly Encoding Ascii = new ASCIIEncoding();
+
+    private sealed class Paths
+    {
+        internal readonly string Data, Lease, Temporary;
+        internal Paths(string token)
+        {
+            token = ValidateToken(token);
+            string directory = Path.GetFullPath(Path.GetTempPath());
+            string stem = Path.Combine(directory, "Parallax-GPU-" + token);
+            Data = stem + ".dat";
+            Lease = stem + ".lease";
+            Temporary = stem + ".tmp";
+        }
+    }
+
+    // Bootstrap allocates names only, so closing the skin before it consumes
+    // this result leaves no files. Lua creates the initial lease before Run.
+    // Run never accepts a path; every filename derives from the random token.
+    public static string CreateSession(string luidHex, int intervalMs)
+    {
+        string luid = ValidateLuid(luidHex);
+        ValidateInterval(intervalMs);
+        for (int attempt = 0; attempt < 3; ++attempt)
+        {
+            string token = Guid.NewGuid().ToString("N");
+            Paths paths = new Paths(token);
+            if (File.Exists(paths.Data) || File.Exists(paths.Lease) || File.Exists(paths.Temporary)) continue;
+            return "GPU_TEMP_SESSION|1|" + token + "|" + Hex(Encoding.UTF8.GetBytes(paths.Data)) + "|" + luid;
+        }
+        throw new IOException("Unable to create a unique GPU temperature session.");
+    }
+
+    // One resident loop inside the caller's process. A lost lease or retained
+    // Rainmeter process handle stops work; there are no child processes to orphan.
+    public static void Run(string token, string luidHex, int intervalMs)
+    {
+        token = ValidateToken(token);
+        string luid = ValidateLuid(luidHex);
+        ValidateInterval(intervalMs);
+        Paths paths = new Paths(token);
+        Lease validLease;
+        if (!ReadLease(paths.Lease, token, Now(), intervalMs, out validLease)) return;
+        Driver driver = null;
+        ParentGuard parent = null;
+        ProcessNames processNames = new ProcessNames();
+        try
+        {
+            parent = ParentGuard.Capture();
+            if (!parent.Alive) return;
+            WriteSnapshot(paths, Snapshot(token, 0, Now(), new Frame("STARTING"), luid, "?", validLease.RequestId, "?"), true);
+            driver = new Driver(UInt64.Parse(luid, NumberStyles.AllowHexSpecifier, CultureInfo.InvariantCulture));
+            string terminal = driver.Open();
+            string nameHex = driver.NameHex;
+            if (terminal == "OK") terminal = null;
+            else { driver.Dispose(); driver = null; }
+            long sequence = 0;
+            while (parent.Alive)
+            {
+                long now = Now();
+                Lease observedLease;
+                if (ReadLease(paths.Lease, token, now, intervalMs, out observedLease)) validLease = observedLease;
+                // Lua may briefly truncate the lease while writing. Only the last
+                // fully validated timestamp is retained; failures never renew it.
+                if (!LeaseFresh(validLease.Timestamp, now, intervalMs)) break;
+                Frame frame = new Frame(terminal ?? "UNAVAILABLE");
+                if (driver != null)
+                {
+                    frame = driver.ReadFrame();
+                    nameHex = driver.NameHex;
+                    if (frame.TemperatureStatus == "DEVICE_CHANGED")
+                    {
+                        terminal = "DEVICE_CHANGED";
+                        driver.Dispose();
+                        driver = null;
+                    }
+                }
+                if (sequence == MaximumSequence) break;
+                string processMap = processNames.Read(validLease.ProcessIds);
+                string sample = Snapshot(token, ++sequence, Now(), frame, luid, nameHex, validLease.RequestId, processMap);
+                try { WriteSnapshot(paths, sample, false); }
+                catch (IOException) { /* A reader may temporarily deny replacement; retry next interval. */ }
+                catch (UnauthorizedAccessException) { /* Keep the last closed sample; its timestamp will age. */ }
+                // Terminal states stay observable while leased, without any more
+                // GPU calls. The UI can show the reason instead of missing a file.
+                if (!parent.Wait(intervalMs)) break;
+            }
+        }
+        finally
+        {
+            processNames.Dispose();
+            if (driver != null) driver.Dispose();
+            if (parent != null) parent.Dispose();
+            Delete(paths.Temporary);
+            Delete(paths.Data);
+            Delete(paths.Lease);
+        }
+    }
+
+    private static string ValidateToken(string token)
+    {
+        if (!IsHex(token, 32)) throw new ArgumentException("Invalid session token.");
+        return token.ToLowerInvariant();
+    }
+
+    private static string ValidateLuid(string luid)
+    {
+        if (!IsHex(luid, 16)) throw new ArgumentException("Invalid adapter LUID.");
+        return luid.ToUpperInvariant();
+    }
+
+    private static bool IsHex(string text, int length)
+    {
+        if (text == null || text.Length != length) return false;
+        foreach (char c in text)
+            if (!((c >= '0' && c <= '9') || (c >= 'a' && c <= 'f') || (c >= 'A' && c <= 'F'))) return false;
+        return true;
+    }
+
+    private static void ValidateInterval(int intervalMs)
+    {
+        if (intervalMs < 1000 || intervalMs > 30000) throw new ArgumentOutOfRangeException("intervalMs");
+    }
+
+    private static long Now() { return (long)(DateTime.UtcNow - Epoch).TotalSeconds; }
+    private static string Number(long value) { return value.ToString(CultureInfo.InvariantCulture); }
+
+    private static bool LeaseFresh(long timestamp, long now, int intervalMs)
+    {
+        long maximumAge = Math.Max(15L, (3L * intervalMs + 999) / 1000);
+        return timestamp >= 0 && timestamp <= 253402300799L && now >= 0 && now <= 253402300799L
+            && timestamp <= now + 5 && now - timestamp <= maximumAge;
+    }
+
+    private static bool ParseLease(string text, string token, long now, int intervalMs, out long timestamp)
+    {
+        Lease lease;
+        bool valid = ParseLease(text, token, now, intervalMs, out lease);
+        timestamp = valid ? lease.Timestamp : 0;
+        return valid;
+    }
+
+    private sealed class Lease
+    {
+        internal readonly long Timestamp, RequestId;
+        internal readonly uint[] ProcessIds;
+        internal Lease(long timestamp, long requestId, uint[] processIds)
+        { Timestamp = timestamp; RequestId = requestId; ProcessIds = processIds; }
+    }
+
+    private static bool Decimal(string text, long maximum, out long value)
+    {
+        value = 0;
+        if (String.IsNullOrEmpty(text) || text.Length > 16 || (text.Length > 1 && text[0] == '0')) return false;
+        foreach (char c in text) if (c < '0' || c > '9') return false;
+        return Int64.TryParse(text, NumberStyles.None, CultureInfo.InvariantCulture, out value) && value <= maximum;
+    }
+
+    private static bool ParseLease(string text, string token, long now, int intervalMs, out Lease lease)
+    {
+        lease = null;
+        if (text == null || text.Length < 34 || text.Length > 128) return false;
+        string[] fields = text.Split('|');
+        if ((fields.Length != 2 && fields.Length != 4) || fields[0] != token) return false;
+        long timestamp, requestId = 0;
+        if (!Decimal(fields[1], 253402300799L, out timestamp) || !LeaseFresh(timestamp, now, intervalMs)) return false;
+        uint[] processIds = new uint[0];
+        if (fields.Length == 4)
+        {
+            if (!Decimal(fields[2], MaximumSequence, out requestId)) return false;
+            if (fields[3] != "?")
+            {
+                string[] values = fields[3].Split(',');
+                if (values.Length > 5) return false;
+                processIds = new uint[values.Length];
+                HashSet<uint> unique = new HashSet<uint>();
+                for (int index = 0; index < values.Length; ++index)
+                {
+                    long value;
+                    if (!Decimal(values[index], UInt32.MaxValue, out value) || value == 0 || !unique.Add((uint)value)) return false;
+                    processIds[index] = (uint)value;
+                }
+            }
+        }
+        lease = new Lease(timestamp, requestId, processIds);
+        return true;
+    }
+
+    private static bool ReadLease(string path, string token, long now, int intervalMs, out Lease lease)
+    {
+        lease = null;
+        try
+        {
+            using (FileStream stream = new FileStream(path, FileMode.Open, FileAccess.Read,
+                FileShare.ReadWrite | FileShare.Delete))
+            {
+                if (stream.Length > 128) return false;
+                byte[] bytes = new byte[129];
+                int used = 0, read;
+                while (used < bytes.Length && (read = stream.Read(bytes, used, bytes.Length - used)) != 0) used += read;
+                if (used > 128) return false;
+                for (int index = 0; index < used; ++index) if (bytes[index] > 127) return false;
+                return ParseLease(Ascii.GetString(bytes, 0, used), token, now, intervalMs, out lease);
+            }
+        }
+        catch { return false; }
+    }
+
+    private sealed class Frame
+    {
+        internal string TemperatureStatus, MemoryStatus, SharedStatus, UtilizationStatus, PowerStatus, ClockStatus;
+        internal int? Temperature;
+        internal uint? PowerMilliwatts, GraphicsClockKHz;
+        internal ulong? Physical, Allocatable, Available, SharedCommitted, SharedResident;
+        internal readonly uint?[] Utilization = new uint?[4];
+        internal Frame(string status)
+        {
+            TemperatureStatus = MemoryStatus = SharedStatus = UtilizationStatus = PowerStatus = ClockStatus = status;
+        }
+    }
+
+    private static bool ValidStatus(string status)
+    {
+        return status == "STARTING" || status == "OK" || status == "UNSUPPORTED" ||
+            status == "UNAVAILABLE" || status == "DEVICE_CHANGED";
+    }
+
+    private static bool ValidMemory(ulong physical, ulong allocatable, ulong available)
+    {
+        // TCC can return only physical capacity. Zero allocatable must not look full.
+        return physical > 0 && physical <= (ulong)MaximumSequence && allocatable > 0 &&
+            allocatable <= physical && available <= allocatable;
+    }
+
+    private static string ByteNumber(ulong? value)
+    {
+        if (!value.HasValue) return "?";
+        if (value.Value > (ulong)MaximumSequence) throw new InvalidOperationException("Invalid memory quantity.");
+        return value.Value.ToString(CultureInfo.InvariantCulture);
+    }
+
+    private static string Snapshot(string token, long sequence, long epoch, string status,
+        int? temperature, string luid, string nameHex)
+    {
+        Frame frame = new Frame(status);
+        frame.Temperature = temperature;
+        if (status == "OK") frame.MemoryStatus = frame.SharedStatus = frame.UtilizationStatus = frame.PowerStatus = frame.ClockStatus = "UNAVAILABLE";
+        return Snapshot(token, sequence, epoch, frame, luid, nameHex);
+    }
+
+    private static string Snapshot(string token, long sequence, long epoch, Frame frame, string luid, string nameHex)
+    {
+        return Snapshot(token, sequence, epoch, frame, luid, nameHex, 0, "?");
+    }
+
+    private static string Snapshot(string token, long sequence, long epoch, Frame frame, string luid, string nameHex,
+        long requestId, string processMap)
+    {
+        token = ValidateToken(token);
+        luid = ValidateLuid(luid);
+        if (sequence < 0 || sequence > MaximumSequence || epoch < 0 || epoch > 253402300799L)
+            throw new InvalidOperationException("Invalid sample sequence or timestamp.");
+        if (requestId < 0 || requestId > MaximumSequence || !ValidProcessMap(processMap))
+            throw new InvalidOperationException("Invalid process-name response.");
+        if (frame == null || !ValidStatus(frame.TemperatureStatus) || !ValidStatus(frame.MemoryStatus) ||
+            !ValidStatus(frame.SharedStatus) || !ValidStatus(frame.UtilizationStatus) || !ValidStatus(frame.PowerStatus) || !ValidStatus(frame.ClockStatus))
+            throw new InvalidOperationException("Invalid sample status.");
+        if (frame.TemperatureStatus == "DEVICE_CHANGED" || frame.MemoryStatus == "DEVICE_CHANGED" ||
+            frame.SharedStatus == "DEVICE_CHANGED" || frame.UtilizationStatus == "DEVICE_CHANGED" ||
+            frame.PowerStatus == "DEVICE_CHANGED" || frame.ClockStatus == "DEVICE_CHANGED")
+            frame = new Frame("DEVICE_CHANGED");
+        if (frame.TemperatureStatus == "OK" && (!frame.Temperature.HasValue || frame.Temperature.Value < -273 || frame.Temperature.Value > 300))
+            throw new InvalidOperationException("Invalid driver temperature.");
+        if (frame.MemoryStatus == "OK" && (!frame.Physical.HasValue || !frame.Allocatable.HasValue ||
+            !frame.Available.HasValue || !ValidMemory(frame.Physical.Value, frame.Allocatable.Value, frame.Available.Value)))
+            throw new InvalidOperationException("Invalid driver memory.");
+        if (frame.SharedStatus == "OK" && (!frame.SharedCommitted.HasValue || !frame.SharedResident.HasValue))
+            throw new InvalidOperationException("Invalid shared memory.");
+        if (frame.PowerStatus == "OK" && !frame.PowerMilliwatts.HasValue)
+            throw new InvalidOperationException("Invalid driver power.");
+        if (frame.ClockStatus == "OK" && (!frame.GraphicsClockKHz.HasValue || frame.GraphicsClockKHz.Value == 0))
+            throw new InvalidOperationException("Invalid driver clock.");
+        string[] utilization = new string[4];
+        for (int index = 0; index < utilization.Length; ++index)
+        {
+            uint? value = frame.Utilization[index];
+            if (frame.UtilizationStatus == "OK" && value.HasValue && value.Value > 100)
+                throw new InvalidOperationException("Invalid activity percentage.");
+            utilization[index] = frame.UtilizationStatus == "OK" && value.HasValue ? Number(value.Value) : "?";
+        }
+        if (nameHex == null || (nameHex != "?" && (nameHex.Length == 0 ||
+            nameHex.Length > MaximumNameBytes * 2 || (nameHex.Length & 1) != 0 || !IsHex(nameHex, nameHex.Length)))) nameHex = "?";
+        string text = String.Join("|", new string[] { "GPU_TEMP", "4", token, Number(sequence), Number(epoch),
+            frame.TemperatureStatus, frame.TemperatureStatus == "OK" ? Number(frame.Temperature.Value) : "?", luid, nameHex,
+            frame.MemoryStatus, frame.MemoryStatus == "OK" ? ByteNumber(frame.Physical) : "?",
+            frame.MemoryStatus == "OK" ? ByteNumber(frame.Allocatable) : "?", frame.MemoryStatus == "OK" ? ByteNumber(frame.Available) : "?",
+            frame.SharedStatus, frame.SharedStatus == "OK" ? ByteNumber(frame.SharedCommitted) : "?",
+            frame.SharedStatus == "OK" ? ByteNumber(frame.SharedResident) : "?", frame.UtilizationStatus,
+            utilization[0], utilization[1], utilization[2], utilization[3],
+            frame.PowerStatus, frame.PowerStatus == "OK" ? Number(frame.PowerMilliwatts.Value) : "?",
+            frame.ClockStatus, frame.ClockStatus == "OK" ? Number(frame.GraphicsClockKHz.Value) : "?",
+            Number(requestId), processMap });
+        if (text.Length > MaximumSnapshotBytes) throw new InvalidOperationException("Oversized sample.");
+        return text;
+    }
+
+    private static void WriteNew(string path, string text)
+    {
+        byte[] bytes = Ascii.GetBytes(text);
+        bool created = false;
+        try
+        {
+            using (FileStream stream = new FileStream(path, FileMode.CreateNew, FileAccess.Write, FileShare.Read))
+            {
+                created = true;
+                stream.Write(bytes, 0, bytes.Length);
+                stream.Flush();
+            }
+        }
+        catch { if (created) Delete(path); throw; }
+    }
+
+    private static void WriteSnapshot(Paths paths, string text, bool initial)
+    {
+        bool ownTemporary = false;
+        try
+        {
+            WriteNew(paths.Temporary, text);
+            ownTemporary = true;
+            if (initial) File.Move(paths.Temporary, paths.Data);
+            else File.Replace(paths.Temporary, paths.Data, null);
+            ownTemporary = false;
+        }
+        finally { if (ownTemporary) Delete(paths.Temporary); }
+    }
+
+    private static void Delete(string path)
+    {
+        try { File.Delete(path); }
+        catch { /* An open reader or forced host kill may defer cleanup to the skin. */ }
+    }
+
+    private static string Hex(byte[] bytes)
+    {
+        StringBuilder text = new StringBuilder(bytes.Length * 2);
+        foreach (byte value in bytes) text.Append(value.ToString("X2", CultureInfo.InvariantCulture));
+        return text.ToString();
+    }
+
+    private static string ProcessNameHex(string name)
+    {
+        if (String.IsNullOrEmpty(name) || name == "." || name == "..") return null;
+        foreach (char value in name)
+            if (Char.IsControl(value) || value == '\\' || value == '/' || value == ':') return null;
+        try
+        {
+            byte[] bytes = new UTF8Encoding(false, true).GetBytes(name);
+            return bytes.Length <= MaximumProcessNameBytes ? Hex(bytes) : null;
+        }
+        catch (EncoderFallbackException) { return null; }
+    }
+
+    private static bool ValidProcessMap(string map)
+    {
+        if (map == "?") return true;
+        if (String.IsNullOrEmpty(map) || map.Length > 1339) return false;
+        string[] entries = map.Split(';');
+        if (entries.Length > 5) return false;
+        HashSet<uint> unique = new HashSet<uint>();
+        foreach (string entry in entries)
+        {
+            string[] fields = entry.Split(',');
+            long processId;
+            if (fields.Length != 2 || !Decimal(fields[0], UInt32.MaxValue, out processId) || processId == 0 ||
+                !unique.Add((uint)processId) || fields[1].Length == 0 || fields[1].Length > MaximumProcessNameBytes * 2 ||
+                (fields[1].Length & 1) != 0 || !IsHex(fields[1], fields[1].Length)) return false;
+            try
+            {
+                byte[] bytes = new byte[fields[1].Length / 2];
+                for (int index = 0; index < bytes.Length; ++index)
+                    bytes[index] = Byte.Parse(fields[1].Substring(index * 2, 2), NumberStyles.AllowHexSpecifier, CultureInfo.InvariantCulture);
+                if (ProcessNameHex(new UTF8Encoding(false, true).GetString(bytes)) == null) return false;
+            }
+            catch (DecoderFallbackException) { return false; }
+        }
+        return true;
+    }
+
+    // Each requested PID is opened once until it leaves the requested set. An
+    // exited or denied entry stays unnamed, so a recycled PID cannot replace a
+    // retained observation's name. UsageMonitor supplies no creation timestamp;
+    // an already stale counter before this first lookup remains unknowable.
+    private sealed class ProcessNames : IDisposable
+    {
+        private sealed class Entry
+        {
+            internal IntPtr Handle;
+            internal string NameHex;
+        }
+        private readonly Dictionary<uint, Entry> entries = new Dictionary<uint, Entry>();
+        private readonly Func<uint, IntPtr> open;
+        private readonly Func<IntPtr, bool> alive;
+        private readonly Func<IntPtr, string> queryName;
+        private readonly Action<IntPtr> close;
+        private bool disposed;
+        internal ProcessNames() : this(
+            delegate(uint pid) { return OpenProcess(0x00101000, false, pid); },
+            delegate(IntPtr handle) { return WaitForSingleObject(handle, 0) == 258; },
+            QueryName, delegate(IntPtr handle) { CloseHandle(handle); }) { }
+        internal ProcessNames(Func<uint, IntPtr> open, Func<IntPtr, bool> alive,
+            Func<IntPtr, string> queryName, Action<IntPtr> close)
+        { this.open = open; this.alive = alive; this.queryName = queryName; this.close = close; }
+
+        private static string QueryName(IntPtr handle)
+        {
+            StringBuilder image = new StringBuilder(32768);
+            uint size = (uint)image.Capacity;
+            if (!QueryFullProcessImageNameW(handle, 0, image, ref size) || size == 0 ||
+                size >= image.Capacity || size != image.Length) return null;
+            return Path.GetFileNameWithoutExtension(image.ToString());
+        }
+
+        private void Release(Entry entry)
+        {
+            IntPtr handle = entry.Handle;
+            entry.Handle = IntPtr.Zero;
+            entry.NameHex = null;
+            if (handle != IntPtr.Zero) try { close(handle); } catch { }
+        }
+
+        internal string Read(uint[] processIds)
+        {
+            if (disposed) return "?";
+            if (processIds == null || processIds.Length > 5) throw new ArgumentException("Invalid process request.");
+            HashSet<uint> requested = new HashSet<uint>();
+            foreach (uint pid in processIds)
+                if (pid == 0 || !requested.Add(pid)) throw new ArgumentException("Invalid process request.");
+            List<uint> dropped = new List<uint>();
+            foreach (KeyValuePair<uint, Entry> pair in entries)
+                if (!requested.Contains(pair.Key)) { Release(pair.Value); dropped.Add(pair.Key); }
+            foreach (uint pid in dropped) entries.Remove(pid);
+            List<string> result = new List<string>();
+            foreach (uint pid in processIds)
+            {
+                Entry entry;
+                bool added = !entries.TryGetValue(pid, out entry);
+                if (added) { entry = new Entry(); entries.Add(pid, entry); }
+                try
+                {
+                    if (added) entry.Handle = open(pid);
+                    if (entry.Handle == IntPtr.Zero) continue;
+                    if (!alive(entry.Handle)) { Release(entry); continue; }
+                    if (added) entry.NameHex = ProcessNameHex(queryName(entry.Handle));
+                    if (entry.NameHex == null || !alive(entry.Handle)) { Release(entry); continue; }
+                    result.Add(Number(pid) + "," + entry.NameHex);
+                }
+                catch { Release(entry); }
+            }
+            return result.Count == 0 ? "?" : String.Join(";", result.ToArray());
+        }
+
+        public void Dispose()
+        {
+            if (disposed) return;
+            disposed = true;
+            foreach (Entry entry in entries.Values) Release(entry);
+            entries.Clear();
+        }
+    }
+
+    private sealed class ParentGuard : IDisposable
+    {
+        private IntPtr handle;
+        private ParentGuard(IntPtr process) { handle = process; }
+        internal bool Alive { get { return handle == IntPtr.Zero || WaitForSingleObject(handle, 0) == 258; } }
+        internal bool Wait(int milliseconds)
+        {
+            if (handle == IntPtr.Zero) { Thread.Sleep(milliseconds); return true; }
+            return WaitForSingleObject(handle, (uint)milliseconds) == 258;
+        }
+        internal static ParentGuard Capture()
+        {
+            IntPtr snapshot = CreateToolhelp32Snapshot(2, 0);
+            if (snapshot == new IntPtr(-1)) return new ParentGuard(IntPtr.Zero);
+            try
+            {
+                Dictionary<uint, ProcessEntry> entries = new Dictionary<uint, ProcessEntry>();
+                ProcessEntry entry = new ProcessEntry();
+                entry.Size = (uint)Marshal.SizeOf(typeof(ProcessEntry));
+                bool more = Process32FirstW(snapshot, ref entry);
+                for (int count = 0; more && count < 32768; ++count)
+                {
+                    entries[entry.ProcessId] = entry;
+                    entry.Size = (uint)Marshal.SizeOf(typeof(ProcessEntry));
+                    more = Process32NextW(snapshot, ref entry);
+                }
+                uint process = GetCurrentProcessId();
+                HashSet<uint> visited = new HashSet<uint>();
+                for (int depth = 0; depth < 16 && visited.Add(process) && entries.TryGetValue(process, out entry); ++depth)
+                {
+                    process = entry.ParentId;
+                    ProcessEntry parent;
+                    if (!entries.TryGetValue(process, out parent)) break;
+                    if (!String.Equals(parent.Executable, "Rainmeter.exe", StringComparison.OrdinalIgnoreCase)) continue;
+                    // Retain one process handle. Never later reopen a reused PID
+                    // or pick an unrelated globally named Rainmeter instance.
+                    IntPtr handle = OpenProcess(0x00101000, false, process);
+                    if (handle == IntPtr.Zero) break;
+                    StringBuilder image = new StringBuilder(32768);
+                    uint size = (uint)image.Capacity;
+                    if (QueryFullProcessImageNameW(handle, 0, image, ref size) &&
+                        String.Equals(Path.GetFileName(image.ToString()), "Rainmeter.exe", StringComparison.OrdinalIgnoreCase))
+                        return new ParentGuard(handle);
+                    CloseHandle(handle);
+                    break;
+                }
+            }
+            catch { /* The lease remains authoritative when ancestry is inaccessible. */ }
+            finally { CloseHandle(snapshot); }
+            return new ParentGuard(IntPtr.Zero);
+        }
+        public void Dispose() { if (handle != IntPtr.Zero) { CloseHandle(handle); handle = IntPtr.Zero; } }
+    }
+
+    [StructLayout(LayoutKind.Sequential, CharSet = CharSet.Unicode)]
+    private struct ProcessEntry
+    {
+        public uint Size, Usage, ProcessId;
+        public UIntPtr DefaultHeap;
+        public uint ModuleId, Threads, ParentId;
+        public int BasePriority;
+        public uint Flags;
+        [MarshalAs(UnmanagedType.ByValTStr, SizeConst = 260)] public string Executable;
+    }
+
+    [DllImport("kernel32.dll", ExactSpelling = true)]
+    [DefaultDllImportSearchPaths(DllImportSearchPath.System32)]
+    private static extern IntPtr CreateToolhelp32Snapshot(uint flags, uint processId);
+    [DllImport("kernel32.dll", ExactSpelling = true, CharSet = CharSet.Unicode)]
+    [DefaultDllImportSearchPaths(DllImportSearchPath.System32)]
+    [return: MarshalAs(UnmanagedType.Bool)] private static extern bool Process32FirstW(IntPtr snapshot, ref ProcessEntry entry);
+    [DllImport("kernel32.dll", ExactSpelling = true, CharSet = CharSet.Unicode)]
+    [DefaultDllImportSearchPaths(DllImportSearchPath.System32)]
+    [return: MarshalAs(UnmanagedType.Bool)] private static extern bool Process32NextW(IntPtr snapshot, ref ProcessEntry entry);
+    [DllImport("kernel32.dll", ExactSpelling = true)]
+    [DefaultDllImportSearchPaths(DllImportSearchPath.System32)]
+    private static extern uint GetCurrentProcessId();
+    [DllImport("kernel32.dll", ExactSpelling = true)]
+    [DefaultDllImportSearchPaths(DllImportSearchPath.System32)]
+    private static extern IntPtr OpenProcess(uint access, [MarshalAs(UnmanagedType.Bool)] bool inherit, uint processId);
+    [DllImport("kernel32.dll", ExactSpelling = true, CharSet = CharSet.Unicode)]
+    [DefaultDllImportSearchPaths(DllImportSearchPath.System32)]
+    [return: MarshalAs(UnmanagedType.Bool)] private static extern bool QueryFullProcessImageNameW(IntPtr process, uint flags, StringBuilder path, ref uint size);
+    [DllImport("kernel32.dll", ExactSpelling = true)]
+    [DefaultDllImportSearchPaths(DllImportSearchPath.System32)]
+    private static extern uint WaitForSingleObject(IntPtr handle, uint milliseconds);
+    [DllImport("kernel32.dll", ExactSpelling = true)]
+    [DefaultDllImportSearchPaths(DllImportSearchPath.System32)]
+    [return: MarshalAs(UnmanagedType.Bool)] private static extern bool CloseHandle(IntPtr handle);
+
+    private sealed class Driver : IDisposable
+    {
+        private static readonly Guid FactoryId = new Guid("78ee5945-c36e-4b13-a669-005dd11c0f06");
+        private static readonly Guid ListId = new Guid("526c7776-40e9-459b-b711-f32ad76dfc28");
+        private static readonly Guid AdapterId = new Guid("f0db4c7f-fe5a-42a2-bd62-f2a6cf6fc83e");
+        private static readonly Guid GraphicsAttribute = new Guid("0c9ece4d-2f6e-4f01-8c96-e89e331b47b1");
+        private readonly ulong requestedLuid;
+        private IntPtr factory, list, adapter, module, luidBuffer, physical, logical;
+        private NvidiaLifecycle unload;
+        private NvidiaLogicalInfo logicalInfo;
+        private NvidiaThermalQuery thermal;
+        private NvidiaMemoryExQuery memoryEx;
+        private NvidiaMemoryQuery memoryLegacy;
+        private NvidiaUtilizationQuery utilization;
+        private NvidiaClockQuery clocks;
+        private NvidiaScalar pciBus, pciSlot;
+        private NvidiaPciQuery pciIdentifiers;
+        private NvidiaEnumerate physicalInventory;
+        private IntPtr nvmlModule, nvmlDevice;
+        private NvidiaLifecycle nvmlShutdown;
+        private NvmlPciQuery nvmlPci;
+        private NvidiaScalar nvmlPower;
+        private PciIdentity powerIdentity;
+        private string powerSupport = "UNSUPPORTED";
+        private bool nvmlInitialized;
+        private GetProperty sharedProperty;
+        private QueryState sharedQuery;
+        private string nvidiaStatus = "UNSUPPORTED", sharedSupport = "UNSUPPORTED";
+        private bool initialized, opened, disposed, nvidiaBound;
+        internal string NameHex = "?";
+        internal Driver(ulong luid) { requestedLuid = luid; }
+
+        internal string Open()
+        {
+            if (opened || disposed) return "UNAVAILABLE";
+            try
+            {
+                Guid factoryId = FactoryId, listId = ListId;
+                Check(DXCoreCreateAdapterFactory(ref factoryId, out factory));
+                Check(Method<CreateList>(factory, 3)(factory, 1, new Guid[] { GraphicsAttribute }, ref listId, out list));
+                uint count = Method<GetCount>(list, 4)(list);
+                if (count > 512) return "UNAVAILABLE";
+                for (uint index = 0; index < count; ++index)
+                {
+                    IntPtr candidate = IntPtr.Zero;
+                    try
+                    {
+                        Guid adapterId = AdapterId;
+                        Check(Method<GetAdapter>(list, 3)(list, index, ref adapterId, out candidate));
+                        if (!Method<GetFlag>(candidate, 3)(candidate)) return "DEVICE_CHANGED";
+                        ulong luid;
+                        if (!ReadLuid(candidate, out luid) || luid != requestedLuid) continue;
+                        if (!ReadBoolean(candidate, 11) || ReadBoolean(candidate, 12)) return "UNSUPPORTED";
+                        if (adapter != IntPtr.Zero) return "UNAVAILABLE";
+                        Marshal.AddRef(candidate);
+                        adapter = candidate;
+                    }
+                    finally { if (candidate != IntPtr.Zero) Marshal.Release(candidate); }
+                }
+                if (adapter == IntPtr.Zero || Method<GetFlag>(list, 5)(list)) return "DEVICE_CHANGED";
+                NameHex = ReadNameHex(adapter);
+                ConfigureShared();
+                opened = true;
+                nvidiaStatus = OpenNvidia();
+                if (nvidiaStatus == "OK") powerSupport = OpenPower();
+                return IdentityMatches() ? "OK" : "DEVICE_CHANGED";
+            }
+            catch (DllNotFoundException) { return "UNSUPPORTED"; }
+            catch (EntryPointNotFoundException) { return "UNSUPPORTED"; }
+            catch { return "UNAVAILABLE"; }
+        }
+
+        private string OpenNvidia()
+        {
+            try
+            {
+                string dll = IntPtr.Size == 8 ? "nvapi64.dll" : "nvapi.dll";
+                module = LoadLibraryExW(Path.Combine(Environment.SystemDirectory, dll), IntPtr.Zero, 0x00000800);
+                if (module == IntPtr.Zero) return "UNSUPPORTED";
+                IntPtr entry = GetProcAddress(module, "nvapi_QueryInterface");
+                if (entry == IntPtr.Zero) return "UNSUPPORTED";
+                NvidiaQueryInterface query = (NvidiaQueryInterface)Marshal.GetDelegateForFunctionPointer(entry, typeof(NvidiaQueryInterface));
+                NvidiaLifecycle initialize = NvidiaFunction<NvidiaLifecycle>(query, 0x0150e828);
+                unload = NvidiaFunction<NvidiaLifecycle>(query, 0xd22bdd7e);
+                if (initialize == null || unload == null) return "UNSUPPORTED";
+                if (initialize() != 0) return "UNAVAILABLE";
+                initialized = true;
+                NvidiaEnumerate enumerate = NvidiaFunction<NvidiaEnumerate>(query, 0x48b3ea59);
+                logicalInfo = NvidiaFunction<NvidiaLogicalInfo>(query, 0x842b066e);
+                thermal = NvidiaFunction<NvidiaThermalQuery>(query, 0xe3640a56);
+                memoryEx = NvidiaFunction<NvidiaMemoryExQuery>(query, 0xc0599498);
+                memoryLegacy = NvidiaFunction<NvidiaMemoryQuery>(query, 0x07f9b368);
+                utilization = NvidiaFunction<NvidiaUtilizationQuery>(query, 0x60ded2ed);
+                clocks = NvidiaFunction<NvidiaClockQuery>(query, 0xdcb616c3);
+                pciBus = NvidiaFunction<NvidiaScalar>(query, 0x1be0b8e5);
+                pciSlot = NvidiaFunction<NvidiaScalar>(query, 0x2a0a350f);
+                pciIdentifiers = NvidiaFunction<NvidiaPciQuery>(query, 0x2ddfb66e);
+                physicalInventory = NvidiaFunction<NvidiaEnumerate>(query, 0xe5ac921f);
+                if (enumerate == null || logicalInfo == null) return "UNSUPPORTED";
+                if (Marshal.SizeOf(typeof(ThermalSettings)) != 68 || Marshal.SizeOf(typeof(ThermalSensor)) != 20)
+                    thermal = null;
+                if (Marshal.SizeOf(typeof(MemoryEx)) != 80) memoryEx = null;
+                if (Marshal.SizeOf(typeof(MemoryLegacy)) != 32) memoryLegacy = null;
+                if (Marshal.SizeOf(typeof(UtilizationData)) != 72) utilization = null;
+                if (Marshal.SizeOf(typeof(ClockData)) != 264) clocks = null;
+                IntPtr[] handles = new IntPtr[64];
+                uint count;
+                if (enumerate(handles, out count) != 0 || count > 64) return "UNAVAILABLE";
+                luidBuffer = Marshal.AllocHGlobal(8);
+                for (int index = 0; index < count; ++index)
+                {
+                    if (handles[index] == IntPtr.Zero) return "UNAVAILABLE";
+                    Marshal.WriteInt64(luidBuffer, 0);
+                    LogicalData data = NewLogicalData();
+                    if (logicalInfo(handles[index], ref data) != 0 || data.AdapterLuid != luidBuffer || data.PhysicalCount > 64)
+                        return "UNAVAILABLE";
+                    if (unchecked((ulong)Marshal.ReadInt64(luidBuffer)) != requestedLuid) continue;
+                    if (physical != IntPtr.Zero || data.PhysicalCount != 1 || data.PhysicalHandles == null || data.PhysicalHandles[0] == IntPtr.Zero)
+                        return "UNSUPPORTED";
+                    physical = data.PhysicalHandles[0];
+                    logical = handles[index];
+                }
+                if (physical == IntPtr.Zero) return "UNSUPPORTED";
+                nvidiaBound = true;
+                return "OK";
+            }
+            catch (DllNotFoundException) { return "UNSUPPORTED"; }
+            catch (EntryPointNotFoundException) { return "UNSUPPORTED"; }
+            catch { return "UNAVAILABLE"; }
+        }
+
+        private string NvidiaUnavailable() { return nvidiaStatus == "UNAVAILABLE" ? "UNAVAILABLE" : "UNSUPPORTED"; }
+        private static bool NvidiaUnsupported(int status) { return status == -3 || status == -9 || status == -104 || status == -136; }
+        private static string NvidiaResult(int status)
+        {
+            if (status == -10 || status == -8 || status == -6) return "DEVICE_CHANGED";
+            return NvidiaUnsupported(status) ? "UNSUPPORTED" : "UNAVAILABLE";
+        }
+
+        internal Frame ReadFrame()
+        {
+            if (!opened || disposed) return new Frame("UNAVAILABLE");
+            if (!IdentityMatches()) return new Frame("DEVICE_CHANGED");
+            Frame frame = new Frame("UNAVAILABLE");
+            frame.TemperatureStatus = ReadTemperature(out frame.Temperature);
+            if (frame.TemperatureStatus == "DEVICE_CHANGED") return new Frame("DEVICE_CHANGED");
+            frame.MemoryStatus = ReadMemory(frame);
+            if (frame.MemoryStatus == "DEVICE_CHANGED") return new Frame("DEVICE_CHANGED");
+            frame.SharedStatus = ReadShared(frame);
+            if (frame.SharedStatus == "DEVICE_CHANGED") return new Frame("DEVICE_CHANGED");
+            frame.UtilizationStatus = ReadUtilization(frame);
+            if (frame.UtilizationStatus == "DEVICE_CHANGED") return new Frame("DEVICE_CHANGED");
+            frame.PowerStatus = ReadPower(out frame.PowerMilliwatts);
+            if (frame.PowerStatus == "DEVICE_CHANGED") return new Frame("DEVICE_CHANGED");
+            frame.ClockStatus = ReadClock(out frame.GraphicsClockKHz);
+            if (frame.ClockStatus == "DEVICE_CHANGED" || !IdentityMatches()) return new Frame("DEVICE_CHANGED");
+            return frame;
+        }
+
+        private string ReadMemory(Frame frame)
+        {
+            if (!opened || disposed) return "UNAVAILABLE";
+            try
+            {
+                if (!IdentityMatches()) return "DEVICE_CHANGED";
+                if (nvidiaStatus != "OK") return NvidiaUnavailable();
+                ulong physicalBytes, allocatableBytes, availableBytes;
+                int status = -3;
+                if (memoryEx != null)
+                {
+                    MemoryEx data = new MemoryEx { Version = 80 | 0x10000 };
+                    status = memoryEx(physical, ref data);
+                    if (!IdentityMatches()) return "DEVICE_CHANGED";
+                    if (status == 0)
+                    {
+                        if (data.Version != (80 | 0x10000)) return "UNAVAILABLE";
+                        physicalBytes = data.Physical; allocatableBytes = data.Allocatable; availableBytes = data.Available;
+                        return StoreMemory(frame, physicalBytes, allocatableBytes, availableBytes);
+                    }
+                    if (!NvidiaUnsupported(status)) return NvidiaResult(status);
+                }
+                if (memoryLegacy == null) return NvidiaResult(status);
+                MemoryLegacy legacy = new MemoryLegacy { Version = 32 | 0x30000 };
+                status = memoryLegacy(physical, ref legacy);
+                if (!IdentityMatches()) return "DEVICE_CHANGED";
+                if (status != 0) return NvidiaResult(status);
+                if (legacy.Version != (32 | 0x30000)) return "UNAVAILABLE";
+                // Legacy KB values use 1024 bytes. Widen before multiplying.
+                physicalBytes = (ulong)legacy.Physical * 1024;
+                allocatableBytes = (ulong)legacy.Allocatable * 1024;
+                availableBytes = (ulong)legacy.Available * 1024;
+                return StoreMemory(frame, physicalBytes, allocatableBytes, availableBytes);
+            }
+            catch { return "UNAVAILABLE"; }
+        }
+
+        private static string StoreMemory(Frame frame, ulong physical, ulong allocatable, ulong available)
+        {
+            if (!ValidMemory(physical, allocatable, available)) return "UNAVAILABLE";
+            frame.Physical = physical; frame.Allocatable = allocatable; frame.Available = available;
+            return "OK";
+        }
+
+        private void ConfigureShared()
+        {
+            try
+            {
+                if (!Method<Supports>(adapter, 5)(adapter, 15) || !Method<Supports>(adapter, 8)(adapter, 2)) return;
+                UIntPtr size;
+                Check(Method<GetPropertySize>(adapter, 7)(adapter, 15, out size));
+                if (size.ToUInt64() != 4) { sharedSupport = "UNAVAILABLE"; return; }
+                sharedProperty = Method<GetProperty>(adapter, 6);
+                sharedQuery = Method<QueryState>(adapter, 9);
+                sharedSupport = "OK";
+            }
+            catch { sharedSupport = "UNAVAILABLE"; }
+        }
+
+        private string ReadShared(Frame frame)
+        {
+            if (!opened || disposed) return "UNAVAILABLE";
+            IntPtr input = IntPtr.Zero, output = IntPtr.Zero;
+            try
+            {
+                if (!IdentityMatches()) return "DEVICE_CHANGED";
+                if (sharedSupport != "OK") return sharedSupport;
+                if (sharedProperty == null || sharedQuery == null) return "UNSUPPORTED";
+                input = Marshal.AllocHGlobal(8); output = Marshal.AllocHGlobal(16);
+                Marshal.Copy(new byte[8], 0, input, 8);
+                Marshal.Copy(new byte[16], 0, output, 16);
+                int status = sharedProperty(adapter, 15, new UIntPtr(4), output);
+                if (!IdentityMatches()) return "DEVICE_CHANGED";
+                if (status < 0) return "UNAVAILABLE";
+                if (Marshal.ReadInt32(output) != 1) return "UNSUPPORTED";
+                Marshal.Copy(new byte[16], 0, output, 16);
+                Marshal.WriteInt32(input, 4, 1); // Physical index 0, DXCoreMemoryType.Shared.
+                status = sharedQuery(adapter, 2, new UIntPtr(8), input, new UIntPtr(16), output);
+                if (!IdentityMatches()) return "DEVICE_CHANGED";
+                if (status < 0) return "UNAVAILABLE";
+                ulong committed = unchecked((ulong)Marshal.ReadInt64(output));
+                ulong resident = unchecked((ulong)Marshal.ReadInt64(output, 8));
+                // Different accounting quantities; resident can exceed committed.
+                if (committed > (ulong)MaximumSequence || resident > (ulong)MaximumSequence) return "UNAVAILABLE";
+                frame.SharedCommitted = committed; frame.SharedResident = resident;
+                return "OK";
+            }
+            catch { return "UNAVAILABLE"; }
+            finally
+            {
+                if (input != IntPtr.Zero) Marshal.FreeHGlobal(input);
+                if (output != IntPtr.Zero) Marshal.FreeHGlobal(output);
+            }
+        }
+
+        private string ReadUtilization(Frame frame)
+        {
+            if (!opened || disposed) return "UNAVAILABLE";
+            try
+            {
+                if (!IdentityMatches()) return "DEVICE_CHANGED";
+                if (utilization == null || nvidiaStatus != "OK") return NvidiaUnavailable();
+                UtilizationData data = new UtilizationData { Version = 72 | 0x10000, Domains = new UtilizationDomain[8] };
+                int status = utilization(physical, ref data);
+                if (!IdentityMatches()) return "DEVICE_CHANGED";
+                if (status != 0) return NvidiaResult(status);
+                if (data.Version != (72 | 0x10000) || data.Domains == null || data.Domains.Length != 8) return "UNAVAILABLE";
+                for (int index = 0; index < 4; ++index)
+                    if ((data.Domains[index].Present & 1) != 0 && data.Domains[index].Percentage > 100) return "UNAVAILABLE";
+                for (int index = 0; index < 4; ++index)
+                    if ((data.Domains[index].Present & 1) != 0) frame.Utilization[index] = data.Domains[index].Percentage;
+                return "OK";
+            }
+            catch { return "UNAVAILABLE"; }
+        }
+
+        private string ReadClock(out uint? graphicsKHz)
+        {
+            graphicsKHz = null;
+            if (!opened || disposed) return "UNAVAILABLE";
+            try
+            {
+                if (!IdentityMatches()) return "DEVICE_CHANGED";
+                if (clocks == null || nvidiaStatus != "OK") return NvidiaUnavailable();
+                for (uint version = 3; version >= 2; --version)
+                {
+                    ClockData data = new ClockData { Version = 264 | version << 16, ClockType = 0, Domains = new ClockDomain[32] };
+                    int status = clocks(physical, ref data);
+                    if (!IdentityMatches()) return "DEVICE_CHANGED";
+                    if (status == -9 && version == 3) continue;
+                    if (status != 0) return NvidiaResult(status);
+                    if (data.Version != (264 | version << 16) || (data.ClockType & 15) != 0 ||
+                        data.Domains == null || data.Domains.Length != 32) return "UNAVAILABLE";
+                    // The driver writes reserved high selector bits. Only the low
+                    // four bits select CURRENT (0), BASE (1) or BOOST (2).
+                    if ((data.Domains[0].Present & 1) == 0) return "UNSUPPORTED";
+                    if (data.Domains[0].FrequencyKHz == 0) return "UNAVAILABLE";
+                    graphicsKHz = data.Domains[0].FrequencyKHz;
+                    return "OK";
+                }
+                return "UNSUPPORTED";
+            }
+            catch { return "UNAVAILABLE"; }
+        }
+
+        private sealed class PciIdentity
+        {
+            internal uint Bus, Slot, Device, Subsystem;
+            internal bool Matches(PciIdentity other)
+            {
+                return other != null && Bus == other.Bus && Slot == other.Slot && Device == other.Device && Subsystem == other.Subsystem;
+            }
+        }
+
+        private string ReadNvidiaPci(IntPtr gpu, out PciIdentity identity)
+        {
+            identity = null;
+            if (pciBus == null || pciSlot == null || pciIdentifiers == null) return "UNSUPPORTED";
+            uint bus, slot, device, subsystem, revision, external;
+            int result = pciBus(gpu, out bus);
+            if (result != 0) return NvidiaResult(result);
+            result = pciSlot(gpu, out slot);
+            if (result != 0) return NvidiaResult(result);
+            result = pciIdentifiers(gpu, out device, out subsystem, out revision, out external);
+            if (result != 0) return NvidiaResult(result);
+            if (bus > 255 || slot > 31 || (device & 65535) != 0x10de || (device >> 16) == 0) return "UNAVAILABLE";
+            identity = new PciIdentity { Bus = bus, Slot = slot, Device = device, Subsystem = subsystem };
+            return "OK";
+        }
+
+        private static string NvmlResult(int status)
+        {
+            // NVML_ERROR_GPU_IS_LOST means cached handles are no longer usable.
+            if (status == 15) return "DEVICE_CHANGED";
+            return status == 3 || status == 12 || status == 13 ? "UNSUPPORTED" : "UNAVAILABLE";
+        }
+
+        private static T NvmlFunction<T>(IntPtr library, string name) where T : class
+        {
+            IntPtr pointer = GetProcAddress(library, name);
+            return pointer == IntPtr.Zero ? null : (T)(object)Marshal.GetDelegateForFunctionPointer(pointer, typeof(T));
+        }
+
+        private static NvmlPci NewNvmlPci()
+        {
+            return new NvmlPci { LegacyBusId = new byte[16], BusId = new byte[32] };
+        }
+
+        private static bool ValidNvmlPci(NvmlPci data, out uint function)
+        {
+            function = 0;
+            if (data.Bus > 255 || data.Slot > 31 || (data.Device & 65535) != 0x10de || (data.Device >> 16) == 0 ||
+                data.BusId == null || data.BusId.Length != 32) return false;
+            int end = Array.IndexOf(data.BusId, (byte)0);
+            if (end <= 0) return false;
+            for (int index = 0; index < end; ++index) if (data.BusId[index] > 127) return false;
+            string[] parts = Encoding.ASCII.GetString(data.BusId, 0, end).Split(':', '.');
+            uint domain, bus, slot;
+            return parts.Length == 4 && parts[0].Length <= 8 && parts[1].Length <= 2 && parts[2].Length <= 2 && parts[3].Length == 1 &&
+                UInt32.TryParse(parts[0], NumberStyles.AllowHexSpecifier, CultureInfo.InvariantCulture, out domain) &&
+                UInt32.TryParse(parts[1], NumberStyles.AllowHexSpecifier, CultureInfo.InvariantCulture, out bus) &&
+                UInt32.TryParse(parts[2], NumberStyles.AllowHexSpecifier, CultureInfo.InvariantCulture, out slot) &&
+                UInt32.TryParse(parts[3], NumberStyles.AllowHexSpecifier, CultureInfo.InvariantCulture, out function) &&
+                domain == data.Domain && bus == data.Bus && slot == data.Slot && function <= 7;
+        }
+
+        private string MatchNvidiaPowerInventory()
+        {
+            string status = ReadNvidiaPci(physical, out powerIdentity);
+            if (status != "OK") return status;
+            // NVAPI's bus/slot tuple does not contain a PCI segment. Require
+            // uniqueness across its COMPLETE physical inventory as well as
+            // NVML, including GPUs NVML might not support or expose.
+            IntPtr[] handles = new IntPtr[64]; uint count;
+            int result = physicalInventory(handles, out count);
+            if (result != 0) return NvidiaResult(result);
+            if (count == 0 || count > 64) return "UNAVAILABLE";
+            int matches = 0;
+            HashSet<IntPtr> seen = new HashSet<IntPtr>();
+            for (int index = 0; index < count; ++index)
+            {
+                if (handles[index] == IntPtr.Zero || !seen.Add(handles[index])) return "UNAVAILABLE";
+                PciIdentity candidate;
+                status = ReadNvidiaPci(handles[index], out candidate);
+                if (status != "OK") return status;
+                if (!powerIdentity.Matches(candidate)) continue;
+                if (handles[index] != physical) return "UNSUPPORTED";
+                ++matches;
+            }
+            if (matches != 1) return "UNSUPPORTED";
+            return "OK";
+        }
+
+        private string MatchNvmlPowerInventory(NvmlCount getCount, NvmlHandle getHandle)
+        {
+            uint count; int result = getCount(out count);
+            if (result != 0) return NvmlResult(result);
+            if (count == 0 || count > 64) return "UNAVAILABLE";
+            int matches = 0; HashSet<IntPtr> seen = new HashSet<IntPtr>();
+            for (uint index = 0; index < count; ++index)
+            {
+                IntPtr handle;
+                result = getHandle(index, out handle);
+                if (result != 0) return NvmlResult(result);
+                if (handle == IntPtr.Zero || !seen.Add(handle)) return "UNAVAILABLE";
+                NvmlPci data = NewNvmlPci();
+                result = nvmlPci(handle, ref data);
+                if (result != 0) return NvmlResult(result);
+                uint function;
+                if (!ValidNvmlPci(data, out function)) return "UNAVAILABLE";
+                PciIdentity candidate = new PciIdentity { Bus = data.Bus, Slot = data.Slot, Device = data.Device, Subsystem = data.Subsystem };
+                if (!powerIdentity.Matches(candidate)) continue;
+                // NVAPI does not expose a function selector here. Only the
+                // standard display function zero is accepted, never guessed.
+                if (function != 0 || ++matches != 1) return "UNSUPPORTED";
+                nvmlDevice = handle; powerDomain = data.Domain;
+            }
+            if (matches != 1) return "UNSUPPORTED";
+            return PowerIdentityMatches();
+        }
+
+        private string OpenPower()
+        {
+            try
+            {
+                // NVIDIA supplies NVML for 64-bit Windows. Never load a binary
+                // from PATH, the skin directory, or an arbitrary user preference.
+                if (IntPtr.Size != 8 || physicalInventory == null || Marshal.SizeOf(typeof(NvmlPci)) != 68) return "UNSUPPORTED";
+                if (!IdentityMatches()) return "DEVICE_CHANGED";
+                string status = MatchNvidiaPowerInventory();
+                if (status != "OK") return status;
+                nvmlModule = LoadLibraryExW(Path.Combine(Environment.SystemDirectory, "nvml.dll"), IntPtr.Zero, 0x00000900);
+                if (nvmlModule == IntPtr.Zero)
+                {
+                    string programFiles = Environment.GetFolderPath(Environment.SpecialFolder.ProgramFiles);
+                    if (!String.IsNullOrEmpty(programFiles))
+                        nvmlModule = LoadLibraryExW(Path.Combine(programFiles, "NVIDIA Corporation", "NVSMI", "nvml.dll"), IntPtr.Zero, 0x00000900);
+                }
+                if (nvmlModule == IntPtr.Zero) return "UNSUPPORTED";
+                NvidiaLifecycle initialize = NvmlFunction<NvidiaLifecycle>(nvmlModule, "nvmlInit_v2");
+                nvmlShutdown = NvmlFunction<NvidiaLifecycle>(nvmlModule, "nvmlShutdown");
+                NvmlCount getCount = NvmlFunction<NvmlCount>(nvmlModule, "nvmlDeviceGetCount_v2");
+                NvmlHandle getHandle = NvmlFunction<NvmlHandle>(nvmlModule, "nvmlDeviceGetHandleByIndex_v2");
+                nvmlPci = NvmlFunction<NvmlPciQuery>(nvmlModule, "nvmlDeviceGetPciInfo_v3");
+                nvmlPower = NvmlFunction<NvidiaScalar>(nvmlModule, "nvmlDeviceGetPowerUsage");
+                if (initialize == null || nvmlShutdown == null || getCount == null || getHandle == null || nvmlPci == null || nvmlPower == null)
+                    return "UNSUPPORTED";
+                int result = initialize();
+                if (result != 0) return NvmlResult(result);
+                nvmlInitialized = true;
+                return MatchNvmlPowerInventory(getCount, getHandle);
+            }
+            catch { return "UNAVAILABLE"; }
+        }
+
+        private uint powerDomain;
+        private string PowerIdentityMatches()
+        {
+            if (!IdentityMatches()) return "DEVICE_CHANGED";
+            PciIdentity current;
+            string status = ReadNvidiaPci(physical, out current);
+            if (status != "OK") return status;
+            if (powerIdentity == null || !powerIdentity.Matches(current)) return "DEVICE_CHANGED";
+            NvmlPci data = NewNvmlPci();
+            int result = nvmlPci(nvmlDevice, ref data);
+            if (result != 0) return NvmlResult(result);
+            uint function;
+            if (!ValidNvmlPci(data, out function)) return "UNAVAILABLE";
+            if (function != 0 || data.Domain != powerDomain || data.Bus != current.Bus || data.Slot != current.Slot ||
+                data.Device != current.Device || data.Subsystem != current.Subsystem) return "DEVICE_CHANGED";
+            return IdentityMatches() ? "OK" : "DEVICE_CHANGED";
+        }
+
+        private string ReadPower(out uint? milliwatts)
+        {
+            milliwatts = null;
+            if (!opened || disposed) return "UNAVAILABLE";
+            try
+            {
+                if (!IdentityMatches()) return "DEVICE_CHANGED";
+                if (powerSupport != "OK") return powerSupport;
+                if (nvmlPower == null || nvmlPci == null || nvmlDevice == IntPtr.Zero) return "UNSUPPORTED";
+                string status = PowerIdentityMatches();
+                if (status != "OK") return status;
+                uint value;
+                int result = nvmlPower(nvmlDevice, out value);
+                status = PowerIdentityMatches();
+                if (status != "OK") return status;
+                if (result != 0) return NvmlResult(result);
+                milliwatts = value;
+                return "OK";
+            }
+            catch { return "UNAVAILABLE"; }
+        }
+
+        internal string ReadTemperature(out int? temperature)
+        {
+            temperature = null;
+            if (!opened || disposed) return "UNAVAILABLE";
+            try
+            {
+                if (!IdentityMatches()) return "DEVICE_CHANGED";
+                if (thermal == null || nvidiaStatus != "OK") return NvidiaUnavailable();
+                ThermalSettings data = new ThermalSettings { Version = 68 | 0x20000, Sensors = new ThermalSensor[3] };
+                int status = thermal(physical, 15, ref data); // ALL sensors; GPU target is an output, not index 1.
+                if (!IdentityMatches()) return "DEVICE_CHANGED";
+                if (status != 0) return NvidiaResult(status);
+                if (data.Version != (68 | 0x20000) || data.Count > 3 || data.Sensors == null || data.Sensors.Length != 3)
+                    return "UNAVAILABLE";
+                int count = 0, value = 0;
+                for (int index = 0; index < data.Count; ++index)
+                {
+                    if (data.Sensors[index].Target != 1) continue;
+                    ++count;
+                    value = data.Sensors[index].CurrentTemp;
+                }
+                if (count != 1) return "UNSUPPORTED";
+                // Broad data-integrity range only; these are not safe/normal thresholds.
+                if (value < -273 || value > 300) return "UNAVAILABLE";
+                temperature = value;
+                return "OK";
+            }
+            catch { return "UNAVAILABLE"; }
+        }
+
+        private bool IdentityMatches()
+        {
+            try
+            {
+                if (!opened || disposed || !Method<GetFlag>(adapter, 3)(adapter) || Method<GetFlag>(list, 5)(list)) return false;
+                ulong luid;
+                if (!ReadLuid(adapter, out luid) || luid != requestedLuid) return false;
+                if (!nvidiaBound) return true;
+                Marshal.WriteInt64(luidBuffer, 0);
+                LogicalData data = NewLogicalData();
+                return logicalInfo(logical, ref data) == 0 && data.AdapterLuid == luidBuffer
+                    && unchecked((ulong)Marshal.ReadInt64(luidBuffer)) == requestedLuid
+                    && data.PhysicalCount == 1 && data.PhysicalHandles != null && data.PhysicalHandles[0] == physical;
+            }
+            catch { return false; }
+        }
+
+        private LogicalData NewLogicalData()
+        {
+            return new LogicalData { Version = (uint)Marshal.SizeOf(typeof(LogicalData)) | 0x10000,
+                AdapterLuid = luidBuffer, PhysicalHandles = new IntPtr[64], Reserved = new uint[8] };
+        }
+
+        public void Dispose()
+        {
+            if (disposed) return;
+            disposed = true;
+            try { if (nvmlInitialized && nvmlShutdown != null) nvmlShutdown(); }
+            catch { }
+            try { if (initialized && unload != null) unload(); }
+            catch { }
+            finally
+            {
+                initialized = false;
+                nvmlInitialized = false; nvmlDevice = IntPtr.Zero;
+                if (nvmlModule != IntPtr.Zero) { FreeLibrary(nvmlModule); nvmlModule = IntPtr.Zero; }
+                if (module != IntPtr.Zero) { FreeLibrary(module); module = IntPtr.Zero; }
+                if (luidBuffer != IntPtr.Zero) { Marshal.FreeHGlobal(luidBuffer); luidBuffer = IntPtr.Zero; }
+                if (adapter != IntPtr.Zero) { Marshal.Release(adapter); adapter = IntPtr.Zero; }
+                if (list != IntPtr.Zero) { Marshal.Release(list); list = IntPtr.Zero; }
+                if (factory != IntPtr.Zero) { Marshal.Release(factory); factory = IntPtr.Zero; }
+            }
+        }
+
+        private static bool ReadLuid(IntPtr adapter, out ulong value)
+        {
+            value = 0;
+            IntPtr buffer = IntPtr.Zero;
+            try
+            {
+                if (!Method<Supports>(adapter, 5)(adapter, 0)) return false;
+                UIntPtr size;
+                Check(Method<GetPropertySize>(adapter, 7)(adapter, 0, out size));
+                if (size.ToUInt64() != 8) return false;
+                buffer = Marshal.AllocHGlobal(8);
+                Check(Method<GetProperty>(adapter, 6)(adapter, 0, size, buffer));
+                value = unchecked((ulong)Marshal.ReadInt64(buffer));
+                return true;
+            }
+            catch { return false; }
+            finally { if (buffer != IntPtr.Zero) Marshal.FreeHGlobal(buffer); }
+        }
+
+        private static bool ReadBoolean(IntPtr adapter, uint property)
+        {
+            if (!Method<Supports>(adapter, 5)(adapter, property)) throw new NotSupportedException();
+            IntPtr buffer = Marshal.AllocHGlobal(1);
+            try
+            {
+                Marshal.WriteByte(buffer, 0);
+                Check(Method<GetProperty>(adapter, 6)(adapter, property, new UIntPtr(1), buffer));
+                byte value = Marshal.ReadByte(buffer);
+                if (value > 1) throw new InvalidOperationException();
+                return value != 0;
+            }
+            finally { Marshal.FreeHGlobal(buffer); }
+        }
+
+        private static string ReadNameHex(IntPtr adapter)
+        {
+            IntPtr buffer = IntPtr.Zero;
+            try
+            {
+                UIntPtr size;
+                if (!Method<Supports>(adapter, 5)(adapter, 2)) return "?";
+                Check(Method<GetPropertySize>(adapter, 7)(adapter, 2, out size));
+                ulong length = size.ToUInt64();
+                if (length == 0 || length > MaximumNameBytes + 1) return "?";
+                buffer = Marshal.AllocHGlobal((int)length);
+                Check(Method<GetProperty>(adapter, 6)(adapter, 2, size, buffer));
+                byte[] bytes = new byte[(int)length];
+                Marshal.Copy(buffer, bytes, 0, bytes.Length);
+                int end = Array.IndexOf(bytes, (byte)0);
+                if (end <= 0) return "?";
+                string name = new UTF8Encoding(false, true).GetString(bytes, 0, end);
+                return Hex(new UTF8Encoding(false, true).GetBytes(name));
+            }
+            catch { return "?"; }
+            finally { if (buffer != IntPtr.Zero) Marshal.FreeHGlobal(buffer); }
+        }
+
+        private static T Method<T>(IntPtr instance, int slot) where T : class
+        {
+            if (instance == IntPtr.Zero) throw new InvalidOperationException();
+            IntPtr address = Marshal.ReadIntPtr(Marshal.ReadIntPtr(instance), slot * IntPtr.Size);
+            return (T)(object)Marshal.GetDelegateForFunctionPointer(address, typeof(T));
+        }
+        private static T NvidiaFunction<T>(NvidiaQueryInterface query, uint id) where T : class
+        {
+            IntPtr address = query(id);
+            return address == IntPtr.Zero ? null : (T)(object)Marshal.GetDelegateForFunctionPointer(address, typeof(T));
+        }
+        private static void Check(int result) { if (result < 0) Marshal.ThrowExceptionForHR(result); }
+
+        [DllImport("dxcore.dll", ExactSpelling = true, CallingConvention = CallingConvention.StdCall)]
+        [DefaultDllImportSearchPaths(DllImportSearchPath.System32)]
+        private static extern int DXCoreCreateAdapterFactory(ref Guid id, out IntPtr factory);
+        [DllImport("kernel32.dll", CharSet = CharSet.Unicode, ExactSpelling = true)]
+        [DefaultDllImportSearchPaths(DllImportSearchPath.System32)]
+        private static extern IntPtr LoadLibraryExW(string path, IntPtr file, uint flags);
+        [DllImport("kernel32.dll", CharSet = CharSet.Ansi, ExactSpelling = true)]
+        [DefaultDllImportSearchPaths(DllImportSearchPath.System32)]
+        private static extern IntPtr GetProcAddress(IntPtr module, string name);
+        [DllImport("kernel32.dll", ExactSpelling = true)]
+        [DefaultDllImportSearchPaths(DllImportSearchPath.System32)]
+        [return: MarshalAs(UnmanagedType.Bool)] private static extern bool FreeLibrary(IntPtr module);
+        [UnmanagedFunctionPointer(CallingConvention.StdCall)]
+        private delegate int CreateList(IntPtr self, uint count, [In] Guid[] attributes, ref Guid id, out IntPtr list);
+        [UnmanagedFunctionPointer(CallingConvention.StdCall)]
+        private delegate int GetAdapter(IntPtr self, uint index, ref Guid id, out IntPtr adapter);
+        [UnmanagedFunctionPointer(CallingConvention.StdCall)] private delegate uint GetCount(IntPtr self);
+        [UnmanagedFunctionPointer(CallingConvention.StdCall)]
+        [return: MarshalAs(UnmanagedType.I1)] private delegate bool GetFlag(IntPtr self);
+        [UnmanagedFunctionPointer(CallingConvention.StdCall)]
+        [return: MarshalAs(UnmanagedType.I1)] private delegate bool Supports(IntPtr self, uint value);
+        [UnmanagedFunctionPointer(CallingConvention.StdCall)]
+        private delegate int GetProperty(IntPtr self, uint property, UIntPtr size, IntPtr buffer);
+        [UnmanagedFunctionPointer(CallingConvention.StdCall)]
+        private delegate int GetPropertySize(IntPtr self, uint property, out UIntPtr size);
+        [UnmanagedFunctionPointer(CallingConvention.StdCall)]
+        private delegate int QueryState(IntPtr self, uint state, UIntPtr inputSize, IntPtr input, UIntPtr outputSize, IntPtr output);
+        [UnmanagedFunctionPointer(CallingConvention.Cdecl)] private delegate IntPtr NvidiaQueryInterface(uint id);
+        [UnmanagedFunctionPointer(CallingConvention.Cdecl)] private delegate int NvidiaLifecycle();
+        [UnmanagedFunctionPointer(CallingConvention.Cdecl)]
+        private delegate int NvidiaEnumerate([Out, MarshalAs(UnmanagedType.LPArray, SizeConst = 64)] IntPtr[] handles, out uint count);
+        [UnmanagedFunctionPointer(CallingConvention.Cdecl)]
+        private delegate int NvidiaLogicalInfo(IntPtr logical, ref LogicalData data);
+        [UnmanagedFunctionPointer(CallingConvention.Cdecl)]
+        private delegate int NvidiaThermalQuery(IntPtr physical, uint sensorIndex, ref ThermalSettings data);
+        [UnmanagedFunctionPointer(CallingConvention.Cdecl)]
+        private delegate int NvidiaMemoryExQuery(IntPtr physical, ref MemoryEx data);
+        [UnmanagedFunctionPointer(CallingConvention.Cdecl)]
+        private delegate int NvidiaMemoryQuery(IntPtr physical, ref MemoryLegacy data);
+        [UnmanagedFunctionPointer(CallingConvention.Cdecl)]
+        private delegate int NvidiaUtilizationQuery(IntPtr physical, ref UtilizationData data);
+        [UnmanagedFunctionPointer(CallingConvention.Cdecl)]
+        private delegate int NvidiaClockQuery(IntPtr physical, ref ClockData data);
+        [UnmanagedFunctionPointer(CallingConvention.Cdecl)]
+        private delegate int NvidiaScalar(IntPtr device, out uint value);
+        [UnmanagedFunctionPointer(CallingConvention.Cdecl)]
+        private delegate int NvidiaPciQuery(IntPtr physical, out uint device, out uint subsystem, out uint revision, out uint external);
+        [UnmanagedFunctionPointer(CallingConvention.Cdecl)] private delegate int NvmlCount(out uint count);
+        [UnmanagedFunctionPointer(CallingConvention.Cdecl)] private delegate int NvmlHandle(uint index, out IntPtr device);
+        [UnmanagedFunctionPointer(CallingConvention.Cdecl)] private delegate int NvmlPciQuery(IntPtr device, ref NvmlPci data);
+        [StructLayout(LayoutKind.Sequential, Pack = 8)]
+        private struct ClockDomain { public uint Present, FrequencyKHz; }
+        [StructLayout(LayoutKind.Sequential, Pack = 8)]
+        private struct ClockData
+        {
+            public uint Version, ClockType;
+            [MarshalAs(UnmanagedType.ByValArray, SizeConst = 32)] public ClockDomain[] Domains;
+        }
+        [StructLayout(LayoutKind.Sequential, Pack = 8)]
+        private struct NvmlPci
+        {
+            [MarshalAs(UnmanagedType.ByValArray, SizeConst = 16)] public byte[] LegacyBusId;
+            public uint Domain, Bus, Slot, Device, Subsystem;
+            [MarshalAs(UnmanagedType.ByValArray, SizeConst = 32)] public byte[] BusId;
+        }
+        [StructLayout(LayoutKind.Sequential, Pack = 8)]
+        private struct MemoryEx
+        {
+            public uint Version;
+            public ulong Physical, Allocatable, SystemAtLoad, SharedLimit, Available;
+            public ulong EvictionBytes, EvictionCount, PromotionBytes, PromotionCount;
+        }
+        [StructLayout(LayoutKind.Sequential, Pack = 8)]
+        private struct MemoryLegacy
+        {
+            public uint Version, Physical, Allocatable, SystemAtLoad, SharedLimit, Available, EvictionKB, EvictionCount;
+        }
+        [StructLayout(LayoutKind.Sequential, Pack = 8)]
+        private struct UtilizationDomain { public uint Present, Percentage; }
+        [StructLayout(LayoutKind.Sequential, Pack = 8)]
+        private struct UtilizationData
+        {
+            public uint Version, Flags;
+            [MarshalAs(UnmanagedType.ByValArray, SizeConst = 8)] public UtilizationDomain[] Domains;
+        }
+        [StructLayout(LayoutKind.Sequential, Pack = 8)]
+        private struct LogicalData
+        {
+            public uint Version;
+            public IntPtr AdapterLuid;
+            public uint PhysicalCount;
+            [MarshalAs(UnmanagedType.ByValArray, SizeConst = 64)] public IntPtr[] PhysicalHandles;
+            [MarshalAs(UnmanagedType.ByValArray, SizeConst = 8)] public uint[] Reserved;
+        }
+        [StructLayout(LayoutKind.Sequential, Pack = 8)]
+        private struct ThermalSensor
+        {
+            public int Controller, DefaultMinTemp, DefaultMaxTemp, CurrentTemp, Target;
+        }
+        [StructLayout(LayoutKind.Sequential, Pack = 8)]
+        private struct ThermalSettings
+        {
+            public uint Version, Count;
+            [MarshalAs(UnmanagedType.ByValArray, SizeConst = 3)] public ThermalSensor[] Sensors;
+        }
+    }
+}

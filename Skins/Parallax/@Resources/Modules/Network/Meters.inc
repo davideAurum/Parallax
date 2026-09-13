@@ -7,30 +7,28 @@ MeterStyle=StyleBounds
 Meter=Shape
 MeterStyle=StylePanel
 
-; Three nodes and a branching cable, drawn here rather than importing an asset.
+; Original three-node icon on a 14x14 canvas. All geometry follows title size.
 [MeterNetworkIcon]
 Meter=Shape
 X=#ContentX#
-Y=(#Inset#+9*#Scale#)
-W=(15*#Scale#)
-H=(13*#Scale#)
-Shape=Rectangle (5.5*#Scale#),0,(4*#Scale#),(3*#Scale#) | Fill Color #AccentColor# | StrokeWidth 0
-Shape2=Line (7.5*#Scale#),(3*#Scale#),(7.5*#Scale#),(6.5*#Scale#) | Stroke Color #AccentColor# | StrokeWidth #Scale#
-Shape3=Line (2.5*#Scale#),(6.5*#Scale#),(12.5*#Scale#),(6.5*#Scale#) | Stroke Color #AccentColor# | StrokeWidth #Scale#
-Shape4=Line (2.5*#Scale#),(6.5*#Scale#),(2.5*#Scale#),(9*#Scale#) | Stroke Color #AccentColor# | StrokeWidth #Scale#
-Shape5=Line (12.5*#Scale#),(6.5*#Scale#),(12.5*#Scale#),(9*#Scale#) | Stroke Color #AccentColor# | StrokeWidth #Scale#
-Shape6=Rectangle 0,(9*#Scale#),(5*#Scale#),(4*#Scale#) | Fill Color #AccentColor# | StrokeWidth 0
-Shape7=Rectangle (10*#Scale#),(9*#Scale#),(5*#Scale#),(4*#Scale#) | Fill Color #AccentColor# | StrokeWidth 0
+Y=(Round(#TitleRowCenterY#-#TitleIconSize#/2))
+W=#TitleIconSize#
+H=#TitleIconSize#
+Shape=Rectangle (5*#TitleIconScale#),(0.5*#TitleIconScale#),(4*#TitleIconScale#),(3*#TitleIconScale#) | Fill Color #AccentColor# | StrokeWidth 0
+Shape2=Line (7*#TitleIconScale#),(3.5*#TitleIconScale#),(7*#TitleIconScale#),(6.5*#TitleIconScale#) | Stroke Color #AccentColor# | StrokeWidth #TitleIconScale#
+Shape3=Line (2*#TitleIconScale#),(6.5*#TitleIconScale#),(12*#TitleIconScale#),(6.5*#TitleIconScale#) | Stroke Color #AccentColor# | StrokeWidth #TitleIconScale#
+Shape4=Line (2*#TitleIconScale#),(6.5*#TitleIconScale#),(2*#TitleIconScale#),(10.5*#TitleIconScale#) | Stroke Color #AccentColor# | StrokeWidth #TitleIconScale#
+Shape5=Line (12*#TitleIconScale#),(6.5*#TitleIconScale#),(12*#TitleIconScale#),(10.5*#TitleIconScale#) | Stroke Color #AccentColor# | StrokeWidth #TitleIconScale#
+Shape6=Rectangle 0,(10.5*#TitleIconScale#),(4*#TitleIconScale#),(3*#TitleIconScale#) | Fill Color #AccentColor# | StrokeWidth 0
+Shape7=Rectangle (10*#TitleIconScale#),(10.5*#TitleIconScale#),(4*#TitleIconScale#),(3*#TitleIconScale#) | Fill Color #AccentColor# | StrokeWidth 0
 UpdateDivider=-1
 AntiAlias=1
 
 [MeterNetworkTitle]
 Meter=String
-MeterStyle=StyleTitle
-X=(#ContentX#+20*#Scale#)
-Y=(#Inset#+6*#Scale#)
-W=(#ContentWidth#-98*#Scale#)
-H=((18+#NetworkTitleExtra#)*#Scale#)
+MeterStyle=StyleTitle | StyleTitleRow
+X=(#ContentX#+#TitleIconSize#+#TitleIconGap#)
+W=(#ContentWidth#-#TitleIconSize#-#TitleIconGap#-78*#Scale#)
 Text=Network
 
 ; Native glyph layout needs room beyond visible ink, especially at Scale=0.75.
@@ -39,9 +37,10 @@ Text=Network
 Meter=String
 MeterStyle=StyleButton
 X=(#ContentX#+#ContentWidth#-76*#Scale#)
-Y=(#Inset#+6*#Scale#)
+Y=#TitleRowCenterY#
 W=(38*#Scale#)
 H=((16+#NetworkRowExtra#)*#Scale#)
+StringAlign=LeftCenter
 Text=bits
 LeftMouseUpAction=[!CommandMeasure MeasureNetworkController "ToggleUnits()"]
 ToolTipText=Switch rate display between decimal bits/s and binary bytes/s. Saves the module choice.
@@ -50,37 +49,32 @@ ToolTipText=Switch rate display between decimal bits/s and binary bytes/s. Saves
 Meter=String
 MeterStyle=StyleButton | StyleSecondaryButton
 X=(#ContentX#+#ContentWidth#-28*#Scale#)
-Y=(#Inset#+6*#Scale#)
+Y=#TitleRowCenterY#
 W=(22*#Scale#)
 H=((16+#NetworkRowExtra#)*#Scale#)
+StringAlign=LeftCenter
 Text=1x
 LeftMouseUpAction=[!CommandMeasure MeasureNetworkController "ToggleWidth()"]
 ToolTipText=Switch between one and two columns. Saves the module choice and refreshes Network.
 
-[MeterNetworkAdapter]
-Meter=String
-MeterStyle=StyleLabel
-Y=(#Inset#+(25+#NetworkTitleExtra#)*#Scale#)
-H=((16+#NetworkRowExtra#)*#Scale#)
-FontColor=#TextColor#
-Text=Resolving adapter...
-ToolTipText=Selected adapter identity. Edit Network settings from the context menu to choose an adapter.
-MouseActionCursor=1
-LeftMouseUpAction=[!ActivateConfig "Parallax\Network\Connection" "Connection.ini"]
+[MeterNetworkTrafficRule]
+Meter=Shape
+MeterStyle=StyleRule
+Y=(#Inset#+242*#Scale#+#DataBarThicknessPx#)
 
 [MeterNetworkStatus]
 Meter=String
 MeterStyle=StyleLabel
-Y=(#Inset#+(42+#NetworkTitleExtra#+#NetworkRowExtra#)*#Scale#)
-H=((16+#NetworkRowExtra#)*#Scale#)
+Y=(#Inset#+246*#Scale#+#DataBarThicknessPx#)
+H=(18*#Scale#)
 Text=Waiting for native measures
 
 [MeterNetworkInLabel]
 Meter=String
 MeterStyle=StyleLabel
-Y=(#Inset#+(60+#NetworkTitleExtra#+2*#NetworkRowExtra#)*#Scale#)
+Y=(#Inset#+266*#Scale#+#DataBarThicknessPx#)
 W=(30*#Scale#)
-H=((16+#NetworkRowExtra#)*#Scale#)
+H=(18*#Scale#)
 FontSize=(#HeaderFontSize#*#Scale#)
 FontWeight=600
 FontColor=#HeaderTextColor#
@@ -90,9 +84,9 @@ Text=IN
 Meter=String
 MeterStyle=StyleLabel
 X=(#ContentX#+#ContentWidth#)
-Y=(#Inset#+(60+#NetworkTitleExtra#+2*#NetworkRowExtra#)*#Scale#)
+Y=(#Inset#+266*#Scale#+#DataBarThicknessPx#)
 W=(#ContentWidth#-32*#Scale#)
-H=((16+#NetworkRowExtra#)*#Scale#)
+H=(18*#Scale#)
 StringAlign=Right
 FontColor=#NetworkInColor#
 Text=--
@@ -100,15 +94,15 @@ Text=--
 [MeterNetworkInCeiling]
 Meter=String
 MeterStyle=StyleLabel
-Y=(#Inset#+(76+#NetworkTitleExtra#+3*#NetworkRowExtra#)*#Scale#)
-H=((16+#NetworkRowExtra#)*#Scale#)
+Y=(#Inset#+284*#Scale#+#DataBarThicknessPx#)
+H=(18*#Scale#)
 Text=Graph ceiling
 ToolTipText=User-configured inbound graph ceiling. Clipped means history exceeds the scale; the numeric rate remains unclipped.
 
 [MeterNetworkInGrid]
 Meter=Shape
 X=#ContentX#
-Y=(#Inset#+(94+#NetworkTitleExtra#+4*#NetworkRowExtra#)*#Scale#)
+Y=(#Inset#+304*#Scale#+#DataBarThicknessPx#)
 W=#ContentWidth#
 H=(#NetworkGraphHeight#*#Scale#)
 Shape=Rectangle 0.5,0.5,(#ContentWidth#-1),(#NetworkGraphHeight#*#Scale#-1),(2*#Scale#) | Fill Color #GraphBackgroundColor# | Stroke Color #BorderColor# | StrokeWidth 1
@@ -121,7 +115,7 @@ AntiAlias=1
 [MeterNetworkInGraph]
 Meter=Shape
 X=#ContentX#
-Y=(#Inset#+(94+#NetworkTitleExtra#+4*#NetworkRowExtra#)*#Scale#)
+Y=(#Inset#+304*#Scale#+#DataBarThicknessPx#)
 W=#ContentWidth#
 H=(#NetworkGraphHeight#*#Scale#)
 Shape=Rectangle 0,0,#ContentWidth#,(#NetworkGraphHeight#*#Scale#) | Fill Color 0,0,0,0 | StrokeWidth 0
@@ -134,9 +128,9 @@ ToolTipText=Recent inbound NIC samples; newest at right. Gaps clear history. Inc
 [MeterNetworkOutLabel]
 Meter=String
 MeterStyle=StyleLabel
-Y=(#Inset#+(140+#NetworkTitleExtra#/2+#NetworkRowExtra#)*#Scale#)
+Y=(#Inset#+352*#Scale#+#DataBarThicknessPx#)
 W=(30*#Scale#)
-H=((16+#NetworkRowExtra#)*#Scale#)
+H=(18*#Scale#)
 FontSize=(#HeaderFontSize#*#Scale#)
 FontWeight=600
 FontColor=#HeaderTextColor#
@@ -146,9 +140,9 @@ Text=OUT
 Meter=String
 MeterStyle=StyleLabel
 X=(#ContentX#+#ContentWidth#)
-Y=(#Inset#+(140+#NetworkTitleExtra#/2+#NetworkRowExtra#)*#Scale#)
+Y=(#Inset#+352*#Scale#+#DataBarThicknessPx#)
 W=(#ContentWidth#-32*#Scale#)
-H=((16+#NetworkRowExtra#)*#Scale#)
+H=(18*#Scale#)
 StringAlign=Right
 FontColor=#NetworkOutColor#
 Text=--
@@ -156,15 +150,15 @@ Text=--
 [MeterNetworkOutCeiling]
 Meter=String
 MeterStyle=StyleLabel
-Y=(#Inset#+(156+#NetworkTitleExtra#/2+2*#NetworkRowExtra#)*#Scale#)
-H=((16+#NetworkRowExtra#)*#Scale#)
+Y=(#Inset#+370*#Scale#+#DataBarThicknessPx#)
+H=(18*#Scale#)
 Text=Graph ceiling
 ToolTipText=User-configured outbound graph ceiling. Clipped means history exceeds the scale; the numeric rate remains unclipped.
 
 [MeterNetworkOutGrid]
 Meter=Shape
 X=#ContentX#
-Y=(#Inset#+(174+#NetworkTitleExtra#/2+3*#NetworkRowExtra#)*#Scale#)
+Y=(#Inset#+390*#Scale#+#DataBarThicknessPx#)
 W=#ContentWidth#
 H=(#NetworkGraphHeight#*#Scale#)
 Shape=Rectangle 0.5,0.5,(#ContentWidth#-1),(#NetworkGraphHeight#*#Scale#-1),(2*#Scale#) | Fill Color #GraphBackgroundColor# | Stroke Color #BorderColor# | StrokeWidth 1
@@ -177,7 +171,7 @@ AntiAlias=1
 [MeterNetworkOutGraph]
 Meter=Shape
 X=#ContentX#
-Y=(#Inset#+(174+#NetworkTitleExtra#/2+3*#NetworkRowExtra#)*#Scale#)
+Y=(#Inset#+390*#Scale#+#DataBarThicknessPx#)
 W=#ContentWidth#
 H=(#NetworkGraphHeight#*#Scale#)
 Shape=Rectangle 0,0,#ContentWidth#,(#NetworkGraphHeight#*#Scale#) | Fill Color 0,0,0,0 | StrokeWidth 0
@@ -190,7 +184,7 @@ ToolTipText=Recent outbound NIC samples; newest at right. Gaps clear history. In
 [MeterNetworkFooter]
 Meter=String
 MeterStyle=StyleLabel
-Y=(#Inset#+(216-#NetworkRowExtra#)*#Scale#)
-H=((16+#NetworkRowExtra#)*#Scale#)
+Y=(#Inset#+436*#Scale#+#DataBarThicknessPx#)
+H=(18*#Scale#)
 Text=60 samples / incl. LAN
 ToolTipText=Up to sixty one-second samples. Selected NIC traffic includes LAN; it is not whole-network Internet traffic.

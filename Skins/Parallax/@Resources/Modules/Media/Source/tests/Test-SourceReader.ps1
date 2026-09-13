@@ -117,9 +117,11 @@ W=1
 H=1
 SolidColor=0,0,0,0
 
-[MeterPlayerName]
-Meter=String
-MeasureName=MeasureMediaSource
+[MeterSongIcon]
+Meter=Shape
+Shape=Rectangle 0,0,1,1 | Fill Color 137,190,250 | StrokeWidth 0
+UpdateDivider=-1
+OnUpdateAction=[!SetVariable SourceIconRefreshSeen 1]
 X=0
 Y=0
 W=1
@@ -161,19 +163,28 @@ function AuditAndQuit()
         end
         publish(false)
         equal(label(),'Spotify')
-        equal(SKIN:GetMeter('MeterPlayerName'):GetOption('ToolTipText'),
-            'Spotify desktop detected from one matching Windows media session.')
+        equal(SKIN:GetMeter('MeterSongIcon'):GetOption('ToolTipText'),
+            'Song. Spotify desktop detected from one matching Windows media session.')
+        equal(SKIN:GetMeter('MeterSongIcon'):GetOption('Meter'),'Shape')
+        equal(SKIN:GetMeter('MeterSongIcon'):GetOption('MeasureName',''),'')
+        equal(SKIN:GetMeter('MeterSongIcon'):GetOption('UpdateDivider'),'-1')
+        SKIN:Bang('!SetVariable','SourceIconRefreshSeen','0')
         change('MeasureSourceArtist','String','')
         equal(label(),'Windows')
+        equal(SKIN:GetVariable('SourceIconRefreshSeen'),'1')
+        SKIN:Bang('!SetVariable','SourceIconRefreshSeen','0')
+        equal(label(),'Windows')
+        equal(SKIN:GetVariable('SourceIconRefreshSeen'),'0')
         change('MeasureSourceArtist','String','Fixture artist')
         equal(label(),'Spotify')
+        equal(SKIN:GetVariable('SourceIconRefreshSeen'),'1')
         publish(true)
         equal(label(),'Windows')
         publish(false,7)
         equal(label(),'Windows')
         change('MeasurePlayer','String','YouTube')
         equal(label(),'YouTube')
-        equal(SKIN:GetMeter('MeterPlayerName'):GetOption('ToolTipText'),'Source reported by WebNowPlaying.')
+        equal(SKIN:GetMeter('MeterSongIcon'):GetOption('ToolTipText'),'Song. Source reported by WebNowPlaying.')
         cases[#cases+1]='native UTF-16 script binding: Unicode match, raw artist, ambiguity, expiry and direct provider'
         return 'PASS: '..count..' assertions in '..#cases..' synthetic source-reader scenarios; '.._VERSION..'.\n'
             ..table.concat(cases, '\n')..'\nProduction SHA256: $sourceHash\n'

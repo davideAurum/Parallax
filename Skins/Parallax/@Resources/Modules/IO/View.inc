@@ -1,7 +1,14 @@
+[Variables]
+IOLucideScale=(#TitleIconSize#/24)
+IOGraphHeight=62
+IOBarExtra=(Max(0,#DataBarThicknessPx#/#Scale#-6))
+; Grow only the derived height; keep the user's saved panel minimum intact.
+; Inline the shared pixel rule: WindowHeight expands before the later bar keys.
+PanelHeightPx=(Round(Max(#PanelHeight#,157+Max(0,Max(1,Round(#DataBarThickness#*#Scale#))/#Scale#-6))*#Scale#))
+
 [MeasureIO]
 Measure=Script
 ScriptFile=#@#Modules\IO\IO.lua
-DiskProvider=#IODiskProvider#
 
 ; Dense instrument styles. Every actual meter declares Meter explicitly.
 [StyleIOText]
@@ -16,16 +23,18 @@ X=#ContentX#
 W=#ContentWidth#
 H=(18*#Scale#)
 
-[StyleIOSecondary]
+; Leave H undefined: ClipString=1 then uses natural single-line text height.
+; Do not inherit StyleIOText, whose fixed H can admit wrapping at small fonts.
+[StyleIODriveName]
 FontFace=#FontFace#
-FontSize=((#FontSize#-1)*#Scale#)
-FontColor=#MutedColor#
+FontSize=(#FontSize#*#Scale#)
+FontColor=#TextColor#
+StringStyle=Normal
 FontWeight=500
 AntiAlias=1
 ClipString=1
 X=#ContentX#
 W=#ContentWidth#
-H=(16*#Scale#)
 
 [StyleIOHeader]
 FontFace=#FontFace#
@@ -41,7 +50,7 @@ H=(18*#Scale#)
 [StyleIOBar]
 X=#ContentX#
 W=#ContentWidth#
-H=(Max(1,#Scale#))
+H=#DataBarThicknessPx#
 BarOrientation=Horizontal
 BarColor=#DiskReadColor#
 SolidColor=#TrackColor#
@@ -56,52 +65,53 @@ UpdateDivider=-1
 [MeterIOBounds]
 Meter=Image
 MeterStyle=StyleBounds
+DynamicVariables=1
 
 [MeterIOPanel]
 Meter=Shape
 MeterStyle=StylePanel
+DynamicVariables=1
 
-; Original drive outline: front slot and indicator, no imported image asset.
+; User-selected Lucide hard-drive; source and license: Icons/Lucide/README.md.
 [MeterIOIcon]
 Meter=Shape
 MeterStyle=StyleIOGlyph
 X=#ContentX#
-Y=(#Inset#+5*#Scale#)
-W=(16*#Scale#)
-H=(16*#Scale#)
-Shape=Rectangle (1*#Scale#),(3*#Scale#),(12*#Scale#),(9*#Scale#),(1*#Scale#) | Fill Color 0,0,0,0 | Stroke Color #MutedColor# | StrokeWidth (Max(1,#Scale#))
-Shape2=Line (2*#Scale#),(7*#Scale#),(12*#Scale#),(7*#Scale#) | Stroke Color #MutedColor# | StrokeWidth (Max(1,#Scale#))
-Shape3=Ellipse (10*#Scale#),(10*#Scale#),(1*#Scale#),(1*#Scale#) | Fill Color #DiskReadColor# | StrokeWidth 0
+Y=(#TitleRowCenterY#-#TitleIconSize#/2)
+W=#TitleIconSize#
+H=#TitleIconSize#
+Shape=Path LucideHardDrivePath | Extend LucideHardDriveStroke
+Shape2=Line (21.946*#IOLucideScale#),(12.013*#IOLucideScale#),(2.054*#IOLucideScale#),(12.013*#IOLucideScale#) | Extend LucideHardDriveStroke
+Shape3=Line (10*#IOLucideScale#),(16*#IOLucideScale#),(10.01*#IOLucideScale#),(16*#IOLucideScale#) | Extend LucideHardDriveStroke
+Shape4=Line (6*#IOLucideScale#),(16*#IOLucideScale#),(6.01*#IOLucideScale#),(16*#IOLucideScale#) | Extend LucideHardDriveStroke
+LucideHardDriveStroke=Fill Color 0,0,0,0 | Stroke Color #MutedColor# | StrokeWidth (2*#IOLucideScale#) | StrokeStartCap Round | StrokeEndCap Round | StrokeLineJoin Round
+LucideHardDrivePath=(2.212*#IOLucideScale#),(11.577*#IOLucideScale#) | ArcTo (2*#IOLucideScale#),(12.473*#IOLucideScale#),(2*#IOLucideScale#),(2*#IOLucideScale#),0,1,0 | LineTo (2*#IOLucideScale#),(18*#IOLucideScale#) | ArcTo (4*#IOLucideScale#),(20*#IOLucideScale#),(2*#IOLucideScale#),(2*#IOLucideScale#),0,1,0 | LineTo (20*#IOLucideScale#),(20*#IOLucideScale#) | ArcTo (22*#IOLucideScale#),(18*#IOLucideScale#),(2*#IOLucideScale#),(2*#IOLucideScale#),0,1,0 | LineTo (22*#IOLucideScale#),(12.473*#IOLucideScale#) | ArcTo (21.788*#IOLucideScale#),(11.577*#IOLucideScale#),(2*#IOLucideScale#),(2*#IOLucideScale#),0,1,0 | LineTo (18.55*#IOLucideScale#),(5.11*#IOLucideScale#) | ArcTo (16.76*#IOLucideScale#),(4*#IOLucideScale#),(2*#IOLucideScale#),(2*#IOLucideScale#),0,1,0 | LineTo (7.24*#IOLucideScale#),(4*#IOLucideScale#) | ArcTo (5.45*#IOLucideScale#),(5.11*#IOLucideScale#),(2*#IOLucideScale#),(2*#IOLucideScale#),0,1,0 | ClosePath 1
 UpdateDivider=-1
 
 [MeterIOTitle]
 Meter=String
-MeterStyle=StyleTitle
-X=(#ContentX#+19*#Scale#)
-Y=(#Inset#+2*#Scale#)
-W=(#ContentWidth#-71*#Scale#)
-H=(22*#Scale#)
-Text=Drive I/O
+MeterStyle=StyleTitle|StyleTitleRow
+X=(#ContentX#+#TitleIconSize#+#TitleIconGap#)
+W=(#ContentWidth#-#TitleIconSize#-#TitleIconGap#-52*#Scale#)
+Text=Disk Meter
 
 [MeterIOTotal]
 Meter=String
-MeterStyle=StyleTitle
+MeterStyle=StyleTitle|StyleTitleRow
 ; This is live capacity data, independent of title typography.
 FontSize=(#FontSize#*#Scale#)
 FontColor=#TextColor#
 X=(#ContentX#+#ContentWidth#)
-Y=(#Inset#+4*#Scale#)
 W=(48*#Scale#)
-H=(18*#Scale#)
-StringAlign=Right
+StringAlign=RightCenter
 Text=--
-ToolTipText=Main drive used percentage. Unavailable until native capacity is valid.
+ToolTipText=Selected drives: combined used percentage. Unavailable until all selected capacities are valid.
 
 [MeterIOOptions]
 Meter=Shape
 MeterStyle=StyleIOGlyph
 X=(#ContentX#+#ContentWidth#-18*#Scale#)
-Y=(#Inset#+6*#Scale#)
+Y=(#TitleRowCenterY#-9*#Scale#)
 W=(18*#Scale#)
 H=(18*#Scale#)
 ; Original eight-tooth gear; hidden meters have no mouse hit target.
@@ -112,7 +122,7 @@ Hidden=1
 UpdateDivider=-1
 MouseActionCursor=1
 LeftMouseUpAction=[!ActivateConfig "Parallax\IO\Settings" "Settings.ini"]
-ToolTipText=Open the separate Drive I/O settings utility.
+ToolTipText=Open the separate Disk Meter settings utility.
 
 
 [MeterIOCapacityHeading]
@@ -122,152 +132,71 @@ Y=(#Inset#+24*#Scale#)
 Text=Capacity: free / total
 ToolTipText=Native capacity. Bars show used percentage.
 
-[MeterIODrive1]
+[IODriveMeterInclude]
+@Include10=#@#Modules\IO\DriveMeters.inc
+
+[MeterIOEmpty]
 Meter=String
 MeterStyle=StyleIOText
 Y=(#Inset#+42*#Scale#)
-W=(24*#Scale#)
-Text=C:
-ToolTipText=#IODrive1#
+Text=Select drives in settings.
+Hidden=1
 
-[MeterIOCapacity1]
-Meter=String
-MeterStyle=StyleIOText
-X=(#ContentX#+#ContentWidth#)
-Y=(#Inset#+42*#Scale#)
-W=(#ContentWidth#-26*#Scale#)
-StringAlign=Right
-Text=Unavailable
-
-[MeterIOUsed1]
-Meter=Bar
-MeterStyle=StyleIOBar
-MeasureName=MeasureIOUsed1
-Y=(#Inset#+60*#Scale#)
-
-[MeterIODrive2]
-Meter=String
-MeterStyle=StyleIOText
-Y=(#Inset#+62*#Scale#)
-W=(24*#Scale#)
-Text=D:
-ToolTipText=#IODrive2#
-
-[MeterIOCapacity2]
-Meter=String
-MeterStyle=StyleIOText
-X=(#ContentX#+#ContentWidth#)
-Y=(#Inset#+62*#Scale#)
-W=(#ContentWidth#-26*#Scale#)
-StringAlign=Right
-Text=Off
-
-[MeterIOUsed2]
-Meter=Bar
-MeterStyle=StyleIOBar
-MeasureName=MeasureIOUsed2
-Y=(#Inset#+80*#Scale#)
-
-[MeterIODiskHeading]
-Meter=String
-MeterStyle=StyleIOHeader
-Y=(#Inset#+83*#Scale#)
-Text=Disk transfers
-ToolTipText=Transfer counter scope is independent of the capacity drives.
-
-[MeterIODiskStatus]
-Meter=String
-MeterStyle=StyleIOSecondary
-Y=(#Inset#+101*#Scale#)
-Text=Counters off
-
-; Original chevrons mirror the read/up and write/down instrument convention.
-[MeterIODiskReadLabel]
+; Match the CPU graph's compact frame and quarter-height grid.
+[MeterIODiskGraphTrack]
 Meter=Shape
-MeterStyle=StyleIOGlyph
+MeterStyle=StyleGraph
+Y=(#Inset#+(89+#IOBarExtra#)*#Scale#)
+H=(#IOGraphHeight#*#Scale#)
+Shape=Rectangle 0.5,0.5,(#ContentWidth#-1),(#IOGraphHeight#*#Scale#-1) | Fill Color #GraphBackgroundColor# | Stroke Color #BorderColor# | StrokeWidth 1
+Shape2=Line 1,(#IOGraphHeight#*#Scale#/4),(#ContentWidth#-1),(#IOGraphHeight#*#Scale#/4) | Stroke Color #GridColor# | StrokeWidth 1
+Shape3=Line 1,(#IOGraphHeight#*#Scale#/2),(#ContentWidth#-1),(#IOGraphHeight#*#Scale#/2) | Stroke Color #GridColor# | StrokeWidth 1
+Shape4=Line 1,(3*#IOGraphHeight#*#Scale#/4),(#ContentWidth#-1),(3*#IOGraphHeight#*#Scale#/4) | Stroke Color #GridColor# | StrokeWidth 1
+ToolTipText=Read/write history. Newest at right; current missing readings plot zero and recorded points connect linearly.
+
+[MeterIODiskGraph]
+Meter=Shape
 X=#ContentX#
-Y=(#Inset#+120*#Scale#)
-W=(10*#Scale#)
-H=(10*#Scale#)
-Shape=Line (1*#Scale#),(6*#Scale#),(4*#Scale#),(3*#Scale#) | Stroke Color #DiskReadColor# | StrokeWidth (Max(1,2*#Scale#))
-Shape2=Line (4*#Scale#),(3*#Scale#),(7*#Scale#),(6*#Scale#) | Stroke Color #DiskReadColor# | StrokeWidth (Max(1,2*#Scale#))
-ToolTipText=Disk read rate
-UpdateDivider=-1
+Y=(#Inset#+(89+#IOBarExtra#)*#Scale#)
+W=#ContentWidth#
+H=(#IOGraphHeight#*#Scale#)
+; The controller draws only observations; startup history is empty.
+Shape=Line 0,0,0,0 | StrokeWidth 0
+Hidden=1
+DynamicVariables=1
+UpdateDivider=1
+ToolTipText=Read/write history. Newest at right; current missing readings plot zero and recorded points connect linearly.
 
-[MeterIODiskWriteLabel]
-Meter=Shape
-MeterStyle=StyleIOGlyph
-X=(#ContentX#+(#ContentWidth#+8*#Scale#)/2)
-Y=(#Inset#+120*#Scale#)
-W=(10*#Scale#)
-H=(10*#Scale#)
-Shape=Line (1*#Scale#),(3*#Scale#),(4*#Scale#),(6*#Scale#) | Stroke Color #DiskWriteColor# | StrokeWidth (Max(1,2*#Scale#))
-Shape2=Line (4*#Scale#),(6*#Scale#),(7*#Scale#),(3*#Scale#) | Stroke Color #DiskWriteColor# | StrokeWidth (Max(1,2*#Scale#))
-ToolTipText=Disk write rate
-UpdateDivider=-1
+; Split-mode axis markers stay inside the single graph. Controller positions
+; and shows these only for the positive/negative view; no extra graph is drawn.
+[StyleIOGraphAxis]
+FontFace=#FontFace#
+FontSize=(Max(6,#FontSize#-2)*#Scale#)
+FontColor=#MutedColor#
+FontWeight=500
+AntiAlias=1
+ClipString=1
+StringAlign=Right
+X=(#ContentX#+#ContentWidth#-2*#Scale#)
+Y=0
+W=(12*#Scale#)
+H=(14*#Scale#)
+Hidden=1
 
-[MeterIODiskRead]
+[MeterIOGraphPositive]
 Meter=String
-MeterStyle=StyleIOText
-X=(#ContentX#+11*#Scale#)
-Y=(#Inset#+118*#Scale#)
-W=((#ContentWidth#-8*#Scale#)/2-11*#Scale#)
-H=(18*#Scale#)
-FontColor=#TextColor#
-Text=--
+MeterStyle=StyleIOGraphAxis
+Text=+
+ToolTipText=Read activity above zero in Split mode.
 
-[MeterIODiskWrite]
+[MeterIOGraphZero]
 Meter=String
-MeterStyle=StyleIOText
-X=(#ContentX#+(#ContentWidth#+8*#Scale#)/2+11*#Scale#)
-Y=(#Inset#+118*#Scale#)
-W=((#ContentWidth#-8*#Scale#)/2-11*#Scale#)
-H=(18*#Scale#)
-FontColor=#TextColor#
-Text=--
+MeterStyle=StyleIOGraphAxis
+Text=0
+ToolTipText=Zero read/write activity reference.
 
-; The native-only variant binds zero internally and keeps both bars hidden.
-[MeasureIODiskReadBar]
-Measure=Calc
-Formula=#IODiskReadSource#
-MinValue=0
-MaxValue=(Max(1,#IODiskMaxMiBs#*1048576))
-
-[MeasureIODiskWriteBar]
-Measure=Calc
-Formula=#IODiskWriteSource#
-MinValue=0
-MaxValue=(Max(1,#IODiskMaxMiBs#*1048576))
-
-[MeterIODiskReadBar]
-Meter=Bar
-MeterStyle=StyleIOBar
-MeasureName=MeasureIODiskReadBar
-Y=(#Inset#+136*#Scale#)
-W=((#ContentWidth#-8*#Scale#)/2)
-
-[MeterIODiskWriteBar]
-Meter=Bar
-MeterStyle=StyleIOBar
-MeasureName=MeasureIODiskWriteBar
-X=(#ContentX#+(#ContentWidth#+8*#Scale#)/2)
-Y=(#Inset#+136*#Scale#)
-W=((#ContentWidth#-8*#Scale#)/2)
-BarColor=#DiskWriteColor#
-
-[MeterIODiskScale]
+[MeterIOGraphNegative]
 Meter=String
-MeterStyle=StyleIOSecondary
-Y=(#Inset#+137*#Scale#)
-Text=Native capacity only
-
-[MeterIOToggle]
-Meter=String
-MeterStyle=StyleIOText
-Y=(#Inset#+154*#Scale#)
-H=(18*#Scale#)
-FontColor=#AccentColor#
-MouseActionCursor=1
-Text=Enable counters
-LeftMouseUpAction=[!ActivateConfig "Parallax\IO" "IO-Disk.ini"]
-ToolTipText=Load the optional disk counter variant.
+MeterStyle=StyleIOGraphAxis
+Text=-
+ToolTipText=Write activity below zero in Split mode; the negative sign is a display convention.

@@ -1,4 +1,6 @@
 [MediaInlineQueueRowStyle]
+X=#MediaQueueX#
+W=#MediaQueueWidth#
 H=(18*#Scale#)
 Group=QueueRows
 Hidden=1

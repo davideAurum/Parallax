@@ -26,10 +26,8 @@ MeterStyle=StylePanel
 
 [MeterHeading]
 Meter=String
-MeterStyle=StyleTitle
-Y=(#Inset#+3*#Scale#)
+MeterStyle=StyleTitle|StyleTitleRow
 W=(#ContentWidth#-34*#Scale#)
-H=(22*#Scale#)
 Text=Spotify queue
 UpdateDivider=-1
 

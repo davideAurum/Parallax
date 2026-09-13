@@ -1,203 +1,241 @@
-# Drive I/O module report
+# Disk Meter module report
 
-Status: appearance revision 2 plus main-drive header percentage and independent settings utility implemented, 2026-09-11. Drive I/O owns drives only; the dedicated Network utility owns NIC monitoring. Both variants have rendered in isolated Rainmeter 4.5.26.3894 with clean logs. This is a validated prototype appearance, not a release/performance certification.
+Status: Disk Meter supports selected or all detected drive letters with one configurable history graph. `IO-Disk.ini` remains the sole monitor entrypoint; IO paths, groups and existing preferences remain compatible. The capacity-only `IO.ini` variant remains removed. C: is the default selection.
 
-## Delivered
+## Delivered behavior
 
-- `Skins/Parallax/IO/IO.ini`: native capacity with an optional second drive; no network measures or UsageMonitor queries.
+Load `Parallax\IO`, `IO-Disk.ini` after the suite is installed. Each selected drive shows its letter/name above a used-capacity bar, with read speed, write speed and free / total capacity sharing one line below the bar. C: appears first when selected; other letters follow alphabetically. A selected disconnected drive retains an unavailable readout. **All drives** follows the detected letter inventory. The top-right percentage is the capacity-weighted used percentage across the selection; it shows `--` if any selected capacity is invalid. Each bar's tooltip gives that drive's used percentage.
 
-- `Skins/Parallax/IO/IO-Disk.ini`: alternate file in the same config, adding explicit disk read/write counters. Switching variants replaces the current IO skin.
+Exactly one graph stays below the readouts. Settings offer **C: only**, **Combined**, **Overlay** and **Split + / -**: C: only graphs C: independently of the visible readouts; Combined sums selected-drive read/write observations; Overlay draws each selected drive in its own stable color, with solid read and dashed write lines plus a wrapped drive legend. Split sums the selected drives and places reads above a center zero line and writes below it, using a symmetric range and +/0/- axis markers. Negative write positions are a display convention; the measured rate remains positive. Changing graph mode or membership resets history to avoid mixing different meanings.
 
-- `@Resources/Modules/IO/Native.inc`, `Disk.inc`, `View.inc`, `IO.lua`: module-owned sources, presentation, and formatting. The controller reads existing measures; it launches no process, polls no external helper, makes no network request, and writes no runtime files.
+The **Drive names** option selects letters only, Windows volume labels (default), Windows-reported device models, or both. Names appear beside each selected letter and in the drive-selection list. Names always occupy one line and end with an ellipsis when too wide. Full tooltips preserve clipped names; overlay legends retain compact letters with name tooltips. Name-style changes and query completion preserve existing graph observations. Empty labels show `No label / unavailable`, and unmapped device models show `Model unavailable`; the utility does not invent a volume name or infer hardware from capacity.
 
-- `Skins/Parallax/IO/Settings/Settings.ini`, `@Resources/Modules/IO/Settings.lua`, and `SettingsMeters.inc`: independent module settings utility, event-driven with `Update=-1`.
-- `@Resources/User/IO.inc`: all supported module settings in `[Variables]`, including geometry and provider selection.
-- `@Resources/Modules/IO/tests/check_geometry.py` and `ControllerSuite.lua`, `SettingsSuite.lua`, and `Run-SettingsSmoke.ps1`: development checks, excluded by packaging; no fixture telemetry is displayed in the real skin.
+Hover anywhere over the monitor to replace that percentage with the CPU-style gear. Leaving restores the percentage. The gear and **Disk Meter settings** context action open `Parallax\IO\Settings`, `Settings.ini`, a separate settings utility. Closing it leaves the monitor running. The former settings footer text is removed.
 
-Both main entrypoints join `Group=Parallax|ParallaxIO`, include defaults/global user/module user/geometry/styles in the prescribed order, provide the suite-settings context action, and use transparent bounds and painted-panel styles. Every actual meter declares its type; styles do not draw independently. The default painted panel is 200 x 174 with a 208 x 182 window. `Columns=2` widens the same instrument to the shared two-column geometry. Fixed string widths clip long labels; hover tooltips expose capacity details and provider scope.
+The title uses the exact user-selected Lucide hard-drive artwork, adapted to Rainmeter Shape paths. Its source SVG and full license are retained under `@Resources/Modules/IO/Icons/Lucide/`; [the icon README](../../Skins/Parallax/@Resources/Modules/IO/Icons/Lucide/README.md) records provenance, adaptation details and SHA256 hashes. This is the only external icon in this module; the gear and read/write chevrons remain original. No ModernGadgets code or assets were copied.
 
-No shared, root, Network, or other-module files were edited. No ModernGadgets code or assets were copied; all module code is original. No dependencies were installed, binaries downloaded, live Rainmeter configuration changed, or releases published.
+## Sources and ownership
 
-## Configuration and controls
+- `Skins/Parallax/IO/IO-Disk.ini`: main entrypoint, including defaults/global user/module user/geometry/styles before module sources; `Group=Parallax|ParallaxIO`.
+- `@Resources/Modules/IO/Inventory.inc`: separate A–Z native drive-type and volume-label probes, shared by the monitor and the independent settings utility.
+- `Native.inc`: per-letter total/free capacity and guarded used-percentage banks; recurring updates are enabled only for selected supported drives.
+- `Disk.inc`: explicit per-letter UsageMonitor read/write banks for `LogicalDisk`; selected drives and the separate C: graph source determine active banks.
+- `View.inc`, `DriveMeters.inc` and `IO.lua`: compacted per-drive readouts, formatting and one graph, without runtime history files or fabricated telemetry.
+- `Names.lua`, `Model.inc`, `DriveModels.ps1.txt`: sanitized name formatting and an explicit one-shot, read-only local model query. Model queries run only in model/both mode on config load, choosing that mode, or explicit inventory refresh. They do not poll or write runtime files.
+- `Skins/Parallax/IO/Settings/Settings.ini`, `SettingsMeters.inc`, `Settings.lua`: event-driven settings utility, `Update=-1`, `Group=Parallax`.
+- `@Resources/User/IO.inc`: module preferences. Legacy drive, second-row, removable, category and instance keys are no longer consumed.
+- `@Resources/Modules/IO/tests/`: development geometry/controller/native checks, excluded from distribution along with generated build evidence.
 
-Load `Parallax\IO`, `IO.ini` through Rainmeter after the suite is installed. The top-right header shows the main drive's **used percentage**, rounded to a whole percent; its tooltip gives one decimal place and the configured drive. The main drive defaults to C:. Invalid capacity displays `--`, while a completely free or full drive correctly displays `0%` or `100%`.
+Changes stay inside IO-owned paths and this report. Shared preview/load guidance, packaging fixtures and license notices are coordinated with the integration owner. No dependencies were installed, binaries downloaded, live Rainmeter configuration changed, or release published.
 
-Hover anywhere over Drive I/O to replace the percentage with the CPU-style gear. Leaving the skin restores the percentage. Click the gear or right-click **Drive I/O settings** to open `Parallax\IO\Settings`, `Settings.ini`, a separate two-column utility. Its close control unloads only that settings window. Both IO variants share this behavior.
+## Dependencies
 
-The settings panel offers main/second drive-letter arrows; second-row, removable-drive, and quota controls; byte/bit rate units; PhysicalDisk/LogicalDisk category; graph-ceiling presets; and All/Main/Second counter-instance shortcuts. Main/Second automatically select LogicalDisk with the selected capacity drive letter. All selects `_Total` in the current category. Capacity selection and transfer selection remain independent.
+Keep this inventory current whenever a Disk Meter feature adds, removes or changes a runtime, provider, helper, asset or fallback. It describes implemented behavior; non-letter volumes and alternative providers remain future work.
 
-Changes save immediately to the existing keys in `User\IO.inc` and refresh only the main `ParallaxIO` group. Opening settings makes no writes. The popup joins `Parallax` without `ParallaxIO`, so ordinary changes leave it open. **Load native capacity** / **Load disk counters** switch variants explicitly. Custom volume roots or exact physical-disk instances remain editable through **Edit file**, followed by **Reload**. **Edit advanced IO options** is also available in the main context menu. **Parallax settings** opens the shared suite settings.
-
-The popup uses its own `Columns=2`, `PanelHeight=326` geometry without saving those values over the main monitor's choices. It introduces no new persisted keys or helper processes.
-
-| Setting | Default | Meaning |
-
+| Dependency | Requirement and use | Missing behavior / setup |
 | --- | --- | --- |
+| Windows and Rainmeter | Required host. Built-in FreeDiskSpace and Calc provide A–Z inventory and selected-drive capacity; Script embeds Lua 5.1, and native Shape/String/Bar/Image meters render the UI. Inventory and active capacity normally sample every 30 seconds; the monitor updates every second. | Rainmeter must already be installed. Invalid/absent capacity hides its bar; optical capacity is unsupported. Native initialization can query even disabled capacity banks at refresh, including mapped drives. No separate Lua installation. |
+| Rainmeter's bundled UsageMonitor and Windows LogicalDisk counters | Required for transfer readings. Per-letter banks share one LogicalDisk category worker and two cooked counter datasets at an independent 1 Hz. Disabling an unused bank stops its updates but does not unload the worker. | Missing/nonpositive readings show `--`; graph samples use zero under the requested convention. Capacity is independent. Retained positive values cannot establish freshness. Network/removable devices may lack LogicalDisk counters. No third-party telemetry plugin or automatic setup. |
+| Rainmeter's bundled RunCommand, Windows PowerShell 5.1 and local Windows CIM providers | Optional device-model lookup when model/both is selected. One hidden process reads disk/partition/logical-volume associations and optional optical names, with a 12-second timeout. Each loaded main/settings config owns its cache. | Missing/blocked PowerShell, CIM failure, timeout or unmapped volumes leave models unavailable. Labels, capacity, rates and graph remain usable. No elevation, dependency installation, polling process or runtime file output. |
+| Shared SettingsInput.ps1, RunCommand, Windows PowerShell 5.1 and WinForms | Numeric graph-cap entry uses the suite's existing one-shot UtilityNumber helper on an explicit center click. The helper receives fixed bounds and canonical numeric arguments, writes no files, and returns its fixed data-only protocol. | Missing/blocked helper, cancellation, timeout or invalid output leaves the saved cap unchanged. Arrow presets, categorical controls and Edit file remain available. Numeric entry has a five-minute process timeout; no new module helper, installation or polling. |
+| Bundled Parallax includes and module Lua scripts | Required suite resources supply settings, layout, rendering and formatting. The settings controller runs on demand; ordinary controls need no external helper. | Missing includes/scripts are an incomplete installation; there is no standalone fallback. Module code adds no polling process, runtime history file, credentials or service. |
+| Bundled IBM Plex Sans, inherited through `FontFace` | Default typography; loaded from skin-local suite resources. No system-wide font installation. | A custom font must be available to Rainmeter. A missing font may be substituted; matching layout is not guaranteed. See the shared [font/license notice](../../Skins/Parallax/@Resources/Licenses/NOTICE.txt). |
+| Bundled Lucide hard-drive artwork and license | Native Shape paths render the user-selected title icon; the retained SVG records provenance. | No SVG renderer, icon font or runtime download. Preserve the bundled notices when distributing; see [icon provenance and license](../../Skins/Parallax/@Resources/Modules/IO/Icons/Lucide/README.md). |
+| Windows Notepad | Optional, launched only by **Edit file** or the advanced-options context action. | If unavailable, manual-edit shortcuts fail; the built-in settings controls and monitor remain usable. |
 
-| `Columns` | `1` | Shared one- or two-column width. |
+No optional third-party plugin, application or network service is currently needed for monitoring. Development checks use PowerShell, Python and an existing Rainmeter installation; these test tools and generated evidence are excluded from distribution. See [Telemetry contract](#telemetry-contract) and the shared [provider report](../PROVIDERS.md) for availability and freshness limits.
 
-| `PanelHeight` | `174` | Logical painted height. Keep at least 174 for this compact layout. |
+## Settings
 
-| `IODrive1` | `C:` | First native capacity drive. |
+The popup uses the Global Settings layout: aligned labels, compact shaded value fields, underlined section headers and a 28px row pitch. Choose all detected drives, return to C: only, or toggle individual detected/selected letters. Explicitly selected disconnected letters stay available for deselection. Refresh the inventory to find newly attached drives while settings remain open. Turning off the last individual selection saves `none`; the monitor shows a selection prompt, while C: graph mode can still graph C:.
 
-| `IODrive2` | `D:` | Second native capacity drive. |
+Drive names, Graph mode and Rate units use previous/center/next controls: arrows wrap through their supported choices, and clicking the centered value cycles forward. Graph cap has clamped preset-neighbor arrows and an editable center. All/per-drive selection and disk quotas remain toggles; navigation, refresh, reload and file editing remain commands. Values inherit body typography, arrows use Accent 1 and numeric fields use the shared bordered frame. The four control groups remain within the existing rows and independent settings width.
 
-| `IOShowDrive2` | `0` | Use `1` to enable the second row's native measures. |
+The cap editor accepts plain positive decimal **MB/s** from **0.0001 to 1,000,000,000**, with up to four decimal places. Validated MB/s is divided by 1.048576 for the existing `IODiskMaxMiBs` storage key, then revalidated as finite and positive. The editor range bounds typed entry, without rewriting older saved values outside it. Cancelling, invalid output, a concurrent cap change, or submitting the unchanged initial rounded value preserves the original saved text exactly. Unrepresentable saved values retain the Edit file route and an explanatory tooltip. User input never becomes a command or key name.
 
-| `IOIgnoreRemovable` | `0` | Includes USB/removable drives; `1` ignores them. |
+Cap arrows retain the existing eight MiB/s-valued presets and select the nearest strictly smaller/larger one. They stop without writing or refreshing at the ends, including custom values already beyond those ends. Invalid/nonpositive saved values are not silently repaired. Arrows and categorical changes launch no numeric helper; only an explicit editable-center click does. Name style arrows retain the targeted update path and preserve graph history.
 
-| `IODiskQuota` | `0` | Whole-volume capacity; `1` requests user quota semantics. |
+Explicitly saved `IODiskDrives=none` hides the Capacity quota label/value and reclaims their 28px row. The Capacity heading remains, as do detected-drive toggles, All/C presets, inventory refresh and every graph/mode/range/units control. Selecting C:, All or an individual letter restores the quota row with its unchanged saved choice. Empty inventory in All mode, disconnected providers and unavailable capacity do not trigger this collapse. No new visibility key or dependency is introduced.
 
-| `IODiskCategory` | `PhysicalDisk` | Optional counters: only `PhysicalDisk` or `LogicalDisk`. English names are translated by UsageMonitor. |
+| Key | Current default | Meaning |
+| --- | --- | --- |
+| `Columns` | `1` | Main panel width using shared column geometry. |
+| `PanelHeight` | `157` | Saved minimum main panel height in logical pixels; thicker capacity bars can increase the derived height without changing this value. |
+| `IODiskDrives` | `C` | `all`, `none`, or a sorted, unique uppercase comma-separated list such as `C,D,F`. Only A–Z letter roots are supported. |
+| `IOGraphMode` | `combined` | `c` for C: only, `combined` for the selected-drive sum, `overlay` for individual traces, or `split` for selected reads above zero and writes below zero. |
+| `IODriveNames` | `volume` | `letters`, `volume`, `model` or `both`. Volume labels use native measures; models use the optional one-shot query. Unknown values display the volume mode without rewriting the preference. |
+| `IODiskQuota` | `0` | `1` respects the current user's Windows disk quota; `0` uses whole-volume capacity. |
+| `IODiskUnits` | `bytes` | Decimal byte or bit rates. Byte displays use KB/s and MB/s, with 1 KB = 1,000 bytes. Capacity uses decimal GB. |
+| `IODiskMaxMiBs` | `500` | Compatibility storage key for the history scale cap in MiB/s; the UI converts it to decimal MB/s without changing the actual byte limit. |
 
-| `IODiskInstance` | `_Total` | Exact performance-counter instance; `_Total` explicitly selects the category aggregate. Blank/whitespace instances are rejected in the display. |
+Stored preset scale caps remain 10, 50, 100, 250, 500, 1000, 2000 and 5000 in their original MiB/s units. Settings and graph tooltips show the equivalent decimal MB/s; the default stored 500 is 524.288 MB/s. Editable numeric values show up to four decimals with redundant zeros removed, preserving small positive limits. Opening settings performs no writes. Explicit controls validate only their outgoing keys, then refresh the main `ParallaxIO` group, except name-only changes: those publish the new variable and invoke the fixed main `ApplyNamesMode()` callback without reloading or sampling history. The popup remains open because it is outside that group. Unrelated/custom saved values survive an individual change. Malformed selections fall back to C: for display without rewriting the file; missing new keys preserve C: with Combined mode and volume labels.
 
-| `IODiskUnits` | `bytes` | `bytes`: binary B/s, KiB/s, MiB/s; `bits`: decimal bit/s, kbit/s, Mbit/s. Capacity always uses binary bytes. |
+**Open Disk Meter** always targets `IO-Disk.ini`. **Edit file** permits manual preferences; **Reload** refreshes the main group and this settings utility. **Close** unloads only settings. The shared utility note links to Global Settings. The popup remains two columns wide and grows for its visible drive rows; its runtime layout does not overwrite the monitor's saved dimensions.
 
-| `IODiskMaxMiBs` | `500` | Each transfer bar's fixed ceiling in MiB/s, independent of text units. Positive number required. |
+## Telemetry contract
 
-For a logical-volume transfer view, use `IODiskCategory=LogicalDisk` and the exact volume instance shown by Windows Performance Monitor, commonly `IODiskInstance=C:`. For an individual physical disk, find its exact instance in Performance Monitor; do not assume a disk index or hardcode machine-specific identifiers into a distributable package. Capacity drive selection and disk transfer instance selection are independent. The optional heading names the transfer category/instance so `_Total` is not presented as the capacity drive's traffic.
+Native `FreeDiskSpace` inventory and enabled capacity measures sample at `Max(5,Ceil(CapacityInterval/1000))` seconds, normally 30 seconds. Inventory probes letter roots A–Z; mount-point-only volumes are outside this scope. Rainmeter's type values are 3 removable, 4 fixed, 5 network, 6 optical and 7 RAM disk. Optical drives can appear in the inventory but capacity is unsupported. `IgnoreRemovable=0` enables removable capacity. The controller requires a supported current type, positive finite total and finite free bytes in 0..total before displaying capacity or its bar. Type state gates cached readings after disconnection.
 
-The shared `CapacityInterval` remains authoritative. Capacity measures use `Max(5,Ceil(CapacityInterval/1000))` with the one-second skin tick: 30 seconds by default, rounded upward, minimum five seconds. The heading tooltip reports the configured cadence. Drive appearance/removal can therefore take up to the next capacity sample to appear. Settings take effect on refresh; the telemetry controller never writes settings. The separate settings controller writes only in response to explicit controls. Global scale/color/font overrides continue to apply through shared includes.
+Volume labels use separate `FreeDiskSpace` measures with `Type=0`, `Label=1` and `IgnoreRemovable=0`; combining type and label modes would return the type instead. Label probes share the inventory cadence and can query volume information even for optical/removable letters. An empty label cannot distinguish an unnamed volume from a failed query. Current native type gates cached names for absent letters.
 
-Transfer bars show the current reported sample relative to the configured ceiling; this prototype does not retain historical graphs. Text preserves the reported magnitude when the bar saturates. Capacity bars and the main-drive header show percentage used, while row text shows free and total capacity.
+Model lookup maps `Win32_DiskDrive.Model` through `Win32_DiskDriveToDiskPartition` and `Win32_LogicalDiskToPartition`; a separate optional `Win32_CDROMDrive.Name` lookup covers optical letters. Optical roots accept one ASCII letter, colon and optional trailing backslash, including `D:`, `d:` and `d:\`, then canonicalize the letter to uppercase. Other paths are rejected. A volume mapped to multiple models joins distinct names with semicolons. These are Windows device names and may describe virtual devices; network/mount-point-only volumes may have no model mapping. Models stay cached until an explicit query completes; hotplug or letter reuse can leave cached models outdated until **Refresh drives**. No automatic model poll is introduced. Refresh drives updates native inventory and requests models in both loaded IO windows; a later ordinary monitor update handles any membership/history change.
 
-## Honest data states
+The helper emits only a versioned status and A–Z model records, never serial numbers, device identifiers, commands or files. Its association data remains transient. The Lua parser bounds packet size/records and rejects malformed output. Names neutralize control characters, Rainmeter variable/measure expansion syntax and format placeholders before becoming text or tooltips. Ordinary Rainmeter Lua scripts use the system ANSI bridge, so names outside the active Windows code page may be substituted; the formatter preserves supported non-ASCII bytes rather than treating them as invalid UTF-8.
 
-| Condition | Display behavior |
+UsageMonitor queries each letter's `LogicalDisk / Disk Read Bytes/sec` and `Disk Write Bytes/sec`, with `Rollup=0`, `Percent=0`, `RawValue=0`. These are logical-volume cooked rates, not Process I/O or whole-physical-device totals. A fixed bank supports up to 26 volumes without generating runtime files. The controller enables selected present rate banks, plus C: when the graph needs it independently. Capacity banks enable only selected supported volumes. Changes in effective membership force one immediate bank update; stable membership does not repeatedly enable/update banks. The monitor's inventory remains active, and all plugin banks share the independent 1 Hz worker even while disabled. Settings inventory runs at load or explicit refresh because that skin retains `Update=-1`. There are no repeated shell or helper launches.
 
+A finite positive provider value is formatted as reported. Zero, missing and nonfinite readings display `--`. The previous visible status and read/write-limit labels are removed; rate and graph tooltips retain availability/freshness information. UsageMonitor cannot prove current availability/freshness from its values, and failed collections can leave a positive value retained. The display does not invent confirmed idle or successful timestamps.
+
+The graph keeps 60 nominal one-second observation slots in memory, newest at the right, without prefilled samples. C:, Combined and Split modes use the shared direction colors. Overlay uses deterministic drive colors and solid-read/dashed-write strokes; its legend identifies each drive. Null, nonfinite and nonpositive current readings plot at zero, while unavailable rate text retains `--`. Combined and Split therefore sum available positive observations with zero placeholders, not a certified complete physical-disk total. Recorded points connect with straight lines across missed intervals at their retained time positions. A single observation appears as a dot. Clock rollback, refresh, graph-mode changes and selected membership changes reset history. Graph zeros and interpolation are display conventions, not proof of idle activity or measured values between observations; tooltips explain this and unknown provider freshness.
+
+All visible graph traces share an automatic vertical range based on the retained positive peak with 15% headroom and a 65,536-byte/s minimum (65.536 KB/s), bounded by `IODiskMaxMiBs`. Tooltips convert the actual range/cap to decimal MB/s. Split applies that same magnitude symmetrically to both halves, with zero at the exact frame midpoint, reads moving upward and writes downward. Its values beyond the cap clip to the corresponding positive/negative edge; other modes clip at the top. Speed values retain their original positive formatting independent of graph clipping. Invalid limits/geometry hide traces. Empty Combined/Overlay/Split selections leave blank traces; Split keeps its axis reference. Unused shapes are cleared, and overlay history remains bounded to at most 26 drives × 60 observations with two rates each. No additional provider, polling process or runtime history file is introduced.
+
+## Appearance
+
+Capacity bar tracks and fills inherit `DataBarThicknessPx=Max(1,Round(DataBarThickness*Scale))`. The default is 6 logical pixels, matching CPU Meter; supported values are 1–12 with two decimal places. The one-screen-pixel minimum preserves thin bars at 75% scale. Each bar remains centered in its base 6px slot when thin. Let `extra=Max(0,DataBarThicknessPx/Scale-6)` for a nonempty selection: the first name is at y42, bar at y60, the shared speeds/capacity row at y68+extra, and graph at y89+extra. Blocks repeat every `50+extra` logical pixels in all name modes. The name keeps full content width. The summary line divides the width remaining after two 4px gaps into 28% read, 28% write and 44% right-aligned capacity; chevrons stay inside their rate cells. Empty selection retains graph y89 and minimum157 without reserving name/status/bar rows. Overlay adds 18px per wrapped legend row. The derived panel minimum is `157+extra+(count-1)*(50+extra)+legendHeight` for selected drives, preserving larger saved `PanelHeight` without writing preferences. Hidden rows return to Y=0 so they cannot enlarge the window.
+
+The 62px graph retains CPU's square frame and quarter-height grid. Split emphasizes the center zero line and shows +/0/- markers at the right edge. Graph traces, grids and icon strokes keep their separate thicknesses. Capacity and speed values use `TextColor`. Combined/C:/Split graphs and read/write chevrons use shared direction colors; overlay trace/legend colors identify drive letters. At width 220 / scale 1 / one column with only C: and default thickness 6, the main window is 228x165 in every name mode. Settings use independent double-column width and dynamic height for their detected/selected drive rows. The names field occupies y130, with drive rows starting y184; wide labels reserve a fixed right-aligned On/Off cell.
+
+The supplied SVG's 24-unit coordinates, radii and two-unit stroke scale by `TitleIconSize / 24`, with round caps and joins. The title uses `StyleTitle|StyleTitleRow`, with an icon-aware X/width, a four-logical-pixel gap and reserved percentage space. The icon, title, right-aligned body-size percentage and fixed 18px hover gear share `TitleRowCenterY`; icon size grows with `TitleFontSize`. The popup title and close control share that center; the shared note/link remain at y32 / y50.
+
+The shared title center is logical y15 and the 22px title box spans 4..26; the main capacity heading begins at24. This is a 2px declared-box overlap; the inspected maximum-font baseline has clear actual glyphs. Bounds checks alone do not prove text ink separation. Settings semantic section separators use `StyleRule` and the divider variables. Table-header styling remains separate and is not used for these sections.
+
+The Drives, Graph / display and Capacity section headings inherit `HeaderFontSize` and Accent 1 through `StyleUtilitySettingsSection`, with no module color override. Labels and value fields retain the body `TextColor`; monitor headings retain their existing header role.
+
+Drive-name and summary-cell meters use a standalone module style matching shared body typography, explicit bounded W, `ClipString=1` and no local or inherited H. Rainmeter calculates natural single-line height and trims with an ellipsis. This avoids the two-line wrapping that a fixed 18px text box could permit with very small fonts. The 18px row allocation and settings field pitch stay unchanged. Full sanitized names, formatted rates and free / total capacity remain in tooltips. The compact capacity text shows a shared unit only when the existing formatted units match, such as `26.8/107.4 GB`; differing units retain both. Compact rate text removes number/unit spacing and redundant `.0` while keeping KB/MB/GB or bit units and `/s`. These changes do not alter rounding, underlying values or graph observations. Narrow cells can ellipsize long readings without overlap or wrapping.
+
+## Current validation
+
+The Split graph and settings stepper revision passed **115 tests / 77,619 assertions** under native Rainmeter Lua 5.1: controller 43 / 50,861; settings 47 / 25,795; names 25 / 963. Focused additions verify selected-drive sums above/below the exact midpoint, symmetric scale/cap handling, zero and linear interpolation, cached reflow and mode transitions. Settings cases cover previous/next wrapping, clamped preset neighbors, continuous typed MB/s conversion, strict protocol/range/precision validation, cancel/unchanged preservation, concurrent edits and reentry. Source geometry passed **328,925 bounds/allocated-row checks**, including all four complete steppers and three split-axis markers, with 182 native bindings, 208 hidden drive/legend meters and one graph/frame pair.
+
+The isolated default-width run used width220 / scale1 / default fonts / bar6 / All / Both / Split. Main/settings measured 228x315 / 456x586; settings and the later real-observation graph capture were inspected, showing simultaneous opposite-direction traces around the zero line. Name changes and inventory refresh preserved the main initialization/history. A test-only command suffix invoked the actual frozen shared numeric helper with `-ValidateOnly -Value 123.4567`; the production result callback persisted the exact MB/s-to-compatibility-key conversion, and the refreshed main read it back. This exercises the real process/protocol/save flow without claiming an interactive editor-window check. Evidence: `build/Parallax-io-settings-smoke-20260913T022921714Z-8a5d75de`.
+
+The narrow run used width180 / scale0.75 / maximum fonts / bar12 / None / Both / Split. The empty main measured 141x124 with its center reference and +/0/- markers visible. Settings measured 282x419 with the quota row collapsed; selecting All restored it to 282x440, exactly 28 logical pixels taller. Initial main, initial settings and restored settings captures were inspected. Graph mode and selection persistence/main readback passed. Both final runs passed gear activation, units save/refresh and independent settings close with zero Rainmeter errors; they each ran the same 115 Lua tests. Evidence: `build/Parallax-io-settings-smoke-20260913T023306190Z-3119e5e7`. These are isolated own-process checks, not changes to the user's live configuration or proof of release/performance readiness.
+
+The device-model helper remains at accepted SHA256 `DF1871C581861ACC8C645EF7B50AED2F86D6BEE9FD538DE8D534FA5CE4EDA236`. Numeric entry depends on the integration-owned shared helper at SHA256 `6FFC3A1B0E9D373B9317B948F8A1F5B18D9B1277E45C5A66BF83EADFF617631B`; this module adds no helper script. The integration owner separately validated the shared editor's actual window and Enter/Escape behavior; module-local native evidence above covers its headless protocol path. Physical pointer testing of the new arrows and full runtime resource-cost measurement remain unverified.
+
+The preceding single-line summary revision passed **104 tests / 75,879 assertions** under native Rainmeter Lua 5.1: controller 39 / 50,521; settings 40 / 24,395; names 25 / 963. The existing controller matrices now verify matching rate/capacity Y coordinates, three bounded X/W cells, two 4px gaps, compact-format fidelity with full tooltips, original graph observations and the reclaimed 18px per-drive row. Source checks passed **318,050 bounds/allocated-row checks**, including natural single-line style constraints for all summary cells.
+
+Final isolated evidence is `build/Parallax-io-settings-smoke-20260913T020906129Z-a0f3a0fd`, at width180 / scale0.75 / maximum fonts / bar12 / All / Both / Overlay. Main/settings measured 141x268 / 282x440; both captures were inspected. The readings share a single line below each bar, with ellipses for narrow cells and one shared graph. Name mode and inventory actions preserved main initialization/history; gear/units persistence/main readback/independent settings close passed with zero Rainmeter errors. Provider/helper source remained unchanged from the independently accepted optical normalization hash.
+
+The earlier row-order revision placed read/write speeds and capacity status on separate lines below each bar, with the clipped drive name above. All name modes shared the same geometry, so changing the name mode did not reflow graph/readout meters. It passed **104 tests / 49,244 assertions** under native Rainmeter Lua 5.1: controller 39 / 23,886; settings 40 / 24,395; names 25 / 963. The controller matrices verified the name/bar/speeds/status ordering, full-width name/status rows, supported bar/font/scale combinations, unavailable rows, and zero-row graph/minimum height with no extra bar space. Source checks passed **318,050 bounds/allocated-row checks** with zero whitespace errors. The single-line revision above supersedes this layout.
+
+Final isolated width-180 / scale-0.75 / maximum-font / bar-thickness12 / All-drives / Both / Overlay evidence is `build/Parallax-io-settings-smoke-20260913T015838360Z-6d8dd6cc`. Main/settings measured 141x322 / 282x440; both final captures were inspected. All four real name/model mappings rendered, long main names clipped with ellipses, and speeds/status fit below the bars before the single graph. Name save and inventory refresh preserved main initialization/history; units save/main readback, gear activation and independent settings close passed with zero Rainmeter errors. An earlier identical sample passed the logic/rendering checks but exceeded the runner's 16-second action deadline; the names-action case now uses the existing 30-second allowance and completed successfully. This allowance changes only the isolated test runner.
+
+The drive-name revision passed **104 tests / 43,578 assertions** in the installed Rainmeter Lua 5.1 runtime: controller 39 / 18,220; settings 40 / 24,395; names 25 / 963. Tests cover mode defaults and persistence, exact fixed query/callback dispatch, cached packet invalidation, hostile/malformed names and responses, missing/absent labels/models, long strings, named 1/26-drive layouts, empty selection, metadata-only reflow and preserved graph observation positions. The actual PowerShell helper passed **34 synthetic mapping assertions** covering association direction, multiple models, deduplication, optical independence, failure handling, bounded output and sanitization. These include the optical-root normalization fix requested during independent review: four accepted root forms and eleven rejected malformed/non-ASCII paths. Only the relevant helper checks reran for that normalization. Fixtures contain no host identity data.
+
+The revised source checker passed **318,050 bounds/allocated-row checks**, 182 native bindings, 208 hidden drive/legend meters, all settings actions and one graph/frame pair. Its four typography profiles now include the minimum 6pt font endpoint. Name meters must resolve to bounded width, `ClipString=1` and no H; the checker uses their reserved 18px row envelope rather than claiming to measure native glyph height.
+
+An isolated width-220 / scale-1 / maximum-font / All-drives / Both-names / Overlay run rendered four real mapped device names with their available native labels. Main/settings windows measured 228x405 / 456x586; both captures were inspected. Name-style save and explicit inventory refresh reached the main without another initialization, then units save/refresh and independent settings close passed with zero Rainmeter errors. Evidence: `build/Parallax-io-settings-smoke-20260913T014459692Z-da58444b`. A preceding restricted-environment run verified honest model-unavailable output with labels intact. Actual host names remain in ignored test evidence only, never distribution files or fixtures.
+
+A width-180 / scale-0.75 / minimum-6pt-font native case injected explicitly marked TEST-ONLY long spaced names into the main/settings name meters. Both retained exactly the same measured native height as a short comparison name, and both captures visibly end the long name with an ellipsis on one line. Main/settings measured 141x292 / 282x440. The 104 Lua tests, gear/units/refresh/close lifecycle and zero-error check passed again. Evidence: `build/Parallax-io-settings-smoke-20260913T014549478Z-1d263aa2`. The fixture changes only generated test name text, never distribution names or telemetry.
+
+During test development, loading the test-only names library at Lua top level caused the isolated Rainmeter process to exit with an access violation. Moving that load into the test script's `Initialize()`, matching both production controllers, resolved it; final native runs passed. The exact native failing dereference was not determined. Production source did not require a provider workaround.
+
+All three settings headings inherit Accent 1 from the revised shared style. The existing geometry checker verifies that mapping while preserving body-color and size checks. Explicit-none quota collapse passed **67 tests / 37,466 assertions** under Rainmeter Lua 5.1 (controller 34 / 15,068; settings 33 / 22,398). Focused cases cover five scales, quota values 0/1/custom, empty and populated inventory, hidden label/value options and Y=0, exact row-height reduction, none→C/All/offline individual recovery, and preservation without quota or panel-height writes. All mode with no detected drives and unavailable providers retain quota controls; graph/mode/range/units and recovery controls remain available throughout.
+
+A fresh isolated width-180 / scale-0.75 / maximum-font native run started with `IODiskDrives=none` and independent C: graph mode. Settings measured 282x398 with the quota row absent; selecting All restored it at 282x419, exactly 28 logical pixels (21 screen pixels) taller. Both settings captures and the 141x124 main capture were inspected, including Accent 1 headings, the retained C: graph and recovery controls. Units/drive/graph controls persisted and the main readback matched; settings closed independently with zero Rainmeter errors. Evidence: `build/Parallax-io-settings-smoke-20260913T011320936Z-78f6a78c`. The updated runner captures the restored settings window before close. Source geometry and scoped whitespace checks passed. Native hit testing is represented by hidden meter state and rendering; physical pointer testing remains a runtime limitation.
+
+The multi-drive implementation passed **64 tests / 19,142 assertions** under Rainmeter Lua 5.1: controller 34 / 15,068 and settings 30 / 4,074. Tests preserve the existing units, graph conventions and settings controls, and cover canonical selections, invalid values, disconnected drives, All-mode hotplug fixtures, weighted capacity, bank activation/cache behavior, independent C: graphing, combined sums, stable overlay colors/dashes, legend wrapping and history resets. The controller runs its actual 26-drive layout across widths 180/220, scales 0.75/1/2, thicknesses 1/6/6.01/8.5/12 and Combined/Overlay modes. Synthetic data stays inside the mock environment.
+
+The separate source checker passed **239,000 declared/padded meter bounds**, 156 per-letter provider bindings, 208 hidden drive/legend meters, all 26 settings toggles and exactly one graph/frame pair. It covers six widths, five scales, three typography profiles, five bar thicknesses and larger saved height. It verifies compact shaded value fields, paired label actions, shared typography and section-divider semantics. It explicitly does not treat hidden Y=0 templates as proof of runtime compaction. Scoped whitespace checks passed.
+
+Native checks used a previous coherent test snapshot overlaid only with current IO files and shared appearance inputs; other in-progress utility edits were excluded. Only the runner's own offscreen Rainmeter process/configs were loaded and captured. At width 180 / scale 0.75 / maximum fonts / thickness 8.5, selecting `A,C,Z` with Overlay produced a 141x217 main window and a 282x461 settings window. Both captures were inspected: disconnected rows are honest, the compact settings fields fit, and the graph has one three-drive legend with solid/dashed traces. The runner then exercised units, All drives and graph-mode changes; persisted values and refreshed-main readback matched. Closing settings left Disk Meter running, with zero Rainmeter errors. A later real-observation capture shows All drives with the independently selected C: graph in a 141x242 window. Evidence: `build/Parallax-io-settings-smoke-20260913T004348153Z-4d1c7c35`.
+
+An earlier width 220 / scale 1 / maximum-font sample rendered four real detected drive rows with Combined history (228x315 main, 456x558 settings); both captures were inspected. All Lua suites passed, but the smoke runner's close deadline expired while its expanded matrix reran on settings refreshes. The runner now executes the synthetic matrix once per isolated run and allows bounded time for extra native refreshes. The successful sample above verifies the corrected lifecycle. Earlier evidence: `build/Parallax-io-settings-smoke-20260913T004200738Z-4751fbc1`. No whole-suite release or performance claim is made.
+
+### Prior C-only global data-bar validation
+
+Global data-bar thickness passed **26,050 declared meter bounds across 1,375 configurations**. The existing matrix now includes thicknesses 1, 6, 6.01, 8.5 and 12 across six widths, five scales, both main column counts and three typography profiles, plus a focused saved-height-200 check. It verifies rounded physical thickness, thin-bar centering, thick-bar top anchoring, capacity/rate/graph clearance, frame alignment and bottom padding. Saved `PanelHeight` remains unchanged. These are formula checks, not a reproduction of Rainmeter's variable expansion order or glyph rendering.
+
+The existing isolated smoke runner accepts an optional `-DataBarThickness` override in its generated copy only. The final rounded layout passed native samples at thickness 1 / width 180 / scale 0.75 and thickness 8.5 / width 220 / scale 1, both with maximum typography. Each passed **37 tests / 1,264 assertions**, gear activation, units persistence, main refresh and independent settings close, with zero Rainmeter errors. Source/fresh-stage static validation passed 20 configs / 74 INI/include files with zero errors/warnings, and scoped whitespace checks passed. The inspected main captures confirm the thin bar remains visible and fractional thickness retains spacing.
+
+| Thickness sample | Main / settings window | Evidence directory under `build/` |
+| --- | --- | --- |
+| 1 logical px, scale 0.75, width 180, hover replay | 141x124 / 282x203 | `Parallax-io-settings-smoke-20260913T001723054Z-b2937d22` |
+| 8.5 logical px rendered at 9 px, scale 1, width 220 | 228x168 / 456x270 | `Parallax-io-settings-smoke-20260913T001826967Z-a44627c5` |
+
+A preceding thickness-12 / scale-1 sample passed the same suites and lifecycle with a 228x171 main window and zero errors (`Parallax-io-settings-smoke-20260913T001450992Z-14106b73`). That sample used the earlier unrounded formula, which gives the same dimensions at this integer endpoint; the final formula has separate matrix coverage at 12. Native testing first exposed an early `WindowHeight` expansion referencing a later module variable. Inlining the required pixel calculation in the derived panel height corrected that defect. Test runs used only generated copies and their own Rainmeter processes; no source preference or live configuration was changed.
+
+### Fixed 6px capacity-bar baseline
+
+The capacity-bar thickness revision matches CPU Meter's `CPUStyleRowBar`: 6 logical pixels multiplied by Scale. A read-only review confirmed all 64 CPU core bars inherit that height without meter or runtime overrides. The existing geometry matrix passed 5,130 bounds checks with the new y68 rate row, y89 graph and 157px panel. Scoped whitespace checks passed.
+
+The isolated width 220 / scale 1 / maximum-font native sample passed 37 tests / 1,264 assertions and the settings lifecycle checks with zero Rainmeter errors. Source and fresh-stage validation passed 20 configs / 73 INI/include files with zero errors/warnings. The inspected main capture shows the thicker bar with clear spacing before the speed row; the main window is 228x165 and settings 456x270. Evidence: `build/Parallax-io-settings-smoke-20260913T000407347Z-984e14a6`. No telemetry, controller or settings behavior changed for this appearance adjustment.
+
+### Decimal units, footer removal and graph convention validation
+
+The decimal-unit/footer/zero/interpolation revision passed **5,130 meter bounds checks** across the supported geometry matrix and **37 tests / 1,264 assertions** under Rainmeter Lua 5.1 (controller 21 / 420; settings 16 / 844). The updated checks verify exact 1,000-byte/s and 1,000,000-byte/s conversion, MB/s display of unchanged stored caps, zero plotting for missing current samples, straight connections across skipped intervals, baseline retention, and safe trace bounds. Settings tests verify the default cap displays 524.3 MB/s, exposes 524.288 MB/s in its tooltip and retains the stored 500 value without writes.
+
+A fresh source/stage structural check passed 19 configs / 71 INI/include files with zero errors/warnings. The isolated native run at width 220, scale 1 and title/header/body 12/10/10 passed gear activation, units persistence, main refresh and independent settings close, with zero Rainmeter errors. Its main window is 228x160 and settings 456x270. Evidence: `build/Parallax-io-settings-smoke-20260912T233642385Z-7e7add1e`, including initial main/settings captures, a 12-second additional real-history capture, suite reports and its log. All three images were inspected: KB/s and MB/s are visible, the footer is absent, the compact graph fits, and the later sample includes a null current read plotted at the baseline while its speed text remains `--`. The later capture uses bit-mode speed text because the lifecycle check exercises the existing units toggle; the initial capture shows byte mode.
+
+### Graph/name/layout baseline validation
+
+The graph/name/layout revision passed **5,310 meter bounds checks** across six widths, five scales, both main column counts and three typography profiles. Its existing controller suites passed **37 tests / 1,174 assertions** under Rainmeter Lua 5.1: 21 tests / 333 assertions for the main controller, and 16 tests / 841 assertions for settings. New history checks cover an initially blank window, right alignment, the 60-slot bound, expired peaks, independent traces, gaps, isolated points, clock interruptions, refresh reset, autoscale/cap behavior, finite geometry and cached non-history updates.
+
+Fresh source/stage structural validation passed 19 configs / 69 INI/include files with zero errors/warnings; scoped whitespace checks passed. A read-only review checked the frame/grid geometry, removed meters, display rename and own-PID capture confinement. It identified a pre-existing timing race in the smoke runner; staged popup actions now wait for capture completion and removal of the main reopen action before exercising save/close.
+
+Both native samples below passed gear activation, units persistence, main refresh and independent settings close, with zero Rainmeter errors. All five captured images were opened and inspected: speeds sit directly below capacity, the status/limit text is absent, the Disk Meter name fits, and the two-color scrolling trace stays within the CPU-style frame. `-HistorySeconds 35` adds a capture of real C: observations after the tested refresh, without injecting sample data.
+
+| Current graph sample | Main / settings window | Evidence directory under `build/` |
+| --- | --- | --- |
+| Width 220, scale 1, title/header/body 12/10/10, plus 35-second history capture | 228x182 / 456x270 | `Parallax-io-settings-smoke-20260912T232433649Z-ad45760f` |
+| Width 180, scale 0.75, title/header/body 10/8/9, hover replay | 141x137 / 282x203 | `Parallax-io-settings-smoke-20260912T232506652Z-388ac519` |
+
+The standard-size stage includes `captures/IO-history.png`; both stages also retain the initial main/settings images, suite reports, units readback and isolated Rainmeter log. The longer capture visibly contains additional observations farther to the left, with new activity at the right. Native coverage remains these samples, while the mocked suite exercises full-window expiry and missing observations. The first staging attempt encountered a concurrent incomplete RAM include and stopped before native execution; the fresh copies passed structural validation and loaded only IO configs. No RAM runtime validation or whole-suite freeze is claimed.
+
+### Heading and unit revision validation
+
+The latest heading-removal/decimal-capacity revision passed **5,670 meter bounds checks** over the same geometry matrix below. Its existing Rainmeter Lua suites passed **30 tests / 979 assertions** (controller: 14 / 138; settings: 16 / 841), including exact conversion of 1,000,000,000 bytes to 1.0 GB. Source and fresh-stage static validation passed 19 configs / 68 INI/include files with zero errors/warnings. The scoped whitespace check passed.
+
+A fresh isolated native run at width 220, scale 1 and title/header/body sizes 12/10/10 passed gear activation, units save, main refresh and independent settings close, with zero Rainmeter errors. Evidence is `build/Parallax-io-settings-smoke-20260912T225305730Z-8e010c70`; the main capture was inspected and confirms decimal GB figures, removal of the activity heading and fitting shifted rows. Main/settings windows remain 228x182 / 456x270. This is one visual sample for the latest change, not a new exhaustive DPI check.
+
+### C:-only baseline validation before the heading/unit revision
+
+The preceding C:-only sources passed these checks:
+
+- Source and fresh-stage static validation: 19 configs, 68 INI/include files, zero errors/warnings. These suite-wide totals reflect the concurrent workspace at validation time.
+- Numerical geometry: **5,850 meter bounds checks**, plus shared title centers, proportional icon canvas and horizontal gaps. The matrix uses widths 180/200/220/240/280/320, scales 0.75/1/1.25/1.5/2, main columns 1/2, popup columns 2, and title/header/body profiles 6/8/9, 10/8/9, 12/10/10.
+- Actual production controllers under Rainmeter Lua 5.1 using isolated mock SKIN environments: **30 tests, 980 assertions, zero failures**. ControllerSuite contributes 14 tests / 139 assertions; SettingsSuite contributes 16 tests / 841 assertions. Coverage includes valid/full/empty/unavailable capacity, reported/ambiguous rates, display units/ceiling, cadence/cache, preset validation, persistence, refresh scope and independent close.
+- A read-only cross-file review found no binding, scope or retired-selector references requiring correction. Source searches found no remaining production or test link to the deleted entrypoint or old configurable disk keys. The surviving `...1` capacity measure/meter suffix is internal naming, not a configurable selection.
+
+Two fresh-stage native checks ran in existing Rainmeter 4.5.26.3894 using the isolated runner. It launches/captures/stops only its own PID and uses its own INI/SkinPath, leaving live Rainmeter untouched. Both captures from each run were opened and inspected: the new icon, C: row, activity area and compact popup fit without observed clipping or collisions.
+
+| Sample | Main / settings window | Evidence directory under `build/` |
+| --- | --- | --- |
+| Width 220, scale 1, title/header/body 12/10/10 | 228x182 / 456x270 | `Parallax-io-settings-smoke-20260912T224517974Z-d6244bc1` |
+| Width 180, scale 0.75, title/header/body 10/8/9, hover replay | 141x137 / 282x203 | `Parallax-io-settings-smoke-20260912T224625481Z-3a3a4eec` |
+
+Each native run passed the 30 tests / 980 assertions and the actual gear target activation, units save, refreshed-main units readback and independent settings close, with zero Rainmeter errors. Evidence includes `captures/IO.png` or `IO-hover.png`, `captures/IO-Settings.png`, `suite-results.txt`, `main-observed-units.txt` and the isolated log. The hover sample replays the source enter/leave actions; it is not a physical pointer test. Instrumentation and temporary typography overrides exist only in generated copies. The production popup remains event-driven.
+
+### Earlier prototype evidence
+
+The following records concern earlier variants/layouts and are retained as history, not proof of current C:-only behavior. The prior 46 tests / 1,489 assertions included controls since removed; current results above supersede them.
+
+| Earlier check | Evidence directory under `build/` |
 | --- | --- |
+| Native capacity `IO.ini`, width 180/scale 1, independent settings lifecycle | `Parallax-io-settings-smoke-20260911T185405166Z-d23a9e60` |
+| Native capacity `IO.ini`, width 180/scale 0.75, hover/lifecycle | `Parallax-io-settings-smoke-20260911T185543248Z-146c1cbf` |
+| Earlier IO-Disk, width 200/scale 1, maximum fonts and thick surfaces | `Parallax-io-settings-smoke-20260911T231632456Z-8a4f1a10` |
+| Earlier IO-Disk, title 6/scale 2/width 220, preliminary center 16 | `Parallax-io-settings-smoke-20260912T212643522Z-758116d2` |
+| Native capacity `IO.ini`, title/header/body 12/10/10, final center 15 | `Parallax-io-settings-smoke-20260912T212912479Z-6f83f747` |
 
-| Valid drive total and free bytes, including zero free bytes | Capacity values and used-space bar. A full disk is valid, not missing. |
+Earlier one-time host checks established native capacity availability and valid `PhysicalDisk(_Total)` cooked counters. They do not validate the current C: selector. Current captures show the actual C: logical-volume provider running, without claiming a Performance Monitor comparison or benchmark.
 
-| Native drive type `Error`/`Removed`, or invalid/zero total | Missing/unavailable text and hidden used-space bar. |
+## Runtime limits and later work
 
-| Optical drive | Explicit unsupported-capacity text. |
+This is a prototype, not release or performance certification. Physical mouse hit testing, full restart persistence, quota behavior, missing-plugin/counter installations, real device hotplug, extreme values, all fonts, mixed Windows DPI, edge snapping and exhaustive visual combinations remain release checks. Compare per-volume rates against Performance Monitor and measure the bank/overlay CPU and power cost with the suite loaded. Large drive selections create tall panels; dense overlays can be difficult to distinguish despite the legend.
 
-| Removable drive intentionally ignored | Ignored or unavailable text, depending on the native type response. |
-
-| Second drive disabled | `Off` beside its configured drive; its three native measures are disabled. |
-
-| Native-only variant | Disk counters off; read/write `--`; no UsageMonitor worker requested by IO. |
-
-| Optional positive cooked disk rate | Provider-reported value and bar, with visible `Reported; age unknown` status. |
-
-| Optional zero, negative, nonfinite, missing measure, or initial sample | `--` for that direction; its bar is hidden. The label explains idle/unavailable ambiguity. |
-
-| Unsupported category or blank instance | Configuration/status message; values and bars suppressed. |
-
-UsageMonitor cannot reliably distinguish a missing counter from a valid idle zero. A named query's returned string can equal the configured name even when the instance is absent. A zero indexed query can have an empty string even when valid. Failed collection can retain old nonzero values. Consequently the module never treats the returned name as a presence probe, never invents a freshness timer, and never labels an unsupported zero as measured throughput. A positive value is explicitly only provider-reported. A flat value is not proof that it is stale.
-
-`RawValue=0` and `Percent=0` preserve cooked `Disk Read Bytes/sec` / `Disk Write Bytes/sec` values in B/s. `RawValue=1` would expose the raw cumulative counter. `Rollup=0` preserves exact instance semantics. Process aliases such as `IOREAD`/`IOWRITE` are not used: they can count network/device/file I/O and are not physical disk throughput. Native capacity availability does not establish optional counter availability.
-
-UsageMonitor samples through an independent category worker at 1 Hz. The two IO queries share their category. Neither a low-power `MetricsInterval` nor slower skin updates throttle that worker. Switch back to `IO.ini` to release this skin's queries; the worker stops only when no remaining skin uses the category. This design adds no packet capture or helper polling.
-
-## Shared typography and surface controls
-
-The main and settings titles inherit `TitleFontSize` / `TitleTextColor` from `StyleTitle`. Capacity/transfer headings and the popup section headings use `HeaderFontSize` / `HeaderTextColor`; local header styles retain their own column geometry. The live header percentage explicitly uses body `FontSize` / `TextColor`. Capacity values and transfer readings also use body typography. Missing/disabled/unsupported capacity remains `MutedColor`; transfer availability/status metadata retains its smaller, muted styling. Disk activity colors and bar tracks are unchanged.
-
-Popup labels/readouts use body typography, with primary preset controls on `AccentColor`. **Edit file** and **Close** use the shared `StyleSecondaryButton` color modifier (`AccentColor2`). Title/body text boxes and the compact monitor row positions now allow the global maximum 12/10/10-point settings; popup drive/limit controls have wider value slots. No selected size is clamped, no saved preference is rewritten, and the main/popup panel heights remain 174/326.
-
-Both panels inherit the shared `StylePanel`, including background RGBA and `BorderThickness`. IO contains no decorative section separators or table rules to migrate to `DividerColor` / `DividerThickness`: its existing lines are drive/arrow artwork or semantic capacity/transfer bars. Divider preferences therefore leave IO unchanged. No shared source or module user default was edited for this integration.
-
-Changed paths for this integration: `@Resources/Modules/IO/View.inc`, `IO.lua`, `SettingsMeters.inc`, `tests/ControllerSuite.lua`, `tests/check_geometry.py`, `tests/Run-SettingsSmoke.ps1`, and this report. Native measure/provider definitions and settings actions are unchanged.
-
-### Typography and surface validation, 2026-09-11
-
-Five successful native runs used the same isolated smoke runner, with all captured images opened and inspected. Distinct title/header/body probe colors were applied only in generated stages for the maximum-font captures. No overlap, clipped fixed labels, unexpected panel growth, or Rainmeter errors appeared in the sampled layouts. Every run also passed the existing 46-test / 1,489-assertion Lua suites and the units-save/main-refresh/independent-close checks. Provider correctness was not re-benchmarked.
-
-| Width / scale | Variant | Title/header/body | Border / divider thickness | Evidence directory under `build/` |
-| --- | --- | --- | --- | --- |
-| 180 / 1 | IO.ini | 12/10/10 | Existing defaults | `Parallax-io-settings-smoke-20260911T231248678Z-f7aeac2f` |
-| 180 / 1 | IO-Disk.ini | 12/10/10 | Existing defaults | `Parallax-io-settings-smoke-20260911T231248473Z-d4dbc71b` |
-| 200 / 1 | IO.ini | 12/10/10 | 0 / 0 | `Parallax-io-settings-smoke-20260911T231632054Z-fed65882` |
-| 200 / 1 | IO-Disk.ini | 12/10/10 | 4 / 4 | `Parallax-io-settings-smoke-20260911T231632456Z-8a4f1a10` |
-| 180 / 0.75 | IO.ini, hover action replay | 10/8/9 | 4 / 4 | `Parallax-io-settings-smoke-20260911T231700180Z-c3d70f68` |
-
-Each directory includes `captures/IO.png` (or `IO-hover.png`), `captures/IO-Settings.png`, suite results, observed saved units, and its own Rainmeter log. The smoke runner now accepts `-IOVariant`, `-Typography Current|Default|Maximum`, `-RoleColors`, and `-Surfaces Current|None|Thick`. It waits for positive native window dimensions before capture; earlier fixed-delay attempts encountered unfinished popup layout during simultaneous task activity. Static validation passed with zero errors/warnings; the scoped Git whitespace check passed. Numerical geometry covers all supported widths/scales and both main column counts; native coverage remains the five samples above, not an exhaustive DPI/font/provider cross-product.
-
-## Checks performed
-
-1. Read `AGENTS.md`, `docs/ARCHITECTURE.md`, and the relevant official measure/provider documents and stable source. A separate read-only agent reviewed provider semantics and implementation. Its empty-instance finding was fixed.
-
-2. Ran `tools/Test-Parallax.ps1`: source validation passed with zero errors/warnings, and the latest fresh stage contained 20 configs and 65 INI/include files with zero errors/warnings. Source totals can include other tasks' concurrent test fixtures. This checks INI structure, includes, and shared contracts, not live Rainmeter behavior.
-3. Ran `@Resources/Modules/IO/tests/check_geometry.py` against actual shared/module formulas and styles. All 4,400 meter bounds checks passed: 1,150 for the main monitor and 1,050 for settings per typography profile, across widths 180/200/240/280/320 and scales 0.75/1/1.25/1.5/2. Both default (10/8/9) and maximum (12/10/10) title/header/body profiles are checked. The monitor covers both Columns values; the independent settings utility uses two columns. Right-aligned strings are checked using their real left bounds. These are numerical bounds checks, separate from the captures below.
-
-4. Evaluated the actual used-capacity formula for half-full, full, empty, and zero-total input. Results were 50%, 100%, 0%, and a finite internal value for the zero-total case; the controller hides the invalid zero-total bar. Verified 30-second default capacity dividers, upward rounding (31,001 ms to 32 seconds), and the five-second lower bound.
-
-5. Checked that the base include graph contains neither NIC nor UsageMonitor sources, and that the optional query definitions specify the two cooked disk counters without a Process alias.
-
-6. Performed one-time read-only Windows checks, with no persistent telemetry output: the default native drive was ready, its total was positive, and free bytes were in range. Both `PhysicalDisk(_Total)` read/write counter paths returned status 0 with finite nonnegative cooked values. These confirm host API/counter availability, not the rendered skin or UsageMonitor runtime.
-7. Executed both production controllers under real Rainmeter Lua 5.1 with separate mock SKIN/SELF environments: **46 tests, 1,489 assertions, zero failures**. `ControllerSuite.lua` contributes 21 tests / 220 assertions, including the header's 0%, 100%, valid percentage and unavailable states, plus configured valid-reading and unavailable colors. `SettingsSuite.lua` contributes 25 tests / 1,269 assertions covering every preset control, validation/rejection, batched writes, group scope, independent close, custom-value preservation, and fresh-controller persistence. The suites issue no real bangs or fixture telemetry in the main display.
-
-### Header and separate-settings native checks
-
-Ran `@Resources/Modules/IO/tests/Run-SettingsSmoke.ps1` against fresh stages and independent offscreen Rainmeter INI/SkinPath instances. The runner launches and stops only its own PID. It replays the gear's actual activation action, captures both native windows, invokes the production units control, verifies that `User/IO.inc` persisted the choice and that the refreshed main skin read it, then invokes the production close control and checks that only the main monitor remains. Both runs passed with zero Rainmeter errors.
-
-| Width | Scale | Main window | Settings window | Evidence directory under `build/` |
-| --- | --- | --- | --- | --- |
-| 180 | 1 | 188 x 182 | 376 x 334 | `Parallax-io-settings-smoke-20260911T185405166Z-d23a9e60` |
-| 180 | 0.75 | 141 x 137 | 282 x 251 | `Parallax-io-settings-smoke-20260911T185543248Z-146c1cbf` |
-
-Opened and inspected each run's `captures/IO-Settings.png`; the first run has `captures/IO.png` with the live main-drive percentage, and the second has `captures/IO-hover.png` with the percentage replaced by the gear while normal updates continue. The second run replays the source enter/leave actions; this is not a physical pointer/click test. The captures show fitting controls and stable window bounds at both sampled sizes. They inherit the shared palette present when staged.
-
-Each evidence directory contains `suite-results.txt`, `main-observed-units.txt`, and the Rainmeter log. Instrumentation changes only the generated copy (including a temporary settings tick to drive the explicit actions). Production settings remain event-driven with `Update=-1`. The initial lifecycle runner checked too early for its delayed close; it was corrected to wait on the actual remaining windows. A staging attempt encountered an incomplete concurrent Network include; the subsequent complete workspace passed validation without IO-task edits to Network.
-
-The test files and generated stages are development artifacts, excluded from distribution. The suite interfaces remain `local count, report = dofile(suitePath).run(productionPath)`. Native save/refresh verification currently samples the units control; the mock suite covers all other controls. Physical mouse hit testing, all native option permutations, process-restart persistence, mixed DPI and performance remain release checks.
-
-### Appearance revision 2 and isolated rendering
-
-Read `docs/APPEARANCE.md` revision 2 and inspected the official ModernGadgets reference image. Reduced the panel from 300 to 174 logical pixels; added an original vector drive icon and read/up and write/down chevrons; aligned compact capacity values to the right; reduced tracks to a minimum one physical pixel. Typography follows shared FontFace/FontSize and neutral colors, with shared DiskReadColor/DiskWriteColor for activity. No font or asset was downloaded by this module task. There is no invented history chart; this module retains its instantaneous bars.
-
-Only presentation strings/tooltip text changed in `IO.lua`; availability conditions, rates, native measures, update cadence, provider selection, and variant actions are preserved. Capacity now appears under an explicit “free / total” heading, allowing shorter values. Provider status remains visible as “Counters off,” “Reported; age unknown,” or “Idle or unavailable”; full scope and caveats remain in hover text. Long rate values are also repeated in the tooltip.
-
-Native checks used `tools/Preview-Parallax.ps1 -Modules IO` with fresh staged SkinPath/INI files, hidden/offscreen windows, and capture restricted to the launched PID. Both the controller and providers ran inside actual Rainmeter Lua 5.1. The original user's Rainmeter configuration was not touched. Every captured image was opened and inspected; no overlapping/clipped text or rendering defects were observed in the sampled data/states.
-
-| Width | Scale | Columns | Variant | Actual window | Evidence directory under `build/` |
-
-| --- | --- | --- | --- | --- | --- |
-
-| 180 | 1 | 1 | IO.ini | 188 x 182 | `Parallax-visual-preview-20260911T174726498Z-d4b3fd2f` |
-
-| 180 | 0.75 | 1 | IO.ini and IO-Disk.ini | 141 x 137 | `Parallax-visual-preview-20260911T174921811Z-7cba491a` |
-
-| 200 | 2 | 2 | IO.ini | 832 x 364 | `Parallax-visual-preview-20260911T174942679Z-69ee4c34` |
-
-| 200 | 1 | 1 | IO-Disk.ini | 208 x 182 | `Parallax-visual-preview-20260911T175205438Z-dd6cc459` |
-
-| 180 | 1.5 | 2 | IO-Disk.ini | 564 x 273 | `Parallax-visual-preview-20260911T175229670Z-498a4f5e` |
-
-Each isolated launch had zero Rainmeter error log entries. `captures/IO.png` contains the corresponding native window; the second directory also retains `captures/IO-Disk.png` from restarting only that own stage with the optional variant. The default-width optional capture shows a nonpositive read as `--` beside a positive write, with the honest unverified-age status. Optional small-scale captures show real positive throughput with fitting binary rate labels. These are local test artifacts, excluded from distribution; their host data is not shipped.
-
-Remaining limits: no complete visual cross-product of all 50 geometry combinations; no mixed Windows DPI/snap test; long custom fonts, extreme values, real USB removal/quota cases, actual missing-plugin installation, manual footer clicks, exhaustive option/restart persistence, and CPU/power cost are not fully validated. Source/style regression checks and successful startup do not establish release readiness.
-
-The earlier CPU-style hover gear was added to both IO entrypoints and the shared IO view before the independent settings utility. Its title space is reserved at every width. Static validation passed with zero errors/warnings; the geometry check includes the gear. The initially hidden and revealed states rendered in an isolated 180px/Scale1/Columns1 window with zero Rainmeter errors; evidence is `build/Parallax-visual-preview-20260911T181437453Z-f94283c9/captures/IO.png` and `IO-hover.png`. The revealed-state check replays the actual show/redraw action on refresh in the isolated copy; it does not claim a physical mouse/click test. That earlier gear-only revision did not change controller or polling code. The current revision adds the capacity-derived header percentage and the separate event-driven settings controller described above.
-
-## Runtime acceptance and extension plan
-
-Before release, extend the isolated startup/capture checks to every menu/footer action and exhaustive option/restart persistence. Test a full volume, a missing drive, USB attach/remove with each ignore setting, disabled second drive, optical media, and a long configured drive label. Validate positive disk reads/writes against Performance Monitor, missing/blank instance handling, missing category/plugin behavior, and explicit idle ambiguity. Test both unit modes and saturated/invalid graph ceilings. Complete visual checks at 75%, 100%, 125%, 150%, and 200% suite scale, all supported widths, both Columns values, real edge snapping, mixed Windows DPI, and long text clipping.
-
-Measure CPU cost for native-only versus optional counters with the rest of the suite loaded; include the worker cost and check release when switching variants. A future provider adapter may expose explicit successful-collection timestamps and per-counter availability, allowing true zero/idle and stale/missing states to be separated. Add history only when gaps can remain visibly unknown, rather than filling them with zero. Future drive enumeration or more capacity rows should preserve explicit drives and avoid repeated process launches. No shared schema changes are required for this prototype; package integration and upgrade preservation for `User/IO.inc` remain integration-owner follow-ups.
+Volume mount points without drive letters remain outside the implemented A–Z inventory. A future provider adapter could expose collection timestamps and per-counter availability, allowing idle, stale and unavailable states to be distinguished. Current missing readings plot at zero and recorded points connect linearly across missed intervals, with tooltips distinguishing these conventions from measured data. Integration owns installed-file migration for the removed entrypoint and packaging/user-option preservation; no installed skin was removed during this change.
 
 ## Primary references
 
-- [Rainmeter FreeDiskSpace](https://github.com/rainmeter/rainmeter-docs/blob/master/source/manual/measures/freediskspace.html): native capacity, drive types, removable drives, quotas, and optical limitation.
-
-- [Rainmeter UsageMonitor](https://github.com/rainmeter/rainmeter-docs/blob/master/source/manual/plugins/usagemonitor.html): category/counter/name selectors, translation, worker cadence, raw values, and aliases.
-
-- [UsageMonitor stable implementation, v4.5.26.3894](https://github.com/rainmeter/rainmeter/blob/v4.5.26.3894/Plugins/PluginUsageMonitor/UsageMonitor.cs): named fallback, cooked counter calculation, and retained values on failed collection.
-
-- [Current UsageMonitor implementation](https://github.com/rainmeter/rainmeter/blob/master/Library/MeasureUsageMonitor.cpp): cross-check of the same availability limitations.
-
-- [Rainmeter Lua scripting](https://github.com/rainmeter/rainmeter-docs/blob/master/source/manual/lua-scripting/index.html): measure access, option mutation, and escaped Lua strings.
-
-- [Rainmeter Bar meter](https://docs.rainmeter.net/manual/meters/bar/): measure-range bars.
-
-- [Microsoft physical disk performance counters](https://learn.microsoft.com/en-us/windows-server/storage/storage-spaces/performance-history-for-drives): transfer counters and byte units.
-
-- [Microsoft Process counter definitions](https://learn.microsoft.com/en-us/previous-versions/aa394323(v=vs.85)): why process I/O is not a disk-device throughput measure.
-
-- [Rainmeter Shape meter](https://github.com/rainmeter/rainmeter-docs/blob/master/source/manual/meters/shape/index.html): original icon and chevron construction.
-
-- [Rainmeter String meter](https://github.com/rainmeter/rainmeter-docs/blob/master/source/manual/meters/string/index.html): font weights, right-aligned anchors, and clipping.
-
+- [Rainmeter FreeDiskSpace](https://github.com/rainmeter/rainmeter-docs/blob/master/source/manual/measures/freediskspace.html): capacity, drive types, quota and optical limitations.
+- [FreeDiskSpace implementation](https://github.com/rainmeter/rainmeter/blob/v4.5.26.3894/Library/MeasureDiskSpace.cpp#L123): type precedence, label collection and empty/failed label behavior.
+- [Windows disk/partition association](https://learn.microsoft.com/en-us/windows/win32/cimwin32prov/win32-diskdrivetodiskpartition), [logical-volume/partition association](https://learn.microsoft.com/en-us/windows/win32/cimwin32prov/win32-logicaldisktopartition) and [optical device properties](https://learn.microsoft.com/en-us/windows/win32/cimwin32prov/win32-cdromdrive): one-shot model mapping.
+- [Rainmeter UsageMonitor](https://github.com/rainmeter/rainmeter-docs/blob/master/source/manual/plugins/usagemonitor.html): selectors, cooked values, worker cadence and aliases.
+- [UsageMonitor v4.5.26.3894 implementation](https://github.com/rainmeter/rainmeter/blob/v4.5.26.3894/Plugins/PluginUsageMonitor/UsageMonitor.cs): named lookup and retained values after collection failures.
+- [Rainmeter Lua scripting](https://github.com/rainmeter/rainmeter-docs/blob/master/source/manual/lua-scripting/index.html): measure access and option mutation.
+- [Rainmeter Shape meter](https://github.com/rainmeter/rainmeter-docs/blob/master/source/manual/meters/shape/index.html): paths, arc sweep direction and stroke modifiers.
+- [Rainmeter String meter](https://github.com/rainmeter/rainmeter-docs/blob/master/source/manual/meters/string/index.html): fonts, alignment and clipping.
+- [Lucide hard-drive](https://lucide.dev/icons/hard-drive) and [ISC license](https://lucide.dev/license): user-selected identity artwork and attribution terms.

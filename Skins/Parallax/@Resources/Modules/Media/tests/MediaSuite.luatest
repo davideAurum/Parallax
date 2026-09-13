@@ -31,8 +31,11 @@ function suite.run(sourcePath)
             MediaColor = '71,120,160',
             MutedColor = '111,112,113',
             AccentColor = '137,190,250',
-            Columns = '2'
+            Columns = '2',
+            Scale = '1'
         }
+        local geometry = { left = 200, right = 448 }
+        local timing = { MeterTiming = { x = 365, w = 83 }, MeterTimingUnavailable = { x = 390, w = 58 } }
         local mock = {}
         function mock:GetMeasure(name)
             local value = values[name]
@@ -47,6 +50,23 @@ function suite.run(sourcePath)
             assert(variables[name], 'Unexpected variable lookup: ' .. tostring(name))
             return variables[name]
         end
+        function mock:GetMeter(name)
+            local meter = timing[name]
+            if meter == false then return nil end
+            assert(meter, 'Unexpected layout meter lookup')
+            return { GetX = function(_, anchor) return anchor and meter.x + meter.w or meter.x end,
+                GetW = function() return meter.w end }
+        end
+        function mock:ReplaceVariables(formula)
+            if formula == '(#MediaTransportLeft#)' then return 'LEFT' end
+            if formula == '(#ContentX#+#ContentWidth#)' then return 'RIGHT' end
+            error('Layout formula must contain only fixed geometry variables')
+        end
+        function mock:ParseFormula(formula)
+            if formula == 'LEFT' then return geometry.left end
+            if formula == 'RIGHT' then return geometry.right end
+            error('Unexpected geometry formula')
+        end
         function mock:Bang(...)
             calls[#calls + 1] = { ... }
         end
@@ -56,7 +76,7 @@ function suite.run(sourcePath)
         chunk()
         env.Initialize()
         check(#calls == 0, 'Initialize must not issue commands')
-        local instance = { env = env, values = values, variables = variables }
+        local instance = { env = env, values = values, variables = variables, geometry = geometry, timing = timing }
         function instance.reset() calls = {} end
         function instance.calls() return calls end
         function instance.count(bang, target)
@@ -72,6 +92,18 @@ function suite.run(sourcePath)
                 if call[1] == '!SetOption' and call[2] == target and call[3] == key then found = call[4] end
             end
             return found
+        end
+        function instance.strokeColor(target)
+            local stroke = instance.option(target, 'LucideTransportStroke')
+            return stroke and stroke:match('Stroke Color ([^|]-) |')
+        end
+        function instance.symbol()
+            local shape = instance.option('MeterPlayPause', 'Shape2')
+            if shape == 'Path LucideTransportPlayPath | Extend LucideTransportStroke' then return 'play' end
+            if shape == 'Path LucideTransportPlayOffUpperPath | Extend LucideTransportStroke' then return 'playOff' end
+            if shape == 'Path LucideTransportStepForwardPath | Extend LucideTransportStroke' then return 'stepForward' end
+            if shape == 'Rectangle (14*#Scale#),(3*#Scale#),(5*#Scale#),(18*#Scale#),#Scale# | Extend LucideTransportStroke' then return 'pause' end
+            return nil
         end
         function instance.visible(target, isGroup)
             local show = isGroup and '!ShowMeterGroup' or '!ShowMeter'
@@ -103,9 +135,10 @@ function suite.run(sourcePath)
         check(f.visible('MeterCover') == true, 'Nonempty cover must show')
         check(f.visible('MeterCoverLabel') == false, 'No art label must not show through transparent artwork')
         check(f.visible('MeterArtworkLabel') == false, 'Idle label must not show behind a track')
-        check(f.option('MeterPlayPause', 'Text') == '||', 'Playing must use pause symbol ||')
+        check(f.visible('MeterArtworkPlaceholder') == false, 'Idle border must not double-paint behind a track')
+        check(f.symbol() == 'play', 'Playing must display the current-state Lucide Play path')
         for _, meter in ipairs({ 'MeterPrevious', 'MeterPlayPause', 'MeterNext' }) do
-            check(f.option(meter, 'FontColor') == '137,190,250', 'Enabled control must use AccentColor independently of MediaColor')
+            check(f.strokeColor(meter) == '137,190,250', 'Enabled control must use AccentColor independently of MediaColor')
             check(f.option(meter, 'MouseActionCursor') == '1', 'Supported control must have active cursor')
             check(f.option(meter, 'ToolTipText'):find('reported supported', 1, true) ~= nil, 'Supported control tooltip missing')
         end
@@ -123,8 +156,8 @@ function suite.run(sourcePath)
         check(f.env.Update() == 'Playing' and #f.calls() == 0, 'Bound measure metadata caused unnecessary bangs')
         f.values.MeasureState.value = 2
         check(f.env.Update() == 'Paused', 'Paused status incorrect')
-        check(f.option('MeterPlayPause', 'Text') == '>', 'Paused must use play symbol >')
-        check(f.count('!SetOption') == 1, 'State-only transition should change only symbol')
+        check(f.symbol() == 'pause', 'Paused must display the current-state Lucide Pause shapes')
+        check(f.count('!SetOption') == 2, 'Play-to-pause transition should change only the two affected art shapes')
         f.assertOneRedraw()
         f.reset()
         check(f.env.Update() == 'Paused' and #f.calls() == 0, 'Paused repeat caused redundant bangs')
@@ -137,9 +170,9 @@ function suite.run(sourcePath)
         check(f.visible('MediaTrack', true) == false and f.visible('MeterNoMedia') == true, 'Disconnected track visibility incorrect')
         check(f.visible('MediaTimeline', true) == false and f.visible('MeterTimingUnavailable') == true, 'Disconnected timing visibility incorrect')
         check(f.visible('MeterCover') == false, 'Disconnected stale cover shown')
-        check(f.option('MeterPlayPause', 'Text') == '>', 'Disconnected symbol must not suggest playing')
+        check(f.symbol() == 'play', 'Disconnected icon must retain the fixed Play fallback')
         for _, meter in ipairs({ 'MeterPrevious', 'MeterPlayPause', 'MeterNext' }) do
-            check(f.option(meter, 'FontColor') == '111,112,113', 'Disconnected control must use MutedColor')
+            check(f.strokeColor(meter) == '111,112,113', 'Disconnected control must use MutedColor')
             check(f.option(meter, 'MouseActionCursor') == '0', 'Disconnected cursor must be inactive')
             check(f.option(meter, 'ToolTipText'):find('unavailable', 1, true) ~= nil, 'Disconnected tooltip must explain unavailability')
         end
@@ -156,29 +189,37 @@ function suite.run(sourcePath)
             check(f.env.Update() == 'WNP idle', 'Blank title must report idle')
             check(f.visible('MediaTrack', true) == false and f.visible('MeterNoMedia') == true, 'Idle fallback incorrect')
             check(f.visible('MediaTimeline', true) == false and f.visible('MeterCover') == false, 'Idle state leaked timing or cover')
-            check(f.option('MeterPlayPause', 'FontColor') == '137,190,250', 'Independent capability should remain usable with AccentColor while idle')
+            check(f.strokeColor('MeterPlayPause') == '137,190,250', 'Independent capability should remain usable with AccentColor while idle')
         end
     end)
 
     scenario('known unknown and nonfinite playback states', function()
         local samples = {
-            { value = 0, status = 'Stopped', symbol = '>' },
-            { value = 1, status = 'Playing', symbol = '||' },
-            { value = 2, status = 'Paused', symbol = '>' },
-            { value = '1', status = 'Playing', symbol = '||' },
-            { value = 3, status = 'State unknown', symbol = '>' },
-            { value = -1, status = 'State unknown', symbol = '>' },
-            { value = 'bogus', status = 'State unknown', symbol = '>' },
-            { value = 0 / 0, status = 'State unknown', symbol = '>' },
-            { value = math.huge, status = 'State unknown', symbol = '>' },
-            { value = -math.huge, status = 'State unknown', symbol = '>' },
-            { status = 'State unknown', symbol = '>' }
+            { value = 0, status = 'Stopped', symbol = 'play' },
+            { value = 1, status = 'Playing', symbol = 'play' },
+            { value = 2, status = 'Paused', symbol = 'pause' },
+            { value = '1', status = 'Playing', symbol = 'play' },
+            { value = 3, status = 'State unknown', symbol = 'play' },
+            { value = -1, status = 'State unknown', symbol = 'play' },
+            { value = 'bogus', status = 'State unknown', symbol = 'play' },
+            { value = 0 / 0, status = 'State unknown', symbol = 'play' },
+            { value = math.huge, status = 'State unknown', symbol = 'play' },
+            { value = -math.huge, status = 'State unknown', symbol = 'play' },
+            { status = 'State unknown', symbol = 'play' }
         }
         for _, sample in ipairs(samples) do
             local f = fixture()
             f.values.MeasureState.value = sample.value
             check(f.env.Update() == sample.status, 'Incorrect playback-state classification')
-            check(f.option('MeterPlayPause', 'Text') == sample.symbol, 'Incorrect playback-state symbol')
+            check(f.symbol() == sample.symbol, 'Incorrect playback-state vector selection')
+            if sample.value == 0 or sample.value == 3 then
+                f.reset()
+                check(f.env.HoverPlayPause(true) == true and f.symbol() == 'playOff', 'Supported stopped/unknown fallback must retain Play Off hover')
+                f.assertOneRedraw()
+                f.reset()
+                check(f.env.HoverPlayPause(false) == true and f.symbol() == 'play', 'Leaving stopped/unknown hover must restore plain Play')
+                f.assertOneRedraw()
+            end
         end
     end)
 
@@ -207,7 +248,7 @@ function suite.run(sourcePath)
                 check(f.env.Control(spec[1]) == false and #f.calls() == 0, 'Stale enabled UI bypassed latest capability')
             end
             f.env.Update()
-            check(f.option(spec[3], 'FontColor') == '111,112,113', 'Unsupported control must use MutedColor')
+            check(f.strokeColor(spec[3]) == '111,112,113', 'Unsupported control must use MutedColor')
             check(f.option(spec[3], 'MouseActionCursor') == '0', 'Unsupported control cursor must be inactive')
             f.values[spec[2]].value = '1'
             f.reset()
@@ -287,16 +328,23 @@ function suite.run(sourcePath)
             f.values.MeasureConnection.value=0
             f.env.Update()
             check(f.visible('MeterArtworkLabel') == (columns=='2'), 'Idle tile label must follow width')
+            check(f.visible('MeterArtworkPlaceholder') == (columns=='2'), 'Idle bordered tile must follow width')
             check(f.visible('MeterCoverLabel') == false, 'Disconnected track label must hide')
             f.reset()
             f.values.MeasureConnection.value=1
             f.env.Update()
             check(f.count('!HideMeter','MeterCoverLabel')==1, 'Group show must re-hide label beneath valid cover')
+            if columns=='2' then
+                check(f.visible('MeterArtworkPlaceholder') == false, 'Track must suppress the idle bordered tile')
+            else
+                check(f.visible('MeterArtworkPlaceholder') == nil, 'Compact tile should already be hidden')
+            end
             f.reset()
             f.values.MeasureTitle.text=''
             f.env.Update()
             check(f.visible('MeterCoverLabel')==false, 'Idle transition must hide track label')
             check(f.visible('MeterArtworkLabel') == (columns=='2' and true or nil), 'Wide idle label must return without redundant compact bangs')
+            check(f.visible('MeterArtworkPlaceholder') == (columns=='2' and true or nil), 'Wide idle bordered tile must return')
         end
     end)
 
@@ -310,9 +358,9 @@ function suite.run(sourcePath)
         check(#f.calls() == 0, 'Metric MediaColor must not change transport controls')
         f.variables.AccentColor = '181,161,226'
         f.env.Update()
-        check(f.option('MeterPrevious', 'FontColor') == '181,161,226', 'Previous failed to follow AccentColor')
-        check(f.option('MeterPlayPause', 'FontColor') == '181,161,226', 'PlayPause failed to follow AccentColor')
-        check(f.option('MeterNext', 'FontColor') == nil, 'AccentColor changed unsupported control')
+        check(f.strokeColor('MeterPrevious') == '181,161,226', 'Previous failed to follow AccentColor')
+        check(f.strokeColor('MeterPlayPause') == '181,161,226', 'PlayPause failed to follow AccentColor')
+        check(f.strokeColor('MeterNext') == nil, 'AccentColor changed unsupported control')
         check(f.variables.MediaColor == '9,88,177', 'Action accent update must preserve the independent metric MediaColor')
         check(f.count('!SetOption') == 2, 'Color update changed unrelated options')
         f.assertOneRedraw()
@@ -328,6 +376,219 @@ function suite.run(sourcePath)
             for _, argument in ipairs(call) do check(argument ~= injection, 'Metadata was used as a bang argument') end
         end
         check(f.count('!CommandMeasure') == 0, 'Metadata caused playback action')
+    end)
+
+    scenario('current-state hover is display-only and clicks await provider state', function()
+        local f = fixture()
+        f.values.MeasureState.value = 1
+        f.env.Update()
+        f.reset()
+        check(f.env.HoverPlayPause(true) == true, 'Entering the center target must record hover')
+        check(f.symbol() == 'playOff', 'Supported playing hover must show Play Off')
+        check(f.option('MeterPlayPause', 'Shape3') == 'Path LucideTransportPlayOffLowerPath | Extend LucideTransportStroke', 'Hover must include the lower play-off path')
+        check(f.option('MeterPlayPause', 'Shape4') == 'Path LucideTransportPlayOffSlashPath | Extend LucideTransportStroke', 'Hover must include the play-off slash')
+        check(f.count('!SetOption') == 3, 'Hover must change only the three affected vector slots')
+        f.assertOneRedraw()
+        f.reset()
+        check(f.env.HoverPlayPause(true) == false and #f.calls() == 0, 'Repeated hover caused redundant work')
+        check(f.env.Control('PlayPause') == true, 'Supported hovered click must retain playback command')
+        check(#f.calls() == 1 and f.calls()[1][1] == '!CommandMeasure' and f.calls()[1][2] == 'MeasureConnection' and f.calls()[1][3] == 'PlayPause', 'Hovered click changed command routing')
+        check(f.values.MeasureState.value == 1, 'A pause click must not fabricate a paused state')
+        f.reset()
+        check(f.env.Update() == 'Playing' and #f.calls() == 0, 'Pending pause click must retain the hovered playing appearance')
+        f.values.MeasureState.value = 2
+        check(f.env.Update() == 'Paused' and f.symbol() == 'stepForward', 'Reported pause while hovered must show Step Forward')
+        check(f.option('MeterPlayPause', 'Shape3') == 'Path LucideTransportStepForwardBarPath | Extend LucideTransportStroke', 'Paused hover must include the step-forward bar')
+        check(f.option('MeterPlayPause', 'Shape4'):find('StrokeWidth 0', 1, true) ~= nil, 'Paused hover must clear the play-off slash')
+        f.assertOneRedraw()
+        f.reset()
+        check(f.env.HoverPlayPause(true) == false and #f.calls() == 0, 'Repeated paused hover caused redundant work')
+        check(f.env.HoverPlayPause(false) == true and f.symbol() == 'pause', 'Leaving while paused must restore Pause')
+        f.assertOneRedraw()
+        f.reset()
+        check(f.env.HoverPlayPause(true) == true and f.symbol() == 'stepForward', 'Entering while paused must show Step Forward')
+        f.assertOneRedraw()
+        f.reset()
+        check(f.env.Control('PlayPause') == true and #f.calls() == 1 and f.calls()[1][1] == '!CommandMeasure' and f.calls()[1][2] == 'MeasureConnection' and f.calls()[1][3] == 'PlayPause', 'Step Forward hover artwork must dispatch the existing resume toggle')
+        check(f.values.MeasureState.value == 2, 'A resume click must not fabricate a playing state')
+        f.reset()
+        check(f.env.Update() == 'Paused' and #f.calls() == 0, 'Pending resume click must retain the hovered paused appearance')
+        f.values.MeasureState.value = 1
+        check(f.env.Update() == 'Playing' and f.symbol() == 'playOff', 'Reported playing while hovered must restore Play Off')
+        f.assertOneRedraw()
+        f.reset()
+        check(f.env.HoverPlayPause(false) == true and f.symbol() == 'play', 'Leaving playing hover must restore Play')
+        check(f.count('!SetOption') == 3, 'Leaving play-off must clear both extra paths')
+        f.assertOneRedraw()
+    end)
+
+    scenario('unsupported and disconnected hover stays muted and gated', function()
+        local f = fixture()
+        f.values.MeasureState.value = 1
+        f.env.Update()
+        f.env.HoverPlayPause(true)
+        f.reset()
+        f.values.MeasureConnection.value = 0
+        check(f.env.Update() == 'WNP disconnected' and f.symbol() == 'play', 'Disconnect must clear play-off to play')
+        check(f.strokeColor('MeterPlayPause') == '111,112,113', 'Disconnected vector must be muted')
+        check(f.option('MeterPlayPause', 'MouseActionCursor') == '0', 'Disconnected vector cursor must be gated')
+        f.reset()
+        check(f.env.Control('PlayPause') == false and #f.calls() == 0, 'Disconnected hovered click must not dispatch')
+        check(f.env.Update() == 'WNP disconnected' and #f.calls() == 0, 'Repeated disconnect should not redraw')
+        f.values.MeasureConnection.value = 1
+        f.values.MeasureCanPlayPause.value = 0
+        f.env.Update()
+        f.reset()
+        check(f.env.HoverPlayPause(false) == true and #f.calls() == 0, 'Unsupported hover leave should not redraw')
+        check(f.env.HoverPlayPause(true) == true and #f.calls() == 0, 'Unsupported control should not show play-off')
+        check(f.env.Control('PlayPause') == false and #f.calls() == 0, 'Unsupported hover must not enable playback')
+        f.values.MeasureState.value = 2
+        check(f.env.Update() == 'Paused' and f.symbol() == 'pause', 'Unsupported control must still represent the actual paused state')
+        check(f.strokeColor('MeterPlayPause') == nil, 'Unsupported state change must retain existing muted stroke')
+        f.reset()
+        check(f.env.Control('PlayPause') == false and #f.calls() == 0, 'Paused state must not bypass capability gating')
+        f.values.MeasureCanPlayPause.value = 1
+        f.env.Update()
+        check(f.strokeColor('MeterPlayPause') == '137,190,250' and f.symbol() == 'stepForward', 'Restored support should enable the requested paused hover artwork')
+    end)
+
+    scenario('hover input and refresh preserve the fixed action surface', function()
+        local f = fixture()
+        f.values.MeasureState.value = 2
+        f.env.Update()
+        f.reset()
+        for _, value in ipairs({ 'true', 'false', 'true);[!Quit]', 1, 0 }) do
+            check(f.env.HoverPlayPause(value) == false, 'Hover should accept booleans only')
+        end
+        check(f.env.HoverPlayPause(nil) == false and #f.calls() == 0, 'Invalid hover input issued commands')
+        f.env.HoverPlayPause(true)
+        f.reset()
+        f.env.Initialize()
+        check(#f.calls() == 0, 'Hover refresh initialization must not issue commands')
+        check(f.env.Update() == 'Paused' and f.symbol() == 'pause', 'Refresh must reset hover to the current-state Pause icon')
+        for _, call in ipairs(f.calls()) do
+            if call[1] == '!SetOption' and (call[2] == 'MeterPrevious' or call[2] == 'MeterPlayPause' or call[2] == 'MeterNext') then
+                check(call[3] ~= 'Text' and call[3] ~= 'FontColor', 'Vector controls must not receive obsolete text options')
+                if call[3]:find('Shape', 1, true) == 1 then
+                    check(call[2] == 'MeterPlayPause' and (call[3] == 'Shape2' or call[3] == 'Shape3' or call[3] == 'Shape4'), 'Only fixed center art slots may change dynamically')
+                end
+            end
+        end
+        f.assertOneRedraw()
+    end)
+
+    scenario('skip hover fills current accent and never changes track-skip commands', function()
+        local f = fixture()
+        f.env.Update()
+        for _, spec in ipairs({ { 'Previous', 'MeterPrevious', 'MeasureCanPrevious' }, { 'Next', 'MeterNext', 'MeasureCanNext' } }) do
+            f.reset()
+            check(f.env.HoverTransport(spec[1], true) == true, 'Supported skip hover should enter')
+            check(f.option(spec[2], 'LucideTransportStroke'):find('Fill Color 137,190,250 | Stroke Color 137,190,250', 1, true) == 1, 'Skip hover must fill and retain the accent stroke')
+            check(f.count('!SetOption') == 1, 'Skip hover should change only its stroke recipe')
+            f.assertOneRedraw()
+            f.reset()
+            check(f.env.HoverTransport(spec[1], true) == false and #f.calls() == 0, 'Repeated skip hover should not redraw')
+            check(f.env.Control(spec[1]) == true and #f.calls() == 1 and f.calls()[1][3] == spec[1], 'Skip icon must retain its original track command')
+            f.reset()
+            f.values[spec[3]].value = 0
+            f.env.Update()
+            check(f.option(spec[2], 'LucideTransportStroke'):find('Fill Color 0,0,0,0 | Stroke Color 111,112,113', 1, true) == 1, 'Unsupported hovered control must be unfilled and muted')
+            f.reset()
+            check(f.env.Control(spec[1]) == false and #f.calls() == 0, 'Hover must not bypass capability gating')
+            check(f.env.HoverTransport(spec[1], false) == true and #f.calls() == 0, 'Leaving an unsupported control must not redraw')
+            f.values[spec[3]].value = 1
+            f.env.Update()
+        end
+        f.env.HoverTransport('Previous', true)
+        f.reset()
+        f.variables.AccentColor = '181,161,226'
+        f.env.Update()
+        check(f.option('MeterPrevious', 'LucideTransportStroke'):find('Fill Color 181,161,226 | Stroke Color 181,161,226', 1, true) == 1, 'Hovered fill must follow current AccentColor')
+        f.reset()
+        f.values.MeasureConnection.value = 0
+        f.env.Update()
+        check(f.option('MeterPrevious', 'LucideTransportStroke'):find('Fill Color 0,0,0,0 | Stroke Color 111,112,113', 1, true) == 1, 'Disconnect must suppress stale hover fill')
+        f.reset()
+        for _, command in ipairs({ '', 'PlayPause', 'Previous][!Quit]' }) do
+            check(f.env.HoverTransport(command, true) == false, 'Only fixed skip targets may hover')
+        end
+        check(f.env.HoverTransport('Previous', 'true') == false and #f.calls() == 0, 'Hover flags must be booleans')
+    end)
+
+    scenario('transport centers on measured timing text with fixed spacing and deduplication', function()
+        local f = fixture()
+        f.env.Update()
+        f.reset()
+        check(f.env.LayoutTransport('MeterTimingUnavailable') == false and #f.calls() == 0, 'Inactive timing must not move controls')
+        check(f.env.LayoutTransport('MeterTiming') == true, 'Measured timing should position the group')
+        check(f.option('MeterPrevious', 'X') == '237' and f.option('MeterPlayPause', 'X') == '269' and f.option('MeterNext', 'X') == '301', 'Group must center between art-right 200 and measured timing-left 365')
+        check(f.count('!SetOption') == 3 and f.count('!UpdateMeterGroup', 'MediaTransport') == 1 and f.count('!Redraw') == 1, 'Layout should update only three X options and transport once')
+        check(f.count('!UpdateMeterGroup', 'MediaDynamic') == 0 and f.count('!CommandMeasure') == 0, 'Layout must not recurse through timing or send playback')
+        f.reset()
+        check(f.env.LayoutTransport('MeterTiming') == false and #f.calls() == 0, 'Identical rendered geometry must not issue bangs')
+        f.values.MeasureTitle.text = '[!Quit]#ContentX#'
+        check(f.env.LayoutTransport('MeterTiming') == false and #f.calls() == 0, 'Track metadata must not enter layout formulas')
+        f.timing.MeterTiming.x, f.timing.MeterTiming.w = 385, 63
+        check(f.env.LayoutTransport('MeterTiming') == true and f.option('MeterPrevious', 'X') == '247', 'Shorter timing should recenter the group in the same update')
+        f.values.MeasureDuration.value = 0
+        f.env.Update()
+        f.reset()
+        check(f.env.LayoutTransport('MeterTiming') == false and #f.calls() == 0, 'Unavailable state must ignore stale measured time')
+        check(f.env.LayoutTransport('MeterTimingUnavailable') == true and f.option('MeterPrevious', 'X') == '249', 'Fallback should use its own visible text width')
+    end)
+
+    scenario('scaled compact and tightly capped timing retain centered target bounds', function()
+        for _, sample in ipairs({
+            { scale = 0.75, left = 7.5, right = 133.5, text = 93, width = 40.5 },
+            { scale = 1, left = 10, right = 178, text = 124, width = 54 },
+            { scale = 1.25, left = 250, right = 560, text = 456, width = 104 },
+            { scale = 2, left = 400, right = 896, text = 730, width = 166 },
+            { scale = 1, left = 10, right = 178, text = 110, width = 68 }
+        }) do
+            local f = fixture()
+            f.variables.Scale = tostring(sample.scale)
+            f.variables.Columns = sample.left < 20 and '1' or '2'
+            f.geometry.left, f.geometry.right = sample.left, sample.right
+            f.timing.MeterTiming.x, f.timing.MeterTiming.w = sample.text, sample.width
+            f.env.Update()
+            f.reset()
+            check(f.env.LayoutTransport('MeterTiming') == true, 'Valid bounded geometry should lay out')
+            local previous = tonumber(f.option('MeterPrevious', 'X'))
+            local play = tonumber(f.option('MeterPlayPause', 'X'))
+            local next = tonumber(f.option('MeterNext', 'X'))
+            check(math.abs((previous + next + 28 * sample.scale) / 2 - (sample.left + sample.text) / 2) <= 0.51, 'Control group midpoint must follow the visible text and geometry boundary')
+            check(math.abs(play - previous - 32 * sample.scale) <= 1 and math.abs(next - play - 32 * sample.scale) <= 1, 'Button sizes and four-pixel spacing must stay fixed')
+            check(previous >= sample.left + 4 * sample.scale - 0.51 and next + 28 * sample.scale <= sample.text - 4 * sample.scale + 0.51, 'Cover and timing gaps must remain safe at the clamp')
+        end
+    end)
+
+    scenario('invalid or unmeasured timing cannot emit layout actions', function()
+        local invalid = {
+            function(f) f.variables.Scale = 'invalid' end,
+            function(f) f.variables.Scale = '0' end,
+            function(f) f.geometry.left = -1 end,
+            function(f) f.geometry.left = 0 / 0 end,
+            function(f) f.geometry.right = 100 end,
+            function(f) f.timing.MeterTiming.x = math.huge end,
+            function(f) f.timing.MeterTiming.w = 0 end,
+            function(f) f.timing.MeterTiming.w = 1000 end,
+            function(f) f.timing.MeterTiming.x = 299 end,
+            function(f) f.timing.MeterTiming = false end
+        }
+        for _, invalidate in ipairs(invalid) do
+            local f = fixture()
+            f.env.Update()
+            f.reset()
+            invalidate(f)
+            check(f.env.LayoutTransport('MeterTiming') == false and #f.calls() == 0, 'Invalid geometry must retain the bounded initial layout without bangs')
+        end
+        local f = fixture()
+        f.env.Update()
+        f.reset()
+        for _, name in ipairs({ '', 'MeterTitle', "MeterTiming'][!Quit]" }) do
+            check(f.env.LayoutTransport(name) == false, 'Only fixed timing callback targets are allowed')
+        end
+        check(f.env.LayoutTransport(nil) == false and #f.calls() == 0, 'Missing timing callback target must not issue commands')
     end)
 
     scenario('Initialize resets cached display for refresh', function()

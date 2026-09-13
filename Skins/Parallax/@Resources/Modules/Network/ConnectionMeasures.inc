@@ -129,5 +129,5 @@ ScriptFile=#@#Modules\Network\Connection.lua
 CoreFile=#@#Modules\Network\Core.lua
 ConnectionCoreFile=#@#Modules\Network\ConnectionCore.lua
 SignalWidth=#ContentWidth#
-SignalHeight=(3*#Scale#)
+SignalHeight=#DataBarThicknessPx#
 UpdateDivider=1

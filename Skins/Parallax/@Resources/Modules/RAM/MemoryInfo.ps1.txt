@@ -1,31 +1,44 @@
-# Read once on skin refresh. No polling, elevation, identifiers or file output.
-# Numeric RAMINFO1 wire format: slots|capacity,type,configuredRate,form;...
+# Read once on skin refresh. No polling, elevation or file output.
+# RAMINFO2 wire format: capacity,type,configuredRate,makerSource,manufacturerHex;...
+# Manufacturer is bounded UTF-8 encoded as uppercase hex, never executable text.
+# makerSource 0 = firmware text; 1 = documented module part-family fallback.
+# PartNumber is transient input only: it is never emitted, saved or displayed.
 $ErrorActionPreference = 'Stop'
 try {
-    $devices = @(Get-CimInstance -ClassName Win32_PhysicalMemory -Property Capacity,SMBIOSMemoryType,ConfiguredClockSpeed,FormFactor -ErrorAction Stop)
+    $devices = @(Get-CimInstance -ClassName Win32_PhysicalMemory -Property Capacity,SMBIOSMemoryType,ConfiguredClockSpeed,Manufacturer,PartNumber -ErrorAction Stop)
     if ($devices.Count -eq 0 -or $devices.Count -gt 512) { throw 'No usable memory inventory.' }
+    $utf8 = [Text.UTF8Encoding]::new($false, $true)
+    # SK hynix DDR4 module naming, from its authored product-family document:
+    # https://gzhls.at/blob/ldb/f/b/c/d/f135359b7ec2cce0b32a143ba52a47799d05.pdf
+    # This identifies only the maker; numeric capabilities remain WMI values.
+    $hynixFamily = '^HMA[48AB](25|51|1G|2G|4G|8G|AG|BG)[USRL][126789][MABCDEFG][FJMP24]R[468][NB]-(TF|UH|UL|VK|VN|WM|XN)$'
+    $unknownMakers = @('', 'Unknown', 'Undefined', 'Not Specified', 'Not Available', 'None', 'N/A', 'Default string', 'To Be Filled By O.E.M.', 'To Be Filled By OEM')
     $rows = foreach ($device in $devices) {
-        '{0},{1},{2},{3}' -f [uint64]$device.Capacity, [uint32]$device.SMBIOSMemoryType, [uint32]$device.ConfiguredClockSpeed, [uint16]$device.FormFactor
-    }
-    # An unavailable or inconsistent array count must not discard device data.
-    $slots = 0
-    try {
-        $inventory = @(Get-CimInstance -ClassName Win32_PhysicalMemoryArray -Property Use,MemoryDevices -ErrorAction Stop)
-        # Unknown array uses can hide part of system memory. Never present a
-        # partial denominator as the machine's full slot/socket count.
-        foreach ($array in $inventory) {
-            if ([uint16]$array.Use -notin 1,3,4,5,6,7) { throw 'Unknown memory array use.' }
-        }
-        $arrays = @($inventory | Where-Object { $_.Use -eq 3 })
-        if ($arrays.Count -gt 0) {
-            foreach ($array in $arrays) {
-                if ([uint32]$array.MemoryDevices -eq 0) { throw 'Unknown socket count.' }
-                $slots += [uint32]$array.MemoryDevices
+        $manufacturer = ([string]$device.Manufacturer).Trim()
+        $makerSource = 0
+        if ($manufacturer -in $unknownMakers -or $manufacturer -match '^[0-9A-Fa-f]{4,}$') {
+            $part = ([string]$device.PartNumber).Trim().ToUpperInvariant()
+            if ($part -cmatch $hynixFamily) {
+                $manufacturer = 'SK Hynix'
+                $makerSource = 1
             }
-            if ($slots -gt 65535) { $slots = 0 }
         }
-    } catch { $slots = 0 }
-    [Console]::Write('RAMINFO1|' + $slots + '|' + ($rows -join ';'))
+        $manufacturerHex = ''
+        # Overlong or invalid Unicode names become unknown without losing the
+        # module's numeric data. Do not truncate inside a UTF-8 sequence.
+        if ($manufacturer.Length -le 128) {
+            try {
+                $bytes = $utf8.GetBytes($manufacturer)
+                if ($bytes.Length -le 128) {
+                    $manufacturerHex = [BitConverter]::ToString($bytes).Replace('-', '')
+                }
+            } catch {
+                $manufacturerHex = ''
+            }
+        }
+        '{0},{1},{2},{3},{4}' -f [uint64]$device.Capacity, [uint32]$device.SMBIOSMemoryType, [uint32]$device.ConfiguredClockSpeed, $makerSource, $manufacturerHex
+    }
+    [Console]::Write('RAMINFO2|' + ($rows -join ';'))
 } catch {
     [Console]::Write('UNAVAILABLE')
 }

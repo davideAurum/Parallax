@@ -12,17 +12,25 @@ local ranges = {
     FontSize = { low=6, high=10, decimals=2, meter='MeterBodySizeInput' },
     BackgroundTransparency = { low=0, high=100, decimals=2, meter='MeterBackgroundTransparencyInput' },
     BorderThickness = { low=0, high=4, decimals=2, meter='MeterBorderSizeInput' },
-    DividerThickness = { low=0, high=4, decimals=2, meter='MeterDividerSizeInput' }
+    DividerThickness = { low=0, high=4, decimals=2, meter='MeterDividerSizeInput' },
+    TableHeaderBorderThickness = { low=0, high=4, decimals=2, meter='MeterTableHeaderBorderSizeInput' },
+    DataBarThickness = { low=1, high=12, decimals=2, meter='MeterDataBarSizeInput' }
 }
+local steps = { Scale=0.01, ColumnWidth=1, Gutter=1, CornerRadius=1,
+    TitleFontSize=0.25, HeaderFontSize=0.25, FontSize=0.25,
+    BackgroundTransparency=1, BorderThickness=0.25, DividerThickness=0.25,
+    TableHeaderBorderThickness=0.25, DataBarThickness=0.25 }
 local colorTargets = {
     AccentColor='MeterAccentValue', AccentColor2='MeterAccent2Value',
     TitleTextColor='MeterTitleColorValue', HeaderTextColor='MeterHeaderColorValue', TextColor='MeterBodyColorValue',
-    BackgroundColor='MeterBackgroundColorValue', BorderColor='MeterBorderColorValue', DividerColor='MeterDividerColorValue'
+    BackgroundColor='MeterBackgroundColorValue', BorderColor='MeterBorderColorValue', DividerColor='MeterDividerColorValue',
+    TableHeaderBorderColor='MeterTableHeaderBorderColorValue'
 }
 local themes = {
     default = {
         Theme='default', FontFace='IBM Plex Sans', FontSize='9', TitleFontSize='10', HeaderFontSize='8', PanelPadding='6', CornerRadius='3',
         BackgroundColor='15,15,15,255', BorderColor='50,50,50,255', BorderThickness='1', DividerColor='50,50,50,255', DividerThickness='1', TrackColor='50,50,50,255',
+        TableHeaderBorderColor='50,50,50,255', TableHeaderBorderThickness='1', DataBarThickness='6',
         GraphBackgroundColor='25,25,25,255', GridColor='50,50,50,180', GraphHeight='48',
         TextColor='220,220,220', TitleTextColor='220,220,220', HeaderTextColor='175,175,175', MutedColor='175,175,175', AccentColor='137,190,250', AccentColor2='181,161,226',
         GoodColor='100,230,90', WarningColor='240,225,40', DangerColor='235,55,75',
@@ -37,6 +45,17 @@ local profiles = {
     balanced = { MetricsInterval='1000', SensorInterval='2000', CapacityInterval='30000', VisualizerInterval='50' },
     economy = { MetricsInterval='2000', SensorInterval='4000', CapacityInterval='60000', VisualizerInterval='100' }
 }
+
+local function currentProfile()
+    for name, values in pairs(profiles) do
+        local matches = true
+        for key, value in pairs(values) do
+            if tonumber(SKIN:GetVariable(key)) ~= tonumber(value) then matches = false; break end
+        end
+        if matches then return name end
+    end
+    return nil
+end
 
 function Initialize()
     settingsPath = SKIN:GetVariable('@') .. 'User\\Settings.inc'
@@ -91,12 +110,14 @@ end
 
 function Update()
     local scale = number('Scale', 1)
-    local single = math.floor(number('ColumnWidth', 200) * scale + 0.5)
+    local single = math.floor(number('ColumnWidth', 220) * scale + 0.5)
     local gap = 2 * math.floor(number('Gutter', 8) * scale / 2 + 0.5)
     SKIN:Bang('!SetOption', 'MeterGeometry', 'Text', string.format('Panels: %d / %d px   Gap: %d px   Scale: %g%%', single, single * 2 + gap, gap, scale * 100))
     SKIN:Bang('!SetOption', 'MeterCadence', 'Text', string.format('Metrics %gs  Sensors %gs  Disk %gs  Spectrum ~%g FPS', number('MetricsInterval',1000)/1000, number('SensorInterval',2000)/1000, number('CapacityInterval',30000)/1000, math.floor(1000/math.max(1,number('VisualizerInterval',50)) + 0.5)))
+    local profile = currentProfile()
+    SKIN:Bang('!SetOption', 'MeterRefreshValue', 'Text', profile == 'balanced' and 'Balanced' or profile == 'economy' and 'Economy' or 'Custom')
     SKIN:Bang('!SetOption', 'MeterScaleInput', 'Text', string.format('%g%%', scale * 100))
-    SKIN:Bang('!SetOption', 'MeterWidthInput', 'Text', string.format('%g px', number('ColumnWidth',200)))
+    SKIN:Bang('!SetOption', 'MeterWidthInput', 'Text', string.format('%g px', number('ColumnWidth',220)))
     SKIN:Bang('!SetOption', 'MeterGapInput', 'Text', string.format('%g px', number('Gutter',8)))
     SKIN:Bang('!SetOption', 'MeterRoundingInput', 'Text', string.format('%g px', number('CornerRadius',3)))
     for key, meter in pairs(colorTargets) do
@@ -106,8 +127,8 @@ function Update()
         SKIN:Bang('!SetOption', ranges[key].meter, 'Text', string.format('%g pt', number(key,fallback)))
     end
     SKIN:Bang('!SetOption', 'MeterBackgroundTransparencyInput', 'Text', transparency() and string.format('%g%%',transparency()) or 'Unavailable')
-    for key in pairs({BorderThickness=true, DividerThickness=true}) do
-        SKIN:Bang('!SetOption', ranges[key].meter, 'Text', string.format('%g px', number(key,1)))
+    for key, fallback in pairs({BorderThickness=1, DividerThickness=1, TableHeaderBorderThickness=1, DataBarThickness=6}) do
+        SKIN:Bang('!SetOption', ranges[key].meter, 'Text', string.format('%g px', number(key,fallback)))
     end
     return 0
 end
@@ -138,6 +159,30 @@ function Set(key, value)
     return save({ [key] = string.format('%.4f', numeric):gsub('0+$',''):gsub('%.$','') })
 end
 
+function Adjust(key, direction)
+    local range = ranges[key]
+    if editingKey or not range or (direction ~= -1 and direction ~= 1) then return false end
+    local raw = key == 'BackgroundTransparency' and transparency() or SKIN:GetVariable(key)
+    if raw == nil then return false end
+    local literal = tostring(raw)
+    if not literal:match('^%d+%.?%d*$') then return false end
+    local value = tonumber(literal)
+    if not value or value ~= value or value < range.low or value > range.high
+        or (range.integer and value % 1 ~= 0) then return false end
+    local fraction = literal:match('%.(%d*)$')
+    if range.decimals and fraction and #fraction > range.decimals then return false end
+    local nextValue = math.max(range.low, math.min(range.high, value + direction * steps[key]))
+    if nextValue == value then return false end
+    CloseThemeMenu()
+    return Set(key, string.format(key == 'Scale' and '%.4f' or '%.2f', nextValue):gsub('0+$',''):gsub('%.$',''))
+end
+
+function CycleTheme(direction)
+    -- Default is currently the only choice; disabled arrows never reapply it.
+    if editingKey or (direction ~= -1 and direction ~= 1) then return false end
+    return false
+end
+
 local function inputStatus(message, error)
     SKIN:Bang('!SetOption', 'MeterInputStatus', 'Text', message)
     SKIN:Bang('!SetOption', 'MeterInputStatus', 'FontColor', SKIN:GetVariable(error and 'DangerColor' or 'MutedColor'))
@@ -148,7 +193,7 @@ end
 function BeginEdit(key)
     if editingKey or not ranges[key] then return false end
     local range = ranges[key]
-    local meter = SKIN:GetMeter(range.meter)
+    local meter = SKIN:GetMeter(range.meter:gsub('Input$', 'Frame')) or SKIN:GetMeter(range.meter)
     if not meter then return false end
     local value
     if key == 'BackgroundTransparency' then value = transparency() else value = number(key, range.low) end
@@ -200,4 +245,15 @@ function Accent(name)
     if not accents[name] then return false end
     return save({ AccentColor=accents[name] })
 end
-function Profile(name) return save(profiles[name]) end
+function Profile(name)
+    if editingKey then return false end
+    return save(profiles[name])
+end
+function CycleProfile(direction)
+    if editingKey or (direction ~= -1 and direction ~= 1) then return false end
+    local current = currentProfile()
+    local nextProfile = current == 'balanced' and 'economy' or current == 'economy' and 'balanced'
+        or (direction == -1 and 'economy' or 'balanced')
+    CloseThemeMenu()
+    return Profile(nextProfile)
+end

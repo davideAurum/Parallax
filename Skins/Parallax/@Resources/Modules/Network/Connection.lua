@@ -47,13 +47,12 @@ function Update()
     local wifi = {ssid = value('WiFiSSID', true), quality = value('WiFiQuality'),
         phy = value('WiFiPHY', true), receiveRate = value('WiFiRx'), transmitRate = value('WiFiTx')}
     local view = Connection.describe(Core, adapter, wifi, config)
-    text('Width', variable('NetworkConnectionColumns', '1') == '2' and '2x' or '1x')
     text('Adapter', view.adapter)
     text('Description', view.description)
     -- Keep the longest operational state readable; the tooltip retains link type.
     text('Status', view.status:gsub('^.+ / Lower layer down$', 'Lower layer down'))
     color('Status', view.statusColor)
-    tooltip('Adapter', 'Selected traffic adapter: ' .. adapter.selector .. '. ' .. view.adapter .. ' / ' .. view.description)
+    tooltip('Adapter', 'Selected traffic adapter: ' .. adapter.selector .. '. ' .. view.adapter .. ' / ' .. view.description .. '. Click for Network Settings.')
     tooltip('Description', view.description)
     tooltip('Status', view.status .. '. This is adapter operational status, not Internet reachability.')
     text('Internet', view.internet)
@@ -78,10 +77,4 @@ function Update()
             .. ' | Fill Color ' .. variable(view.signalColor, '137,190,250') .. ' | StrokeWidth 0')
         or 'Line 0,0,0,0 | StrokeWidth 0')
     return view.signalPercent ~= nil and 1 or 0
-end
-
-function ToggleWidth()
-    local columns = variable('NetworkConnectionColumns', '1') == '2' and '1' or '2'
-    SKIN:Bang('!WriteKeyValue', 'Variables', 'NetworkConnectionColumns', columns, variable('@') .. 'User\\Network.inc')
-    SKIN:Bang('!Refresh')
 end

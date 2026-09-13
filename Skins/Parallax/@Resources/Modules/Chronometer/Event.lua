@@ -14,7 +14,7 @@ end
 local function paint()
     local active = event and event.enabled
     local remaining = active and Core.remaining(event, os.time()) or 0
-    local label, value, color = 'No event set', 'Add in settings', 'ClockColor'
+    local label, value, color = 'No event set', 'Add in settings', 'AccentColor2'
     local detail = 'Add an event in Chronometer settings.'
     if invalid then
         label, value, color = 'Event unavailable', 'Open settings to repair', 'WarningColor'
@@ -25,7 +25,6 @@ local function paint()
         value = Core.format(remaining)
         local date = os.date('%Y-%m-%d %H:%M', event.deadline)
         detail = label .. '\n' .. value .. '\nTarget: ' .. date .. ' (local time).'
-        color = remaining > 0 and 'ClockColor' or 'GoodColor'
     end
     if editorError then
         label, color = 'Event editor unavailable', 'WarningColor'

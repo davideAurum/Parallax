@@ -6,9 +6,11 @@ param(
     [string[]]$Modules = @('Settings','Chronometer','CPU','RAM','GPU','IO','Network','Media','Visualizer'),
     [ValidateRange(4,30)][int]$SettleSeconds = 8,
     [ValidateSet('source','0.75','1','1.25','1.5','2')][string]$Scale = 'source',
-    [ValidateSet(0,180,200,240,280,320)][int]$ColumnWidth = 0,
+    [ValidateSet(0,180,200,220,240,280,320)][int]$ColumnWidth = 0,
+    [ValidateRange(6,12)][Nullable[double]]$TitleFontSize = $null,
     [ValidateSet(1,2)][Nullable[int]]$Columns = $null,
-    [ValidateSet('IO.ini','IO-Disk.ini')][string]$IOVariant = 'IO.ini'
+    [switch]$UtilitySettings,
+    [ValidateSet('IO-Disk.ini')][string]$IOVariant = 'IO-Disk.ini'
 )
 Set-StrictMode -Version Latest
 $ErrorActionPreference = 'Stop'
@@ -34,6 +36,10 @@ $userSettingsPath = Join-Path $parallaxRoot '@Resources\User\Settings.inc'
 $userSettings = Get-Content -LiteralPath $userSettingsPath -Raw
 if ($Scale -ne 'source') { $userSettings = [regex]::Replace($userSettings, '(?m)^Scale=.*$', "Scale=$Scale") }
 if ($ColumnWidth -ne 0) { $userSettings = [regex]::Replace($userSettings, '(?m)^ColumnWidth=.*$', "ColumnWidth=$ColumnWidth") }
+if ($null -ne $TitleFontSize) {
+    $titleSizeText = $TitleFontSize.ToString([Globalization.CultureInfo]::InvariantCulture)
+    $userSettings = [regex]::Replace($userSettings, '(?m)^TitleFontSize=[^\r\n]*', "TitleFontSize=$titleSizeText")
+}
 Write-RunFile $userSettingsPath $userSettings
 $harnessPath = Join-Path $runRoot 'PreviewHarness.lua'
 Copy-Item -LiteralPath (Join-Path $PSScriptRoot 'tests\PreviewHarness.lua') -Destination $harnessPath
@@ -52,16 +58,23 @@ foreach ($module in $Modules) {
     $file = "$module.ini"
     if ($module -eq 'Media') { $file = 'Setup.ini' }
     if ($module -eq 'IO') { $file = $IOVariant }
-    $configPath = Join-Path $parallaxRoot "$module\$file"
-    if (-not (Test-Path -LiteralPath $configPath)) { throw "Preview config missing: $module\$file" }
+    $config = "Parallax\$module"
+    $relativeConfig = "$module\$file"
+    if ($UtilitySettings -and $module -notin @('Settings','ColorPicker')) {
+        $file = 'Settings.ini'
+        $config = "Parallax\$module\Settings"
+        $relativeConfig = "$module\Settings\$file"
+    }
+    $configPath = Join-Path $parallaxRoot $relativeConfig
+    if (-not (Test-Path -LiteralPath $configPath)) { throw "Preview config missing: $relativeConfig" }
     $variants = @(Get-ChildItem -LiteralPath (Split-Path -Parent $configPath) -Filter '*.ini' | Sort-Object Name)
     $active = 1
     for ($index = 0; $index -lt $variants.Count; $index++) { if ($variants[$index].Name -eq $file) { $active = $index + 1 } }
     $source = Get-Content -LiteralPath $configPath -Raw
     $source += "`n[MeasureParallaxPreview]`nMeasure=Script`nScriptFile=$harnessPath`nReportPath=$runRoot\native-$module.txt`n"
     Write-RunFile $configPath $source
-    $ini += "`n[Parallax\$module]`nActive=$active`nWindowX=-20000`nWindowY=-20000`nKeepOnScreen=0`nDraggable=0`nClickThrough=1`nAlphaValue=255`n"
-    $entries.Add([pscustomobject]@{ Module=$module; Config="Parallax\$module"; File=$file })
+    $ini += "`n[$config]`nActive=$active`nWindowX=-20000`nWindowY=-20000`nKeepOnScreen=0`nDraggable=0`nClickThrough=1`nAlphaValue=255`n"
+    $entries.Add([pscustomobject]@{ Module=$module; Config=$config; File=$file })
 }
 Write-RunFile $iniPath $ini
 Write-RunFile (Join-Path $runRoot 'Rainmeter.data') "[Rainmeter]`n"
@@ -113,8 +126,9 @@ try {
         $reportPath = Join-Path $runRoot ('native-' + $entry.Module + '.txt')
         if (-not (Test-Path -LiteralPath $reportPath)) { throw "Missing native report for $($entry.Module)." }
         $nativeReport = Get-Content -LiteralPath $reportPath -Raw
+        if ($nativeReport -notmatch ('(?m)^Config=' + [regex]::Escape($entry.Config) + '\r?$')) { throw "Incorrect active config for $($entry.Module)." }
         if ($nativeReport -notmatch ('(?m)^File=' + [regex]::Escape($entry.File) + '\r?$')) { throw "Incorrect active variant for $($entry.Module)." }
-        $expectedColumns = if ($entry.Module -in @('Settings','ColorPicker')) { 2 } else { $Columns }
+        $expectedColumns = if ($entry.Module -in @('Settings','ColorPicker')) { 2 } elseif ($UtilitySettings) { $null } else { $Columns }
         if ($null -ne $expectedColumns -and $nativeReport -notmatch ('(?m)^Columns=' + $expectedColumns + '\r?$')) { throw "Incorrect effective Columns for $($entry.Module)." }
     }
     $records = [Collections.Generic.List[object]]::new()
@@ -149,7 +163,7 @@ try {
     [ordered]@{
         CapturedUtc=[DateTime]::UtcNow.ToString('o')
         RainmeterVersion=(Get-Item -LiteralPath $RainmeterPath).VersionInfo.FileVersion
-        Modules=$Modules; Scale=$Scale; ColumnWidth=$ColumnWidth; UtilityColumns=$Columns; IOVariant=$IOVariant
+        Modules=$Modules; Scale=$Scale; ColumnWidth=$ColumnWidth; UtilityColumns=$Columns; IOVariant=$IOVariant; UtilitySettings=[bool]$UtilitySettings
         SettleSeconds=$SettleSeconds; ProcessId=$process.Id
         CaptureMethod='PrintWindow on own PID + RainmeterMeterWindow handles; offscreen windows'
         Instrumented=$true; Distributable=$false; LogErrors=$logErrors

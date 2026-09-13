@@ -22,6 +22,22 @@ Assert-Test ($loadOutput.Count -eq 0) 'Dot-source produced output.'
 Assert-Test (-not (Test-Path -LiteralPath $runRoot)) 'Dot-source created test storage.'
 Assert-Test ($null -eq $script:SourceManager -and $null -eq $script:SourceAsTask) 'Dot-source initialized native collection.'
 
+# Every Start/Resume launch is intercepted, including negative startup checks.
+# No child process or native observer can be launched by this suite.
+$script:SourceTestLaunches=@()
+$script:SourceCheckControlLock=$false
+function Start-Process {
+    [CmdletBinding()]param($FilePath,$ArgumentList,$WindowStyle)
+    if ($script:SourceCheckControlLock) {
+        $controlName=(Get-SourceMutexName $root)+'.Control'
+        Assert-Test (-not [ParallaxSourceTestMutexHolder]::CanAcquireOnOtherThread($controlName)) 'Concurrent lifecycle action could enter during observer launch.'
+    }
+    $script:SourceTestLaunches+=@{File=$FilePath;Arguments=$ArgumentList;Style=$WindowStyle}
+}
+Invoke-SourceCommand 'Resume' $runRoot
+Assert-Test (-not (Test-Path -LiteralPath $runRoot)) 'Resume created storage without prior opt-in.'
+Assert-Test ($script:SourceTestLaunches.Count -eq 0) 'Resume launched without prior opt-in.'
+
 $root = Initialize-SourceStorage $runRoot
 Assert-Test ($root -eq $runRoot) 'Private test root was changed.'
 $security = [IO.Directory]::GetAccessControl($root)
@@ -168,17 +184,8 @@ Assert-Test ($script:SourceTestCollections -eq 1) 'Once did not collect exactly 
 Stop-SourceObserver $root
 Assert-Test (Test-SourceStop $root) 'Stop did not create the signal.'
 Assert-Test ([IO.File]::ReadAllText($destination) -match '(?m)^state=stopped$') 'Stop did not clear the display.'
-# Every explicit Start is inspected through this stub; no process is launched.
-$script:SourceTestLaunches=@()
-$script:SourceCheckControlLock=$false
-function Start-Process {
-    [CmdletBinding()]param($FilePath,$ArgumentList,$WindowStyle)
-    if ($script:SourceCheckControlLock) {
-        $controlName=(Get-SourceMutexName $root)+'.Control'
-        Assert-Test (-not [ParallaxSourceTestMutexHolder]::CanAcquireOnOtherThread($controlName)) 'Concurrent lifecycle action could enter during Start launch.'
-    }
-    $script:SourceTestLaunches+=@{File=$FilePath;Arguments=$ArgumentList;Style=$WindowStyle}
-}
+Assert-Test (-not (Test-SourceEnabledIntent $root)) 'Stop left resume enabled.'
+Assert-Test ([IO.File]::ReadAllText((Get-SourceRuntimeFile $root 'enabled.intent')) -ceq "PARALLAX_AUTOSTART_V1|0`n") 'Stop did not persist exact disabled intent.'
 $cycleState=[pscustomobject]@{Calls=0}
 $stopDuringCollection={
     $cycleState.Calls++
@@ -187,6 +194,7 @@ $stopDuringCollection={
 }.GetNewClosure()
 Start-SourceObserver $root
 Assert-Test (-not (Test-SourceStop $root)) 'Explicit Start did not clear the previous Stop.'
+Assert-Test (Test-SourceEnabledIntent $root) 'Explicit Start did not persist enabled intent.'
 Assert-Test (Invoke-SourceRun $root $stopDuringCollection) 'Synthetic worker did not run.'
 Assert-Test ($cycleState.Calls -eq 1) 'Started worker did not enter its collector exactly once.'
 Assert-Test ([IO.File]::ReadAllText($destination) -match '(?m)^state=stopped$') 'Stop during collection was overwritten with ready data.'
@@ -225,6 +233,17 @@ try {
     Assert-Test (-not (Invoke-SourceOnce $root $collector)) 'Once bypassed an existing worker.'
     Assert-Test (-not (Invoke-SourceRun $root $collector)) 'A duplicate worker entered the collection loop.'
     Assert-Test ($script:SourceTestCollections -eq $before) 'Duplicate worker collected despite mutex ownership.'
+    # A legacy active worker has no enabled intent. An explicit Start seeds it,
+    # while repeated load-time Resume calls never bypass worker ownership.
+    [IO.File]::Delete((Get-SourceRuntimeFile $root 'stop.request'))
+    [IO.File]::Delete((Get-SourceRuntimeFile $root 'enabled.intent'))
+    $beforeLaunches=$script:SourceTestLaunches.Count
+    Start-SourceObserver $root
+    Assert-Test (Test-SourceEnabledIntent $root) 'Start did not opt an already-running legacy observer into resume.'
+    Resume-SourceObserver $root
+    Invoke-SourceCommand 'Resume' $root
+    Assert-Test ($script:SourceTestLaunches.Count -eq $beforeLaunches) 'Start or repeated Resume launched beside an active worker.'
+    Assert-Test ($script:SourceTestCollections -eq $before) 'Resume collected synchronously beside an active worker.'
 } finally { $holder.Dispose() }
 
 # Inspect an explicit Start while holding its child launch for later execution.
@@ -250,6 +269,85 @@ Assert-Test ($script:SourceTestLaunches.Count -eq 2) 'Intentional restart did no
 Assert-Test (Invoke-SourceRun $root $stopDuringCollection) 'Intentional restart could not run.'
 Assert-Test ($cycleState.Calls -eq 1) 'Intentional restart did not resume collection.'
 Assert-Test ([IO.File]::ReadAllText($destination) -match '(?m)^state=stopped$') 'Restarted worker did not honor its subsequent Stop.'
+
+# Only exact, bounded persisted opt-in permits a load-time Resume. It must not
+# normalize invalid bytes or change an existing observation on a rejected check.
+$intent=Get-SourceRuntimeFile $root 'enabled.intent'
+$beforeLaunches=$script:SourceTestLaunches.Count
+$beforeSnapshot=[IO.File]::ReadAllText($destination)
+[IO.File]::Delete((Get-SourceRuntimeFile $root 'stop.request'))
+foreach ($invalid in @('', "PARALLAX_AUTOSTART_V1|0`n", 'PARALLAX_AUTOSTART_V1|1',
+    "PARALLAX_AUTOSTART_V1|1`r`n", "PARALLAX_AUTOSTART_V1|1`n`n", "PARALLAX_AUTOSTART_V2|1`n",
+    "PARALLAX_AUTOSTART_V1|2`n", "PARALLAX_AUTOSTART_V1|1`0", ('x'*4096))) {
+    Write-SourceAtomicFile $root 'enabled.intent' $invalid
+    Assert-Test (-not (Test-SourceEnabledIntent $root)) 'Malformed or disabled intent was accepted.'
+    Invoke-SourceCommand 'Resume' $root
+    Assert-Test ([IO.File]::ReadAllText($intent) -ceq $invalid) 'Resume rewrote invalid or disabled intent.'
+}
+[IO.File]::WriteAllBytes($intent,([byte[]](0xEF,0xBB,0xBF)+[Text.Encoding]::ASCII.GetBytes("PARALLAX_AUTOSTART_V1|1`n")))
+Assert-Test (-not (Test-SourceEnabledIntent $root)) 'BOM-prefixed intent was accepted.'
+Invoke-SourceCommand 'Resume' $root
+[IO.File]::Delete($intent)
+Invoke-SourceCommand 'Resume' $root
+Assert-Test (-not [IO.File]::Exists($intent)) 'Resume created missing intent.'
+Assert-Test ($script:SourceTestLaunches.Count -eq $beforeLaunches) 'An invalid, disabled or missing intent launched a worker.'
+Assert-Test ([IO.File]::ReadAllText($destination) -ceq $beforeSnapshot) 'Rejected Resume altered the observation.'
+$null=[IO.Directory]::CreateDirectory($intent)
+Assert-Throws { Test-SourceEnabledIntent $root } 'Intent reader accepted a directory.'
+Assert-Throws { Write-SourceAtomicFile $root 'enabled.intent' "PARALLAX_AUTOSTART_V1|1`n" } 'Intent writer replaced a directory.'
+[IO.Directory]::Delete($intent)
+
+# Simulate a restart: retain durable intent, discard the helper's in-memory
+# state, and use a new command entrypoint invocation. No native reads occur.
+Start-SourceObserver $root
+$beforeLaunches=$script:SourceTestLaunches.Count
+$reloadOutput=@(. $sourcePath)
+Assert-Test ($reloadOutput.Count -eq 0 -and $null -eq $script:SourceManager) 'Fresh helper load did not remain passive.'
+Invoke-SourceCommand 'Resume' $root
+Assert-Test ($script:SourceTestLaunches.Count -eq ($beforeLaunches+1)) 'Previously enabled observer did not resume after a fresh helper load.'
+Assert-Test ($script:SourceTestLaunches[-1].Style -eq 'Hidden' -and $script:SourceTestLaunches[-1].Arguments.Contains('-Command Run')) 'Resume did not use the existing hidden worker launch.'
+Assert-Test ([IO.File]::ReadAllText($intent) -ceq "PARALLAX_AUTOSTART_V1|1`n") 'Resume changed persisted enabled intent.'
+$intentSecurity=[IO.File]::GetAccessControl($intent)
+$intentRules=@($intentSecurity.GetAccessRules($true,$true,[Security.Principal.SecurityIdentifier]))
+Assert-Test ($intentSecurity.AreAccessRulesProtected -and $intentRules.Count -eq 1 -and $intentRules[0].IdentityReference.Value -eq $sid.Value) 'Enabled intent permissions allow other identities.'
+
+# Resume launch can be delayed just like Start. A completed Stop wins over the
+# delayed child and every later Resume, including after a fresh helper load.
+Stop-SourceObserver $root
+$cycleState.Calls=0
+Assert-Test (Invoke-SourceRun $root $stopDuringCollection) 'Delayed Resume child did not exit cleanly after Stop.'
+Assert-Test ($cycleState.Calls -eq 0) 'Delayed Resume child collected after completed Stop.'
+Assert-Test (-not (Test-SourceEnabledIntent $root) -and (Test-SourceStop $root)) 'Stop failed to persist both disabled intent and its veto.'
+$beforeLaunches=$script:SourceTestLaunches.Count
+$null=@(. $sourcePath)
+Invoke-SourceCommand 'Resume' $root
+Assert-Test ($script:SourceTestLaunches.Count -eq $beforeLaunches) 'A fresh helper resumed after an explicit Stop.'
+Assert-Test ([IO.File]::ReadAllText($destination) -match '(?m)^state=stopped$') 'Resume after Stop replaced the stopped display.'
+
+# Interrupted Start or a failed disable-intent write can leave enabled1 beside
+# Stop. Stop remains the durable veto; Resume must never erase or age it out.
+Set-SourceEnabledIntent $root $true
+Invoke-SourceCommand 'Resume' $root
+Resume-SourceObserver $root
+Assert-Test ($script:SourceTestLaunches.Count -eq $beforeLaunches -and (Test-SourceStop $root)) 'Resume overrode a Stop marker when enabled intent remained.'
+$savedSetIntent=(Get-Item Function:\Set-SourceEnabledIntent).ScriptBlock
+$script:SourceSawStopBeforeIntent=$false
+function Set-SourceEnabledIntent {
+    param([string]$Root,[bool]$Enabled)
+    $script:SourceSawStopBeforeIntent=Test-SourceStop $Root
+    throw 'Synthetic intent write failure'
+}
+try {
+    Assert-Throws { Stop-SourceObserver $root } 'Synthetic disabled-intent write failure was not reported.'
+    Assert-Test $script:SourceSawStopBeforeIntent 'Stop did not persist its veto before writing disabled intent.'
+} finally { Set-Item Function:\Set-SourceEnabledIntent $savedSetIntent }
+Invoke-SourceCommand 'Resume' $root
+Assert-Test ($script:SourceTestLaunches.Count -eq $beforeLaunches -and (Test-SourceStop $root)) 'Failed disabled-intent write allowed Resume to override Stop.'
+Start-SourceObserver $root
+Assert-Test ((Test-SourceEnabledIntent $root) -and -not (Test-SourceStop $root)) 'Later explicit Start did not clear the durable veto and enable resume.'
+Assert-Test ($script:SourceTestLaunches.Count -eq ($beforeLaunches+1)) 'Later explicit Start did not request exactly one launch.'
+Stop-SourceObserver $root
+Assert-Test (@(Get-ChildItem -LiteralPath $root -Filter '*.tmp').Count -eq 0) 'Lifecycle intent updates left atomic temporary files.'
 Assert-Test ($null -eq $script:SourceManager -and $null -eq $script:SourceAsTask) 'Synthetic tests touched native session APIs.'
 Assert-Test ((Get-FileHash -LiteralPath $sourcePath -Algorithm SHA256).Hash -eq $sourceHash) 'Production source changed during tests.'
 $report="PASS: $script:SourceTestChecks synthetic source-provider assertions; no native sessions, network, credentials, or live configuration used.`nSource SHA256: $sourceHash`n"

@@ -2,6 +2,12 @@
 -- No external commands are executed; only scalar preference controls are used.
 local tick, done, checks, previous_checks, stage, kind = 0, false, 0, 0, 1, ''
 local glyph_report=''
+local identity_preferences
+local identity_metadata={}
+local queue_transport_checks
+local artwork_bounds
+local timing_report=''
+local settings_expanded_height
 local function is_settings() return kind:match('Settings$')~=nil end
 local function check(ok, message) checks=checks+1; assert(ok, message) end
 local function read(path)
@@ -29,16 +35,38 @@ local function preferences()
     return values
 end
 local function text(name) return assert(SKIN:GetMeter(name)):GetOption('Text','') end
+local function media_geometry()
+    local scale=SELF:GetNumberOption('ExpectedScale')
+    local wide=SELF:GetNumberOption('ExpectedColumns')==2
+    local rounded=function(value) return math.floor(value+0.5) end
+    local unit=rounded(SELF:GetNumberOption('ExpectedWidth')*scale)
+    local base_cover=wide and rounded(unit*0.9) or 48*scale
+    local cover=rounded(base_cover*0.75)
+    local offset=wide and rounded(12*scale) or 0
+    local bar=math.max(1,rounded(SELF:GetNumberOption('ExpectedBarThickness',6)*scale))
+    local progress_y=offset+122*scale+math.max(2*scale,6*scale-bar/2)
+    local controls_y=progress_y+bar+8*scale
+    local cover_bottom=(wide and 0 or 44*scale)+cover
+    local body=math.max(rounded(162*scale)+offset,math.ceil(math.max(cover_bottom,controls_y+26*scale)+37*scale))
+    return cover,offset,body,controls_y
+end
 local function dimensions(expanded, rows)
     local scale=SELF:GetNumberOption('ExpectedScale')
     local width=SELF:GetNumberOption('ExpectedWidth')
     local columns=is_settings() and 2 or SELF:GetNumberOption('ExpectedColumns')
     local gap=2*math.floor(tonumber(SKIN:GetVariable('Gutter'))*scale/2+0.5)
-    local height=is_settings() and 360 or (162+(expanded and (8+18*rows) or 0))
     local expected_w=columns*(math.floor(width*scale+0.5)+gap)
-    local expected_h=math.floor(height*scale+0.5)+gap
+    local _,_,body=media_geometry()
+    local expected_h=is_settings() and math.floor((expanded and 554 or 498)*scale+0.5)+gap or body+math.floor((expanded and (8+18*rows) or 0)*scale+0.5)+gap
+    local detail=''
+    if is_settings() and SKIN:GetH()~=expected_h then
+        local bounds,panel=SKIN:GetMeter('MeterBounds'),SKIN:GetMeter('MeterPanel')
+        detail=string.format('; SettingsPanelHeight=%s PanelHeightPx=%s WindowHeight=%s BoundsH=%g/%s PanelH=%g',
+            SKIN:GetVariable('SettingsPanelHeight'),SKIN:GetVariable('PanelHeightPx'),SKIN:GetVariable('WindowHeight'),
+            bounds:GetH(),bounds:GetOption('H','',true),panel:GetH())
+    end
     check(SKIN:GetW()==expected_w and SKIN:GetH()==expected_h,
-        string.format('Native skin bounds %dx%d expected %dx%d',SKIN:GetW(),SKIN:GetH(),expected_w,expected_h))
+        string.format('Native skin bounds %dx%d expected %dx%d%s',SKIN:GetW(),SKIN:GetH(),expected_w,expected_h,detail))
     return expected_w,expected_h
 end
 local function inside(name, width, height)
@@ -51,24 +79,95 @@ local function inside(name, width, height)
     check(x>=0 and y>=0 and x+w<=width+1 and y+h<=height+1,
         string.format('%s outside skin %.2f,%.2f,%.2f,%.2f',name,x,y,w,h))
 end
+local function player_name_row()
+    local scale=SELF:GetNumberOption('ExpectedScale')
+    local wide=SELF:GetNumberOption('ExpectedColumns')==2
+    local title,name,icon=SKIN:GetMeter('MeterHeading'),SKIN:GetMeter('MeterPlayerName'),SKIN:GetMeter('MeterPlayerIcon')
+    local title_icon=SKIN:GetMeter('MeterMediaIcon')
+    local surface=tonumber(SKIN:ParseFormula(SKIN:ReplaceVariables('(#MediaSurfaceY#)')))
+    check(title:GetOption('Text')=='Media Player' and title:GetOption('MeasureName','')=='','Title must be static')
+    check(name:GetOption('MeasureName')=='MeasureMediaHeader' and name:GetOption('Text')=='%1','Player name does not bind literal measure data')
+    check(name:GetOption('ToolTipText')=='%1' and name:GetOption('ClipString')=='1','Player name must clip with its full bound tooltip')
+    check(name:GetOption('UpdateDivider')=='1','Player name cannot follow identity changes')
+    check(name:GetOption('FontColor')==SKIN:GetVariable('TextColor'),'Player name ignores body color')
+    local size=tonumber(name:GetOption('FontSize')) or SKIN:ParseFormula(name:GetOption('FontSize'))
+    check(math.abs(size-tonumber(SKIN:GetVariable('FontSize'))*scale)<0.001,'Player name ignores body font size')
+    check(math.abs(name:GetY(true)-(surface+30*scale))<=1 and math.abs(name:GetH()-18*scale)<=1,'Player name row position or height changed')
+    check(math.abs(icon:GetW()-14*scale)<=1 and math.abs(icon:GetH()-14*scale)<=1,'Audio Lines must retain a14px canvas')
+    check(math.abs(icon:GetY(true)+icon:GetH()/2-name:GetY(true)-name:GetH()/2)<=1,'Audio Lines is not centered with the player name')
+    check(math.abs(icon:GetX(true)-title_icon:GetX(true)-(wide and 0 or 54*scale))<=1,'Player-name row intrudes into compact artwork')
+    local title_size=14*scale*tonumber(SKIN:GetVariable('TitleFontSize'))/10
+    check(math.abs(title_icon:GetW()-title_size)<=1 and math.abs(title_icon:GetH()-title_size)<=1,'Monitor Play ignores title icon size')
+    check(math.abs(title_icon:GetY(true)+title_icon:GetH()/2-title:GetY(true))<=1,'Monitor Play is not centered with title')
+    check(math.abs(title:GetX(true)-title_icon:GetX(true)-title_size-4*scale)<=1,'Title icon gap changed')
+    check(math.abs(name:GetX(true)-icon:GetX(true)-18*scale)<=1,'Player-name icon gap changed')
+    check(title:GetY(true)+title:GetH()/2<=name:GetY(true),'Title overlaps the player name')
+    local first=SKIN:GetMeter(kind:find('Player',1,true) and 'MeterTrackTitle' or 'MeterSetupStatus')
+    if first:GetH()>0 then
+        local top=first:GetY(true)-(first:GetOption('StringAlign')=='LeftCenter' and first:GetH()/2 or 0)
+        check(top>=name:GetY(true)+name:GetH()+2*scale-1,'Player name overlaps the first content row')
+    end
+end
+local function transport_center(active_name)
+    local scale=SELF:GetNumberOption('ExpectedScale')
+    local wide=SELF:GetNumberOption('ExpectedColumns')==2
+    local active=assert(SKIN:GetMeter(active_name))
+    local icon=SKIN:GetMeter('MeterMediaIcon')
+    local cover=SKIN:GetMeter('MeterCoverMask')
+    local boundary=wide and (cover:GetX(true)+cover:GetW()) or icon:GetX(true)
+    local left=active:GetX(true)-active:GetW()
+    local first,last=SKIN:GetMeter('MeterPrevious'),SKIN:GetMeter('MeterNext')
+    local group_left,group_right=first:GetX(true),last:GetX(true)+last:GetW()
+    local detail=string.format('%s width=%g left=%g boundary=%g controls=%g..%g',active_name,active:GetW(),left,boundary,group_left,group_right)
+    local bar=SKIN:GetMeter('MeterProgress')
+    local bar_width=bar:GetW()>0 and bar:GetW() or SKIN:ParseFormula(SKIN:ReplaceVariables(bar:GetOption('W')))
+    local bar_height=math.max(1,math.floor(SELF:GetNumberOption('ExpectedBarThickness',6)*scale+0.5))
+    check(math.abs(active:GetY(true)-bar:GetY(true)-bar_height-2*scale)<=1,'Timing is not directly below the progress bar: '..detail)
+    check(math.abs(active:GetX(true)-bar:GetX(true)-bar_width)<=1,'Timing does not align to the progress bar right edge: '..detail)
+    check(active:GetW()>0 and math.abs(active:GetH()-18*scale)<=1,'Active timing hidden or taller than one row: '..detail)
+    check(active:GetW()<=math.max(1,active:GetX(true)-boundary-104*scale)+1,'Auto-width timing exceeds fixed cap: '..detail)
+    check(math.abs(active:GetX()-left)<=1,'Right-aligned native anchor convention changed: '..detail)
+    check(math.abs(group_right-group_left-92*scale)<=1,'Transport group width changed: '..detail)
+    check(group_left>=boundary+6*scale-1 and group_right<=left-6*scale+1,'Transport lacks six-pixel clearances: '..detail)
+    check(math.abs((group_left+group_right)/2-(boundary+left)/2)<=1.5,'Transport not centered between artwork and actual time: '..detail)
+    return active:GetW(),detail
+end
 local function accordion(expanded, count, details)
     local width,height=dimensions(expanded,count)
+    local _,_,body=media_geometry()
+    local scale=SELF:GetNumberOption('ExpectedScale')
+    local inset=math.floor(tonumber(SKIN:GetVariable('Gutter'))*scale/2+0.5)
     local measure=assert(SKIN:GetMeasure('MeasureQueueStatus'))
     check(measure:GetOption('QueueCachePath')==SELF:GetOption('SyntheticCachePath'),'Synthetic cache not injected')
     check(measure:GetStringValue()=='Next '..count,'Footer display count wrong: '..measure:GetStringValue())
-    check(SKIN:GetMeasure('MeasureMediaOptions'):GetStringValue()==(expanded and 'Queue -' or 'Queue +'),'Accordion label wrong')
+    check(SKIN:GetMeasure('MeasureMediaOptions'):GetStringValue()=='Queue','Accordion label wrong')
     for index=1,5 do
         local name='MeterQueueRow'..index; local meter=assert(SKIN:GetMeter(name))
         if expanded and index<=count then
             check(meter:GetW()>0 and meter:GetH()>0,'Expanded row hidden: '..index)
             check(text(name)=='Synthetic item '..index..(details and (' / Test artist '..index) or ''),'Row detail preference ignored')
+            check(math.abs(meter:GetY(true)-(inset+body+(2+18*(index-1))*scale))<=1,'Queue row is not below the rendered body: '..index)
             inside(name,width,height)
         else
             check(meter:GetW()==0,'Collapsed or excess row visible: '..index)
             check(text(name)=='','Collapsed or excess row retains text: '..index)
         end
     end
-    for _,name in ipairs({'MeterBounds','MeterPanel','MeterHeading','MeterMediaIcon','MeterQueueRule','MeterQueueHeading','MeterQueueStatus'}) do inside(name,width,height) end
+    for _,name in ipairs({'MeterBounds','MeterPanel','MeterHeading','MeterPlayerName','MeterMediaIcon','MeterPlayerIcon','MeterQueueRule','MeterQueueHeading','MeterQueueToggle','MeterQueueStatus'}) do inside(name,width,height) end
+    check(math.abs(SKIN:GetMeter('MeterQueueHeading'):GetY(true)-(inset+body-12*scale))<=1,'Queue footer is not anchored to the rendered body')
+    local label,toggle,status=SKIN:GetMeter('MeterQueueHeading'),SKIN:GetMeter('MeterQueueToggle'),SKIN:GetMeter('MeterQueueStatus')
+    check(math.abs(label:GetW()-42*scale)<=1 and math.abs(toggle:GetW()-18*scale)<=1 and math.abs(toggle:GetH()-18*scale)<=1,'Queue label/toggle dimensions changed')
+    check(math.abs(toggle:GetX(true)-label:GetX(true)-44*scale)<=1 and math.abs(status:GetX(true)-label:GetX(true)-66*scale)<=1,'Queue band spacing changed')
+    check(label:GetX(true)+label:GetW()<=toggle:GetX(true) and toggle:GetX(true)+toggle:GetW()<=status:GetX(true),'Queue band hit targets overlap')
+    check(math.abs(toggle:GetY(true)+9*scale-label:GetY(true))<=1 and label:GetY(true)==status:GetY(true),'Queue icon/text centers differ')
+    check(toggle:GetOption('Shape6'):find('(1-'..(expanded and '1' or '0')..')',1,true)~=nil,'Queue plus stroke ignores expansion')
+    for _,name in ipairs({'MeterQueueHeading','MeterQueueToggle','MeterQueueStatus'}) do
+        check(SKIN:GetMeter(name):GetOption('LeftMouseUpAction')=='[!CommandMeasure MeasureMediaOptions "ToggleQueue()"]','Queue action wiring changed: '..name)
+    end
+    local monitor=SKIN:GetMeter('MeterMediaIcon')
+    local icon_size=14*scale*tonumber(SKIN:GetVariable('TitleFontSize'))/10
+    check(math.abs(monitor:GetW()-icon_size)<=1 and math.abs(monitor:GetH()-icon_size)<=1,'Constant monitor header is hidden or mis-sized')
+    player_name_row()
     check(SKIN:GetMeter('MeterMediaOptions'):GetW()==0,'Gear is not hidden initially')
     local enter,leave=SELF:GetOption('HoverEnter'),SELF:GetOption('HoverLeave')
     check(enter:find('!ShowMeter',1,true) and leave:find('!HideMeter',1,true),'Hover actions missing')
@@ -81,15 +180,25 @@ end
 local function command(measure, action) SKIN:Bang('!CommandMeasure',measure,action..'()') end
 local function advance(next_stage, action)
     write(SELF:GetOption('StageFile'),tostring(next_stage)..'|'..tostring(previous_checks+checks))
-    if action then command('MeasureMediaOptions',action) else SKIN:Bang('!Refresh') end
+    if action and kind:match('^QueueToggle') then
+        local meter=stage==3 and 'MeterQueueHeading' or stage==4 and 'MeterQueueStatus' or 'MeterQueueToggle'
+        SKIN:Bang(SKIN:GetMeter(meter):GetOption('LeftMouseUpAction'))
+    elseif action then command('MeasureMediaOptions',action) else SKIN:Bang('!Refresh') end
+end
+local function settle(next_stage)
+    -- A user click redraws after its action returns. Observe the next settled
+    -- render without refreshing, so live reflow and controller state are tested.
+    stage=next_stage; tick=0; done=false
 end
 local function accordion_stage()
     local prefs=preferences()
     if stage==1 then
         accordion(false,5,true); check(prefs.QueueExpanded=='0','Initial fixture changed')
+        if kind:match('^QueueToggle') then artwork_bounds(false) end
         advance(2,'ToggleQueue')
     elseif stage==2 then
         accordion(true,5,true); check(prefs.QueueExpanded=='1','Expand preference not saved')
+        if kind:match('^QueueToggle') then artwork_bounds(true) end
         SKIN:Bang('!WriteKeyValue','Variables','QueueRowLimit','3',SELF:GetOption('PreferencesPath'))
         SKIN:Bang('!WriteKeyValue','Variables','QueueShowDetails','0',SELF:GetOption('PreferencesPath'))
         advance(3)
@@ -101,53 +210,215 @@ local function accordion_stage()
         advance(5,'ToggleQueue')
     elseif stage==5 then
         accordion(true,3,false); check(prefs.QueueExpanded=='1','Second expand did not persist')
+        if kind=='QueueTogglePlayer' then advance(6,'ToggleQueue') else return true end
+    elseif stage==6 and kind=='QueueTogglePlayer' then
+        accordion(false,3,false); check(prefs.QueueExpanded=='0','Final icon collapse did not persist')
+        queue_transport_checks()
         return true
     else error('Unexpected accordion stage') end
     return false
 end
-local function settings_bounds()
-    local width,height=dimensions(false,0)
+local function settings_bounds(expanded)
+    if expanded==nil then expanded=SKIN:GetVariable('QueueExpanded','0')=='1' end
+    local width,height=dimensions(expanded,0)
     for _,name in ipairs({'MeterBounds','MeterPanel','MeterTitle','MeterClose','MeterWidthLabel','MeterWidthValue',
         'MeterQueueExpandedLabel','MeterQueueExpandedValue','MeterQueueRowsLabel','MeterQueueRowsValue','MeterQueueDetailsLabel',
         'MeterQueueDetailsValue','MeterQueuePollLabel','MeterQueuePollValue','MeterStatus','MeterQueueRule','MeterQueueHeading',
-        'MeterSourceLabel','MeterSourceStart','MeterSourceStop','MeterSignIn','MeterStart','MeterStop','MeterRestart','MeterDisconnect','MeterLinksRule','MeterOpenQueue','MeterPlayerSetup','MeterHelp'}) do inside(name,width,height) end
+        'MeterSourceLabel','MeterSourceStart','MeterSourceStop','MeterSignIn','MeterStart','MeterStop','MeterRestart','MeterDisconnect','MeterLinksRule','MeterOpenQueue','MeterPlayerSetup','MeterHelp',
+        'MeterUtilitySettingsNote','MeterUtilitySettingsGlobalLink','MeterDisplayHeading','MeterDisplayRule','MeterSamplingHeading',
+        'MeterSamplingRule','MeterSourceRule','MeterSourceGuidance','MeterQueueGuidance','MeterLinksHeading'}) do inside(name,width,height) end
+    local scale=SELF:GetNumberOption('ExpectedScale')
+    local inset=math.floor(tonumber(SKIN:GetVariable('Gutter'))*scale/2+0.5)
+    for _,stem in ipairs({'Width','QueueExpanded','QueueRows','QueueDetails','QueuePoll'}) do
+        local label,value=SKIN:GetMeter('Meter'..stem..'Label'),SKIN:GetMeter('Meter'..stem..'Value')
+        local numeric=stem=='Width' or stem=='QueueRows' or stem=='QueuePoll'
+        local hidden=not expanded and (stem=='QueueRows' or stem=='QueueDetails')
+        local meters={label,value}
+        if numeric then for _,part in ipairs({'Decrease','Frame','Increase'}) do
+            local meter=assert(SKIN:GetMeter('Meter'..stem..part));meters[#meters+1]=meter;inside('Meter'..stem..part,width,height)
+        end end
+        if hidden then
+            for _,meter in ipairs(meters) do
+                check(meter:GetW()==0 and meter:GetH()==0,'Collapsed setting retains a hit target: '..stem)
+                check(meter:GetY(true)==inset,'Hidden settings anchor can enlarge window: '..stem)
+            end
+        elseif numeric then
+            local decrease,frame,increase=unpack({meters[3],meters[4],meters[5]})
+            check(label:GetX()+label:GetW()<=decrease:GetX(),'Settings label overlaps decrement: '..stem)
+            check(decrease:GetX()+decrease:GetW()<=frame:GetX() and frame:GetX()+frame:GetW()<=increase:GetX(),'Stepper components overlap: '..stem)
+            check(math.abs(increase:GetX()+increase:GetW()-decrease:GetX()-96*scale)<=1,'Stepper group width changed')
+            check(math.abs(frame:GetW()-56*scale)<=1 and math.abs(frame:GetH()-20*scale)<=1,'Stepper frame bounds changed')
+            check(value:GetH()==math.floor(18*scale) and math.abs(value:GetW()-56*scale)<=1,'Numeric center bounds changed')
+            check(math.abs(value:GetY()-frame:GetY()-scale)<=1 and value:GetY()==decrease:GetY(),'Stepper text not vertically aligned')
+            check(frame:GetOption('Shape'):find(SKIN:GetVariable('GraphBackgroundColor'),1,true)~=nil,'Stepper frame not shaded')
+            check(value:GetOption('FontColor')==SKIN:GetVariable('TextColor'),'Numeric field ignores body color')
+            check(decrease:GetOption('FontColor')==SKIN:GetVariable('AccentColor'),'Stepper arrows ignore Accent1')
+            check(frame:GetOption('LeftMouseUpAction')==value:GetOption('LeftMouseUpAction'),'Frame input action differs')
+        else
+            check(label:GetW()>0 and value:GetW()>0,'Visible settings control hidden: '..stem)
+            check(label:GetX()+label:GetW()<=value:GetX(),'Settings label overlaps field: '..stem)
+            local field_height=math.floor(18*scale)+2*math.floor(scale)
+            check(value:GetH()==field_height,'Toggle field height differs from native shared dimensions')
+        end
+        if not numeric then check(value:GetOption('SolidColor')==SKIN:GetVariable('GraphBackgroundColor'),'Toggle field is not shaded') end
+        check(label:GetOption('SolidColor','')=='','Settings label should not have a row background')
+        check(label:GetOption('LeftMouseUpAction')==value:GetOption('LeftMouseUpAction'),'Settings label action differs from field')
+    end
+    local shift=expanded and 0 or 56
+    for name,y in pairs({MeterSamplingHeading=218,MeterQueuePollValue=245,MeterStatus=272,
+        MeterSourceLabel=302,MeterSourceStart=339,MeterQueueHeading=386,MeterSignIn=423,MeterLinksHeading=498}) do
+        local meter=SKIN:GetMeter(name)
+        check(meter:GetW()>0 and meter:GetH()>0,'Recovery/sampling control hidden: '..name)
+        check(math.abs(meter:GetY(true)-(inset+(y-shift)*scale))<=1,'Dependent settings did not reflow: '..name)
+    end
+    check(SKIN:GetMeter('MeterClose'):GetOption('LeftMouseUpAction')=='[!DeactivateConfig]','Close action changed')
+    check(SKIN:GetMeter('MeterOpenQueue'):GetOption('LeftMouseUpAction')=='[!ActivateConfig "Parallax\\Media\\Queue" "Queue.ini"]','Queue navigation changed')
+    check(SKIN:GetMeter('MeterPlayerSetup'):GetOption('LeftMouseUpAction')=='[!ActivateConfig "Parallax\\Media" "Setup.ini"]','Setup navigation changed')
+    check(SKIN:GetMeter('MeterHelp'):GetOption('LeftMouseUpAction'):match('Modules\\Media\\Queue\\README%.md"%]$')~=nil,'Help action changed')
+    local edit=SELF:GetOption('EditSettingsAction','')
+    check(edit:match('User\\Media%.inc"%]$')~=nil,'Manual settings-file recovery action missing')
+end
+local function settings_action(expression) SKIN:Bang('!CommandMeasure','MeasureMediaSettings',expression) end
+local function settings_count(name) return tonumber(SKIN:GetVariable(name,'0')) end
+local function unchanged(action,message)
+    local before=read(SELF:GetOption('PreferencesPath'))
+    local writes,refreshes=settings_count('FixtureSettingsWrites'),settings_count('FixtureSettingsRefreshes')
+    action()
+    check(read(SELF:GetOption('PreferencesPath'))==before,message..': preference bytes changed')
+    check(settings_count('FixtureSettingsWrites')==writes and settings_count('FixtureSettingsRefreshes')==refreshes,message..': wrote or refreshed')
+    check(SKIN:GetVariable('FixtureInputSentinel')=='unchanged','Input data executed an action')
+end
+local function input_result(index,status)
+    SKIN:Bang('!CommandMeasure','MeasureMediaSettingsInput','Select('..index..')')
+    SKIN:Bang('!UpdateMeasure','MeasureMediaSettingsInput')
+    SKIN:Bang('!SetVariable','FixtureInputStatus',status or 1)
+    settings_action('CommitNumberInput()')
+end
+local function begin_number(key)
+    local before=settings_count('FixtureInputRuns')
+    settings_action("BeginNumberInput('"..key.."')")
+    check(settings_count('FixtureInputRuns')==before+1,'Explicit numeric click did not request one input: '..key)
+    local parameter=SKIN:GetMeasure('MeasureMediaSettingsInput'):GetOption('Parameter')
+    local low,high=key=='QueuePollSeconds' and 30 or 1,key=='Columns' and 2 or key=='QueueRowLimit' and 5 or 150
+    check(parameter:find('-Key UtilityNumber -Minimum '..low..' -Maximum '..high..' -DecimalPlaces 0',1,true)~=nil,'Typed input bounds or helper key wrong')
+    check(parameter:match(' %-Initial "%d+" %-X %-?%d+ %-Y %-?%d+ %-Width %d+ %-Height %d+ %-Scale [%d%.]+$')~=nil,'Typed arguments are not bounded scalar data')
 end
 local function settings_stage()
-    settings_bounds()
+    settings_bounds(stage~=1 and stage~=5 and stage~=6 and stage~=9)
     local prefs=preferences()
     if stage==1 then
         check(prefs.Columns=='2' and prefs.QueuePollSeconds=='30','Settings fixture changed on load')
-        check(text('MeterWidthValue')=='2 columns' and text('MeterQueueExpandedValue')=='Collapsed','Initial preference labels wrong')
-        for _,action in ipairs({'ToggleColumns','ToggleQueueExpanded','CycleQueueRows','CycleQueueRows','ToggleQueueDetails','CycleQueuePoll','CycleQueuePoll'}) do command('MeasureMediaSettings',action) end
+        check(text('MeterWidthValue')=='2' and text('MeterQueueExpandedValue')=='Collapsed','Initial labels wrong')
+        check(settings_count('FixtureInputRuns')==0 and settings_count('FixtureSettingsWrites')==0,'Settings auto-started input or wrote on load')
+        unchanged(function()
+            for _,action in ipairs({"StepNumber('Columns',1)","StepNumber('QueuePollSeconds',-1)","StepNumber('QueueRowLimit',-1)",
+                "BeginNumberInput('QueueRowLimit')","StepNumber('Scale',1)","StepNumber('Columns',2)","StepNumber('Columns','1')",'CommitNumberInput()'}) do settings_action(action) end
+        end,'Bounds/hidden/invalid action')
+        check(settings_count('FixtureInputRuns')==0,'Hidden field opened input')
+        SKIN:Bang(SKIN:GetMeter('MeterWidthDecrease'):GetOption('LeftMouseUpAction'))
+        command('MeasureMediaSettings','ToggleQueueExpanded')
+        SKIN:Bang(SKIN:GetMeter('MeterQueueRowsDecrease'):GetOption('LeftMouseUpAction'))
+        SKIN:Bang(SKIN:GetMeter('MeterQueuePollIncrease'):GetOption('LeftMouseUpAction'))
+        command('MeasureMediaSettings','ToggleQueueDetails')
         prefs=preferences()
-        check(prefs.Columns=='1' and prefs.QueueExpanded=='1' and prefs.QueueRowLimit=='3' and prefs.QueueShowDetails=='0' and prefs.QueuePollSeconds=='120','Preference controls did not save expected keys')
-        check(text('MeterStatus')=='Use Restart to apply interval.','Refresh interval lacks explicit restart status')
-        check(text('MeterQueuePollValue')=='120 seconds','Refresh interval label not updated')
-        check(SKIN:GetVariable('QueuePollSeconds')=='120','Service actions interval not updated')
-        advance(2)
+        check(prefs.Columns=='1' and prefs.QueueExpanded=='1' and prefs.QueueRowLimit=='4' and prefs.QueueShowDetails=='0' and prefs.QueuePollSeconds=='31','Arrows must step exactly one')
+        check(settings_count('FixtureSettingsWrites')==5 and settings_count('FixtureSettingsRefreshes')==10,'Explicit edits did not write once and refresh only fixed targets')
+        check(text('MeterStatus')=='Use Restart to apply interval.','Interval lacks explicit restart reminder')
+        settle(2)
     elseif stage==2 then
-        check(prefs.Columns=='1' and prefs.QueueExpanded=='1' and prefs.QueueRowLimit=='3' and prefs.QueueShowDetails=='0' and prefs.QueuePollSeconds=='120','Saved preferences changed after reload')
-        check(text('MeterWidthValue')=='1 column' and text('MeterQueueExpandedValue')=='Expanded','Width/expanded labels did not reload')
-        check(text('MeterQueueRowsValue')=='3 items' and text('MeterQueueDetailsValue')=='Hidden' and text('MeterQueuePollValue')=='120 seconds','Queue labels did not reload')
-        for _,name in ipairs({'MeterSignIn','MeterStart','MeterRestart'}) do
-            local action=SKIN:GetMeter(name):GetOption('LeftMouseUpAction','')
-            check(action:find('"-PollSeconds" "120"',1,true),'Helper action does not use saved interval: '..name)
+        begin_number('Columns')
+        unchanged(function()
+            local runs=settings_count('FixtureInputRuns')
+            settings_action("BeginNumberInput('QueuePollSeconds')")
+            settings_action("StepNumber('Columns',1)")
+            input_result(1,0)
+            check(settings_count('FixtureInputRuns')==runs,'Duplicate editor launched')
+        end,'Pending/running input')
+        input_result(1);check(preferences().Columns=='2','Valid typed column not saved')
+        for _,index in ipairs({4,5,6,7,8,9,13,15}) do
+            begin_number('QueuePollSeconds')
+            unchanged(function() input_result(index) end,'Invalid/cancel output '..index)
         end
-        SKIN:Bang('!WriteKeyValue','Variables','QueueRowLimit','2',SELF:GetOption('PreferencesPath'))
+        begin_number('QueuePollSeconds');input_result(3)
+        check(preferences().QueuePollSeconds=='150','Upper typed endpoint not saved')
+        unchanged(function() settings_action("StepNumber('QueuePollSeconds',1)") end,'Upper bound')
+        begin_number('QueuePollSeconds');unchanged(function() input_result(3) end,'Same numeric input')
+        begin_number('QueuePollSeconds');input_result(10)
+        check(preferences().QueuePollSeconds=='30','CRLF lower endpoint not saved')
+        begin_number('QueuePollSeconds');SKIN:Bang('!SetVariable','FixtureInputAge','301')
+        unchanged(function() input_result(11) end,'Expired request');SKIN:Bang('!SetVariable','FixtureInputAge','0')
+        begin_number('QueuePollSeconds');SKIN:Bang('!SetVariable','FixtureInputAge','-1')
+        unchanged(function() input_result(11) end,'Clock rollback');SKIN:Bang('!SetVariable','FixtureInputAge','0')
+        begin_number('QueuePollSeconds');unchanged(function() input_result(11,103) end,'Failed process')
+        begin_number('QueueRowLimit');input_result(12)
+        check(preferences().QueueRowLimit=='1','Row lower endpoint failed')
+        unchanged(function() settings_action("StepNumber('QueueRowLimit',-1)") end,'Row lower bound')
+        begin_number('QueueRowLimit');input_result(16)
+        check(preferences().QueueRowLimit=='5','Row upper endpoint failed')
+        unchanged(function() settings_action("StepNumber('QueueRowLimit',1)") end,'Row upper bound')
+        begin_number('QueuePollSeconds')
         SKIN:Bang('!WriteKeyValue','Variables','QueuePollSeconds','45',SELF:GetOption('PreferencesPath'))
+        unchanged(function() input_result(11) end,'Fresh saved value changed')
+        SKIN:Bang('!WriteKeyValue','Variables','QueueRowLimit','2',SELF:GetOption('PreferencesPath'))
         advance(3)
     elseif stage==3 then
-        check(prefs.QueueRowLimit=='2' and prefs.QueuePollSeconds=='45','Custom fixture not persisted')
-        check(text('MeterQueueRowsValue')=='2 items' and text('MeterQueuePollValue')=='45 seconds','Valid custom preferences not rendered')
-        check(SKIN:GetVariable('QueuePollSeconds')=='45','Custom interval ignored by actions')
-        command('MeasureMediaSettings','CycleQueueRows')
-        command('MeasureMediaSettings','CycleQueuePoll')
-        prefs=preferences()
-        check(prefs.QueueRowLimit=='3' and prefs.QueuePollSeconds=='60','Custom values do not advance to next preset')
+        check(prefs.QueueRowLimit=='2' and prefs.QueuePollSeconds=='45','Custom values did not reload')
+        check(text('MeterQueueRowsValue')=='2' and text('MeterQueuePollValue')=='45','Custom numbers not rendered')
+        settings_action("StepNumber('QueueRowLimit',1)")
+        check(preferences().QueueRowLimit=='3','Custom row step is not one')
+        local raw=read(SELF:GetOption('PreferencesPath'))
+        if raw:sub(1,2)=='\255\254' then raw=raw:sub(3):gsub('(.).','%1') end
+        local changed,count=raw:gsub('QueuePollSeconds=[^\r\n]+','QueuePollSeconds=(60*2)')
+        check(count==1,'Cannot install raw expression fixture');write(SELF:GetOption('PreferencesPath'),changed)
+        unchanged(function() settings_action("StepNumber('QueuePollSeconds',1)") end,'Saved formula arrow')
+        begin_number('QueuePollSeconds');input_result(10)
+        check(preferences().QueuePollSeconds=='30','Typed displayed default did not replace formula')
+        SKIN:Bang('!WriteKeyValue','Variables','QueuePollSeconds','030',SELF:GetOption('PreferencesPath'))
+        unchanged(function() settings_action("StepNumber('QueuePollSeconds',-1)") end,'Leading-zero lower bound')
+        begin_number('QueuePollSeconds');unchanged(function() input_result(10) end,'Leading-zero numeric no-op')
+        settings_action("StepNumber('QueuePollSeconds',1)")
+        check(preferences().QueuePollSeconds=='31','Leading-zero literal not stepped canonically')
+        begin_number('QueueRowLimit')
+        command('MeasureMediaSettings','ToggleQueueExpanded')
+        unchanged(function() input_result(2) end,'Now-hidden/local revision changed')
+        command('MeasureMediaSettings','ToggleQueueExpanded')
+        begin_number('QueuePollSeconds');input_result(11)
+        settings_action("StepNumber('QueuePollSeconds',-1)")
+        check(preferences().QueuePollSeconds=='119','Typed interior followed by arrow wrong')
+        for _,name in ipairs({'MeterSignIn','MeterStart','MeterRestart'}) do
+            check(SKIN:GetMeter(name):GetOption('LeftMouseUpAction'):find('"-PollSeconds" "119"',1,true)~=nil,'Service action does not use saved interval')
+        end
+        check(text('MeterStatus')=='Use Restart to apply interval.','Toggle lost restart reminder')
         advance(4)
     elseif stage==4 then
-        check(prefs.QueueRowLimit=='3' and prefs.QueuePollSeconds=='60','Next presets not retained across reload')
-        check(text('MeterQueueRowsValue')=='3 items' and text('MeterQueuePollValue')=='60 seconds','Next preset labels not reloaded')
+        check(prefs.QueueRowLimit=='3' and prefs.QueuePollSeconds=='119','Typed and stepped values not retained across reload')
+        check(text('MeterQueueRowsValue')=='3' and text('MeterQueuePollValue')=='119','Next preset labels not reloaded')
+        settings_expanded_height=SKIN:GetH()
+        SKIN:Bang(SKIN:GetMeter('MeterQueueExpandedLabel'):GetOption('LeftMouseUpAction'))
+        prefs=preferences()
+        check(prefs.QueueExpanded=='0' and prefs.QueueRowLimit=='3' and prefs.QueueShowDetails=='0','Collapse discarded saved display values')
+        settle(5)
+    elseif stage==5 then
+        check(settings_expanded_height-SKIN:GetH()==math.floor(56*SELF:GetNumberOption('ExpectedScale')+0.5),'Collapse did not reclaim 56 logical pixels')
+        advance(6)
+    elseif stage==6 then
+        check(prefs.QueueExpanded=='0' and prefs.QueueRowLimit=='3' and prefs.QueueShowDetails=='0','Collapsed preferences did not survive reopen')
+        check(text('MeterQueueRowsValue')=='3' and text('MeterQueueDetailsValue')=='Hidden','Collapsed settings discarded value labels')
+        SKIN:Bang(SKIN:GetMeter('MeterQueueExpandedValue'):GetOption('LeftMouseUpAction'))
+        settle(7)
+    elseif stage==7 then
+        check(text('MeterQueueRowsValue')=='3' and text('MeterQueueDetailsValue')=='Hidden','Expand failed to restore previous display choices')
+        advance(8)
+    elseif stage==8 then
+        check(prefs.QueueExpanded=='1' and prefs.QueueRowLimit=='3' and prefs.QueueShowDetails=='0','Expanded values did not survive reopen')
+        -- Retain one collapsed and one expanded endpoint capture.
+        if SELF:GetNumberOption('ExpectedWidth')==180 then
+            command('MeasureMediaSettings','ToggleQueueExpanded')
+            settle(9)
+        else
+            return true
+        end
+    elseif stage==9 then
         return true
     else error('Unexpected settings stage') end
     return false
@@ -155,23 +426,41 @@ end
 local function sync_stage()
     local expected=stage==2 and 'Expanded' or 'Collapsed'
     accordion(stage==2,5,true)
-    check(read(SELF:GetOption('SyncLabelFile'))==expected,'Open Settings label did not synchronize: expected '..expected)
+    local result=read(SELF:GetOption('SyncLabelFile'))
+    local label,side_checks=result:match('^(%a+)|(%d+)$')
+    check(label==expected,'Open Settings did not synchronize label/geometry: expected '..expected..', got '..result)
+    check(tonumber(side_checks or 0)>0,'Settings synchronization omitted native geometry checks')
+    checks=checks+tonumber(side_checks)
     if stage<3 then advance(stage+1,'ToggleQueue') else return true end
     return false
 end
 local function probe_names()
+    if kind:match('^QueueToggle') then return {'MeterQueueHeading','MeterQueueStatus'} end
+    if kind:match('^TitleRow') then
+        if is_settings() then return {'MeterTitle','MeterClose'} end
+        if kind:match('Queue$') then return {'MeterHeading','MeterQueueStatus'} end
+        if kind:match('Setup$') then return {'MeterHeading','MeterPlayerName','MeterSetupStatus'} end
+        return {'MeterHeading','MeterPlayerName'}
+    end
+    if kind:match('^Identity') then return {'MeterHeading','MeterPlayerName'} end
     if is_settings() then return {'MeterTitle','MeterQueueHeading','MeterQueuePollLabel','MeterQueuePollValue',
-        'MeterStatus','MeterDisconnect','MeterPlayerSetup','MeterClose','MeterSourceLabel','MeterSourceStart','MeterSourceStop'} end
-    local names={'MeterHeading','MeterQueueHeading','MeterQueueStatus','MeterQueueRow1'}
-    local other=kind:find('Player',1,true) and {'MeterTrackTitle','MeterArtist','MeterAlbum','MeterPlayerName','MeterTiming','MeterPrevious','MeterPlayPause','MeterNext'} or
+        'MeterStatus','MeterDisconnect','MeterPlayerSetup','MeterClose','MeterSourceLabel','MeterSourceStart','MeterSourceStop',
+        'MeterUtilitySettingsNote','MeterUtilitySettingsGlobalLink','MeterSourceGuidance','MeterQueueGuidance'} end
+    local names={'MeterHeading','MeterPlayerName','MeterQueueHeading','MeterQueueStatus','MeterQueueRow1'}
+    local other=kind:find('Player',1,true) and {'MeterTrackTitle','MeterArtist','MeterAlbum','MeterTiming'} or
         {'MeterSetupInstructions','MeterDesktopNote','MeterWNPDocs','MeterLoadPlayer'}
     for _,name in ipairs(other) do names[#names+1]=name end
     return names
 end
 local function prepare_probes()
-    for _,name in ipairs(probe_names()) do
+    local names=probe_names()
+    if kind:find('Player',1,true) and not kind:match('^Identity') and not kind:match('^TitleRow') and not kind:match('^QueueToggle') then names[#names+1]='MeterTimingUnavailable' end
+    for _,name in ipairs(names) do
         local target=assert(SKIN:GetMeter(name))
         check(SKIN:GetMeter('Probe'..name)~=nil,'Missing glyph probe '..name)
+        if name=='MeterTiming' then
+            SKIN:Bang('!SetOption','ProbeMeterTiming','Text',SKIN:GetMeasure('MeasurePosition'):GetStringValue()..' / '..SKIN:GetMeasure('MeasureDuration'):GetStringValue())
+        end
         for option,default in pairs({FontFace='Arial',FontSize='10',FontWeight='400',StringStyle='Normal',StringCase='None',CharacterSpacing='0'}) do
             SKIN:Bang('!SetOption','Probe'..name,option,target:GetOption(option,default))
         end
@@ -185,6 +474,30 @@ local function prepare_probes()
         end
     end
     SKIN:Bang('!UpdateMeterGroup','TypographyProbes')
+end
+local function missing_time()
+    if not kind:find('Player',1,true) then return end
+    local duration=SKIN:GetMeasure('MeasureDuration')
+    local original=duration:GetOption('Formula')
+    check(duration:GetOption('Measure')=='Calc','Missing-time fixture must be inert')
+    SKIN:Bang('!SetOption','MeasureDuration','Formula','0')
+    SKIN:Bang('!UpdateMeasure','MeasureDuration')
+    SKIN:Bang('!UpdateMeasure','MeasureMediaUI')
+    SKIN:Bang('!UpdateMeterGroup','MediaTimeline')
+    SKIN:Bang('!UpdateMeterGroup','MediaDynamic')
+    local target,probe=SKIN:GetMeter('MeterTimingUnavailable'),SKIN:GetMeter('ProbeMeterTimingUnavailable')
+    check(target:GetW()>0 and SKIN:GetMeter('MeterTiming'):GetW()==0,'Unavailable playback time state not shown')
+    check(text('MeterTimingUnavailable')=='-- / --','Unavailable time label changed')
+    probe:Show();local w,h=probe:GetW(),probe:GetH();probe:Hide()
+    check(w>0 and h>0 and w<=target:GetW() and h<=target:GetH(),string.format('Missing-time glyph clipping %dx%d/%dx%d',w,h,target:GetW(),target:GetH()))
+    local next_control=SKIN:GetMeter('MeterNext')
+    check(target:GetOption('StringAlign')=='Right' and next_control:GetX(true)+next_control:GetW()<=target:GetX(true)-target:GetW()+1,'Unavailable time overlaps enlarged controls')
+    SKIN:Bang('!SetOption','MeasureDuration','Formula',original)
+    SKIN:Bang('!UpdateMeasure','MeasureDuration')
+    SKIN:Bang('!UpdateMeasure','MeasureMediaUI')
+    SKIN:Bang('!UpdateMeterGroup','MediaTimeline')
+    SKIN:Bang('!UpdateMeterGroup','MediaDynamic')
+    check(SKIN:GetMeter('MeterTiming'):GetW()>0 and target:GetW()==0,'Synthetic playback time did not restore')
 end
 local function typography()
     local info={}
@@ -209,16 +522,18 @@ local function typography()
         check(SKIN:GetMeter(meter):GetOption('FontColor')==SKIN:GetVariable(variable),meter..' ignores '..variable)
     end
     color(is_settings() and 'MeterTitle' or 'MeterHeading','TitleTextColor')
-    color('MeterQueueHeading','HeaderTextColor')
+    color('MeterQueueHeading',is_settings() and 'AccentColor' or 'HeaderTextColor')
     if is_settings() then
         color('MeterQueuePollLabel','TextColor'); color('MeterStatus','TextColor')
+        for _,name in ipairs({'MeterWidthValue','MeterQueueExpandedValue','MeterQueueRowsValue','MeterQueueDetailsValue','MeterQueuePollValue'}) do color(name,'TextColor') end
         color('MeterStart','AccentColor'); color('MeterStop','AccentColor2'); color('MeterPlayerSetup','AccentColor2')
-        color('MeterSourceLabel','TextColor'); color('MeterSourceStart','AccentColor'); color('MeterSourceStop','AccentColor2')
+        for _,name in ipairs({'MeterDisplayHeading','MeterSamplingHeading','MeterSourceLabel','MeterLinksHeading'}) do color(name,'AccentColor') end
+        color('MeterSourceStart','AccentColor'); color('MeterSourceStop','AccentColor2')
     else
         color('MeterQueueRow1','TextColor'); color('MeterQueueStatus','MediaColor')
         if kind:find('Player',1,true) then
-            color('MeterArtist','TextColor'); color('MeterAlbum','TextColor'); color('MeterPrevious','AccentColor')
-            color('MeterPlayerName','TextColor')
+            color('MeterArtist','TextColor'); color('MeterAlbum','TextColor')
+            check(SKIN:GetMeter('MeterPrevious'):GetOption('LucideTransportStroke'):find('Stroke Color '..SKIN:GetVariable('AccentColor'),1,true)~=nil,'Transport ignores AccentColor')
         else
             color('MeterSetupStatus','WarningColor'); color('MeterDesktopNote','TextColor')
             color('MeterLoadPlayer','AccentColor'); color('MeterWNPDocs','AccentColor2')
@@ -237,26 +552,30 @@ local function typography_stage()
         check(SKIN:GetMeter('MeterProgress'):GetW()>0,'Synthetic timeline hidden')
         check(SKIN:GetMeasure('MeasureMediaSource'):GetOption('Measure')=='String','Real source reader loaded in UI fixture')
         check(SKIN:GetMeasure('MeasureSourceArtist'):GetOption('Measure')=='String','Raw artist fixture is not synthetic')
-        check(SKIN:GetMeter('MeterPlayerName'):GetOption('MeasureName')=='MeasureMediaSource','Source label still binds raw player name')
+        check(SKIN:GetMeter('MeterPlayerName'):GetOption('MeasureName')=='MeasureMediaHeader' and SKIN:GetMeter('MeterConnection')==nil,'Player name binding or removed playback status changed')
         check(SKIN:GetMeasure('MeasureMediaSource'):GetStringValue()=='Spotify','Synthetic Spotify source was not retained')
         check(SKIN:GetMeasure('MeasurePlayer'):GetStringValue()=='Windows Media Session','Raw player fixture does not distinguish source binding')
     end
     return true
 end
-local function artwork_bounds(expanded)
+artwork_bounds=function(expanded)
     local scale=SELF:GetNumberOption('ExpectedScale')
     local columns=SELF:GetNumberOption('ExpectedColumns')
     local wide=columns==2
     local inset=math.floor(tonumber(SKIN:GetVariable('Gutter'))*scale/2+0.5)
-    local padding=tonumber(SKIN:GetVariable('PanelPadding'))*scale
+    local padding=math.floor(tonumber(SKIN:GetVariable('PanelPadding'))*scale+0.5)
     local art_x=inset+(wide and 0 or padding)
-    local art_y=inset+(wide and 9 or 44)*scale
-    local art_size=(wide and 144 or 48)*scale
-    local content_x=inset+(wide and 156*scale or padding)
+    local art_y=inset+(wide and 0 or 44)*scale
+    local art_size,surface_offset,body,controls_y=media_geometry()
+    local surface_y=inset+surface_offset
+    local content_x=inset+(wide and (art_size+8*scale) or padding)
     local width,height=dimensions(expanded,5)
     local panel=SKIN:GetMeter('MeterPanel')
     check(math.abs(panel:GetX(true)-(inset+(wide and 96*scale or 0)))<=1,'Surface left offset wrong')
+    check(math.abs(panel:GetY(true)-surface_y)<=1,'Surface top offset wrong')
+    check(math.abs(panel:GetY(true)+panel:GetH()-(height-inset))<=1,'Surface bottom does not follow the rendered body')
     check(math.abs(panel:GetX(true)+panel:GetW()-(width-inset))<=1,'Surface right edge changed pitch')
+    check(math.abs(SKIN:GetMeter('MeterHeading'):GetY(true)-(surface_y+15*scale))<=1,'Title center does not follow the inset surface')
     local function art(name,visible)
         local meter=assert(SKIN:GetMeter(name))
         if visible then
@@ -265,10 +584,11 @@ local function artwork_bounds(expanded)
             inside(name,width,height)
         else check(meter:GetW()==0,name..' unexpectedly visible') end
     end
-    art('MeterArtworkPlaceholder',wide)
     local player=kind:find('Player',1,true)~=nil
+    art('MeterArtworkPlaceholder',wide and not player)
     check((SKIN:GetMeter('MeterArtworkLabel'):GetW()>0)==(wide and not player),'Wide artwork underlay label visibility wrong')
-    local names={'MeterMediaIcon','MeterHeading','MeterQueueHeading','MeterQueueStatus'}
+    local names={'MeterMediaIcon','MeterPlayerIcon','MeterHeading','MeterPlayerName'}
+    player_name_row()
     if kind:find('Player',1,true) then
         local missing=kind=='ArtworkPlayerMissing'
         local cover=SKIN:GetMeasure('MeasureCover')
@@ -278,28 +598,88 @@ local function artwork_bounds(expanded)
         check(SKIN:GetMeasure('MeasureMediaSource'):GetOption('Measure')=='String' and SKIN:GetMeasure('MeasureMediaSource'):GetStringValue()=='Spotify','Synthetic source replaced or changed')
         check(SKIN:GetMeasure('MeasureSourceArtist'):GetOption('Measure')=='String','Raw artist fixture not synthetic')
         art('MeterCoverPlaceholder',true)
+        art('MeterCoverMask',true)
+        art('MeterCoverFrame',true)
         art('MeterCover',not missing)
-        check((SKIN:GetMeter('MeterCoverLabel'):GetW()>0)==missing and text('MeterCoverLabel')=='No art','No art label must show only when artwork is missing')
+        check(SKIN:GetMeter('MeterCover'):GetOption('Container')=='MeterCoverMask','Artwork does not use the rounded mask')
+        check(SKIN:GetMeter('MeterCoverMask'):GetOption('Group',''):find('MediaTrack',1,true)==nil,'Mask can be hidden by track state')
+        check((SKIN:GetMeter('MeterCoverLabel'):GetW()>0)==missing and text('MeterCoverLabel')=='N/A','N/A label must show only when artwork is missing')
+        check(SKIN:GetMeter('MeterCoverLabel'):GetOption('ToolTipText')=='No artwork available.','Missing artwork tooltip lost')
         check(SKIN:GetMeter('MeterCover'):GetOption('PreserveAspectRatio')=='2','Artwork crop behavior changed')
-        for _,name in ipairs({'MeterTrackTitle','MeterArtist','MeterAlbum','MeterConnection','MeterPlayerName','MeterTiming','MeterPrevious','MeterPlayPause','MeterNext','MeterProgress'}) do names[#names+1]=name end
+        check(SKIN:GetMeter('MeterConnection')==nil,'Removed playback status remains visible')
+        for _,name in ipairs({'MeterTrackTitle','MeterArtist','MeterAlbum','MeterTiming','MeterPrevious','MeterPlayPause','MeterNext','MeterProgress'}) do names[#names+1]=name end
         local progress=SKIN:GetMeter('MeterProgress')
-        check(math.abs(progress:GetX(true)-content_x)<=1,'Progress does not begin at content edge')
+        check(math.abs(progress:GetX(true)-(content_x-(wide and 4*scale or 0)))<=1,'Progress does not use its extended left edge')
         check(math.abs(progress:GetX(true)+progress:GetW()-(width-inset-padding))<=1,'Progress does not end at content edge')
+        local bar_height=math.max(1,math.floor(SELF:GetNumberOption('ExpectedBarThickness',6)*scale+0.5))
+        check(progress:GetH()==bar_height,'Progress bar ignores rounded shared thickness')
+        check(tonumber(SKIN:GetVariable('DataBarThickness'))==SELF:GetNumberOption('ExpectedBarThickness',6),'Thickness fixture preference changed')
+        local album=SKIN:GetMeter('MeterAlbum')
+        check(progress:GetY(true)>=album:GetY(true)+album:GetH()/2+2*scale-1,'Bar overlaps metadata')
         local title=SKIN:GetMeter('MeterTrackTitle')
-        check(math.abs(title:GetX(true)-(content_x+(wide and 0 or 54*scale)))<=1,'Track title layout changed')
+        local old_cover=wide and math.floor(math.floor(SELF:GetNumberOption('ExpectedWidth')*scale+0.5)*0.9+0.5) or 48*scale
+        local metadata_x=inset+(wide and old_cover+8*scale or padding+54*scale)
+        check(math.abs(title:GetX(true)-(metadata_x+20*scale))<=1,'Track title is not clear of its icon')
+        local icon_shapes={}
+        for row,pair in ipairs({{'MeterSongIcon','MeterTrackTitle'},{'MeterArtistIcon','MeterArtist'},{'MeterAlbumIcon','MeterAlbum'}}) do
+            local icon,label=SKIN:GetMeter(pair[1]),SKIN:GetMeter(pair[2])
+            names[#names+1]=pair[1]
+            check(icon:GetOption('Meter')=='Shape' and icon:GetOption('Group')=='MediaTrack','Metadata icon is not a track shape')
+            check(math.abs(icon:GetW()-14*scale)<=1 and math.abs(icon:GetH()-14*scale)<=1,'Metadata icon dimensions wrong')
+            check(math.abs(icon:GetX(true)-metadata_x)<=1 and icon:GetX(true)+icon:GetW()<=label:GetX(true)-5*scale+1,'Metadata icon overlaps text')
+            local expected_y=surface_y+(50+(row-1)*24)*scale
+            check(label:GetOption('StringAlign')=='LeftCenter','Metadata text is not vertically centered')
+            check(math.abs(label:GetY(true)-(expected_y+12*scale))<=1 and math.abs(icon:GetY(true)-(expected_y+5*scale))<=1,'Metadata row alignment wrong')
+            check(math.abs(label:GetY(true)-icon:GetY(true)-icon:GetH()/2)<=1,'Metadata icon and text centers differ')
+            local font_size=tonumber(label:GetOption('FontSize')) or SKIN:ParseFormula(label:GetOption('FontSize'))
+            check(math.abs(font_size-tonumber(SKIN:GetVariable('FontSize'))*scale)<0.001,'Metadata does not inherit body font size')
+            check(math.abs(label:GetH()-24*scale)<=1,'Enlarged metadata row height wrong')
+            check(math.abs(label:GetW()-(width-inset-padding-metadata_x-20*scale))<=1,'Artwork shrink changed metadata width')
+            local fingerprint=icon:GetOption('Shape')..icon:GetOption('Shape2','')..icon:GetOption('Shape3','')
+            check(not icon_shapes[fingerprint],'Metadata icons are duplicates')
+            icon_shapes[fingerprint]=true
+        end
+        local previous=SKIN:GetMeter('MeterPrevious')
+        local next_control=SKIN:GetMeter('MeterNext')
+        local timing=SKIN:GetMeter('MeterTiming')
+        transport_center('MeterTiming')
+        check(timing:GetOption('StringAlign')=='Right','Playback time is not right aligned')
+        check(math.abs(timing:GetX(true)-(width-inset-padding))<=1,'Playback time right edge wrong')
+        check(math.abs(timing:GetY(true)-progress:GetY(true)-bar_height-2*scale)<=1,'Playback time baseline wrong')
+        check(math.abs(previous:GetY(true)-progress:GetY(true)-bar_height-8*scale)<=1,'Transport does not clear the bar')
+        check(next_control:GetX(true)+next_control:GetW()<=timing:GetX(true)-timing:GetW()+1,'Transport overlaps playback time')
+        for _,name in ipairs({'MeterPrevious','MeterPlayPause','MeterNext'}) do
+            local control=SKIN:GetMeter(name)
+            check(math.abs(control:GetW()-28*scale)<=1 and math.abs(control:GetH()-26*scale)<=1,'Enlarged transport bounds wrong')
+        end
     else
         check(SKIN:GetMeasure('MeasureMediaSource')==nil,'Setup loaded a source reader')
         for _,name in ipairs({'MeterSetupStatus','MeterSetupInstructions','MeterDesktopNote','MeterWNPDocs','MeterLoadPlayer'}) do names[#names+1]=name end
     end
-    if expanded then for row=1,5 do names[#names+1]='MeterQueueRow'..row end end
     for _,name in ipairs(names) do
         local meter=SKIN:GetMeter(name)
         inside(name,width,height)
         if wide then
             local left=meter:GetX(true)
             if meter:GetOption('StringAlign','Left'):match('^Center') then left=left-meter:GetW()/2 end
-            check(left>=art_x+art_size+12*scale-1,name..' intrudes into artwork gap')
+            check(left>=art_x+art_size+(name=='MeterProgress' and 4 or 8)*scale-1,name..' intrudes into artwork gap')
         end
+    end
+    local queue_x=panel:GetX(true)+math.floor(padding+0.5)
+    local queue_right=width-inset-math.floor(padding+0.5)
+    local rule=SKIN:GetMeter('MeterQueueRule')
+    check(math.abs(rule:GetX(true)-queue_x)<=1,'Queue rule not aligned with surface interior')
+    check(rule:GetY(true)>=art_y+art_size+8*scale-1,'Queue rule is not below artwork')
+    if player then check(rule:GetY(true)>=SKIN:GetMeter('MeterPrevious'):GetY(true)+SKIN:GetMeter('MeterPrevious'):GetH()+8*scale-1,'Queue rule is not below transport controls') end
+    local queue_names={'MeterQueueHeading','MeterQueueToggle','MeterQueueStatus'}
+    if expanded then for row=1,5 do queue_names[#queue_names+1]='MeterQueueRow'..row end end
+    for _,name in ipairs(queue_names) do
+        local meter=SKIN:GetMeter(name)
+        inside(name,width,height)
+        check(math.abs(meter:GetX(true)-(queue_x+(name=='MeterQueueStatus' and 66*scale or name=='MeterQueueToggle' and 44*scale or 0)))<=1,'Queue left alignment wrong: '..name)
+        if name~='MeterQueueHeading' and name~='MeterQueueToggle' then check(math.abs(meter:GetX(true)+meter:GetW()-queue_right)<=1,'Queue width wrong: '..name) end
+        local top=meter:GetY(true)-(meter:GetOption('StringAlign')=='LeftCenter' and meter:GetH()/2 or 0)
+        check(top>=art_y+art_size+8*scale-1,'Queue is not below artwork: '..name)
     end
 end
 local function artwork_stage()
@@ -312,15 +692,374 @@ local function artwork_stage()
     if stage==1 then advance(2,'ToggleQueue')
     elseif stage==2 then
         typography()
-        if SELF:GetNumberOption('ExpectedWidth')==200 then advance(3,'ToggleQueue') else return true end
+        missing_time()
+        if SELF:GetNumberOption('ExpectedWidth')>=220 then advance(3,'ToggleQueue') else return true end
     elseif stage==3 then return true
     else error('Unexpected artwork stage') end
     return false
+end
+local function header_stage()
+    local prefs=preferences()
+    check(prefs.QueueExpanded=='0','Header fixture preference changed')
+    local original=read(SELF:GetOption('PreferencesPath'))
+    local scale=SELF:GetNumberOption('ExpectedScale')
+    local columns=SELF:GetNumberOption('ExpectedColumns')
+    local rounded=function(value) return math.floor(value+0.5) end
+    local inset=rounded(tonumber(SKIN:GetVariable('Gutter'))*scale/2)
+    local queue=kind=='HeaderQueue'
+    local offset=queue and 0 or rounded(12*(columns-1)*scale)
+    local width,height
+    if queue then
+        width=columns*(rounded(SELF:GetNumberOption('ExpectedWidth')*scale)+2*inset)
+        height=rounded(162*scale)+2*inset
+        check(SKIN:GetW()==width and SKIN:GetH()==height,'Standalone queue header changed window dimensions')
+    else width,height=dimensions(false,5) end
+    local measure=assert(SKIN:GetMeasure('MeasureQueueStatus'))
+    check(measure:GetOption('QueueCachePath')==SELF:GetOption('SyntheticCachePath'),'Header fixture cache is not synthetic')
+    check(measure:GetStringValue()=='Next 5','Synthetic queue fixture unavailable')
+    if kind=='HeaderPlayer' then
+        check(SKIN:GetMeasure('MeasureMediaSource'):GetOption('Measure')=='String','Header fixture loaded a real source reader')
+        check(SKIN:GetMeasure('MeasureSourceArtist'):GetOption('Measure')=='String','Header raw artist is not synthetic')
+    end
+    local gear=assert(SKIN:GetMeter('MeterMediaOptions'))
+    check(gear:GetW()==0,'Header gear must begin hidden')
+    local enter,leave=SELF:GetOption('HoverEnter'),SELF:GetOption('HoverLeave')
+    check(enter=='[!ShowMeter MeterMediaOptions][!Redraw]','Unexpected hover entry command')
+    check(leave=='[!HideMeter MeterMediaOptions][!Redraw]','Unexpected hover leave command')
+    SKIN:Bang(enter)
+    check(gear:GetW()==18*scale and gear:GetH()==18*scale,'Hover did not reveal the expected gear bounds')
+    local expected_y=inset+offset+6*scale
+    check(gear:GetY(true)==expected_y,string.format('Gear Y %g expected %g (%s)',gear:GetY(true),expected_y,kind))
+    check(gear:GetX(true)==width-inset-rounded(tonumber(SKIN:GetVariable('PanelPadding'))*scale)-18*scale,'Gear right inset changed')
+    inside('MeterMediaOptions',width,height)
+    local heading=assert(SKIN:GetMeter('MeterHeading'))
+    check(heading:GetX(true)+heading:GetW()<=gear:GetX(true),'Gear overlaps heading')
+    check(gear:GetOption('LeftMouseUpAction')=='[!ActivateConfig "Parallax\\Media\\Settings" "Settings.ini"]','Gear settings target changed')
+    SKIN:Bang(leave)
+    check(gear:GetW()==0,'Mouse leave did not hide header gear')
+    check(read(SELF:GetOption('PreferencesPath'))==original,'Header hover changed saved preferences')
+    glyph_report=string.format('gearY=%g expected=%g headerOffset=%g',gear:GetY(true),expected_y,offset)
+    return true
+end
+local identity_icons={'MeterMediaIcon','MeterPlayerIcon'}
+local identity_literal='Literal #IdentitySentinel# [!SetVariable IdentitySentinel escaped] [&MeasurePlayer:Tripwire()] "player"'
+local function identity_transport()
+    local scale=SELF:GetNumberOption('ExpectedScale')
+    local online=stage~=7
+    local playing=online and stage~=3
+    local center=SKIN:GetMeter('MeterPlayPause')
+    local function mode(expected,enabled)
+        local second=center:GetOption('Shape2')
+        if expected=='pause' then
+            check(second:match('^Rectangle ') and second:find('Extend LucideTransportStroke',1,true) and center:GetOption('Shape3'):match('^Rectangle '),'Paused state must show pause rectangles')
+        elseif expected=='step' then
+            check(second=='Path LucideTransportStepForwardPath | Extend LucideTransportStroke','Paused hover must show step-forward')
+            check(center:GetOption('Shape3')=='Path LucideTransportStepForwardBarPath | Extend LucideTransportStroke','Step-forward bar missing')
+        elseif expected=='hover' then
+            check(second=='Path LucideTransportPlayOffUpperPath | Extend LucideTransportStroke','Supported hover must show play-off upper path')
+            check(center:GetOption('Shape3')=='Path LucideTransportPlayOffLowerPath | Extend LucideTransportStroke','Play-off lower path missing')
+            check(center:GetOption('Shape4')=='Path LucideTransportPlayOffSlashPath | Extend LucideTransportStroke','Play-off slash missing')
+        else check(second=='Path LucideTransportPlayPath | Extend LucideTransportStroke','Play state or fallback must show play') end
+        check(center:GetOption('LucideTransportStroke'):find('Stroke Color '..SKIN:GetVariable(enabled and 'AccentColor' or 'MutedColor'),1,true)~=nil,'Center transport stroke ignores capability')
+        check(center:GetOption('MouseActionCursor')==(enabled and '1' or '0'),'Center transport cursor ignores capability')
+    end
+    local first=SKIN:GetMeter('MeterPrevious')
+    for index,name in ipairs({'MeterPrevious','MeterPlayPause','MeterNext'}) do
+        local meter=SKIN:GetMeter(name)
+        check(meter:GetOption('Meter')=='Shape','Transport is not a vector Shape')
+        check(math.abs(meter:GetW()-28*scale)<=1 and math.abs(meter:GetH()-26*scale)<=1,'Transport target dimensions changed')
+        check(math.abs(meter:GetX(true)-first:GetX(true)-(index-1)*32*scale)<=1,'Transport spacing changed')
+        check(meter:GetOption('LucideTransportStroke'):find('Stroke Color '..SKIN:GetVariable(online and 'AccentColor' or 'MutedColor'),1,true)~=nil,'Transport stroke ignores connection')
+    end
+    mode(online and not playing and 'pause' or 'play',online)
+    local enter,leave=center:GetOption('MouseOverAction'),center:GetOption('MouseLeaveAction')
+    check(enter=='[!CommandMeasure "MeasureMediaUI" "HoverPlayPause(true)"]','Unexpected play/pause hover command')
+    check(leave=='[!CommandMeasure "MeasureMediaUI" "HoverPlayPause(false)"]','Unexpected play/pause leave command')
+    local state=SKIN:GetMeasure('MeasureState'):GetValue()
+    SKIN:Bang(enter)
+    mode(playing and 'hover' or online and 'step' or 'play',online)
+    if stage==1 or stage==3 then
+        SKIN:Bang('!SetOption','MeasureCanPlayPause','Formula','0')
+        SKIN:Bang('!UpdateMeasure','MeasureCanPlayPause')
+        SKIN:Bang('!UpdateMeasure','MeasureMediaUI')
+        mode(playing and 'play' or 'pause',false)
+        SKIN:Bang('!SetOption','MeasureCanPlayPause','Formula','1')
+        SKIN:Bang('!UpdateMeasure','MeasureCanPlayPause')
+        SKIN:Bang('!UpdateMeasure','MeasureMediaUI')
+    end
+    SKIN:Bang(leave)
+    mode(online and not playing and 'pause' or 'play',online)
+    check(SKIN:GetMeasure('MeasureState'):GetValue()==state,'Hover fabricated playback state')
+    check(SKIN:GetVariable('FixturePlaybackCommands')=='0','Hover dispatched a playback command')
+end
+queue_transport_checks=function()
+    local report={}
+    local cover=SKIN:GetMeasure('MeasureCover')
+    local original_cover=cover:GetOption('String')
+    check(cover:GetOption('Measure')=='String' and original_cover:match('synthetic%-cover%.png$'),'Missing-cover probe must remain synthetic')
+    SKIN:Bang('!SetOption','MeasureCover','String','')
+    SKIN:Bang('!UpdateMeasure','MeasureCover')
+    SKIN:Bang('!UpdateMeasure','MeasureMediaUI')
+    local caption,caption_probe=SKIN:GetMeter('MeterCoverLabel'),SKIN:GetMeter('ProbeMeterCoverLabel')
+    check(caption:GetW()>0 and text('MeterCoverLabel')=='N/A','Missing cover caption is not visible')
+    for option,default in pairs({FontFace='Arial',FontSize='10',FontWeight='400',StringStyle='Normal',StringCase='None',CharacterSpacing='0'}) do
+        SKIN:Bang('!SetOption','ProbeMeterCoverLabel',option,caption:GetOption(option,default))
+    end
+    SKIN:Bang('!UpdateMeter','ProbeMeterCoverLabel')
+    caption_probe:Show();local caption_w,caption_h=caption_probe:GetW(),caption_probe:GetH();caption_probe:Hide()
+    check(caption_w>0 and caption_h>0 and caption_w<=caption:GetW() and caption_h<=caption:GetH(),'N/A glyphs do not fit the reduced cover')
+    report[#report+1]=string.format('N/A=%dx%d/%dx%d',caption_w,caption_h,caption:GetW(),caption:GetH())
+    SKIN:Bang('!SetOption','MeasureCover','String',original_cover)
+    SKIN:Bang('!UpdateMeasure','MeasureCover')
+    SKIN:Bang('!UpdateMeasure','MeasureMediaUI')
+    check(caption:GetW()==0 and SKIN:GetMeter('MeterCover'):GetW()>0,'Synthetic cover did not restore')
+    local duration=SKIN:GetMeasure('MeasureDuration')
+    local original=duration:GetOption('Formula')
+    local timing=SKIN:GetMeter('MeterTiming')
+    local original_text=timing:GetOption('Text')
+    local function update_availability(formula)
+        SKIN:Bang('!SetOption','MeasureDuration','Formula',formula)
+        SKIN:Bang('!UpdateMeasure','MeasureDuration')
+        SKIN:Bang('!UpdateMeasure','MeasureMediaUI')
+        SKIN:Bang('!UpdateMeterGroup','MediaTimeline')
+        SKIN:Bang('!UpdateMeterGroup','MediaDynamic')
+    end
+    update_availability('0')
+    check(timing:GetW()==0,'Unavailable time did not hide known time')
+    local _,detail=transport_center('MeterTimingUnavailable'); report[#report+1]=detail
+    update_availability(original)
+    local widths={}
+    for _,sample in ipairs({'0 / 1','0:45 / 3:00',string.rep('9',48)..' / '..string.rep('9',48),'0 / 1'}) do
+        SKIN:Bang('!SetOption','MeterTiming','Text',sample)
+        SKIN:Bang('!UpdateMeter','MeterTiming')
+        local width,description=transport_center('MeterTiming')
+        widths[#widths+1]=width;report[#report+1]=description
+    end
+    check(widths[3]>widths[1] and widths[4]==widths[1],'Timing width did not grow and shrink after text changed')
+    SKIN:Bang('!SetOption','MeterTiming','Text',original_text)
+    SKIN:Bang('!UpdateMeter','MeterTiming')
+    transport_center('MeterTiming')
+    for _,command_name in ipairs({'Previous','Next'}) do
+        local meter=SKIN:GetMeter('Meter'..command_name)
+        local enter,leave=meter:GetOption('MouseOverAction'),meter:GetOption('MouseLeaveAction')
+        check(enter=='[!CommandMeasure "MeasureMediaUI" "HoverTransport(\''..command_name..'\',true)"]','Unexpected transport hover action')
+        check(leave=='[!CommandMeasure "MeasureMediaUI" "HoverTransport(\''..command_name..'\',false)"]','Unexpected transport leave action')
+        check(meter:GetOption('LucideTransportStroke'):find('Fill Color 0,0,0,0',1,true)~=nil,'Normal skip control is filled')
+        SKIN:Bang(enter)
+        check(meter:GetOption('LucideTransportStroke'):find('Fill Color '..SKIN:GetVariable('AccentColor'),1,true)~=nil,'Supported skip hover is not filled')
+        SKIN:Bang(leave)
+        check(meter:GetOption('LucideTransportStroke'):find('Fill Color 0,0,0,0',1,true)~=nil,'Skip hover fill did not clear')
+    end
+    identity_transport()
+    timing_report=table.concat(report,'; ')..'; hover playback dispatches='..SKIN:GetVariable('FixturePlaybackCommands')
+end
+local function identity_stage()
+    local prefs=preferences()
+    check(read(SELF:GetOption('PreferencesPath'))==identity_preferences,'Identity transition changed preferences')
+    check(prefs.QueueExpanded=='0','Identity fixture expansion changed')
+    local setup=kind=='IdentitySetup'
+    local expected=setup and 'Setup' or ({'Spotify','YouTube','YouTube','Unknown','Quod Libet Player',identity_literal,'Not connected','Idle','Spotify'})[stage]
+    local measure=assert(SKIN:GetMeasure('MeasureMediaHeader'))
+    check(measure:GetOption('Measure')=='Script' and measure:GetOption('ScriptFile'):match('MediaHeader%.lua$'),'Production header adapter missing')
+    check(measure:GetStringValue()==expected,'Identity data mismatch at stage '..stage..': '..measure:GetStringValue())
+    if not setup then
+        check(SKIN:GetMeasure('MeasurePlayer'):GetOption('Measure')=='Script','Raw player fixture must preserve literal data')
+        check(SKIN:GetMeasure('MeasureMediaSource'):GetOption('Measure')=='String','Real source reader in identity fixture')
+        check(SKIN:GetMeasure('MeasureSourceArtist'):GetOption('Measure')=='String','Raw artist fixture not synthetic')
+        if stage==3 then check(SKIN:GetMeasure('MeasureMediaUI'):GetStringValue()=='Paused','Pause transition not applied') end
+        if stage==6 then check(SKIN:GetMeasure('MeasurePlayer'):GetStringValue()==identity_literal,'Literal fixture was expanded before header binding') end
+        identity_transport()
+    else check(SKIN:GetMeasure('MeasureConnection')==nil,'Setup loaded player data') end
+    local heading=assert(SKIN:GetMeter('MeterHeading'))
+    local player_name=assert(SKIN:GetMeter('MeterPlayerName'))
+    player_name_row()
+    check(SKIN:GetVariable('IdentitySentinel')=='unchanged','Literal player data executed or expanded a fixture command')
+    local width,height=dimensions(false,5)
+    local scale=SELF:GetNumberOption('ExpectedScale')
+    if not setup then
+        local sizes={}
+        for _,name in ipairs({'MeterSongIcon','MeterArtistIcon','MeterAlbumIcon','MeterCoverFrame','MeterTrackTitle'}) do
+            local icon=assert(SKIN:GetMeter(name))
+            check((icon:GetW()>0)==(stage~=7 and stage~=8),'Track meter visibility did not follow connection/title: '..name)
+            sizes[#sizes+1]=name..'='..icon:GetW()..'x'..icon:GetH()
+        end
+        identity_metadata[#identity_metadata+1]='stage'..stage..':'..table.concat(sizes,',')
+    end
+    local visible=0
+    for _,name in ipairs(identity_icons) do
+        local icon=assert(SKIN:GetMeter(name))
+        local shown=icon:GetW()>0
+        check(shown,'Static title/player icon hidden at stage '..stage..': '..name)
+        check(icon:GetOption('Group')=='MediaPlayerIcons' and icon:GetOption('Meter')=='Shape','Icon escaped fixed Shape group')
+        if shown then
+            visible=visible+1
+            local icon_size=14*scale*(name=='MeterMediaIcon' and tonumber(SKIN:GetVariable('TitleFontSize'))/10 or 1)
+            check(math.abs(icon:GetW()-icon_size)<=1 and math.abs(icon:GetH()-icon_size)<=1,'Player icon dimensions wrong')
+            inside(name,width,height)
+            check(icon:GetX(true)+icon:GetW()<=(name=='MeterMediaIcon' and heading or player_name):GetX(true),'Icon overlaps its label')
+        end
+    end
+    check(visible==2,'Both static title and player-row icons must be visible')
+    inside('MeterHeading',width,height)
+    inside('MeterPlayerName',width,height)
+    local gear=SKIN:GetMeter('MeterMediaOptions')
+    check(heading:GetX(true)+heading:GetW()<=gear:GetX(true),'Player title overlaps gear')
+    if setup or stage==9 then
+        artwork_bounds(false)
+        local info={}
+        for _,meter_name in ipairs({'MeterHeading','MeterPlayerName'}) do
+            local target,probe=SKIN:GetMeter(meter_name),SKIN:GetMeter('Probe'..meter_name)
+            probe:Show();local w,h=probe:GetW(),probe:GetH();probe:Hide()
+            local detail=string.format('%s=%dx%d/%dx%d',meter_name,w,h,target:GetW(),target:GetH())
+            check(w>0 and h>0 and w<=target:GetW() and h<=target:GetH(),'Title/player-name glyph clipping: '..detail)
+            info[#info+1]=detail
+        end
+        glyph_report=table.concat(info,'; ')..'; long literal names retain ClipString=1 and full bound tooltip'
+        if not setup then
+            local positions={}
+            for _,name in ipairs({'MeterPrevious','MeterPlayPause','MeterNext'}) do
+                local meter=SKIN:GetMeter(name)
+                positions[#positions+1]=string.format('%s:%g,%g,%g,%g',name,meter:GetX(true),meter:GetY(true),meter:GetW(),meter:GetH())
+            end
+            glyph_report=glyph_report..'\ntransportBounds='..table.concat(positions,';')
+            local icon_positions={}
+            for _,name in ipairs(identity_icons) do
+                local meter=SKIN:GetMeter(name)
+                icon_positions[#icon_positions+1]=string.format('%s:%g,%g,%g,%g',name,meter:GetX(true),meter:GetY(true),meter:GetW(),meter:GetH())
+            end
+            glyph_report=glyph_report..'\niconBounds='..table.concat(icon_positions,';')
+        end
+        if #identity_metadata>0 then glyph_report=glyph_report..'\nmetadata='..table.concat(identity_metadata,'; ') end
+        return true
+    end
+    stage=stage+1; tick=0; done=false
+    -- Only fixed test-owned commands change synthetic measures. The observed
+    -- metadata never enters an option or a bang, including the adversarial case.
+    SKIN:Bang('!CommandMeasure','MeasurePlayer','Select('..stage..')')
+    SKIN:Bang('!UpdateMeasure','MeasurePlayer')
+    SKIN:Bang('!SetOption','MeasureState','Formula',stage==3 and '2' or '1')
+    SKIN:Bang('!UpdateMeasure','MeasureState')
+    SKIN:Bang('!SetOption','MeasureConnection','Formula',stage==7 and '0' or '1')
+    SKIN:Bang('!UpdateMeasure','MeasureConnection')
+    SKIN:Bang('!SetOption','MeasureMediaSource','String',stage==4 and 'Windows Media Session' or 'Spotify')
+    SKIN:Bang('!UpdateMeasure','MeasureMediaSource')
+    SKIN:Bang('!SetVariable','FixtureIdle',stage==8 and '1' or '0')
+    SKIN:Bang('!UpdateMeasure','MeasureTitle')
+    return false
+end
+local function title_row_stage()
+    local original=read(SELF:GetOption('PreferencesPath'))
+    preferences()
+    local scale=SELF:GetNumberOption('ExpectedScale')
+    local columns=SELF:GetNumberOption('ExpectedColumns')
+    local rounded=function(n) return math.floor(n+0.5) end
+    local inset=rounded(tonumber(SKIN:GetVariable('Gutter'))*scale/2)
+    local queue=kind:match('Queue$')~=nil
+    local settings=is_settings()
+    local center=inset+15*scale+((queue or settings) and 0 or rounded(12*(columns-1)*scale))
+    local width,height
+    if queue then
+        width=columns*(rounded(SELF:GetNumberOption('ExpectedWidth')*scale)+2*inset)
+        height=rounded(162*scale)+2*inset
+        check(SKIN:GetW()==width and SKIN:GetH()==height,'Standalone Queue bounds changed')
+    else width,height=dimensions(false,5) end
+    local title=SKIN:GetMeter(settings and 'MeterTitle' or 'MeterHeading')
+    check(title:GetOption('StringAlign')==(settings and 'CenterCenter' or 'LeftCenter'),'Title is not vertically centered')
+    check(math.abs(title:GetY(true)-center)<=1,'Title anchor is not the shared row center')
+    check(math.abs(title:GetH()-22*scale)<=1,'Title row height changed')
+    inside(settings and 'MeterTitle' or 'MeterHeading',width,height)
+    local info={}
+    for _,name in ipairs(probe_names()) do
+        local target,probe=SKIN:GetMeter(name),SKIN:GetMeter('Probe'..name)
+        probe:Show();local w,h=probe:GetW(),probe:GetH();probe:Hide()
+        local detail=string.format('%s=%dx%d/%dx%d centerY=%g',name,w,h,target:GetW(),target:GetH(),target:GetY(true))
+        check(w>0 and h>0 and h<=target:GetH(),'Title/status vertical glyph clipping: '..detail)
+        if settings or name~='MeterHeading' or SELF:GetNumberOption('ExpectedWidth')>=220 then check(w<=target:GetW(),'Unexpected title/status width clipping: '..detail) end
+        info[#info+1]=detail
+    end
+    if settings then
+        local close=SKIN:GetMeter('MeterClose')
+        check(close:GetOption('StringAlign')=='CenterCenter' and math.abs(close:GetY(true)-center)<=1,'Settings close is not on the title center')
+        settings_bounds()
+    else
+        local gear=SKIN:GetMeter('MeterMediaOptions')
+        check(gear:GetW()==0,'Gear must start hidden')
+        SKIN:Bang(SELF:GetOption('HoverEnter'))
+        check(math.abs(gear:GetY(true)+gear:GetH()/2-center)<=1,'Gear center differs from title center')
+        check(title:GetX(true)+title:GetW()<=gear:GetX(true)+1,'Title overlaps gear')
+        inside('MeterMediaOptions',width,height)
+        SKIN:Bang(SELF:GetOption('HoverLeave'))
+        check(gear:GetW()==0,'Gear must hide after hover')
+        if queue then
+            check(SKIN:GetMeter('MeterMediaIcon')==nil,'Standalone Queue unexpectedly gained an identity icon')
+            check(math.abs(SKIN:GetMeter('MeterQueueStatus'):GetY(true)-(inset+26*scale))<=1,'Standalone status row moved')
+        else
+            local name='MeterMediaIcon'
+            local icon=SKIN:GetMeter(name)
+            local size=14*scale*tonumber(SKIN:GetVariable('TitleFontSize'))/10
+            check(math.abs(icon:GetW()-size)<=1 and math.abs(icon:GetH()-size)<=1,'Title icon ignores shared size')
+            player_name_row()
+            inside(name,width,height)
+            if kind:match('Player$') then
+                check(SKIN:GetMeasure('MeasureMediaSource'):GetOption('Measure')=='String','Real source reader in title fixture')
+                check(SKIN:GetMeasure('MeasureSourceArtist'):GetOption('Measure')=='String','Real raw artist in title fixture')
+            else check(SKIN:GetMeasure('MeasureConnection')==nil,'Setup loaded player data') end
+        end
+    end
+    check(read(SELF:GetOption('PreferencesPath'))==original,'Title check changed preferences')
+    glyph_report=table.concat(info,'; ')
+    return true
 end
 local function write_status(state)
     local lines={'PARALLAX_QUEUE_V2','state='..state,'observed=0','valid_until=0','retry_not_before=0','count=0'}
     for index=1,5 do lines[#lines+1]='title'..index..'='; lines[#lines+1]='detail'..index..'=' end
     write(SELF:GetOption('SyntheticCachePath'),table.concat(lines,'\n')..'\n')
+end
+local function empty_queue_stage()
+    local prefs=preferences()
+    local trace_path=SKIN:GetVariable('@')..'User\\EmptyActions.trace'
+    local function trace() return read(trace_path) end
+    if stage==1 then
+        accordion(false,5,true)
+        check(trace()=='','Queue wrote on load')
+        advance(2,'ToggleQueue')
+    elseif stage==2 then
+        accordion(true,5,true)
+        check(trace()=='!WriteKeyValue\n!Refresh\n!Refresh\n','Explicit expand action count wrong')
+        write_status('error');SKIN:Bang('!UpdateMeasure','MeasureQueueStatus');settle(3)
+    elseif stage==3 then
+        dimensions(true,5)
+        check(prefs.QueueExpanded=='1','Error snapshot collapsed queue')
+        check(SKIN:GetMeasure('MeasureQueueStatus'):GetStringValue()=='Queue error','Error snapshot not shown')
+        check(trace()=='!WriteKeyValue\n!Refresh\n!Refresh\n','Error snapshot wrote/refreshed')
+        local lines={'PARALLAX_QUEUE_V2','state=ready','observed='..os.time(),'valid_until='..(os.time()+240),'retry_not_before=0','count=0'}
+        for i=1,5 do lines[#lines+1]='title'..i..'=';lines[#lines+1]='detail'..i..'=' end
+        write(SELF:GetOption('SyntheticCachePath'),table.concat(lines,'\n')..'\n')
+        write(SELF:GetOption('StageFile'),'4|'..tostring(previous_checks+checks))
+        SKIN:Bang('!UpdateMeasure','MeasureQueueStatus')
+    elseif stage==4 then
+        dimensions(false,5)
+        check(prefs.QueueExpanded=='0','Fresh empty snapshot did not save collapsed preference')
+        check(SKIN:GetMeasure('MeasureQueueStatus'):GetStringValue()=='Queue empty','Empty status not retained')
+        for i=1,5 do check(SKIN:GetMeter('MeterQueueRow'..i):GetW()==0,'Empty collapsed row remains visible') end
+        check(SKIN:GetMeter('MeterQueueToggle'):GetOption('Shape6'):find('(1-0)',1,true)~=nil,'Empty queue did not restore plus icon')
+        local before=trace()
+        check(before==string.rep('!WriteKeyValue\n!Refresh\n!Refresh\n',2),'Empty transition did not save/refresh exactly once')
+        for i=1,4 do SKIN:Bang('!UpdateMeasure','MeasureQueueStatus') end
+        command('MeasureMediaOptions','CollapseEmptyQueue')
+        check(trace()==before,'Duplicate empty state wrote or refreshed')
+        local lines={'PARALLAX_QUEUE_V2','state=ready','observed='..os.time(),'valid_until='..(os.time()+240),'retry_not_before=0','count=5'}
+        local function hex(value) return (value:gsub('.',function(c) return string.format('%02X',c:byte()) end)) end
+        for i=1,5 do lines[#lines+1]='title'..i..'='..hex('Synthetic item '..i);lines[#lines+1]='detail'..i..'='..hex('Test artist '..i) end
+        write(SELF:GetOption('SyntheticCachePath'),table.concat(lines,'\n')..'\n')
+        SKIN:Bang('!UpdateMeasure','MeasureQueueStatus');settle(5)
+    elseif stage==5 then
+        accordion(false,5,true)
+        check(prefs.QueueExpanded=='0','New nonempty snapshot reopened queue')
+        check(trace()==string.rep('!WriteKeyValue\n!Refresh\n!Refresh\n',2),'Nonempty snapshot wrote or refreshed')
+        return true
+    else error('Unexpected empty queue stage') end
+    return false
 end
 local function compact_status_stage()
     local expected=({[2]='Queue error',[3]='Quota reached',[4]='Stopped'})[stage]
@@ -332,22 +1071,34 @@ local function compact_status_stage()
 end
 function Initialize()
     kind=SELF:GetOption('Kind')
+    if kind:match('^Identity') then
+        identity_preferences=read(SELF:GetOption('PreferencesPath'))
+        SKIN:Bang('!SetVariable','IdentitySentinel','unchanged')
+    end
     local saved_stage,saved_checks=read(SELF:GetOption('StageFile')):match('^(%d+)|(%d+)')
     stage=tonumber(saved_stage) or 1; previous_checks=tonumber(saved_checks) or 0
 end
 function Update()
     if kind=='SyncSettings' then
-        write(SELF:GetOption('SyncLabelFile'),text('MeterQueueExpandedValue'))
+        local before=checks
+        local ok,result=pcall(function()
+            local prefs=preferences()
+            settings_bounds(prefs.QueueExpanded=='1')
+            check(prefs.QueueRowLimit=='5' and prefs.QueueShowDetails=='1','Footer toggle changed saved display choices')
+            return text('MeterQueueExpandedValue')
+        end)
+        write(SELF:GetOption('SyncLabelFile'),ok and (result..'|'..tostring(checks-before)) or ('FAIL '..tostring(result)))
+        checks=before
         return 0
     end
     tick=tick+1
-    if tick==1 and kind~='SyncMain' then prepare_probes() end
+    if tick==1 and kind~='SyncMain' and not kind:match('^Header') then prepare_probes() end
     if done or tick<3 then return 0 end
     done=true
     local status_only=SELF:GetOption('StatusProbeOnly','0')=='1'
-    local scenario=status_only and stage>1 and compact_status_stage or kind:match('^Artwork') and artwork_stage or kind:match('^Typography') and typography_stage or kind=='Accordion' and accordion_stage or kind=='SyncMain' and sync_stage or settings_stage
+    local scenario=SELF:GetOption('EmptyQueueTransition','0')=='1' and empty_queue_stage or kind:match('^TitleRow') and title_row_stage or kind:match('^Identity') and identity_stage or kind:match('^Header') and header_stage or status_only and stage>1 and compact_status_stage or kind:match('^Artwork') and artwork_stage or kind:match('^Typography') and typography_stage or (kind=='Accordion' or kind:match('^QueueToggle')) and accordion_stage or kind=='SyncMain' and sync_stage or settings_stage
     local ok,finished=pcall(scenario)
-    if ok and finished and kind~='SyncMain' and not kind:match('^Artwork') and not (status_only and stage>1) then ok,finished=pcall(function() typography(); return true end) end
+    if ok and finished and kind~='SyncMain' and not kind:match('^Artwork') and not kind:match('^Header') and not kind:match('^Identity') and not kind:match('^TitleRow') and not (status_only and stage>1) then ok,finished=pcall(function() typography(); return true end) end
     if ok and finished and status_only and stage==1 then
         write_status('error'); advance(2); finished=false
     end
@@ -357,6 +1108,7 @@ function Update()
             SELF:GetNumberOption('ExpectedColumns'),stage,previous_checks+checks)
         if not ok then report=report..'\n'..tostring(finished) end
         if glyph_report~='' then report=report..'\nglyphs='..glyph_report end
+        if timing_report~='' then report=report..'\ntiming='..timing_report end
         write(SELF:GetOption('ResultFile'),report..'\n')
     end
     return 0

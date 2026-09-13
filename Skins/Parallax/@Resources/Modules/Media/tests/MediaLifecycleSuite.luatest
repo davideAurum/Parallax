@@ -1,0 +1,249 @@
+-- Developer-only native Lua lifecycle checks. Every environment/file/Bang is
+-- injected; captured commands never reach Rainmeter or launch a subprocess.
+local Suite = {}
+
+function Suite.run(sourcePath, includePath)
+    local passed, cases = 0, {}
+    local function check(ok, message) assert(ok, message); passed = passed + 1 end
+    local function equal(actual, expected, message)
+        check(actual == expected, (message or 'value') .. ': expected ' .. tostring(expected) .. ', got ' .. tostring(actual))
+    end
+    local function scenario(name, body)
+        local before = passed
+        local ok, message = pcall(body)
+        assert(ok, name .. ': ' .. tostring(message))
+        cases[#cases + 1] = name .. ': ' .. (passed - before) .. ' assertions'
+    end
+    local marker = 'PARALLAX_AUTOSTART_V1|1\n'
+    local localAppData = 'C:\\Lifecycle Fixture\\Local'
+    local resources = 'C:\\Lifecycle Fixture\\Skins\\Parallax\\@Resources\\'
+    local systemRoot = 'C:\\Windows'
+    local roaming = 'C:\\Lifecycle Fixture\\Roaming'
+    local roots = {
+        Source = localAppData .. '\\Parallax\\Media\\Source\\',
+        Spotify = localAppData .. '\\Parallax\\Media\\Spotify\\'
+    }
+    local allowedFiles = {}
+    for _, root in pairs(roots) do
+        allowedFiles[root .. 'enabled.intent'] = true
+        allowedFiles[root .. 'stop.request'] = true
+    end
+    local forbidden = function() error('Unexpected uninjected I/O or process access') end
+    local function fixture(options)
+        options = options or {}
+        local state = { calls = {}, opens = {}, violations = {}, reads = 0, closes = 0, handles = 0, files = {}, variables = {
+            ['@'] = resources, CURRENTFILE = options.currentFile or 'Media.ini', QueuePollSeconds = '30', SETTINGSPATH = roaming .. '\\Rainmeter\\'
+        }, environment = { LOCALAPPDATA = localAppData, SystemRoot = systemRoot, APPDATA = roaming } }
+        for key, value in pairs(options.variables or {}) do state.variables[key] = value end
+        for key, value in pairs(options.environment or {}) do state.environment[key] = value end
+        if options.source then state.files[roots.Source .. 'enabled.intent'] = marker end
+        if options.queue then state.files[roots.Spotify .. 'enabled.intent'] = marker end
+        for key, value in pairs(options.files or {}) do state.files[key] = value end
+        local fakeSkin = {}
+        function fakeSkin:GetVariable(name, fallback)
+            check(name == '@' or name == 'CURRENTFILE' or name == 'QueuePollSeconds' or name == 'SETTINGSPATH', 'Unexpected variable read: ' .. tostring(name))
+            local value = state.variables[name]
+            if value == false then return nil end
+            return value == nil and fallback or value
+        end
+        function fakeSkin:Bang(...)
+            local args = { ... }
+            equal(#args, 1, 'External resume uses one fixed command string')
+            check(type(args[1]) == 'string', 'Captured command must be text')
+            state.calls[#state.calls + 1] = args[1]
+        end
+        local fakeIo = setmetatable({ open = function(path, mode)
+            if not allowedFiles[path] or mode ~= 'rb' then state.violations[#state.violations + 1] = tostring(path) end
+            check(allowedFiles[path], 'Unexpected file path: ' .. tostring(path))
+            equal(mode, 'rb', 'Lifecycle opens files read-only in binary mode')
+            state.opens[#state.opens + 1] = path
+            local contents = state.files[path]
+            if contents == nil or contents == false then return nil, 'synthetic missing', 2 end
+            local fault = type(contents) == 'table' and contents or {}
+            if fault.openThrows then error('Synthetic open failure') end
+            if fault.errno then return nil, 'synthetic denied/unexpected error', fault.errno end
+            state.handles = state.handles + 1
+            local closed = false
+            return {
+                read = function(_, limit)
+                    check(not closed, 'Read after close')
+                    if limit ~= 32 then state.violations[#state.violations + 1] = 'unbounded read' end
+                    equal(limit, 32, 'Intent read must be bounded to32bytes')
+                    state.reads = state.reads + 1
+                    if fault.readThrows then error('Synthetic read failure') end
+                    if fault.readNil then return nil end
+                    return contents:sub(1, limit)
+                end,
+                close = function()
+                    check(not closed, 'Double close')
+                    closed = true; state.closes = state.closes + 1; return true
+                end
+            }
+        end }, { __index = function() return forbidden end })
+        local fakeOs = setmetatable({ getenv = function(name)
+            check(name == 'LOCALAPPDATA' or name == 'SystemRoot' or name == 'APPDATA', 'Unexpected environment lookup')
+            local value = state.environment[name]
+            if value == false then return nil end
+            return value
+        end }, { __index = function() return forbidden end })
+        local env = setmetatable({ SKIN = fakeSkin, io = fakeIo, os = fakeOs }, { __index = _G })
+        local chunk = assert(loadfile(sourcePath)); setfenv(chunk, env); chunk()
+        check(type(rawget(env, 'Initialize')) == 'function', 'Missing Initialize export')
+        check(type(rawget(env, 'ResumeProviders')) == 'function', 'Missing fixed resume callback')
+        state.env = env
+        state.initialize = function() env.Initialize() end
+        state.resume = function() env.ResumeProviders() end
+        state.finish = function()
+            equal(state.closes, state.handles, 'Every opened marker/stop handle closes')
+            equal(#state.violations, 0, 'No unexpected path or unbounded read: ' .. table.concat(state.violations, ','))
+        end
+        state.initialize()
+        equal(#state.calls, 0, 'Initialize must not launch providers')
+        return state
+    end
+    local function tokens(command)
+        check(command:sub(1, 2) == '["' and command:sub(-1) == ']', 'Expected bracketed external command')
+        local result, body = {}, command:sub(2, -2)
+        while #body > 0 do
+            local token, remaining
+            if body:sub(1, 1) == '"' then token, remaining = body:match('^"([^"]*)"%s*(.*)$')
+            else token, remaining = body:match('^(%S+)%s*(.*)$') end
+            check(token ~= nil, 'Malformed command quoting')
+            result[#result + 1] = token; body = remaining
+        end
+        return result
+    end
+    local function commandIs(command, provider, interval)
+        local args = tokens(command)
+        local expected = { systemRoot .. '\\System32\\WindowsPowerShell\\v1.0\\powershell.exe',
+            '-NoLogo', '-NoProfile', '-NonInteractive', '-ExecutionPolicy', 'Bypass', '-WindowStyle', 'Hidden',
+            '-File', resources .. 'Modules\\Media\\' .. provider .. '\\' .. (provider == 'Source' and 'SourceProvider.ps1' or 'QueueProvider.ps1'),
+            '-Command', 'Resume', '-Quiet' }
+        if provider == 'Queue' then expected[#expected + 1] = '-PollSeconds'; expected[#expected + 1] = tostring(interval or 30) end
+        equal(#args, #expected, 'No extra arguments in resume command')
+        for index, value in ipairs(expected) do equal(args[index], value, 'Fixed resume argument' .. index) end
+    end
+
+    scenario('missing intent never starts and Initialize does not poll', function()
+        local f = fixture()
+        equal(#f.opens, 0, 'Initialize does not probe storage')
+        f.resume(); equal(#f.calls, 0, 'Missing intentions cannot start')
+        local opens = #f.opens
+        for index = 1, 4 do f.resume() end
+        equal(#f.opens, opens, 'Repeated callback must not probe again during one load')
+        local update = rawget(f.env, 'Update')
+        if update then for index = 1, 4 do update() end end
+        equal(#f.opens, opens, 'Update must not poll intent files')
+        f.finish()
+    end)
+    scenario('exact opt-in routes independently by entrypoint', function()
+        for _, entry in ipairs({ 'Media.ini', 'Setup.ini', 'Queue.ini', 'Settings.ini', 'media.ini', 'Other.ini' }) do
+            local f = fixture({ currentFile = entry, source = true, queue = true })
+            f.resume()
+            local expected = entry == 'Media.ini' and 2 or (entry == 'Setup.ini' or entry == 'Queue.ini') and 1 or 0
+            equal(#f.calls, expected, 'Entrypoint routing ' .. entry)
+            if entry == 'Media.ini' then commandIs(f.calls[1], 'Source'); commandIs(f.calls[2], 'Queue', 30)
+            elseif expected == 1 then commandIs(f.calls[1], 'Queue', 30) end
+            f.finish()
+        end
+    end)
+    scenario('once per load reset permits one new resume pass', function()
+        local f = fixture({ source = true, queue = true }); f.resume()
+        local opens = #f.opens
+        for index = 1, 5 do f.resume() end
+        equal(#f.calls, 2, 'Repeated callback launch count'); equal(#f.opens, opens, 'No repeat reads')
+        f.initialize(); equal(#f.calls, 2, 'Reinitialization itself does not launch')
+        f.resume(); equal(#f.calls, 4, 'New load may resume each provider once')
+        f.finish()
+    end)
+    scenario('disabled malformed and oversized intent fails closed independently', function()
+        for _, invalid in ipairs({ '', 'PARALLAX_AUTOSTART_V1|0\n', 'PARALLAX_AUTOSTART_V1|1', marker .. '\n',
+            'PARALLAX_AUTOSTART_V1|1\r\n', '\239\187\191' .. marker, marker .. '\0', marker .. string.rep('x', 128),
+            string.rep('x', 1024), '[!Execute][!Quit]\n' }) do
+            for _, provider in ipairs({ 'Source', 'Spotify' }) do
+                local f = fixture({ source = true, queue = true, files = { [roots[provider] .. 'enabled.intent'] = invalid } })
+                f.resume(); equal(#f.calls, 1, 'Malformed intent must not affect the other provider')
+                commandIs(f.calls[1], provider == 'Source' and 'Queue' or 'Source', 30)
+                f.finish()
+            end
+        end
+    end)
+    scenario('stop request suppresses only its own provider', function()
+        for _, provider in ipairs({ 'Source', 'Spotify' }) do
+            local f = fixture({ source = true, queue = true, files = { [roots[provider] .. 'stop.request'] = '' } })
+            f.resume(); equal(#f.calls, 1, 'Existing empty stop marker must suppress resume')
+            commandIs(f.calls[1], provider == 'Source' and 'Queue' or 'Source', 30); f.finish()
+        end
+        local f = fixture({ source = true, queue = true, files = {
+            [roots.Source .. 'stop.request'] = 'stop', [roots.Spotify .. 'stop.request'] = 'stop' } })
+        f.resume(); equal(#f.calls, 0, 'Both stop markers suppress both providers'); f.finish()
+    end)
+    scenario('fresh intent is observed on a new load only', function()
+        local f = fixture(); f.resume()
+        f.files[roots.Source .. 'enabled.intent'] = marker
+        f.files[roots.Spotify .. 'enabled.intent'] = marker
+        f.resume(); equal(#f.calls, 0, 'Intent change cannot create a polling loop')
+        f.initialize(); f.resume(); equal(#f.calls, 2, 'New load observes saved opt-in')
+        f.files[roots.Source .. 'enabled.intent'] = nil
+        f.files[roots.Spotify .. 'stop.request'] = ''
+        f.initialize(); f.resume(); equal(#f.calls, 2, 'Stop or removed intent respected on next load'); f.finish()
+    end)
+    scenario('stop permission and file I/O errors fail closed independently', function()
+        for _, provider in ipairs({ 'Source', 'Spotify' }) do
+            for _, fault in ipairs({ { errno = 13 }, { errno = 5 }, { openThrows = true } }) do
+                local f = fixture({ source = true, queue = true, files = { [roots[provider] .. 'stop.request'] = fault } })
+                f.resume(); equal(#f.calls, 1, 'Stop I/O failure must suppress only its provider')
+                commandIs(f.calls[1], provider == 'Source' and 'Queue' or 'Source', 30); f.finish()
+            end
+            for _, fault in ipairs({ { errno = 13 }, { openThrows = true }, { readThrows = true }, { readNil = true } }) do
+                local f = fixture({ source = true, queue = true, files = { [roots[provider] .. 'enabled.intent'] = fault } })
+                f.resume(); equal(#f.calls, 1, 'Intent I/O failure must suppress only its provider')
+                commandIs(f.calls[1], provider == 'Source' and 'Queue' or 'Source', 30); f.finish()
+            end
+        end
+    end)
+    scenario('isolated or alternate Rainmeter profiles never restore providers', function()
+        for _, settings in ipairs({ 'C:\\Temp\\Preview\\', roaming .. '\\Rainmeter-Preview\\', 'C:\\Portable\\Rainmeter\\' }) do
+            local f = fixture({ source = true, queue = true, variables = { SETTINGSPATH = settings } })
+            f.resume(); equal(#f.calls, 0, 'Alternate profile must remain inert'); equal(#f.opens, 0, 'Alternate profile must not inspect private runtime files'); f.finish()
+        end
+        local f = fixture({ source = true, queue = true, variables = { SETTINGSPATH = roaming:upper():gsub('\\', '/') .. '/RAINMETER///' } })
+        f.resume(); equal(#f.calls, 2, 'Normal profile matching must normalize case and separators'); f.finish()
+    end)
+    scenario('queue interval is bounded numeric command data', function()
+        for _, item in ipairs({ { '30', 30 }, { '31', 31 }, { '150', 150 }, { '29', 30 }, { '151', 30 },
+            { '0', 30 }, { '-1', 30 }, { '60.5', 30 }, { '(60*2)', 30 }, { '', 30 }, { 'NaN', 30 },
+            { '60" -Command Connect', 30 }, { '[!Quit]', 30 }, { string.rep('9', 40), 30 } }) do
+            local f = fixture({ currentFile = 'Queue.ini', queue = true, variables = { QueuePollSeconds = item[1] } })
+            f.resume(); equal(#f.calls, 1, 'Enabled queue should resume with safe interval')
+            commandIs(f.calls[1], 'Queue', item[2]); f.finish()
+        end
+    end)
+    scenario('unsafe environment or resource path cannot become a command', function()
+        for _, bad in ipairs({ '', 'relative', '\\\\server\\share', 'C:\\bad:stream', 'C:\\bad"path', 'C:\\bad[path', 'C:\\bad]path', 'C:\\bad\npath',
+            'C:\\bad\rpath', 'C:\\bad\0path', 'C:\\bad\127path', 'C:\\#var#', 'C:\\%VAR%', 'C:\\bad<path', 'C:\\bad>path',
+            'C:\\bad|path', 'C:\\bad?path', 'C:\\bad*path', 'C:\\' .. string.rep('x', 2048) }) do
+            for _, target in ipairs({ 'LOCALAPPDATA', 'SystemRoot', '@', 'APPDATA', 'SETTINGSPATH' }) do
+                local options = { source = true, queue = true, variables = {}, environment = {} }
+                if target == '@' or target == 'SETTINGSPATH' then options.variables[target] = bad else options.environment[target] = bad end
+                local f = fixture(options); f.resume(); equal(#f.calls, 0, 'Unsafe path rejected ' .. target); f.finish()
+            end
+        end
+    end)
+    scenario('missing paths cannot launch', function()
+        for _, target in ipairs({ 'LOCALAPPDATA', 'SystemRoot', '@', 'APPDATA', 'SETTINGSPATH' }) do
+            local options = { source = true, queue = true, variables = {}, environment = {} }
+            if target == '@' or target == 'SETTINGSPATH' then options.variables[target] = false else options.environment[target] = false end
+            local f = fixture(options); f.resume(); equal(#f.calls, 0, 'Missing path rejected'); f.finish()
+        end
+    end)
+    scenario('lifecycle include is a passive one-shot measure', function()
+        local file = assert(io.open(includePath, 'rb')); local text = file:read('*a'); file:close()
+        check(text:find('ScriptFile=#@#Modules\\Media\\MediaLifecycle.lua', 1, true) ~= nil, 'Include uses fixed lifecycle script')
+        check(text:find('UpdateDivider=-1', 1, true) ~= nil, 'Lifecycle measure must not poll')
+        check(not text:find('Plugin=') and not text:find('Program='), 'Lifecycle include cannot add a provider/plugin')
+    end)
+    return passed, cases
+end
+
+return Suite

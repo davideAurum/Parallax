@@ -1,21 +1,14 @@
-; IO settings. Edit, save, then refresh the IO skin. Preserved on package upgrades.
+; Disk Meter settings. Select drive readouts and one shared graph mode.
 [Variables]
 Columns=1
-PanelHeight=174
-; bytes = binary B/s; bits = decimal bit/s. Capacity always uses binary bytes.
+PanelHeight=157
 IODiskUnits=bytes
-; Drive roots for capacity; IOShowDrive2=0 disables the second row measures.
-IODrive1=C:
-IODrive2=D:
-IOShowDrive2=0
-; 0 includes removable USB drives; 1 ignores them. Optical capacity is unsupported.
-IOIgnoreRemovable=0
-; DiskQuota=0 shows whole-volume capacity, not the current user's quota.
+; C preserves the original layout. all follows detected drive letters.
+; Custom selection: uppercase comma-separated letters in alphabetical order; none hides rows.
+IODiskDrives=C,D,G
+; c = C only, combined = selected sum, overlay = per-drive traces, split = read above/write below zero.
+IOGraphMode=combined
+; letters, volume (Windows label), model (device model), or both.
+IODriveNames=volume
 IODiskQuota=0
-; Optional IO-Disk.ini only. Use English performance-counter category names.
-; Allowed categories: PhysicalDisk or LogicalDisk. Name is an exact instance name.
-; _Total aggregates the category and is independent of the capacity drive rows.
-IODiskCategory=PhysicalDisk
-IODiskInstance=_Total
-; Fixed transfer graph ceiling in binary mebibytes/second, for each direction.
 IODiskMaxMiBs=500

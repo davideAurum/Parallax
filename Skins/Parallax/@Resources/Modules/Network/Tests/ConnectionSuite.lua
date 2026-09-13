@@ -192,7 +192,8 @@ function Suite.run(Core, Connection, fixtures)
     local wifiNames = {'SSID', 'Quality', 'PHY', 'Rx', 'Tx'}
     local function controller(overrides)
         local mock = {calls = {}, latest = {}, adapter = adapter(), wifi = wifi(), missing = {},
-            variables = { NetworkInterface = 'Best', NetworkConnectionColumns = '1', NetworkWiFiEnabled = '1',
+            dimensions = {SignalWidth = 188, SignalHeight = 3},
+            variables = { NetworkInterface = 'Best', NetworkWiFiEnabled = '1',
                 NetworkWiFiInterface = '0', GoodColor = '20,200,20', WarningColor = '200,150,20',
                 DangerColor = '200,20,20', MutedColor = '150,150,150', ['@'] = 'C:\\ParallaxTest\\@Resources\\' }}
         for key, value in pairs(overrides or {}) do mock.variables[key] = value end
@@ -226,7 +227,7 @@ function Suite.run(Core, Connection, fixtures)
                 mock.latest[args[1] .. ':' .. args[2]] = args[3]
             elseif bang == '!EnableMeasure' or bang == '!DisableMeasure' then
                 truth(measureNames[args[1]] and args[1]:match('^MeasureConnectionWiFi'), 'unknown Wi-Fi enable/disable target')
-            elseif bang ~= '!WriteKeyValue' and bang ~= '!Refresh' then
+            else
                 error('unexpected controller side effect: ' .. bang)
             end
         end
@@ -234,7 +235,7 @@ function Suite.run(Core, Connection, fixtures)
         function self:GetOption(key)
             return fixtures.moduleRoot .. '\\' .. assert(({CoreFile = 'Core.lua', ConnectionCoreFile = 'ConnectionCore.lua'})[key], key)
         end
-        function self:GetNumberOption(key, default) return ({SignalWidth = 188, SignalHeight = 3})[key] or default end
+        function self:GetNumberOption(key, default) return mock.dimensions[key] or default end
         local env = setmetatable({SKIN = skin, SELF = self}, {__index = _G})
         local chunk = assert(loadfile(fixtures.moduleRoot .. '\\Connection.lua'))
         setfenv(chunk, env); chunk(); env.Initialize()
@@ -304,15 +305,34 @@ function Suite.run(Core, Connection, fixtures)
         equal(mock.latest['MeterConnectionStatus:Text'], 'Lower layer down')
         contains(mock.latest['MeterConnectionStatus:ToolTipText'], 'Ethernet / Lower layer down')
     end)
-    test('width action persists only the Connection companion width', function()
-        local mock = controller(); mock.calls = {}
-        mock.environment.ToggleWidth()
-        equal(#mock.calls, 2); equal(mock.calls[1].bang, '!WriteKeyValue')
-        equal(mock.calls[1].args[1], 'Variables'); equal(mock.calls[1].args[2], 'NetworkConnectionColumns')
-        equal(mock.calls[1].args[3], '2'); equal(mock.calls[1].args[4], 'C:\\ParallaxTest\\@Resources\\User\\Network.inc')
-        equal(mock.calls[2].bang, '!Refresh'); equal(#mock.calls[2].args, 0)
-        mock.variables.NetworkConnectionColumns = '2'; mock.calls = {}
-        mock.environment.ToggleWidth(); equal(mock.calls[1].args[3], '1')
+    test('signal fill follows scaled shared thickness without fabricating unknown quality', function()
+        local mock = controller()
+        for _, thickness in ipairs({1, 2.5, 6, 12}) do
+            for _, scale in ipairs({0.75, 1, 2}) do
+                mock.dimensions.SignalWidth = 188 * scale
+                mock.dimensions.SignalHeight = math.max(1, math.floor(thickness * scale + 0.5))
+                for _, quality in ipairs({0, 50, 100}) do
+                    mock.wifi.quality = quality
+                    equal(mock:tick(), 1)
+                    local width, height = mock.latest['MeterConnectionSignalBar:Shape2']:match('^Rectangle 0,0,([%d.]+),([%d.]+) |')
+                    equal(tonumber(width), mock.dimensions.SignalWidth * quality / 100)
+                    equal(tonumber(height), mock.dimensions.SignalHeight)
+                end
+                mock.missing.MeasureConnectionWiFiSSID = true
+                equal(mock:tick(), 0)
+                equal(mock.latest['MeterConnectionSignalBar:Shape2'], 'Line 0,0,0,0 | StrokeWidth 0')
+                mock.missing.MeasureConnectionWiFiSSID = nil
+            end
+        end
+        equal(mock:count('!WriteKeyValue'), 0)
+    end)
+    test('metadata controller has no companion width output or persistence action', function()
+        local mock = controller({NetworkConnectionColumns = '2'})
+        equal(rawget(mock.environment, 'ToggleWidth'), nil)
+        mock:tick()
+        equal(mock.latest['MeterConnectionWidth:Text'], nil)
+        equal(mock:count('!WriteKeyValue'), 0); equal(mock:count('!Refresh'), 0)
+        contains(mock.latest['MeterConnectionAdapter:ToolTipText'], 'Click for Network Settings.')
     end)
     report[#report + 1] = string.format('SUMMARY: %d passed, %d failed', passed, failed)
     return table.concat(report, '\n') .. '\n'

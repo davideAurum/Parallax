@@ -1,6 +1,6 @@
 -- Native cross-config activation test. Never addresses another Rainmeter PID.
 local root,last,pending,ticks
-local allowed={AccentColor=true,AccentColor2=true,TitleTextColor=true,HeaderTextColor=true,TextColor=true,BackgroundColor=true,BorderColor=true,DividerColor=true}
+local allowed={AccentColor=true,AccentColor2=true,TitleTextColor=true,HeaderTextColor=true,TextColor=true,BackgroundColor=true,BorderColor=true,DividerColor=true,TableHeaderBorderColor=true}
 local function read(path)
     local f=io.open(path,'rb'); if not f then return '' end
     local text=f:read('*a'); f:close(); return text

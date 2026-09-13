@@ -1,3 +1,37 @@
+; Resolve the selected shared palette on refresh; no recurring appearance work.
+[MeasureVisualizerColor]
+Measure=Script
+ScriptFile=#@#Modules\Visualizer\Color.lua
+UpdateDivider=-1
+
+; Read-only Windows default output volume. Separate from AudioLevel amplitude.
+; Win7Audio returns -1 while muted. Its string reports device discovery errors;
+; failed numeric getters can retain a prior value, with no freshness signal.
+[MeasureVisualizerVolume]
+Measure=Plugin
+Plugin=Win7AudioPlugin
+UpdateDivider=#VisualizerVolumeDivider#
+IfMatch=^(?:$|ERROR(?: - |$))
+IfMatchAction=[!SetVariable VisualizerVolumeAvailable 0]
+IfNotMatchAction=[!SetVariable VisualizerVolumeAvailable 1]
+IfMatchMode=0
+
+; A Calc binding keeps String %1 numeric instead of the plugin's device name.
+[MeasureVisualizerVolumeValue]
+Measure=Calc
+Formula=MeasureVisualizerVolume
+MinValue=-1
+MaxValue=100
+DynamicVariables=1
+UpdateDivider=#VisualizerVolumeDivider#
+IfCondition=#VisualizerVolumeAvailable#=0
+IfTrueAction=[!SetOption MeterVisualizerVolume Text "--"][!UpdateMeter MeterVisualizerVolume]
+IfCondition2=(#VisualizerVolumeAvailable#=1)&&(MeasureVisualizerVolumeValue<0)
+IfTrueAction2=[!SetOption MeterVisualizerVolume Text "Muted"][!UpdateMeter MeterVisualizerVolume]
+IfCondition3=(#VisualizerVolumeAvailable#=1)&&(MeasureVisualizerVolumeValue>=0)
+IfTrueAction3=[!SetOption MeterVisualizerVolume Text "%1%"][!UpdateMeter MeterVisualizerVolume]
+IfConditionMode=0
+
 ; Rainmeter's bundled AudioLevel: one loopback capture / FFT parent.
 ; Parent options cannot change dynamically; use !Refresh after editing.
 [MeasureVisualizerAudio]
@@ -64,13 +98,13 @@ Measure=Calc
 Formula=(MeasureVisualizerDevice<=0 ? 0 : (#VisualizerFormatInvalid#=1 ? 3 : (MeasureVisualizerRMS>#VisualizerIdleFloor# ? 2 : 1)))
 DynamicVariables=1
 IfCondition=MeasureVisualizerState=0
-IfTrueAction=[!SetOption MeterVisualizerStatus Text "OUTPUT UNAVAILABLE"][!SetOption MeterVisualizerStatus FontColor "#WarningColor#"][!SetOption MeterVisualizerUnavailable Text "Output unavailable"][!HideMeterGroup VisualizerSpectrum][!ShowMeter MeterVisualizerUnavailable][!UpdateMeter MeterVisualizerStatus]
+IfTrueAction=[!SetOption MeterVisualizerUnavailable Text "Output unavailable"][!SetOption MeterVisualizerUnavailable FontColor "#WarningColor#"][!HideMeterGroup VisualizerSpectrum][!ShowMeter MeterVisualizerUnavailable][!UpdateMeter MeterVisualizerUnavailable]
 IfCondition2=MeasureVisualizerState=1
-IfTrueAction2=[!SetOption MeterVisualizerStatus Text "IDLE - QUIET"][!SetOption MeterVisualizerStatus FontColor "#MutedColor#"][!HideMeterGroup VisualizerSpectrum][!HideMeter MeterVisualizerUnavailable][!UpdateMeter MeterVisualizerStatus]
+IfTrueAction2=[!SetOption MeterVisualizerUnavailable Text "Idle - quiet"][!SetOption MeterVisualizerUnavailable FontColor "#MutedColor#"][!HideMeterGroup VisualizerSpectrum][!ShowMeter MeterVisualizerUnavailable][!UpdateMeter MeterVisualizerUnavailable]
 IfCondition3=MeasureVisualizerState=2
-IfTrueAction3=[!SetOption MeterVisualizerStatus Text "LIVE - MIXED OUTPUT"][!SetOption MeterVisualizerStatus FontColor "#GoodColor#"][!ShowMeterGroup VisualizerSpectrum][!HideMeter MeterVisualizerUnavailable][!UpdateMeter MeterVisualizerStatus]
+IfTrueAction3=[!ShowMeterGroup VisualizerSpectrum][!HideMeter MeterVisualizerUnavailable]
 IfCondition4=MeasureVisualizerState=3
-IfTrueAction4=[!SetOption MeterVisualizerStatus Text "FORMAT UNSUPPORTED"][!SetOption MeterVisualizerStatus FontColor "#WarningColor#"][!SetOption MeterVisualizerUnavailable Text "Unsupported format"][!HideMeterGroup VisualizerSpectrum][!ShowMeter MeterVisualizerUnavailable][!UpdateMeter MeterVisualizerStatus]
+IfTrueAction4=[!SetOption MeterVisualizerUnavailable Text "Unsupported format"][!SetOption MeterVisualizerUnavailable FontColor "#WarningColor#"][!HideMeterGroup VisualizerSpectrum][!ShowMeter MeterVisualizerUnavailable][!UpdateMeter MeterVisualizerUnavailable]
 IfConditionMode=0
 
 [MeasureVisualizerBand0]

@@ -6,13 +6,14 @@ param([string]$RainmeterPath = (Join-Path $env:ProgramFiles 'Rainmeter\Rainmeter
 $ErrorActionPreference = 'Stop'
 $testProcess = $null
 $sourcePath = [IO.Path]::GetFullPath((Join-Path $PSScriptRoot '..\QueueReader.lua'))
+$optionsSourcePath = [IO.Path]::GetFullPath((Join-Path $PSScriptRoot '..\..\MediaOptions.lua'))
 $suiteSourcePath = Join-Path $PSScriptRoot 'QueueReaderSuite.luatest'
 $tempParent = [IO.Path]::GetFullPath([IO.Path]::GetTempPath())
 $runRoot = [IO.Path]::GetFullPath((Join-Path $tempParent ('Parallax-QueueReader-test-' + [Guid]::NewGuid().ToString('N'))))
 if (-not $runRoot.StartsWith($tempParent.TrimEnd('\') + '\', [StringComparison]::OrdinalIgnoreCase)) { throw 'Run path must remain inside the temp parent.' }
 if ((Get-Item -LiteralPath $tempParent).Attributes -band [IO.FileAttributes]::ReparsePoint) { throw 'Temp parent must not be a junction.' }
 if (Test-Path -LiteralPath $runRoot) { throw 'Test run root must be fresh.' }
-foreach ($required in @($RainmeterPath, $sourcePath, $suiteSourcePath)) {
+foreach ($required in @($RainmeterPath, $sourcePath, $optionsSourcePath, $suiteSourcePath)) {
     if (-not (Test-Path -LiteralPath $required -PathType Leaf)) { throw "Required installed executable or source is missing: $required. Nothing is installed by this runner." }
 }
 
@@ -27,6 +28,7 @@ foreach ($directory in @($runRoot, $skinRoot, $configRoot, "$runRoot\Production"
     $null = New-Item -ItemType Directory -Path $directory
 }
 $productionPath = Join-Path $runRoot 'Production\QueueReader.lua'
+$optionsProductionPath = Join-Path $runRoot 'Production\MediaOptions.lua'
 $suitePath = Join-Path $runRoot 'QueueReaderSuite.lua'
 $iniPath = Join-Path $runRoot 'Rainmeter.ini'
 $resultPath = Join-Path $runRoot 'results.txt'
@@ -42,8 +44,10 @@ if ($sourceBytes.Length -lt 2 -or $sourceBytes[0] -ne 0xFF -or $sourceBytes[1] -
     throw 'QueueReader must retain UTF-16LE BOM for Rainmeter 4.5 Unicode APIs.'
 }
 Write-TestFile $productionPath ([IO.File]::ReadAllText($sourcePath))
+Write-TestFile $optionsProductionPath ([IO.File]::ReadAllText($optionsSourcePath))
 Copy-Item -LiteralPath $suiteSourcePath -Destination $suitePath
 $sourceHash = (Get-FileHash -LiteralPath $sourcePath -Algorithm SHA256).Hash
+$optionsSourceHash = (Get-FileHash -LiteralPath $optionsSourcePath -Algorithm SHA256).Hash
 Write-TestFile $iniPath @"
 [Rainmeter]
 SkinPath=$skinRoot\
@@ -88,9 +92,10 @@ function Update() return 0 end
 function AuditAndQuit()
     local ok, report = pcall(function()
         local suite = dofile([=[$suitePath]=])
-        local count, cases = suite.run([=[$productionPath]=], [=[$scratchPath]=])
+        local count, cases = suite.run([=[$productionPath]=], [=[$scratchPath]=], [=[$optionsProductionPath]=])
         return 'PASS: '..count..' assertions in '..#cases..' synthetic queue-reader scenarios; '.._VERSION..'.\n'
             ..table.concat(cases, '\n')..'\nProduction SHA256: $sourceHash\n'
+            ..'Accordion SHA256: $optionsSourceHash\n'
             ..'Snapshot reader only. No Spotify request, authorization, live cache, live Rainmeter configuration, screenshot or performance verification.\n'
     end)
     if not ok then report = 'FAIL: '..tostring(report)..'\n' end
@@ -112,6 +117,7 @@ try {
         IniPath = $iniPath
         SkinPath = $skinRoot
         TestedSourceSha256 = $sourceHash
+        TestedAccordionSha256 = $optionsSourceHash
         SourceEncoding = 'UTF-16LE BOM; same text decoded to UTF-8 for Lua loadfile mock tests'
         SuiteSha256 = (Get-FileHash -LiteralPath $suitePath -Algorithm SHA256).Hash
         Provider = 'None; injected synthetic snapshots only'
@@ -128,6 +134,7 @@ try {
         if ($errors.Count) { $errors | Write-Output; throw 'Isolated Rainmeter logged errors.' }
     }
     if ((Get-FileHash -LiteralPath $sourcePath -Algorithm SHA256).Hash -ne $sourceHash) { throw 'Production source changed during the test; rerun for current evidence.' }
+    if ((Get-FileHash -LiteralPath $optionsSourcePath -Algorithm SHA256).Hash -ne $optionsSourceHash) { throw 'Accordion source changed during the test; rerun for current evidence.' }
     Write-Output "Isolated evidence retained at $runRoot"
 } finally {
     if ($null -ne $testProcess) {

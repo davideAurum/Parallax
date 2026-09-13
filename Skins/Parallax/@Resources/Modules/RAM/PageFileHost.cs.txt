@@ -1,0 +1,379 @@
+// Original Parallax paging-file sampler. Compiled inside the existing hidden
+// Windows PowerShell host; no child processes, installed services or downloads.
+// Enumerated usage/allocated size are paging-file pages, not system commit.
+// https://learn.microsoft.com/windows/win32/api/psapi/nf-psapi-enumpagefilesw
+// https://learn.microsoft.com/windows/win32/api/psapi/ns-psapi-enum_page_file_information
+// ABI: https://github.com/microsoft/win32metadata/blob/main/generation/WinSDK/RecompiledIdlHeaders/um/Psapi.h
+using System;
+using System.Collections.Generic;
+using System.Globalization;
+using System.IO;
+using System.Runtime.InteropServices;
+using System.Text;
+using System.Threading;
+
+public static class ParallaxRamPageFile
+{
+    internal const long MaximumInteger = 9007199254740991L;
+    private const long MaximumEpoch = 253402300799L;
+    private const int MaximumSnapshotBytes = 512;
+    private const int MaximumFiles = 512;
+    private static readonly DateTime Epoch = new DateTime(1970, 1, 1, 0, 0, 0, DateTimeKind.Utc);
+    private static readonly Encoding Ascii = new ASCIIEncoding();
+
+    internal sealed class Paths
+    {
+        internal readonly string Token, Data, Lease, Temporary;
+        internal Paths(string token)
+        {
+            Token = ValidateToken(token);
+            string stem = Path.Combine(Path.GetFullPath(Path.GetTempPath()), "Parallax-RAM-Page-" + Token);
+            Data = stem + ".dat";
+            Lease = stem + ".lease";
+            Temporary = stem + ".tmp";
+        }
+    }
+
+    // Allocates names only: Lua writes the initial lease before starting Run.
+    // No caller-supplied path is ever accepted by the resident provider.
+    public static string CreateSession(int intervalMs)
+    {
+        ValidateInterval(intervalMs);
+        for (int attempt = 0; attempt < 3; ++attempt)
+        {
+            Paths paths = new Paths(Guid.NewGuid().ToString("N"));
+            if (File.Exists(paths.Data) || File.Exists(paths.Lease) || File.Exists(paths.Temporary)) continue;
+            return "RAM_PAGE_SESSION|1|" + paths.Token + "|" + Hex(Encoding.UTF8.GetBytes(paths.Data));
+        }
+        throw new IOException("Unable to allocate a paging-file session.");
+    }
+
+    public static void Run(string token, int intervalMs)
+    {
+        Paths paths = new Paths(token);
+        ValidateInterval(intervalMs);
+        long lease;
+        if (!ReadLease(paths, Now(), intervalMs, out lease)) return;
+        using (ParentGuard parent = ParentGuard.Capture())
+            RunSession(paths, intervalMs, parent, Now, ReadFrame);
+    }
+
+    // Internal seams keep deterministic tests on the actual lifecycle and
+    // collector. Production always supplies native sampling and a UTC clock.
+    internal interface IGuard
+    {
+        bool Alive { get; }
+        bool Wait(int milliseconds);
+    }
+
+    internal static void RunSession(Paths paths, int intervalMs, IGuard parent,
+        Func<long> clock, Func<Frame> sample)
+    {
+        ValidateInterval(intervalMs);
+        long validLease;
+        if (!ReadLease(paths, clock(), intervalMs, out validLease)) return;
+        bool ownData = false;
+        try
+        {
+            if (!parent.Alive) return;
+            WriteSnapshot(paths, Snapshot(paths.Token, 0, clock(), new Frame("STARTING")), true);
+            ownData = true;
+            long sequence = 0;
+            bool unsupported = false;
+            while (parent.Alive)
+            {
+                long now = clock(), observedLease;
+                if (ReadLease(paths, now, intervalMs, out observedLease)) validLease = observedLease;
+                // A transient truncate/read failure does not renew the lease.
+                if (!LeaseFresh(validLease, now, intervalMs)) break;
+                Frame frame = unsupported ? new Frame("UNSUPPORTED") : sample();
+                unsupported = frame.Status == "UNSUPPORTED";
+                if (sequence == MaximumInteger) break;
+                string text = Snapshot(paths.Token, ++sequence, clock(), frame);
+                try { WriteSnapshot(paths, text, false); }
+                catch (IOException) { /* Reader lock: the old timestamp ages normally. */ }
+                catch (UnauthorizedAccessException) { /* Retry next interval while leased. */ }
+                if (!parent.Wait(intervalMs)) break;
+            }
+        }
+        finally
+        {
+            if (ownData) Delete(paths.Data);
+            Delete(paths.Lease);
+            // WriteSnapshot deletes only the temporary file it created.
+        }
+    }
+
+    internal sealed class Frame
+    {
+        internal readonly string Status;
+        internal readonly ulong? Used, Total;
+        internal readonly int? Count;
+        internal Frame(string status) { Status = status; }
+        internal Frame(string status, ulong used, ulong total, int count)
+        { Status = status; Used = used; Total = total; Count = count; }
+    }
+
+    [StructLayout(LayoutKind.Sequential)]
+    internal struct PageFileInformation
+    {
+        internal uint Size, Reserved;
+        internal UIntPtr TotalSize, TotalInUse, PeakUsage;
+    }
+
+    [UnmanagedFunctionPointer(CallingConvention.StdCall)]
+    [return: MarshalAs(UnmanagedType.Bool)]
+    internal delegate bool PageFileCallback(IntPtr context, ref PageFileInformation information, IntPtr ignoredFilename);
+    internal delegate bool Enumerator(PageFileCallback callback);
+
+    internal static Frame ReadFrame()
+    {
+        return Collect(Environment.SystemPageSize, delegate(PageFileCallback callback)
+        { return EnumPageFilesW(callback, IntPtr.Zero); });
+    }
+
+    internal static Frame Collect(int pageSize, Enumerator enumerate)
+    {
+        if (pageSize <= 0) return new Frame("UNAVAILABLE");
+        ulong used = 0, total = 0;
+        int count = 0;
+        bool invalid = false;
+        PageFileCallback callback = delegate(IntPtr context, ref PageFileInformation info, IntPtr ignoredFilename)
+        {
+            // Do not read or marshal filename: snapshots contain numbers only.
+            ulong sizePages = info.TotalSize.ToUInt64(), usedPages = info.TotalInUse.ToUInt64();
+            ulong maximumPages = (ulong)MaximumInteger / (uint)pageSize;
+            if (invalid || info.Size < Marshal.SizeOf(typeof(PageFileInformation)) || count >= MaximumFiles ||
+                usedPages > sizePages || sizePages > maximumPages)
+            { invalid = true; return false; }
+            ulong sizeBytes = sizePages * (uint)pageSize, usedBytes = usedPages * (uint)pageSize;
+            if (sizeBytes > (ulong)MaximumInteger - total || usedBytes > (ulong)MaximumInteger - used)
+            { invalid = true; return false; }
+            total += sizeBytes;
+            used += usedBytes;
+            ++count;
+            return true;
+        };
+        try
+        {
+            bool complete = enumerate(callback);
+            if (!complete || invalid) return new Frame("UNAVAILABLE");
+            return count == 0 ? new Frame("NONE", 0, 0, 0) : new Frame("OK", used, total, count);
+        }
+        catch (DllNotFoundException) { return new Frame("UNSUPPORTED"); }
+        catch (EntryPointNotFoundException) { return new Frame("UNSUPPORTED"); }
+        catch (BadImageFormatException) { return new Frame("UNSUPPORTED"); }
+        catch (PlatformNotSupportedException) { return new Frame("UNSUPPORTED"); }
+        catch (Exception) { return new Frame("UNAVAILABLE"); }
+        finally { GC.KeepAlive(callback); }
+    }
+
+    private static string ValidateToken(string token)
+    {
+        if (token == null || token.Length != 32) throw new ArgumentException("Invalid session token.");
+        foreach (char c in token)
+            if (!((c >= '0' && c <= '9') || (c >= 'a' && c <= 'f')))
+                throw new ArgumentException("Invalid session token.");
+        return token;
+    }
+
+    private static void ValidateInterval(int intervalMs)
+    {
+        if (intervalMs < 1000 || intervalMs > 30000) throw new ArgumentOutOfRangeException("intervalMs");
+    }
+
+    private static long Now() { return (long)(DateTime.UtcNow - Epoch).TotalSeconds; }
+    private static string Number(long number) { return number.ToString(CultureInfo.InvariantCulture); }
+
+    internal static bool LeaseFresh(long timestamp, long now, int intervalMs)
+    {
+        long maximumAge = Math.Max(15L, (3L * intervalMs + 999) / 1000);
+        return timestamp >= 0 && timestamp <= MaximumEpoch && now >= 0 && now <= MaximumEpoch &&
+            timestamp <= now + 5 && now - timestamp <= maximumAge;
+    }
+
+    internal static bool ParseLease(string text, string token, long now, int intervalMs, out long timestamp)
+    {
+        timestamp = 0;
+        if (text == null || text.Length < 34 || text.Length > 45 ||
+            !text.StartsWith(token + "|", StringComparison.Ordinal)) return false;
+        string value = text.Substring(33);
+        if (value.Length > 1 && value[0] == '0') return false;
+        foreach (char c in value) if (c < '0' || c > '9') return false;
+        return Int64.TryParse(value, NumberStyles.None, CultureInfo.InvariantCulture, out timestamp) &&
+            LeaseFresh(timestamp, now, intervalMs);
+    }
+
+    internal static bool ReadLease(Paths paths, long now, int intervalMs, out long timestamp)
+    {
+        timestamp = 0;
+        try
+        {
+            using (FileStream stream = new FileStream(paths.Lease, FileMode.Open, FileAccess.Read,
+                FileShare.ReadWrite | FileShare.Delete))
+            {
+                if (stream.Length > 128) return false;
+                byte[] bytes = new byte[129];
+                int used = 0, read;
+                while (used < bytes.Length && (read = stream.Read(bytes, used, bytes.Length - used)) != 0) used += read;
+                if (used > 128) return false;
+                for (int index = 0; index < used; ++index) if (bytes[index] > 127) return false;
+                return ParseLease(Ascii.GetString(bytes, 0, used), paths.Token, now, intervalMs, out timestamp);
+            }
+        }
+        catch (IOException) { return false; }
+        catch (UnauthorizedAccessException) { return false; }
+    }
+
+    internal static string Snapshot(string token, long sequence, long epoch, Frame frame)
+    {
+        ValidateToken(token);
+        if (sequence < 0 || sequence > MaximumInteger || epoch < 0 || epoch > MaximumEpoch || frame == null)
+            throw new InvalidOperationException("Invalid snapshot metadata.");
+        string status = frame.Status;
+        bool known = status == "OK" || status == "NONE";
+        if (known)
+        {
+            if (!frame.Used.HasValue || !frame.Total.HasValue || !frame.Count.HasValue ||
+                frame.Used.Value > frame.Total.Value || frame.Total.Value > (ulong)MaximumInteger ||
+                frame.Count.Value < 0 || frame.Count.Value > MaximumFiles ||
+                (status == "NONE" && (frame.Count.Value != 0 || frame.Used.Value != 0 || frame.Total.Value != 0)) ||
+                (status == "OK" && frame.Count.Value == 0))
+                throw new InvalidOperationException("Invalid paging-file quantities.");
+        }
+        else if ((status != "STARTING" && status != "UNAVAILABLE" && status != "UNSUPPORTED") ||
+            frame.Used.HasValue || frame.Total.HasValue || frame.Count.HasValue)
+            throw new InvalidOperationException("Invalid paging-file status.");
+        string values = known ? Number((long)frame.Used.Value) + "|" + Number((long)frame.Total.Value) + "|" + Number(frame.Count.Value) : "?|?|?";
+        string text = "RAM_PAGE|1|" + token + "|" + Number(sequence) + "|" + Number(epoch) + "|" + status + "|" + values;
+        if (text.Length > MaximumSnapshotBytes) throw new InvalidOperationException("Snapshot exceeds bound.");
+        return text;
+    }
+
+    internal static void WriteSnapshot(Paths paths, string text, bool initial)
+    {
+        if (text == null || text.Length > MaximumSnapshotBytes) throw new InvalidOperationException("Invalid snapshot size.");
+        foreach (char c in text) if (c > 127 || c < 32) throw new InvalidOperationException("Invalid snapshot encoding.");
+        bool ownTemporary = false;
+        try
+        {
+            using (FileStream stream = new FileStream(paths.Temporary, FileMode.CreateNew, FileAccess.Write, FileShare.Read))
+            {
+                ownTemporary = true;
+                byte[] bytes = Ascii.GetBytes(text);
+                stream.Write(bytes, 0, bytes.Length);
+                stream.Flush();
+            }
+            if (initial) File.Move(paths.Temporary, paths.Data);
+            else File.Replace(paths.Temporary, paths.Data, null);
+            ownTemporary = false;
+        }
+        finally { if (ownTemporary) Delete(paths.Temporary); }
+    }
+
+    private static void Delete(string path)
+    {
+        try { File.Delete(path); }
+        catch (IOException) { /* UI cleanup may retry after a reader releases its handle. */ }
+        catch (UnauthorizedAccessException) { /* Forced kills also leave bounded cleanup to the UI. */ }
+    }
+
+    private static string Hex(byte[] bytes)
+    {
+        StringBuilder text = new StringBuilder(bytes.Length * 2);
+        foreach (byte value in bytes) text.Append(value.ToString("X2", CultureInfo.InvariantCulture));
+        return text.ToString();
+    }
+
+    private sealed class ParentGuard : IGuard, IDisposable
+    {
+        private IntPtr handle;
+        private ParentGuard(IntPtr process) { handle = process; }
+        public bool Alive { get { return handle == IntPtr.Zero || WaitForSingleObject(handle, 0) == 258; } }
+        public bool Wait(int milliseconds)
+        {
+            if (handle == IntPtr.Zero) { Thread.Sleep(milliseconds); return true; }
+            return WaitForSingleObject(handle, (uint)milliseconds) == 258;
+        }
+        internal static ParentGuard Capture()
+        {
+            IntPtr snapshot = CreateToolhelp32Snapshot(2, 0);
+            if (snapshot == new IntPtr(-1)) return new ParentGuard(IntPtr.Zero);
+            try
+            {
+                Dictionary<uint, ProcessEntry> entries = new Dictionary<uint, ProcessEntry>();
+                ProcessEntry entry = new ProcessEntry();
+                entry.Size = (uint)Marshal.SizeOf(typeof(ProcessEntry));
+                bool more = Process32FirstW(snapshot, ref entry);
+                for (int count = 0; more && count < 32768; ++count)
+                {
+                    entries[entry.ProcessId] = entry;
+                    entry.Size = (uint)Marshal.SizeOf(typeof(ProcessEntry));
+                    more = Process32NextW(snapshot, ref entry);
+                }
+                uint process = GetCurrentProcessId();
+                HashSet<uint> visited = new HashSet<uint>();
+                for (int depth = 0; depth < 16 && visited.Add(process) && entries.TryGetValue(process, out entry); ++depth)
+                {
+                    process = entry.ParentId;
+                    ProcessEntry parent;
+                    if (!entries.TryGetValue(process, out parent)) break;
+                    if (!String.Equals(parent.Executable, "Rainmeter.exe", StringComparison.OrdinalIgnoreCase)) continue;
+                    // Retain the ancestor handle, never reopen a possibly reused PID.
+                    IntPtr handle = OpenProcess(0x00101000, false, process);
+                    if (handle == IntPtr.Zero) break;
+                    StringBuilder image = new StringBuilder(32768);
+                    uint size = (uint)image.Capacity;
+                    if (QueryFullProcessImageNameW(handle, 0, image, ref size) &&
+                        String.Equals(Path.GetFileName(image.ToString()), "Rainmeter.exe", StringComparison.OrdinalIgnoreCase))
+                        return new ParentGuard(handle);
+                    CloseHandle(handle);
+                    break;
+                }
+            }
+            catch { /* Inaccessible ancestry leaves lease-based lifetime control. */ }
+            finally { CloseHandle(snapshot); }
+            return new ParentGuard(IntPtr.Zero);
+        }
+        public void Dispose() { if (handle != IntPtr.Zero) { CloseHandle(handle); handle = IntPtr.Zero; } }
+    }
+
+    [StructLayout(LayoutKind.Sequential, CharSet = CharSet.Unicode)]
+    private struct ProcessEntry
+    {
+        public uint Size, Usage, ProcessId;
+        public UIntPtr DefaultHeap;
+        public uint ModuleId, Threads, ParentId;
+        public int BasePriority;
+        public uint Flags;
+        [MarshalAs(UnmanagedType.ByValTStr, SizeConst = 260)] public string Executable;
+    }
+
+    [DllImport("psapi.dll", ExactSpelling = true, CallingConvention = CallingConvention.StdCall, SetLastError = true)]
+    [DefaultDllImportSearchPaths(DllImportSearchPath.System32)]
+    [return: MarshalAs(UnmanagedType.Bool)] private static extern bool EnumPageFilesW(PageFileCallback callback, IntPtr context);
+    [DllImport("kernel32.dll", ExactSpelling = true)]
+    [DefaultDllImportSearchPaths(DllImportSearchPath.System32)]
+    private static extern IntPtr CreateToolhelp32Snapshot(uint flags, uint processId);
+    [DllImport("kernel32.dll", ExactSpelling = true, CharSet = CharSet.Unicode)]
+    [DefaultDllImportSearchPaths(DllImportSearchPath.System32)]
+    [return: MarshalAs(UnmanagedType.Bool)] private static extern bool Process32FirstW(IntPtr snapshot, ref ProcessEntry entry);
+    [DllImport("kernel32.dll", ExactSpelling = true, CharSet = CharSet.Unicode)]
+    [DefaultDllImportSearchPaths(DllImportSearchPath.System32)]
+    [return: MarshalAs(UnmanagedType.Bool)] private static extern bool Process32NextW(IntPtr snapshot, ref ProcessEntry entry);
+    [DllImport("kernel32.dll", ExactSpelling = true)]
+    [DefaultDllImportSearchPaths(DllImportSearchPath.System32)]
+    private static extern uint GetCurrentProcessId();
+    [DllImport("kernel32.dll", ExactSpelling = true)]
+    [DefaultDllImportSearchPaths(DllImportSearchPath.System32)]
+    private static extern IntPtr OpenProcess(uint access, [MarshalAs(UnmanagedType.Bool)] bool inherit, uint processId);
+    [DllImport("kernel32.dll", ExactSpelling = true, CharSet = CharSet.Unicode)]
+    [DefaultDllImportSearchPaths(DllImportSearchPath.System32)]
+    [return: MarshalAs(UnmanagedType.Bool)] private static extern bool QueryFullProcessImageNameW(IntPtr process, uint flags, StringBuilder path, ref uint size);
+    [DllImport("kernel32.dll", ExactSpelling = true)]
+    [DefaultDllImportSearchPaths(DllImportSearchPath.System32)]
+    private static extern uint WaitForSingleObject(IntPtr handle, uint milliseconds);
+    [DllImport("kernel32.dll", ExactSpelling = true)]
+    [DefaultDllImportSearchPaths(DllImportSearchPath.System32)]
+    [return: MarshalAs(UnmanagedType.Bool)] private static extern bool CloseHandle(IntPtr handle);
+}

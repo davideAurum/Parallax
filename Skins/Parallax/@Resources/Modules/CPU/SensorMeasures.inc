@@ -1,3 +1,39 @@
+; Native Windows aggregate clock. Processor Frequency is the nominal/current
+; P-state frequency; Processor Performance carries turbo and throttling. Their
+; product follows Windows' aggregate performance-clock model without a helper.
+[MeasureCPUNativeFrequency]
+Measure=Plugin
+Plugin=UsageMonitor
+Category=Processor Information
+Counter=Processor Frequency
+Name=_Total
+Rollup=0
+Percent=0
+RawValue=0
+MinValue=0
+MaxValue=10000
+UpdateDivider=1
+
+[MeasureCPUNativePerformance]
+Measure=Plugin
+Plugin=UsageMonitor
+Category=Processor Information
+Counter=% Processor Performance
+Name=_Total
+Rollup=0
+Percent=0
+RawValue=0
+MinValue=0
+MaxValue=1000
+UpdateDivider=1
+
+[MeasureCPUNativeClock]
+Measure=Calc
+Formula=(MeasureCPUNativeFrequency>0 && MeasureCPUNativePerformance>0 ? MeasureCPUNativeFrequency*MeasureCPUNativePerformance/100 : 0)
+MinValue=0
+MaxValue=10000
+UpdateDivider=1
+
 ; Native HWiNFO Gadget reads. No shared-memory plugin and no subprocess polling.
 [MeasureCPUHWiNFORunning]
 Measure=Process
@@ -125,6 +161,78 @@ UpdateDivider=(Max(1,Ceil(#CPUSensorInterval#/Max(1,#CPUUpdateInterval#))))
 Group=CPUSensorNative
 
 [MeasureCPUSensorClockRaw]
+Measure=Registry
+RegHKey=HKEY_CURRENT_USER
+RegKey=SOFTWARE\HWiNFO64\VSB
+RegValue=ValueRaw0
+Disabled=1
+UpdateDivider=(Max(1,Ceil(#CPUSensorInterval#/Max(1,#CPUUpdateInterval#))))
+Group=CPUSensorNative
+
+[MeasureCPUSensorFanSensor]
+Measure=Registry
+RegHKey=HKEY_CURRENT_USER
+RegKey=SOFTWARE\HWiNFO64\VSB
+RegValue=Sensor0
+Disabled=1
+UpdateDivider=(Max(1,Ceil(#CPUSensorInterval#/Max(1,#CPUUpdateInterval#))))
+Group=CPUSensorNative
+
+[MeasureCPUSensorFanLabel]
+Measure=Registry
+RegHKey=HKEY_CURRENT_USER
+RegKey=SOFTWARE\HWiNFO64\VSB
+RegValue=Label0
+Disabled=1
+UpdateDivider=(Max(1,Ceil(#CPUSensorInterval#/Max(1,#CPUUpdateInterval#))))
+Group=CPUSensorNative
+
+[MeasureCPUSensorFanFormatted]
+Measure=Registry
+RegHKey=HKEY_CURRENT_USER
+RegKey=SOFTWARE\HWiNFO64\VSB
+RegValue=Value0
+Disabled=1
+UpdateDivider=(Max(1,Ceil(#CPUSensorInterval#/Max(1,#CPUUpdateInterval#))))
+Group=CPUSensorNative
+
+[MeasureCPUSensorFanRaw]
+Measure=Registry
+RegHKey=HKEY_CURRENT_USER
+RegKey=SOFTWARE\HWiNFO64\VSB
+RegValue=ValueRaw0
+Disabled=1
+UpdateDivider=(Max(1,Ceil(#CPUSensorInterval#/Max(1,#CPUUpdateInterval#))))
+Group=CPUSensorNative
+
+[MeasureCPUSensorMotherboardFanSensor]
+Measure=Registry
+RegHKey=HKEY_CURRENT_USER
+RegKey=SOFTWARE\HWiNFO64\VSB
+RegValue=Sensor0
+Disabled=1
+UpdateDivider=(Max(1,Ceil(#CPUSensorInterval#/Max(1,#CPUUpdateInterval#))))
+Group=CPUSensorNative
+
+[MeasureCPUSensorMotherboardFanLabel]
+Measure=Registry
+RegHKey=HKEY_CURRENT_USER
+RegKey=SOFTWARE\HWiNFO64\VSB
+RegValue=Label0
+Disabled=1
+UpdateDivider=(Max(1,Ceil(#CPUSensorInterval#/Max(1,#CPUUpdateInterval#))))
+Group=CPUSensorNative
+
+[MeasureCPUSensorMotherboardFanFormatted]
+Measure=Registry
+RegHKey=HKEY_CURRENT_USER
+RegKey=SOFTWARE\HWiNFO64\VSB
+RegValue=Value0
+Disabled=1
+UpdateDivider=(Max(1,Ceil(#CPUSensorInterval#/Max(1,#CPUUpdateInterval#))))
+Group=CPUSensorNative
+
+[MeasureCPUSensorMotherboardFanRaw]
 Measure=Registry
 RegHKey=HKEY_CURRENT_USER
 RegKey=SOFTWARE\HWiNFO64\VSB

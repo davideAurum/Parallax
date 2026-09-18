@@ -11,6 +11,25 @@ PIDToName=0
 Percent=0
 RawValue=0
 
+; Wraps MeasureGPUActivity with an explicit 0-100 range so the Line meter's
+; native scaling (AutoScale=0) is correct regardless of what UsageMonitor
+; itself reports as this counter's bounds. This traces the same "busiest
+; ranked process-engine" figure as the headline Activity value and process
+; table row 1 above -- not a true whole-adapter total; see GraphMeters.inc.
+[MeasureGPUUtilizationHistory]
+Measure=Calc
+Formula=MeasureGPUActivity
+MinValue=0
+MaxValue=100
+UpdateDivider=1
+
+; Self reference starts at zero on load AND refresh; global Counter does not.
+; Match the Line meter's update cadence. This is a sample count, not telemetry.
+[MeasureGPUGraphSamples]
+Measure=Calc
+Formula=Min(MeasureGPUGraphSamples+1,#ContentWidth#)
+UpdateDivider=1
+
 ; Values can remain in the registry after HWiNFO stops. This is a snapshot.
 ; List membership distinguishes a missing ValueRawN from a real numeric zero.
 ; All banks start disabled; Temperature.lua enables only explicitly selected

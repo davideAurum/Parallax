@@ -4,7 +4,9 @@ local fields = {
     Width = { key='Columns', values={1,2}, categorical=true },
     Height = { key='PanelHeight', values={126,146,186}, minimum=126, maximum=186, discrete=true },
     Spacing = { key='VisualizerBandGap', values={0,1,3,4}, minimum=0, maximum=4 },
-    Color = { key='VisualizerColorMode', values={0,1,2,3}, categorical=true },
+    Color = { key='VisualizerColorMode', values={0,1,2,3,4}, categorical=true },
+    Radius = { key='VisualizerBarRadius', values={0,12}, minimum=0, maximum=12, step=1 },
+    Baseline = { key='VisualizerBaselineGap', values={0,24}, minimum=0, maximum=24, step=1 },
     Quality = { key='VisualizerQuality', values={0,1,2}, categorical=true },
     Cadence = { key='VisualizerUpdateOverride', values={0,33,50,100}, categorical=true },
     Sensitivity = { key='VisualizerSensitivity', values={10,20,35,50,65,80}, minimum=10, maximum=80 },
@@ -63,6 +65,9 @@ function Step(name, direction)
         return save(field, field.values[(index - 1 + direction) % #field.values + 1])
     end
     if not value then return save(field, field.values[1]) end
+    if field.step then
+        return save(field, math.max(field.minimum, math.min(field.maximum, value + direction * field.step)))
+    end
     if direction == 1 then
         for _, choice in ipairs(field.values) do if choice > value then return save(field, choice) end end
     else

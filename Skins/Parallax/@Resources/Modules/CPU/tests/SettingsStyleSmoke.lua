@@ -58,7 +58,7 @@ function Update()
     if tick % 5 ~= 0 then return 0 end
     local okay, failure = pcall(function()
         if phase == 0 then
-            geometry(1000)
+            geometry(1056)
             write('capture-ready.txt','expanded')
         elseif phase == 1 then
             -- Allow the runner to capture the expanded window before exercising collapse.
@@ -66,11 +66,11 @@ function Update()
             if not captured then return end
             captured:close()
         elseif phase == 2 then
-            for _, name in ipairs({'Info','Cores','Processes','History'}) do action('MeterSettings' .. name .. 'Value') end
+            for _, name in ipairs({'Info','CPUFan','MotherboardFan','Cores','Processes','History'}) do action('MeterSettings' .. name .. 'Value') end
         elseif phase == 3 then
-            geometry(888)
+            geometry(944)
             check(SKIN:GetMeter('MeterSettingsProcessCountValue'):GetOption('Text') == '5', 'collapsed value retained')
-            for _, name in ipairs({'Info','Cores','Processes','History'}) do
+            for _, name in ipairs({'Info','CPUFan','MotherboardFan','Cores','Processes','History'}) do
                 check(SKIN:GetMeter('MeterSettings' .. name .. 'Value'):GetH() > 0, 'reenable control ' .. name)
             end
             write('capture-ready.txt','collapsed')
@@ -79,9 +79,9 @@ function Update()
             if not captured then return end
             captured:close()
         elseif phase == 5 then
-            for _, name in ipairs({'Info','Cores','Processes','History'}) do action('MeterSettings' .. name .. 'Value') end
+            for _, name in ipairs({'Info','CPUFan','MotherboardFan','Cores','Processes','History'}) do action('MeterSettings' .. name .. 'Value') end
         elseif phase == 6 then
-            geometry(1000)
+            geometry(1056)
             action('MeterSettingsProcessCountIncrease')
             action('MeterSettingsSamplesDecrease')
             action('MeterSettingsDecimalsIncrease')
@@ -94,7 +94,7 @@ function Update()
             write('pre-refresh-count.txt', tostring(assertions))
             SKIN:Bang('!Refresh')
         elseif phase == 8 then
-            geometry(1000)
+            geometry(1056)
             check(SKIN:GetMeter('MeterSettingsProcessCountValue'):GetOption('Text') == '6', 'count persisted on reload')
             check(SKIN:GetMeter('MeterSettingsSamplesValue'):GetOption('Text') == '50', 'history persisted on reload')
             write('passed.txt', tostring(assertions) .. ' native assertions; provider/discovery launches suppressed in fixture.')

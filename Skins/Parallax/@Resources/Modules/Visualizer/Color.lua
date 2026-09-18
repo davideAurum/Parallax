@@ -25,22 +25,21 @@ end
 
 function Apply()
     local mode = tonumber(SKIN:GetVariable('VisualizerColorMode', '0'))
-    if mode == 3 then
+    local shape = 'Rectangle 0,0,#VisualizerPlotInnerWidth#,#VisualizerBarHeight#'
+    if mode == 3 or mode == 4 then
         -- Literal RGB/RGBA and six/eight-digit hex match suite color settings.
         -- Invalid advanced formulas/text fall back to the shipped accent.
         local first = parseColor(SKIN:GetVariable('AccentColor', ''), {137, 190, 250, 255})
         local last = parseColor(SKIN:GetVariable('AccentColor2', ''), {181, 161, 226, 255})
-        for index = 0, 23 do
-            local color = {}
-            for component = 1, 4 do
-                color[component] = byte(first[component] + (last[component] - first[component]) * index / 23)
-            end
-            SKIN:Bang('!SetOption', 'MeterVisualizerBand' .. index, 'BarColor', table.concat(color, ','))
-        end
+        local angle = mode == 4 and 90 or 180
+        local gradient = angle .. ' | ' .. table.concat(first, ',') .. ' ; 0 | ' .. table.concat(last, ',') .. ' ; 1'
+        SKIN:Bang('!SetOption', 'MeterVisualizerFill', 'SpectrumGradient', gradient)
+        shape = shape .. ' | Fill LinearGradient SpectrumGradient | StrokeWidth 0'
     else
         local key = mode == 1 and 'AccentColor' or mode == 2 and 'AccentColor2' or 'MediaColor'
-        SKIN:Bang('!SetOptionGroup', 'VisualizerSpectrum', 'BarColor', SKIN:GetVariable(key))
+        shape = shape .. ' | Fill Color ' .. SKIN:GetVariable(key) .. ' | StrokeWidth 0'
     end
-    SKIN:Bang('!UpdateMeterGroup', 'VisualizerSpectrum')
+    SKIN:Bang('!SetOption', 'MeterVisualizerFill', 'Shape', shape)
+    SKIN:Bang('!UpdateMeter', 'MeterVisualizerFill')
     SKIN:Bang('!Redraw')
 end

@@ -41,13 +41,19 @@ local function media_geometry()
     local rounded=function(value) return math.floor(value+0.5) end
     local unit=rounded(SELF:GetNumberOption('ExpectedWidth')*scale)
     local base_cover=wide and rounded(unit*0.9) or 48*scale
-    local cover=rounded(base_cover*0.75)
+    local legacy_cover=rounded(base_cover*0.75)
+    local cover=legacy_cover+(wide and rounded(20*scale) or 0)
     local offset=wide and rounded(12*scale) or 0
     local bar=math.max(1,rounded(SELF:GetNumberOption('ExpectedBarThickness',6)*scale))
-    local progress_y=offset+122*scale+math.max(2*scale,6*scale-bar/2)
+    local legacy_progress_y=offset+122*scale+math.max(2*scale,6*scale-bar/2)
+    local legacy_controls_y=legacy_progress_y+bar+8*scale
+    local progress_y=offset+(wide and 102 or 122)*scale+math.max(2*scale,6*scale-bar/2)
     local controls_y=progress_y+bar+8*scale
+    local legacy_cover_bottom=(wide and 0 or 44*scale)+legacy_cover
     local cover_bottom=(wide and 0 or 44*scale)+cover
-    local body=math.max(rounded(162*scale)+offset,math.ceil(math.max(cover_bottom,controls_y+26*scale)+37*scale))
+    local legacy_body=math.max(rounded(162*scale)+offset,
+        math.ceil(math.max(legacy_cover_bottom,legacy_controls_y+26*scale)+37*scale))
+    local body=math.max(legacy_body,math.ceil(math.max(cover_bottom,controls_y+26*scale)+37*scale))
     return cover,offset,body,controls_y
 end
 local function dimensions(expanded, rows)
@@ -92,16 +98,18 @@ local function player_name_row()
     check(name:GetOption('FontColor')==SKIN:GetVariable('TextColor'),'Player name ignores body color')
     local size=tonumber(name:GetOption('FontSize')) or SKIN:ParseFormula(name:GetOption('FontSize'))
     check(math.abs(size-tonumber(SKIN:GetVariable('FontSize'))*scale)<0.001,'Player name ignores body font size')
-    check(math.abs(name:GetY(true)-(surface+30*scale))<=1 and math.abs(name:GetH()-18*scale)<=1,'Player name row position or height changed')
+    check(math.abs(name:GetY(true)-(surface+(wide and 6 or 30)*scale))<=1 and math.abs(name:GetH()-18*scale)<=1,'Player name position or height changed')
     check(math.abs(icon:GetW()-14*scale)<=1 and math.abs(icon:GetH()-14*scale)<=1,'Audio Lines must retain a14px canvas')
     check(math.abs(icon:GetY(true)+icon:GetH()/2-name:GetY(true)-name:GetH()/2)<=1,'Audio Lines is not centered with the player name')
-    check(math.abs(icon:GetX(true)-title_icon:GetX(true)-(wide and 0 or 54*scale))<=1,'Player-name row intrudes into compact artwork')
+    if wide then check(math.abs(icon:GetX(true)-title:GetX(true)-title:GetW()-6*scale)<=1,'Player icon does not follow the title')
+    else check(math.abs(icon:GetX(true)-title_icon:GetX(true)-54*scale)<=1,'Compact player row intrudes into artwork') end
     local title_size=14*scale*tonumber(SKIN:GetVariable('TitleFontSize'))/10
     check(math.abs(title_icon:GetW()-title_size)<=1 and math.abs(title_icon:GetH()-title_size)<=1,'Monitor Play ignores title icon size')
     check(math.abs(title_icon:GetY(true)+title_icon:GetH()/2-title:GetY(true))<=1,'Monitor Play is not centered with title')
     check(math.abs(title:GetX(true)-title_icon:GetX(true)-title_size-4*scale)<=1,'Title icon gap changed')
     check(math.abs(name:GetX(true)-icon:GetX(true)-18*scale)<=1,'Player-name icon gap changed')
-    check(title:GetY(true)+title:GetH()/2<=name:GetY(true),'Title overlaps the player name')
+    if wide then check(math.abs(title:GetY(true)-(name:GetY(true)+name:GetH()/2))<=1,'Title and player name do not share a center')
+    else check(title:GetY(true)+title:GetH()/2<=name:GetY(true),'Compact title overlaps the player name') end
     local first=SKIN:GetMeter(kind:find('Player',1,true) and 'MeterTrackTitle' or 'MeterSetupStatus')
     if first:GetH()>0 then
         local top=first:GetY(true)-(first:GetOption('StringAlign')=='LeftCenter' and first:GetH()/2 or 0)
@@ -385,10 +393,14 @@ local function settings_stage()
         begin_number('QueuePollSeconds');input_result(11)
         settings_action("StepNumber('QueuePollSeconds',-1)")
         check(preferences().QueuePollSeconds=='119','Typed interior followed by arrow wrong')
-        for _,name in ipairs({'MeterSignIn','MeterStart','MeterRestart'}) do
-            check(SKIN:GetMeter(name):GetOption('LeftMouseUpAction'):find('"-PollSeconds" "119"',1,true)~=nil,'Service action does not use saved interval')
-        end
         check(text('MeterStatus')=='Use Restart to apply interval.','Toggle lost restart reminder')
+        check(SKIN:GetMeter('MeterSignIn'):GetOption('LeftMouseUpAction'):find('"-PollSeconds" "119"',1,true)~=nil,'Visible sign-in action does not use saved interval')
+        check(SKIN:GetMeter('MeterStart'):GetOption('LeftMouseUpAction'):find("ProviderControl('Queue','Start')",1,true)~=nil,'Start action bypasses the hidden provider controller')
+        check(SKIN:GetMeter('MeterRestart'):GetOption('LeftMouseUpAction'):find("ProviderControl('Queue','Restart')",1,true)~=nil,'Restart action bypasses the hidden provider controller')
+        settings_action("ProviderControl('Queue','Start')")
+        check(SKIN:GetMeasure('MeasureMediaQueueControl'):GetOption('Parameter'):find('-Command "Start" -PollSeconds "119" -Quiet',1,true)~=nil,'Hidden start command does not use saved interval')
+        settings_action("ProviderControl('Queue','Restart')")
+        check(SKIN:GetMeasure('MeasureMediaQueueControl'):GetOption('Parameter'):find('-Command "Restart" -PollSeconds "119" -Quiet',1,true)~=nil,'Hidden restart command does not use saved interval')
         advance(4)
     elseif stage==4 then
         check(prefs.QueueRowLimit=='3' and prefs.QueuePollSeconds=='119','Typed and stepped values not retained across reload')
@@ -609,7 +621,7 @@ artwork_bounds=function(expanded)
         check(SKIN:GetMeter('MeterConnection')==nil,'Removed playback status remains visible')
         for _,name in ipairs({'MeterTrackTitle','MeterArtist','MeterAlbum','MeterTiming','MeterPrevious','MeterPlayPause','MeterNext','MeterProgress'}) do names[#names+1]=name end
         local progress=SKIN:GetMeter('MeterProgress')
-        check(math.abs(progress:GetX(true)-(content_x-(wide and 4*scale or 0)))<=1,'Progress does not use its extended left edge')
+        check(math.abs(progress:GetX(true)-content_x)<=1,'Progress does not start after the artwork')
         check(math.abs(progress:GetX(true)+progress:GetW()-(width-inset-padding))<=1,'Progress does not end at content edge')
         local bar_height=math.max(1,math.floor(SELF:GetNumberOption('ExpectedBarThickness',6)*scale+0.5))
         check(progress:GetH()==bar_height,'Progress bar ignores rounded shared thickness')
@@ -627,7 +639,7 @@ artwork_bounds=function(expanded)
             check(icon:GetOption('Meter')=='Shape' and icon:GetOption('Group')=='MediaTrack','Metadata icon is not a track shape')
             check(math.abs(icon:GetW()-14*scale)<=1 and math.abs(icon:GetH()-14*scale)<=1,'Metadata icon dimensions wrong')
             check(math.abs(icon:GetX(true)-metadata_x)<=1 and icon:GetX(true)+icon:GetW()<=label:GetX(true)-5*scale+1,'Metadata icon overlaps text')
-            local expected_y=surface_y+(50+(row-1)*24)*scale
+            local expected_y=surface_y+((wide and 30 or 50)+(row-1)*24)*scale
             check(label:GetOption('StringAlign')=='LeftCenter','Metadata text is not vertically centered')
             check(math.abs(label:GetY(true)-(expected_y+12*scale))<=1 and math.abs(icon:GetY(true)-(expected_y+5*scale))<=1,'Metadata row alignment wrong')
             check(math.abs(label:GetY(true)-icon:GetY(true)-icon:GetH()/2)<=1,'Metadata icon and text centers differ')
@@ -662,7 +674,7 @@ artwork_bounds=function(expanded)
         if wide then
             local left=meter:GetX(true)
             if meter:GetOption('StringAlign','Left'):match('^Center') then left=left-meter:GetW()/2 end
-            check(left>=art_x+art_size+(name=='MeterProgress' and 4 or 8)*scale-1,name..' intrudes into artwork gap')
+            check(left>=art_x+art_size+8*scale-1,name..' intrudes into artwork gap')
         end
     end
     local queue_x=panel:GetX(true)+math.floor(padding+0.5)

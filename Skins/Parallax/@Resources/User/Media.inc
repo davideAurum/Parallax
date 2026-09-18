@@ -7,7 +7,7 @@ PanelHeight=162
 MediaInterval=1000
 ; Hover the header gear for Media-specific settings. Display defaults also exist
 ; in entrypoints so older preserved preference files can omit these keys.
-QueueExpanded=1
+QueueExpanded=0
 QueueRowLimit=5
 QueueShowDetails=1
 ; Queue request seconds. Use Restart in Media settings after changing this value.

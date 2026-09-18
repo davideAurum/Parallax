@@ -69,7 +69,7 @@ local function meter(name, visible)
     return change('meter:' .. name, visible, visible and '!ShowMeter' or '!HideMeter', name)
 end
 
-function Update()
+function Update(immediate)
     local online = connected()
     local track = online and nonblank('MeasureTitle') or false
     local state = number('MeasureState')
@@ -110,8 +110,8 @@ function Update()
     end
     -- Static metadata Shapes need their options rebuilt after hide/show changes.
     -- UpdateDivider=-1 keeps this work confined to track availability transitions.
-    if trackChanged then SKIN:Bang('!UpdateMeterGroup', 'MediaTrack') end
-    if changed then
+    if trackChanged and immediate == true then SKIN:Bang('!UpdateMeterGroup', 'MediaTrack') end
+    if changed and immediate == true then
         SKIN:Bang('!UpdateMeterGroup', 'MediaDynamic')
         SKIN:Bang('!Redraw')
     end
@@ -165,7 +165,7 @@ function HoverPlayPause(entered)
     if type(entered) ~= 'boolean' or playPauseHovered == entered then return false end
     playPauseHovered = entered
     -- Hover is display-only. Playback state changes only when WNP reports them.
-    Update()
+    Update(true)
     return true
 end
 
@@ -173,7 +173,7 @@ function HoverTransport(command, entered)
     if (command ~= 'Previous' and command ~= 'Next') or type(entered) ~= 'boolean'
         or (transportHovered[command] or false) == entered then return false end
     transportHovered[command] = entered
-    Update()
+    Update(true)
     return true
 end
 

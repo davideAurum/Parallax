@@ -19,7 +19,7 @@ local function set(name, option, value)
     return true
 end
 
-function Display()
+function Display(immediate)
     local frame, detail = cached, reason
     if frame and frame.epoch and not model.Fresh(frame.epoch, os.time(), interval) then
         frame, detail = nil, 'The paging-file sample is stale. Refresh Memory Meter if readings do not resume.'
@@ -45,7 +45,7 @@ function Display()
             dirty = set('MeterRAMPageBar', 'ToolTipText', tip) or dirty
         end
     end
-    if dirty then
+    if dirty and immediate ~= false then
         for _, name in ipairs(targets) do SKIN:Bang('!UpdateMeter', name) end
         SKIN:Bang('!Redraw')
     end
@@ -163,7 +163,7 @@ function Update()
         if not heartbeat(now) then fail('The paging-file session lease was lost.'); return 0 end
         readFrame(now)
     end
-    if state ~= 'stopped' then Display() end
+    if state ~= 'stopped' then Display(false) end
     return 0
 end
 

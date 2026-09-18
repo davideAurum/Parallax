@@ -38,7 +38,7 @@ UpdateDivider=-1
 Measure=String
 String=#VisualizerColorMode#
 RegExpSubstitute=1
-Substitute="^0$":"Media","^1$":"Accent 1","^2$":"Accent 2","^3$":"Gradient"
+Substitute="^0$":"Media","^1$":"Accent 1","^2$":"Accent 2","^3$":"Horiz.","^4$":"Vert."
 UpdateDivider=-1
 
 [MeasureVisualizerSettingsQualityValue]
@@ -133,7 +133,7 @@ Shape=Line 0,0,#VisualizerSettingsColumnWidth#,0 | Stroke Color #DividerColor# |
 Meter=String
 MeterStyle=StyleUtilitySettingsSection | StyleVisualizerSettingsUI
 X=#ContentX#
-Y=(#Inset#+218*#Scale#)
+Y=(#Inset#+274*#Scale#)
 W=#VisualizerSettingsColumnWidth#
 Text=Setup
 
@@ -141,7 +141,7 @@ Text=Setup
 Meter=Shape
 MeterStyle=StyleRule | StyleVisualizerSettingsUI
 X=#ContentX#
-Y=(#Inset#+236*#Scale#)
+Y=(#Inset#+292*#Scale#)
 Shape=Line 0,0,#VisualizerSettingsColumnWidth#,0 | Stroke Color #DividerColor# | StrokeWidth (#DividerThickness#*#Scale#)
 
 [MeterVisualizerSettingsWidthRow]
@@ -201,7 +201,7 @@ Y=(#Inset#+128*#Scale#)
 W=#VisualizerSettingsValueWidth#
 Shape=Rectangle (#Scale#/2),(#Scale#/2),(#VisualizerSettingsValueWidth#-#Scale#),(19*#Scale#),(2*#Scale#) | Fill Color #GraphBackgroundColor# | Stroke Color #BorderColor# | StrokeWidth #Scale#
 LeftMouseUpAction=[!CommandMeasure MeasureVisualizerSettings "Activate('Height')"]
-ToolTipText=Arrows: 126, 146, 186 px, stopping at the ends. Click to type exactly 126, 146 or 186.
+ToolTipText=Arrows: 126, 146, 186 px, stopping at the ends. Click to type exactly 126, 146 or 186. This is a minimum; a large axis gap may increase the panel height to keep labels readable.
 
 [MeterVisualizerSettingsHeightLabel]
 Meter=String
@@ -211,7 +211,7 @@ Y=(#Inset#+130*#Scale#)
 W=(70*#Scale#)
 Text=Height
 LeftMouseUpAction=[!CommandMeasure MeasureVisualizerSettings "Activate('Height')"]
-ToolTipText=Arrows: 126, 146, 186 px, stopping at the ends. Click to type exactly 126, 146 or 186.
+ToolTipText=Arrows: 126, 146, 186 px, stopping at the ends. Click to type exactly 126, 146 or 186. This is a minimum; a large axis gap may increase the panel height to keep labels readable.
 
 [MeterVisualizerSettingsHeightPrevious]
 Meter=String
@@ -220,7 +220,7 @@ X=(#ContentX#+85*#Scale#)
 Y=(#Inset#+129*#Scale#)
 Text=<
 LeftMouseUpAction=[!CommandMeasure MeasureVisualizerSettings "Step('Height',-1)"]
-ToolTipText=Arrows: 126, 146, 186 px, stopping at the ends. Click to type exactly 126, 146 or 186.
+ToolTipText=Arrows: 126, 146, 186 px, stopping at the ends. Click to type exactly 126, 146 or 186. This is a minimum; a large axis gap may increase the panel height to keep labels readable.
 
 [MeterVisualizerSettingsHeightValue]
 Meter=String
@@ -231,7 +231,7 @@ W=#VisualizerSettingsValueWidth#
 MeasureName=MeasureVisualizerSettingsHeightValue
 Text=%1
 LeftMouseUpAction=[!CommandMeasure MeasureVisualizerSettings "Activate('Height')"]
-ToolTipText=Arrows: 126, 146, 186 px, stopping at the ends. Click to type exactly 126, 146 or 186.
+ToolTipText=Arrows: 126, 146, 186 px, stopping at the ends. Click to type exactly 126, 146 or 186. This is a minimum; a large axis gap may increase the panel height to keep labels readable.
 
 [MeterVisualizerSettingsHeightNext]
 Meter=String
@@ -240,7 +240,7 @@ X=(#ContentX#+#VisualizerSettingsColumnWidth#-9*#Scale#)
 Y=(#Inset#+129*#Scale#)
 Text=>
 LeftMouseUpAction=[!CommandMeasure MeasureVisualizerSettings "Step('Height',1)"]
-ToolTipText=Arrows: 126, 146, 186 px, stopping at the ends. Click to type exactly 126, 146 or 186.
+ToolTipText=Arrows: 126, 146, 186 px, stopping at the ends. Click to type exactly 126, 146 or 186. This is a minimum; a large axis gap may increase the panel height to keep labels readable.
 
 [MeterVisualizerSettingsSpacingRow]
 Meter=Shape
@@ -299,7 +299,7 @@ Y=(#Inset#+184*#Scale#)
 W=#VisualizerSettingsValueWidth#
 Shape=Rectangle (#Scale#/2),(#Scale#/2),(#VisualizerSettingsValueWidth#-#Scale#),(19*#Scale#),(2*#Scale#) | Fill Color #GraphBackgroundColor# | Stroke Color #BorderColor# | StrokeWidth #Scale#
 LeftMouseUpAction=[!CommandMeasure MeasureVisualizerSettings "Activate('Color')"]
-ToolTipText=Previous/next: Media, Accent 1, Accent 2, Gradient. Click the value to cycle. Gradient blends Accent 1 and Accent 2.
+ToolTipText=Previous/next: Media, Accent 1, Accent 2, Horizontal gradient, Vertical gradient. Click the value to cycle. Horizontal: left Accent 1 to right Accent 2. Vertical: bottom Accent 1 to top Accent 2.
 
 [MeterVisualizerSettingsColorLabel]
 Meter=String
@@ -309,7 +309,7 @@ Y=(#Inset#+186*#Scale#)
 W=(70*#Scale#)
 Text=Color
 LeftMouseUpAction=[!CommandMeasure MeasureVisualizerSettings "Activate('Color')"]
-ToolTipText=Previous/next: Media, Accent 1, Accent 2, Gradient. Click the value to cycle. Gradient blends Accent 1 and Accent 2.
+ToolTipText=Previous/next: Media, Accent 1, Accent 2, Horizontal gradient, Vertical gradient. Click the value to cycle. Horizontal: left Accent 1 to right Accent 2. Vertical: bottom Accent 1 to top Accent 2.
 
 [MeterVisualizerSettingsColorPrevious]
 Meter=String
@@ -318,7 +318,7 @@ X=(#ContentX#+85*#Scale#)
 Y=(#Inset#+185*#Scale#)
 Text=<
 LeftMouseUpAction=[!CommandMeasure MeasureVisualizerSettings "Step('Color',-1)"]
-ToolTipText=Previous/next: Media, Accent 1, Accent 2, Gradient. Click the value to cycle. Gradient blends Accent 1 and Accent 2.
+ToolTipText=Previous/next: Media, Accent 1, Accent 2, Horizontal gradient, Vertical gradient. Click the value to cycle. Horizontal: left Accent 1 to right Accent 2. Vertical: bottom Accent 1 to top Accent 2.
 
 [MeterVisualizerSettingsColorValue]
 Meter=String
@@ -329,7 +329,7 @@ W=#VisualizerSettingsValueWidth#
 MeasureName=MeasureVisualizerSettingsColorValue
 Text=%1
 LeftMouseUpAction=[!CommandMeasure MeasureVisualizerSettings "Activate('Color')"]
-ToolTipText=Previous/next: Media, Accent 1, Accent 2, Gradient. Click the value to cycle. Gradient blends Accent 1 and Accent 2.
+ToolTipText=Previous/next: Media, Accent 1, Accent 2, Horizontal gradient, Vertical gradient. Click the value to cycle. Horizontal: left Accent 1 to right Accent 2. Vertical: bottom Accent 1 to top Accent 2.
 
 [MeterVisualizerSettingsColorNext]
 Meter=String
@@ -338,7 +338,103 @@ X=(#ContentX#+#VisualizerSettingsColumnWidth#-9*#Scale#)
 Y=(#Inset#+185*#Scale#)
 Text=>
 LeftMouseUpAction=[!CommandMeasure MeasureVisualizerSettings "Step('Color',1)"]
-ToolTipText=Previous/next: Media, Accent 1, Accent 2, Gradient. Click the value to cycle. Gradient blends Accent 1 and Accent 2.
+ToolTipText=Previous/next: Media, Accent 1, Accent 2, Horizontal gradient, Vertical gradient. Click the value to cycle. Horizontal: left Accent 1 to right Accent 2. Vertical: bottom Accent 1 to top Accent 2.
+
+[MeterVisualizerSettingsRadiusRow]
+Meter=Shape
+MeterStyle=StyleSettingsStepperFrame | StyleVisualizerSettingsUI
+X=(#ContentX#+96*#Scale#)
+Y=(#Inset#+212*#Scale#)
+W=#VisualizerSettingsValueWidth#
+Shape=Rectangle (#Scale#/2),(#Scale#/2),(#VisualizerSettingsValueWidth#-#Scale#),(19*#Scale#),(2*#Scale#) | Fill Color #GraphBackgroundColor# | Stroke Color #BorderColor# | StrokeWidth #Scale#
+LeftMouseUpAction=[!CommandMeasure MeasureVisualizerSettings "Activate('Radius')"]
+ToolTipText=Arrows change by 1 px, stopping at 0 and 12. Click to type a whole number from 0 to 12. Round only the top corners of spectrum bars. Actual rounding is limited by each bar width and height.
+
+[MeterVisualizerSettingsRadiusLabel]
+Meter=String
+MeterStyle=StyleUtilitySettingsLabel | StyleVisualizerSettingsUI
+X=#ContentX#
+Y=(#Inset#+214*#Scale#)
+W=(70*#Scale#)
+Text=Top round
+LeftMouseUpAction=[!CommandMeasure MeasureVisualizerSettings "Activate('Radius')"]
+ToolTipText=Arrows change by 1 px, stopping at 0 and 12. Click to type a whole number from 0 to 12. Round only the top corners of spectrum bars. Actual rounding is limited by each bar width and height.
+
+[MeterVisualizerSettingsRadiusPrevious]
+Meter=String
+MeterStyle=StyleSettingsStepperButton | StyleVisualizerSettingsUI
+X=(#ContentX#+85*#Scale#)
+Y=(#Inset#+213*#Scale#)
+Text=<
+LeftMouseUpAction=[!CommandMeasure MeasureVisualizerSettings "Step('Radius',-1)"]
+ToolTipText=Arrows change by 1 px, stopping at 0 and 12. Click to type a whole number from 0 to 12. Round only the top corners of spectrum bars. Actual rounding is limited by each bar width and height.
+
+[MeterVisualizerSettingsRadiusValue]
+Meter=String
+MeterStyle=StyleSettingsStepperValue | StyleVisualizerSettingsUI
+X=(#ContentX#+96*#Scale#+#VisualizerSettingsValueWidth#/2)
+Y=(#Inset#+213*#Scale#)
+W=#VisualizerSettingsValueWidth#
+Text=#VisualizerBarRadius# px
+LeftMouseUpAction=[!CommandMeasure MeasureVisualizerSettings "Activate('Radius')"]
+ToolTipText=Arrows change by 1 px, stopping at 0 and 12. Click to type a whole number from 0 to 12. Round only the top corners of spectrum bars. Actual rounding is limited by each bar width and height.
+
+[MeterVisualizerSettingsRadiusNext]
+Meter=String
+MeterStyle=StyleSettingsStepperButton | StyleVisualizerSettingsUI
+X=(#ContentX#+#VisualizerSettingsColumnWidth#-9*#Scale#)
+Y=(#Inset#+213*#Scale#)
+Text=>
+LeftMouseUpAction=[!CommandMeasure MeasureVisualizerSettings "Step('Radius',1)"]
+ToolTipText=Arrows change by 1 px, stopping at 0 and 12. Click to type a whole number from 0 to 12. Round only the top corners of spectrum bars. Actual rounding is limited by each bar width and height.
+
+[MeterVisualizerSettingsBaselineRow]
+Meter=Shape
+MeterStyle=StyleSettingsStepperFrame | StyleVisualizerSettingsUI
+X=(#ContentX#+96*#Scale#)
+Y=(#Inset#+240*#Scale#)
+W=#VisualizerSettingsValueWidth#
+Shape=Rectangle (#Scale#/2),(#Scale#/2),(#VisualizerSettingsValueWidth#-#Scale#),(19*#Scale#),(2*#Scale#) | Fill Color #GraphBackgroundColor# | Stroke Color #BorderColor# | StrokeWidth #Scale#
+LeftMouseUpAction=[!CommandMeasure MeasureVisualizerSettings "Activate('Baseline')"]
+ToolTipText=Arrows change by 1 px, stopping at 0 and 24. Click to type a whole number from 0 to 24. Lift the bars above the bottom x-axis. Short panels grow as needed to keep the dB scale readable.
+
+[MeterVisualizerSettingsBaselineLabel]
+Meter=String
+MeterStyle=StyleUtilitySettingsLabel | StyleVisualizerSettingsUI
+X=#ContentX#
+Y=(#Inset#+242*#Scale#)
+W=(70*#Scale#)
+Text=Axis gap
+LeftMouseUpAction=[!CommandMeasure MeasureVisualizerSettings "Activate('Baseline')"]
+ToolTipText=Arrows change by 1 px, stopping at 0 and 24. Click to type a whole number from 0 to 24. Lift the bars above the bottom x-axis. Short panels grow as needed to keep the dB scale readable.
+
+[MeterVisualizerSettingsBaselinePrevious]
+Meter=String
+MeterStyle=StyleSettingsStepperButton | StyleVisualizerSettingsUI
+X=(#ContentX#+85*#Scale#)
+Y=(#Inset#+241*#Scale#)
+Text=<
+LeftMouseUpAction=[!CommandMeasure MeasureVisualizerSettings "Step('Baseline',-1)"]
+ToolTipText=Arrows change by 1 px, stopping at 0 and 24. Click to type a whole number from 0 to 24. Lift the bars above the bottom x-axis. Short panels grow as needed to keep the dB scale readable.
+
+[MeterVisualizerSettingsBaselineValue]
+Meter=String
+MeterStyle=StyleSettingsStepperValue | StyleVisualizerSettingsUI
+X=(#ContentX#+96*#Scale#+#VisualizerSettingsValueWidth#/2)
+Y=(#Inset#+241*#Scale#)
+W=#VisualizerSettingsValueWidth#
+Text=#VisualizerBaselineGap# px
+LeftMouseUpAction=[!CommandMeasure MeasureVisualizerSettings "Activate('Baseline')"]
+ToolTipText=Arrows change by 1 px, stopping at 0 and 24. Click to type a whole number from 0 to 24. Lift the bars above the bottom x-axis. Short panels grow as needed to keep the dB scale readable.
+
+[MeterVisualizerSettingsBaselineNext]
+Meter=String
+MeterStyle=StyleSettingsStepperButton | StyleVisualizerSettingsUI
+X=(#ContentX#+#VisualizerSettingsColumnWidth#-9*#Scale#)
+Y=(#Inset#+241*#Scale#)
+Text=>
+LeftMouseUpAction=[!CommandMeasure MeasureVisualizerSettings "Step('Baseline',1)"]
+ToolTipText=Arrows change by 1 px, stopping at 0 and 24. Click to type a whole number from 0 to 24. Lift the bars above the bottom x-axis. Short panels grow as needed to keep the dB scale readable.
 
 [MeterVisualizerSettingsQualityRow]
 Meter=Shape
@@ -446,7 +542,7 @@ Y=(#Inset#+188*#Scale#)
 W=#VisualizerSettingsValueWidth#
 Shape=Rectangle (#Scale#/2),(#Scale#/2),(#VisualizerSettingsValueWidth#-#Scale#),(19*#Scale#),(2*#Scale#) | Fill Color #GraphBackgroundColor# | Stroke Color #BorderColor# | StrokeWidth #Scale#
 LeftMouseUpAction=[!CommandMeasure MeasureVisualizerSettings "Activate('Sensitivity')"]
-ToolTipText=Arrows: 10, 20, 35, 50, 65, 80 dB, stopping at the ends. Click to type a whole number from 10 to 80. Does not change system volume.
+ToolTipText=Arrows: 10, 20, 35, 50, 65, 80 dB, stopping at the ends. Click to type a whole number from 10 to 80. Sets the spectrum dB range from minus this value to 0; the axis midpoint follows automatically. Does not change system volume.
 
 [MeterVisualizerSettingsSensitivityLabel]
 Meter=String
@@ -456,7 +552,7 @@ Y=(#Inset#+190*#Scale#)
 W=(70*#Scale#)
 Text=Sensitivity
 LeftMouseUpAction=[!CommandMeasure MeasureVisualizerSettings "Activate('Sensitivity')"]
-ToolTipText=Arrows: 10, 20, 35, 50, 65, 80 dB, stopping at the ends. Click to type a whole number from 10 to 80. Does not change system volume.
+ToolTipText=Arrows: 10, 20, 35, 50, 65, 80 dB, stopping at the ends. Click to type a whole number from 10 to 80. Sets the spectrum dB range from minus this value to 0; the axis midpoint follows automatically. Does not change system volume.
 
 [MeterVisualizerSettingsSensitivityPrevious]
 Meter=String
@@ -465,7 +561,7 @@ X=(#VisualizerSettingsRightX#+85*#Scale#)
 Y=(#Inset#+189*#Scale#)
 Text=<
 LeftMouseUpAction=[!CommandMeasure MeasureVisualizerSettings "Step('Sensitivity',-1)"]
-ToolTipText=Arrows: 10, 20, 35, 50, 65, 80 dB, stopping at the ends. Click to type a whole number from 10 to 80. Does not change system volume.
+ToolTipText=Arrows: 10, 20, 35, 50, 65, 80 dB, stopping at the ends. Click to type a whole number from 10 to 80. Sets the spectrum dB range from minus this value to 0; the axis midpoint follows automatically. Does not change system volume.
 
 [MeterVisualizerSettingsSensitivityValue]
 Meter=String
@@ -475,7 +571,7 @@ Y=(#Inset#+189*#Scale#)
 W=#VisualizerSettingsValueWidth#
 Text=#VisualizerSensitivity# dB
 LeftMouseUpAction=[!CommandMeasure MeasureVisualizerSettings "Activate('Sensitivity')"]
-ToolTipText=Arrows: 10, 20, 35, 50, 65, 80 dB, stopping at the ends. Click to type a whole number from 10 to 80. Does not change system volume.
+ToolTipText=Arrows: 10, 20, 35, 50, 65, 80 dB, stopping at the ends. Click to type a whole number from 10 to 80. Sets the spectrum dB range from minus this value to 0; the axis midpoint follows automatically. Does not change system volume.
 
 [MeterVisualizerSettingsSensitivityNext]
 Meter=String
@@ -484,7 +580,7 @@ X=(#VisualizerSettingsRightX#+#VisualizerSettingsColumnWidth#-9*#Scale#)
 Y=(#Inset#+189*#Scale#)
 Text=>
 LeftMouseUpAction=[!CommandMeasure MeasureVisualizerSettings "Step('Sensitivity',1)"]
-ToolTipText=Arrows: 10, 20, 35, 50, 65, 80 dB, stopping at the ends. Click to type a whole number from 10 to 80. Does not change system volume.
+ToolTipText=Arrows: 10, 20, 35, 50, 65, 80 dB, stopping at the ends. Click to type a whole number from 10 to 80. Sets the spectrum dB range from minus this value to 0; the axis midpoint follows automatically. Does not change system volume.
 
 [MeterVisualizerSettingsAttackRow]
 Meter=Shape
@@ -586,7 +682,7 @@ ToolTipText=Arrows: 0, 100, 250, 500, 1000, 5000 ms, stopping at the ends. Click
 Meter=String
 MeterStyle=StyleButton | StyleVisualizerSettingsCommand | StyleVisualizerSettingsUI
 X=(#ContentX#+#VisualizerSettingsColumnWidth#/4)
-Y=(#Inset#+244*#Scale#)
+Y=(#Inset#+300*#Scale#)
 W=(#VisualizerSettingsColumnWidth#/2-2*#Scale#)
 Text=Advanced
 LeftMouseUpAction=["notepad.exe" "#@#User\Visualizer.inc"]
@@ -596,7 +692,7 @@ ToolTipText=Edit the local output-device ID, quiet threshold and custom appearan
 Meter=String
 MeterStyle=StyleButton | StyleSecondaryButton | StyleVisualizerSettingsCommand | StyleVisualizerSettingsUI
 X=(#ContentX#+3*#VisualizerSettingsColumnWidth#/4)
-Y=(#Inset#+244*#Scale#)
+Y=(#Inset#+300*#Scale#)
 W=(#VisualizerSettingsColumnWidth#/2-2*#Scale#)
 Text=Reconnect
 LeftMouseUpAction=[!Refresh "Parallax\Visualizer"][!Refresh]
@@ -606,7 +702,7 @@ ToolTipText=Refresh the loaded Visualizer to reconnect its selected output and a
 Meter=String
 MeterStyle=StyleLabel | StyleVisualizerSettingsUI
 X=#ContentX#
-Y=(#Inset#+272*#Scale#)
+Y=(#Inset#+328*#Scale#)
 W=#VisualizerSettingsColumnWidth#
 H=(36*#Scale#)
 Text=Edit device and quiet#CRLF#threshold in Advanced.
@@ -614,7 +710,7 @@ Text=Edit device and quiet#CRLF#threshold in Advanced.
 [MeterVisualizerSettingsHint]
 Meter=String
 MeterStyle=StyleLabel | StyleVisualizerSettingsUI
-Y=(#Inset#+320*#Scale#)
+Y=(#Inset#+376*#Scale#)
 W=#ContentWidth#
 H=(18*#Scale#)
 Text=Arrows step; click a value to edit or cycle.

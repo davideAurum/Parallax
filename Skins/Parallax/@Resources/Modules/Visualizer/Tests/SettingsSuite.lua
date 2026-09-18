@@ -12,10 +12,12 @@ return function(modulePath)
     end
     local definitions = {
         {'Width','Columns',{1,2},true},
-        {'Color','VisualizerColorMode',{0,1,2,3},true},
+        {'Color','VisualizerColorMode',{0,1,2,3,4},true},
         {'Quality','VisualizerQuality',{0,1,2},true},
         {'Cadence','VisualizerUpdateOverride',{0,33,50,100},true},
         {'Height','PanelHeight',{126,146,186},false,126,186,true},
+        {'Radius','VisualizerBarRadius',{0,12},false,0,12,false,1},
+        {'Baseline','VisualizerBaselineGap',{0,24},false,0,24,false,1},
         {'Spacing','VisualizerBandGap',{0,1,3,4},false,0,4},
         {'Sensitivity','VisualizerSensitivity',{10,20,35,50,65,80},false,10,80},
         {'Attack','VisualizerAttack',{0,50,100,200,2000},false,0,2000},
@@ -26,6 +28,7 @@ return function(modulePath)
     local function fixture(key, value)
         local vars = { ['@']='C:\\Isolated\\@Resources\\', Scale='0.75',
             Columns='2', PanelHeight='146', VisualizerBandGap='1', VisualizerColorMode='0',
+            VisualizerBarRadius='0', VisualizerBaselineGap='0',
             VisualizerQuality='1', VisualizerUpdateOverride='0', VisualizerSensitivity='35',
             VisualizerAttack='50', VisualizerDecay='250', VisualizerDeviceID='kept',
             VisualizerIdleThreshold='0.001' }
@@ -76,13 +79,20 @@ return function(modulePath)
     end
     for _, definition in ipairs(definitions) do
         local name,key,values,categorical = unpack(definition)
-        for index,value in ipairs(values) do
+        local step = definition[8]
+        local samples = values
+        if step then samples = {definition[5],definition[5]+1,math.floor((definition[5]+definition[6])/2),definition[6]-1,definition[6]} end
+        for index,value in ipairs(samples) do
             for _,direction in ipairs({-1,1}) do
                 test(name .. ' step ' .. value .. '/' .. direction,function()
                     local env,vars,calls=fixture(key,value)
                     local nextIndex = index + direction
                     if categorical then nextIndex=(nextIndex-1)%#values+1 end
-                    if nextIndex<1 or nextIndex>#values then eq(env.Step(name,direction),false); eq(#calls,0)
+                    if step then
+                        local target = math.max(definition[5],math.min(definition[6],value+direction))
+                        if target==value then eq(env.Step(name,direction),false); eq(#calls,0)
+                        else eq(env.Step(name,direction),true); saved(calls,key,target) end
+                    elseif nextIndex<1 or nextIndex>#values then eq(env.Step(name,direction),false); eq(#calls,0)
                     else eq(env.Step(name,direction),true); saved(calls,key,values[nextIndex]) end
                     eq(vars.VisualizerDeviceID,'kept'); eq(vars.VisualizerIdleThreshold,'0.001')
                 end)
@@ -109,6 +119,7 @@ return function(modulePath)
                     if choice<value then previous=choice end
                     if choice>value and not nextValue then nextValue=choice end
                 end
+                if step then previous=value-1; nextValue=value+1 end
                 for _,pair in ipairs({{-1,previous},{1,nextValue}}) do
                     local env,_,calls=fixture(key,value)
                     eq(env.Step(name,pair[1]),true); saved(calls,key,pair[2])

@@ -1,15 +1,28 @@
-; All telemetry uses built-in CPU measures. Script only controls display/history.
+; Windows Processor Utility accounts for clock scaling, throttling and turbo.
+; Raw values may exceed 100%; MaxValue caps Bar geometry while CPU.lua keeps
+; the numeric value and clamps graph samples to the shared 0-100 scale.
 [MeasureCPUTotal]
-Measure=CPU
-Processor=0
+Measure=Plugin
+Plugin=UsageMonitor
+Category=Processor Information
+Counter=% Processor Utility
+Name=_Total
+Rollup=0
+Percent=0
+RawValue=0
 MinValue=0
 MaxValue=100
 UpdateDivider=1
 
 [MeasureCPU1]
-Measure=CPU
-; Keep index 0 safe during initial option parsing, even while disabled.
-Processor=0
+Measure=Plugin
+Plugin=UsageMonitor
+Category=Processor Information
+Counter=% Processor Utility
+Name=0,0
+Rollup=0
+Percent=0
+RawValue=0
 MinValue=0
 MaxValue=100
 Disabled=1
@@ -17,9 +30,14 @@ DynamicVariables=1
 UpdateDivider=1
 
 [MeasureCPU2]
-Measure=CPU
-; Keep index 0 safe during initial option parsing, even while disabled.
-Processor=0
+Measure=Plugin
+Plugin=UsageMonitor
+Category=Processor Information
+Counter=% Processor Utility
+Name=0,0
+Rollup=0
+Percent=0
+RawValue=0
 MinValue=0
 MaxValue=100
 Disabled=1
@@ -27,9 +45,14 @@ DynamicVariables=1
 UpdateDivider=1
 
 [MeasureCPU3]
-Measure=CPU
-; Keep index 0 safe during initial option parsing, even while disabled.
-Processor=0
+Measure=Plugin
+Plugin=UsageMonitor
+Category=Processor Information
+Counter=% Processor Utility
+Name=0,0
+Rollup=0
+Percent=0
+RawValue=0
 MinValue=0
 MaxValue=100
 Disabled=1
@@ -37,9 +60,14 @@ DynamicVariables=1
 UpdateDivider=1
 
 [MeasureCPU4]
-Measure=CPU
-; Keep index 0 safe during initial option parsing, even while disabled.
-Processor=0
+Measure=Plugin
+Plugin=UsageMonitor
+Category=Processor Information
+Counter=% Processor Utility
+Name=0,0
+Rollup=0
+Percent=0
+RawValue=0
 MinValue=0
 MaxValue=100
 Disabled=1
@@ -47,9 +75,14 @@ DynamicVariables=1
 UpdateDivider=1
 
 [MeasureCPU5]
-Measure=CPU
-; Keep index 0 safe during initial option parsing, even while disabled.
-Processor=0
+Measure=Plugin
+Plugin=UsageMonitor
+Category=Processor Information
+Counter=% Processor Utility
+Name=0,0
+Rollup=0
+Percent=0
+RawValue=0
 MinValue=0
 MaxValue=100
 Disabled=1
@@ -57,9 +90,14 @@ DynamicVariables=1
 UpdateDivider=1
 
 [MeasureCPU6]
-Measure=CPU
-; Keep index 0 safe during initial option parsing, even while disabled.
-Processor=0
+Measure=Plugin
+Plugin=UsageMonitor
+Category=Processor Information
+Counter=% Processor Utility
+Name=0,0
+Rollup=0
+Percent=0
+RawValue=0
 MinValue=0
 MaxValue=100
 Disabled=1
@@ -67,9 +105,14 @@ DynamicVariables=1
 UpdateDivider=1
 
 [MeasureCPU7]
-Measure=CPU
-; Keep index 0 safe during initial option parsing, even while disabled.
-Processor=0
+Measure=Plugin
+Plugin=UsageMonitor
+Category=Processor Information
+Counter=% Processor Utility
+Name=0,0
+Rollup=0
+Percent=0
+RawValue=0
 MinValue=0
 MaxValue=100
 Disabled=1
@@ -77,9 +120,14 @@ DynamicVariables=1
 UpdateDivider=1
 
 [MeasureCPU8]
-Measure=CPU
-; Keep index 0 safe during initial option parsing, even while disabled.
-Processor=0
+Measure=Plugin
+Plugin=UsageMonitor
+Category=Processor Information
+Counter=% Processor Utility
+Name=0,0
+Rollup=0
+Percent=0
+RawValue=0
 MinValue=0
 MaxValue=100
 Disabled=1
@@ -87,8 +135,14 @@ DynamicVariables=1
 UpdateDivider=1
 
 [MeasureCPU9]
-Measure=CPU
-Processor=0
+Measure=Plugin
+Plugin=UsageMonitor
+Category=Processor Information
+Counter=% Processor Utility
+Name=0,0
+Rollup=0
+Percent=0
+RawValue=0
 MinValue=0
 MaxValue=100
 Disabled=1
@@ -96,8 +150,14 @@ DynamicVariables=1
 UpdateDivider=1
 
 [MeasureCPU10]
-Measure=CPU
-Processor=0
+Measure=Plugin
+Plugin=UsageMonitor
+Category=Processor Information
+Counter=% Processor Utility
+Name=0,0
+Rollup=0
+Percent=0
+RawValue=0
 MinValue=0
 MaxValue=100
 Disabled=1
@@ -105,8 +165,14 @@ DynamicVariables=1
 UpdateDivider=1
 
 [MeasureCPU11]
-Measure=CPU
-Processor=0
+Measure=Plugin
+Plugin=UsageMonitor
+Category=Processor Information
+Counter=% Processor Utility
+Name=0,0
+Rollup=0
+Percent=0
+RawValue=0
 MinValue=0
 MaxValue=100
 Disabled=1
@@ -114,8 +180,14 @@ DynamicVariables=1
 UpdateDivider=1
 
 [MeasureCPU12]
-Measure=CPU
-Processor=0
+Measure=Plugin
+Plugin=UsageMonitor
+Category=Processor Information
+Counter=% Processor Utility
+Name=0,0
+Rollup=0
+Percent=0
+RawValue=0
 MinValue=0
 MaxValue=100
 Disabled=1
@@ -123,8 +195,14 @@ DynamicVariables=1
 UpdateDivider=1
 
 [MeasureCPU13]
-Measure=CPU
-Processor=0
+Measure=Plugin
+Plugin=UsageMonitor
+Category=Processor Information
+Counter=% Processor Utility
+Name=0,0
+Rollup=0
+Percent=0
+RawValue=0
 MinValue=0
 MaxValue=100
 Disabled=1
@@ -132,8 +210,14 @@ DynamicVariables=1
 UpdateDivider=1
 
 [MeasureCPU14]
-Measure=CPU
-Processor=0
+Measure=Plugin
+Plugin=UsageMonitor
+Category=Processor Information
+Counter=% Processor Utility
+Name=0,0
+Rollup=0
+Percent=0
+RawValue=0
 MinValue=0
 MaxValue=100
 Disabled=1
@@ -141,8 +225,14 @@ DynamicVariables=1
 UpdateDivider=1
 
 [MeasureCPU15]
-Measure=CPU
-Processor=0
+Measure=Plugin
+Plugin=UsageMonitor
+Category=Processor Information
+Counter=% Processor Utility
+Name=0,0
+Rollup=0
+Percent=0
+RawValue=0
 MinValue=0
 MaxValue=100
 Disabled=1
@@ -150,8 +240,14 @@ DynamicVariables=1
 UpdateDivider=1
 
 [MeasureCPU16]
-Measure=CPU
-Processor=0
+Measure=Plugin
+Plugin=UsageMonitor
+Category=Processor Information
+Counter=% Processor Utility
+Name=0,0
+Rollup=0
+Percent=0
+RawValue=0
 MinValue=0
 MaxValue=100
 Disabled=1
@@ -159,8 +255,14 @@ DynamicVariables=1
 UpdateDivider=1
 
 [MeasureCPU17]
-Measure=CPU
-Processor=0
+Measure=Plugin
+Plugin=UsageMonitor
+Category=Processor Information
+Counter=% Processor Utility
+Name=0,0
+Rollup=0
+Percent=0
+RawValue=0
 MinValue=0
 MaxValue=100
 Disabled=1
@@ -168,8 +270,14 @@ DynamicVariables=1
 UpdateDivider=1
 
 [MeasureCPU18]
-Measure=CPU
-Processor=0
+Measure=Plugin
+Plugin=UsageMonitor
+Category=Processor Information
+Counter=% Processor Utility
+Name=0,0
+Rollup=0
+Percent=0
+RawValue=0
 MinValue=0
 MaxValue=100
 Disabled=1
@@ -177,8 +285,14 @@ DynamicVariables=1
 UpdateDivider=1
 
 [MeasureCPU19]
-Measure=CPU
-Processor=0
+Measure=Plugin
+Plugin=UsageMonitor
+Category=Processor Information
+Counter=% Processor Utility
+Name=0,0
+Rollup=0
+Percent=0
+RawValue=0
 MinValue=0
 MaxValue=100
 Disabled=1
@@ -186,8 +300,14 @@ DynamicVariables=1
 UpdateDivider=1
 
 [MeasureCPU20]
-Measure=CPU
-Processor=0
+Measure=Plugin
+Plugin=UsageMonitor
+Category=Processor Information
+Counter=% Processor Utility
+Name=0,0
+Rollup=0
+Percent=0
+RawValue=0
 MinValue=0
 MaxValue=100
 Disabled=1
@@ -195,8 +315,14 @@ DynamicVariables=1
 UpdateDivider=1
 
 [MeasureCPU21]
-Measure=CPU
-Processor=0
+Measure=Plugin
+Plugin=UsageMonitor
+Category=Processor Information
+Counter=% Processor Utility
+Name=0,0
+Rollup=0
+Percent=0
+RawValue=0
 MinValue=0
 MaxValue=100
 Disabled=1
@@ -204,8 +330,14 @@ DynamicVariables=1
 UpdateDivider=1
 
 [MeasureCPU22]
-Measure=CPU
-Processor=0
+Measure=Plugin
+Plugin=UsageMonitor
+Category=Processor Information
+Counter=% Processor Utility
+Name=0,0
+Rollup=0
+Percent=0
+RawValue=0
 MinValue=0
 MaxValue=100
 Disabled=1
@@ -213,8 +345,14 @@ DynamicVariables=1
 UpdateDivider=1
 
 [MeasureCPU23]
-Measure=CPU
-Processor=0
+Measure=Plugin
+Plugin=UsageMonitor
+Category=Processor Information
+Counter=% Processor Utility
+Name=0,0
+Rollup=0
+Percent=0
+RawValue=0
 MinValue=0
 MaxValue=100
 Disabled=1
@@ -222,8 +360,14 @@ DynamicVariables=1
 UpdateDivider=1
 
 [MeasureCPU24]
-Measure=CPU
-Processor=0
+Measure=Plugin
+Plugin=UsageMonitor
+Category=Processor Information
+Counter=% Processor Utility
+Name=0,0
+Rollup=0
+Percent=0
+RawValue=0
 MinValue=0
 MaxValue=100
 Disabled=1
@@ -231,8 +375,14 @@ DynamicVariables=1
 UpdateDivider=1
 
 [MeasureCPU25]
-Measure=CPU
-Processor=0
+Measure=Plugin
+Plugin=UsageMonitor
+Category=Processor Information
+Counter=% Processor Utility
+Name=0,0
+Rollup=0
+Percent=0
+RawValue=0
 MinValue=0
 MaxValue=100
 Disabled=1
@@ -240,8 +390,14 @@ DynamicVariables=1
 UpdateDivider=1
 
 [MeasureCPU26]
-Measure=CPU
-Processor=0
+Measure=Plugin
+Plugin=UsageMonitor
+Category=Processor Information
+Counter=% Processor Utility
+Name=0,0
+Rollup=0
+Percent=0
+RawValue=0
 MinValue=0
 MaxValue=100
 Disabled=1
@@ -249,8 +405,14 @@ DynamicVariables=1
 UpdateDivider=1
 
 [MeasureCPU27]
-Measure=CPU
-Processor=0
+Measure=Plugin
+Plugin=UsageMonitor
+Category=Processor Information
+Counter=% Processor Utility
+Name=0,0
+Rollup=0
+Percent=0
+RawValue=0
 MinValue=0
 MaxValue=100
 Disabled=1
@@ -258,8 +420,14 @@ DynamicVariables=1
 UpdateDivider=1
 
 [MeasureCPU28]
-Measure=CPU
-Processor=0
+Measure=Plugin
+Plugin=UsageMonitor
+Category=Processor Information
+Counter=% Processor Utility
+Name=0,0
+Rollup=0
+Percent=0
+RawValue=0
 MinValue=0
 MaxValue=100
 Disabled=1
@@ -267,8 +435,14 @@ DynamicVariables=1
 UpdateDivider=1
 
 [MeasureCPU29]
-Measure=CPU
-Processor=0
+Measure=Plugin
+Plugin=UsageMonitor
+Category=Processor Information
+Counter=% Processor Utility
+Name=0,0
+Rollup=0
+Percent=0
+RawValue=0
 MinValue=0
 MaxValue=100
 Disabled=1
@@ -276,8 +450,14 @@ DynamicVariables=1
 UpdateDivider=1
 
 [MeasureCPU30]
-Measure=CPU
-Processor=0
+Measure=Plugin
+Plugin=UsageMonitor
+Category=Processor Information
+Counter=% Processor Utility
+Name=0,0
+Rollup=0
+Percent=0
+RawValue=0
 MinValue=0
 MaxValue=100
 Disabled=1
@@ -285,8 +465,14 @@ DynamicVariables=1
 UpdateDivider=1
 
 [MeasureCPU31]
-Measure=CPU
-Processor=0
+Measure=Plugin
+Plugin=UsageMonitor
+Category=Processor Information
+Counter=% Processor Utility
+Name=0,0
+Rollup=0
+Percent=0
+RawValue=0
 MinValue=0
 MaxValue=100
 Disabled=1
@@ -294,8 +480,14 @@ DynamicVariables=1
 UpdateDivider=1
 
 [MeasureCPU32]
-Measure=CPU
-Processor=0
+Measure=Plugin
+Plugin=UsageMonitor
+Category=Processor Information
+Counter=% Processor Utility
+Name=0,0
+Rollup=0
+Percent=0
+RawValue=0
 MinValue=0
 MaxValue=100
 Disabled=1
@@ -303,8 +495,14 @@ DynamicVariables=1
 UpdateDivider=1
 
 [MeasureCPU33]
-Measure=CPU
-Processor=0
+Measure=Plugin
+Plugin=UsageMonitor
+Category=Processor Information
+Counter=% Processor Utility
+Name=0,0
+Rollup=0
+Percent=0
+RawValue=0
 MinValue=0
 MaxValue=100
 Disabled=1
@@ -312,8 +510,14 @@ DynamicVariables=1
 UpdateDivider=1
 
 [MeasureCPU34]
-Measure=CPU
-Processor=0
+Measure=Plugin
+Plugin=UsageMonitor
+Category=Processor Information
+Counter=% Processor Utility
+Name=0,0
+Rollup=0
+Percent=0
+RawValue=0
 MinValue=0
 MaxValue=100
 Disabled=1
@@ -321,8 +525,14 @@ DynamicVariables=1
 UpdateDivider=1
 
 [MeasureCPU35]
-Measure=CPU
-Processor=0
+Measure=Plugin
+Plugin=UsageMonitor
+Category=Processor Information
+Counter=% Processor Utility
+Name=0,0
+Rollup=0
+Percent=0
+RawValue=0
 MinValue=0
 MaxValue=100
 Disabled=1
@@ -330,8 +540,14 @@ DynamicVariables=1
 UpdateDivider=1
 
 [MeasureCPU36]
-Measure=CPU
-Processor=0
+Measure=Plugin
+Plugin=UsageMonitor
+Category=Processor Information
+Counter=% Processor Utility
+Name=0,0
+Rollup=0
+Percent=0
+RawValue=0
 MinValue=0
 MaxValue=100
 Disabled=1
@@ -339,8 +555,14 @@ DynamicVariables=1
 UpdateDivider=1
 
 [MeasureCPU37]
-Measure=CPU
-Processor=0
+Measure=Plugin
+Plugin=UsageMonitor
+Category=Processor Information
+Counter=% Processor Utility
+Name=0,0
+Rollup=0
+Percent=0
+RawValue=0
 MinValue=0
 MaxValue=100
 Disabled=1
@@ -348,8 +570,14 @@ DynamicVariables=1
 UpdateDivider=1
 
 [MeasureCPU38]
-Measure=CPU
-Processor=0
+Measure=Plugin
+Plugin=UsageMonitor
+Category=Processor Information
+Counter=% Processor Utility
+Name=0,0
+Rollup=0
+Percent=0
+RawValue=0
 MinValue=0
 MaxValue=100
 Disabled=1
@@ -357,8 +585,14 @@ DynamicVariables=1
 UpdateDivider=1
 
 [MeasureCPU39]
-Measure=CPU
-Processor=0
+Measure=Plugin
+Plugin=UsageMonitor
+Category=Processor Information
+Counter=% Processor Utility
+Name=0,0
+Rollup=0
+Percent=0
+RawValue=0
 MinValue=0
 MaxValue=100
 Disabled=1
@@ -366,8 +600,14 @@ DynamicVariables=1
 UpdateDivider=1
 
 [MeasureCPU40]
-Measure=CPU
-Processor=0
+Measure=Plugin
+Plugin=UsageMonitor
+Category=Processor Information
+Counter=% Processor Utility
+Name=0,0
+Rollup=0
+Percent=0
+RawValue=0
 MinValue=0
 MaxValue=100
 Disabled=1
@@ -375,8 +615,14 @@ DynamicVariables=1
 UpdateDivider=1
 
 [MeasureCPU41]
-Measure=CPU
-Processor=0
+Measure=Plugin
+Plugin=UsageMonitor
+Category=Processor Information
+Counter=% Processor Utility
+Name=0,0
+Rollup=0
+Percent=0
+RawValue=0
 MinValue=0
 MaxValue=100
 Disabled=1
@@ -384,8 +630,14 @@ DynamicVariables=1
 UpdateDivider=1
 
 [MeasureCPU42]
-Measure=CPU
-Processor=0
+Measure=Plugin
+Plugin=UsageMonitor
+Category=Processor Information
+Counter=% Processor Utility
+Name=0,0
+Rollup=0
+Percent=0
+RawValue=0
 MinValue=0
 MaxValue=100
 Disabled=1
@@ -393,8 +645,14 @@ DynamicVariables=1
 UpdateDivider=1
 
 [MeasureCPU43]
-Measure=CPU
-Processor=0
+Measure=Plugin
+Plugin=UsageMonitor
+Category=Processor Information
+Counter=% Processor Utility
+Name=0,0
+Rollup=0
+Percent=0
+RawValue=0
 MinValue=0
 MaxValue=100
 Disabled=1
@@ -402,8 +660,14 @@ DynamicVariables=1
 UpdateDivider=1
 
 [MeasureCPU44]
-Measure=CPU
-Processor=0
+Measure=Plugin
+Plugin=UsageMonitor
+Category=Processor Information
+Counter=% Processor Utility
+Name=0,0
+Rollup=0
+Percent=0
+RawValue=0
 MinValue=0
 MaxValue=100
 Disabled=1
@@ -411,8 +675,14 @@ DynamicVariables=1
 UpdateDivider=1
 
 [MeasureCPU45]
-Measure=CPU
-Processor=0
+Measure=Plugin
+Plugin=UsageMonitor
+Category=Processor Information
+Counter=% Processor Utility
+Name=0,0
+Rollup=0
+Percent=0
+RawValue=0
 MinValue=0
 MaxValue=100
 Disabled=1
@@ -420,8 +690,14 @@ DynamicVariables=1
 UpdateDivider=1
 
 [MeasureCPU46]
-Measure=CPU
-Processor=0
+Measure=Plugin
+Plugin=UsageMonitor
+Category=Processor Information
+Counter=% Processor Utility
+Name=0,0
+Rollup=0
+Percent=0
+RawValue=0
 MinValue=0
 MaxValue=100
 Disabled=1
@@ -429,8 +705,14 @@ DynamicVariables=1
 UpdateDivider=1
 
 [MeasureCPU47]
-Measure=CPU
-Processor=0
+Measure=Plugin
+Plugin=UsageMonitor
+Category=Processor Information
+Counter=% Processor Utility
+Name=0,0
+Rollup=0
+Percent=0
+RawValue=0
 MinValue=0
 MaxValue=100
 Disabled=1
@@ -438,8 +720,14 @@ DynamicVariables=1
 UpdateDivider=1
 
 [MeasureCPU48]
-Measure=CPU
-Processor=0
+Measure=Plugin
+Plugin=UsageMonitor
+Category=Processor Information
+Counter=% Processor Utility
+Name=0,0
+Rollup=0
+Percent=0
+RawValue=0
 MinValue=0
 MaxValue=100
 Disabled=1
@@ -447,8 +735,14 @@ DynamicVariables=1
 UpdateDivider=1
 
 [MeasureCPU49]
-Measure=CPU
-Processor=0
+Measure=Plugin
+Plugin=UsageMonitor
+Category=Processor Information
+Counter=% Processor Utility
+Name=0,0
+Rollup=0
+Percent=0
+RawValue=0
 MinValue=0
 MaxValue=100
 Disabled=1
@@ -456,8 +750,14 @@ DynamicVariables=1
 UpdateDivider=1
 
 [MeasureCPU50]
-Measure=CPU
-Processor=0
+Measure=Plugin
+Plugin=UsageMonitor
+Category=Processor Information
+Counter=% Processor Utility
+Name=0,0
+Rollup=0
+Percent=0
+RawValue=0
 MinValue=0
 MaxValue=100
 Disabled=1
@@ -465,8 +765,14 @@ DynamicVariables=1
 UpdateDivider=1
 
 [MeasureCPU51]
-Measure=CPU
-Processor=0
+Measure=Plugin
+Plugin=UsageMonitor
+Category=Processor Information
+Counter=% Processor Utility
+Name=0,0
+Rollup=0
+Percent=0
+RawValue=0
 MinValue=0
 MaxValue=100
 Disabled=1
@@ -474,8 +780,14 @@ DynamicVariables=1
 UpdateDivider=1
 
 [MeasureCPU52]
-Measure=CPU
-Processor=0
+Measure=Plugin
+Plugin=UsageMonitor
+Category=Processor Information
+Counter=% Processor Utility
+Name=0,0
+Rollup=0
+Percent=0
+RawValue=0
 MinValue=0
 MaxValue=100
 Disabled=1
@@ -483,8 +795,14 @@ DynamicVariables=1
 UpdateDivider=1
 
 [MeasureCPU53]
-Measure=CPU
-Processor=0
+Measure=Plugin
+Plugin=UsageMonitor
+Category=Processor Information
+Counter=% Processor Utility
+Name=0,0
+Rollup=0
+Percent=0
+RawValue=0
 MinValue=0
 MaxValue=100
 Disabled=1
@@ -492,8 +810,14 @@ DynamicVariables=1
 UpdateDivider=1
 
 [MeasureCPU54]
-Measure=CPU
-Processor=0
+Measure=Plugin
+Plugin=UsageMonitor
+Category=Processor Information
+Counter=% Processor Utility
+Name=0,0
+Rollup=0
+Percent=0
+RawValue=0
 MinValue=0
 MaxValue=100
 Disabled=1
@@ -501,8 +825,14 @@ DynamicVariables=1
 UpdateDivider=1
 
 [MeasureCPU55]
-Measure=CPU
-Processor=0
+Measure=Plugin
+Plugin=UsageMonitor
+Category=Processor Information
+Counter=% Processor Utility
+Name=0,0
+Rollup=0
+Percent=0
+RawValue=0
 MinValue=0
 MaxValue=100
 Disabled=1
@@ -510,8 +840,14 @@ DynamicVariables=1
 UpdateDivider=1
 
 [MeasureCPU56]
-Measure=CPU
-Processor=0
+Measure=Plugin
+Plugin=UsageMonitor
+Category=Processor Information
+Counter=% Processor Utility
+Name=0,0
+Rollup=0
+Percent=0
+RawValue=0
 MinValue=0
 MaxValue=100
 Disabled=1
@@ -519,8 +855,14 @@ DynamicVariables=1
 UpdateDivider=1
 
 [MeasureCPU57]
-Measure=CPU
-Processor=0
+Measure=Plugin
+Plugin=UsageMonitor
+Category=Processor Information
+Counter=% Processor Utility
+Name=0,0
+Rollup=0
+Percent=0
+RawValue=0
 MinValue=0
 MaxValue=100
 Disabled=1
@@ -528,8 +870,14 @@ DynamicVariables=1
 UpdateDivider=1
 
 [MeasureCPU58]
-Measure=CPU
-Processor=0
+Measure=Plugin
+Plugin=UsageMonitor
+Category=Processor Information
+Counter=% Processor Utility
+Name=0,0
+Rollup=0
+Percent=0
+RawValue=0
 MinValue=0
 MaxValue=100
 Disabled=1
@@ -537,8 +885,14 @@ DynamicVariables=1
 UpdateDivider=1
 
 [MeasureCPU59]
-Measure=CPU
-Processor=0
+Measure=Plugin
+Plugin=UsageMonitor
+Category=Processor Information
+Counter=% Processor Utility
+Name=0,0
+Rollup=0
+Percent=0
+RawValue=0
 MinValue=0
 MaxValue=100
 Disabled=1
@@ -546,8 +900,14 @@ DynamicVariables=1
 UpdateDivider=1
 
 [MeasureCPU60]
-Measure=CPU
-Processor=0
+Measure=Plugin
+Plugin=UsageMonitor
+Category=Processor Information
+Counter=% Processor Utility
+Name=0,0
+Rollup=0
+Percent=0
+RawValue=0
 MinValue=0
 MaxValue=100
 Disabled=1
@@ -555,8 +915,14 @@ DynamicVariables=1
 UpdateDivider=1
 
 [MeasureCPU61]
-Measure=CPU
-Processor=0
+Measure=Plugin
+Plugin=UsageMonitor
+Category=Processor Information
+Counter=% Processor Utility
+Name=0,0
+Rollup=0
+Percent=0
+RawValue=0
 MinValue=0
 MaxValue=100
 Disabled=1
@@ -564,8 +930,14 @@ DynamicVariables=1
 UpdateDivider=1
 
 [MeasureCPU62]
-Measure=CPU
-Processor=0
+Measure=Plugin
+Plugin=UsageMonitor
+Category=Processor Information
+Counter=% Processor Utility
+Name=0,0
+Rollup=0
+Percent=0
+RawValue=0
 MinValue=0
 MaxValue=100
 Disabled=1
@@ -573,8 +945,14 @@ DynamicVariables=1
 UpdateDivider=1
 
 [MeasureCPU63]
-Measure=CPU
-Processor=0
+Measure=Plugin
+Plugin=UsageMonitor
+Category=Processor Information
+Counter=% Processor Utility
+Name=0,0
+Rollup=0
+Percent=0
+RawValue=0
 MinValue=0
 MaxValue=100
 Disabled=1
@@ -582,8 +960,14 @@ DynamicVariables=1
 UpdateDivider=1
 
 [MeasureCPU64]
-Measure=CPU
-Processor=0
+Measure=Plugin
+Plugin=UsageMonitor
+Category=Processor Information
+Counter=% Processor Utility
+Name=0,0
+Rollup=0
+Percent=0
+RawValue=0
 MinValue=0
 MaxValue=100
 Disabled=1
@@ -592,517 +976,900 @@ UpdateDivider=1
 
 ; Dedicated absolute logical-processor history measures. These stay disabled unless the visible graph source is Per thread; table measures remain page-relative.
 [MeasureCPUHistory1]
-Measure=CPU
-Processor=1
+Measure=Plugin
+Plugin=UsageMonitor
+Category=Processor Information
+Counter=% Processor Utility
+Name=0,0
+Rollup=0
+Percent=0
+RawValue=0
 MinValue=0
 MaxValue=100
 Disabled=1
 UpdateDivider=1
 
 [MeasureCPUHistory2]
-Measure=CPU
-Processor=2
+Measure=Plugin
+Plugin=UsageMonitor
+Category=Processor Information
+Counter=% Processor Utility
+Name=0,1
+Rollup=0
+Percent=0
+RawValue=0
 MinValue=0
 MaxValue=100
 Disabled=1
 UpdateDivider=1
 
 [MeasureCPUHistory3]
-Measure=CPU
-Processor=3
+Measure=Plugin
+Plugin=UsageMonitor
+Category=Processor Information
+Counter=% Processor Utility
+Name=0,2
+Rollup=0
+Percent=0
+RawValue=0
 MinValue=0
 MaxValue=100
 Disabled=1
 UpdateDivider=1
 
 [MeasureCPUHistory4]
-Measure=CPU
-Processor=4
+Measure=Plugin
+Plugin=UsageMonitor
+Category=Processor Information
+Counter=% Processor Utility
+Name=0,3
+Rollup=0
+Percent=0
+RawValue=0
 MinValue=0
 MaxValue=100
 Disabled=1
 UpdateDivider=1
 
 [MeasureCPUHistory5]
-Measure=CPU
-Processor=5
+Measure=Plugin
+Plugin=UsageMonitor
+Category=Processor Information
+Counter=% Processor Utility
+Name=0,4
+Rollup=0
+Percent=0
+RawValue=0
 MinValue=0
 MaxValue=100
 Disabled=1
 UpdateDivider=1
 
 [MeasureCPUHistory6]
-Measure=CPU
-Processor=6
+Measure=Plugin
+Plugin=UsageMonitor
+Category=Processor Information
+Counter=% Processor Utility
+Name=0,5
+Rollup=0
+Percent=0
+RawValue=0
 MinValue=0
 MaxValue=100
 Disabled=1
 UpdateDivider=1
 
 [MeasureCPUHistory7]
-Measure=CPU
-Processor=7
+Measure=Plugin
+Plugin=UsageMonitor
+Category=Processor Information
+Counter=% Processor Utility
+Name=0,6
+Rollup=0
+Percent=0
+RawValue=0
 MinValue=0
 MaxValue=100
 Disabled=1
 UpdateDivider=1
 
 [MeasureCPUHistory8]
-Measure=CPU
-Processor=8
+Measure=Plugin
+Plugin=UsageMonitor
+Category=Processor Information
+Counter=% Processor Utility
+Name=0,7
+Rollup=0
+Percent=0
+RawValue=0
 MinValue=0
 MaxValue=100
 Disabled=1
 UpdateDivider=1
 
 [MeasureCPUHistory9]
-Measure=CPU
-Processor=9
+Measure=Plugin
+Plugin=UsageMonitor
+Category=Processor Information
+Counter=% Processor Utility
+Name=0,8
+Rollup=0
+Percent=0
+RawValue=0
 MinValue=0
 MaxValue=100
 Disabled=1
 UpdateDivider=1
 
 [MeasureCPUHistory10]
-Measure=CPU
-Processor=10
+Measure=Plugin
+Plugin=UsageMonitor
+Category=Processor Information
+Counter=% Processor Utility
+Name=0,9
+Rollup=0
+Percent=0
+RawValue=0
 MinValue=0
 MaxValue=100
 Disabled=1
 UpdateDivider=1
 
 [MeasureCPUHistory11]
-Measure=CPU
-Processor=11
+Measure=Plugin
+Plugin=UsageMonitor
+Category=Processor Information
+Counter=% Processor Utility
+Name=0,10
+Rollup=0
+Percent=0
+RawValue=0
 MinValue=0
 MaxValue=100
 Disabled=1
 UpdateDivider=1
 
 [MeasureCPUHistory12]
-Measure=CPU
-Processor=12
+Measure=Plugin
+Plugin=UsageMonitor
+Category=Processor Information
+Counter=% Processor Utility
+Name=0,11
+Rollup=0
+Percent=0
+RawValue=0
 MinValue=0
 MaxValue=100
 Disabled=1
 UpdateDivider=1
 
 [MeasureCPUHistory13]
-Measure=CPU
-Processor=13
+Measure=Plugin
+Plugin=UsageMonitor
+Category=Processor Information
+Counter=% Processor Utility
+Name=0,12
+Rollup=0
+Percent=0
+RawValue=0
 MinValue=0
 MaxValue=100
 Disabled=1
 UpdateDivider=1
 
 [MeasureCPUHistory14]
-Measure=CPU
-Processor=14
+Measure=Plugin
+Plugin=UsageMonitor
+Category=Processor Information
+Counter=% Processor Utility
+Name=0,13
+Rollup=0
+Percent=0
+RawValue=0
 MinValue=0
 MaxValue=100
 Disabled=1
 UpdateDivider=1
 
 [MeasureCPUHistory15]
-Measure=CPU
-Processor=15
+Measure=Plugin
+Plugin=UsageMonitor
+Category=Processor Information
+Counter=% Processor Utility
+Name=0,14
+Rollup=0
+Percent=0
+RawValue=0
 MinValue=0
 MaxValue=100
 Disabled=1
 UpdateDivider=1
 
 [MeasureCPUHistory16]
-Measure=CPU
-Processor=16
+Measure=Plugin
+Plugin=UsageMonitor
+Category=Processor Information
+Counter=% Processor Utility
+Name=0,15
+Rollup=0
+Percent=0
+RawValue=0
 MinValue=0
 MaxValue=100
 Disabled=1
 UpdateDivider=1
 
 [MeasureCPUHistory17]
-Measure=CPU
-Processor=17
+Measure=Plugin
+Plugin=UsageMonitor
+Category=Processor Information
+Counter=% Processor Utility
+Name=0,16
+Rollup=0
+Percent=0
+RawValue=0
 MinValue=0
 MaxValue=100
 Disabled=1
 UpdateDivider=1
 
 [MeasureCPUHistory18]
-Measure=CPU
-Processor=18
+Measure=Plugin
+Plugin=UsageMonitor
+Category=Processor Information
+Counter=% Processor Utility
+Name=0,17
+Rollup=0
+Percent=0
+RawValue=0
 MinValue=0
 MaxValue=100
 Disabled=1
 UpdateDivider=1
 
 [MeasureCPUHistory19]
-Measure=CPU
-Processor=19
+Measure=Plugin
+Plugin=UsageMonitor
+Category=Processor Information
+Counter=% Processor Utility
+Name=0,18
+Rollup=0
+Percent=0
+RawValue=0
 MinValue=0
 MaxValue=100
 Disabled=1
 UpdateDivider=1
 
 [MeasureCPUHistory20]
-Measure=CPU
-Processor=20
+Measure=Plugin
+Plugin=UsageMonitor
+Category=Processor Information
+Counter=% Processor Utility
+Name=0,19
+Rollup=0
+Percent=0
+RawValue=0
 MinValue=0
 MaxValue=100
 Disabled=1
 UpdateDivider=1
 
 [MeasureCPUHistory21]
-Measure=CPU
-Processor=21
+Measure=Plugin
+Plugin=UsageMonitor
+Category=Processor Information
+Counter=% Processor Utility
+Name=0,20
+Rollup=0
+Percent=0
+RawValue=0
 MinValue=0
 MaxValue=100
 Disabled=1
 UpdateDivider=1
 
 [MeasureCPUHistory22]
-Measure=CPU
-Processor=22
+Measure=Plugin
+Plugin=UsageMonitor
+Category=Processor Information
+Counter=% Processor Utility
+Name=0,21
+Rollup=0
+Percent=0
+RawValue=0
 MinValue=0
 MaxValue=100
 Disabled=1
 UpdateDivider=1
 
 [MeasureCPUHistory23]
-Measure=CPU
-Processor=23
+Measure=Plugin
+Plugin=UsageMonitor
+Category=Processor Information
+Counter=% Processor Utility
+Name=0,22
+Rollup=0
+Percent=0
+RawValue=0
 MinValue=0
 MaxValue=100
 Disabled=1
 UpdateDivider=1
 
 [MeasureCPUHistory24]
-Measure=CPU
-Processor=24
+Measure=Plugin
+Plugin=UsageMonitor
+Category=Processor Information
+Counter=% Processor Utility
+Name=0,23
+Rollup=0
+Percent=0
+RawValue=0
 MinValue=0
 MaxValue=100
 Disabled=1
 UpdateDivider=1
 
 [MeasureCPUHistory25]
-Measure=CPU
-Processor=25
+Measure=Plugin
+Plugin=UsageMonitor
+Category=Processor Information
+Counter=% Processor Utility
+Name=0,24
+Rollup=0
+Percent=0
+RawValue=0
 MinValue=0
 MaxValue=100
 Disabled=1
 UpdateDivider=1
 
 [MeasureCPUHistory26]
-Measure=CPU
-Processor=26
+Measure=Plugin
+Plugin=UsageMonitor
+Category=Processor Information
+Counter=% Processor Utility
+Name=0,25
+Rollup=0
+Percent=0
+RawValue=0
 MinValue=0
 MaxValue=100
 Disabled=1
 UpdateDivider=1
 
 [MeasureCPUHistory27]
-Measure=CPU
-Processor=27
+Measure=Plugin
+Plugin=UsageMonitor
+Category=Processor Information
+Counter=% Processor Utility
+Name=0,26
+Rollup=0
+Percent=0
+RawValue=0
 MinValue=0
 MaxValue=100
 Disabled=1
 UpdateDivider=1
 
 [MeasureCPUHistory28]
-Measure=CPU
-Processor=28
+Measure=Plugin
+Plugin=UsageMonitor
+Category=Processor Information
+Counter=% Processor Utility
+Name=0,27
+Rollup=0
+Percent=0
+RawValue=0
 MinValue=0
 MaxValue=100
 Disabled=1
 UpdateDivider=1
 
 [MeasureCPUHistory29]
-Measure=CPU
-Processor=29
+Measure=Plugin
+Plugin=UsageMonitor
+Category=Processor Information
+Counter=% Processor Utility
+Name=0,28
+Rollup=0
+Percent=0
+RawValue=0
 MinValue=0
 MaxValue=100
 Disabled=1
 UpdateDivider=1
 
 [MeasureCPUHistory30]
-Measure=CPU
-Processor=30
+Measure=Plugin
+Plugin=UsageMonitor
+Category=Processor Information
+Counter=% Processor Utility
+Name=0,29
+Rollup=0
+Percent=0
+RawValue=0
 MinValue=0
 MaxValue=100
 Disabled=1
 UpdateDivider=1
 
 [MeasureCPUHistory31]
-Measure=CPU
-Processor=31
+Measure=Plugin
+Plugin=UsageMonitor
+Category=Processor Information
+Counter=% Processor Utility
+Name=0,30
+Rollup=0
+Percent=0
+RawValue=0
 MinValue=0
 MaxValue=100
 Disabled=1
 UpdateDivider=1
 
 [MeasureCPUHistory32]
-Measure=CPU
-Processor=32
+Measure=Plugin
+Plugin=UsageMonitor
+Category=Processor Information
+Counter=% Processor Utility
+Name=0,31
+Rollup=0
+Percent=0
+RawValue=0
 MinValue=0
 MaxValue=100
 Disabled=1
 UpdateDivider=1
 
 [MeasureCPUHistory33]
-Measure=CPU
-Processor=33
+Measure=Plugin
+Plugin=UsageMonitor
+Category=Processor Information
+Counter=% Processor Utility
+Name=0,32
+Rollup=0
+Percent=0
+RawValue=0
 MinValue=0
 MaxValue=100
 Disabled=1
 UpdateDivider=1
 
 [MeasureCPUHistory34]
-Measure=CPU
-Processor=34
+Measure=Plugin
+Plugin=UsageMonitor
+Category=Processor Information
+Counter=% Processor Utility
+Name=0,33
+Rollup=0
+Percent=0
+RawValue=0
 MinValue=0
 MaxValue=100
 Disabled=1
 UpdateDivider=1
 
 [MeasureCPUHistory35]
-Measure=CPU
-Processor=35
+Measure=Plugin
+Plugin=UsageMonitor
+Category=Processor Information
+Counter=% Processor Utility
+Name=0,34
+Rollup=0
+Percent=0
+RawValue=0
 MinValue=0
 MaxValue=100
 Disabled=1
 UpdateDivider=1
 
 [MeasureCPUHistory36]
-Measure=CPU
-Processor=36
+Measure=Plugin
+Plugin=UsageMonitor
+Category=Processor Information
+Counter=% Processor Utility
+Name=0,35
+Rollup=0
+Percent=0
+RawValue=0
 MinValue=0
 MaxValue=100
 Disabled=1
 UpdateDivider=1
 
 [MeasureCPUHistory37]
-Measure=CPU
-Processor=37
+Measure=Plugin
+Plugin=UsageMonitor
+Category=Processor Information
+Counter=% Processor Utility
+Name=0,36
+Rollup=0
+Percent=0
+RawValue=0
 MinValue=0
 MaxValue=100
 Disabled=1
 UpdateDivider=1
 
 [MeasureCPUHistory38]
-Measure=CPU
-Processor=38
+Measure=Plugin
+Plugin=UsageMonitor
+Category=Processor Information
+Counter=% Processor Utility
+Name=0,37
+Rollup=0
+Percent=0
+RawValue=0
 MinValue=0
 MaxValue=100
 Disabled=1
 UpdateDivider=1
 
 [MeasureCPUHistory39]
-Measure=CPU
-Processor=39
+Measure=Plugin
+Plugin=UsageMonitor
+Category=Processor Information
+Counter=% Processor Utility
+Name=0,38
+Rollup=0
+Percent=0
+RawValue=0
 MinValue=0
 MaxValue=100
 Disabled=1
 UpdateDivider=1
 
 [MeasureCPUHistory40]
-Measure=CPU
-Processor=40
+Measure=Plugin
+Plugin=UsageMonitor
+Category=Processor Information
+Counter=% Processor Utility
+Name=0,39
+Rollup=0
+Percent=0
+RawValue=0
 MinValue=0
 MaxValue=100
 Disabled=1
 UpdateDivider=1
 
 [MeasureCPUHistory41]
-Measure=CPU
-Processor=41
+Measure=Plugin
+Plugin=UsageMonitor
+Category=Processor Information
+Counter=% Processor Utility
+Name=0,40
+Rollup=0
+Percent=0
+RawValue=0
 MinValue=0
 MaxValue=100
 Disabled=1
 UpdateDivider=1
 
 [MeasureCPUHistory42]
-Measure=CPU
-Processor=42
+Measure=Plugin
+Plugin=UsageMonitor
+Category=Processor Information
+Counter=% Processor Utility
+Name=0,41
+Rollup=0
+Percent=0
+RawValue=0
 MinValue=0
 MaxValue=100
 Disabled=1
 UpdateDivider=1
 
 [MeasureCPUHistory43]
-Measure=CPU
-Processor=43
+Measure=Plugin
+Plugin=UsageMonitor
+Category=Processor Information
+Counter=% Processor Utility
+Name=0,42
+Rollup=0
+Percent=0
+RawValue=0
 MinValue=0
 MaxValue=100
 Disabled=1
 UpdateDivider=1
 
 [MeasureCPUHistory44]
-Measure=CPU
-Processor=44
+Measure=Plugin
+Plugin=UsageMonitor
+Category=Processor Information
+Counter=% Processor Utility
+Name=0,43
+Rollup=0
+Percent=0
+RawValue=0
 MinValue=0
 MaxValue=100
 Disabled=1
 UpdateDivider=1
 
 [MeasureCPUHistory45]
-Measure=CPU
-Processor=45
+Measure=Plugin
+Plugin=UsageMonitor
+Category=Processor Information
+Counter=% Processor Utility
+Name=0,44
+Rollup=0
+Percent=0
+RawValue=0
 MinValue=0
 MaxValue=100
 Disabled=1
 UpdateDivider=1
 
 [MeasureCPUHistory46]
-Measure=CPU
-Processor=46
+Measure=Plugin
+Plugin=UsageMonitor
+Category=Processor Information
+Counter=% Processor Utility
+Name=0,45
+Rollup=0
+Percent=0
+RawValue=0
 MinValue=0
 MaxValue=100
 Disabled=1
 UpdateDivider=1
 
 [MeasureCPUHistory47]
-Measure=CPU
-Processor=47
+Measure=Plugin
+Plugin=UsageMonitor
+Category=Processor Information
+Counter=% Processor Utility
+Name=0,46
+Rollup=0
+Percent=0
+RawValue=0
 MinValue=0
 MaxValue=100
 Disabled=1
 UpdateDivider=1
 
 [MeasureCPUHistory48]
-Measure=CPU
-Processor=48
+Measure=Plugin
+Plugin=UsageMonitor
+Category=Processor Information
+Counter=% Processor Utility
+Name=0,47
+Rollup=0
+Percent=0
+RawValue=0
 MinValue=0
 MaxValue=100
 Disabled=1
 UpdateDivider=1
 
 [MeasureCPUHistory49]
-Measure=CPU
-Processor=49
+Measure=Plugin
+Plugin=UsageMonitor
+Category=Processor Information
+Counter=% Processor Utility
+Name=0,48
+Rollup=0
+Percent=0
+RawValue=0
 MinValue=0
 MaxValue=100
 Disabled=1
 UpdateDivider=1
 
 [MeasureCPUHistory50]
-Measure=CPU
-Processor=50
+Measure=Plugin
+Plugin=UsageMonitor
+Category=Processor Information
+Counter=% Processor Utility
+Name=0,49
+Rollup=0
+Percent=0
+RawValue=0
 MinValue=0
 MaxValue=100
 Disabled=1
 UpdateDivider=1
 
 [MeasureCPUHistory51]
-Measure=CPU
-Processor=51
+Measure=Plugin
+Plugin=UsageMonitor
+Category=Processor Information
+Counter=% Processor Utility
+Name=0,50
+Rollup=0
+Percent=0
+RawValue=0
 MinValue=0
 MaxValue=100
 Disabled=1
 UpdateDivider=1
 
 [MeasureCPUHistory52]
-Measure=CPU
-Processor=52
+Measure=Plugin
+Plugin=UsageMonitor
+Category=Processor Information
+Counter=% Processor Utility
+Name=0,51
+Rollup=0
+Percent=0
+RawValue=0
 MinValue=0
 MaxValue=100
 Disabled=1
 UpdateDivider=1
 
 [MeasureCPUHistory53]
-Measure=CPU
-Processor=53
+Measure=Plugin
+Plugin=UsageMonitor
+Category=Processor Information
+Counter=% Processor Utility
+Name=0,52
+Rollup=0
+Percent=0
+RawValue=0
 MinValue=0
 MaxValue=100
 Disabled=1
 UpdateDivider=1
 
 [MeasureCPUHistory54]
-Measure=CPU
-Processor=54
+Measure=Plugin
+Plugin=UsageMonitor
+Category=Processor Information
+Counter=% Processor Utility
+Name=0,53
+Rollup=0
+Percent=0
+RawValue=0
 MinValue=0
 MaxValue=100
 Disabled=1
 UpdateDivider=1
 
 [MeasureCPUHistory55]
-Measure=CPU
-Processor=55
+Measure=Plugin
+Plugin=UsageMonitor
+Category=Processor Information
+Counter=% Processor Utility
+Name=0,54
+Rollup=0
+Percent=0
+RawValue=0
 MinValue=0
 MaxValue=100
 Disabled=1
 UpdateDivider=1
 
 [MeasureCPUHistory56]
-Measure=CPU
-Processor=56
+Measure=Plugin
+Plugin=UsageMonitor
+Category=Processor Information
+Counter=% Processor Utility
+Name=0,55
+Rollup=0
+Percent=0
+RawValue=0
 MinValue=0
 MaxValue=100
 Disabled=1
 UpdateDivider=1
 
 [MeasureCPUHistory57]
-Measure=CPU
-Processor=57
+Measure=Plugin
+Plugin=UsageMonitor
+Category=Processor Information
+Counter=% Processor Utility
+Name=0,56
+Rollup=0
+Percent=0
+RawValue=0
 MinValue=0
 MaxValue=100
 Disabled=1
 UpdateDivider=1
 
 [MeasureCPUHistory58]
-Measure=CPU
-Processor=58
+Measure=Plugin
+Plugin=UsageMonitor
+Category=Processor Information
+Counter=% Processor Utility
+Name=0,57
+Rollup=0
+Percent=0
+RawValue=0
 MinValue=0
 MaxValue=100
 Disabled=1
 UpdateDivider=1
 
 [MeasureCPUHistory59]
-Measure=CPU
-Processor=59
+Measure=Plugin
+Plugin=UsageMonitor
+Category=Processor Information
+Counter=% Processor Utility
+Name=0,58
+Rollup=0
+Percent=0
+RawValue=0
 MinValue=0
 MaxValue=100
 Disabled=1
 UpdateDivider=1
 
 [MeasureCPUHistory60]
-Measure=CPU
-Processor=60
+Measure=Plugin
+Plugin=UsageMonitor
+Category=Processor Information
+Counter=% Processor Utility
+Name=0,59
+Rollup=0
+Percent=0
+RawValue=0
 MinValue=0
 MaxValue=100
 Disabled=1
 UpdateDivider=1
 
 [MeasureCPUHistory61]
-Measure=CPU
-Processor=61
+Measure=Plugin
+Plugin=UsageMonitor
+Category=Processor Information
+Counter=% Processor Utility
+Name=0,60
+Rollup=0
+Percent=0
+RawValue=0
 MinValue=0
 MaxValue=100
 Disabled=1
 UpdateDivider=1
 
 [MeasureCPUHistory62]
-Measure=CPU
-Processor=62
+Measure=Plugin
+Plugin=UsageMonitor
+Category=Processor Information
+Counter=% Processor Utility
+Name=0,61
+Rollup=0
+Percent=0
+RawValue=0
 MinValue=0
 MaxValue=100
 Disabled=1
 UpdateDivider=1
 
 [MeasureCPUHistory63]
-Measure=CPU
-Processor=63
+Measure=Plugin
+Plugin=UsageMonitor
+Category=Processor Information
+Counter=% Processor Utility
+Name=0,62
+Rollup=0
+Percent=0
+RawValue=0
 MinValue=0
 MaxValue=100
 Disabled=1
 UpdateDivider=1
 
 [MeasureCPUHistory64]
-Measure=CPU
-Processor=64
+Measure=Plugin
+Plugin=UsageMonitor
+Category=Processor Information
+Counter=% Processor Utility
+Name=0,63
+Rollup=0
+Percent=0
+RawValue=0
 MinValue=0
 MaxValue=100
 Disabled=1
 UpdateDivider=1
-
 
 ; Processor metadata is static until the skin is refreshed.
 [MeasureCPUModel]

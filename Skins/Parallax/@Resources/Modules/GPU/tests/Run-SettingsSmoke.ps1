@@ -118,8 +118,114 @@ Write-RunFile $mainHarness @"
 local opened=false
 local last=''
 local temperatureUpdates=0
+local memoryUpdates,memoryChecks,memoryTransitions=0,0,0
+local previousMemoryBindings={}
 local function read(path) local f=io.open(path,'rb');if not f then return '' end;local t=f:read('*a');f:close();return t end
 local function write(path,value) local f=assert(io.open(path,'wb'));f:write(value);f:close() end
+local function observeProcessMemory()
+    local evidence,positive,missing={},0,0
+    local function check(condition,message)
+        memoryChecks=memoryChecks+1
+        if not condition then error(message,0) end
+    end
+    local function finite(value)
+        return type(value)=='number' and value==value and value~=math.huge and value~=-math.huge
+    end
+    local function bounds(meter)
+        return table.concat({meter:GetX(),meter:GetY(),meter:GetW(),meter:GetH()},',')
+    end
+    memoryUpdates=memoryUpdates+1
+    local ok,problem=pcall(function()
+        for rank=1,5 do
+            local prefix='Row'..rank..'.'
+            local engine=SKIN:GetMeasure(rank==1 and 'MeasureGPUActivity' or ('MeasureGPUProcess'..rank))
+            local memory=SKIN:GetMeasure('MeasureGPUProcessMemory'..rank)
+            local label=SKIN:GetMeter('MeterGPUProcessMemory'..rank)
+            local name=SKIN:GetMeter('MeterGPUProcessName'..rank)
+            local bar=SKIN:GetMeter('MeterGPUProcessBar'..rank)
+            check(engine and memory and label and name and bar,'Missing native process/memory bank or meter at row '..rank)
+            local raw,value=engine:GetStringValue(),engine:GetValue()
+            local wanted=memory:GetOption('Name','')
+            local returned,bytes=memory:GetStringValue(),memory:GetValue()
+            local text,tip=label:GetOption('Text',''),label:GetOption('ToolTipText','')
+            evidence[#evidence+1]=prefix..'RawEngine='..tostring(raw)
+            evidence[#evidence+1]=prefix..'EnginePercent='..tostring(value)
+            evidence[#evidence+1]=prefix..'RequestedInstance='..wanted
+            evidence[#evidence+1]=prefix..'ReturnedInstance='..tostring(returned)
+            evidence[#evidence+1]=prefix..'RawBytes='..tostring(bytes)
+            evidence[#evidence+1]=prefix..'MemoryText='..text
+            evidence[#evidence+1]=prefix..'MemoryTip='..tip
+            for _,option in ipairs({'Alias','Index','RawValue','PIDToName','Rollup','Percent','Disabled'}) do
+                evidence[#evidence+1]=prefix..option..'Option='..memory:GetOption(option,'')
+            end
+            evidence[#evidence+1]=prefix..'NameBounds='..bounds(name)
+            evidence[#evidence+1]=prefix..'BarBounds='..bounds(bar)
+            evidence[#evidence+1]=prefix..'MemoryBounds='..bounds(label)
+            check(memory:GetOption('Alias','')=='VRAM','Memory bank uses a different category at row '..rank)
+            for _,option in ipairs({'Index','PIDToName','Rollup','Percent'}) do
+                check(memory:GetOption(option,'')=='0','Memory bank enables ranking, renaming, rollup or normalization at row '..rank..': '..option)
+            end
+            check(memory:GetOption('RawValue','')=='1','Memory bank does not expose raw dedicated bytes at row '..rank)
+            -- This observes one completed native measure pass. Name is the
+            -- exact parser option after the controller's rebind, and returned
+            -- string/value are the plugin's current pair, not another rank.
+            local identity,pid,physical,engineIndex=raw:match('^(pid_(%d+)_luid_0x%x%x%x%x%x%x%x%x_0x%x%x%x%x%x%x%x%x_phys_(%d+))_eng_(%d+)_engtype_.*$')
+            local active=identity and #raw<=1024 and finite(value) and value>0 and value<=100
+                and tonumber(pid)>0 and tonumber(pid)<=4294967295 and #pid<=16
+                and #physical<=10 and tonumber(physical)<=4294967295
+                and #engineIndex<=10 and tonumber(engineIndex)<=4294967295
+            if previousMemoryBindings[rank] and previousMemoryBindings[rank]~=wanted then memoryTransitions=memoryTransitions+1 end
+            previousMemoryBindings[rank]=wanted
+            if active then
+                check(wanted==identity,'Memory request does not match the exact current PID / LUID / physical GPU at row '..rank)
+                local usable=returned==identity and finite(bytes) and bytes>0 and bytes<=9007199254740991 and bytes==math.floor(bytes)
+                if usable then
+                    local expected
+                    if bytes<1048576 then expected='VRAM: <1 MiB'
+                    elseif bytes<1073741824 then expected=string.format('VRAM: %.0f MiB',bytes/1048576)
+                    else expected=string.format('VRAM: %.2f GiB',bytes/1073741824) end
+                    check(text==expected,'Native VRAM label does not match its exact requested instance and positive raw bytes at row '..rank)
+                    check(tip:find(identity,1,true)~=nil and tip:find(string.format('%.0f bytes',bytes),1,true)~=nil,'VRAM tooltip omits its exact identity or raw byte reading at row '..rank)
+                    positive=positive+1
+                else
+                    check(text=='VRAM: --','Missing, zero or mismatched native memory counter is presented as measured capacity at row '..rank)
+                    missing=missing+1
+                end
+            else
+                check(wanted=='__ParallaxNoGPUProcess__','Idle/invalid rank retained an active memory request at row '..rank)
+                check(text=='VRAM: --','Idle/invalid rank retained previous process memory at row '..rank)
+                missing=missing+1
+            end
+            -- Native meter dimensions are available after the first draw.
+            -- DisabledOption above is the configuration text, not proof of
+            -- the current !EnableMeasure / !DisableMeasure runtime state.
+            if memoryUpdates>1 then
+                check(label:GetW()>0 and label:GetH()>0,'VRAM label has no visible native bounds at row '..rank)
+                check(math.abs(label:GetX()-bar:GetX())<=1 and math.abs(label:GetW()-bar:GetW())<=1,'VRAM label and activity bar do not share the content width at row '..rank)
+                check(name:GetY()+name:GetH()<=bar:GetY()+1,'Name overlaps the activity bar at row '..rank)
+                check(bar:GetY()+bar:GetH()<=label:GetY()+1,'Activity bar overlaps the VRAM label at row '..rank)
+                if rank<5 then
+                    local nextName=SKIN:GetMeter('MeterGPUProcessName'..(rank+1))
+                    check(label:GetY()+label:GetH()<=nextName:GetY()+1,'VRAM label overlaps the next process row at row '..rank)
+                else
+                    local bottom=SKIN:ParseFormula(SKIN:ReplaceVariables('(#Inset#+#PanelHeightPx#)'))
+                    check(bottom and label:GetY()+label:GetH()<=bottom,'Last VRAM label extends below the painted monitor')
+                end
+            end
+        end
+    end)
+    evidence[#evidence+1]='PositiveRows='..positive
+    evidence[#evidence+1]='UnavailableRows='..missing
+    evidence[#evidence+1]='Updates='..memoryUpdates
+    evidence[#evidence+1]='BindingTransitions='..memoryTransitions
+    write([=[$runRoot\process-memory-observed.txt]=],table.concat(evidence,'\n'))
+    local auditPath=[=[$runRoot\process-memory-audit.txt]=]
+    -- A later idle pass or settings refresh must not overwrite a real failure.
+    if not read(auditPath):match('^FAIL:') then
+        write(auditPath,ok and ('PASS: '..memoryChecks..' native per-row memory checks; updates='..memoryUpdates..'; binding transitions='..memoryTransitions)
+            or ('FAIL: '..tostring(problem)..'\n'..table.concat(evidence,'\n')))
+    end
+end
 local function runSuite(path,suite,controller)
     if read(path)~='' then return end
     local ok,result=pcall(function()local n,r=dofile(suite).run(controller);return 'PASS: '..n..' assertions under '.._VERSION..'\n'..r end)
@@ -151,13 +257,14 @@ function Update()
     write([=[$runRoot\metadata-observed.txt]=],table.concat(info,'\n'))
     local graph={}
     for i=1,5 do
-        for _,part in ipairs({'Name','Value','Bar'}) do
+        for _,part in ipairs({'Name','Value','Memory','Bar'}) do
             local name='MeterGPUProcess'..part..i
             local meter=SKIN:GetMeter(name)
             if meter then graph[#graph+1]=name..'='..meter:GetOption(part=='Bar' and 'Shape2' or 'Text','') end
         end
     end
     write([=[$runRoot\process-graph-observed.txt]=],table.concat(graph,'\n'))
+    observeProcessMemory()
     local processController=SKIN:GetMeasure('MeasureGPUProcessController')
     local telemetryController=SKIN:GetMeasure('MeasureGPUTemperatureController')
     write([=[$runRoot\process-names-observed.txt]=],
@@ -172,9 +279,9 @@ function Update()
     end
     write([=[$runRoot\temperature-observed.txt]=],table.concat(temperature,'\n'))
     local metrics={}
-    for _,name in ipairs({'MeterGPUVRAMUsage','MeterGPUVRAMBar','MeterGPUSharedMemory','MeterGPULoadValue','MeterGPUControllerLoadValue','MeterGPUVideoLoadValue','MeterGPUBusLoadValue','MeterPowerValue','MeterClockValue','MeterSensorStatus'}) do
+    for _,name in ipairs({'MeterGPUVRAMUsage','MeterGPUVRAMBar','MeterGPUSharedMemory','MeterGPULoadValue','MeterGPULoadBar','MeterGPUControllerLoadValue','MeterGPUControllerLoadBar','MeterGPUVideoLoadValue','MeterGPUVideoLoadBar','MeterGPUBusLoadValue','MeterGPUBusLoadBar','MeterPowerValue','MeterClockValue'}) do
         local metric=SKIN:GetMeter(name)
-        if metric then metrics[#metrics+1]=name..'='..metric:GetOption(name=='MeterGPUVRAMBar' and 'Shape2' or 'Text','') end
+        if metric then metrics[#metrics+1]=name..'='..metric:GetOption(name:find('Bar$') and 'Shape2' or 'Text','') end
     end
     write([=[$runRoot\driver-metrics-observed.txt]=],table.concat(metrics,'\n'))
     local bootstrap=SKIN:GetMeasure('MeasureGPUTemperatureBootstrap')
@@ -319,6 +426,10 @@ function Action([string]$Name) {
 function Capture([string]$Suffix) {
     Wait-Condition { @(Own-Windows | Where-Object {$_.Width -le 0 -or $_.Height -le 0}).Count -eq 0 } 'Native windows did not finish creating their bounds.'
     Start-Sleep -Milliseconds 500
+    $memoryAuditPath=Join-Path $runRoot 'process-memory-audit.txt'
+    Wait-Condition {Test-Path -LiteralPath $memoryAuditPath} 'Native process-memory observation did not run.'
+    $memoryAudit=Get-Content -LiteralPath $memoryAuditPath -Raw
+    if ($memoryAudit -notmatch '^PASS:') {throw $memoryAudit}
     foreach ($window in (Own-Windows)) {
         $name=if ($window.Title -match 'GPU[\\/]Settings') {'GPU-Settings'} else {'GPU'}
         $bitmap=[Drawing.Bitmap]::new($window.Width,$window.Height);$graphics=[Drawing.Graphics]::FromImage($bitmap);$hdc=[IntPtr]::Zero
@@ -451,7 +562,7 @@ try {
         Action 'clocksource';Wait-Condition {Text-Matches $observedPath '(?m)^GPUClockSource=1$'} 'Explicit HWiNFO clock source did not persist.'
         Action 'powersource';Wait-Condition {Text-Matches $observedPath '(?m)^GPUPowerSource=0$'} 'Driver power source did not persist.'
         Action 'clocksource';Wait-Condition {Text-Matches $observedPath '(?m)^GPUClockSource=0$'} 'Driver clock source did not persist.'
-        Action 'fit';Wait-Condition {Text-Matches $observedPath '(?m)^PanelHeight=560$'} 'GPU did not reload fitted height.'
+        Action 'fit';Wait-Condition {Text-Matches $observedPath '(?m)^PanelHeight=650$'} 'GPU did not reload fitted height.'
         if (-not (Text-Matches (Join-Path $runRoot 'settings-observed.txt') '(?m)^PanelHeight=648$')) { throw 'Settings geometry changed with monitor height.' }
         Action 'browse';Wait-Condition {Text-Matches (Join-Path $runRoot 'discovery-observed.txt') '(?m)^1\r?$'} 'Real discovery did not complete.'
         $realDiscovery=Get-Content -LiteralPath (Join-Path $runRoot 'discovery-observed.txt') -Raw
@@ -511,23 +622,31 @@ try {
         return $true
     } 'Supported driver metrics did not reach their native readouts.' 12
     Write-Output 'PASS: combined driver snapshot and supported memory/activity/power/clock readouts agree; zero activity is valid.'
-    # Allow the existing five-second request lease plus native telemetry/display
-    # updates to settle. An all-denied/idle set is a valid PID fallback outcome.
+    # Allow the existing five-second name request lease and the independent
+    # in-process GPU Process Memory worker to settle. Neither lookup is required
+    # to be available on every host; all-denied/idle/zero cases retain -- / PID.
     $namesVisible=$false
+    $memoryVisible=$false
     $namesDeadline=[DateTime]::UtcNow.AddSeconds(18)
     do {
         $namesObserved=Get-Content -LiteralPath (Join-Path $runRoot 'process-names-observed.txt') -Raw
         $graphObserved=Get-Content -LiteralPath (Join-Path $runRoot 'process-graph-observed.txt') -Raw
+        $memoryObserved=Get-Content -LiteralPath (Join-Path $runRoot 'process-memory-observed.txt') -Raw
         $namesVisible=$namesObserved -match '(?m)^NamesPacket=GPU_NAMES\|1\|' -and $graphObserved -match '(?m)^MeterGPUProcessName[1-5]=(?!PID [0-9]+(?: /|$)|--).+'
-        if (-not $namesVisible) {Start-Sleep -Milliseconds 250}
-    } while (-not $namesVisible -and [DateTime]::UtcNow -lt $namesDeadline)
+        $memoryVisible=$memoryObserved -match '(?m)^PositiveRows=[1-5]\r?$'
+        if (-not ($namesVisible -and $memoryVisible)) {Start-Sleep -Milliseconds 250}
+    } while (-not ($namesVisible -and $memoryVisible) -and [DateTime]::UtcNow -lt $namesDeadline)
     Write-RunFile (Join-Path $runRoot 'process-names-settled.txt') $namesObserved
     Write-RunFile (Join-Path $runRoot 'process-graph-settled.txt') $graphObserved
+    Write-RunFile (Join-Path $runRoot 'process-memory-settled.txt') $memoryObserved
     $settledSample=Read-DriverSnapshot ($snapshotBase+'.dat')
     Write-RunFile (Join-Path $runRoot 'process-names-snapshot-settled.txt') ('RequestId='+$settledSample[25]+[Environment]::NewLine+'NameMap='+$settledSample[26])
     Capture '-settled'
     if ($namesVisible) {Write-Output 'PASS: live Windows process-name packet reached native process labels.'}
     else {Write-Output 'OBSERVED: no resolvable live ranked name during the bounded wait; PID/idle fallback retained. Synthetic name handling passed the native Lua suite.'}
+    Write-Output (Get-Content -LiteralPath (Join-Path $runRoot 'process-memory-audit.txt') -Raw)
+    if ($memoryVisible) {Write-Output 'PASS: positive native per-process dedicated bytes reached exact PID / LUID / physical-GPU rows; labels, raw values and tooltip identities agree.'}
+    else {Write-Output 'OBSERVED: no usable positive ranked dedicated-memory reading during the bounded wait; zero, missing and idle readings remained --. Native Lua fixtures cover unavailable and replacement identities.'}
     $hosts=@([GpuSmokeProcessTree]::Children([uint32]$process.Id))
     if ($hosts.Count -ne 1) {throw 'Expected exactly one owned persistent temperature host.'}
     $hostProcessId=$hosts[0]

@@ -1,5 +1,5 @@
 -- Parallax original CPU presentation/controller. No provider or process polling.
--- Native CPU measures precede this Script measure. Bangs are queued by Rainmeter.
+-- Processor Utility measures precede this Script measure. Bangs are queued by Rainmeter.
 local state
 
 local function integer(value, fallback, minimum, maximum)
@@ -12,6 +12,17 @@ end
 
 local function option(name, fallback, minimum, maximum)
     return integer(SKIN:GetVariable(name), fallback, minimum, maximum)
+end
+
+local function utility(value)
+    value = tonumber(value)
+    if not value or value ~= value or math.abs(value) == math.huge or value < 0 or value > 1000 then return nil end
+    return value
+end
+
+local function graphUtility(value)
+    value = utility(value)
+    return value and math.min(100, value) or nil
 end
 
 local function set(meter, key, value)
@@ -157,10 +168,33 @@ local function layout()
         cursor = top + infoHeight + 8
         y('MeterCurrentClockLabel', cursor)
         y('MeterCurrentClockValue', cursor)
-        cursor = cursor + 24
+        cursor = cursor + 16
+        SKIN:Bang(state.showFan and '!ShowMeterGroup' or '!HideMeterGroup', 'CPUFan')
+        if state.showFan then
+            y('MeterCurrentFanLabel', cursor)
+            y('MeterCurrentFanValue', cursor)
+            cursor = cursor + 16
+        else
+            y('MeterCurrentFanLabel', 0)
+            y('MeterCurrentFanValue', 0)
+        end
+        SKIN:Bang(state.showMotherboardFan and '!ShowMeterGroup' or '!HideMeterGroup', 'CPUMotherboardFan')
+        if state.showMotherboardFan then
+            y('MeterMotherboardFanLabel', cursor)
+            y('MeterMotherboardFanValue', cursor)
+            cursor = cursor + 16
+        else
+            y('MeterMotherboardFanLabel', 0)
+            y('MeterMotherboardFanValue', 0)
+        end
+        cursor = cursor + 8
     else
         y('MeterCurrentClockLabel', 0)
         y('MeterCurrentClockValue', 0)
+        y('MeterCurrentFanLabel', 0)
+        y('MeterCurrentFanValue', 0)
+        y('MeterMotherboardFanLabel', 0)
+        y('MeterMotherboardFanValue', 0)
     end
     SKIN:Bang(state.showCores and '!ShowMeterGroup' or '!HideMeterGroup', 'CPUTableFrame')
     visible('MeterCoreState', state.showCores and (state.count == 0 or state.warmup > 0))
@@ -235,28 +269,33 @@ local function bindCores()
     state.pages = state.count > 0 and math.ceil(state.count / state.rows) or 1
     state.page = math.max(1, math.min(state.page, state.pages))
     local first = (state.page - 1) * state.rows + 1
+    local visibleSlots = enabled and math.max(0, math.min(state.rows, state.count - first + 1)) or 0
     -- Reuse the sensor reader's current values for this absolute thread page.
-    SKIN:Bang('!CommandMeasure', 'MeasureCPUSensors', 'SetThreadPage(' .. first .. ')')
+    SKIN:Bang('!CommandMeasure', 'MeasureCPUSensors', 'SetThreadPage(' .. first .. ',' .. visibleSlots .. ')')
     for slot = 1, 64 do
         local measure = 'MeasureCPU' .. slot
         local index = first + slot - 1
         SKIN:Bang('!HideMeterGroup', 'CPUCore' .. slot)
         SKIN:Bang('!DisableMeasure', measure)
         set(measure, 'Disabled', 1)
-        -- Processor=0 is safe even when no logical-processor count is known.
-        set(measure, 'Processor', 0)
+        -- 0,0 is a valid safe instance while this page-relative slot is disabled.
+        set(measure, 'Name', '0,0')
         if enabled and slot <= state.rows and index <= state.count then
             state.active = state.active + 1
-            set(measure, 'Processor', index)
+            set(measure, 'Name', '0,' .. (index - 1))
             set(measure, 'Disabled', 0)
             SKIN:Bang('!EnableMeasure', measure)
             set('MeterCoreLabel' .. slot, 'Text', tostring(index))
-            set('MeterCoreLabel' .. slot, 'ToolTipText', 'Windows hardware thread ' .. index .. '. The bar and percentage show this thread utilization.')
+            set('MeterCoreLabel' .. slot, 'ToolTipText', 'Windows hardware thread ' .. index .. '. The bar and percentage show frequency-adjusted Processor Utility. Values above 100% indicate turbo; the bar is capped at 100%.')
             set('MeterCoreValue' .. slot, 'NumOfDecimals', state.decimals)
+            set('MeterCoreValue' .. slot, 'Text', '...')
             set('MeterCoreBar' .. slot, 'BarColor', state.threadColors[index] or defaultThreadColor(index))
+        else
+            -- Hidden page-bank rows must not retain native tooltip controls.
+            set('MeterCoreLabel' .. slot, 'ToolTipText', '')
         end
     end
-    -- A changed Processor resets native timing. Discard its first sample.
+    -- A changed UsageMonitor instance needs fresh samples. Discard its warmup.
     state.warmup = 2
     visible('MeterCoreState', state.showCores)
     visible('MeterPrevious', enabled and state.page > 1)
@@ -267,6 +306,13 @@ local function bindCores()
         set('MeterCoreState', 'Text', 'Sampling logical CPUs...')
     else
         set('MeterCoreState', 'Text', state.showCores and state.countError or 'Core display off')
+    end
+end
+
+local function updateThreadValues()
+    for slot = 1, state.active do
+        local value = utility(SKIN:GetMeasure('MeasureCPU' .. slot):GetValue())
+        set('MeterCoreValue' .. slot, 'Text', value and string.format('%.' .. state.decimals .. 'f%%', value) or '-')
     end
 end
 
@@ -335,9 +381,9 @@ local function historyTooltip()
     local duration = (state.samples - 1) * state.interval / 1000
     local text
     if state.historySource == 1 then
-        text = string.format('Per-thread utilization: %d samples, approximately %.1f seconds between full-buffer endpoints. Every Windows logical processor is drawn as an overlaid trace on the shared 0-100%% scale and time axis, newest at right. Each trace uses its matching Thread bar color. An invalid reading clears only that trace; unobserved history stays blank. Changing source, capacity, visibility or refreshing starts fresh history.', state.samples, duration)
+        text = string.format('Per-thread Processor Utility: %d samples, approximately %.1f seconds between full-buffer endpoints. Every Windows logical processor is drawn as an overlaid trace on the shared 0-100%% scale and time axis, newest at right. Turbo values above 100%% are capped only in the graph. Each trace uses its matching Thread bar color. An invalid reading clears only that trace; unobserved history stays blank. Changing source, capacity, visibility or refreshing starts fresh history.', state.samples, duration)
     else
-        text = string.format('Total CPU utilization: %d samples, approximately %.1f seconds between full-buffer endpoints. 0-100%%, newest at right. Unobserved history stays blank; changing source, capacity, visibility or refreshing starts fresh history.', state.samples, duration)
+        text = string.format('Total Processor Utility: %d samples, approximately %.1f seconds between full-buffer endpoints. The trace is capped to 0-100%%, newest at right; the numeric total can show turbo values above 100%%. Unobserved history stays blank; changing source, capacity, visibility or refreshing starts fresh history.', state.samples, duration)
     end
     set('MeterHistory', 'ToolTipText', text)
     set('MeterHistoryTrack', 'ToolTipText', text)
@@ -449,8 +495,8 @@ end
 local function appendThreadHistory()
     if not state.showHistory or state.historySource ~= 1 or state.historyWarmup > 0 then return end
     for index = 1, state.count do
-        local value = SKIN:GetMeasure('MeasureCPUHistory' .. index):GetValue()
-        if value == value and value >= 0 and value <= 100 then
+        local value = graphUtility(SKIN:GetMeasure('MeasureCPUHistory' .. index):GetValue())
+        if value then
             local history = state.threadHistory[index] or {}
             state.threadHistory[index] = history
             appendSample(history, value)
@@ -470,7 +516,7 @@ local function bindHistoryMeasures()
         SKIN:Bang(active and '!EnableMeasure' or '!DisableMeasure', measure)
         set(measure, 'Disabled', active and 0 or 1)
     end
-    -- Enabling a native Processor measure resets its timing state.
+    -- Enabling a UsageMonitor instance requires fresh samples.
     state.historyWarmup = enabled and 2 or 0
 end
 
@@ -530,7 +576,8 @@ function ApplyPreferences()
     if not state.ready then return end
     -- A settings event applies display changes without taking a telemetry sample.
     for key, spec in pairs({
-        CPUShowInfo = {'showInfo', 1, 0, 1}, CPUShowCores = {'showCores', 1, 0, 1},
+        CPUShowInfo = {'showInfo', 1, 0, 1}, CPUShowFan = {'showFan', 1, 0, 1},
+        CPUShowMotherboardFan = {'showMotherboardFan', 1, 0, 1}, CPUShowCores = {'showCores', 1, 0, 1},
         CPUShowProcesses = {'showProcesses', 1, 0, 1}, CPUShowHistory = {'showHistory', 1, 0, 1},
         CPUProcessCount = {'processCount', 5, 1, 10}, CPUHistorySource = {'historySource', 0, 0, 1},
         CPUHistorySamples = {'samples', 60, 10, 300},
@@ -555,6 +602,8 @@ function Update()
         state.userFile = SKIN:GetVariable('@') .. 'User\\CPU.inc'
         state.minimumHeight = option('PanelHeight', 80, 50, 4096)
         state.showInfo = option('CPUShowInfo', 1, 0, 1) == 1
+        state.showFan = option('CPUShowFan', 1, 0, 1) == 1
+        state.showMotherboardFan = option('CPUShowMotherboardFan', 1, 0, 1) == 1
         state.showProcesses = option('CPUShowProcesses', 1, 0, 1) == 1
         state.processCount = option('CPUProcessCount', 5, 1, 10)
         state.rows = option('CPUCoresPerPage', 8, 1, 64)
@@ -594,15 +643,16 @@ function Update()
 
     ApplyProcessorInfo()
     updateProcesses()
-    local value = SKIN:GetMeasure('MeasureCPUTotal'):GetValue()
-    if value == value and value >= 0 and value <= 100 then
+    local value = utility(SKIN:GetMeasure('MeasureCPUTotal'):GetValue())
+    if value then
         set('MeterTotal', 'Text', string.format('%.' .. state.decimals .. 'f%%', value))
     else
         set('MeterTotal', 'Text', 'Unavailable')
     end
     if state.historySource == 0 then
-        if value == value and value >= 0 and value <= 100 then
-            appendTotalHistory(value)
+        local graphValue = graphUtility(value)
+        if graphValue then
+            appendTotalHistory(graphValue)
         else
             -- Do not bridge a known-invalid total sample with a continuous trace.
             clearHistory()
@@ -611,6 +661,7 @@ function Update()
         if state.historyWarmup > 0 then state.historyWarmup = state.historyWarmup - 1 end
         appendThreadHistory()
     end
+    updateThreadValues()
     if state.active > 0 and state.warmup > 0 then
         state.warmup = state.warmup - 1
         if state.warmup == 0 then
@@ -645,6 +696,10 @@ function ApplySetting(key, value)
     if not value or value ~= math.floor(value) or value < minimum or value > maximum then return end
     if key == 'CPUShowInfo' then
         state.showInfo = value == 1
+    elseif key == 'CPUShowFan' then
+        state.showFan = value == 1
+    elseif key == 'CPUShowMotherboardFan' then
+        state.showMotherboardFan = value == 1
     elseif key == 'CPUShowProcesses' then
         state.showProcesses = value == 1
         bindProcesses()
@@ -671,8 +726,8 @@ function ApplySetting(key, value)
     elseif key == 'CPUDecimals' then
         state.decimals = value
         for slot = 1, 64 do set('MeterCoreValue' .. slot, 'NumOfDecimals', value) end
-        local total = SKIN:GetMeasure('MeasureCPUTotal'):GetValue()
-        if total == total and total >= 0 and total <= 100 then
+        local total = utility(SKIN:GetMeasure('MeasureCPUTotal'):GetValue())
+        if total then
             set('MeterTotal', 'Text', string.format('%.' .. value .. 'f%%', total))
         end
     else

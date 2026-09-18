@@ -104,7 +104,7 @@ def validate_settings_shared_width():
         visited.clear()
         read_ini(ROOT / "CPU/Settings/Settings.ini")
         assert number("#Columns#") == 2
-        assert number("#PanelHeight#") == 1000
+        assert number("#PanelHeight#") == 1056
         assert sections["MeasureCPUSettingsDecimalInput"]["StartInFolder"] == "#@#Scripts\\"
         assert 'CommitNumberInput()' in sections["MeasureCPUSettingsDecimalInput"]["FinishAction"]
         assert 'ScanSensors(false)' in sections["Rainmeter"]["OnRefreshAction"]
@@ -114,6 +114,8 @@ def validate_settings_shared_width():
         for name in ('Appearance','Processes','Graph','Rates','Sensors'):
             assert effective('MeterSettings'+name+'Section')['FontColor'] == '#AccentColor#'
             assert sections['MeterSettings'+name+'Rule']['MeterStyle'] == 'StyleRule'
+        for name, key in (('CPUFan', 'CPUShowFan'), ('MotherboardFan', 'CPUShowMotherboardFan')):
+            assert f"Toggle('{key}')" in sections[f'MeterSettings{name}Value']['LeftMouseUpAction']
         for name, key in fields.items():
             prefix = 'MeterSettings'+name
             assert 'BeginNumberInput' in effective(prefix+'Input')['LeftMouseUpAction']
@@ -259,24 +261,39 @@ def validate():
             if key == "MeterStyle" or key.startswith("MeasureName"):
                 assert all(ref.strip() in sections for ref in value.split("|")), (name, key)
     measures = [name for name, values in sections.items() if "Measure" in values]
-    assert len(measures) == 97 + 9 * 64
+    assert len(measures) == 108 + 9 * 64
+    total_utility = sections["MeasureCPUTotal"]
+    assert total_utility["Measure"] == "Plugin" and total_utility["Plugin"] == "UsageMonitor"
+    assert total_utility["Category"] == "Processor Information"
+    assert total_utility["Counter"] == "% Processor Utility" and total_utility["Name"] == "_Total"
+    assert total_utility["Rollup"] == "0" and total_utility["Percent"] == "0" and total_utility["RawValue"] == "0"
+    assert total_utility["MinValue"] == "0" and total_utility["MaxValue"] == "100"
+    assert sections["MeasureCPUNativeFrequency"]["Plugin"] == "UsageMonitor"
+    assert sections["MeasureCPUNativeFrequency"]["Counter"] == "Processor Frequency"
+    assert sections["MeasureCPUNativePerformance"]["Counter"] == "% Processor Performance"
+    assert "MeasureCPUNativeFrequency*MeasureCPUNativePerformance/100" in sections["MeasureCPUNativeClock"]["Formula"]
     assert measures[-1] == "MeasureCPUController", "Script must follow telemetry"
     for field in ("Sensor", "Label", "Formatted", "Raw"):
-        clock_measure = sections[f"MeasureCPUSensorClock{field}"]
-        assert clock_measure["Measure"] == "Registry" and clock_measure["Disabled"] == "1"
-        for index in range(1, 65):
-            assert f"MeasureCPUSensorCoreClock{field}{index}" not in sections
+        for kind in ("Clock", "Fan", "MotherboardFan"):
+            aggregate_measure = sections[f"MeasureCPUSensor{kind}{field}"]
+            assert aggregate_measure["Measure"] == "Registry" and aggregate_measure["Disabled"] == "1"
+            for index in range(1, 65):
+                assert f"MeasureCPUSensorCore{kind}{field}{index}" not in sections
     assert "CPUClockIndex" not in variables, "Core Clocks is automatic; do not persist a sensor index"
     for index in range(1, 65):
         measure = sections[f"MeasureCPU{index}"]
-        assert measure["Measure"] == "CPU"
-        assert measure["Processor"] == "0" and measure["Disabled"] == "1"
+        assert measure["Measure"] == "Plugin" and measure["Plugin"] == "UsageMonitor"
+        assert measure["Category"] == "Processor Information" and measure["Counter"] == "% Processor Utility"
+        assert measure["Name"] == "0,0" and measure["Disabled"] == "1"
+        assert measure["Rollup"] == "0" and measure["Percent"] == "0" and measure["RawValue"] == "0"
         assert measure["MinValue"] == "0" and measure["MaxValue"] == "100"
         assert sections[f"MeterCoreBar{index}"]["MeasureName"] == f"MeasureCPU{index}"
         assert effective(f"MeterCoreBar{index}")["Hidden"] == "1"
         history_measure = sections[f"MeasureCPUHistory{index}"]
-        assert history_measure["Measure"] == "CPU"
-        assert history_measure["Processor"] == str(index) and history_measure["Disabled"] == "1"
+        assert history_measure["Measure"] == "Plugin" and history_measure["Plugin"] == "UsageMonitor"
+        assert history_measure["Category"] == "Processor Information" and history_measure["Counter"] == "% Processor Utility"
+        assert history_measure["Name"] == f"0,{index - 1}" and history_measure["Disabled"] == "1"
+        assert history_measure["Rollup"] == "0" and history_measure["Percent"] == "0" and history_measure["RawValue"] == "0"
         assert history_measure["MinValue"] == "0" and history_measure["MaxValue"] == "100"
         for prefix in ("MeterCoreVoltage", "MeterCoreTemperature"):
             meter = effective(f"{prefix}{index}")
@@ -354,6 +371,17 @@ def validate():
     assert clock_label["Hidden"] == "1" and clock_value["Hidden"] == "1"
     assert {"CPUInfo", "CPUClock", "CPUUI"}.issubset(clock_label["Group"].split("|"))
     assert {"CPUInfo", "CPUClock", "CPUUI"}.issubset(clock_value["Group"].split("|"))
+    fan_label, fan_value = effective("MeterCurrentFanLabel"), effective("MeterCurrentFanValue")
+    assert fan_label["Text"] == "Fan:" and fan_value["Text"] == "Unavailable"
+    assert fan_value["FontColor"] == "#AccentColor2#"
+    assert fan_label["Hidden"] == "1" and fan_value["Hidden"] == "1"
+    assert {"CPUInfo", "CPUFan", "CPUUI"}.issubset(fan_label["Group"].split("|"))
+    assert {"CPUInfo", "CPUFan", "CPUUI"}.issubset(fan_value["Group"].split("|"))
+    motherboard_fan_label = effective("MeterMotherboardFanLabel")
+    motherboard_fan_value = effective("MeterMotherboardFanValue")
+    assert motherboard_fan_label["Text"] == "MB Fan:" and motherboard_fan_value["Text"] == "Unavailable"
+    assert motherboard_fan_value["FontColor"] == "#AccentColor2#"
+    assert {"CPUInfo", "CPUMotherboardFan", "CPUUI"}.issubset(motherboard_fan_label["Group"].split("|"))
     dimensions = []
     assert number(variables['ColumnWidth']) == 220
     assert number(variables['PanelPadding']) == 6
@@ -506,12 +534,24 @@ def validate():
     assert '#DataBarThicknessPx#' in script
     assert "centeredBarY('MeterCoreBar' .. slot, top)" in script
     assert "set('MeterCoreLabel' .. slot, 'Text', tostring(index))" in script
-    assert "SKIN:Bang('!CommandMeasure', 'MeasureCPUSensors', 'SetThreadPage(' .. first .. ')')" in script
+    assert "local visibleSlots = enabled and math.max(0, math.min(state.rows, state.count - first + 1)) or 0" in script
+    assert "SKIN:Bang('!CommandMeasure', 'MeasureCPUSensors', 'SetThreadPage(' .. first .. ',' .. visibleSlots .. ')')" in script
+    assert "set('MeterCoreLabel' .. slot, 'ToolTipText', '')" in script
+    assert "activeSlots=0" in sensor_script
+    assert "if slot <= state.activeSlots and thread <= 64 then" in sensor_script
+    assert "set(measure, 'Name', '0,' .. (index - 1))" in script
+    assert "local function utility(value)" in script and "value > 1000" in script
+    assert "local function graphUtility(value)" in script and "math.min(100, value)" in script
+    assert "local function updateThreadValues()" in script
+    assert "SKIN:GetMeasure('MeasureCPU' .. slot):GetValue()" in script
+    assert "string.format('%.' .. state.decimals .. 'f%%', value)" in script
     for prefix in ('MeterCoreVoltage', 'MeterCoreTemperature'):
         assert "y('" + prefix + "' .. slot, top)" in script
         assert "y('" + prefix + "' .. slot, 0)" in script
     assert "!ShowMeterGroup' or '!HideMeterGroup', 'CPUInfo'" in script
-    assert "y('MeterCurrentClockLabel', cursor)" in script and "cursor = cursor + 24" in script
+    assert "y('MeterCurrentClockLabel', cursor)" in script and "cursor = cursor + 16" in script
+    assert "y('MeterCurrentFanLabel', cursor)" in script and "y('MeterCurrentFanValue', cursor)" in script
+    assert "y('MeterMotherboardFanLabel', cursor)" in script and "y('MeterMotherboardFanValue', cursor)" in script
     assert "y('MeterHistoryTrack', cursor)" in script and "y('MeterHistory', cursor)" in script
     assert "cursor = cursor + state.graphHeight + 8" in script
     assert "return graphTotalHeight" in script
@@ -545,11 +585,21 @@ def validate():
     assert "local function formatVoltage(value)" in sensor_script
     assert "precisionChanged" in sensor_script
     assert "set('MeterCurrentClockValue', 'Text'" in sensor_script
+    assert "readBinding('Fan')" in sensor_script and "local function formatFan(value)" in sensor_script
+    assert "set('MeterCurrentFanValue', 'Text'" in sensor_script
+    assert "readBinding('MotherboardFan')" in sensor_script
+    assert "set('MeterMotherboardFanValue', 'Text'" in sensor_script
+    assert "local displayClock, displayClockDetail = clock or nativeClock" in sensor_script
+    assert "elseif nativeClock then displayClockDetail = nativeClockDetail" in sensor_script
     assert 'CPUClockIndex' not in sensor_script and 'CPUClockIndex' not in setup_script
     assert "parts[1] == 'CLOCK'" in setup_script and "normalizedLabel ~= 'Core Clocks'" in setup_script
     assert "CLOCK|HKEY_CURRENT_USER|index" in discovery_script
     assert "$label -eq 'Core Clocks'" in discovery_script
     assert "-Kind 'CLOCK' -RequestedIndex -1" in discovery_script
+    assert "FAN|HKEY_CURRENT_USER|index" in discovery_script
+    assert "-Kind 'FAN' -RequestedIndex -1" in discovery_script
+    assert "MBFAN|HKEY_CURRENT_USER|index" in discovery_script
+    assert "-Kind 'MBFAN' -RequestedIndex -1" in discovery_script
     title_cases = validate_title_rows()
     settings_cases = validate_settings_shared_width()
     color_cases = validate_thread_colors()

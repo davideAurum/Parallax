@@ -36,6 +36,12 @@ local function fixture(options)
     local clockSensor = options.clockSensor or sensor
     local clockLabel, clockUnit = options.clockLabel or 'Core Clocks', options.clockUnit or 'MHz'
     local clockRaw, clockIndex = options.clockRaw or '3906.1', options.clockIndex or 11
+    local fanSensor = options.fanSensor or 'DELL EC: Fixture System'
+    local fanLabel, fanUnit = options.fanLabel or 'CPU', options.fanUnit or 'RPM'
+    local fanRaw, fanIndex = options.fanRaw or '2529', options.fanIndex or 29
+    local motherboardFanSensor = options.motherboardFanSensor or 'DELL EC: Fixture System'
+    local motherboardFanLabel, motherboardFanUnit = options.motherboardFanLabel or 'Mainboard', options.motherboardFanUnit or 'RPM'
+    local motherboardFanRaw, motherboardFanIndex = options.motherboardFanRaw or '1049', options.motherboardFanIndex or 30
     local registry, records = {}, {'HWINFOV1'}
     local function export(index, source, label, raw, unit)
         for key, value in pairs({Sensor=source, Label=label, Value=raw .. ' ' .. unit, ValueRaw=raw}) do
@@ -50,6 +56,14 @@ local function fixture(options)
         if options.clock ~= false then
             export(clockIndex, clockSensor, clockLabel, clockRaw, clockUnit)
             records[#records + 1] = 'CLOCK|' .. hive .. '|' .. clockIndex .. '|' .. hex(clockSensor) .. '|' .. hex(clockLabel) .. '|' .. clockUnit
+        end
+        if options.fan ~= false then
+            export(fanIndex, fanSensor, fanLabel, fanRaw, fanUnit)
+            records[#records + 1] = 'FAN|' .. hive .. '|' .. fanIndex .. '|' .. hex(fanSensor) .. '|' .. hex(fanLabel) .. '|' .. fanUnit
+        end
+        if options.motherboardFan ~= false then
+            export(motherboardFanIndex, motherboardFanSensor, motherboardFanLabel, motherboardFanRaw, motherboardFanUnit)
+            records[#records + 1] = 'MBFAN|' .. hive .. '|' .. motherboardFanIndex .. '|' .. hex(motherboardFanSensor) .. '|' .. hex(motherboardFanLabel) .. '|' .. motherboardFanUnit
         end
     end
     -- Individual fixtures use independent indices so changing an aggregate can
@@ -98,12 +112,13 @@ local function newMock(sensorPath, options)
         return item
     end
     measure('MeasureCPUHWiNFORunning', true)
+    measure('MeasureCPUNativeClock', false).value = options.nativeClock or 0
     measure('MeasureCPUSensorNamesUser', true, false).hive = HIVE_USER
     measure('MeasureCPUSensorNamesMachine', true, false).hive = HIVE_MACHINE
-    for _, kind in ipairs({'Temperature', 'Voltage', 'Clock'}) do
+    for _, kind in ipairs({'Temperature', 'Voltage', 'Clock', 'Fan', 'MotherboardFan'}) do
         for field in pairs(fieldNames) do
             measure('MeasureCPUSensor' .. kind .. field, true, false)
-            if kind ~= 'Clock' then
+            if kind == 'Temperature' or kind == 'Voltage' then
                 for slot = 1, 64 do
                     measure('MeasureCPUSensorCore' .. kind .. field .. slot, true, false)
                 end
@@ -240,6 +255,9 @@ end
 local function connect(sensorPath, options)
     local context, data = newMock(sensorPath, options), fixture(options)
     context:install(data)
+    -- Match the main controller, which declares the visible page before sensor
+    -- discovery completes. Most fixtures exercise a full 64-row page.
+    context:call('SetThreadPage', 1, options and options.visibleSlots or 64)
     context:call('Reconnect')
     context:complete(data)
     return context, data
@@ -277,6 +295,14 @@ local function clockReading(context, expected)
     equal(context:text('MeterCurrentClockValue'), expected, 'current CPU-wide clock')
 end
 
+local function fanReading(context, expected)
+    equal(context:text('MeterCurrentFanValue'), expected, 'current CPU fan speed')
+end
+
+local function motherboardFanReading(context, expected)
+    equal(context:text('MeterMotherboardFanValue'), expected, 'current motherboard fan speed')
+end
+
 local function bindingState(context)
     local values = {}
     for _, item in ipairs(context.native) do
@@ -287,12 +313,12 @@ local function bindingState(context)
 end
 
 local function fieldDisabledOptions(context, disabled)
-    for _, kind in ipairs({'Temperature', 'Voltage', 'Clock'}) do
+    for _, kind in ipairs({'Temperature', 'Voltage', 'Clock', 'Fan'}) do
         for field in pairs(fieldNames) do
             local name = 'MeasureCPUSensor' .. kind .. field
             equal(context.measures[name]:GetOption('Disabled'), disabled, name .. ' parsed Disabled')
             equal(context.measures[name].enabled, disabled == '0', name .. ' enabled state')
-            if kind ~= 'Clock' then
+            if kind == 'Temperature' or kind == 'Voltage' then
                 for slot = 1, 64 do
                     local coreName = 'MeasureCPUSensorCore' .. kind .. field .. slot
                     local coreDisabled = slot == 1 and disabled or '1'
@@ -338,9 +364,52 @@ function suite.Run(sensorPath)
         equal(context.measures.MeasureCPUSensorClockRaw.options.RegValue, 'ValueRaw11')
         readings(context, '65', '1.250')
     end)
+    test('CPU fan export binds separately and formats RPM', function()
+        local context = connect(sensorPath, {fanIndex=29, fanRaw='2529'})
+        fanReading(context, '2529 RPM')
+        contains(context:text('MeterCurrentFanValue', 'ToolTipText'), 'CPU fan speed in RPM')
+        equal(context.measures.MeasureCPUSensorFanRaw.options.RegValue, 'ValueRaw29')
+    end)
+    test('missing, changed or invalid CPU fan export stays unavailable', function()
+        local context = connect(sensorPath, {fan=false})
+        fanReading(context, 'Unavailable')
+        context = connect(sensorPath, {fanLabel='GPU Fan'})
+        fanReading(context, 'Unavailable')
+        local data
+        context, data = connect(sensorPath)
+        context:change(data.hive, 'Sensor29', 'dGPU [#1]: Fixture GPU')
+        fanReading(context, 'Unavailable')
+        context, data = connect(sensorPath)
+        context:change(data.hive, 'ValueRaw29', '100001')
+        fanReading(context, 'Unavailable')
+    end)
+    test('motherboard fan export binds separately and formats RPM', function()
+        local context = connect(sensorPath, {motherboardFanIndex=30, motherboardFanRaw='1049'})
+        motherboardFanReading(context, '1049 RPM')
+        contains(context:text('MeterMotherboardFanValue', 'ToolTipText'), 'motherboard fan speed in RPM')
+        equal(context.measures.MeasureCPUSensorMotherboardFanRaw.options.RegValue, 'ValueRaw30')
+    end)
+    test('missing, changed or invalid motherboard fan export stays unavailable', function()
+        local context = connect(sensorPath, {motherboardFan=false})
+        motherboardFanReading(context, 'Unavailable')
+        context = connect(sensorPath, {motherboardFanLabel='GPU Fan'})
+        motherboardFanReading(context, 'Unavailable')
+        local data
+        context, data = connect(sensorPath)
+        context:change(data.hive, 'Sensor30', 'dGPU [#1]: Fixture GPU')
+        motherboardFanReading(context, 'Unavailable')
+        context, data = connect(sensorPath)
+        context:change(data.hive, 'ValueRaw30', '100001')
+        motherboardFanReading(context, 'Unavailable')
+    end)
     test('GHz current clock normalizes to the same CPU-wide display unit', function()
         local context = connect(sensorPath, {clockUnit='GHz', clockRaw='0.800'})
         clockReading(context, '800 MHz')
+    end)
+    test('native Windows aggregate clock remains available without HWiNFO exports', function()
+        local context = connect(sensorPath, {clock=false, nativeClock=4289.5})
+        clockReading(context, '4.29 GHz')
+        contains(context:text('MeterCurrentClockValue', 'ToolTipText'), 'Windows Processor Information aggregate clock')
     end)
     test('missing or invalid Core Clocks remains unavailable without substituting base or per-core values', function()
         for _, options in ipairs({{clock=false}, {clockLabel='Core Effective Clocks'},
@@ -800,6 +869,20 @@ function suite.Run(sensorPath)
         coreReading(context, 1, '41', '0.910')
         coreReading(context, 5, '64', '1.240')
         equal(bindingState(context), bindings, 'returning page preserves bindings')
+    end)
+    test('only visible thread slots own sensor tooltips', function()
+        local context = connect(sensorPath, {visibleSlots=2, cores={
+            {id=0, temperatureRaw='41', voltageRaw='0.910'},
+            {id=4, temperatureRaw='64', voltageRaw='1.240'}
+        }})
+        contains(context:text('MeterCoreTemperature1', 'ToolTipText'), 'Core 0')
+        contains(context:text('MeterCoreVoltage2', 'ToolTipText'), 'requested VID')
+        equal(context:text('MeterCoreTemperature3', 'ToolTipText'), nil, 'unused slots never create empty tooltips')
+        equal(context:text('MeterCoreVoltage64', 'ToolTipText'), nil, 'far unused slots never create empty tooltips')
+        context:call('SetThreadPage', 9, 1)
+        contains(context:text('MeterCoreTemperature1', 'ToolTipText'), 'Core 4')
+        equal(context:text('MeterCoreTemperature2', 'ToolTipText'), '', 'a previously visible tooltip is cleared')
+        equal(context:text('MeterCoreVoltage2', 'ToolTipText'), '', 'a previously visible VID tooltip is cleared')
     end)
     test('odd page starts retain absolute adjacent pairing across row boundaries', function()
         local context = connect(sensorPath, {cores={

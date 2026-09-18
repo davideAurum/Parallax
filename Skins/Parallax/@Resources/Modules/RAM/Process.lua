@@ -6,7 +6,7 @@ function Initialize()
     samples, lastDisplay = {}, nil
 end
 
-function Display()
+function Display(immediate)
     if not model then return end
     local result = model.Format(samples, SKIN:GetVariable('RAMUseMiB'), SKIN:GetVariable('RAMDecimals'))
     -- Avoid unchanged meter updates while preserving periodic provider reads.
@@ -31,9 +31,11 @@ function Display()
     SKIN:Bang('!SetOption', 'MeterRAMProcessesState', 'ToolTipText', result.tip)
     SKIN:Bang('!SetOption', 'MeterRAMProcessesHeader', 'ToolTipText',
         'Five largest private working sets, highest first. '..result.tip)
-    SKIN:Bang('!UpdateMeter', 'MeterRAMProcessesHeader')
-    SKIN:Bang('!UpdateMeterGroup', 'RAMProcesses')
-    SKIN:Bang('!Redraw')
+    if immediate ~= false then
+        SKIN:Bang('!UpdateMeter', 'MeterRAMProcessesHeader')
+        SKIN:Bang('!UpdateMeterGroup', 'RAMProcesses')
+        SKIN:Bang('!Redraw')
+    end
 end
 
 function Update()
@@ -44,6 +46,6 @@ function Update()
             samples[#samples+1] = {name=measure:GetStringValue(), bytes=measure:GetValue()}
         end
     end
-    Display()
+    Display(false)
     return 0
 end

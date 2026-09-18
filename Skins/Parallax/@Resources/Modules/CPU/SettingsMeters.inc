@@ -120,7 +120,7 @@ Hidden=#CPUSettingsInfoHidden#
 Group=CPUSettingsUI
 DynamicVariables=1
 Text=Processor info
-ToolTipText=Show or hide processor details and the current CPU-wide clock row.
+ToolTipText=Show or hide the processor panel, clock and fan rows.
 MouseActionCursor=0
 
 [MeterSettingsInfoRow]
@@ -135,7 +135,7 @@ Group=CPUSettingsUI
 DynamicVariables=1
 Shape=Rectangle 0,0,((1-#CPUSettingsInfoHidden#)*(#ContentWidth#-132*#Scale#)),((1-#CPUSettingsInfoHidden#)*20*#Scale#) | Fill Color #GraphBackgroundColor# | StrokeWidth 0
 LeftMouseUpAction=[!CommandMeasure MeasureCPUSettings "Toggle('CPUShowInfo')"]
-ToolTipText=Show or hide processor details and the current CPU-wide clock row.
+ToolTipText=Show or hide the processor panel, clock and fan rows.
 
 [MeterSettingsInfoValue]
 Meter=String
@@ -149,7 +149,91 @@ Group=CPUSettingsUI
 DynamicVariables=1
 Text=...
 LeftMouseUpAction=[!CommandMeasure MeasureCPUSettings "Toggle('CPUShowInfo')"]
-ToolTipText=Show or hide processor details and the current CPU-wide clock row.
+ToolTipText=Show or hide the processor panel, clock and fan rows.
+
+[MeterSettingsCPUFanLabel]
+Meter=String
+MeterStyle=StyleUtilitySettingsLabel|CPUStyleSettingsLabel
+X=#ContentX#
+Y=((1-#CPUSettingsCPUFanHidden#)*(#Inset#+(#CPUSettingsCPUFanY#+2)*#Scale#))
+W=((1-#CPUSettingsCPUFanHidden#)*(126*#Scale#))
+H=((1-#CPUSettingsCPUFanHidden#)*18*#Scale#)
+Hidden=#CPUSettingsCPUFanHidden#
+Group=CPUSettingsUI
+DynamicVariables=1
+Text=CPU fan
+ToolTipText=Show or hide the CPU fan RPM row beneath Clock.
+MouseActionCursor=0
+
+[MeterSettingsCPUFanRow]
+Meter=Shape
+MeterStyle=StyleUtilitySettingsRow
+X=(#ContentX#+132*#Scale#)
+Y=((1-#CPUSettingsCPUFanHidden#)*(#Inset#+(#CPUSettingsCPUFanY#+0)*#Scale#))
+W=((1-#CPUSettingsCPUFanHidden#)*(#ContentWidth#-132*#Scale#))
+H=((1-#CPUSettingsCPUFanHidden#)*20*#Scale#)
+Hidden=#CPUSettingsCPUFanHidden#
+Group=CPUSettingsUI
+DynamicVariables=1
+Shape=Rectangle 0,0,((1-#CPUSettingsCPUFanHidden#)*(#ContentWidth#-132*#Scale#)),((1-#CPUSettingsCPUFanHidden#)*20*#Scale#) | Fill Color #GraphBackgroundColor# | StrokeWidth 0
+LeftMouseUpAction=[!CommandMeasure MeasureCPUSettings "Toggle('CPUShowFan')"]
+ToolTipText=Show or hide the CPU fan RPM row beneath Clock.
+
+[MeterSettingsCPUFanValue]
+Meter=String
+MeterStyle=StyleUtilitySettingsValue|CPUStyleSettingsValue
+X=(#ContentX#+132*#Scale#)
+Y=((1-#CPUSettingsCPUFanHidden#)*(#Inset#+(#CPUSettingsCPUFanY#+0)*#Scale#))
+W=((1-#CPUSettingsCPUFanHidden#)*(#ContentWidth#-138*#Scale#))
+H=((1-#CPUSettingsCPUFanHidden#)*18*#Scale#)
+Hidden=#CPUSettingsCPUFanHidden#
+Group=CPUSettingsUI
+DynamicVariables=1
+Text=...
+LeftMouseUpAction=[!CommandMeasure MeasureCPUSettings "Toggle('CPUShowFan')"]
+ToolTipText=Show or hide the CPU fan RPM row beneath Clock.
+
+[MeterSettingsMotherboardFanLabel]
+Meter=String
+MeterStyle=StyleUtilitySettingsLabel|CPUStyleSettingsLabel
+X=#ContentX#
+Y=((1-#CPUSettingsMotherboardFanHidden#)*(#Inset#+(#CPUSettingsMotherboardFanY#+2)*#Scale#))
+W=((1-#CPUSettingsMotherboardFanHidden#)*(126*#Scale#))
+H=((1-#CPUSettingsMotherboardFanHidden#)*18*#Scale#)
+Hidden=#CPUSettingsMotherboardFanHidden#
+Group=CPUSettingsUI
+DynamicVariables=1
+Text=Motherboard fan
+ToolTipText=Show or hide the motherboard fan RPM row beneath the CPU fan.
+MouseActionCursor=0
+
+[MeterSettingsMotherboardFanRow]
+Meter=Shape
+MeterStyle=StyleUtilitySettingsRow
+X=(#ContentX#+132*#Scale#)
+Y=((1-#CPUSettingsMotherboardFanHidden#)*(#Inset#+(#CPUSettingsMotherboardFanY#+0)*#Scale#))
+W=((1-#CPUSettingsMotherboardFanHidden#)*(#ContentWidth#-132*#Scale#))
+H=((1-#CPUSettingsMotherboardFanHidden#)*20*#Scale#)
+Hidden=#CPUSettingsMotherboardFanHidden#
+Group=CPUSettingsUI
+DynamicVariables=1
+Shape=Rectangle 0,0,((1-#CPUSettingsMotherboardFanHidden#)*(#ContentWidth#-132*#Scale#)),((1-#CPUSettingsMotherboardFanHidden#)*20*#Scale#) | Fill Color #GraphBackgroundColor# | StrokeWidth 0
+LeftMouseUpAction=[!CommandMeasure MeasureCPUSettings "Toggle('CPUShowMotherboardFan')"]
+ToolTipText=Show or hide the motherboard fan RPM row beneath the CPU fan.
+
+[MeterSettingsMotherboardFanValue]
+Meter=String
+MeterStyle=StyleUtilitySettingsValue|CPUStyleSettingsValue
+X=(#ContentX#+132*#Scale#)
+Y=((1-#CPUSettingsMotherboardFanHidden#)*(#Inset#+(#CPUSettingsMotherboardFanY#+0)*#Scale#))
+W=((1-#CPUSettingsMotherboardFanHidden#)*(#ContentWidth#-138*#Scale#))
+H=((1-#CPUSettingsMotherboardFanHidden#)*18*#Scale#)
+Hidden=#CPUSettingsMotherboardFanHidden#
+Group=CPUSettingsUI
+DynamicVariables=1
+Text=...
+LeftMouseUpAction=[!CommandMeasure MeasureCPUSettings "Toggle('CPUShowMotherboardFan')"]
+ToolTipText=Show or hide the motherboard fan RPM row beneath the CPU fan.
 
 [MeterSettingsCoresLabel]
 Meter=String
@@ -1192,9 +1276,9 @@ Y=(#Inset#+#CPUSettingsSensorGuide2Y#*#Scale#)
 W=(#ContentWidth#-12*#Scale#)
 H=(18*#Scale#)
 FontSize=(#FontSize#*#Scale#)
-Text=2. HWiNFO Gadget > Enable reporting to Gadget.
+Text=2. Enable Remember Preferences + Gadget reporting.
 Group=CPUSettingsUI
-ToolTipText=2. HWiNFO Gadget > Enable reporting to Gadget.
+ToolTipText=In HWiNFO main settings enable Remember Preferences. In Sensors settings > Gadget, enable reporting to Gadget.
 DynamicVariables=1
 
 [MeterSettingsSensorGuide3]
@@ -1205,9 +1289,9 @@ Y=(#Inset#+#CPUSettingsSensorGuide3Y#*#Scale#)
 W=(#ContentWidth#-12*#Scale#)
 H=(18*#Scale#)
 FontSize=(#FontSize#*#Scale#)
-Text=3. Pick Core Clocks, each Core temperature and Core N VID.
+Text=3. Pick clocks, CPU/board fans, Core temps and Core N VID.
 Group=CPUSettingsUI
-ToolTipText=Report CPU [#0] Core Clocks for the current CPU-wide clock. For each physical core, report Core N under CPU DTS and Core N VID under CPU. Distance to TjMAX is not a temperature. CPU Package/Core Temperatures and Vcore/Core VIDs are optional summary readings.
+ToolTipText=Report CPU [#0] Core Clocks for the current CPU-wide clock, the RPM reading named CPU or CPU Fan, and the Mainboard or Motherboard RPM reading. For each physical core, report Core N under CPU DTS and Core N VID under CPU. Distance to TjMAX is not a temperature. CPU Package/Core Temperatures and Vcore/Core VIDs are optional summary readings.
 DynamicVariables=1
 
 [MeterSettingsSensorGuide4]
@@ -1218,9 +1302,9 @@ Y=(#Inset#+#CPUSettingsSensorGuide4Y#*#Scale#)
 W=(#ContentWidth#-12*#Scale#)
 H=(18*#Scale#)
 FontSize=(#FontSize#*#Scale#)
-Text=4. Report value in Gadget for each. OK, then scan.
+Text=4. Report each value. OK, then Quit & Save once.
 Group=CPUSettingsUI
-ToolTipText=Enable Report value in Gadget separately for each chosen sensor, click OK to save in HWiNFO, then click Scan sensors here.
+ToolTipText=Enable Report value in Gadget separately for each chosen sensor, click OK, then use Quit & Save once so HWiNFO restores those exports after restart. Reopen HWiNFO and scan here.
 DynamicVariables=1
 
 [MeterSettingsSensorStatus]
@@ -1259,8 +1343,8 @@ Y=(#Inset#+#CPUSettingsSensorsHintY#*#Scale#)
 W=(#ContentWidth#-12*#Scale#)
 H=(18*#Scale#)
 FontSize=(#FontSize#*#Scale#)
-Text=Clock: CPU-wide. VID: requested.
-ToolTipText=HWiNFO Core Clocks supplies the current CPU-wide clock row, not per-thread data. Each HWiNFO Core N supplies V and T to two adjacent thread rows: Core 0 to threads 1/2, Core 1 to threads 3/4, and so on. CPU-wide T/V selectors control the summary only. V displays VID (requested voltage), not measured Vcore.
+Text=Clock/Fan: CPU-wide. VID: requested.
+ToolTipText=HWiNFO Core Clocks supplies the current CPU-wide clock row; a validated CPU or CPU Fan RPM export supplies the fan row. Each HWiNFO Core N supplies V and T to two adjacent thread rows: Core 0 to threads 1/2, Core 1 to threads 3/4, and so on. CPU-wide T/V selectors control the summary only. V displays VID (requested voltage), not measured Vcore.
 Group=CPUSettingsUI
 DynamicVariables=1
 

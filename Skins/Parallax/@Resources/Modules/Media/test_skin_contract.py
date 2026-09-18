@@ -108,17 +108,23 @@ def numeric(expression):
 
 
 def media_body_geometry(width, scale, columns, bar_thickness=6):
-    """Physical dimensions from the user-approved proportional artwork contract."""
+    """Physical dimensions from the current anchored-artwork contract."""
     rounded=lambda value: math.floor(value+0.5)
     wide=columns-1
     base_cover=rounded(rounded(width*scale)*0.9) if wide else 48*scale
-    cover=rounded(base_cover*0.75)
+    legacy_cover=rounded(base_cover*0.75)
+    cover=legacy_cover+rounded(20*wide*scale)
     offset=rounded(12*wide*scale)
+    legacy_cover_bottom=44*(1-wide)*scale+legacy_cover
     cover_bottom=44*(1-wide)*scale+cover
     bar=max(1,rounded(bar_thickness*scale))
-    progress=offset+122*scale+max(2*scale,6*scale-bar/2)
+    legacy_progress=offset+122*scale+max(2*scale,6*scale-bar/2)
+    legacy_controls_bottom=legacy_progress+bar+34*scale
+    progress=offset+(122-20*wide)*scale+max(2*scale,6*scale-bar/2)
     controls_bottom=progress+bar+34*scale
-    body=max(rounded(162*scale)+offset,math.ceil(max(cover_bottom,controls_bottom)+37*scale))
+    legacy_body=max(rounded(162*scale)+offset,
+                    math.ceil(max(legacy_cover_bottom,legacy_controls_bottom)+37*scale))
+    body=max(legacy_body,math.ceil(max(cover_bottom,controls_bottom)+37*scale))
     return cover,offset,body
 
 
@@ -474,26 +480,32 @@ class SkinContractTests(unittest.TestCase):
                                 surface=val('#MediaSurfaceY#')
                                 title_size=val('#TitleIconSize#')
                                 self.assertAlmostEqual(box('MeterHeading').left,val('#ContentX#')+title_size+4*scale)
-                                self.assertAlmostEqual(box('MeterHeading').width,val('#ContentWidth#')-title_size-28*scale)
+                                expected_heading=97*scale if columns==2 else val('#ContentWidth#')-title_size-28*scale
+                                self.assertAlmostEqual(box('MeterHeading').width,expected_heading)
                                 self.assertTrue(box('MeterHeading').before(box('MeterMediaOptions')))
-                                self.assertTrue(box('MeterHeading').above(box('MeterPlayerName')))
+                                if columns==2: self.assertTrue(box('MeterHeading').before(box('MeterPlayerIcon')))
+                                else: self.assertTrue(box('MeterHeading').above(box('MeterPlayerName')))
                                 self.assertAlmostEqual(box('MeterMediaIcon').width,title_size)
                                 self.assertAlmostEqual(box('MeterMediaIcon').height,title_size)
                                 self.assertAlmostEqual(box('MeterMediaIcon').left,val('#ContentX#'))
                                 self.assertAlmostEqual(box('MeterMediaIcon').top+title_size/2,surface+15*scale)
                                 self.assertAlmostEqual(box('MeterPlayerIcon').width,14*scale)
                                 self.assertAlmostEqual(box('MeterPlayerIcon').height,14*scale)
-                                self.assertAlmostEqual(box('MeterPlayerIcon').top,surface+32*scale)
-                                self.assertAlmostEqual(box('MeterPlayerName').top,surface+30*scale)
+                                self.assertAlmostEqual(box('MeterPlayerIcon').top,surface+(8 if columns==2 else 32)*scale)
+                                self.assertAlmostEqual(box('MeterPlayerName').top,surface+(6 if columns==2 else 30)*scale)
                                 self.assertAlmostEqual(box('MeterPlayerName').height,18*scale)
                                 self.assertAlmostEqual(box('MeterPlayerName').left-box('MeterPlayerIcon').right,4*scale)
-                                self.assertAlmostEqual(box('MeterPlayerName').right,val('#ContentX#')+val('#ContentWidth#'))
+                                self.assertAlmostEqual(box('MeterPlayerName').right,
+                                                       val('#ContentX#')+val('#ContentWidth#')-24*(columns-1)*scale)
+                                if columns==2:
+                                    self.assertAlmostEqual((box('MeterHeading').top+box('MeterHeading').bottom)/2,
+                                                           (box('MeterPlayerName').top+box('MeterPlayerName').bottom)/2)
                                 style=resolve_style(sections,'MeterPlayerName')
                                 self.assertEqual(val(style['FontSize']),(10 if profile=='max' else 9)*scale)
                                 self.assertEqual(expand(style['FontColor']),expand('#TextColor#'))
                                 self.assertEqual(style['ClipString'],'1')
                                 first='MeterTrackTitle' if config=='Media.ini' else 'MeterSetupStatus'
-                                self.assertAlmostEqual(box(first).top,surface+50*scale)
+                                self.assertAlmostEqual(box(first).top,surface+(30 if columns==2 else 50)*scale)
                                 self.assertTrue(box('MeterPlayerName').above(box(first)))
                                 if columns==1:
                                     self.assertAlmostEqual(box('MeterPlayerIcon').left,val('#ContentX#')+54*scale)
@@ -551,7 +563,8 @@ class SkinContractTests(unittest.TestCase):
                                             self.assertAlmostEqual(box(name).height,expected)
                                             self.assertAlmostEqual((box(name).top+box(name).bottom)/2,center)
                                             self.assertAlmostEqual(box(title_name).left-box(name).right,4*scale)
-                                            self.assertTrue(box(title_name).above(box('MeterPlayerName')))
+                                            if columns==2: self.assertTrue(box(title_name).before(box('MeterPlayerIcon')))
+                                            else: self.assertTrue(box(title_name).above(box('MeterPlayerName')))
                                             self.assertTrue(box(name).inside(window))
                                             for key,value in icon.items():
                                                 if re.fullmatch(r'Shape\d*|.*Path',key):
@@ -660,32 +673,40 @@ class SkinContractTests(unittest.TestCase):
     def test_settings_persistence_and_no_provider_launch_in_actions(self):
         prefix = '["powershell.exe" "-NoLogo" "-NoProfile" "-ExecutionPolicy" "Bypass" '
         provider = '"-File" "#@#Modules\\Media\\Queue\\QueueProvider.ps1" "-Command" '
-        hidden = '"-WindowStyle" "Hidden" '
+        powershell = r'%SystemRoot%\System32\WindowsPowerShell\v1.0\powershell.exe'
         queue_allowed = {
-            ('Rainmeter', 'ContextAction4'): prefix + hidden + provider + '"Disconnect" "-Quiet"]',
-            ('Rainmeter', 'ContextAction5'): prefix + hidden + provider + '"Start" "-ResumeAfterQuota" "-Quiet"]',
+            ('Rainmeter', 'ContextAction4'): '[!CommandMeasure MeasureQueueControl "Run(\'Disconnect\')"]',
+            ('Rainmeter', 'ContextAction5'): '[!CommandMeasure MeasureQueueControl "Run(\'ResumeQuota\')"]',
             ('MeterQueueConnect', 'LeftMouseUpAction'): prefix + '"-NoExit" ' + provider + '"Connect" "-PollSeconds" "#QueuePollSeconds#"]',
-            ('MeterQueueStart', 'LeftMouseUpAction'): prefix + hidden + provider + '"Start" "-PollSeconds" "#QueuePollSeconds#" "-Quiet"]',
-            ('MeterQueueStop', 'LeftMouseUpAction'): prefix + hidden + provider + '"Stop" "-Quiet"]',
+            ('MeterQueueStart', 'LeftMouseUpAction'): '[!CommandMeasure MeasureQueueControl "Run(\'Start\')"]',
+            ('MeterQueueStop', 'LeftMouseUpAction'): '[!CommandMeasure MeasureQueueControl "Run(\'Stop\')"]',
+            ('MeasureQueueProviderControl', 'Plugin'): 'RunCommand',
+            ('MeasureQueueProviderControl', 'Program'): powershell,
+            ('MeasureQueueProviderControl', 'Parameter'): '-NoLogo -NoProfile -NonInteractive -WindowStyle Hidden -ExecutionPolicy Bypass -File "QueueProvider.ps1" -Command "Stop" -Quiet',
         }
         interval = ' "-PollSeconds" "#QueuePollSeconds#"'
         settings_allowed = {
             ('MeterSignIn','LeftMouseUpAction'): prefix+'"-NoExit" '+provider+'"Connect"'+interval+']',
-            ('MeterStart','LeftMouseUpAction'): prefix+hidden+provider+'"Start"'+interval+' "-Quiet"]',
-            ('MeterStop','LeftMouseUpAction'): prefix+hidden+provider+'"Stop" "-Quiet"]',
-            ('MeterRestart','LeftMouseUpAction'): prefix+hidden+provider+'"Restart"'+interval+' "-Quiet"]',
-            ('MeterDisconnect','LeftMouseUpAction'): prefix+hidden+provider+'"Disconnect" "-Quiet"]',
+            ('MeterStart','LeftMouseUpAction'): '[!CommandMeasure MeasureMediaSettings "ProviderControl(\'Queue\',\'Start\')"]',
+            ('MeterStop','LeftMouseUpAction'): '[!CommandMeasure MeasureMediaSettings "ProviderControl(\'Queue\',\'Stop\')"]',
+            ('MeterRestart','LeftMouseUpAction'): '[!CommandMeasure MeasureMediaSettings "ProviderControl(\'Queue\',\'Restart\')"]',
+            ('MeterDisconnect','LeftMouseUpAction'): '[!CommandMeasure MeasureMediaSettings "ProviderControl(\'Queue\',\'Disconnect\')"]',
         }
-        source_provider='"-File" "#@#Modules\\Media\\Source\\SourceProvider.ps1" "-Command" '
         settings_allowed.update({
-            ('MeterSourceStart','LeftMouseUpAction'): prefix+hidden+source_provider+'"Start" "-Quiet"]',
-            ('MeterSourceStop','LeftMouseUpAction'): prefix+hidden+source_provider+'"Stop" "-Quiet"]',
+            ('MeterSourceStart','LeftMouseUpAction'): '[!CommandMeasure MeasureMediaSettings "ProviderControl(\'Source\',\'Start\')"]',
+            ('MeterSourceStop','LeftMouseUpAction'): '[!CommandMeasure MeasureMediaSettings "ProviderControl(\'Source\',\'Stop\')"]',
         })
         settings_allowed.update({
             ('MeasureMediaSettingsInput','Plugin'):'RunCommand',
-            ('MeasureMediaSettingsInput','Program'):r'%SystemRoot%\System32\WindowsPowerShell\v1.0\powershell.exe',
+            ('MeasureMediaSettingsInput','Program'):powershell,
             ('MeasureMediaSettingsInput','Parameter'):'-NoProfile -NonInteractive',
             ('MeasureMediaSettingsInput','FinishAction'):'[!UpdateMeasure MeasureMediaSettingsInput][!CommandMeasure MeasureMediaSettings "CommitNumberInput()"]',
+            ('MeasureMediaSourceControl','Plugin'):'RunCommand',
+            ('MeasureMediaSourceControl','Program'):powershell,
+            ('MeasureMediaSourceControl','Parameter'):'-NoLogo -NoProfile -NonInteractive -WindowStyle Hidden -ExecutionPolicy Bypass -File "SourceProvider.ps1" -Command "Stop" -Quiet',
+            ('MeasureMediaQueueControl','Plugin'):'RunCommand',
+            ('MeasureMediaQueueControl','Program'):powershell,
+            ('MeasureMediaQueueControl','Parameter'):'-NoLogo -NoProfile -NonInteractive -WindowStyle Hidden -ExecutionPolicy Bypass -File "QueueProvider.ps1" -Command "Stop" -Quiet',
         })
         for name in CONFIGS:
             sections, variables, _, _ = read_config(name, columns=2)
@@ -722,10 +743,11 @@ class SkinContractTests(unittest.TestCase):
             if name == 'Queue/Queue.ini':
                 for section_name, key in allowed:
                     self.assertIn(key, sections[section_name])
-                self.assertFalse(any(s.get('Plugin') for s in sections.values()))
+                self.assertEqual([s.get('Plugin') for s in sections.values() if s.get('Plugin')], ['RunCommand'])
                 self.assertEqual([s['ScriptFile'] for s in sections.values() if 'ScriptFile' in s],
                                  ['#@#Modules\\Media\\MediaLifecycle.lua',
-                                  '#@#Modules\\Media\\Queue\\QueueReader.lua'])
+                                  '#@#Modules\\Media\\Queue\\QueueReader.lua',
+                                  '#@#Modules\\Media\\Queue\\QueueControl.lua'])
                 self.assertNotIn('QueueCachePath', sections['MeasureQueueStatus'])
 
     def test_accordion_and_settings_controls_have_bounded_persisted_preferences(self):
@@ -771,12 +793,23 @@ class SkinContractTests(unittest.TestCase):
                 self.assertEqual(sections[f'Meter{meter}{part}']['LeftMouseUpAction'],
                                  f'''[!CommandMeasure MeasureMediaSettings "StepNumber('{key}',{direction})"]''')
         plugins=[(name,s) for name,s in sections.items() if s.get('Plugin')]
-        self.assertEqual([name for name,s in plugins],['MeasureMediaSettingsInput'])
+        self.assertEqual([name for name,s in plugins],
+                         ['MeasureMediaSettingsInput','MeasureMediaSourceControl','MeasureMediaQueueControl'])
         input_measure=plugins[0][1]
         for key,value in {'Plugin':'RunCommand','State':'Hide','OutputType':'UTF8','Timeout':'300000','UpdateDivider':'-1'}.items():
             self.assertEqual(input_measure[key],value)
         self.assertEqual(input_measure['Parameter'],'-NoProfile -NonInteractive')
         self.assertNotIn('Run',input_measure['FinishAction'])
+        for name,folder,script in (
+                ('MeasureMediaSourceControl','#@#Modules\\Media\\Source\\','SourceProvider.ps1'),
+                ('MeasureMediaQueueControl','#@#Modules\\Media\\Queue\\','QueueProvider.ps1')):
+            control=sections[name]
+            for key,value in {'Plugin':'RunCommand','State':'Hide','OutputType':'UTF8',
+                              'Timeout':'15000','UpdateDivider':'-1','DynamicVariables':'1'}.items():
+                self.assertEqual(control[key],value)
+            self.assertEqual(control['StartInFolder'],folder)
+            self.assertIn(f'-File "{script}" -Command "Stop" -Quiet',control['Parameter'])
+            self.assertIn('-NonInteractive -WindowStyle Hidden',control['Parameter'])
         self.assertEqual([s['ScriptFile'] for s in sections.values() if 'ScriptFile' in s],
                          ['#@#Modules\\Media\\Settings.lua'])
         for width in (180,220):
@@ -913,7 +946,8 @@ class SkinContractTests(unittest.TestCase):
                 elif name != 'Settings/Settings.ini':
                     self.assertTrue(box('MeterMediaIcon').before(box('MeterHeading')))
                     self.assertTrue(box('MeterPlayerIcon').before(box('MeterPlayerName')))
-                    self.assertTrue(box('MeterHeading').above(box('MeterPlayerName')))
+                    if columns==2: self.assertTrue(box('MeterHeading').before(box('MeterPlayerIcon')))
+                    else: self.assertTrue(box('MeterHeading').above(box('MeterPlayerName')))
                     self.assertTrue(box('MeterHeading').before(box('MeterMediaOptions')))
                     self.assertTrue(box('MeterQueueHeading').before(box('MeterQueueToggle')))
                     self.assertTrue(box('MeterQueueToggle').before(box('MeterQueueStatus')))
@@ -1013,7 +1047,7 @@ class SkinContractTests(unittest.TestCase):
                                 old_metadata_x=inset+(base_cover+8*scale if wide else padding+54*scale)
                                 art=box('MeterArtworkPlaceholder')
                                 self.assertAlmostEqual(art.width,cover_size)
-                                self.assertAlmostEqual(art.width,math.floor(base_cover*0.75+0.5))
+                                self.assertAlmostEqual(art.width,math.floor(base_cover*0.75+0.5)+math.floor(20*wide*scale+0.5))
                                 self.assertAlmostEqual(art.height,art.width)
                                 self.assertAlmostEqual(art.left,inset+padding*(1-wide))
                                 self.assertAlmostEqual(art.top,inset+44*(1-wide)*scale)
@@ -1046,7 +1080,7 @@ class SkinContractTests(unittest.TestCase):
                                     for row,name in enumerate(('MeterTrackTitle','MeterArtist','MeterAlbum')):
                                         self.assertAlmostEqual(box(name).left,old_metadata_x+20*scale)
                                         self.assertAlmostEqual(box(name).width,box('MeterPanel').right-padding-old_metadata_x-20*scale)
-                                        self.assertAlmostEqual(box(name).top,inset+surface_offset+(50+row*24)*scale)
+                                        self.assertAlmostEqual(box(name).top,inset+surface_offset+(50-20*wide+row*24)*scale)
                                         icon=('MeterSongIcon','MeterArtistIcon','MeterAlbumIcon')[row]
                                         self.assertAlmostEqual((box(name).top+box(name).bottom)/2,(box(icon).top+box(icon).bottom)/2)
                                     self.assertEqual(box('MeterCover'),art)
@@ -1080,7 +1114,7 @@ class SkinContractTests(unittest.TestCase):
                                     self.assertAlmostEqual(box('MeterHeading').top,inset+surface_offset+4*scale)
                                     self.assertAlmostEqual(box('MeterMediaOptions').top,inset+surface_offset+6*scale)
                                     if config=='Media.ini':
-                                        self.assertAlmostEqual(box('MeterTrackTitle').top,inset+surface_offset+50*scale)
+                                        self.assertAlmostEqual(box('MeterTrackTitle').top,inset+surface_offset+30*scale)
                                         self.assertAlmostEqual(box('MeterArtist').top-box('MeterTrackTitle').top,24*scale)
                                         self.assertAlmostEqual(box('MeterAlbum').top-box('MeterArtist').top,24*scale)
                                         self.assertTrue(box('MeterHeading').above(box('MeterTrackTitle')))
@@ -1092,7 +1126,7 @@ class SkinContractTests(unittest.TestCase):
                                     self.assertAlmostEqual(val('#ContentX#'),inset+padding)
                                     if config=='Media.ini':
                                         self.assertAlmostEqual(box('MeterTrackTitle').left,val('#ContentX#')+74*scale)
-        self.assertEqual([media_body_geometry(width,1,2)[2] for width in (180,220,320)],[214,214,253])
+        self.assertEqual([media_body_geometry(width,1,2)[2] for width in (180,220,320)],[214,214,273])
         for thickness in (1,6,6.25,12):
             for width in (180,220,320):
                 for scale in (0.75,1,2):

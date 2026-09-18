@@ -115,8 +115,13 @@ local function InstallSettingsFixtureProxy()
         Bang=function(_,...)
             local args={...}
             if args[1]=='!CommandMeasure' then
-                assert(args[2]=='MeasureMediaSettingsInput' and args[3]=='Run','Unexpected settings helper dispatch')
-                count('FixtureInputRuns');native:Bang('!SetVariable','FixtureInputStatus','0');return
+                if args[2]=='MeasureMediaSettingsInput' and args[3]=='Run' then
+                    count('FixtureInputRuns');native:Bang('!SetVariable','FixtureInputStatus','0');return
+                end
+                if (args[2]=='MeasureMediaSourceControl' or args[2]=='MeasureMediaQueueControl') and args[3]=='Run' then
+                    return
+                end
+                error('Unexpected settings helper dispatch')
             end
             if args[1]=='!WriteKeyValue' then count('FixtureSettingsWrites') end
             if args[1]=='!Refresh' then count('FixtureSettingsRefreshes') end
@@ -133,6 +138,24 @@ local productionInitialize=Initialize
 function Initialize() InstallSettingsFixtureProxy();productionInitialize() end
 '@
     [IO.File]::WriteAllText($controllerPath,$proxy+"`n"+$controller+"`n"+$initialize,[Text.Encoding]::Unicode)
+}
+function Install-RunCommandFixtures([string]$CaseRoot) {
+    # Provider controls are dormant in the visual scenarios, but replace every
+    # copied RunCommand host so a fixture can never launch a real helper.
+    Write-TestFile (Join-Path $CaseRoot '@Resources\Modules\Media\ProviderControlFixture.lua') "function Update() return 1 end`nfunction Run() end`n"
+    $names=@('MeasureMediaSourceControl','MeasureMediaQueueControl','MeasureQueueProviderControl')
+    foreach ($entryPath in Get-ChildItem -LiteralPath $CaseRoot -Recurse -Filter '*.ini' -File) {
+        $entry=[IO.File]::ReadAllText($entryPath.FullName)
+        $changed=$false
+        foreach ($name in $names) {
+            $pattern='(?ms)^\['+[regex]::Escape($name)+'\]\r?\n.*?(?=^\[|\z)'
+            if ([regex]::IsMatch($entry,$pattern)) {
+                $entry=[regex]::Replace($entry,$pattern,"[$name]`nMeasure=Script`nScriptFile=#@#Modules\Media\ProviderControlFixture.lua`nUpdateDivider=-1`n`n")
+                $changed=$true
+            }
+        }
+        if ($changed) { Write-TestFile $entryPath.FullName $entry }
+    }
 }
 Add-Type -AssemblyName System.Drawing
 function Write-SyntheticCover([string]$Path) {
@@ -206,6 +229,7 @@ foreach ($kind in $kinds) { foreach ($width in $widths) { foreach ($scale in @(0
     $barThickness=if ($BarThicknessFocused) { if ($width -eq 180) { 1 } elseif ($width -eq 220) { 6.25 } else { 12 } } else { 6 }
     Write-TypographyFixture $caseRoot $profile $scale $barThickness
     Install-SettingsInputFixture $caseRoot
+    Install-RunCommandFixtures $caseRoot
     if ($QueueEmptyFocused) {
         $optionsPath=Join-Path $caseRoot '@Resources\Modules\Media\MediaOptions.lua'
         $options=[IO.File]::ReadAllText($optionsPath)
@@ -375,7 +399,7 @@ ExpectedBarThickness=$($barThickness.ToString([Globalization.CultureInfo]::Invar
         else { $probes=@(@('MeterHeading','Media Player'),@('MeterPlayerName','Setup'),@('MeterSetupStatus','Optional WebNowPlaying')) }
     }
     if ($isPlayer) { $probes+=@(@('MeterTrackTitle','Agpqy'),@('MeterArtist','Agpqy'),@('MeterAlbum','Agpqy'),@('MeterTiming','0:45 / 3:00'),@('MeterTimingUnavailable','-- / --'),@('MeterCoverLabel','N/A')) }
-    elseif (-not $isSettings) { $probes+=@(@('MeterSetupInstructions','1. Install WNP 2.x+.#CRLF#2. Open a player.'),@('MeterDesktopNote','Browser: add extension.'),@('MeterWNPDocs','WNP docs'),@('MeterLoadPlayer','Load player')) }
+    elseif (-not $isSettings) { $probes+=@(@('MeterSetupInstructions','1. WNP plugin is bundled.#CRLF#2. Open a player.'),@('MeterDesktopNote','Browser: add extension.'),@('MeterWNPDocs','WNP docs'),@('MeterLoadPlayer','Load player')) }
     foreach ($probe in $probes) {
         $entry+="`n[Probe$($probe[0])]`nMeter=String`nGroup=TypographyProbes`nX=0`nY=0`nText=$($probe[1])`nClipString=0`nHidden=1`nFontColor=0,0,0,0`nPadding=0,0,0,0`nAntiAlias=1`n"
     }

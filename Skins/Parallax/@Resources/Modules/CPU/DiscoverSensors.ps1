@@ -5,11 +5,13 @@
 # TEMP|HKEY_CURRENT_USER|index|UTF8-hex sensor|UTF8-hex label|C or F
 # VOLT|HKEY_CURRENT_USER|index|UTF8-hex sensor|UTF8-hex label|V or mV|VCORE or VID
 # CLOCK|HKEY_CURRENT_USER|index|UTF8-hex sensor|UTF8-hex label|MHz or GHz
+# FAN|HKEY_CURRENT_USER|index|UTF8-hex sensor|UTF8-hex label|RPM
+# MBFAN|HKEY_CURRENT_USER|index|UTF8-hex sensor|UTF8-hex label|RPM
 # STATUS|human-readable ASCII explanation (one line for each unavailable kind)
 # With -List or positive -RequestId, append REQUEST|id. With -List only, also
 # append STATE|RUNNING or STOPPED, then up to 128 records:
-# CAND|TEMP or VOLT or CLOCK|hive|index|UTF8-hex sensor|UTF8-hex label|unit|VCORE or VID
-# TEMP and CLOCK candidates have an empty final field. Candidate lines contain no readings.
+# CAND|TEMP, VOLT, CLOCK, FAN or MBFAN|hive|index|UTF8-hex sensor|UTF8-hex label|unit|VCORE or VID
+# TEMP, CLOCK, FAN and MBFAN candidates have an empty final field. Candidate lines contain no readings.
 # With -CoreList or -List, append unique per-core mappings (at most 128):
 # CORE|TEMP or VOLT|coreId0..63|hive|index|UTF8-hex sensor|UTF8-hex label|unit|VID
 # TEMP core records have an empty final field. Core IDs are HWiNFO identities,
@@ -240,10 +242,10 @@ function ConvertTo-CPUSensorCandidate {
 
     # ValueRaw carries no unit. Require a recognized unit in the paired Value.
     # HWiNFO may format the number with decimal/thousands separators; only the
-    # raw field is used numerically. Preserve C/F, V/mV and MHz/GHz for the
+    # raw field is used numerically. Preserve C/F, V/mV, MHz/GHz and RPM for the
     # live reader.
     $unitMatch = [regex]::Match($formatted,
-        '\A[+-]?[0-9][0-9.,\s]*\s*(?:\u00b0\s*)?(C|F|mV|V|MHz|GHz)\z')
+        '\A[+-]?[0-9][0-9.,\s]*\s*(?:\u00b0\s*)?(C|F|mV|V|MHz|GHz|RPM)\z')
     if (-not $unitMatch.Success) { return }
     $unit = $unitMatch.Groups[1].Value
     $isCPU0 = $sensor -match '^CPU\s*\[#0\](?::|$)'
@@ -290,6 +292,18 @@ function ConvertTo-CPUSensorCandidate {
         # This is HWiNFO's CPU-wide export. Do not substitute individual,
         # effective, or bus clock readings for the requested aggregate line.
         $kind = 'CLOCK'
+    }
+    elseif ($unit -eq 'RPM' -and -not $isGraphics -and -not $isOtherCPU -and
+            $label -match '(?i)\ACPU(?:\s+Fan(?:\s+(?:Speed|#?1))?)?\z') {
+        # Fan controllers normally live in a motherboard or embedded-controller
+        # group rather than the CPU group. Require an exact CPU-fan label and RPM
+        # so a chassis, pump or GPU fan can never fill this row accidentally.
+        $kind = 'FAN'
+    }
+    elseif ($unit -eq 'RPM' -and -not $isGraphics -and -not $isOtherCPU -and
+            $label -match '(?i)\A(?:Mainboard|Motherboard)(?:\s+Fan)?\z') {
+        # The motherboard fan is separate from CPU, chassis, pump and GPU fans.
+        $kind = 'MBFAN'
     }
     if ($kind.Length -eq 0) { return }
     [pscustomobject]@{
@@ -375,7 +389,9 @@ function Select-CPUExport {
     }
     $description = if ($Kind -eq 'TEMP') { 'temperature' }
         elseif ($Kind -eq 'VOLT') { 'voltage' }
-        else { 'core clock' }
+        elseif ($Kind -eq 'CLOCK') { 'core clock' }
+        elseif ($Kind -eq 'FAN') { 'fan speed' }
+        else { 'motherboard fan speed' }
     if ($unique.Count -eq 0) {
         $detail = if ($RequestedIndex -ge 0) {
             'Requested CPU ' + $description + ' export is missing or unsupported'
@@ -385,8 +401,8 @@ function Select-CPUExport {
         return 'STATUS|' + $detail
     }
     if ($unique.Count -gt 1) {
-        if ($Kind -eq 'CLOCK') {
-            return 'STATUS|Ambiguous CPU core clock exports; choose a search scope with one mapping'
+        if ($Kind -eq 'CLOCK' -or $Kind -eq 'FAN' -or $Kind -eq 'MBFAN') {
+            return 'STATUS|Ambiguous CPU ' + $description + ' exports; choose a search scope with one mapping'
         }
         return 'STATUS|Ambiguous CPU ' + $description + ' exports; select a unique index and hive'
     }
@@ -453,6 +469,8 @@ $candidates = @(
 Select-CPUExport -Candidates $candidates -Kind 'TEMP' -RequestedIndex $TemperatureIndex
 Select-CPUExport -Candidates $candidates -Kind 'VOLT' -RequestedIndex $VoltageIndex
 Select-CPUExport -Candidates $candidates -Kind 'CLOCK' -RequestedIndex -1
+Select-CPUExport -Candidates $candidates -Kind 'FAN' -RequestedIndex -1
+Select-CPUExport -Candidates $candidates -Kind 'MBFAN' -RequestedIndex -1
 if ($List -or $RequestId -gt 0) {
     # Echo caller correlation as data; a late result cannot finish a newer scan.
     'REQUEST|' + $RequestId

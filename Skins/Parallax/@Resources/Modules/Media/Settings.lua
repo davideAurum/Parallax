@@ -3,7 +3,7 @@
 -- original file encoding remain intact. Only a numeric field click starts the
 -- shared one-shot input overlay; queue/source workers remain explicit actions.
 local settingsPath, values, status, restartPending, layoutExpanded
-local editingRequest, settingsRevision
+local editingRequest, settingsRevision, providerLaunched
 local defaults = { Columns = '1', QueueExpanded = '0', QueueRowLimit = '5', QueueShowDetails = '1', QueuePollSeconds = '30' }
 local allowed = {
     QueueExpanded = { '0', '1' }, QueueShowDetails = { '0', '1' }
@@ -135,6 +135,7 @@ function Initialize()
     layoutExpanded = nil
     editingRequest = nil
     settingsRevision = 0
+    providerLaunched = {}
     status = values and 'Changes save when clicked.' or 'Cannot read Media settings.'
     renderLayout()
 end
@@ -257,6 +258,37 @@ function CommitNumberInput()
     values = before
     if request.key == 'QueueRowLimit' and current('QueueExpanded') ~= '1' then return false end
     return save(request.key, value)
+end
+
+local providerControls = {
+    Source = { measure = 'MeasureMediaSourceControl', script = 'SourceProvider.ps1', actions = { Start=true, Stop=true } },
+    Queue = { measure = 'MeasureMediaQueueControl', script = 'QueueProvider.ps1', actions = { Start=true, Stop=true, Restart=true, Disconnect=true } }
+}
+
+function ProviderControl(scope, action)
+    local spec = providerControls[scope]
+    local measure = spec and spec.actions[action] and SKIN:GetMeasure(spec.measure) or nil
+    if not measure then return false end
+    SKIN:Bang('!UpdateMeasure', spec.measure)
+    if providerLaunched[spec.measure] and measure:GetValue() == 0 then
+        status = scope .. ' command already running.'
+        Render()
+        return false
+    end
+    providerLaunched[spec.measure] = nil
+    local arguments = '-NoLogo -NoProfile -NonInteractive -WindowStyle Hidden -ExecutionPolicy Bypass -File "'
+        .. spec.script .. '" -Command "' .. action .. '"'
+    if scope == 'Queue' and (action == 'Start' or action == 'Restart') then
+        arguments = arguments .. ' -PollSeconds "' .. current('QueuePollSeconds') .. '"'
+    end
+    arguments = arguments .. ' -Quiet'
+    SKIN:Bang('!SetOption', spec.measure, 'Parameter', arguments)
+    SKIN:Bang('!UpdateMeasure', spec.measure)
+    SKIN:Bang('!CommandMeasure', spec.measure, 'Run')
+    providerLaunched[spec.measure] = true
+    status = scope .. ' ' .. action:lower() .. ' requested.'
+    Render()
+    return true
 end
 
 -- Compatibility callbacks retain the same bounded numeric behavior. The

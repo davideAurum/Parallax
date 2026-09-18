@@ -37,3 +37,12 @@ Exact supplied SVG bytes, provenance and complete upstream notices ship in
 @Resources/Modules/IO/Icons/Lucide/ (hard-drive.svg, README.md, LICENSE).
 The license is pinned to revision a79b2d131dab2bf20cb224bd0937b439a9c4fa99;
 the supplied SVG's upstream revision is unknown.
+
+WebNowPlaying Rainmeter plugin 2.0.7.0 (WebNowPlaying.dll, 32-bit and 64-bit builds):
+copyright 2023 keifufu and Trevor Hamilton per the file version resource; MIT License,
+copyright 2024 keifufu, full terms in WebNowPlaying-LICENSE.txt.
+Source: https://github.com/keifufu/WebNowPlaying-Rainmeter
+Bundled unmodified in the Parallax .rmskin as Media's optional playback provider with
+the maintainer's approval on 2026-09-16. Rainmeter's Skin Installer places it in the
+Rainmeter Plugins folder only when no newer version is installed. The WebNowPlaying
+browser extension and desktop adapters are separate installs and are not distributed here.

@@ -11,6 +11,9 @@ CPUPage=1
 ; 0 uses the detected count. Positive values can only reduce that count.
 CPUCoreLimit=0
 CPUShowInfo=1
+; Fan rows are independently collapsible while Processor info is visible.
+CPUShowFan=1
+CPUShowMotherboardFan=1
 CPUShowCores=1
 CPUShowProcesses=1
 ; Number of ranked process names, 1..10. Same-name instances are grouped.

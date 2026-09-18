@@ -74,7 +74,9 @@ const expected = [
   ['Width', 'Columns', [1, 2], ['Single', 'Double'], true],
   ['Height', 'PanelHeight', [126, 146, 186], ['126 px', '146 px', '186 px'], false, 126, 186, true],
   ['Spacing', 'VisualizerBandGap', [0, 1, 3, 4], ['0 px', '1 px', '3 px', '4 px'], false, 0, 4],
-  ['Color', 'VisualizerColorMode', [0, 1, 2, 3], ['Media', 'Accent 1', 'Accent 2', 'Gradient'], true],
+  ['Color', 'VisualizerColorMode', [0, 1, 2, 3, 4], ['Media', 'Accent 1', 'Accent 2', 'Horiz.', 'Vert.'], true],
+  ['Radius', 'VisualizerBarRadius', [0, 12], ['0 px', '12 px'], false, 0, 12, false, 1],
+  ['Baseline', 'VisualizerBaselineGap', [0, 24], ['0 px', '24 px'], false, 0, 24, false, 1],
   ['Quality', 'VisualizerQuality', [0, 1, 2], ['Low', 'Normal', 'High'], true],
   ['Cadence', 'VisualizerUpdateOverride', [0, 33, 50, 100], ['Suite', '33 ms', '50 ms', '100 ms'], true],
   ['Sensitivity', 'VisualizerSensitivity', [10, 20, 35, 50, 65, 80], null, false, 10, 80],
@@ -109,9 +111,9 @@ assert.equal(helper.Timeout, '300000');
 assert.equal(helper.FinishAction, '[!UpdateMeasure MeasureVisualizerSettingsInput][!CommandMeasure MeasureVisualizerSettings "CommitInput()"]');
 const source = readFileSync(resolve(root, '@Resources/Modules/Visualizer/Settings.lua'), 'utf8');
 const fields = [...source.matchAll(/^    (\w+) = \{ key='(\w+)', values=\{([^}]+)\}, ([^}]+) \}/gm)];
-assert.equal(fields.length, 9);
+assert.equal(fields.length, 11);
 assert.deepEqual(new Set(fields.map(field => field[2])), allowedKeys);
-for (const [name, key, values, , categorical, minimum, maximum, discrete] of expected) {
+for (const [name, key, values, , categorical, minimum, maximum, discrete, step] of expected) {
   const field = fields.find(field => field[1] === name);
   assert.equal(field[2], key);
   assert.deepEqual(field[3].split(',').map(Number), values);
@@ -119,6 +121,7 @@ for (const [name, key, values, , categorical, minimum, maximum, discrete] of exp
   if (!categorical) {
     assert.match(field[4], new RegExp('minimum=' + minimum + ', maximum=' + maximum));
     assert.equal(field[4].includes('discrete=true'), Boolean(discrete));
+    assert.equal(field[4].includes('step=1'), step === 1);
   }
 }
 assert.match(source, /-Key UtilityNumber -Minimum %d -Maximum %d -DecimalPlaces 0/);
@@ -168,8 +171,8 @@ for (const [name, key, values, friendly] of expected) {
   }
   for (const custom of [-999, 0.5, 9999]) assert.ok(displayedValue(name, key, custom).includes(String(custom)), 'Custom value must stay visible');
 }
-assert.equal(controlTargets, 45);
-assert.equal(choiceLabels, 37);
+assert.equal(controlTargets, 55);
+assert.equal(choiceLabels, 42);
 for (const [name, section] of sections) {
   if (name.startsWith('Style')) assert.ok(!section.Meter, 'Style draws a meter: ' + name);
   // Shared unused styles can carry other actions; only rendered meters/measures are reachable here.
@@ -251,7 +254,7 @@ for (const BorderThickness of [0, 4]) for (const Columns of [1, 2]) {
   const interior = { x: panel.x + border, y: panel.y + border, w: panel.w - 2 * border, h: panel.h - 2 * border };
   const boxes = new Map();
   assert.equal(window.w, 2 * f('#Pitch#'), 'Imported spectrum Columns must not size settings');
-  assert.equal(panel.h, Math.round(344 * Scale), 'Imported spectrum height must not size settings');
+  assert.equal(panel.h, Math.round(400 * Scale), 'Imported spectrum height must not size settings');
   assert.equal(window.h, panel.h + f('#Gap#'));
   for (const [name] of meters) {
     const meter = effective(name), bounds = box(meter, f);
@@ -288,7 +291,7 @@ for (const BorderThickness of [0, 4]) for (const Columns of [1, 2]) {
     assert.equal(f(effective(prefix + name + 'Label').FontSize), 10 * Scale);
     rowBoxes.set(name, { x: label.x, y: row.y, w: next.x + next.w - label.x, h: row.h });
   }
-  const groups = [['Appearance', ['Width', 'Height', 'Spacing', 'Color']],
+  const groups = [['Appearance', ['Width', 'Height', 'Spacing', 'Color', 'Radius', 'Baseline']],
     ['Performance', ['Quality', 'Cadence']], ['Animation', ['Sensitivity', 'Attack', 'Decay']]];
   for (const [heading, names] of groups) {
     const section = boxes.get(prefix + heading), rule = boxes.get(prefix + heading + 'Rule');
@@ -313,7 +316,7 @@ for (const BorderThickness of [0, 4]) for (const Columns of [1, 2]) {
   separated(title, note, 'Title/note'); separated(note, globalLink, 'Shared settings notes');
   for (const name of ['Appearance', 'Performance']) separated(globalLink, boxes.get(prefix + name), 'Note/form');
   separated(rowBoxes.get('Cadence'), boxes.get(prefix + 'Animation'), 'Performance/animation');
-  separated(rowBoxes.get('Color'), boxes.get(prefix + 'Setup'), 'Appearance/setup');
+  separated(rowBoxes.get('Baseline'), boxes.get(prefix + 'Setup'), 'Appearance/setup');
   separated(boxes.get(prefix + 'SetupRule'), boxes.get(prefix + 'Advanced'), 'Setup rule/actions');
   separated(boxes.get(prefix + 'Advanced'), boxes.get(prefix + 'SetupHint'), 'Setup actions/hint');
   separated(boxes.get(prefix + 'SetupHint'), boxes.get(prefix + 'Hint'), 'Setup/footer hint');
@@ -324,5 +327,5 @@ for (const BorderThickness of [0, 4]) for (const Columns of [1, 2]) {
 }
 }
 assert.equal(geometries, 40);
-console.log(`PASS: nine allowlisted fields; ${choiceLabels} displayed preset/end-point choices; custom display; ${controlTargets} fixed controller action targets; one event-only Script, dormant RunCommand and six String measures; Accent 1 headings/arrows and body values; stepper/frame clearance; 28px pitch; preserved imported preferences; ${geometries} geometry cases.`);
+console.log(`PASS: eleven allowlisted fields; ${choiceLabels} displayed preset/end-point choices; custom display; ${controlTargets} fixed controller action targets; one event-only Script, dormant RunCommand and six String measures; Accent 1 headings/arrows and body values; stepper/frame clearance; 28px pitch; preserved imported preferences; ${geometries} geometry cases.`);
 console.log('Offline source checks do not execute Lua, native text rendering, actual clicks/persistence, or the helper dialog. Run SettingsSuite.lua against production Settings.lua in an isolated Lua host for controller behavior.');

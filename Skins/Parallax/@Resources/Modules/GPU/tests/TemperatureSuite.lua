@@ -30,9 +30,12 @@ function Suite.run(path)
     local meterNames = {MeterTemperatureValue = true, MeterGPUVRAMUsage = true,
         MeterGPUVRAMBar = true, MeterGPUSharedMemory = true, MeterGPULoadValue = true,
         MeterGPUControllerLoadValue = true, MeterGPUVideoLoadValue = true, MeterGPUBusLoadValue = true,
-        MeterPowerValue = true, MeterClockValue = true, MeterSensorStatus = true}
+        MeterGPULoadBar = true, MeterGPUControllerLoadBar = true, MeterGPUVideoLoadBar = true, MeterGPUBusLoadBar = true,
+        MeterPowerValue = true, MeterClockValue = true}
     local loadMeters = {'MeterGPULoadValue', 'MeterGPUControllerLoadValue',
         'MeterGPUVideoLoadValue', 'MeterGPUBusLoadValue'}
+    local loadBars = {'MeterGPULoadBar', 'MeterGPUControllerLoadBar',
+        'MeterGPUVideoLoadBar', 'MeterGPUBusLoadBar'}
     local registryNames = {MeasureGPURegistryNames = true}
     for _, field in ipairs({'Power', 'Clock'}) do
         for _, suffix in ipairs({'Sensor', 'Label', 'Value', 'ValueRaw'}) do registryNames['MeasureGPU' .. field .. suffix] = true end
@@ -104,8 +107,9 @@ function Suite.run(path)
             if command == '!SetOption' then
                 assert(#args == 3 and type(args[3]) == 'string', 'scalar option required')
                 if meterNames[args[1]] then
-                    assert(args[2] == 'ToolTipText' or (args[1] == 'MeterGPUVRAMBar' and args[2] == 'Shape2')
-                        or (args[1] ~= 'MeterGPUVRAMBar' and args[2] == 'Text'), 'unexpected meter option')
+                    local isBar = args[1]:find('Bar$') ~= nil
+                    assert(args[2] == 'ToolTipText' or (isBar and args[2] == 'Shape2')
+                        or (not isBar and args[2] == 'Text'), 'unexpected meter option')
                     if args[2] ~= 'Shape2' then assert(not args[3]:find('[#%[%]"%c]'), 'unsafe display data') end
                     f.meters[args[1]] = f.meters[args[1]] or {}
                     f.meters[args[1]][args[2]] = args[3]
@@ -212,8 +216,9 @@ function Suite.run(path)
         function f:clear() self.calls = {} end
         function f:text(meter) return self.meters[meter] and self.meters[meter].Text end
         function f:tip(meter) return self.meters[meter] and self.meters[meter].ToolTipText end
-        function f:bar()
-            local shape = assert(self.meters.MeterGPUVRAMBar, 'missing VRAM bar').Shape2
+        function f:bar(meter)
+            meter = meter or 'MeterGPUVRAMBar'
+            local shape = assert(self.meters[meter], 'missing bar ' .. meter).Shape2
             local y, endpoint, y2, stroke = shape:match('^Line 0,([%d.]+),([%d.]+),([%d.]+) | StrokeWidth ([%d.]+)')
             assert(y and y == y2, 'invalid horizontal bar geometry')
             return tonumber(endpoint), tonumber(stroke), tonumber(y)
@@ -454,6 +459,10 @@ function Suite.run(path)
         eq(f:text('MeterGPUSharedMemory'), 'Shared RAM: 174 MiB')
         local endpoint, stroke, y = f:bar(); eq(endpoint, 50); eq(stroke, 6); eq(y, 3)
         for index, name in ipairs(loadMeters) do eq(f:text(name), tostring(index * 25) .. '%') end
+        for index, name in ipairs(loadBars) do
+            local endpoint, stroke, y = f:bar(name); eq(endpoint, index * 25 * 2); eq(stroke, 6); eq(y, 3) -- fixture ContentWidth 200
+            contains(f.meters[name].Shape2, 'Stroke Color #GPUColor#'); contains(f:tip(name), 'activity')
+        end
         contains(f:tip('MeterGPUVRAMUsage'), adapter)
         contains(f:tip('MeterGPUSharedMemory'), adapter)
         contains(f.meters.MeterGPUVRAMBar.Shape2, 'StrokeStartCap Flat | StrokeEndCap Flat')
@@ -564,7 +573,6 @@ function Suite.run(path)
         options.vars.GPUPowerSource, options.vars.GPUClockSource = nil, nil
         local f = fixture(options); f:live()
         eq(f:text('MeterPowerValue'), '55.3 W'); eq(f:text('MeterClockValue'), '1607.5 MHz')
-        eq(f:text('MeterSensorStatus'), 'Source: driver')
         eq(f.reads.MeasureGPURegistryNames, nil); eq(f.reads.MeasureGPUPowerValue, nil); eq(f.reads.MeasureGPUClockValue, nil)
         f:sample({[4] = '2', [22] = 'UNSUPPORTED', [23] = '?', [24] = 'UNSUPPORTED', [25] = '?'}); f:update()
         eq(f:text('MeterPowerValue'), 'Unsupported'); eq(f:text('MeterClockValue'), 'Unsupported')
@@ -606,7 +614,6 @@ function Suite.run(path)
             local f = fixture(manualOptions(selection[1], selection[2])); f:live()
             eq(f:text('MeterPowerValue'), selection[1] and '77.7 W' or '55.3 W')
             eq(f:text('MeterClockValue'), selection[2] and '1234.5 MHz' or '1607.5 MHz')
-            eq(f:text('MeterSensorStatus'), 'HWiNFO / age unknown')
             eq((f.reads.MeasureGPURegistryNames or 0) > 0, true)
             if selection[1] then contains(f:tip('MeterPowerValue'), 'sample age unknown')
             else eq(f.reads.MeasureGPUPowerValue, nil) end
@@ -616,7 +623,7 @@ function Suite.run(path)
         local options = manualOptions(true, false); options.vars.GPUEnableSensors = '0'
         local f = fixture(options); f:live()
         eq(f:text('MeterPowerValue'), 'Off'); eq(f:text('MeterClockValue'), '1607.5 MHz')
-        eq(f:text('MeterSensorStatus'), 'HWiNFO override off'); eq(f.reads.MeasureGPURegistryNames, nil)
+        eq(f.reads.MeasureGPURegistryNames, nil)
     end)
     test('canonical override selection enables and initializes only its required banks once', function()
         for _, selection in ipairs({{true, false, 5}, {false, true, 5}, {true, true, 9}, {false, false, 0}}) do
@@ -693,7 +700,7 @@ function Suite.run(path)
             for name, value in pairs(item.vars or {}) do options.vars[name] = value end
             options.exports = item.exports
             local f = fixture(options); f:live(); eq(f:text('MeterPowerValue'), item.expected)
-            eq(f:text('MeterClockValue'), '1607.5 MHz'); eq(f:text('MeterSensorStatus'), 'HWiNFO / age unknown')
+            eq(f:text('MeterClockValue'), '1607.5 MHz')
         end
         local options = manualOptions(true, false)
         options.exports = {MeasureGPUPowerValueRaw = '0', MeasureGPUPowerValue = '0.0 W',
@@ -710,7 +717,6 @@ function Suite.run(path)
         f.exports.MeasureGPUClockValue, f.exports.MeasureGPUClockValueRaw = '999.5 MHz', '999.5'
         f.now = 1010; f:update()
         eq(f:text('MeterPowerValue'), '80.5 W'); eq(f:text('MeterClockValue'), '999.5 MHz')
-        eq(f:text('MeterSensorStatus'), 'HWiNFO / age unknown')
         eq(f.launches[bootstrap], 1); eq(f.launches[driver], 1)
         for _, statusField in ipairs({22, 24}) do
             f = fixture(manualOptions(true, true)); f:live({[statusField] = 'DEVICE_CHANGED'})

@@ -217,10 +217,10 @@ assert {key: counter[key] for key in ("Alias", "Index", "PIDToName", "Rollup", "
     "Alias": "GPU", "Index": "1", "PIDToName": "0", "Rollup": "0", "Percent": "0", "RawValue": "0"}
 meters = {name: effective(name) for name, options in sections.items() if "Meter" in options}
 assert all("Meter" in options for name, options in sections.items() if name.startswith("Meter"))
-assert len(meters) == 47, "GPU requires overview, direct memory/activity, five process rows and sensor readings"
+assert len(meters) == 52, "GPU requires overview, direct memory/activity, five process rows and sensor readings"
 assert "MeterActivityDetail" not in meters
 assert {name for name in meters if name.startswith("MeterGPUProcess")} == {
-    f"MeterGPUProcess{part}{i}" for i in range(1, 6) for part in ("Name", "Value", "Bar")}
+    f"MeterGPUProcess{part}{i}" for i in range(1, 6) for part in ("Name", "Value", "Memory", "Bar")}
 assert "MeterVRAMLabel" not in meters
 assert not any(name.startswith(("MeterGPUBaseClock", "MeterGPUBoostClock", "MeterGPUClocks")) for name in meters)
 assert not any(name.startswith(("MeterDirect3D", "MeterShader", "MeterRayTracing", "MeterDriver")) for name in meters)
@@ -237,7 +237,7 @@ cases = [(column_width, scale, columns, title_size, bar_thickness, None) for col
 # Old saved heights reserve the complete table; larger saved heights stay larger.
 cases += [(column_width, scale, columns, 12, 12, saved_height)
           for column_width in (180, 220) for scale in (.75, 1, 2)
-          for columns in (1, 2) for saved_height in (330, 633)]
+          for columns in (1, 2) for saved_height in (330, 750)]
 for column_width, scale, columns, title_size, bar_thickness, saved_height in cases:
         variables = dict(sections["Variables"], ColumnWidth=str(column_width), Scale=str(scale),
                          Columns=str(columns), TitleFontSize=str(title_size), DataBarThickness=str(bar_thickness))
@@ -249,7 +249,7 @@ for column_width, scale, columns, title_size, bar_thickness, saved_height in cas
         assert width == columns * n("#Pitch#")
         assert n("#PanelWidth#") + 2 * inset == width
         assert n("#PanelHeightPx#") + 2 * inset == height
-        assert n("#PanelHeightPx#") == math.floor(max(560, n("#PanelHeight#")) * scale + .5)
+        assert n("#PanelHeightPx#") == math.floor(max(650, n("#PanelHeight#")) * scale + .5)
         for name, options in meters.items():
             x, y = n(options.get("X", "0")), n(options.get("Y", "0"))
             if options["Meter"] == "Shape":
@@ -341,16 +341,19 @@ for column_width, scale, columns, title_size, bar_thickness, saved_height in cas
         # Track strokes and the initial empty fills stay inside the declared
         # canvases. Runtime fill clamping is exercised by ProcessGraphSuite.lua.
         for i in range(1, 6):
-            label, value, bar = (meters[f"MeterGPUProcess{part}{i}"] for part in ("Name", "Value", "Bar"))
-            assert all(row["Group"] == "GPUProcessGraph" for row in (label, value, bar))
+            label, value, memory, bar = (meters[f"MeterGPUProcess{part}{i}"] for part in ("Name", "Value", "Memory", "Bar"))
+            assert all(row["Group"] == "GPUProcessGraph" for row in (label, value, memory, bar))
             assert label.get("StringAlign", "Left") == "Left" and value["StringAlign"] == "Right"
             assert math.isclose(n(label["Y"]), n(value["Y"]))
             assert n(label["Y"]) >= last_bottom
             assert n(label["X"]) + n(label["W"]) <= n(value["X"]) - n(value["W"])
             assert n(label["Y"]) + n(label["H"]) <= n(bar["Y"])
             assert n(value["Y"]) + n(value["H"]) <= n(bar["Y"])
+            assert n(bar["Y"]) + n(bar["H"]) + 2 * scale <= n(memory["Y"])
+            assert math.isclose(n(memory["X"]), n("#ContentX#"))
+            assert math.isclose(n(memory["W"]), n("#ContentWidth#"))
             validate_bar(f"MeterGPUProcessBar{i}", bar, n, scale, bar_thickness)
-            last_bottom = n(bar["Y"]) + n(bar["H"])
+            last_bottom = n(memory["Y"]) + n(memory["H"])
         assert last_bottom <= inset + n("#PanelHeightPx#")
         if column_width in (180, 220) and scale in (.75, 1, 2) and columns == 1 and title_size == 12:
             rows.append(f"width={column_width} scale={scale:g} title={title_size} bars={bar_thickness} saved_height={n('#PanelHeight#'):g}: {width:g} x {height:g}, memory/activity and process bars inside bounds")

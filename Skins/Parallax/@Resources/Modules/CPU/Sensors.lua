@@ -27,9 +27,14 @@ end
 local function set(meter, option, value)
     value = safe(value)
     local key = meter .. ':' .. option
-    if state.previous[key] ~= value then
+    local previous = state.previous[key]
+    if previous ~= value then
         state.previous[key] = value
-        SKIN:Bang('!SetOption', meter, option, value)
+        -- Avoid creating a native tooltip control merely to assign its initial
+        -- empty state. A previously populated tooltip still needs clearing.
+        if option ~= 'ToolTipText' or value ~= '' or previous ~= nil then
+            SKIN:Bang('!SetOption', meter, option, value)
+        end
     end
 end
 
@@ -66,7 +71,7 @@ local function resetBindings()
     state.prime = true
     SKIN:Bang('!DisableMeasure', 'MeasureCPUSensorNamesUser')
     SKIN:Bang('!DisableMeasure', 'MeasureCPUSensorNamesMachine')
-    for _, kind in ipairs({'Temperature', 'Voltage', 'Clock'}) do
+    for _, kind in ipairs({'Temperature', 'Voltage', 'Clock', 'Fan', 'MotherboardFan'}) do
         for _, field in ipairs(fields) do
             SKIN:Bang('!SetOption', 'MeasureCPUSensor' .. kind .. field, 'Disabled', '1')
             SKIN:Bang('!DisableMeasure', 'MeasureCPUSensor' .. kind .. field)
@@ -88,7 +93,8 @@ local function readBinding(kind, core)
     if core ~= nil then binding = state.coreBindings[kind][core] else binding = state.bindings[kind] end
     if not binding then
         return nil, core ~= nil and ('No exported ' .. kind:lower() .. ' for HWiNFO core ' .. core .. '. Enable its Gadget reporting and scan again.')
-            or (kind == 'Clock' and state.clockDetail) or state.detail
+            or (kind == 'Clock' and state.clockDetail) or (kind == 'Fan' and state.fanDetail)
+            or (kind == 'MotherboardFan' and state.motherboardFanDetail) or state.detail
             or 'No matching exported sensor. Enable Gadget reporting in HWiNFO and reconnect.'
     end
     local list = text(binding.hive == 'HKEY_CURRENT_USER' and 'MeasureCPUSensorNamesUser' or 'MeasureCPUSensorNamesMachine')
@@ -113,8 +119,10 @@ local function readBinding(kind, core)
         unit = display:match('^[+-]?%d[%d%.,%s]*([CF])%s*$')
     elseif kind == 'Voltage' then
         unit = display:match('^[+-]?%d[%d%.,%s]*(mV)%s*$') or display:match('^[+-]?%d[%d%.,%s]*(V)%s*$')
-    else
+    elseif kind == 'Clock' then
         unit = display:match('^[+-]?%d[%d%.,%s]*(MHz)%s*$') or display:match('^[+-]?%d[%d%.,%s]*(GHz)%s*$')
+    else
+        unit = display:match('^[+-]?%d[%d%.,%s]*(RPM)%s*$')
     end
     if unit ~= binding.unit then return nil, 'Missing or changed sensor units. Reconnect HWiNFO sensors.' end
     local rawText = text(prefix .. 'Raw' .. suffix)
@@ -127,14 +135,18 @@ local function readBinding(kind, core)
     elseif kind == 'Voltage' then
         if unit == 'mV' then value = value / 1000 end
         if value < 0 or value > 5 then return nil, 'Voltage reading outside the supported range.' end
-    else
+    elseif kind == 'Clock' then
         if unit == 'GHz' then value = value * 1000 end
         if value < 100 or value > 10000 then return nil, 'Clock reading outside the supported range.' end
+    else
+        if value < 0 or value > 100000 then return nil, 'Fan reading outside the supported range.' end
     end
     return value, binding.sensor .. ' / ' .. binding.label .. '. '
         .. (core ~= nil and ('HWiNFO physical core ' .. core .. '; ') or 'CPU-wide summary; ')
         .. (kind == 'Temperature' and 'degrees Celsius.'
             or kind == 'Clock' and 'current clock in MHz; HWiNFO provider aggregation, not a per-core or per-thread measurement.'
+            or kind == 'Fan' and 'CPU fan speed in RPM.'
+            or kind == 'MotherboardFan' and 'motherboard fan speed in RPM.'
             or (binding.kind == 'VID' and 'requested VID, not measured supply voltage.' or 'measured CPU supply voltage in volts.'))
         .. ' HWiNFO registry export; sample age is not exposed.'
 end
@@ -142,6 +154,10 @@ end
 local function formatClock(value)
     if value >= 1000 then return string.format('%.2f GHz', value / 1000) end
     return string.format('%.0f MHz', value)
+end
+
+local function formatFan(value)
+    return string.format('%.0f RPM', value)
 end
 
 local function formatTemperature(value)
@@ -152,22 +168,34 @@ local function formatVoltage(value)
     return string.format('%.' .. state.voltageDecimals .. 'f', value) .. 'V'
 end
 
+local function readNativeClock()
+    local measure = SKIN:GetMeasure('MeasureCPUNativeClock')
+    local value = measure and measure:GetValue()
+    if finite(value) and value >= 100 and value <= 10000 then
+        return value, 'Windows Processor Information aggregate clock: Processor Frequency multiplied by Processor Performance. This is not a per-core or per-thread reading.'
+    end
+    return nil, 'Windows Processor Information counters are unavailable.'
+end
+
 local function render()
-    local temperature, voltage, clock, tempDetail, voltDetail, clockDetail
+    local temperature, voltage, clock, fan, motherboardFan, tempDetail, voltDetail, clockDetail, fanDetail, motherboardFanDetail
+    local nativeClock, nativeClockDetail = readNativeClock()
     local status
     if not state.enabled then
         status = 'HWiNFO sensors: off'
-        tempDetail, voltDetail, clockDetail = 'Enable HWiNFO sensors in CPU Settings.', 'Enable HWiNFO sensors in CPU Settings.', 'Enable HWiNFO sensors in CPU Settings.'
+        tempDetail, voltDetail, clockDetail, fanDetail, motherboardFanDetail = 'Enable HWiNFO sensors in CPU Settings.', 'Enable HWiNFO sensors in CPU Settings.', 'Enable HWiNFO sensors in CPU Settings.', 'Enable HWiNFO sensors in CPU Settings.', 'Enable HWiNFO sensors in CPU Settings.'
     elseif state.pending or state.prime then
         status = 'HWiNFO: connecting...'
-        tempDetail, voltDetail, clockDetail = 'Waiting for sensor discovery and a native registry read.', 'Waiting for sensor discovery and a native registry read.', 'Waiting for sensor discovery and a native registry read.'
+        tempDetail, voltDetail, clockDetail, fanDetail, motherboardFanDetail = 'Waiting for sensor discovery and a native registry read.', 'Waiting for sensor discovery and a native registry read.', 'Waiting for sensor discovery and a native registry read.', 'Waiting for sensor discovery and a native registry read.', 'Waiting for sensor discovery and a native registry read.'
     elseif SKIN:GetMeasure('MeasureCPUHWiNFORunning'):GetValue() ~= 1 then
         status = 'HWiNFO: not running'
-        tempDetail, voltDetail, clockDetail = 'HWiNFO64 is not running. Old registry values are suppressed.', 'HWiNFO64 is not running. Old registry values are suppressed.', 'HWiNFO64 is not running. Old registry values are suppressed.'
+        tempDetail, voltDetail, clockDetail, fanDetail, motherboardFanDetail = 'HWiNFO64 is not running. Old registry values are suppressed.', 'HWiNFO64 is not running. Old registry values are suppressed.', 'HWiNFO64 is not running. Old registry values are suppressed.', 'HWiNFO64 is not running. Old registry values are suppressed.', 'HWiNFO64 is not running. Old registry values are suppressed.'
     else
         temperature, tempDetail = readBinding('Temperature')
         voltage, voltDetail = readBinding('Voltage')
         clock, clockDetail = readBinding('Clock')
+        fan, fanDetail = readBinding('Fan')
+        motherboardFan, motherboardFanDetail = readBinding('MotherboardFan')
         local summary = {}
         if temperature then
             local label = state.bindings.Temperature.label:match('^%s*(.-)%s*$')
@@ -175,7 +203,7 @@ local function render()
         end
         if voltage then summary[#summary + 1] = (state.bindings.Voltage.kind == 'VID' and 'VID ' or 'Vcore ') .. formatVoltage(voltage) end
         if clock then summary[#summary + 1] = 'Clock ' .. formatClock(clock) end
-        status = #summary > 0 and table.concat(summary, ' | ') or 'HWiNFO: CPU-wide exports unavailable'
+        status = #summary > 0 and table.concat(summary, ' | ') or 'HWiNFO: Gadget exports unavailable'
     end
     local coreReady = state.enabled and not state.pending and not state.prime
         and SKIN:GetMeasure('MeasureCPUHWiNFORunning'):GetValue() == 1
@@ -200,30 +228,46 @@ local function render()
             .. ' share HWiNFO Core ' .. core .. ' (two threads per core).'
         set('MeterCoreTemperature' .. slot, 'Text', reading.temperature and formatTemperature(reading.temperature) or '-')
         set('MeterCoreVoltage' .. slot, 'Text', reading.voltage and formatVoltage(reading.voltage) or '-')
-        set('MeterCoreTemperature' .. slot, 'ToolTipText', (reading.temperatureDetail or tempDetail or 'This physical core has no exported temperature.') .. pairing)
-        set('MeterCoreVoltage' .. slot, 'ToolTipText', (reading.voltageDetail or voltDetail or 'This physical core has no exported VID.') .. pairing)
+        if slot <= state.activeSlots and thread <= 64 then
+            set('MeterCoreTemperature' .. slot, 'ToolTipText', (reading.temperatureDetail or tempDetail or 'This physical core has no exported temperature.') .. pairing)
+            set('MeterCoreVoltage' .. slot, 'ToolTipText', (reading.voltageDetail or voltDetail or 'This physical core has no exported VID.') .. pairing)
+        else
+            set('MeterCoreTemperature' .. slot, 'ToolTipText', '')
+            set('MeterCoreVoltage' .. slot, 'ToolTipText', '')
+        end
     end
     if coreReady and #state.coreIds == 0 then status = 'No per-core exports | ' .. status
     elseif coreReady and coreReadings == 0 then status = 'Core readings unavailable | ' .. status end
     set('MeterTableVoltageHeader', 'ToolTipText', 'Lightning symbol: HWiNFO core VID in volts, requested voltage rather than measured Vcore. Values use V with no space and repeat on paired thread rows.')
     set('MeterTableTemperatureHeader', 'ToolTipText', 'Thermometer symbol: HWiNFO DTS core temperature in degrees Celsius. Values use degrees Celsius with no space and repeat on paired thread rows.')
-    set('MeterCurrentClockValue', 'Text', clock and formatClock(clock) or 'Unavailable')
-    set('MeterCurrentClockValue', 'ToolTipText', clockDetail or 'Enable the CPU [#0] Core Clocks HWiNFO Gadget export to show a current CPU-wide clock.')
+    local displayClock, displayClockDetail = clock or nativeClock
+    if clock then displayClockDetail = clockDetail
+    elseif nativeClock then displayClockDetail = nativeClockDetail
+    else displayClockDetail = ((clockDetail or '') .. ' ' .. (nativeClockDetail or '')):match('^%s*(.-)%s*$') end
+    set('MeterCurrentClockValue', 'Text', displayClock and formatClock(displayClock) or 'Unavailable')
+    set('MeterCurrentClockValue', 'ToolTipText', displayClockDetail or 'No native Windows clock is available. Core Clocks can also be exported through HWiNFO Gadget reporting.')
+    set('MeterCurrentFanValue', 'Text', fan and formatFan(fan) or 'Unavailable')
+    set('MeterCurrentFanValue', 'ToolTipText', fanDetail or 'Export the CPU fan reading through HWiNFO Gadget reporting, then reconnect.')
+    set('MeterMotherboardFanValue', 'Text', motherboardFan and formatFan(motherboardFan) or 'Unavailable')
+    set('MeterMotherboardFanValue', 'ToolTipText', motherboardFanDetail or 'Export the Mainboard or Motherboard fan reading through HWiNFO Gadget reporting, then reconnect.')
     set('MeterSensors', 'Text', status)
-    set('MeterSensors', 'ToolTipText', (tempDetail or '') .. ' ' .. (voltDetail or '') .. ' ' .. (clockDetail or ''))
+    set('MeterSensors', 'ToolTipText', (tempDetail or '') .. ' ' .. (voltDetail or '') .. ' ' .. (clockDetail or '') .. ' ' .. (fanDetail or '') .. ' ' .. (motherboardFanDetail or ''))
     redraw()
 end
 
 function Initialize()
-    state = {bindings={}, coreBindings={Temperature={}, Voltage={}}, coreIds={}, previous={}, enabled=enabled(), prime=false, requestId=0, firstThread=1,
+    state = {bindings={}, coreBindings={Temperature={}, Voltage={}}, coreIds={}, previous={}, enabled=enabled(), prime=false, requestId=0, firstThread=1, activeSlots=0,
         providerRunning=nil,
         temperatureDecimals=decimalOption('CPUTemperatureDecimals', 0, 1), voltageDecimals=decimalOption('CPUVoltageDecimals', 3, 3)}
 end
 
-function SetThreadPage(first)
+function SetThreadPage(first, activeSlots)
     first = tonumber(first)
     if not state or not finite(first) or first ~= math.floor(first) or first < 1 or first > 64 then return end
+    activeSlots = activeSlots == nil and (65 - first) or tonumber(activeSlots)
+    if not finite(activeSlots) or activeSlots ~= math.floor(activeSlots) or activeSlots < 0 or activeSlots > 64 then return end
     state.firstThread = first
+    state.activeSlots = math.min(activeSlots, 65 - first)
     render()
 end
 
@@ -289,6 +333,8 @@ function ApplyDiscovery()
     if state.reconnectQueued then Reconnect(); return end
     state.detail = nil
     state.clockDetail = nil
+    state.fanDetail = nil
+    state.motherboardFanDetail = nil
     if not state.enabled then state.prime = false; render(); return end
     if status ~= 1 or not output:match('^HWINFOV1[\r\n]') or request ~= state.requestId then
         state.detail = 'Sensor discovery failed. Open CPU Settings and reconnect.'
@@ -303,7 +349,10 @@ function ApplyDiscovery()
         for part in (line .. '|'):gmatch('(.-)|') do parts[#parts + 1] = part end
         if parts[1] == 'STATUS' then
             state.detail = parts[2]
-            if (parts[2] or ''):lower():find('core clock', 1, true) then state.clockDetail = parts[2] end
+            local statusDetail = (parts[2] or ''):lower()
+            if statusDetail:find('core clock', 1, true) then state.clockDetail = parts[2]
+            elseif statusDetail:find('motherboard fan speed', 1, true) then state.motherboardFanDetail = parts[2]
+            elseif statusDetail:find('fan speed', 1, true) then state.fanDetail = parts[2] end
         elseif parts[1] == 'CORE' and coreRecords < 128 then
             coreRecords = coreRecords + 1
             local kind = parts[2] == 'TEMP' and 'Temperature' or parts[2] == 'VOLT' and 'Voltage'
@@ -328,8 +377,9 @@ function ApplyDiscovery()
                     coreCandidates[kind][core] = false
                 end
             end
-        elseif parts[1] == 'TEMP' or parts[1] == 'VOLT' or parts[1] == 'CLOCK' then
-            local kind = parts[1] == 'TEMP' and 'Temperature' or parts[1] == 'VOLT' and 'Voltage' or 'Clock'
+        elseif parts[1] == 'TEMP' or parts[1] == 'VOLT' or parts[1] == 'CLOCK' or parts[1] == 'FAN' or parts[1] == 'MBFAN' then
+            local kind = parts[1] == 'TEMP' and 'Temperature' or parts[1] == 'VOLT' and 'Voltage'
+                or parts[1] == 'CLOCK' and 'Clock' or parts[1] == 'FAN' and 'Fan' or 'MotherboardFan'
             local index = parts[3] and parts[3]:match('^%d+$') and tonumber(parts[3])
             local sensor, label = unhex(parts[4] or ''), unhex(parts[5] or '')
             local normalizedSensor = sensor and sensor:match('^%s*(.-)%s*$') or ''
@@ -339,6 +389,15 @@ function ApplyDiscovery()
                 or kind == 'Voltage' and (parts[6] == 'V' or parts[6] == 'mV') and (parts[7] == 'VID' or parts[7] == 'VCORE')
                 or kind == 'Clock' and cpuSensor and normalizedLabel == 'Core Clocks'
                     and (parts[6] == 'MHz' or parts[6] == 'GHz')
+                or kind == 'Fan' and parts[6] == 'RPM'
+                    and not normalizedSensor:lower():find('gpu', 1, true)
+                    and not normalizedSensor:lower():find('graphics', 1, true)
+                    and (normalizedLabel:lower() == 'cpu' or normalizedLabel:lower():match('^cpu%s+fan%s*(speed%s*|#?1%s*)?$'))
+                or kind == 'MotherboardFan' and parts[6] == 'RPM'
+                    and not normalizedSensor:lower():find('gpu', 1, true)
+                    and not normalizedSensor:lower():find('graphics', 1, true)
+                    and (normalizedLabel:lower() == 'mainboard' or normalizedLabel:lower() == 'motherboard'
+                        or normalizedLabel:lower() == 'mainboard fan' or normalizedLabel:lower() == 'motherboard fan')
             if index and index <= 4096 and sensor and label and unitOK
                 and (parts[2] == 'HKEY_CURRENT_USER' or parts[2] == 'HKEY_LOCAL_MACHINE') and not state.bindings[kind] then
                 state.bindings[kind] = {hive=parts[2], index=tostring(index), sensor=sensor, label=label, unit=parts[6], kind=parts[7]}

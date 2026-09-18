@@ -5,9 +5,10 @@ Columns=2
 PanelHeight=146
 ; Spectrum appearance. Height presets use PanelHeight 126 / 146 / 186.
 ; Gap is logical pixels (0..4); colors follow shared palette choices.
-; Color: 0 Media, 1 Accent 1, 2 Accent 2, 3 left-to-right Accent 1/2 gradient.
+; Color: 0 Media, 1 Accent 1, 2 Accent 2, 3 horizontal, 4 vertical.
+; Gradients use Accent 1 to Accent 2, left-to-right or bottom-to-top.
 VisualizerBandGap=3
-VisualizerColorMode=0
+VisualizerColorMode=3
 ; Appearance inherits shared FontFace, MediaColor, GraphBackgroundColor and GridColor.
 
 ; 0 follows global VisualizerInterval (shipped 50 ms). Local choices: 33, 50, 100.
@@ -33,3 +34,10 @@ VisualizerSensitivity=35
 ; RMS threshold for the IDLE label, after RMS smoothing (0.00001..0.1).
 ; It is a display threshold, not proof that playback has stopped.
 VisualizerIdleThreshold=0.001
+
+; Top-corner rounding in logical pixels (0..12 whole pixels).
+; Rendering also limits radius by each bar width and visible height.
+VisualizerBarRadius=0
+; Gap above the bottom x-axis in logical pixels (0..24 whole pixels).
+; This lifts bars; a short panel grows if needed to keep the dB scale readable.
+VisualizerBaselineGap=0

@@ -284,7 +284,7 @@ Y=(#Inset#+(339-#MediaSettingsQueueCollapsedHeight#)*#Scale#)
 W=((#ContentWidth#-4*#Scale#)/2)
 Text=Start
 ToolTipText=Start local Windows media-session detection to identify Spotify. No login is needed; this runs independently of the Spotify queue helper.
-LeftMouseUpAction=["powershell.exe" "-NoLogo" "-NoProfile" "-ExecutionPolicy" "Bypass" "-WindowStyle" "Hidden" "-File" "#@#Modules\Media\Source\SourceProvider.ps1" "-Command" "Start" "-Quiet"]
+LeftMouseUpAction=[!CommandMeasure MeasureMediaSettings "ProviderControl('Source','Start')"]
 
 [MeterSourceStop]
 Meter=String
@@ -294,7 +294,7 @@ Y=(#Inset#+(339-#MediaSettingsQueueCollapsedHeight#)*#Scale#)
 W=((#ContentWidth#-4*#Scale#)/2)
 Text=Stop
 ToolTipText=Stop local Windows source detection. This leaves playback, Spotify sign-in and the separate queue helper unchanged.
-LeftMouseUpAction=["powershell.exe" "-NoLogo" "-NoProfile" "-ExecutionPolicy" "Bypass" "-WindowStyle" "Hidden" "-File" "#@#Modules\Media\Source\SourceProvider.ps1" "-Command" "Stop" "-Quiet"]
+LeftMouseUpAction=[!CommandMeasure MeasureMediaSettings "ProviderControl('Source','Stop')"]
 
 [MeterSourceGuidance]
 Meter=String
@@ -333,7 +333,7 @@ Y=(#Inset#+(423-#MediaSettingsQueueCollapsedHeight#)*#Scale#)
 W=((#ContentWidth#-8*#Scale#)/3)
 Text=Start
 ToolTipText=Start the local queue helper with the saved interval. An existing helper keeps its current interval.
-LeftMouseUpAction=["powershell.exe" "-NoLogo" "-NoProfile" "-ExecutionPolicy" "Bypass" "-WindowStyle" "Hidden" "-File" "#@#Modules\Media\Queue\QueueProvider.ps1" "-Command" "Start" "-PollSeconds" "#QueuePollSeconds#" "-Quiet"]
+LeftMouseUpAction=[!CommandMeasure MeasureMediaSettings "ProviderControl('Queue','Start')"]
 DynamicVariables=1
 
 [MeterStop]
@@ -344,7 +344,7 @@ Y=(#Inset#+(423-#MediaSettingsQueueCollapsedHeight#)*#Scale#)
 W=((#ContentWidth#-8*#Scale#)/3)
 Text=Stop
 ToolTipText=Stop queue polling and clear displayed queue data. Spotify sign-in is retained.
-LeftMouseUpAction=["powershell.exe" "-NoLogo" "-NoProfile" "-ExecutionPolicy" "Bypass" "-WindowStyle" "Hidden" "-File" "#@#Modules\Media\Queue\QueueProvider.ps1" "-Command" "Stop" "-Quiet"]
+LeftMouseUpAction=[!CommandMeasure MeasureMediaSettings "ProviderControl('Queue','Stop')"]
 
 [MeterRestart]
 Meter=String
@@ -354,7 +354,7 @@ Y=(#Inset#+(451-#MediaSettingsQueueCollapsedHeight#)*#Scale#)
 W=((#ContentWidth#-4*#Scale#)/2)
 Text=Restart
 ToolTipText=Restart the queue helper with the saved refresh interval. Existing Spotify rate limits remain in effect.
-LeftMouseUpAction=["powershell.exe" "-NoLogo" "-NoProfile" "-ExecutionPolicy" "Bypass" "-WindowStyle" "Hidden" "-File" "#@#Modules\Media\Queue\QueueProvider.ps1" "-Command" "Restart" "-PollSeconds" "#QueuePollSeconds#" "-Quiet"]
+LeftMouseUpAction=[!CommandMeasure MeasureMediaSettings "ProviderControl('Queue','Restart')"]
 DynamicVariables=1
 
 [MeterDisconnect]
@@ -365,7 +365,7 @@ Y=(#Inset#+(451-#MediaSettingsQueueCollapsedHeight#)*#Scale#)
 W=((#ContentWidth#-4*#Scale#)/2)
 Text=Disconnect
 ToolTipText=Stop the queue helper and delete this user's saved Spotify tokens. The public Client ID is retained.
-LeftMouseUpAction=["powershell.exe" "-NoLogo" "-NoProfile" "-ExecutionPolicy" "Bypass" "-WindowStyle" "Hidden" "-File" "#@#Modules\Media\Queue\QueueProvider.ps1" "-Command" "Disconnect" "-Quiet"]
+LeftMouseUpAction=[!CommandMeasure MeasureMediaSettings "ProviderControl('Queue','Disconnect')"]
 
 [MeterQueueGuidance]
 Meter=String

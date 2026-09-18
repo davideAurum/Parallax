@@ -2,6 +2,8 @@
 local state
 local limits = {
     CPUShowInfo = {1, 0, 1},
+    CPUShowFan = {1, 0, 1},
+    CPUShowMotherboardFan = {1, 0, 1},
     CPUShowCores = {1, 0, 1},
     CPUShowProcesses = {1, 0, 1},
     CPUProcessCount = {5, 1, 10},
@@ -38,7 +40,7 @@ local function layout()
         if visible ~= false then y = y + 28 end
     end
     section('Appearance')
-    row('Info'); row('Cores'); row('Decimals') -- Percentage precision also formats the always-visible total.
+    row('Info'); row('CPUFan'); row('MotherboardFan'); row('Cores'); row('Decimals') -- Percentage precision also formats the always-visible total.
     -- The always-visible sensor footer also uses both precisions, independently
     -- of the Info and Thread visibility flags or current provider availability.
     row('VoltageDecimals'); row('TemperatureDecimals')
@@ -133,6 +135,8 @@ local function render()
     if not state then return end
     local values = {
         MeterSettingsInfoValue = state.CPUShowInfo == 1 and 'On' or 'Off',
+        MeterSettingsCPUFanValue = state.CPUShowFan == 1 and 'On' or 'Off',
+        MeterSettingsMotherboardFanValue = state.CPUShowMotherboardFan == 1 and 'On' or 'Off',
         MeterSettingsCoresValue = state.CPUShowCores == 1 and 'On' or 'Off',
         MeterSettingsProcessesValue = state.CPUShowProcesses == 1 and 'On' or 'Off',
         MeterSettingsProcessCountValue = tostring(state.CPUProcessCount),
@@ -204,7 +208,8 @@ local function save(key, value)
 end
 
 function Toggle(key)
-    if not state or (key ~= 'CPUShowInfo' and key ~= 'CPUShowCores' and key ~= 'CPUShowProcesses' and key ~= 'CPUShowHistory' and key ~= 'CPUSensorsEnabled') then return false end
+    if not state or (key ~= 'CPUShowInfo' and key ~= 'CPUShowFan' and key ~= 'CPUShowMotherboardFan'
+        and key ~= 'CPUShowCores' and key ~= 'CPUShowProcesses' and key ~= 'CPUShowHistory' and key ~= 'CPUSensorsEnabled') then return false end
     return save(key, state[key] == 1 and 0 or 1)
 end
 
@@ -452,7 +457,7 @@ function ApplySensorScan()
         elseif temperature then state.scanDetail = 'Temperature export found. Enable Vcore or Core VIDs in HWiNFO Gadget reporting.'
         else
             state.scanDetail = state.CPUSensorHive ~= 'Auto' and 'No exports in this search scope. Choose Automatic, then scan again.'
-                or 'No selected CPU exports found. Follow the setup steps, then scan again.'
+                or 'No Gadget exports found. Enable Remember Preferences and Gadget reporting in HWiNFO, report each value, click OK, then Quit & Save once.'
         end
         if ambiguous then state.scanDetail = 'Conflicting exports use the same number. Choose Current user or All users in Search scope, then pick a sensor.'
         elseif #messages > 0 and table.concat(messages, ' '):find('Ambiguous CPU core clock', 1, true) then

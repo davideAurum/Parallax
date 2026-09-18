@@ -71,7 +71,8 @@ $lucideGroups = @(
     @{ Module='Media'; Names=@('LICENSE','README.md','music.svg','user-round-group.svg','disc-3.svg','play.svg','pause.svg','play-off.svg','rewind.svg','fast-forward.svg','list-plus.svg','list-minus.svg','monitor-play.svg','step-forward.svg','audio-lines.svg') },
     @{ Module='GPU'; Names=@('LICENSE.txt','README.md','gpu.svg') },
     @{ Module='RAM'; Names=@('LICENSE','README.md','memory-stick.svg') },
-    @{ Module='IO'; Names=@('LICENSE','README.md','hard-drive.svg') }
+    @{ Module='IO'; Names=@('LICENSE','README.md','hard-drive.svg') },
+    @{ Module='Visualizer'; Names=@('LICENSE','README.md','speaker.svg') }
 )
 $lucideFiles = @(foreach ($group in $lucideGroups) {
     foreach ($name in $group.Names) { '@Resources\Modules\{0}\Icons\Lucide\{1}' -f $group.Module,$name }
@@ -81,14 +82,14 @@ foreach ($relative in $lucideFiles) {
     Put-File $destination ''
     Copy-Item -LiteralPath (Join-Path $lucideSource $relative) -Destination $destination
 }
-$excludedLucideFiles = @(foreach ($module in 'Media','RAM','IO') {
+$excludedLucideFiles = @(foreach ($module in 'Media','RAM','IO','Visualizer') {
     '@Resources\Modules\{0}\Icons\LICENSE' -f $module
     '@Resources\Modules\{0}\Icons\Lucide\Private\LICENSE' -f $module
 })
 foreach ($relative in $excludedLucideFiles) { Put-File (Join-Path $lucide.Skin $relative) 'Synthetic unrelated or private extensionless fixture.' }
 $lucideStage = & (Join-Path $toolsRoot 'Stage-Parallax.ps1') -ProjectRoot $lucide.Project -Version 'test-lucide-attribution'
 $lucideManifest = Get-Content -LiteralPath (Join-Path $lucideStage.StageRoot 'stage-manifest.json') -Raw | ConvertFrom-Json
-Assert-True ($lucideManifest.Files.Count -eq 28) 'All sixteen Media/GPU/RAM/IO SVGs, four provenance READMEs and four full licenses must ship alongside baseline files.'
+Assert-True ($lucideManifest.Files.Count -eq 31) 'All seventeen Media/GPU/RAM/IO/Visualizer SVGs, five provenance READMEs and five full licenses must ship alongside baseline files.'
 foreach ($relative in $lucideFiles) {
     $entries = @($lucideManifest.Files | Where-Object { $_.Path -eq "Skins\Parallax\$relative" })
     Assert-True ($entries.Count -eq 1) "Missing Lucide provenance or license entry: $relative"
@@ -298,6 +299,43 @@ $hiddenDiscoveryDirectory = Split-Path -Parent $cpuDiscoveryDestination
 $hiddenDiscoveryStage = & (Join-Path $toolsRoot 'Stage-Parallax.ps1') -ProjectRoot $cpuDiscovery.Project -Version 'test-hidden-cpu-discovery'
 Assert-True ($hiddenDiscoveryStage.Files -eq 4) 'The CPU discovery exception must never override a hidden parent exclusion.'
 
+$threadColors = New-Fixture 'cpu-thread-color-exact-path'
+$threadColorRelative = '@Resources\Modules\CPU\ThreadColorInput.ps1'
+$threadColorSource = Join-Path (Split-Path -Parent $toolsRoot) "Skins\Parallax\$threadColorRelative"
+$threadColorDestination = Join-Path $threadColors.Skin $threadColorRelative
+Put-File $threadColorDestination ''
+# Copy inert bytes only; the helper's WinForms overlay is never started here.
+Copy-Item -LiteralPath $threadColorSource -Destination $threadColorDestination
+$excludedThreadColorCopies = @(
+    '@Resources\Modules\CPU\ThreadColorInput.extra.ps1',
+    '@Resources\Modules\CPU\ThreadColorInput.psm1',
+    '@Resources\Modules\CPU\ThreadColorInput.ps1.ps1',
+    '@Resources\Modules\CPU\ThreadColorInput.ps1.txt',
+    '@Resources\Modules\CPU\Scripts\ThreadColorInput.ps1',
+    '@Resources\Modules\GPU\ThreadColorInput.ps1',
+    '@Resources\Scripts\ThreadColorInput.ps1',
+    '@Resources\User\ThreadColorInput.ps1'
+)
+foreach ($folder in 'Tests','Fixtures','Private','Runtime','Cache','.runtime') {
+    $excludedThreadColorCopies += "@Resources\Modules\CPU\$folder\ThreadColorInput.ps1"
+}
+foreach ($path in $excludedThreadColorCopies) { Put-File (Join-Path $threadColors.Skin $path) '# Synthetic packaging exclusion fixture only.' }
+$threadColorStage = & (Join-Path $toolsRoot 'Stage-Parallax.ps1') -ProjectRoot $threadColors.Project -Version 'test-cpu-thread-color'
+$threadColorManifest = Get-Content -LiteralPath (Join-Path $threadColorStage.StageRoot 'stage-manifest.json') -Raw | ConvertFrom-Json
+Assert-True ($threadColorManifest.Files.Count -eq 5) 'Only baseline skin files and the exact CPU thread color helper may ship.'
+$threadColorEntries = @($threadColorManifest.Files | Where-Object { $_.Path -eq "Skins\Parallax\$threadColorRelative" })
+Assert-True ($threadColorEntries.Count -eq 1) 'The exact CPU thread color helper must have one manifest entry.'
+$threadColorSourceHash = (Get-FileHash -LiteralPath $threadColorSource -Algorithm SHA256).Hash
+$threadColorStagedHash = (Get-FileHash -LiteralPath (Join-Path $threadColorStage.SkinRoot $threadColorRelative) -Algorithm SHA256).Hash
+Assert-True ($threadColorEntries[0].SHA256 -eq $threadColorSourceHash -and $threadColorStagedHash -eq $threadColorSourceHash) 'Source, staged bytes, and manifest must agree for ThreadColorInput.ps1.'
+foreach ($path in $excludedThreadColorCopies) {
+    Assert-True (-not (Test-Path -LiteralPath (Join-Path $threadColorStage.SkinRoot $path))) "Unexpected packaged CPU thread color helper copy: $path"
+}
+$hiddenThreadColorDirectory = Split-Path -Parent $threadColorDestination
+[IO.File]::SetAttributes($hiddenThreadColorDirectory, ([IO.File]::GetAttributes($hiddenThreadColorDirectory) -bor [IO.FileAttributes]::Hidden))
+$hiddenThreadColorStage = & (Join-Path $toolsRoot 'Stage-Parallax.ps1') -ProjectRoot $threadColors.Project -Version 'test-hidden-cpu-thread-color'
+Assert-True ($hiddenThreadColorStage.Files -eq 4) 'The CPU thread color exception must never override a hidden parent exclusion.'
+
 $textHelpers = New-Fixture 'reviewed-text-suffix-helpers'
 $textHelperPaths = @(
     '@Resources\Modules\GPU\DiscoverExports.ps1.txt',
@@ -503,5 +541,145 @@ Assert-Fails { & (Join-Path $toolsRoot 'Test-Parallax.ps1') -SkinRoot $unknown.S
 $credential = New-Fixture 'credential'
 Put-File (Join-Path $credential.Skin '@Resources\User\Settings.inc') "[Variables]`nSpotifyAccessToken=fixture-only`n"
 Assert-Fails { & (Join-Path $toolsRoot 'Stage-Parallax.ps1') -ProjectRoot $credential.Project -Version 'test' } 'Nonempty credential defaults must fail staging.'
+
+# .rmskin packaging: a complete fixture suite is packaged, re-read and rejected when tampered.
+# Nothing here launches Rainmeter or Skin Installer.
+foreach ($assembly in 'System.IO.Compression', 'System.IO.Compression.FileSystem') {
+    try { Add-Type -AssemblyName $assembly -ErrorAction Stop } catch { }
+}
+function Write-FixtureBitmap([string]$Path, [int]$Width, [int]$Height) {
+    # Minimal uncompressed 24-bit Windows bitmap; only the header fields matter to the packager.
+    $rowBytes = [int]([Math]::Ceiling(($Width * 3) / 4) * 4)
+    $pixelBytes = $rowBytes * $Height
+    $bytes = New-Object byte[] (54 + $pixelBytes)
+    $bytes[0] = 0x42; $bytes[1] = 0x4D
+    [Array]::Copy([BitConverter]::GetBytes([int32](54 + $pixelBytes)), 0, $bytes, 2, 4)
+    [Array]::Copy([BitConverter]::GetBytes([int32]54), 0, $bytes, 10, 4)
+    [Array]::Copy([BitConverter]::GetBytes([int32]40), 0, $bytes, 14, 4)
+    [Array]::Copy([BitConverter]::GetBytes([int32]$Width), 0, $bytes, 18, 4)
+    [Array]::Copy([BitConverter]::GetBytes([int32]$Height), 0, $bytes, 22, 4)
+    [Array]::Copy([BitConverter]::GetBytes([int16]1), 0, $bytes, 26, 2)
+    [Array]::Copy([BitConverter]::GetBytes([int16]24), 0, $bytes, 28, 2)
+    [Array]::Copy([BitConverter]::GetBytes([int32]$pixelBytes), 0, $bytes, 34, 4)
+    $parent = Split-Path -Parent $Path
+    if (-not (Test-Path -LiteralPath $parent)) { $null = New-Item -ItemType Directory -Path $parent }
+    [IO.File]::WriteAllBytes($Path, $bytes)
+}
+function Write-FixtureDll([string]$Path, [uint16]$Machine) {
+    # Minimal MZ + PE header carrying the requested machine type; never a loadable module.
+    $bytes = New-Object byte[] 128
+    $bytes[0] = 0x4D; $bytes[1] = 0x5A
+    [Array]::Copy([BitConverter]::GetBytes([int32]64), 0, $bytes, 60, 4)
+    $bytes[64] = 0x50; $bytes[65] = 0x45
+    [Array]::Copy([BitConverter]::GetBytes($Machine), 0, $bytes, 68, 2)
+    $parent = Split-Path -Parent $Path
+    if (-not (Test-Path -LiteralPath $parent)) { $null = New-Item -ItemType Directory -Path $parent }
+    [IO.File]::WriteAllBytes($Path, $bytes)
+}
+$package = New-Fixture 'package'
+$packageBaseConfig = Get-Content -LiteralPath (Join-Path $package.Skin 'Settings\Settings.ini') -Raw
+foreach ($module in 'Chronometer','CPU','RAM','GPU','IO','Network','Media','Visualizer') {
+    $entrypoint = if ($module -eq 'IO') { 'IO-Disk.ini' } else { "$module.ini" }
+    Put-File (Join-Path $package.Skin "$module\$entrypoint") $packageBaseConfig
+    Put-File (Join-Path $package.Skin "@Resources\User\$module.inc") "[Variables]`n${module}Option=1`n"
+}
+Put-File (Join-Path $package.Skin '@Resources\Licenses\FixturePlugin-LICENSE.txt') 'Synthetic plugin license notice.'
+$fixturePluginRoot = Join-Path $package.Project 'packaging\Plugins\FixturePlugin\1.2.3.4'
+Write-FixtureDll (Join-Path $fixturePluginRoot '32bit\FixturePlugin.dll') 0x14C
+Write-FixtureDll (Join-Path $fixturePluginRoot '64bit\FixturePlugin.dll') 0x8664
+Put-File (Join-Path $package.Project 'packaging\release.json') ([ordered]@{
+    name = 'Parallax'; author = 'Fixture Author'; version = 'test-package'
+    minimumRainmeter = '4.5.26'; minimumWindows = '10.0'; loadType = 'Skin'
+    loadSkin = 'Parallax\Settings\Settings.ini'; mergeSkins = $false; headerImage = 'packaging\RMSKIN.bmp'
+    plugins = @([ordered]@{ name = 'FixturePlugin'; version = '1.2.3.4'; directory = 'packaging\Plugins\FixturePlugin\1.2.3.4'; license = '@Resources\Licenses\FixturePlugin-LICENSE.txt' })
+} | ConvertTo-Json -Depth 5)
+Write-FixtureBitmap (Join-Path $package.Project 'packaging\RMSKIN.bmp') 400 60
+$built = & (Join-Path $toolsRoot 'Package-Parallax.ps1') -ProjectRoot $package.Project
+Assert-True (Test-Path -LiteralPath $built.Package) 'Packager must write the .rmskin file.'
+Assert-True ((Split-Path -Leaf $built.Package) -eq 'Parallax_test-package.rmskin') 'Package file name must follow Name_Version.rmskin.'
+$packageBytes = [IO.File]::ReadAllBytes($built.Package)
+$trailer = $packageBytes[($packageBytes.Length - 16)..($packageBytes.Length - 1)]
+Assert-True ($packageBytes[0] -eq 0x50 -and $packageBytes[1] -eq 0x4B) 'Package must begin with a ZIP local file header.'
+Assert-True ([Text.Encoding]::ASCII.GetString($trailer, 9, 7) -eq "RMSKIN`0") 'Package must end with the RMSKIN key.'
+Assert-True ([BitConverter]::ToInt64($trailer, 0) -eq ($packageBytes.Length - 16) -and $trailer[8] -eq 0) 'Trailer must record the archive length with zero flags.'
+$verified = & (Join-Path $toolsRoot 'Test-ParallaxPackage.ps1') -PackagePath $built.Package -StageManifest (Join-Path $built.StageRoot 'stage-manifest.json') -ExpectedName 'Parallax' -ExpectedVersion 'test-package' -ExpectedSkinRoot 'Parallax' -RequireHeaderImage
+Assert-True ($verified.SkinFiles -eq 21 -and $verified.Entries -eq 25) 'Package must contain RMSKIN.ini, RMSKIN.bmp, both plugin builds and every staged file.'
+Assert-True ($verified.PluginEntries -eq 2 -and @($verified.Plugins).Count -eq 1 -and $verified.Plugins -contains 'FixturePlugin.dll') 'Package must carry the bundled plugin for both architectures.'
+Assert-True (@($built.Plugins).Count -eq 1 -and $built.Plugins -contains 'FixturePlugin') 'Packager output must name the bundled plugin.'
+Assert-True ($verified.LoadType -eq 'Skin' -and $verified.Load -eq 'Parallax\Settings\Settings.ini') 'RMSKIN.ini must load the Settings config after installation.'
+Assert-True ($verified.VariableFiles.Count -eq 9 -and ($verified.VariableFiles -contains 'Parallax\@Resources\User\Settings.inc')) 'RMSKIN.ini must list every User include for preservation.'
+Assert-True ($verified.Author -eq 'Fixture Author' -and $verified.MinimumRainmeter -eq '4.5.26' -and $verified.MinimumWindows -eq '10.0') 'RMSKIN.ini must carry the release metadata.'
+Assert-True ($verified.Warnings.Count -eq 0 -and $verified.ManifestMatched) 'A complete package must verify against its manifest without warnings.'
+Assert-True ((Get-Content -LiteralPath $built.Checksum -Raw) -match '^[0-9a-f]{64}  Parallax_test-package\.rmskin\n$') 'Checksum file must use sha256sum format.'
+$packageRecord = Get-Content -LiteralPath $built.Record -Raw | ConvertFrom-Json
+Assert-True ($packageRecord.SHA256 -eq $built.SHA256 -and @($packageRecord.RmskinIni.VariableFiles).Count -eq 9) 'Package record must match the built file.'
+$packageArchive = [IO.Compression.ZipFile]::OpenRead($built.Package)
+try {
+    $iniEntry = $packageArchive.GetEntry('RMSKIN.ini')
+    Assert-True ($null -ne $iniEntry) 'RMSKIN.ini must be an archive root entry.'
+    $iniStream = $iniEntry.Open()
+    $iniMemory = [IO.MemoryStream]::new()
+    $iniStream.CopyTo($iniMemory)
+    $iniStream.Dispose()
+    $iniBytes = $iniMemory.ToArray()
+    Assert-True ($iniBytes.Length -gt 2 -and $iniBytes[0] -eq 0xFF -and $iniBytes[1] -eq 0xFE) 'RMSKIN.ini must be UTF-16LE with a byte-order mark.'
+    Assert-True (@($packageArchive.Entries | Where-Object { $_.FullName.Contains('\') -or $_.FullName.EndsWith('/') }).Count -eq 0) 'Entries must use forward slashes and contain no directory records.'
+    Assert-True (@($packageArchive.Entries | Where-Object { $_.FullName -like 'Skins/Parallax/*' }).Count -eq 21) 'Every skin file must sit under Skins/Parallax/.'
+    Assert-True (($null -ne $packageArchive.GetEntry('Plugins/32bit/FixturePlugin.dll')) -and ($null -ne $packageArchive.GetEntry('Plugins/64bit/FixturePlugin.dll'))) 'Plugin builds must use the Plugins/<arch>/<name>.dll layout.'
+} finally { $packageArchive.Dispose() }
+$packageRecordPlugins = @($packageRecord.Plugins)
+Assert-True ($packageRecordPlugins.Count -eq 2 -and ($packageRecordPlugins | Where-Object { $_.Entry -eq 'Plugins/64bit/FixturePlugin.dll' -and $_.Version -eq '1.2.3.4' -and $_.License -eq '@Resources\Licenses\FixturePlugin-LICENSE.txt' })) 'Package record must describe each plugin build.'
+Assert-Fails { & (Join-Path $toolsRoot 'Package-Parallax.ps1') -ProjectRoot $package.Project } 'An existing package must not be overwritten without -Force.'
+$rebuilt = & (Join-Path $toolsRoot 'Package-Parallax.ps1') -ProjectRoot $package.Project -StageRoot $built.StageRoot -Force
+Assert-True ($rebuilt.Entries -eq 25 -and (Test-Path -LiteralPath $rebuilt.Package)) '-Force must rebuild the package from a reused stage.'
+Assert-Fails { & (Join-Path $toolsRoot 'Package-Parallax.ps1') -ProjectRoot $package.Project -StageRoot $built.StageRoot -Version 'other' -Force } 'A reused stage must match the package version.'
+$noAuthorRelease = Join-Path $package.Project 'packaging\release-no-author.json'
+Put-File $noAuthorRelease ([ordered]@{ name = 'Parallax'; version = 'test-package'; minimumRainmeter = '4.5.26'; minimumWindows = '10.0'; loadSkin = 'Parallax\Settings\Settings.ini' } | ConvertTo-Json)
+Assert-Fails { & (Join-Path $toolsRoot 'Package-Parallax.ps1') -ProjectRoot $package.Project -ReleaseFile $noAuthorRelease -StageRoot $built.StageRoot -Force } 'Packaging without an author must fail.'
+Assert-Fails { & (Join-Path $toolsRoot 'Package-Parallax.ps1') -ProjectRoot $package.Project -StageRoot $built.StageRoot -MinimumWindows 'ten' -Force } 'Non-numeric minimum versions must fail.'
+Assert-Fails { & (Join-Path $toolsRoot 'Package-Parallax.ps1') -ProjectRoot $package.Project -StageRoot $built.StageRoot -LoadSkin 'Parallax\Missing\Missing.ini' -Force } 'The load skin must exist in the stage.'
+Write-FixtureBitmap (Join-Path $package.Project 'packaging\wrong.bmp') 10 10
+Assert-Fails { & (Join-Path $toolsRoot 'Package-Parallax.ps1') -ProjectRoot $package.Project -StageRoot $built.StageRoot -HeaderImage (Join-Path $package.Project 'packaging\wrong.bmp') -Force } 'Header images must be exactly 400x60.'
+$noPlugins = & (Join-Path $toolsRoot 'Package-Parallax.ps1') -ProjectRoot $package.Project -StageRoot $built.StageRoot -NoPlugins -Force
+Assert-True ($noPlugins.Entries -eq 23 -and @($noPlugins.Plugins).Count -eq 0) '-NoPlugins must omit every plugin build.'
+$fixturePlugin64 = Join-Path $fixturePluginRoot '64bit\FixturePlugin.dll'
+Rename-Item -LiteralPath $fixturePlugin64 -NewName 'FixturePlugin.dll.absent'
+Assert-Fails { & (Join-Path $toolsRoot 'Package-Parallax.ps1') -ProjectRoot $package.Project -StageRoot $built.StageRoot -Force } 'A plugin without its 64-bit build must fail.'
+Rename-Item -LiteralPath ($fixturePlugin64 + '.absent') -NewName 'FixturePlugin.dll'
+$fixturePlugin32 = Join-Path $fixturePluginRoot '32bit\FixturePlugin.dll'
+[IO.File]::WriteAllBytes($fixturePlugin32, [Text.Encoding]::ASCII.GetBytes('Synthetic bytes without an MZ header; must never be packaged as a plugin.'))
+Assert-Fails { & (Join-Path $toolsRoot 'Package-Parallax.ps1') -ProjectRoot $package.Project -StageRoot $built.StageRoot -Force } 'A plugin file without a PE header must fail.'
+Write-FixtureDll $fixturePlugin32 0x8664
+Assert-Fails { & (Join-Path $toolsRoot 'Package-Parallax.ps1') -ProjectRoot $package.Project -StageRoot $built.StageRoot -Force } 'A 64-bit image in the 32bit folder must fail.'
+Write-FixtureDll $fixturePlugin32 0x14C
+$ignoredPluginRelease = Join-Path $package.Project 'packaging\release-ignored-plugin.json'
+Put-File $ignoredPluginRelease ([ordered]@{
+    name = 'Parallax'; author = 'Fixture Author'; version = 'test-package'; minimumRainmeter = '4.5.26'; minimumWindows = '10.0'; loadSkin = 'Parallax\Settings\Settings.ini'
+    plugins = @([ordered]@{ name = 'RunCommand'; version = '1.0.0.0'; directory = 'packaging\Plugins\FixturePlugin\1.2.3.4'; license = '@Resources\Licenses\FixturePlugin-LICENSE.txt' })
+} | ConvertTo-Json -Depth 5)
+Assert-Fails { & (Join-Path $toolsRoot 'Package-Parallax.ps1') -ProjectRoot $package.Project -ReleaseFile $ignoredPluginRelease -StageRoot $built.StageRoot -Force } 'Bundling one of Rainmeter''s own plugins must fail.'
+$unlicensedPluginRelease = Join-Path $package.Project 'packaging\release-unlicensed-plugin.json'
+Put-File $unlicensedPluginRelease ([ordered]@{
+    name = 'Parallax'; author = 'Fixture Author'; version = 'test-package'; minimumRainmeter = '4.5.26'; minimumWindows = '10.0'; loadSkin = 'Parallax\Settings\Settings.ini'
+    plugins = @([ordered]@{ name = 'FixturePlugin'; version = '1.2.3.4'; directory = 'packaging\Plugins\FixturePlugin\1.2.3.4'; license = '@Resources\Licenses\Absent-LICENSE.txt' })
+} | ConvertTo-Json -Depth 5)
+Assert-Fails { & (Join-Path $toolsRoot 'Package-Parallax.ps1') -ProjectRoot $package.Project -ReleaseFile $unlicensedPluginRelease -StageRoot $built.StageRoot -Force } 'A plugin whose license is not staged must fail.'
+$noHeader = & (Join-Path $toolsRoot 'Package-Parallax.ps1') -ProjectRoot $package.Project -StageRoot $built.StageRoot -NoHeaderImage -Force
+Assert-True ($noHeader.Entries -eq 24) '-NoHeaderImage must omit RMSKIN.bmp.'
+$tampered = Join-Path $package.Project 'tampered.rmskin'
+$tamperedBytes = [IO.File]::ReadAllBytes($noHeader.Package)
+$tamperedBytes[$tamperedBytes.Length - 7] = 0x58
+[IO.File]::WriteAllBytes($tampered, $tamperedBytes)
+Assert-Fails { & (Join-Path $toolsRoot 'Test-ParallaxPackage.ps1') -PackagePath $tampered } 'A package without the RMSKIN key must fail verification.'
+$plainZip = Join-Path $package.Project 'plain.rmskin'
+[IO.File]::WriteAllBytes($plainZip, $tamperedBytes[0..($tamperedBytes.Length - 17)])
+Assert-Fails { & (Join-Path $toolsRoot 'Test-ParallaxPackage.ps1') -PackagePath $plainZip } 'A plain ZIP renamed to .rmskin must fail verification.'
+$shortTrailer = Join-Path $package.Project 'short.rmskin'
+$shortBytes = [IO.File]::ReadAllBytes($noHeader.Package)
+[Array]::Copy([BitConverter]::GetBytes([int64]($shortBytes.Length - 17)), 0, $shortBytes, $shortBytes.Length - 16, 8)
+[IO.File]::WriteAllBytes($shortTrailer, $shortBytes)
+Assert-Fails { & (Join-Path $toolsRoot 'Test-ParallaxPackage.ps1') -PackagePath $shortTrailer } 'A trailer whose length disagrees with the archive must fail verification.'
+Add-Content -LiteralPath (Join-Path $built.StageRoot 'Skins\Parallax\Settings\Settings.ini') -Value '; tampered after staging'
+Assert-Fails { & (Join-Path $toolsRoot 'Package-Parallax.ps1') -ProjectRoot $package.Project -StageRoot $built.StageRoot -Force } 'A stage whose bytes changed after its manifest must not be packaged.'
 
 Write-Host "Packaging tool fixtures passed. Inspect retained fixtures at: $fixtureRoot"

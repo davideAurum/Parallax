@@ -14,4 +14,4 @@ Media includes optional WebNowPlaying controls and an authenticated Spotify queu
 
 Run every utility alone and together, check settings refresh without losing countdowns, reload persistence, missing sources, long strings, scaled snapping and mixed-DPI layouts. Record Rainmeter plus provider CPU/memory at idle, normal activity and visualizer load. Establish budgets from measurements on documented hardware, then tune defaults.
 
-Create a fresh stage, review dependencies and attribution, verify clean install and settings-preserving upgrades using a real Skin Packager `.rmskin`, then publish a versioned artifact only after acceptance. A validated source stage is useful development output but is not an installer or release-readiness claim.
+Build the `.rmskin` with `tools/Package-Parallax.ps1` (or the official Skin Packager) from a fresh stage, review dependencies and attribution, verify clean install and settings-preserving upgrades with that package, then publish a versioned artifact only after acceptance. A validated stage or a structurally verified package is useful development output but is not an installation test or a release-readiness claim.

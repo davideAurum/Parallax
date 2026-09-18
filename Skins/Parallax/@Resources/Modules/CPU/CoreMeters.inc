@@ -2380,7 +2380,7 @@ FontSize=(#HeaderFontSize#*#Scale#)
 Text=Thread
 Hidden=1
 Group=CPUTableFrame|CPUUI
-ToolTipText=Windows hardware-thread numbers. The adjacent bar shows each thread utilization.
+ToolTipText=Windows hardware-thread numbers. The adjacent bar shows frequency-adjusted Processor Utility and caps turbo values at 100%.
 
 [MeterTableVoltageHeader]
 Meter=Image
@@ -2422,7 +2422,7 @@ Greyscale=1
 ImageTint=#HeaderTextColor#,255
 Group=CPUTableFrame|CPUUI
 Hidden=1
-ToolTipText=Gauge symbol: logical processor utilization as a percentage.
+ToolTipText=Gauge symbol: frequency-adjusted logical-processor Utility. Numeric values may exceed 100% under turbo; bars cap at 100%.
 
 [MeterTableHeaderRule]
 Meter=Shape

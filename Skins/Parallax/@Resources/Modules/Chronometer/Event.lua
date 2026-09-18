@@ -11,7 +11,7 @@ local function option(meter, key, value)
     end
 end
 
-local function paint()
+local function paint(immediate)
     local active = event and event.enabled
     local remaining = active and Core.remaining(event, os.time()) or 0
     local label, value, color = 'No event set', 'Add in settings', 'AccentColor2'
@@ -37,8 +37,12 @@ local function paint()
     option('MeterEventCountdown', 'Text', value)
     option('MeterEventCountdown', 'ToolTipText', detail)
     option('MeterEventCountdown', 'FontColor', SKIN:GetVariable(color))
-    SKIN:Bang('!UpdateMeterGroup', 'ChronometerEvent')
-    SKIN:Bang('!Redraw')
+    -- Periodic updates already receive Rainmeter's end-of-cycle meter update
+    -- and redraw. Editor callbacks still request an immediate visual update.
+    if immediate ~= false then
+        SKIN:Bang('!UpdateMeterGroup', 'ChronometerEvent')
+        SKIN:Bang('!Redraw')
+    end
     return remaining
 end
 
@@ -61,7 +65,7 @@ function Initialize()
     read()
 end
 
-function Update() return paint() end
+function Update() return paint(false) end
 
 function Reload()
     editorError = false

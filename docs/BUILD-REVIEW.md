@@ -41,4 +41,4 @@ Module scope and limitations are recorded in `docs/modules/`. Actual CPU VID was
 
 Active Wi-Fi, physical event-form interaction, mixed Windows DPI, full-suite/provider overhead and packaged installation/upgrade behavior remain acceptance work. Initial Spotify queue authorization/refresh does not establish every Media scenario. Source detection is conservative metadata correlation, expires stale observations, and does not prove WNP freshness. Its Stop lock waits are bounded; synchronous Windows API stalls cannot be forcibly interrupted by the helper.
 
-This local source checkpoint does not publish a release, install software, alter the live Rainmeter profile or change an authenticated provider session. Distribution still requires the [release gates](PACKAGING.md#release-gates), including a Skin Packager-produced `.rmskin` and upgrade testing.
+This local source checkpoint does not publish a release, install software, alter the live Rainmeter profile or change an authenticated provider session. Distribution still requires the [release gates](PACKAGING.md#release-gates), including installing the packaged `.rmskin` and upgrade testing.

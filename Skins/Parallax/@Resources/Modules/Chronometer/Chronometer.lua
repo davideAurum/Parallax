@@ -36,7 +36,7 @@ local function save()
     retryTicks = 0
 end
 
-local function paint(now)
+local function paint(now, immediate)
     option('MeterList', 'Text', state.selected .. '/3  ' .. names[state.selected])
     local active, done, invalid = 0, 0, 0
     for _, timer in ipairs(state.timers) do
@@ -66,8 +66,12 @@ local function paint(now)
     else footer = 'All lists: ' .. active .. ' running / ' .. done .. ' done' end
     option('MeterPersistence', 'Text', footer)
     option('MeterPersistence', 'FontColor', SKIN:GetVariable((failed or recovery or invalid > 0) and 'WarningColor' or 'MutedColor'))
-    SKIN:Bang('!UpdateMeterGroup', 'ChronometerData')
-    SKIN:Bang('!Redraw')
+    -- A normal Rainmeter update refreshes meters and redraws once after all
+    -- measures finish. Only event-driven calls need an immediate extra pass.
+    if immediate ~= false then
+        SKIN:Bang('!UpdateMeterGroup', 'ChronometerData')
+        SKIN:Bang('!Redraw')
+    end
 end
 
 function Initialize()
@@ -111,7 +115,7 @@ function Update()
         retryTicks = retryTicks + 1
         if completed or retryTicks >= 60 then save() end
     end
-    paint(now)
+    paint(now, false)
     return 0
 end
 

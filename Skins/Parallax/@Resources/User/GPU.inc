@@ -4,7 +4,7 @@
 ; Right-click GPU > GPU mapping guide opens the bundled setup instructions.
 [Variables]
 Columns=1
-PanelHeight=560
+PanelHeight=650
 GPUEnableSensors=1
 ; Power/clock source: 0=direct driver (default), 1=explicit HWiNFO override.
 ; Overrides also require GPUEnableSensors=1 and a valid mapping below.

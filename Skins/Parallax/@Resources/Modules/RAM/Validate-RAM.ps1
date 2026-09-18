@@ -145,7 +145,7 @@ Assert-RAM ($settingsScript -notmatch '!Refresh|MeasureRAMInfo|MeasureRAMPage|Me
 Assert-RAM ($displayScript -notmatch '!Refresh|!WriteKeyValue|ToggleMenu|RAMSettingsMenu') 'Display controller must not persist preferences or own an overlay.'
 Assert-RAM ($displayScript.Contains("SKIN:Bang('!CommandMeasure', 'MeasureRAMPageView', 'Display()')")) 'Unit changes must reformat the cached paging-file reading.'
 Assert-RAM ($displayScript -notmatch 'MeasureRAMPageBootstrap|MeasureRAMPageHost|Start\(\)|io\.open') 'Settings-driven display must not launch or query the PAGE provider.'
-$pageDisplay = [regex]::Match($pageScript,'(?s)function Display\(\)(.*?)\nlocal function cleanup').Groups[1].Value
+$pageDisplay = [regex]::Match($pageScript,'(?s)function Display\([^)]*\)(.*?)\nlocal function cleanup').Groups[1].Value
 $pageProviderDisplay = $pageDisplay.Replace("SKIN:Bang('!UpdateMeasure', 'MeasureRAMPageRatio')", '')
 Assert-RAM ($pageDisplay.Length -gt 0 -and $pageProviderDisplay -notmatch 'io\.|launch\(|!CommandMeasure|!UpdateMeasure') 'PAGE Display may update its cached ratio without provider or session IO.'
 Assert-RAM ($pageScript -notmatch 'MeasureRAMHistory|!UpdateMeterGroup') 'PAGE rendering must not force physical-memory history.'

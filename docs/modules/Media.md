@@ -15,8 +15,8 @@ user-selected Lucide metadata and playback icons are attributed below.
 - `Skins/Parallax/Media/Setup.ini`: dependency-free onboarding and fallback.
 - `Skins/Parallax/Media/Media.ini`: optional WebNowPlaying player with title,
   artist, album, cover, reported position/duration, and progress. Lucide Music,
-  User Round Group and Disc 3 icons identify the metadata rows. Below the static
-  `Media Player` title with Monitor Play, a body-font current-player row uses the selected Lucide Audio Lines icon. Playback-state captions
+  User Round Group and Disc 3 icons identify the metadata rows. Beside the static
+  `Media Player` title with Monitor Play, the body-font current-player name uses the selected Lucide Audio Lines icon. Playback-state captions
   are omitted; the optional source explanation remains on the song icon's tooltip.
 - Previous, play/pause, and next controls use WNP capability measures. Unsupported
   controls appear muted, explain why in tooltips, and send no command. Lua checks
@@ -45,8 +45,8 @@ user-selected Lucide metadata and playback icons are attributed below.
 - An optional local Windows media-session observer identifies Spotify desktop
   when exactly one session matches the current WNP title, raw artist and state.
   Start/Stop controls live in Media settings; Spotify sign-in is unnecessary.
-- At two columns, a rounded album tile measuring 75% of its former size
-  (149 pixels at the current default, about 67.5% of one standard column) with a thin white border
+- At two columns, a rounded album tile measuring 169 pixels at the current
+  default (20 pixels larger in both dimensions than the preceding layout) with a thin white border
   overhangs the top and left edges of a narrower
   panel. Track details and playback controls occupy the right column; Queue spans
   the black panel's inner width below the cover.
@@ -59,9 +59,9 @@ user-selected Lucide metadata and playback icons are attributed below.
 | Base UI and Setup — required | Windows, Rainmeter, built-in measures/meters and bundled Lua/includes. | Default skin update: 1 second. Setup loads without external plugins. |
 | Fonts and icons — bundled | Private IBM Plex Sans fonts ([license](../../Skins/Parallax/@Resources/Licenses/IBM-Plex-OFL.txt)); native Shape adaptations of Lucide artwork ([provenance and licenses](../../Skins/Parallax/@Resources/Modules/Media/Icons/Lucide/README.md)). | No download, system font installation or SVG-rendering plugin required. |
 | Typed numeric settings — bundled | Rainmeter's bundled RunCommand plugin, Windows PowerShell/.NET WinForms and the shared `Scripts/SettingsInput.ps1` overlay. | An explicit numeric-field click starts one temporary editor. Fixed numeric/cancel output is revalidated before saving; invalid, cancelled, unrequested or hidden-field results do not save. No polling or provider starts. |
-| Playback metadata and controls — optional | Manually installed [WebNowPlaying 2.x+](https://wnp.keifufu.dev/rainmeter/getting-started) and a supported player. Browser playback additionally requires its browser extension. | Sampled on the skin update; `MediaInterval` does not throttle WNP internally. Inactive connections show no active media; unsupported controls remain disabled. Setup unloads the optional plugin. |
-| Spotify source identification — optional | Bundled `SourceProvider.ps1`, Windows PowerShell 5.1, built-in .NET and Windows media-session APIs. No Spotify authentication or network request. | Explicit Start enables one persistent observer targeting a 2-second collection cadence, with load-time recovery through `MediaLifecycle.lua`/`Lifecycle.inc`. Observations expire after 6 seconds. Missing or inconclusive evidence leaves generic Windows playback identified as `Unknown`. |
-| Spotify queue — optional | Bundled `QueueProvider.ps1`, `QueueCore.psm1`, `QueueAuth.psm1`; Windows PowerShell 5.1/.NET; network access; Spotify Developer app public Client ID and user-authorized PKCE sign-in. The [queue setup guide](../../Skins/Parallax/@Resources/Modules/Media/Queue/README.md) records Development Mode prerequisites, including owner Premium and user allowlisting. No client secret. | One opt-in worker requests every 30 seconds by default, configurable to 30–150 seconds, subject to backoff/quota pauses. Passive views read local snapshots on their update. Missing, stopped, expired or failed data produces explicit status and suppresses rows. |
+| Playback metadata and controls — optional, plugin bundled | [WebNowPlaying](https://wnp.keifufu.dev/rainmeter/getting-started) plugin 2.0.7.0 (MIT License, keifufu and Trevor Hamilton), bundled in the Parallax `.rmskin` from `packaging/Plugins/WebNowPlaying` and installed by Skin Installer unless a newer version is present ([license](../../Skins/Parallax/@Resources/Licenses/WebNowPlaying-LICENSE.txt), [provenance](../../packaging/Plugins/WebNowPlaying/README.md)); a supported player. Browser playback additionally requires the separately installed WebNowPlaying browser extension; desktop adapters are also separate. A development copy of the skin without the package needs a manual plugin install (2.x+). | Sampled on the skin update; `MediaInterval` does not throttle WNP internally. Inactive connections show no active media; unsupported controls remain disabled. Setup unloads the optional plugin. |
+| Spotify source identification — optional | Bundled `SourceProvider.ps1`, Rainmeter's bundled RunCommand plugin, Windows PowerShell 5.1, built-in .NET and Windows media-session APIs. No Spotify authentication or network request. | Explicit Start uses a dormant `State=Hide` RunCommand control and enables one persistent observer targeting a 2-second collection cadence, with load-time recovery through `MediaLifecycle.lua`/`Lifecycle.inc`. Stop uses the same hidden event-only path. Observations expire after 6 seconds. Missing or inconclusive evidence leaves generic Windows playback identified as `Unknown`. |
+| Spotify queue — optional | Bundled `QueueProvider.ps1`, `QueueCore.psm1`, `QueueAuth.psm1`; Rainmeter's bundled RunCommand plugin; Windows PowerShell 5.1/.NET; network access; Spotify Developer app public Client ID and user-authorized PKCE sign-in. The [queue setup guide](../../Skins/Parallax/@Resources/Modules/Media/Queue/README.md) records Development Mode prerequisites, including owner Premium and user allowlisting. No client secret. | Start, Stop, Restart and Disconnect use dormant `State=Hide` RunCommand controls with a fixed allowlist and do not overlap. One opt-in worker requests every 30 seconds by default, configurable to 30–150 seconds, subject to backoff/quota pauses. Sign in deliberately retains a visible setup console/browser flow. Passive views read local snapshots on their update. Missing, stopped, expired or failed data produces explicit status and suppresses rows. |
 
 Both provider helpers require an explicit initial Start (or successful queue sign-in).
 They save private enabled intent and can resume once when their Media view loads
@@ -78,7 +78,7 @@ tools and unimplemented features are not runtime requirements.
 1. Start with `Parallax\Media`, `Setup.ini` in Rainmeter Manage. This variant has
    no external plugin measures. Its passive Lua reader reads only the queue's local
    display cache. It does not probe, install, or load WNP.
-2. If desired, manually install the [official WebNowPlaying Rainmeter plugin](https://wnp.keifufu.dev/rainmeter/getting-started), version 2.x or newer.
+2. The Parallax `.rmskin` installs the [WebNowPlaying Rainmeter plugin](https://wnp.keifufu.dev/rainmeter/getting-started) 2.0.7.0 unless a newer version is already present. When running the skin from a source copy instead of the package, install the plugin manually (version 2.x or newer).
    Its setup guide includes the plugin's example skin for connection testing.
 3. Open a supported player, then choose **Load player**. WNP supports Spotify
    Desktop without Spicetify; browser playback needs its browser extension.
@@ -108,7 +108,7 @@ can add local overrides to `User/Media.inc`. The shipped layouts target the
 default `ColumnWidth=220`, `FontSize=9`, `PanelPadding=6`, and support painted
 widths 180/200/220/240/280/320 at scales 0.75/1/1.25/1.5/2, with either Columns value.
 FontFace is inherited; this module does not provision fonts. Shared neutral
-black/gray surfaces and the inside border frame the identified-player row and icon,
+black/gray surfaces and the inside border frame the identified-player title group,
 36-pixel compact or proportionally sized double-width artwork, 24-pixel metadata rows, and
 a progress bar using shared `DataBarThickness` (6 logical pixels by default,
 range 1–12). Shared geometry rounds the scaled thickness to whole screen pixels
@@ -255,7 +255,7 @@ networking, timers, subprocesses, or persistent runtime data.
 Source: [WNP usage](https://wnp.keifufu.dev/rainmeter/usage).
 
 The user's later layout revision removes the separate playback caption and
-places the identified player below the static Media Player title. WNP's source and
+places the identified player beside the static Media Player title. WNP's source and
 state remain internal measures; the optional observer
 updates only the song icon's fixed tooltip. WNP 2.0.7's native desktop adapter
 supplies the generic `Windows Media Session` name and needs the observer below
@@ -424,30 +424,28 @@ upstream ISC and Feather MIT notices are retained in
 Music is listed upstream as Feather-derived; the extra MIT notice is preserved.
 These vector adaptations add no plugin, font or runtime network dependency.
 
-## Player title, source row and icon
+## Player title, current player and icon
 
 `MediaHeader.lua` reads the current WNP connection, track and reported player
 after the source reader has updated. `MeterPlayerName` binds directly to its
 returned string as `%1`; the tooltip uses the same measure value, retaining
 the full name when the row truncates it. No player-supplied text becomes
 a bang, path, variable name or Lua command. The static `Media Player` heading
-inherits title typography, and the source row inherits body `FontSize` and
-`TextColor`. Both retain fixed bounds without wrapping or shrinking global font choices.
+inherits title typography, and the adjacent player name inherits body `FontSize`
+and `TextColor`. Both retain fixed bounds without wrapping or shrinking global font choices.
 The script retains a UTF-16LE BOM so Rainmeter's native Lua APIs preserve
 accented, CJK and non-BMP player names.
 
 Player and Setup titles use the shared `StyleTitleRow` center, translated to
 their offset surface. Monitor Play returns to that title row at `ContentX`,
 with its paths and strokes scaled by `TitleIconSize / 24`. Title text starts
-after the icon and shared four-pixel gap, reserving 24 logical pixels for the
-gear and its clearance. The 18-pixel source row starts 30 logical
-pixels below the surface top. Audio Lines uses a fixed 14-pixel canvas scaled
-with the suite, centered on that row; its paths and strokes scale by
+after the icon and shared four-pixel gap. Its fixed 97-pixel title area is
+followed by a six-pixel gap, the 14-pixel Audio Lines icon and current player;
+the player ends 24 logical pixels before the gear. Audio Lines scales with the
+suite, and its paths and strokes scale by
 `14 * Scale / 24`. A four-pixel gap separates the icon from the player name.
-In the compact layout, the row starts 54 logical pixels after `ContentX`, aligned
-with the metadata icon column, so it clears the unchanged artwork anchor.
-In the double layout it begins at `ContentX`. Name width ends at the content's
-right edge. The icon and source name remain visible in every player/setup state.
+The title and current-player text share the same vertical center. The icon and
+source name remain visible in every player/setup state.
 
 Standalone Queue uses the same title center without a leading identity icon.
 Settings keeps its centered title using `CenterCenter`; its close control shares
@@ -460,27 +458,26 @@ confirms it; otherwise the app is Unknown. Disconnected, empty-track and
 plugin-free Setup states show Not connected, Idle and Setup respectively.
 Pausing a track retains its player identity.
 
-The title uses Monitor Play and the source row uses the user-selected Lucide
+The title uses Monitor Play and the adjacent player identity uses the user-selected Lucide
 Audio Lines drawing for every player and setup state. Their native Shape paths
 preserve the supplied SVGs. The name adapter only returns inert text;
 it no longer changes icon visibility or sends UI bangs. Player detection
-remains available in the body row and full-name tooltip.
+remains available in the title row and full-name tooltip.
 See [Rainmeter measure-bound tooltips](https://github.com/rainmeter/rainmeter-docs/blob/master/source/manual/meters/general-options/tooltips.html)
 and [Shape primitives](https://github.com/rainmeter/rainmeter-docs/blob/master/source/manual/meters/shape/index.html).
 
 ## Large artwork layout
 
-The user's latest Media-only revision reduces both artwork variants by 25%
-while keeping their top-left anchors. The double-width square starts at `(0,0)`
-relative to the painted origin. Its former size was 90% of the shared standard
-painted width; the current size is `Round(Round(UnitWidth * 0.9) * 0.75)`.
+The user's latest Media-only revision keeps the artwork's top-left anchor and
+adds 20 logical pixels to the preceding double-width square in both dimensions.
+The double-width square starts at `(0,0)` relative to the painted origin. Its
+size is `Round(Round(UnitWidth * 0.9) * 0.75) + Round(20 * Scale)`.
 Compact artwork is 36 logical pixels, rounded after scaling. The black surface starts
 at x=96 and is inset 12 pixels from the top (rounded after scaling). At the
-default 220-pixel width, artwork is 149 pixels square, overhangs the surface by
+default 220-pixel width, artwork is 169 pixels square, overhangs the surface by
 96 pixels on the left and 12 at the top, and overlaps it horizontally by 53.
-The title icon's content origin follows eight pixels after the cover (x=157 relative
-to the painted origin). The shared-thickness progress bar starts four pixels
-after the cover and extends to the same right edge. Metadata retains its former
+The title icon and shared-thickness progress bar start eight pixels after the
+cover and extend to the same right edge. Metadata retains its former
 icon/text column bounds and row pitch. Its text follows the body font size,
 with the existing icons centered on each line. Playback buttons use
 the smaller cover's right edge for their measured-time centering. Queue heading/status, divider
@@ -515,20 +512,23 @@ The divider is at least eight logical pixels below their lower edges; the queue
 heading begins eight pixels after the divider. Surface top offset plus its height
 form `MediaBodyHeightPx`, the overall unexpanded bottom offset; inline rows start
 two logical pixels below that. Expansion does not move the artwork or change this
-base height. At widths 180/220/320, artwork measures 122/149/216 pixels and the
-overall double-layout body measures 214/214/253 pixels at scale 1 with the
-default six-pixel progress bar. Controls determine the remaining height at
-width 220; artwork determines it at width 320. Thicker bars can increase the
+base height. At widths 180/220/320, artwork measures 142/169/236 pixels and the
+overall double-layout body measures 214/214/273 pixels at scale 1 with the
+default six-pixel progress bar. The existing queue anchor remains unchanged at
+the normal 180/220 widths; at 320 it extends only enough to prevent artwork overlap.
+Thicker bars can increase the
 body height without changing the saved minimum or metadata positions.
 
 Song, artist and album use the selected Lucide drawings in 14-pixel vector canvases beside their text.
 Their static Shape options rebuild only when track visibility changes, so the
 icons render again after playback returns from disconnected or idle states.
-Metadata uses a fixed 24-pixel pitch with body-size text and centered icons. In both layouts the first row
-starts 50 pixels below the black surface's top, two pixels below the player
-row. At default scale/width, the double layout has overall painted-origin
-metadata row tops y=62/86/110, progress y=137, controls y=151 and queue heading
-y=193 with the default six-pixel bar. Compact metadata begins at y=50 with the same 24-pixel pitch. Setup status/instructions and the idle message also clear the player row. Long metadata
+Metadata uses a fixed 24-pixel pitch with body-size text and centered icons. In
+both layouts the first row starts 30 pixels below the black surface's top. At
+default scale/width, the double layout has painted-origin metadata row tops
+y=42/66/90, progress y=117, controls y=131 and the unchanged queue heading
+y=193 with the default six-pixel bar. Compact metadata begins at y=30 with the
+same 24-pixel pitch. Setup status/instructions and the idle message use the freed
+space below the title row. Long metadata
 clips within its column. The previous/play/next buttons form a 92-pixel group,
 centered between the artwork's right edge and the measured left edge of the
 right-aligned time text. Compact layouts use the content's left edge instead.
@@ -589,6 +589,29 @@ Sources: [quota modes](https://developer.spotify.com/documentation/web-api/conce
 [rate limits](https://developer.spotify.com/documentation/web-api/concepts/rate-limits).
 
 ## Validation report
+
+### Anchored 20-pixel artwork and raised player layout (2026-09-13)
+
+All **15 source/geometry contract tests** passed across the supported widths,
+scales, typography endpoints, compact/double layouts and queue states. A focused
+native run passed **39 player/setup layouts** and **nine owned-window captures**
+with zero Rainmeter errors. It covered present/missing artwork, 169-pixel default
+double-width art, title-row player identity, raised metadata/progress/transport,
+measured-time control centering, rounded clipping/border pixels, queue anchors
+and maximum-font glyph fit. The inspected default 220/100% double-width capture
+measured 456 by 222 pixels with the queue footer at its preceding position.
+
+Evidence: `%TEMP%\Parallax-MediaSettings-test-b42017494bd24b96971def88a42f8bac`.
+These fixtures use synthetic metadata and artwork; the focused live refresh below
+checks actual meter geometry but does not establish mixed-DPI or performance.
+
+The targeted normal-profile refresh kept the 456-by-222 window and reported
+artwork at `(4,4)` with size 169-by-169. The progress bar began at x=181,
+eight pixels after its right edge; metadata centers moved to y=58/82/106 and
+the controls to y=135. The three 28-pixel buttons occupied x=233/265/297,
+centered in the available span before timing. The queue divider remained at
+y=189. The player icon/name moved beside the title at x=304/322. This probe
+read only meter geometry and sent no playback action.
 
 ### Restart recovery (2026-09-13)
 
@@ -1193,8 +1216,9 @@ the Media header for its gear and click **Queue** or its **List Plus** icon to e
 
 ## Integration and next checks
 
-- Prefer `Setup.ini` for the initial suite layout; Media.ini requires explicit
-  user installation of WNP. Preserve `@Resources/User/Media.inc` on upgrades.
+- Prefer `Setup.ini` for the initial suite layout; Media.ini requires the WNP
+  plugin, which the `.rmskin` bundles (source copies need a manual install).
+  Preserve `@Resources/User/Media.inc` on upgrades.
 - Runtime packaging requires exactly three exceptions under
   `@Resources/Modules/Media/Queue/`: `QueueProvider.ps1`, `QueueCore.psm1`,
   `QueueAuth.psm1`, plus the new narrow exception

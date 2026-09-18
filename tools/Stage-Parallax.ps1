@@ -35,6 +35,7 @@ foreach ($path in @(
     '@Resources\Modules\Chronometer\EventEditorForm.cs',
     '@Resources\Modules\Chronometer\Build-EventEditor.ps1',
     '@Resources\Modules\CPU\DiscoverSensors.ps1',
+    '@Resources\Modules\CPU\ThreadColorInput.ps1',
     '@Resources\Modules\GPU\DiscoverExports.ps1.txt',
     '@Resources\Modules\GPU\AdapterInfo.cs.txt',
     '@Resources\Modules\GPU\DriverTemperature.cs.txt',
@@ -47,7 +48,8 @@ foreach ($path in @(
     '@Resources\Modules\Media\Source\SourceProvider.ps1',
     '@Resources\Modules\Media\Icons\Lucide\LICENSE',
     '@Resources\Modules\RAM\Icons\Lucide\LICENSE',
-    '@Resources\Modules\IO\Icons\Lucide\LICENSE'
+    '@Resources\Modules\IO\Icons\Lucide\LICENSE',
+    '@Resources\Modules\Visualizer\Icons\Lucide\LICENSE'
 )) { $null = $allowedExactPaths.Add($path) }
 $selected = [Collections.Generic.List[object]]::new()
 foreach ($file in $sourceFiles) {
@@ -135,5 +137,5 @@ $manifest | ConvertTo-Json -Depth 8 | Set-Content -LiteralPath (Join-Path $stage
 Write-Host "Staged $($selected.Count) file(s); excluded $($excluded.Count)."
 Write-Host "Skin Packager source: $stageSkinRoot"
 Write-Host "Variables files: $variablesValue"
-Write-Host 'Review the stage manifest, then create the .rmskin with the official Rainmeter Skin Packager.'
+Write-Host 'Review the stage manifest, then create the .rmskin with tools\Package-Parallax.ps1 (or the official Rainmeter Skin Packager).'
 [pscustomobject]@{ StageRoot = $stageRoot; SkinRoot = $stageSkinRoot; Files = $selected.Count; Excluded = $excluded.Count; VariablesFiles = $variablesValue }

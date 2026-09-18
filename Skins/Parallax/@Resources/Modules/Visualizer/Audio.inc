@@ -4,7 +4,21 @@ Measure=Script
 ScriptFile=#@#Modules\Visualizer\Color.lua
 UpdateDivider=-1
 
-; Read-only Windows default output volume. Separate from AudioLevel amplitude.
+; Axis values invert AudioLevel's normalized FFT/band sensitivity scale.
+; This is a relative spectrum dB scale, not calibrated dBFS or sound pressure.
+[MeasureVisualizerDbMid]
+Measure=Calc
+Formula=(-#VisualizerSensitivityDb#/2)
+UpdateDivider=-1
+
+[MeasureVisualizerDbMin]
+Measure=Calc
+Formula=(-#VisualizerSensitivityDb#)
+UpdateDivider=-1
+
+; Windows default output volume and explicit output-switch command target.
+; Device commands run only from the current-output row; volume stays read-only.
+; Switching clears the custom AudioLevel ID and refreshes to follow the new default.
 ; Win7Audio returns -1 while muted. Its string reports device discovery errors;
 ; failed numeric getters can retain a prior value, with no freshness signal.
 [MeasureVisualizerVolume]

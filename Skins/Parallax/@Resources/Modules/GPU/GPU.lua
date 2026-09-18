@@ -138,9 +138,8 @@ function Initialize()
 end
 
 function Update()
-    local changed = false
     local function assign(meter, option, value)
-        changed = set(meter, option, value) or changed
+        set(meter, option, value)
     end
     local adapterName, adapterTip, adapterMemory, adapterClocks = adapterInfo()
     if adapterName then
@@ -153,9 +152,7 @@ function Update()
     assign('MeterActivityValue', 'Text', value)
     assign('MeterActivityValue', 'ToolTipText', tip)
 
-    if changed then
-        SKIN:Bang('!UpdateMeterGroup', 'GPUReadout')
-        SKIN:Bang('!Redraw')
-    end
+    -- The normal skin cycle updates meters and redraws after all Script
+    -- measures finish. Avoid an extra partial GPU redraw from this measure.
     return 0
 end

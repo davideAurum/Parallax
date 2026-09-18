@@ -32,7 +32,6 @@ W=(10*#Scale#)
 H=(10*#Scale#)
 Shape=Line (1*#Scale#),(6*#Scale#),(4*#Scale#),(3*#Scale#) | Stroke Color #DiskReadColor# | StrokeWidth (Max(1,2*#Scale#))
 Shape2=Line (4*#Scale#),(3*#Scale#),(7*#Scale#),(6*#Scale#) | Stroke Color #DiskReadColor# | StrokeWidth (Max(1,2*#Scale#))
-ToolTipText=A: read rate
 Hidden=1
 UpdateDivider=1
 
@@ -45,7 +44,6 @@ W=(10*#Scale#)
 H=(10*#Scale#)
 Shape=Line (1*#Scale#),(3*#Scale#),(4*#Scale#),(6*#Scale#) | Stroke Color #DiskWriteColor# | StrokeWidth (Max(1,2*#Scale#))
 Shape2=Line (4*#Scale#),(6*#Scale#),(7*#Scale#),(3*#Scale#) | Stroke Color #DiskWriteColor# | StrokeWidth (Max(1,2*#Scale#))
-ToolTipText=A: write rate
 Hidden=1
 UpdateDivider=1
 
@@ -76,7 +74,6 @@ W=(26*#Scale#)
 H=(18*#Scale#)
 Text=A:
 Hidden=1
-ToolTipText=A: solid read, dashed write.
 
 [MeterIODriveB]
 Meter=String
@@ -111,7 +108,6 @@ W=(10*#Scale#)
 H=(10*#Scale#)
 Shape=Line (1*#Scale#),(6*#Scale#),(4*#Scale#),(3*#Scale#) | Stroke Color #DiskReadColor# | StrokeWidth (Max(1,2*#Scale#))
 Shape2=Line (4*#Scale#),(3*#Scale#),(7*#Scale#),(6*#Scale#) | Stroke Color #DiskReadColor# | StrokeWidth (Max(1,2*#Scale#))
-ToolTipText=B: read rate
 Hidden=1
 UpdateDivider=1
 
@@ -124,7 +120,6 @@ W=(10*#Scale#)
 H=(10*#Scale#)
 Shape=Line (1*#Scale#),(3*#Scale#),(4*#Scale#),(6*#Scale#) | Stroke Color #DiskWriteColor# | StrokeWidth (Max(1,2*#Scale#))
 Shape2=Line (4*#Scale#),(6*#Scale#),(7*#Scale#),(3*#Scale#) | Stroke Color #DiskWriteColor# | StrokeWidth (Max(1,2*#Scale#))
-ToolTipText=B: write rate
 Hidden=1
 UpdateDivider=1
 
@@ -155,7 +150,6 @@ W=(26*#Scale#)
 H=(18*#Scale#)
 Text=B:
 Hidden=1
-ToolTipText=B: solid read, dashed write.
 
 [MeterIODriveC]
 Meter=String
@@ -190,7 +184,6 @@ W=(10*#Scale#)
 H=(10*#Scale#)
 Shape=Line (1*#Scale#),(6*#Scale#),(4*#Scale#),(3*#Scale#) | Stroke Color #DiskReadColor# | StrokeWidth (Max(1,2*#Scale#))
 Shape2=Line (4*#Scale#),(3*#Scale#),(7*#Scale#),(6*#Scale#) | Stroke Color #DiskReadColor# | StrokeWidth (Max(1,2*#Scale#))
-ToolTipText=C: read rate
 Hidden=1
 UpdateDivider=1
 
@@ -203,7 +196,6 @@ W=(10*#Scale#)
 H=(10*#Scale#)
 Shape=Line (1*#Scale#),(3*#Scale#),(4*#Scale#),(6*#Scale#) | Stroke Color #DiskWriteColor# | StrokeWidth (Max(1,2*#Scale#))
 Shape2=Line (4*#Scale#),(6*#Scale#),(7*#Scale#),(3*#Scale#) | Stroke Color #DiskWriteColor# | StrokeWidth (Max(1,2*#Scale#))
-ToolTipText=C: write rate
 Hidden=1
 UpdateDivider=1
 
@@ -234,7 +226,6 @@ W=(26*#Scale#)
 H=(18*#Scale#)
 Text=C:
 Hidden=1
-ToolTipText=C: solid read, dashed write.
 
 [MeterIODriveD]
 Meter=String
@@ -269,7 +260,6 @@ W=(10*#Scale#)
 H=(10*#Scale#)
 Shape=Line (1*#Scale#),(6*#Scale#),(4*#Scale#),(3*#Scale#) | Stroke Color #DiskReadColor# | StrokeWidth (Max(1,2*#Scale#))
 Shape2=Line (4*#Scale#),(3*#Scale#),(7*#Scale#),(6*#Scale#) | Stroke Color #DiskReadColor# | StrokeWidth (Max(1,2*#Scale#))
-ToolTipText=D: read rate
 Hidden=1
 UpdateDivider=1
 
@@ -282,7 +272,6 @@ W=(10*#Scale#)
 H=(10*#Scale#)
 Shape=Line (1*#Scale#),(3*#Scale#),(4*#Scale#),(6*#Scale#) | Stroke Color #DiskWriteColor# | StrokeWidth (Max(1,2*#Scale#))
 Shape2=Line (4*#Scale#),(6*#Scale#),(7*#Scale#),(3*#Scale#) | Stroke Color #DiskWriteColor# | StrokeWidth (Max(1,2*#Scale#))
-ToolTipText=D: write rate
 Hidden=1
 UpdateDivider=1
 
@@ -313,7 +302,6 @@ W=(26*#Scale#)
 H=(18*#Scale#)
 Text=D:
 Hidden=1
-ToolTipText=D: solid read, dashed write.
 
 [MeterIODriveE]
 Meter=String
@@ -348,7 +336,6 @@ W=(10*#Scale#)
 H=(10*#Scale#)
 Shape=Line (1*#Scale#),(6*#Scale#),(4*#Scale#),(3*#Scale#) | Stroke Color #DiskReadColor# | StrokeWidth (Max(1,2*#Scale#))
 Shape2=Line (4*#Scale#),(3*#Scale#),(7*#Scale#),(6*#Scale#) | Stroke Color #DiskReadColor# | StrokeWidth (Max(1,2*#Scale#))
-ToolTipText=E: read rate
 Hidden=1
 UpdateDivider=1
 
@@ -361,7 +348,6 @@ W=(10*#Scale#)
 H=(10*#Scale#)
 Shape=Line (1*#Scale#),(3*#Scale#),(4*#Scale#),(6*#Scale#) | Stroke Color #DiskWriteColor# | StrokeWidth (Max(1,2*#Scale#))
 Shape2=Line (4*#Scale#),(6*#Scale#),(7*#Scale#),(3*#Scale#) | Stroke Color #DiskWriteColor# | StrokeWidth (Max(1,2*#Scale#))
-ToolTipText=E: write rate
 Hidden=1
 UpdateDivider=1
 
@@ -392,7 +378,6 @@ W=(26*#Scale#)
 H=(18*#Scale#)
 Text=E:
 Hidden=1
-ToolTipText=E: solid read, dashed write.
 
 [MeterIODriveF]
 Meter=String
@@ -427,7 +412,6 @@ W=(10*#Scale#)
 H=(10*#Scale#)
 Shape=Line (1*#Scale#),(6*#Scale#),(4*#Scale#),(3*#Scale#) | Stroke Color #DiskReadColor# | StrokeWidth (Max(1,2*#Scale#))
 Shape2=Line (4*#Scale#),(3*#Scale#),(7*#Scale#),(6*#Scale#) | Stroke Color #DiskReadColor# | StrokeWidth (Max(1,2*#Scale#))
-ToolTipText=F: read rate
 Hidden=1
 UpdateDivider=1
 
@@ -440,7 +424,6 @@ W=(10*#Scale#)
 H=(10*#Scale#)
 Shape=Line (1*#Scale#),(3*#Scale#),(4*#Scale#),(6*#Scale#) | Stroke Color #DiskWriteColor# | StrokeWidth (Max(1,2*#Scale#))
 Shape2=Line (4*#Scale#),(6*#Scale#),(7*#Scale#),(3*#Scale#) | Stroke Color #DiskWriteColor# | StrokeWidth (Max(1,2*#Scale#))
-ToolTipText=F: write rate
 Hidden=1
 UpdateDivider=1
 
@@ -471,7 +454,6 @@ W=(26*#Scale#)
 H=(18*#Scale#)
 Text=F:
 Hidden=1
-ToolTipText=F: solid read, dashed write.
 
 [MeterIODriveG]
 Meter=String
@@ -506,7 +488,6 @@ W=(10*#Scale#)
 H=(10*#Scale#)
 Shape=Line (1*#Scale#),(6*#Scale#),(4*#Scale#),(3*#Scale#) | Stroke Color #DiskReadColor# | StrokeWidth (Max(1,2*#Scale#))
 Shape2=Line (4*#Scale#),(3*#Scale#),(7*#Scale#),(6*#Scale#) | Stroke Color #DiskReadColor# | StrokeWidth (Max(1,2*#Scale#))
-ToolTipText=G: read rate
 Hidden=1
 UpdateDivider=1
 
@@ -519,7 +500,6 @@ W=(10*#Scale#)
 H=(10*#Scale#)
 Shape=Line (1*#Scale#),(3*#Scale#),(4*#Scale#),(6*#Scale#) | Stroke Color #DiskWriteColor# | StrokeWidth (Max(1,2*#Scale#))
 Shape2=Line (4*#Scale#),(6*#Scale#),(7*#Scale#),(3*#Scale#) | Stroke Color #DiskWriteColor# | StrokeWidth (Max(1,2*#Scale#))
-ToolTipText=G: write rate
 Hidden=1
 UpdateDivider=1
 
@@ -550,7 +530,6 @@ W=(26*#Scale#)
 H=(18*#Scale#)
 Text=G:
 Hidden=1
-ToolTipText=G: solid read, dashed write.
 
 [MeterIODriveH]
 Meter=String
@@ -585,7 +564,6 @@ W=(10*#Scale#)
 H=(10*#Scale#)
 Shape=Line (1*#Scale#),(6*#Scale#),(4*#Scale#),(3*#Scale#) | Stroke Color #DiskReadColor# | StrokeWidth (Max(1,2*#Scale#))
 Shape2=Line (4*#Scale#),(3*#Scale#),(7*#Scale#),(6*#Scale#) | Stroke Color #DiskReadColor# | StrokeWidth (Max(1,2*#Scale#))
-ToolTipText=H: read rate
 Hidden=1
 UpdateDivider=1
 
@@ -598,7 +576,6 @@ W=(10*#Scale#)
 H=(10*#Scale#)
 Shape=Line (1*#Scale#),(3*#Scale#),(4*#Scale#),(6*#Scale#) | Stroke Color #DiskWriteColor# | StrokeWidth (Max(1,2*#Scale#))
 Shape2=Line (4*#Scale#),(6*#Scale#),(7*#Scale#),(3*#Scale#) | Stroke Color #DiskWriteColor# | StrokeWidth (Max(1,2*#Scale#))
-ToolTipText=H: write rate
 Hidden=1
 UpdateDivider=1
 
@@ -629,7 +606,6 @@ W=(26*#Scale#)
 H=(18*#Scale#)
 Text=H:
 Hidden=1
-ToolTipText=H: solid read, dashed write.
 
 [MeterIODriveI]
 Meter=String
@@ -664,7 +640,6 @@ W=(10*#Scale#)
 H=(10*#Scale#)
 Shape=Line (1*#Scale#),(6*#Scale#),(4*#Scale#),(3*#Scale#) | Stroke Color #DiskReadColor# | StrokeWidth (Max(1,2*#Scale#))
 Shape2=Line (4*#Scale#),(3*#Scale#),(7*#Scale#),(6*#Scale#) | Stroke Color #DiskReadColor# | StrokeWidth (Max(1,2*#Scale#))
-ToolTipText=I: read rate
 Hidden=1
 UpdateDivider=1
 
@@ -677,7 +652,6 @@ W=(10*#Scale#)
 H=(10*#Scale#)
 Shape=Line (1*#Scale#),(3*#Scale#),(4*#Scale#),(6*#Scale#) | Stroke Color #DiskWriteColor# | StrokeWidth (Max(1,2*#Scale#))
 Shape2=Line (4*#Scale#),(6*#Scale#),(7*#Scale#),(3*#Scale#) | Stroke Color #DiskWriteColor# | StrokeWidth (Max(1,2*#Scale#))
-ToolTipText=I: write rate
 Hidden=1
 UpdateDivider=1
 
@@ -708,7 +682,6 @@ W=(26*#Scale#)
 H=(18*#Scale#)
 Text=I:
 Hidden=1
-ToolTipText=I: solid read, dashed write.
 
 [MeterIODriveJ]
 Meter=String
@@ -743,7 +716,6 @@ W=(10*#Scale#)
 H=(10*#Scale#)
 Shape=Line (1*#Scale#),(6*#Scale#),(4*#Scale#),(3*#Scale#) | Stroke Color #DiskReadColor# | StrokeWidth (Max(1,2*#Scale#))
 Shape2=Line (4*#Scale#),(3*#Scale#),(7*#Scale#),(6*#Scale#) | Stroke Color #DiskReadColor# | StrokeWidth (Max(1,2*#Scale#))
-ToolTipText=J: read rate
 Hidden=1
 UpdateDivider=1
 
@@ -756,7 +728,6 @@ W=(10*#Scale#)
 H=(10*#Scale#)
 Shape=Line (1*#Scale#),(3*#Scale#),(4*#Scale#),(6*#Scale#) | Stroke Color #DiskWriteColor# | StrokeWidth (Max(1,2*#Scale#))
 Shape2=Line (4*#Scale#),(6*#Scale#),(7*#Scale#),(3*#Scale#) | Stroke Color #DiskWriteColor# | StrokeWidth (Max(1,2*#Scale#))
-ToolTipText=J: write rate
 Hidden=1
 UpdateDivider=1
 
@@ -787,7 +758,6 @@ W=(26*#Scale#)
 H=(18*#Scale#)
 Text=J:
 Hidden=1
-ToolTipText=J: solid read, dashed write.
 
 [MeterIODriveK]
 Meter=String
@@ -822,7 +792,6 @@ W=(10*#Scale#)
 H=(10*#Scale#)
 Shape=Line (1*#Scale#),(6*#Scale#),(4*#Scale#),(3*#Scale#) | Stroke Color #DiskReadColor# | StrokeWidth (Max(1,2*#Scale#))
 Shape2=Line (4*#Scale#),(3*#Scale#),(7*#Scale#),(6*#Scale#) | Stroke Color #DiskReadColor# | StrokeWidth (Max(1,2*#Scale#))
-ToolTipText=K: read rate
 Hidden=1
 UpdateDivider=1
 
@@ -835,7 +804,6 @@ W=(10*#Scale#)
 H=(10*#Scale#)
 Shape=Line (1*#Scale#),(3*#Scale#),(4*#Scale#),(6*#Scale#) | Stroke Color #DiskWriteColor# | StrokeWidth (Max(1,2*#Scale#))
 Shape2=Line (4*#Scale#),(6*#Scale#),(7*#Scale#),(3*#Scale#) | Stroke Color #DiskWriteColor# | StrokeWidth (Max(1,2*#Scale#))
-ToolTipText=K: write rate
 Hidden=1
 UpdateDivider=1
 
@@ -866,7 +834,6 @@ W=(26*#Scale#)
 H=(18*#Scale#)
 Text=K:
 Hidden=1
-ToolTipText=K: solid read, dashed write.
 
 [MeterIODriveL]
 Meter=String
@@ -901,7 +868,6 @@ W=(10*#Scale#)
 H=(10*#Scale#)
 Shape=Line (1*#Scale#),(6*#Scale#),(4*#Scale#),(3*#Scale#) | Stroke Color #DiskReadColor# | StrokeWidth (Max(1,2*#Scale#))
 Shape2=Line (4*#Scale#),(3*#Scale#),(7*#Scale#),(6*#Scale#) | Stroke Color #DiskReadColor# | StrokeWidth (Max(1,2*#Scale#))
-ToolTipText=L: read rate
 Hidden=1
 UpdateDivider=1
 
@@ -914,7 +880,6 @@ W=(10*#Scale#)
 H=(10*#Scale#)
 Shape=Line (1*#Scale#),(3*#Scale#),(4*#Scale#),(6*#Scale#) | Stroke Color #DiskWriteColor# | StrokeWidth (Max(1,2*#Scale#))
 Shape2=Line (4*#Scale#),(6*#Scale#),(7*#Scale#),(3*#Scale#) | Stroke Color #DiskWriteColor# | StrokeWidth (Max(1,2*#Scale#))
-ToolTipText=L: write rate
 Hidden=1
 UpdateDivider=1
 
@@ -945,7 +910,6 @@ W=(26*#Scale#)
 H=(18*#Scale#)
 Text=L:
 Hidden=1
-ToolTipText=L: solid read, dashed write.
 
 [MeterIODriveM]
 Meter=String
@@ -980,7 +944,6 @@ W=(10*#Scale#)
 H=(10*#Scale#)
 Shape=Line (1*#Scale#),(6*#Scale#),(4*#Scale#),(3*#Scale#) | Stroke Color #DiskReadColor# | StrokeWidth (Max(1,2*#Scale#))
 Shape2=Line (4*#Scale#),(3*#Scale#),(7*#Scale#),(6*#Scale#) | Stroke Color #DiskReadColor# | StrokeWidth (Max(1,2*#Scale#))
-ToolTipText=M: read rate
 Hidden=1
 UpdateDivider=1
 
@@ -993,7 +956,6 @@ W=(10*#Scale#)
 H=(10*#Scale#)
 Shape=Line (1*#Scale#),(3*#Scale#),(4*#Scale#),(6*#Scale#) | Stroke Color #DiskWriteColor# | StrokeWidth (Max(1,2*#Scale#))
 Shape2=Line (4*#Scale#),(6*#Scale#),(7*#Scale#),(3*#Scale#) | Stroke Color #DiskWriteColor# | StrokeWidth (Max(1,2*#Scale#))
-ToolTipText=M: write rate
 Hidden=1
 UpdateDivider=1
 
@@ -1024,7 +986,6 @@ W=(26*#Scale#)
 H=(18*#Scale#)
 Text=M:
 Hidden=1
-ToolTipText=M: solid read, dashed write.
 
 [MeterIODriveN]
 Meter=String
@@ -1059,7 +1020,6 @@ W=(10*#Scale#)
 H=(10*#Scale#)
 Shape=Line (1*#Scale#),(6*#Scale#),(4*#Scale#),(3*#Scale#) | Stroke Color #DiskReadColor# | StrokeWidth (Max(1,2*#Scale#))
 Shape2=Line (4*#Scale#),(3*#Scale#),(7*#Scale#),(6*#Scale#) | Stroke Color #DiskReadColor# | StrokeWidth (Max(1,2*#Scale#))
-ToolTipText=N: read rate
 Hidden=1
 UpdateDivider=1
 
@@ -1072,7 +1032,6 @@ W=(10*#Scale#)
 H=(10*#Scale#)
 Shape=Line (1*#Scale#),(3*#Scale#),(4*#Scale#),(6*#Scale#) | Stroke Color #DiskWriteColor# | StrokeWidth (Max(1,2*#Scale#))
 Shape2=Line (4*#Scale#),(6*#Scale#),(7*#Scale#),(3*#Scale#) | Stroke Color #DiskWriteColor# | StrokeWidth (Max(1,2*#Scale#))
-ToolTipText=N: write rate
 Hidden=1
 UpdateDivider=1
 
@@ -1103,7 +1062,6 @@ W=(26*#Scale#)
 H=(18*#Scale#)
 Text=N:
 Hidden=1
-ToolTipText=N: solid read, dashed write.
 
 [MeterIODriveO]
 Meter=String
@@ -1138,7 +1096,6 @@ W=(10*#Scale#)
 H=(10*#Scale#)
 Shape=Line (1*#Scale#),(6*#Scale#),(4*#Scale#),(3*#Scale#) | Stroke Color #DiskReadColor# | StrokeWidth (Max(1,2*#Scale#))
 Shape2=Line (4*#Scale#),(3*#Scale#),(7*#Scale#),(6*#Scale#) | Stroke Color #DiskReadColor# | StrokeWidth (Max(1,2*#Scale#))
-ToolTipText=O: read rate
 Hidden=1
 UpdateDivider=1
 
@@ -1151,7 +1108,6 @@ W=(10*#Scale#)
 H=(10*#Scale#)
 Shape=Line (1*#Scale#),(3*#Scale#),(4*#Scale#),(6*#Scale#) | Stroke Color #DiskWriteColor# | StrokeWidth (Max(1,2*#Scale#))
 Shape2=Line (4*#Scale#),(6*#Scale#),(7*#Scale#),(3*#Scale#) | Stroke Color #DiskWriteColor# | StrokeWidth (Max(1,2*#Scale#))
-ToolTipText=O: write rate
 Hidden=1
 UpdateDivider=1
 
@@ -1182,7 +1138,6 @@ W=(26*#Scale#)
 H=(18*#Scale#)
 Text=O:
 Hidden=1
-ToolTipText=O: solid read, dashed write.
 
 [MeterIODriveP]
 Meter=String
@@ -1217,7 +1172,6 @@ W=(10*#Scale#)
 H=(10*#Scale#)
 Shape=Line (1*#Scale#),(6*#Scale#),(4*#Scale#),(3*#Scale#) | Stroke Color #DiskReadColor# | StrokeWidth (Max(1,2*#Scale#))
 Shape2=Line (4*#Scale#),(3*#Scale#),(7*#Scale#),(6*#Scale#) | Stroke Color #DiskReadColor# | StrokeWidth (Max(1,2*#Scale#))
-ToolTipText=P: read rate
 Hidden=1
 UpdateDivider=1
 
@@ -1230,7 +1184,6 @@ W=(10*#Scale#)
 H=(10*#Scale#)
 Shape=Line (1*#Scale#),(3*#Scale#),(4*#Scale#),(6*#Scale#) | Stroke Color #DiskWriteColor# | StrokeWidth (Max(1,2*#Scale#))
 Shape2=Line (4*#Scale#),(6*#Scale#),(7*#Scale#),(3*#Scale#) | Stroke Color #DiskWriteColor# | StrokeWidth (Max(1,2*#Scale#))
-ToolTipText=P: write rate
 Hidden=1
 UpdateDivider=1
 
@@ -1261,7 +1214,6 @@ W=(26*#Scale#)
 H=(18*#Scale#)
 Text=P:
 Hidden=1
-ToolTipText=P: solid read, dashed write.
 
 [MeterIODriveQ]
 Meter=String
@@ -1296,7 +1248,6 @@ W=(10*#Scale#)
 H=(10*#Scale#)
 Shape=Line (1*#Scale#),(6*#Scale#),(4*#Scale#),(3*#Scale#) | Stroke Color #DiskReadColor# | StrokeWidth (Max(1,2*#Scale#))
 Shape2=Line (4*#Scale#),(3*#Scale#),(7*#Scale#),(6*#Scale#) | Stroke Color #DiskReadColor# | StrokeWidth (Max(1,2*#Scale#))
-ToolTipText=Q: read rate
 Hidden=1
 UpdateDivider=1
 
@@ -1309,7 +1260,6 @@ W=(10*#Scale#)
 H=(10*#Scale#)
 Shape=Line (1*#Scale#),(3*#Scale#),(4*#Scale#),(6*#Scale#) | Stroke Color #DiskWriteColor# | StrokeWidth (Max(1,2*#Scale#))
 Shape2=Line (4*#Scale#),(6*#Scale#),(7*#Scale#),(3*#Scale#) | Stroke Color #DiskWriteColor# | StrokeWidth (Max(1,2*#Scale#))
-ToolTipText=Q: write rate
 Hidden=1
 UpdateDivider=1
 
@@ -1340,7 +1290,6 @@ W=(26*#Scale#)
 H=(18*#Scale#)
 Text=Q:
 Hidden=1
-ToolTipText=Q: solid read, dashed write.
 
 [MeterIODriveR]
 Meter=String
@@ -1375,7 +1324,6 @@ W=(10*#Scale#)
 H=(10*#Scale#)
 Shape=Line (1*#Scale#),(6*#Scale#),(4*#Scale#),(3*#Scale#) | Stroke Color #DiskReadColor# | StrokeWidth (Max(1,2*#Scale#))
 Shape2=Line (4*#Scale#),(3*#Scale#),(7*#Scale#),(6*#Scale#) | Stroke Color #DiskReadColor# | StrokeWidth (Max(1,2*#Scale#))
-ToolTipText=R: read rate
 Hidden=1
 UpdateDivider=1
 
@@ -1388,7 +1336,6 @@ W=(10*#Scale#)
 H=(10*#Scale#)
 Shape=Line (1*#Scale#),(3*#Scale#),(4*#Scale#),(6*#Scale#) | Stroke Color #DiskWriteColor# | StrokeWidth (Max(1,2*#Scale#))
 Shape2=Line (4*#Scale#),(6*#Scale#),(7*#Scale#),(3*#Scale#) | Stroke Color #DiskWriteColor# | StrokeWidth (Max(1,2*#Scale#))
-ToolTipText=R: write rate
 Hidden=1
 UpdateDivider=1
 
@@ -1419,7 +1366,6 @@ W=(26*#Scale#)
 H=(18*#Scale#)
 Text=R:
 Hidden=1
-ToolTipText=R: solid read, dashed write.
 
 [MeterIODriveS]
 Meter=String
@@ -1454,7 +1400,6 @@ W=(10*#Scale#)
 H=(10*#Scale#)
 Shape=Line (1*#Scale#),(6*#Scale#),(4*#Scale#),(3*#Scale#) | Stroke Color #DiskReadColor# | StrokeWidth (Max(1,2*#Scale#))
 Shape2=Line (4*#Scale#),(3*#Scale#),(7*#Scale#),(6*#Scale#) | Stroke Color #DiskReadColor# | StrokeWidth (Max(1,2*#Scale#))
-ToolTipText=S: read rate
 Hidden=1
 UpdateDivider=1
 
@@ -1467,7 +1412,6 @@ W=(10*#Scale#)
 H=(10*#Scale#)
 Shape=Line (1*#Scale#),(3*#Scale#),(4*#Scale#),(6*#Scale#) | Stroke Color #DiskWriteColor# | StrokeWidth (Max(1,2*#Scale#))
 Shape2=Line (4*#Scale#),(6*#Scale#),(7*#Scale#),(3*#Scale#) | Stroke Color #DiskWriteColor# | StrokeWidth (Max(1,2*#Scale#))
-ToolTipText=S: write rate
 Hidden=1
 UpdateDivider=1
 
@@ -1498,7 +1442,6 @@ W=(26*#Scale#)
 H=(18*#Scale#)
 Text=S:
 Hidden=1
-ToolTipText=S: solid read, dashed write.
 
 [MeterIODriveT]
 Meter=String
@@ -1533,7 +1476,6 @@ W=(10*#Scale#)
 H=(10*#Scale#)
 Shape=Line (1*#Scale#),(6*#Scale#),(4*#Scale#),(3*#Scale#) | Stroke Color #DiskReadColor# | StrokeWidth (Max(1,2*#Scale#))
 Shape2=Line (4*#Scale#),(3*#Scale#),(7*#Scale#),(6*#Scale#) | Stroke Color #DiskReadColor# | StrokeWidth (Max(1,2*#Scale#))
-ToolTipText=T: read rate
 Hidden=1
 UpdateDivider=1
 
@@ -1546,7 +1488,6 @@ W=(10*#Scale#)
 H=(10*#Scale#)
 Shape=Line (1*#Scale#),(3*#Scale#),(4*#Scale#),(6*#Scale#) | Stroke Color #DiskWriteColor# | StrokeWidth (Max(1,2*#Scale#))
 Shape2=Line (4*#Scale#),(6*#Scale#),(7*#Scale#),(3*#Scale#) | Stroke Color #DiskWriteColor# | StrokeWidth (Max(1,2*#Scale#))
-ToolTipText=T: write rate
 Hidden=1
 UpdateDivider=1
 
@@ -1577,7 +1518,6 @@ W=(26*#Scale#)
 H=(18*#Scale#)
 Text=T:
 Hidden=1
-ToolTipText=T: solid read, dashed write.
 
 [MeterIODriveU]
 Meter=String
@@ -1612,7 +1552,6 @@ W=(10*#Scale#)
 H=(10*#Scale#)
 Shape=Line (1*#Scale#),(6*#Scale#),(4*#Scale#),(3*#Scale#) | Stroke Color #DiskReadColor# | StrokeWidth (Max(1,2*#Scale#))
 Shape2=Line (4*#Scale#),(3*#Scale#),(7*#Scale#),(6*#Scale#) | Stroke Color #DiskReadColor# | StrokeWidth (Max(1,2*#Scale#))
-ToolTipText=U: read rate
 Hidden=1
 UpdateDivider=1
 
@@ -1625,7 +1564,6 @@ W=(10*#Scale#)
 H=(10*#Scale#)
 Shape=Line (1*#Scale#),(3*#Scale#),(4*#Scale#),(6*#Scale#) | Stroke Color #DiskWriteColor# | StrokeWidth (Max(1,2*#Scale#))
 Shape2=Line (4*#Scale#),(6*#Scale#),(7*#Scale#),(3*#Scale#) | Stroke Color #DiskWriteColor# | StrokeWidth (Max(1,2*#Scale#))
-ToolTipText=U: write rate
 Hidden=1
 UpdateDivider=1
 
@@ -1656,7 +1594,6 @@ W=(26*#Scale#)
 H=(18*#Scale#)
 Text=U:
 Hidden=1
-ToolTipText=U: solid read, dashed write.
 
 [MeterIODriveV]
 Meter=String
@@ -1691,7 +1628,6 @@ W=(10*#Scale#)
 H=(10*#Scale#)
 Shape=Line (1*#Scale#),(6*#Scale#),(4*#Scale#),(3*#Scale#) | Stroke Color #DiskReadColor# | StrokeWidth (Max(1,2*#Scale#))
 Shape2=Line (4*#Scale#),(3*#Scale#),(7*#Scale#),(6*#Scale#) | Stroke Color #DiskReadColor# | StrokeWidth (Max(1,2*#Scale#))
-ToolTipText=V: read rate
 Hidden=1
 UpdateDivider=1
 
@@ -1704,7 +1640,6 @@ W=(10*#Scale#)
 H=(10*#Scale#)
 Shape=Line (1*#Scale#),(3*#Scale#),(4*#Scale#),(6*#Scale#) | Stroke Color #DiskWriteColor# | StrokeWidth (Max(1,2*#Scale#))
 Shape2=Line (4*#Scale#),(6*#Scale#),(7*#Scale#),(3*#Scale#) | Stroke Color #DiskWriteColor# | StrokeWidth (Max(1,2*#Scale#))
-ToolTipText=V: write rate
 Hidden=1
 UpdateDivider=1
 
@@ -1735,7 +1670,6 @@ W=(26*#Scale#)
 H=(18*#Scale#)
 Text=V:
 Hidden=1
-ToolTipText=V: solid read, dashed write.
 
 [MeterIODriveW]
 Meter=String
@@ -1770,7 +1704,6 @@ W=(10*#Scale#)
 H=(10*#Scale#)
 Shape=Line (1*#Scale#),(6*#Scale#),(4*#Scale#),(3*#Scale#) | Stroke Color #DiskReadColor# | StrokeWidth (Max(1,2*#Scale#))
 Shape2=Line (4*#Scale#),(3*#Scale#),(7*#Scale#),(6*#Scale#) | Stroke Color #DiskReadColor# | StrokeWidth (Max(1,2*#Scale#))
-ToolTipText=W: read rate
 Hidden=1
 UpdateDivider=1
 
@@ -1783,7 +1716,6 @@ W=(10*#Scale#)
 H=(10*#Scale#)
 Shape=Line (1*#Scale#),(3*#Scale#),(4*#Scale#),(6*#Scale#) | Stroke Color #DiskWriteColor# | StrokeWidth (Max(1,2*#Scale#))
 Shape2=Line (4*#Scale#),(6*#Scale#),(7*#Scale#),(3*#Scale#) | Stroke Color #DiskWriteColor# | StrokeWidth (Max(1,2*#Scale#))
-ToolTipText=W: write rate
 Hidden=1
 UpdateDivider=1
 
@@ -1814,7 +1746,6 @@ W=(26*#Scale#)
 H=(18*#Scale#)
 Text=W:
 Hidden=1
-ToolTipText=W: solid read, dashed write.
 
 [MeterIODriveX]
 Meter=String
@@ -1849,7 +1780,6 @@ W=(10*#Scale#)
 H=(10*#Scale#)
 Shape=Line (1*#Scale#),(6*#Scale#),(4*#Scale#),(3*#Scale#) | Stroke Color #DiskReadColor# | StrokeWidth (Max(1,2*#Scale#))
 Shape2=Line (4*#Scale#),(3*#Scale#),(7*#Scale#),(6*#Scale#) | Stroke Color #DiskReadColor# | StrokeWidth (Max(1,2*#Scale#))
-ToolTipText=X: read rate
 Hidden=1
 UpdateDivider=1
 
@@ -1862,7 +1792,6 @@ W=(10*#Scale#)
 H=(10*#Scale#)
 Shape=Line (1*#Scale#),(3*#Scale#),(4*#Scale#),(6*#Scale#) | Stroke Color #DiskWriteColor# | StrokeWidth (Max(1,2*#Scale#))
 Shape2=Line (4*#Scale#),(6*#Scale#),(7*#Scale#),(3*#Scale#) | Stroke Color #DiskWriteColor# | StrokeWidth (Max(1,2*#Scale#))
-ToolTipText=X: write rate
 Hidden=1
 UpdateDivider=1
 
@@ -1893,7 +1822,6 @@ W=(26*#Scale#)
 H=(18*#Scale#)
 Text=X:
 Hidden=1
-ToolTipText=X: solid read, dashed write.
 
 [MeterIODriveY]
 Meter=String
@@ -1928,7 +1856,6 @@ W=(10*#Scale#)
 H=(10*#Scale#)
 Shape=Line (1*#Scale#),(6*#Scale#),(4*#Scale#),(3*#Scale#) | Stroke Color #DiskReadColor# | StrokeWidth (Max(1,2*#Scale#))
 Shape2=Line (4*#Scale#),(3*#Scale#),(7*#Scale#),(6*#Scale#) | Stroke Color #DiskReadColor# | StrokeWidth (Max(1,2*#Scale#))
-ToolTipText=Y: read rate
 Hidden=1
 UpdateDivider=1
 
@@ -1941,7 +1868,6 @@ W=(10*#Scale#)
 H=(10*#Scale#)
 Shape=Line (1*#Scale#),(3*#Scale#),(4*#Scale#),(6*#Scale#) | Stroke Color #DiskWriteColor# | StrokeWidth (Max(1,2*#Scale#))
 Shape2=Line (4*#Scale#),(6*#Scale#),(7*#Scale#),(3*#Scale#) | Stroke Color #DiskWriteColor# | StrokeWidth (Max(1,2*#Scale#))
-ToolTipText=Y: write rate
 Hidden=1
 UpdateDivider=1
 
@@ -1972,7 +1898,6 @@ W=(26*#Scale#)
 H=(18*#Scale#)
 Text=Y:
 Hidden=1
-ToolTipText=Y: solid read, dashed write.
 
 [MeterIODriveZ]
 Meter=String
@@ -2007,7 +1932,6 @@ W=(10*#Scale#)
 H=(10*#Scale#)
 Shape=Line (1*#Scale#),(6*#Scale#),(4*#Scale#),(3*#Scale#) | Stroke Color #DiskReadColor# | StrokeWidth (Max(1,2*#Scale#))
 Shape2=Line (4*#Scale#),(3*#Scale#),(7*#Scale#),(6*#Scale#) | Stroke Color #DiskReadColor# | StrokeWidth (Max(1,2*#Scale#))
-ToolTipText=Z: read rate
 Hidden=1
 UpdateDivider=1
 
@@ -2020,7 +1944,6 @@ W=(10*#Scale#)
 H=(10*#Scale#)
 Shape=Line (1*#Scale#),(3*#Scale#),(4*#Scale#),(6*#Scale#) | Stroke Color #DiskWriteColor# | StrokeWidth (Max(1,2*#Scale#))
 Shape2=Line (4*#Scale#),(6*#Scale#),(7*#Scale#),(3*#Scale#) | Stroke Color #DiskWriteColor# | StrokeWidth (Max(1,2*#Scale#))
-ToolTipText=Z: write rate
 Hidden=1
 UpdateDivider=1
 
@@ -2051,4 +1974,3 @@ W=(26*#Scale#)
 H=(18*#Scale#)
 Text=Z:
 Hidden=1
-ToolTipText=Z: solid read, dashed write.

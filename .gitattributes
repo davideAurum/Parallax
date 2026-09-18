@@ -2,6 +2,9 @@
 * text=auto
 *.ttf binary
 *.exe binary
+*.bmp binary
+*.dll binary
+*.rmskin binary
 Skins/Parallax/@Resources/Licenses/IBM-Plex-OFL.txt -text
 Skins/Parallax/@Resources/Modules/Media/Queue/QueueReader.lua -text
 Skins/Parallax/@Resources/Modules/Media/Source/SourceReader.lua -text

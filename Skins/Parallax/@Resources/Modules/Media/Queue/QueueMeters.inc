@@ -93,7 +93,7 @@ Y=(#Inset#+140*#Scale#)
 W=((#ContentWidth#-12*#Scale#)/3)
 Text=Start
 ToolTipText=Start one background queue helper using your saved Spotify authorization. It refreshes at most every 30 seconds and honors server wait times.
-LeftMouseUpAction=["powershell.exe" "-NoLogo" "-NoProfile" "-ExecutionPolicy" "Bypass" "-WindowStyle" "Hidden" "-File" "#@#Modules\Media\Queue\QueueProvider.ps1" "-Command" "Start" "-PollSeconds" "#QueuePollSeconds#" "-Quiet"]
+LeftMouseUpAction=[!CommandMeasure MeasureQueueControl "Run('Start')"]
 
 [MeterQueueStop]
 Meter=String
@@ -103,4 +103,4 @@ Y=(#Inset#+140*#Scale#)
 W=((#ContentWidth#-12*#Scale#)/3)
 Text=Stop
 ToolTipText=Stop the optional queue helper and clear displayed rows. Saved authorization stays available until Disconnect in the context menu.
-LeftMouseUpAction=["powershell.exe" "-NoLogo" "-NoProfile" "-ExecutionPolicy" "Bypass" "-WindowStyle" "Hidden" "-File" "#@#Modules\Media\Queue\QueueProvider.ps1" "-Command" "Stop" "-Quiet"]
+LeftMouseUpAction=[!CommandMeasure MeasureQueueControl "Run('Stop')"]

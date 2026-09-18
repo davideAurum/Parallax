@@ -46,17 +46,18 @@ function readIni(path) {
 }
 readIni(resolve(skinRoot, 'Visualizer/Visualizer.ini'));
 function formula(source, overrides = {}, measures = {}) {
-  let expression = expand(source, { ...variables, ...overrides });
-  for (const [key, value] of Object.entries(measures)) {
+  let expression = source.includes('#') ? expand(source, { ...variables, ...overrides }) : source;
+  for (const [key, value] of (expression.includes('Measure') ? Object.entries(measures) : [])) {
+    expression = expression.replaceAll('[' + key + ']', '(' + value + ')');
     expression = expression.replaceAll(new RegExp('\\b' + key + '\\b', 'g'), String(value));
   }
   assert.ok(!expression.includes('#'), 'Unresolved variable: ' + expression);
-  assert.ok(/^[\d\s()+*/,?.:<>=!&|_-]+$/.test(expression.replace(/\b(Max|Min|Round)\b/g, '')),
+  assert.ok(/^[\d\s()+*/,?.:<>=!&|_-]+$/.test(expression.replace(/\b(Max|Min|Round|Ceil)\b/g, '')),
     'Unknown formula identifier: ' + expression);
   assert.ok(!/[;{}\[\]'"\\]/.test(expression), 'Unexpected formula syntax');
   expression = expression.replace(/(?<![<>=!])=(?!=)/g, '===').replaceAll('<>', '!==');
-  return Function('Max', 'Min', 'Round', 'return (' + expression + ')')(
-    Math.max, Math.min, Math.round);
+  return Function('Max', 'Min', 'Round', 'Ceil', 'return (' + expression + ')')(
+    Math.max, Math.min, Math.round, Math.ceil);
 }
 function effective(section) {
   const own = sections.get(section);
@@ -134,8 +135,53 @@ for (const [action, expectedGear] of [
 }
 assert.equal(effective('MeterVisualizerTitle').FontColor, '#TitleTextColor#');
 assert.equal(effective('MeterVisualizerDeviceName').FontColor, '#TextColor#');
-assert.equal(effective('MeterVisualizerBand0').BarColor, '#MediaColor#');
-for (const name of ['Low', 'High']) {
+const outputIcon = effective('MeterVisualizerOutputIcon');
+assert.equal(outputIcon.Meter, 'Shape');
+assert.equal(outputIcon.W, '(14*#Scale#)');
+assert.equal(outputIcon.H, '(14*#Scale#)');
+assert.equal(outputIcon.UpdateDivider, '-1');
+assert.equal(outputIcon.ToolTipText, undefined);
+assert.match(outputIcon.LucideSpeakerStroke, /Stroke Color #MediaColor#/);
+assert.match(outputIcon.LucideSpeakerStroke, /StrokeStartCap Round/);
+assert.match(outputIcon.LucideSpeakerStroke, /StrokeEndCap Round/);
+assert.match(outputIcon.LucideSpeakerStroke, /StrokeLineJoin Round/);
+const speakerSvg = readFileSync(resolve(skinRoot, '@Resources/Modules/Visualizer/Icons/Lucide/speaker.svg'), 'utf8').trim();
+assert.equal(speakerSvg, '<svg xmlns="http://www.w3.org/2000/svg" width="24" height="24" viewBox="0 0 24 24" fill="none" stroke="currentColor" stroke-width="2" stroke-linecap="round" stroke-linejoin="round" class="lucide lucide-speaker"><rect width="16" height="20" x="4" y="2" rx="2"/><path d="M12 6h.01"/><circle cx="12" cy="14" r="4"/><path d="M12 14h.01"/></svg>');
+assert.match(readFileSync(resolve(skinRoot, '@Resources/Modules/Visualizer/Icons/Lucide/LICENSE'), 'utf8'), /ISC License/);
+assert.match(readFileSync(resolve(skinRoot, '@Resources/Modules/Visualizer/Icons/Lucide/README.md'), 'utf8'), /8F578D9AADB55DEFA7C1EBFF1C1391FEB5B97CE0D868DE44F67B7C84F54E9B79/);
+const deviceHit = effective('MeterVisualizerDeviceHit');
+const switchPrefix = '[!CommandMeasure MeasureVisualizerVolume ';
+const clearCaptureId = '[!WriteKeyValue Variables VisualizerDeviceID "" "#@#User\\Visualizer.inc"]';
+assert.equal(deviceHit.Meter, 'Image');
+assert.equal(deviceHit.SolidColor, '0,0,0,1');
+assert.equal(deviceHit.MouseActionCursor, '1');
+assert.equal(deviceHit.UpdateDivider, '-1');
+assert.equal(deviceHit.LeftMouseUpAction, switchPrefix + '"ToggleNext"]' + clearCaptureId + '[!Refresh]');
+assert.equal(deviceHit.MouseScrollDownAction, deviceHit.LeftMouseUpAction);
+assert.equal(deviceHit.MouseScrollUpAction, switchPrefix + '"TogglePrevious"]' + clearCaptureId + '[!Refresh]');
+assert.match(deviceHit.ToolTipText, /changes the system default output/i);
+assert.match(deviceHit.ToolTipText, /clears a custom Visualizer device ID/i);
+assert.deepEqual(meters.filter(([, meter]) => meter.ToolTipText).map(([name]) => name),
+  ['MeterVisualizerOptions', 'MeterVisualizerDeviceHit']);
+const spectrumMask = effective('MeterVisualizerSpectrumMask');
+const spectrumFill = effective('MeterVisualizerFill');
+assert.equal(meters.filter(([, meter]) => meter.Meter === 'Bar').length, 0);
+assert.equal(spectrumMask.Meter, 'Shape');
+assert.equal(spectrumMask.SolidColor, '0,0,0,0');
+assert.equal(spectrumMask.DynamicVariables, '1');
+assert.equal(spectrumFill.Meter, 'Shape');
+assert.equal(spectrumFill.Container, 'MeterVisualizerSpectrumMask');
+assert.equal(spectrumFill.UpdateDivider, '-1');
+assert.equal(spectrumFill.Shape, 'Rectangle 0,0,#VisualizerPlotInnerWidth#,#VisualizerBarHeight# | Fill Color #MediaColor# | StrokeWidth 0');
+assert.equal(spectrumFill.SpectrumGradient, '180 | #AccentColor# ; 0 | #AccentColor2# ; 1');
+assert.deepEqual(meters.filter(([, meter]) => meter.Container).map(([name]) => name), ['MeterVisualizerFill']);
+for (const meter of [spectrumMask, spectrumFill]) {
+  assert.equal(meter.Group, 'VisualizerSpectrum');
+  assert.equal(meter.Hidden, '1');
+  assert.equal(meter.W, '#VisualizerPlotInnerWidth#');
+  assert.equal(meter.H, '#VisualizerPlotInnerHeight#');
+}
+for (const name of ['Low', 'High', 'DbMax', 'DbMid', 'DbMin']) {
   assert.equal(effective('MeterVisualizer' + name).FontColor, '#MutedColor#');
 }
 assert.equal(state.IfConditionMode, '0');
@@ -153,8 +199,14 @@ for (const [name, section] of sections) {
   if (section.Parent) assert.equal(section.Parent, 'MeasureVisualizerAudio');
   for (const [key, action] of Object.entries(section).filter(([key]) => key.includes('Action'))) {
     assert.ok(!action.includes('LIVE - MIXED OUTPUT'), 'Removed live caption remains in ' + name + '.' + key);
-    assert.ok(!/!CommandMeasure\s+"?MeasureVisualizerVolume(?:"|\s)/i.test(action),
-      'Volume readout must not send Win7Audio control commands: ' + name + '.' + key);
+    const volumeCommands = [...action.matchAll(/!CommandMeasure\s+"?MeasureVisualizerVolume"?\s+"([^"]+)"/gi)];
+    if (volumeCommands.length) {
+      assert.equal(name, 'MeterVisualizerDeviceHit', 'Only the current-output row may switch devices');
+      assert.ok(['ToggleNext', 'TogglePrevious'].includes(volumeCommands[0][1]),
+        'Current-output row may switch devices but must not control volume or mute');
+      assert.equal(volumeCommands.length, 1, 'One output switch per action');
+      assert.ok(action.includes(clearCaptureId), 'Output switch must clear a custom AudioLevel endpoint ID');
+    }
     assert.ok(!/!PluginBang[^\]]*Win7Audio/i.test(action),
       'Volume readout must not send legacy Win7Audio control commands');
     for (const target of action.matchAll(/!(?:SetOption|UpdateMeter|ShowMeter|HideMeter)\s+(MeterVisualizer\w+)/g)) {
@@ -170,8 +222,15 @@ for (let i = 0; i < 24; i++) {
   const band = sections.get('MeasureVisualizerBand' + i);
   assert.equal(band.Type, 'Band');
   assert.equal(Number(band.BandIdx), i);
-  assert.equal(effective('MeterVisualizerBand' + i).MeasureName, 'MeasureVisualizerBand' + i);
+  assert.ok(!sections.has('MeterVisualizerBand' + i), 'Old Bar meter remains');
+  const shapeKey = i ? 'Shape' + (i + 1) : 'Shape';
+  assert.equal(spectrumMask[shapeKey], 'Path BandPath' + i + ' | Fill Color 255,255,255,255 | StrokeWidth 0');
+  assert.deepEqual([...variables['VisualizerBandHeight' + i].matchAll(/\[(MeasureVisualizerBand\d+)\]/g)].map(match => match[1]),
+    ['MeasureVisualizerBand' + i], 'Each path must follow exactly its own band');
+  assert.ok(spectrumMask['BandPath' + i]);
 }
+assert.equal(Object.keys(spectrumMask).filter(key => /^Shape\d*$/.test(key)).length, 24);
+assert.equal(Object.keys(spectrumMask).filter(key => /^BandPath\d+$/.test(key)).length, 24);
 for (const override of [-100, 0, 1, 33, 50, 100, 999999]) {
   for (const global of [1, 33, 50, 100, 999999]) {
     const interval = formula(rainmeter.Update, {
@@ -253,7 +312,7 @@ const paletteCallbacks = [...sections].flatMap(([name, section]) =>
   Object.entries(section).filter(([key, value]) => key.includes('Action') &&
     /!CommandMeasure\s+"?MeasureVisualizerColor(?:"|\s)/i.test(value)).map(([key]) => name + '.' + key));
 assert.deepEqual(paletteCallbacks, ['Rainmeter.OnRefreshAction'], 'Palette changes must only run on refresh');
-// Actual Color.lua interpolation, parsing, solid-mode reset and forbidden side
+// Actual Color.lua gradient binding, parsing, solid-mode reset and forbidden side
 // effects are executed separately by Tests/ColorSuite.lua under mocked SKIN.
 // User includes may hold valid concurrent edits. Verify option wiring here;
 // the matrix below supplies explicit gap choices and ColorSuite supplies modes.
@@ -286,7 +345,7 @@ const transitions = [
 const initialStates = [[0, 0, 0, 0], [1, 0, 0, 1], [1, 0.1, 0, 2], [1, 0, 1, 3]];
 for (const sequence of [transitions, ...initialStates.map(sample => [sample])]) {
 let previousConditions = [false, false, false, false];
-let spectrumVisible = effective('MeterVisualizerBand0').Hidden !== '1';
+let spectrumVisible = spectrumMask.Hidden !== '1';
 let overlayVisible = effective('MeterVisualizerUnavailable').Hidden !== '1';
 let status = effective('MeterVisualizerUnavailable').Text;
 let statusColor = effective('MeterVisualizerUnavailable').FontColor;
@@ -319,6 +378,28 @@ for (const [device, rms, invalid, expected] of sequence) {
 }
 }
 const dimensions = [];
+const bandValues = value => Object.fromEntries(Array.from({ length: 24 }, (_, i) => ['MeasureVisualizerBand' + i, value]));
+function evaluator(vars, measures = bandValues(0.5)) {
+  const cache = new Map();
+  const values = { ...variables, ...vars };
+  const pending = new Set();
+  const evaluate = value => {
+    if (!cache.has(value)) {
+      assert.ok(!pending.has(value), 'Circular numeric variable: ' + value);
+      pending.add(value);
+      // Evaluate each actual numeric variable once per scenario instead of
+      // repeatedly expanding the same long path expressions as raw strings.
+      const expanded = value.replace(/#([^#]+)#/g, (_, key) => {
+        assert.ok(Object.hasOwn(values, key), 'Missing numeric variable ' + key);
+        return '(' + evaluate(values[key]) + ')';
+      });
+      cache.set(value, formula(expanded, {}, measures));
+      pending.delete(value);
+    }
+    return cache.get(value);
+  };
+  return evaluate;
+}
 function args(source) {
   const values = [];
   let depth = 0, start = 0;
@@ -350,12 +431,18 @@ function shapeGeometry(meter, shape, f) {
     const points = [args(start).map(f)];
     assert.equal(points[0].length, 2, 'Path start must be X,Y');
     for (let i = 0; i < segments.length; i++) {
-      const segment = /^(LineTo|ClosePath)\s+(.+)$/.exec(segments[i]);
+      const segment = /^(LineTo|CurveTo|ClosePath)\s+(.+)$/.exec(segments[i]);
       assert.ok(segment, 'Unsupported path segment: ' + segments[i]);
       if (segment[1] === 'LineTo') {
         const point = args(segment[2]).map(f);
         assert.equal(point.length, 2, 'LineTo must have X,Y');
         points.push(point);
+      } else if (segment[1] === 'CurveTo') {
+        const curve = args(segment[2]).map(f);
+        assert.equal(curve.length, 6, 'Checked cubic must have endpoint and two control points');
+        // A Bezier lies inside its control-point convex hull. These are safe
+        // bounds, not a claim of exact native antialiasing or pixel coverage.
+        points.push(curve.slice(0, 2), curve.slice(2, 4), curve.slice(4, 6));
       } else {
         assert.ok([0, 1].includes(f(segment[2])), 'Invalid ClosePath option');
         assert.equal(i, segments.length - 1, 'ClosePath must end this checked path');
@@ -391,6 +478,11 @@ function shapeGeometry(meter, shape, f) {
 }
 function rect(meter, f) {
   let x = f(meter.X ?? '0'), y = f(meter.Y ?? '0');
+  if (meter.Container) {
+    const container = rect(effective(meter.Container), f);
+    x += container.x;
+    y += container.y;
+  }
   const padding = args(meter.Padding ?? '0,0,0,0').map(f);
   const w = f(meter.W) + padding[0] + padding[2];
   const h = f(meter.H) + padding[1] + padding[3];
@@ -428,8 +520,9 @@ for (const fontProfile of fontProfiles) {
 for (const ColumnWidth of (titleFocus ? [180, 220] : [180, 200, 220, 240, 280, 320])) {
   for (const Scale of (titleFocus ? [0.75, 1, 2] : [0.75, 1, 1.25, 1.5, 2])) {
     for (const Columns of [1, 2]) {
-      const vars = { ...fontProfile, ...surfaceProfile, Scale: String(Scale), Columns: String(Columns), ColumnWidth: String(ColumnWidth) };
-      const f = value => formula(value, vars);
+      const vars = { ...fontProfile, ...surfaceProfile, Scale: String(Scale), Columns: String(Columns), ColumnWidth: String(ColumnWidth),
+        PanelHeight: '146', VisualizerBandGap: '1', VisualizerBarRadius: '2', VisualizerBaselineGap: '0' };
+      const f = evaluator(vars);
       const windowWidth = f('#WindowWidth#');
       const windowHeight = f('#WindowHeight#');
       const bounds = effective('MeterVisualizerBounds');
@@ -443,13 +536,12 @@ for (const ColumnWidth of (titleFocus ? [180, 220] : [180, 200, 220, 240, 280, 3
       assert.equal(windowWidth, Columns * f('#Pitch#'));
       assert.equal(f('#PanelWidth#') + f('#Gap#'), windowWidth);
       assert.equal(f('#Gap#') % 2, 0);
-      let lastBandEnd = f('#ContentX#') + 1;
       const plot = rect(effective('MeterVisualizerPlot'), f);
       const plotInterior = { x: plot.x + 1, y: plot.y + 1, w: plot.w - 2, h: plot.h - 2 };
       const scenario = fontProfile.profile + ' fonts border ' + surfaceProfile.BorderThickness + ' width ' + ColumnWidth + ' scale ' + Scale + ' columns ' + Columns;
       assert.ok(Math.abs(plot.y - f('(#Inset#+(43+#VisualizerTopShift#)*#Scale#)')) < 0.00001);
-      assert.ok(Math.abs(plot.h - f('((#PanelHeight#-66-#VisualizerTopShift#)*#Scale#)')) < 0.00001);
-      assert.ok(Math.abs(plot.y + plot.h - f('(#Inset#+(#PanelHeight#-23)*#Scale#)')) < 0.00001);
+      assert.equal(plot.x, f('#VisualizerPlotX#'));
+      assert.equal(plot.h, f('#VisualizerPlotHeightPx#'));
       for (const [name] of meters) {
         const meter = effective(name);
         const box = name === 'MeterVisualizerPanel' ? panel : rect(meter, f);
@@ -478,17 +570,14 @@ for (const ColumnWidth of (titleFocus ? [180, 220] : [180, 200, 220, 240, 280, 3
             within(geometry.bounds, { x: 0, y: 0, w: box.w, h: box.h }, name + '.' + key + ' stroke ' + scenario);
           }
         }
-        if (meter.Meter === 'Bar') {
-          within(box, plotInterior, name + ' plot ' + scenario);
-          assert.ok(box.x >= lastBandEnd, 'Band order/spacing ' + scenario);
-          lastBandEnd = box.x + box.w;
-        }
         if (meter.LeftMouseUpAction) assert.ok(meter.ToolTipText);
       }
       const pairs = [
         ['Icon', 'Title'], ['Title', 'Volume'], ['Volume', 'DeviceName'],
         ['Title', 'Options'], ['Options', 'DeviceName'],
-        ['DeviceName', 'Plot'], ['Plot', 'Low'], ['Plot', 'High'], ['Low', 'High']
+        ['OutputIcon', 'DeviceName'], ['OutputIcon', 'Plot'], ['DeviceName', 'Plot'],
+        ['Plot', 'Low'], ['Plot', 'High'], ['Low', 'High'],
+        ['DbMax', 'DbMid'], ['DbMid', 'DbMin'], ['DbMax', 'Plot'], ['DbMid', 'Plot'], ['DbMin', 'Plot']
       ];
       for (const [a, b] of pairs) nonoverlap(rectangles.get('MeterVisualizer' + a),
         rectangles.get('MeterVisualizer' + b), a + '/' + b + ' ' + scenario);
@@ -501,7 +590,15 @@ for (const ColumnWidth of (titleFocus ? [180, 220] : [180, 200, 220, 240, 280, 3
       // Preserve the first device row. Centered title rectangles include
       // transparent line padding; native ink clearance is reviewed separately.
       const deviceRow = rectangles.get('MeterVisualizerDeviceName');
+      const outputIconBox = rectangles.get('MeterVisualizerOutputIcon');
       assert.ok(Math.abs(deviceRow.y - f('(#Inset#+(24+#VisualizerTopShift#)*#Scale#)')) < 0.00001);
+      assert.ok(Math.abs(outputIconBox.x - f('#ContentX#')) < 0.00001);
+      assert.ok(Math.abs(outputIconBox.y - f('(#Inset#+(26+#VisualizerTopShift#)*#Scale#)')) < 0.00001);
+      assert.ok(Math.abs(outputIconBox.w - 14 * Scale) < 0.00001);
+      assert.ok(Math.abs(outputIconBox.h - 14 * Scale) < 0.00001);
+      assert.ok(Math.abs(deviceRow.x - outputIconBox.x - outputIconBox.w - 4 * Scale) < 0.00001);
+      assert.ok(Math.abs(deviceRow.x + deviceRow.w - f('(#ContentX#+#ContentWidth#)')) < 0.00001);
+      assert.ok(Math.abs(outputIconBox.y + outputIconBox.h / 2 - deviceRow.y - deviceRow.h / 2) < 0.00001);
       assert.ok(title.y + title.h - deviceRow.y <= 2.001 * Scale);
       assert.ok(gear.y + gear.h - deviceRow.y <= 0.001 * Scale);
       for (const [name, box] of [['icon', icon], ['title', title], ['gear', gear], ['volume', volumeReadout]]) {
@@ -532,7 +629,7 @@ for (const ColumnWidth of (titleFocus ? [180, 220] : [180, 200, 220, 240, 280, 3
       assert.ok(Math.abs(overlay.y + overlay.h / 2 - plot.y - plot.h / 2) < 0.00001,
         'State overlay must be vertically centered ' + scenario);
       for (const name of ['Low', 'High']) {
-        assert.ok(Math.abs(rectangles.get('MeterVisualizer' + name).y - f('(#Inset#+(#PanelHeight#-22)*#Scale#)')) < 0.00001);
+        assert.ok(Math.abs(rectangles.get('MeterVisualizer' + name).y - f('(#Inset#+#PanelHeightPx#-22*#Scale#)')) < 0.00001);
       }
       dimensions.push({ profile: fontProfile.profile, border: surfaceProfile.BorderThickness, ColumnWidth, Scale, Columns, windowWidth, windowHeight, panelWidth: f('#PanelWidth#') });
     }
@@ -542,16 +639,96 @@ for (const ColumnWidth of (titleFocus ? [180, 220] : [180, 200, 220, 240, 280, 3
 }
 assert.equal(dimensions.length, titleFocus ? 36 : 540);
 let appearanceCases = 0;
+let pathCases = 0;
+const shapeProfiles = [
+  { VisualizerBarRadius: '-1', VisualizerBaselineGap: '-1' },
+  { VisualizerBarRadius: '2', VisualizerBaselineGap: '4' },
+  { VisualizerBarRadius: '99', VisualizerBaselineGap: '99' }
+];
+function checkPaths(vars, level, scenario) {
+  const f = evaluator(vars, bandValues(level));
+  const mask = rect(spectrumMask, f);
+  const child = rect(spectrumFill, f);
+  assert.deepEqual(child, mask, 'Fixed child and mask bounds differ ' + scenario);
+  const paint = shapeGeometry(spectrumFill, spectrumFill.Shape, f).bounds;
+  assert.equal(paint.x, 0);
+  assert.equal(paint.y, 0);
+  assert.equal(paint.w, mask.w);
+  assert.equal(paint.h, f('#VisualizerBarHeight#'), 'Gradient extent must stay fixed ' + scenario);
+  const baseline = paint.h;
+  assert.ok(baseline >= Math.ceil(54 * Number(vars.Scale)), 'dB labels require54logical px of usable height');
+  assert.equal(mask.h - baseline, f('#VisualizerBaselineGapPx#'), 'Baseline displacement');
+  let previousEnd = 0;
+  for (let i = 0; i < 24; i++) {
+    const left = f('#VisualizerBandLeft' + i + '#');
+    const width = f('#VisualizerBandWidth' + i + '#');
+    const height = f('#VisualizerBandHeight' + i + '#');
+    const top = f('#VisualizerBandTop' + i + '#');
+    const radius = f('#VisualizerBandRadius' + i + '#');
+    assert.equal(height, Math.round(Math.max(0, Math.min(1, level)) * baseline), 'Native normalized height');
+    assert.equal(top + height, baseline, 'All band bottoms must share the displaced baseline');
+    assert.ok(width >= 1 && left >= previousEnd && left + width <= mask.w + 0.001,
+      'Positive, ordered, disjoint bands ' + scenario + ' / ' + i);
+    // Very narrow slots keep one physical pixel even when the selected gap
+    // exhausts a slot. The remaining gap may consequently be smaller.
+    const slotEnd = Math.round((i + 1) * mask.w / 24);
+    assert.equal(width, Math.max(1, slotEnd - left - f('#VisualizerBandGapPx#')));
+    previousEnd = left + width;
+    assert.ok(radius >= 0 && radius <= width / 2 && radius <= height);
+    assert.equal(radius, Math.min(Math.max(0, Math.min(12, Number(vars.VisualizerBarRadius))) * Number(vars.Scale), width / 2, height));
+    const source = spectrumMask['BandPath' + i].split('|').map(part => part.trim());
+    assert.equal(source.length, 7, 'Each band needs two top curves and a flat closed bottom');
+    const start = args(source[0]).map(f);
+    const segments = source.slice(1).map(part => {
+      const match = /^(LineTo|CurveTo|ClosePath)\s+(.+)$/.exec(part);
+      assert.ok(match);
+      return { type: match[1], points: args(match[2]).map(f) };
+    });
+    assert.deepEqual(segments.map(segment => segment.type), ['LineTo', 'CurveTo', 'LineTo', 'CurveTo', 'LineTo', 'ClosePath']);
+    assert.deepEqual(start, [left, baseline]);
+    assert.deepEqual(segments[0].points, [left, top + radius]);
+    assert.deepEqual(segments[1].points.slice(0, 2), [left + radius, top]);
+    assert.deepEqual(segments[2].points, [left + width - radius, top]);
+    assert.deepEqual(segments[3].points.slice(0, 2), [left + width, top + radius]);
+    assert.deepEqual(segments[4].points, [left + width, baseline]);
+    assert.deepEqual(segments[5].points, [1]);
+    // Verify cap tangency and sample the actual cubic geometry. The two
+    // controls must remain inside each corner, and only top corners curve.
+    const starts = [segments[0].points, segments[2].points];
+    const curves = [segments[1].points, segments[3].points];
+    for (let corner = 0; corner < 2; corner++) {
+      const [endX, endY, c1x, c1y, c2x, c2y] = curves[corner];
+      const [startX, startY] = starts[corner];
+      if (corner === 0) { assert.equal(c1x, startX); assert.equal(c2y, endY); }
+      else { assert.equal(c1y, startY); assert.equal(c2x, endX); }
+      for (let step = 0; step <= 8; step++) {
+        const t = step / 8, u = 1 - t;
+        const x = u ** 3 * startX + 3 * u ** 2 * t * c1x + 3 * u * t ** 2 * c2x + t ** 3 * endX;
+        const y = u ** 3 * startY + 3 * u ** 2 * t * c1y + 3 * u * t ** 2 * c2y + t ** 3 * endY;
+        assert.ok(x >= left - 0.001 && x <= left + width + 0.001 && y >= top - 0.001 && y <= baseline + 0.001,
+          'Cubic leaves band bounds ' + scenario);
+      }
+      if (radius === 0) assert.deepEqual(curves[corner], [...starts[corner], ...starts[corner], ...starts[corner]], 'r0 curve must collapse');
+    }
+    const shapeKey = i ? 'Shape' + (i + 1) : 'Shape';
+    const geometry = shapeGeometry(spectrumMask, spectrumMask[shapeKey], f);
+    assert.deepEqual(geometry.bounds, { x: left, y: top, w: width, h: height });
+    within(geometry.bounds, { x: 0, y: 0, w: mask.w, h: baseline }, 'Measured path ' + i + ' ' + scenario);
+    if (level <= 0) assert.equal(geometry.bounds.h, 0, 'Silence must have zero-area fill, without a stroke');
+    pathCases++;
+  }
+}
 for (const ColumnWidth of [180, 220]) {
 for (const Scale of [0.75, 1, 2]) {
 for (const Columns of [1, 2]) {
 for (const PanelHeight of [126, 146, 186]) {
 for (const VisualizerBandGap of [0, 1, 3, 4]) {
+for (const shapeProfile of shapeProfiles) {
   const vars = { ColumnWidth: String(ColumnWidth), Scale: String(Scale), Columns: String(Columns),
     PanelHeight: String(PanelHeight), VisualizerBandGap: String(VisualizerBandGap),
-    BorderThickness: '4', TitleFontSize: '12', FontSize: '10' };
-  const f = value => formula(value, vars);
-  const scenario = `height ${PanelHeight} gap ${VisualizerBandGap} width ${ColumnWidth} scale ${Scale} columns ${Columns}`;
+    BorderThickness: '4', TitleFontSize: '12', FontSize: '10', ...shapeProfile };
+  const f = evaluator(vars);
+  const scenario = `height ${PanelHeight} gap ${VisualizerBandGap} width ${ColumnWidth} scale ${Scale} columns ${Columns} shape ${JSON.stringify(shapeProfile)}`;
   const border = 4 * Scale;
   const panelInterior = { x: f('#Inset#') + border, y: f('#Inset#') + border,
     w: f('#PanelWidth#') - 2 * border, h: f('#PanelHeightPx#') - 2 * border };
@@ -559,7 +736,14 @@ for (const VisualizerBandGap of [0, 1, 3, 4]) {
   const plot = rect(plotMeter, f);
   const insidePlot = { x: plot.x + 1, y: plot.y + 1, w: plot.w - 2, h: plot.h - 2 };
   within(plot, panelInterior, 'Plot ' + scenario);
-  assert.ok(Math.abs(plot.h - (PanelHeight - 68) * Scale) < 0.00001);
+  const baselineGap = Math.round(Math.max(0, Math.min(24, Number(shapeProfile.VisualizerBaselineGap))) * Scale);
+  const expectedPlotHeight = Math.max(Math.round((PanelHeight - 68) * Scale), Math.ceil(54 * Scale) + baselineGap + 2);
+  assert.equal(plot.h, expectedPlotHeight);
+  assert.equal(f('#PanelHeight#'), PanelHeight, 'Derived minimum must not rewrite the imported preference');
+  assert.equal(f('#PanelHeightPx#'), Math.round(68 * Scale) + expectedPlotHeight);
+  assert.equal(f('#WindowHeight#'), f('#PanelHeightPx#') + f('#Gap#'));
+  assert.equal(plot.x, f('#ContentX#') + 40 * Scale);
+  assert.equal(plot.x + plot.w, f('#ContentX#') + f('#ContentWidth#'));
   for (const [key, shape] of Object.entries(plotMeter).filter(([key]) => /^Shape\d*$/.test(key))) {
     within(shapeGeometry(plotMeter, shape, f).bounds, { x: 0, y: 0, w: plot.w, h: plot.h }, key + ' ' + scenario);
   }
@@ -570,31 +754,61 @@ for (const VisualizerBandGap of [0, 1, 3, 4]) {
   for (const name of ['Low', 'High']) {
     const label = rect(effective('MeterVisualizer' + name), f);
     within(label, panelInterior, name + ' ' + scenario);
-    assert.ok(Math.abs(label.y - plot.y - plot.h - Scale) < 0.00001,
+    assert.ok(Math.abs(label.y - plot.y - plot.h - Scale) <= 0.50001,
       'Height choice must preserve label clearance ' + scenario);
   }
-  const gapPx = f('#VisualizerBandGapPx#');
-  let previousEnd;
-  for (let i = 0; i < 24; i++) {
-    const band = rect(effective('MeterVisualizerBand' + i), f);
-    assert.ok(band.w >= 1 && band.h > 0, 'Nonpositive band ' + scenario);
-    within(band, insidePlot, 'Band ' + i + ' ' + scenario);
-    if (previousEnd !== undefined) {
-      assert.ok(Math.abs(band.x - previousEnd - gapPx) < 0.00001,
-        'Selected gap is not preserved between bands ' + scenario);
-    }
-    assert.ok(Math.abs(band.y - insidePlot.y) < 0.00001);
-    assert.ok(Math.abs(band.h - insidePlot.h) < 0.00001);
-    previousEnd = band.x + band.w;
+  const mask = rect(spectrumMask, f);
+  assert.deepEqual(mask, insidePlot, 'Mask must align with the chart interior');
+  const ticks = ['DbMax', 'DbMid', 'DbMin'].map(name => rect(effective('MeterVisualizer' + name), f));
+  for (const tick of ticks) {
+    within(tick, panelInterior, 'dB label ' + scenario);
+    nonoverlap(tick, plot, 'dB label/plot ' + scenario);
   }
+  nonoverlap(ticks[0], ticks[1], 'Maximum/midpoint labels ' + scenario);
+  nonoverlap(ticks[1], ticks[2], 'Midpoint/minimum labels ' + scenario);
+  assert.equal(ticks[0].y, mask.y);
+  assert.equal(ticks[1].y + ticks[1].h / 2, mask.y + f('#VisualizerBarHeight#') / 2);
+  assert.equal(ticks[2].y + ticks[2].h, mask.y + f('#VisualizerBarHeight#'));
+  checkPaths(vars, 0.5, scenario);
   appearanceCases++;
 }
 }
 }
 }
 }
-assert.equal(appearanceCases, 144);
-console.log('PASS: includes; one output parent; 24 band mappings; setting bounds; volume numeric/mute/error/recovery states and 250/264/300ms schedules; four-state overlay visibility and initial states; alternating hover gear/readout; context reconnect/unload; semantic typography/colors; ' + dimensions.length + ' title6/10/12, width/scale/column/surface cases; centered title/icon/gear/volume; icon path scaling; Path/Ellipse/shape stroke extents; ' + appearanceCases + ' height/gap cases; refresh-only palette Script binding (ColorSuite.lua validates behavior separately); centered status overlay; preserved device row.');
+}
+assert.equal(appearanceCases, 432);
+// Exercise every binding at all amplitude edges in the most constrained
+// geometry, in both monitor widths; the layout matrix already covers the rest.
+for (const Columns of [1, 2]) {
+  for (const shapeProfile of shapeProfiles) {
+    const vars = { ColumnWidth: '180', Scale: '0.75', Columns: String(Columns), PanelHeight: '126',
+      VisualizerBandGap: '4', BorderThickness: '4', TitleFontSize: '12', FontSize: '10', ...shapeProfile };
+    for (const level of [-1, 0, 0.001, 0.5, 1, 2]) checkPaths(vars, level, 'narrow amplitude edge ' + level);
+  }
+}
+assert.equal(pathCases, appearanceCases * 24 + 2 * shapeProfiles.length * 6 * 24);
+const dbMid = sections.get('MeasureVisualizerDbMid'), dbMin = sections.get('MeasureVisualizerDbMin');
+for (const measure of [dbMid, dbMin]) {
+  assert.equal(measure.Measure, 'Calc');
+  assert.equal(measure.UpdateDivider, '-1');
+}
+for (const selected of [-100, 0, 10, 20, 35, 50, 65, 80, 999]) {
+  const vars = { VisualizerSensitivity: String(selected) };
+  const sensitivity = Math.max(10, Math.min(80, selected));
+  assert.equal(formula(audio.Sensitivity, vars), sensitivity, 'Axis and provider must share the same clamp');
+  assert.equal(formula(dbMid.Formula, vars), -sensitivity / 2);
+  assert.equal(formula(dbMin.Formula, vars), -sensitivity);
+  // Invert the reviewed AudioLevel normalization independently: dB=S*(y-1).
+  for (const normalized of [0, 0.5, 1]) {
+    const db = sensitivity * (normalized - 1);
+    const power = 10 ** (db / 10);
+    const back = Math.max(0, 1 + 10 / sensitivity * Math.log10(Math.max(0, Math.min(1, power))));
+    assert.ok(Math.abs(back - normalized) < 1e-12);
+  }
+}
+assert.equal(effective('MeterVisualizerDbMax').Text, '0 dB');
+console.log('PASS: includes; one output parent; 24 band/path mappings; setting bounds; volume numeric/mute/error/recovery states and 250/264/300ms schedules; four-state visibility; alternating gear/readout; context reconnect/unload; semantic typography/colors; ' + dimensions.length + ' title/width/scale/column/surface cases; ' + appearanceCases + ' height/gap/radius/baseline cases and ' + pathCases + ' bounded cubic paths including six narrow amplitude edges; zero height/radius;54px axis clearance; nine sensitivity clamps/dB endpoints; one fixed container fill; refresh-only palette binding (ColorSuite.lua validates behavior separately); preserved device row.');
 console.table(dimensions.filter(row => row.border === (titleFocus ? '4' : '1') && row.Columns === 1 && [0.75, 1, 2].includes(row.Scale) && [180, 220].includes(row.ColumnWidth)));
 console.log('Checked ' + readFiles.length + ' files: ' + readFiles.map(p => relative(skinRoot, p)).join(', '));
 console.log('Offline checks do not verify Rainmeter rendering, audio capture, timing, DPI, persistence, or CPU cost.');

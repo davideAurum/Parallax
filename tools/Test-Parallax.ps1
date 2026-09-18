@@ -121,7 +121,7 @@ foreach ($file in $files) { $productionPaths[$file.FullName] = $true }
 $configs = @($files | Where-Object { $_.Extension -ieq '.ini' -and (Get-ParallaxRelativePath $_.FullName $SkinRoot) -notmatch '^@Resources[\\/]' })
 foreach ($file in $files | Where-Object { $_.Extension -in '.inc', '.ini' }) { $null = Read-Ini $file.FullName }
 if ($configs.Count -eq 0) { Add-Issue 'Error' $SkinRoot 0 'No loadable skin configs found.' }
-foreach ($module in 'Settings', 'Chronometer', 'CPU', 'RAM', 'GPU', 'IO', 'Network', 'Media', 'Visualizer') {
+foreach ($module in 'Settings', 'Welcome', 'Chronometer', 'CPU', 'RAM', 'GPU', 'IO', 'Network', 'Media', 'Visualizer') {
     $moduleFiles = @($configs | Where-Object { (Get-ParallaxRelativePath $_.FullName $SkinRoot) -like "$module\*" })
     if ($moduleFiles.Count -eq 0) {
         $level = 'Warning'
@@ -148,6 +148,11 @@ foreach ($config in $configs) {
     if ($meters.Count -eq 0) { Add-Issue 'Error' $config.FullName 0 'No Meter= option found in this config or its includes.' }
     foreach ($section in $state.Sections.Values) {
         foreach ($key in $section.Keys.Keys) {
+            $rawValue = $section.Keys[$key].Value
+            if ($key -match 'Action$' -and $rawValue -match '(?i)powershell(?:\.exe)?' -and
+                -not ($rawValue -match '(?i)-NoExit' -and $rawValue -match '(?i)-Command"?\s+"?Connect')) {
+                Add-Issue 'Error' $section.File $section.Keys[$key].Line 'One-shot PowerShell actions must run through a State=Hide RunCommand measure; only the deliberately visible Connect flow may launch directly.'
+            }
             if ($key -match '^MeasureName\d*$|^MeterStyle$') {
                 $reference = Expand-PathVariables $section.Keys[$key].Value $state.Variables
                 if ($reference -match '#|\[') { continue }
@@ -168,6 +173,53 @@ foreach ($config in $configs) {
                     }
                 }
             }
+        }
+        if ($section.Keys.ContainsKey('Plugin') -and $section.Keys.Plugin.Value -ieq 'RunCommand' -and
+            $section.Keys.ContainsKey('Program') -and $section.Keys.Program.Value -match '(?i)powershell(?:\.exe)?' -and
+            (-not $section.Keys.ContainsKey('State') -or $section.Keys.State.Value -ine 'Hide')) {
+            Add-Issue 'Error' $section.File $section.Keys.Program.Line 'PowerShell RunCommand measures must use State=Hide to prevent console-window flashes.'
+        }
+    }
+}
+
+# Performance contracts for the continuously loaded utility surfaces. Rainmeter
+# creates a native tooltip control per tooltip-bearing meter and revisits it on
+# every skin update, including hidden meters. Keep fixed placeholder banks free
+# of static tooltips and let their controllers populate only visible rows.
+$ioDriveMeters = Join-Path $SkinRoot '@Resources\Modules\IO\DriveMeters.inc'
+if (Test-Path -LiteralPath $ioDriveMeters -PathType Leaf) {
+    foreach ($section in (Read-Ini $ioDriveMeters).Sections) {
+        if ($section.Name -match '^MeterIODisk(?:ReadLabel|WriteLabel|Legend)[A-Z]$' -and $section.Keys.ContainsKey('ToolTipText')) {
+            Add-Issue 'Error' $ioDriveMeters $section.Keys.ToolTipText.Line 'Hidden A-Z drive-bank glyphs must not own static tooltips; IO.lua supplies detailed tooltips only for visible drives.'
+        }
+    }
+}
+$cpuConfig = Join-Path $SkinRoot 'CPU\CPU.ini'
+if (Test-Path -LiteralPath $cpuConfig -PathType Leaf) {
+    $cpuStyle = (Read-Ini $cpuConfig).Sections | Where-Object Name -eq 'CPUStyleRowSensor' | Select-Object -First 1
+    if ($null -ne $cpuStyle -and $cpuStyle.Keys.ContainsKey('ToolTipText')) {
+        Add-Issue 'Error' $cpuConfig $cpuStyle.Keys.ToolTipText.Line 'The 64-slot CPU sensor style must not instantiate tooltips for the hidden page bank.'
+    }
+}
+$cpuController = Join-Path $SkinRoot '@Resources\Modules\CPU\CPU.lua'
+$cpuSensors = Join-Path $SkinRoot '@Resources\Modules\CPU\Sensors.lua'
+if ((Test-Path -LiteralPath $cpuController -PathType Leaf) -and (Test-Path -LiteralPath $cpuSensors -PathType Leaf)) {
+    $cpuControllerSource = Get-Content -LiteralPath $cpuController -Raw
+    $cpuSensorSource = Get-Content -LiteralPath $cpuSensors -Raw
+    if ($cpuControllerSource -notmatch [regex]::Escape("SetThreadPage(' .. first .. ',' .. visibleSlots .. ')")) {
+        Add-Issue 'Error' $cpuController 0 'CPU must pass the visible row count to its sensor tooltip controller.'
+    }
+    if ($cpuSensorSource -notmatch 'activeSlots=0' -or $cpuSensorSource -notmatch 'slot <= state\.activeSlots') {
+        Add-Issue 'Error' $cpuSensors 0 'CPU sensor tooltips must start inactive and be limited to visible page slots.'
+    }
+}
+$visualizerView = Join-Path $SkinRoot '@Resources\Modules\Visualizer\View.inc'
+if (Test-Path -LiteralPath $visualizerView -PathType Leaf) {
+    $visualizerSections = @((Read-Ini $visualizerView).Sections)
+    foreach ($name in 'MeterVisualizerVolume', 'MeterVisualizerUnavailable', 'MeterVisualizerDbMax', 'MeterVisualizerDbMid', 'MeterVisualizerDbMin') {
+        $section = $visualizerSections | Where-Object Name -eq $name | Select-Object -First 1
+        if ($null -ne $section -and $section.Keys.ContainsKey('ToolTipText')) {
+            Add-Issue 'Error' $visualizerView $section.Keys.ToolTipText.Line 'High-frequency Visualizer diagnostics must be consolidated into the device tooltip.'
         }
     }
 }

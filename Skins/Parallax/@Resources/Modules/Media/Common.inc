@@ -56,7 +56,7 @@ Meter=String
 MeterStyle=StyleTitle|StyleTitleRow
 X=(#ContentX#+#TitleIconSize#+#TitleIconGap#)
 Y=(#TitleRowCenterY#+#MediaSurfaceOffset#)
-W=(#ContentWidth#-#TitleIconSize#-#TitleIconGap#-24*#Scale#)
+W=#MediaHeadingWidth#
 Text=Media Player
 UpdateDivider=-1
 
@@ -65,7 +65,7 @@ Meter=String
 MeterStyle=StyleLabel
 X=(#MediaPlayerRowX#+18*#Scale#)
 Y=#MediaPlayerRowY#
-W=(#ContentX#+#ContentWidth#-#MediaPlayerRowX#-18*#Scale#)
+W=(Max(1,#ContentX#+#ContentWidth#-#MediaPlayerRowX#-(18+24*#MediaWide#)*#Scale#))
 H=(18*#Scale#)
 Padding=0,0,0,0
 MeasureName=MeasureMediaHeader

@@ -694,9 +694,14 @@ function Save-ViewCaptures([uint32]$OwnedPid) {
                 $art=[math]::Floor($baseArt*0.75+0.5)
                 $offset=if ($wide) { 12 } else { 0 }
                 $barHeight=[math]::Max(1,[math]::Floor($case.BarThickness+0.5))
-                $controls=$offset+122+[math]::Max(2,6-$barHeight/2)+$barHeight+8
-                $artBottom=if ($wide) { $art } else { 44+$art }
-                $body=[math]::Max(162+$offset,[math]::Ceiling([math]::Max($artBottom,$controls+26)+37))
+                # Body is the larger of the frozen legacy anchor and the current
+                # section-gap layout; the latter now wins at standard width.
+                $legacyControls=$offset+122+[math]::Max(2,6-$barHeight/2)+$barHeight+8
+                $controls=$offset+$(if ($wide) { 112 } else { 134 })+$barHeight+8
+                $legacyArtBottom=if ($wide) { $art } else { 44+$art }
+                $artBottom=if ($wide) { $art+20 } else { 44+$art }
+                $legacyBody=[math]::Max(162+$offset,[math]::Ceiling([math]::Max($legacyArtBottom,$legacyControls+26)+37))
+                $body=[math]::Max($legacyBody,[math]::Ceiling([math]::Max($artBottom,$controls+26)+37))
                 $left=4+$(if ($wide) { 96 } else { 0 })+6+44
                 $top=4+$body-21
                 $vertical=0; $list=0
@@ -721,7 +726,7 @@ function Save-ViewCaptures([uint32]$OwnedPid) {
                 $art=[math]::Floor([math]::Floor([math]::Floor($case.Width*$s+0.5)*0.9+0.5)*0.75+0.5)
                 $offset=if ($wide) { [math]::Floor(12*$s+0.5) } else { 0 }
                 $barHeight=[math]::Max(1,[math]::Floor($case.BarThickness*$s+0.5))
-                $barTop=$inset+$offset+122*$s+[math]::Max(2*$s,6*$s-$barHeight/2)
+                $barTop=$inset+$offset+$(if ($wide) { 112 } else { 134 })*$s
                 $barLeft=$inset+$(if ($wide) { $art+4*$s } else { $padding })
                 $sampleX=[int][math]::Floor($barLeft+6*$s)
                 $paintedRows=@()

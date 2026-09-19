@@ -47,7 +47,7 @@ local function media_geometry()
     local bar=math.max(1,rounded(SELF:GetNumberOption('ExpectedBarThickness',6)*scale))
     local legacy_progress_y=offset+122*scale+math.max(2*scale,6*scale-bar/2)
     local legacy_controls_y=legacy_progress_y+bar+8*scale
-    local progress_y=offset+(wide and 102 or 122)*scale+math.max(2*scale,6*scale-bar/2)
+    local progress_y=offset+(wide and 112 or 134)*scale
     local controls_y=progress_y+bar+8*scale
     local legacy_cover_bottom=(wide and 0 or 44*scale)+legacy_cover
     local cover_bottom=(wide and 0 or 44*scale)+cover

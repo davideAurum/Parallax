@@ -1,4 +1,12 @@
 [Variables]
+; Media.ini/Setup.ini both tick at this fast, fixed rate (matching the
+; Visualizer module's own default cadence) so Media.lua can animate the
+; player icon smoothly; MediaLegacyDivider throttles every measure that only
+; ever needs the original #MediaInterval# cadence (WebNowPlaying polling,
+; queue/options refresh) back down to it, so nothing polls more often than
+; before this animation existed.
+MediaAnimationInterval=50
+MediaLegacyDivider=(Max(1,Round(#MediaInterval#/#MediaAnimationInterval#)))
 ; Two columns retain the shared outer pitch while the cover overhangs the
 ; narrower surface. Wide artwork grows 20 logical pixels from its fixed top-left.
 MediaWide=(#Columns#-1)
@@ -23,11 +31,31 @@ MediaPlayerRowX=(#MediaWide#*(#ContentX#+#TitleIconSize#+#TitleIconGap#+#MediaHe
 MediaPlayerRowY=(#MediaWide#*(#MediaHeaderY#+#TitleRowCenterY#-#Inset#-9*#Scale#)+(1-#MediaWide#)*(#MediaSurfaceY#+30*#Scale#))
 MediaMetadataX=(#Inset#+#Padding#+#MediaWide#*(#MediaCoverBaseSize#+8*#Scale#-#Padding#)+54*(1-#MediaWide#)*#Scale#)
 MediaMetadataWidth=(#Inset#+#PanelWidth#-#Padding#-#MediaMetadataX#)
-MediaMetadataY=(#MediaSurfaceY#+(50-20*#MediaWide#)*#Scale#)
+; The panel stacks three subsections - title row, song metadata, then the
+; progress/transport block - separated by one shared gap. MediaHeaderBottom is
+; where the title row ends: the centered heading's lower edge at double width
+; (#TitleRowCenterY#+#TitleRowHeight#/2, i.e. 26*Scale below the surface), or
+; the player-name row's lower edge where it wraps below the heading at standard
+; width (#MediaPlayerRowY#+18*Scale, i.e. 48*Scale below the surface).
+MediaSectionGap=(4*#Scale#)
+; A text row's box carries leading below its glyphs, but the progress bar's top
+; edge is solid ink, so an equal box gap reads as visibly tighter above the bar.
+; Add that leading back. It is an optical constant rather than a derived one:
+; Rainmeter cannot query font metrics, and the true value drifts with FontFace
+; and TitleFontSize (measured ~6px for IBM Plex Sans at default typography,
+; ranging ~5-8px across the min/max title sizes).
+MediaBarOpticalPad=(6*#Scale#)
+MediaHeaderBottom=(#MediaSurfaceY#+(48-22*#MediaWide#)*#Scale#)
+MediaMetadataY=(#MediaHeaderBottom#+#MediaSectionGap#)
 MediaMetadataPitch=(24*#Scale#)
 MediaProgressX=#ContentX#
 MediaProgressWidth=#ContentWidth#
-MediaProgressY=(#MediaMetadataY#+3*#MediaMetadataPitch#+Max(2*#Scale#,6*#Scale#-#DataBarThicknessPx#/2))
+; The album row's box reaches exactly #MediaMetadataY#+3*Pitch (its
+; StringAlign=Center vertical anchor puts its true bottom there), so the same
+; #MediaSectionGap# that sits under the title row also sits under the metadata
+; block. It is outside MediaMetadataPitch, so title/artist/album keep their own
+; spacing, and the timing text and transport row follow the bar down.
+MediaProgressY=(#MediaMetadataY#+3*#MediaMetadataPitch#+#MediaSectionGap#+#MediaBarOpticalPad#)
 MediaTimingY=(#MediaProgressY#+#DataBarThicknessPx#+8*#Scale#)
 ; Center the 92-pixel transport group between artwork and measured time text.
 ; Compact artwork sits above this row, so its left boundary is ContentX.

@@ -120,7 +120,7 @@ def media_body_geometry(width, scale, columns, bar_thickness=6):
     bar=max(1,rounded(bar_thickness*scale))
     legacy_progress=offset+122*scale+max(2*scale,6*scale-bar/2)
     legacy_controls_bottom=legacy_progress+bar+34*scale
-    progress=offset+(122-20*wide)*scale+max(2*scale,6*scale-bar/2)
+    progress=offset+(134-22*wide)*scale
     controls_bottom=progress+bar+34*scale
     legacy_body=max(rounded(162*scale)+offset,
                     math.ceil(max(legacy_cover_bottom,legacy_controls_bottom)+37*scale))
@@ -489,9 +489,10 @@ class SkinContractTests(unittest.TestCase):
                                 self.assertAlmostEqual(box('MeterMediaIcon').height,title_size)
                                 self.assertAlmostEqual(box('MeterMediaIcon').left,val('#ContentX#'))
                                 self.assertAlmostEqual(box('MeterMediaIcon').top+title_size/2,surface+15*scale)
-                                self.assertAlmostEqual(box('MeterPlayerIcon').width,14*scale)
-                                self.assertAlmostEqual(box('MeterPlayerIcon').height,14*scale)
-                                self.assertAlmostEqual(box('MeterPlayerIcon').top,surface+(8 if columns==2 else 32)*scale)
+                                self.assertAlmostEqual(box('MeterPlayerIcon').width,title_size)
+                                self.assertAlmostEqual(box('MeterPlayerIcon').height,title_size)
+                                self.assertAlmostEqual(box('MeterPlayerIcon').top,
+                                                       surface+(6 if columns==2 else 30)*scale+(18*scale-title_size)/2)
                                 self.assertAlmostEqual(box('MeterPlayerName').top,surface+(6 if columns==2 else 30)*scale)
                                 self.assertAlmostEqual(box('MeterPlayerName').height,18*scale)
                                 self.assertAlmostEqual(box('MeterPlayerName').left-box('MeterPlayerIcon').right,4*scale)
@@ -501,11 +502,11 @@ class SkinContractTests(unittest.TestCase):
                                     self.assertAlmostEqual((box('MeterHeading').top+box('MeterHeading').bottom)/2,
                                                            (box('MeterPlayerName').top+box('MeterPlayerName').bottom)/2)
                                 style=resolve_style(sections,'MeterPlayerName')
-                                self.assertEqual(val(style['FontSize']),(10 if profile=='max' else 9)*scale)
+                                self.assertEqual(val(style['FontSize']),(12 if profile=='max' else 10)*scale)
                                 self.assertEqual(expand(style['FontColor']),expand('#TextColor#'))
                                 self.assertEqual(style['ClipString'],'1')
                                 first='MeterTrackTitle' if config=='Media.ini' else 'MeterSetupStatus'
-                                self.assertAlmostEqual(box(first).top,surface+(30 if columns==2 else 50)*scale)
+                                self.assertAlmostEqual(box(first).top,surface+(30 if columns==2 else 52)*scale)
                                 self.assertTrue(box('MeterPlayerName').above(box(first)))
                                 if columns==1:
                                     self.assertAlmostEqual(box('MeterPlayerIcon').left,val('#ContentX#')+54*scale)
@@ -1080,7 +1081,7 @@ class SkinContractTests(unittest.TestCase):
                                     for row,name in enumerate(('MeterTrackTitle','MeterArtist','MeterAlbum')):
                                         self.assertAlmostEqual(box(name).left,old_metadata_x+20*scale)
                                         self.assertAlmostEqual(box(name).width,box('MeterPanel').right-padding-old_metadata_x-20*scale)
-                                        self.assertAlmostEqual(box(name).top,inset+surface_offset+(50-20*wide+row*24)*scale)
+                                        self.assertAlmostEqual(box(name).top,inset+surface_offset+(52-22*wide+row*24)*scale)
                                         icon=('MeterSongIcon','MeterArtistIcon','MeterAlbumIcon')[row]
                                         self.assertAlmostEqual((box(name).top+box(name).bottom)/2,(box(icon).top+box(icon).bottom)/2)
                                     self.assertEqual(box('MeterCover'),art)

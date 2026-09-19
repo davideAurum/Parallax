@@ -25,7 +25,6 @@ local commands = {
     PlayPause = { measure = 'MeasureCanPlayPause', meter = 'MeterPlayPause', label = 'Play or pause' },
     Next = { measure = 'MeasureCanNext', meter = 'MeterNext', label = 'Next track' }
 }
-
 function Initialize()
     measures, applied, playPauseHovered = {}, {}, false
     transportHovered, activeTiming = {}, nil

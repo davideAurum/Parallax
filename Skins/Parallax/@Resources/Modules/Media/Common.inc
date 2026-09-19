@@ -63,9 +63,11 @@ UpdateDivider=-1
 [MeterPlayerName]
 Meter=String
 MeterStyle=StyleLabel
-X=(#MediaPlayerRowX#+18*#Scale#)
+FontSize=(#TitleFontSize#*#Scale#)
+FontWeight=600
+X=(#MediaPlayerRowX#+#TitleIconSize#+#TitleIconGap#)
 Y=#MediaPlayerRowY#
-W=(Max(1,#ContentX#+#ContentWidth#-#MediaPlayerRowX#-(18+24*#MediaWide#)*#Scale#))
+W=(Max(1,#ContentX#+#ContentWidth#-#MediaPlayerRowX#-#TitleIconSize#-#TitleIconGap#-24*#MediaWide#*#Scale#))
 H=(18*#Scale#)
 Padding=0,0,0,0
 MeasureName=MeasureMediaHeader
@@ -126,9 +128,12 @@ FontColor=#MediaColor#
 Text=%1
 ToolTipText=Expand or collapse the Spotify queue. Use the gear for queue display and connection settings. The Spotify account queue may differ from WebNowPlaying's player.
 MouseActionCursor=1
+; Both dividers match Media.ini/Setup.ini's fast animation tick back down to
+; the original #MediaInterval# cadence; see InlineQueueGeometry.inc.
 LeftMouseUpAction=[!CommandMeasure MeasureMediaOptions "ToggleQueue()"]
 
 [MeasureMediaOptions]
+UpdateDivider=#MediaLegacyDivider#
 Measure=Script
 ScriptFile=#@#Modules\Media\MediaOptions.lua
 
@@ -137,6 +142,7 @@ Measure=Script
 ScriptFile=#@#Modules\Media\Queue\QueueReader.lua
 ; Compact footer labels; the standalone queue keeps the full status wording.
 Substitute="Storage unavailable":"Storage error","Spotify unavailable":"Spotify error","Queue unavailable":"Queue error","App quota reached":"Quota reached","Provider stopped":"Stopped"
+UpdateDivider=#MediaLegacyDivider#
 QueueExpanded=#QueueExpanded#
 QueueInline=1
 

@@ -23,6 +23,9 @@ function Suite.run(sourcePath, includePath)
         Source = localAppData .. '\\Parallax\\Media\\Source\\',
         Spotify = localAppData .. '\\Parallax\\Media\\Spotify\\'
     }
+    -- One inert hidden host per provider, declared in Lifecycle.inc.
+    local hosts = { MeasureMediaSourceResume = 'Source', MeasureMediaQueueResume = 'Queue' }
+    local hostFor = { Source = 'MeasureMediaSourceResume', Queue = 'MeasureMediaQueueResume' }
     local allowedFiles = {}
     for _, root in pairs(roots) do
         allowedFiles[root .. 'enabled.intent'] = true
@@ -31,7 +34,7 @@ function Suite.run(sourcePath, includePath)
     local forbidden = function() error('Unexpected uninjected I/O or process access') end
     local function fixture(options)
         options = options or {}
-        local state = { calls = {}, opens = {}, violations = {}, reads = 0, closes = 0, handles = 0, files = {}, variables = {
+        local state = { calls = {}, bangs = {}, pending = {}, opens = {}, violations = {}, reads = 0, closes = 0, handles = 0, files = {}, variables = {
             ['@'] = resources, CURRENTFILE = options.currentFile or 'Media.ini', QueuePollSeconds = '30', SETTINGSPATH = roaming .. '\\Rainmeter\\'
         }, environment = { LOCALAPPDATA = localAppData, SystemRoot = systemRoot, APPDATA = roaming } }
         for key, value in pairs(options.variables or {}) do state.variables[key] = value end
@@ -46,11 +49,38 @@ function Suite.run(sourcePath, includePath)
             if value == false then return nil end
             return value == nil and fallback or value
         end
+        -- Resume no longer bangs a command line. It fills in the two inert
+        -- RunCommand hosts declared by Lifecycle.inc and runs them, so that the
+        -- process is created with SW_HIDE and never shows a console. Nothing
+        -- here reaches Rainmeter: a launch is recorded only once a host has been
+        -- given both options, re-read them and been told to Run.
         function fakeSkin:Bang(...)
             local args = { ... }
-            equal(#args, 1, 'External resume uses one fixed command string')
-            check(type(args[1]) == 'string', 'Captured command must be text')
-            state.calls[#state.calls + 1] = args[1]
+            for _, value in ipairs(args) do check(type(value) == 'string', 'Captured bang arguments must be text') end
+            local bang, target = args[1], args[2]
+            check(hosts[target] ~= nil, 'Resume addresses only its declared hidden hosts: ' .. tostring(target))
+            state.bangs[#state.bangs + 1] = table.concat(args, ' ')
+            local pending = state.pending[target] or {}
+            state.pending[target] = pending
+            if bang == '!SetOption' then
+                equal(#args, 4, 'Option bang carries measure, option and value')
+                check(args[3] == 'Program' or args[3] == 'Parameter', 'Resume sets only Program and Parameter, not ' .. tostring(args[3]))
+                equal(pending[args[3]], nil, 'Each option is set once per launch')
+                pending[args[3]] = args[4]
+            elseif bang == '!UpdateMeasure' then
+                equal(#args, 2, 'Update bang carries only the measure')
+                check(pending.Program ~= nil and pending.Parameter ~= nil, 'Both options are supplied before the host re-reads them')
+                pending.updated = true
+            elseif bang == '!CommandMeasure' then
+                equal(#args, 3, 'Command bang carries measure and command')
+                equal(args[3], 'Run', 'Hosts accept only the fixed Run command')
+                check(pending.updated == true, 'A host must re-read its options before it runs')
+                state.calls[#state.calls + 1] = { host = target, provider = hosts[target],
+                    program = pending.Program, parameter = pending.Parameter }
+                state.pending[target] = nil
+            else
+                check(false, 'Unexpected lifecycle bang: ' .. tostring(bang))
+            end
         end
         local fakeIo = setmetatable({ open = function(path, mode)
             if not allowedFiles[path] or mode ~= 'rb' then state.violations[#state.violations + 1] = tostring(path) end
@@ -101,22 +131,30 @@ function Suite.run(sourcePath, includePath)
         equal(#state.calls, 0, 'Initialize must not launch providers')
         return state
     end
-    local function tokens(command)
-        check(command:sub(1, 2) == '["' and command:sub(-1) == ']', 'Expected bracketed external command')
-        local result, body = {}, command:sub(2, -2)
+    local function tokens(parameter)
+        local result, body = {}, parameter
         while #body > 0 do
             local token, remaining
             if body:sub(1, 1) == '"' then token, remaining = body:match('^"([^"]*)"%s*(.*)$')
-            else token, remaining = body:match('^(%S+)%s*(.*)$') end
+            else token, remaining = body:match('^([^%s"]+)%s*(.*)$') end
             check(token ~= nil, 'Malformed command quoting')
             result[#result + 1] = token; body = remaining
         end
         return result
     end
-    local function commandIs(command, provider, interval)
-        local args = tokens(command)
-        local expected = { systemRoot .. '\\System32\\WindowsPowerShell\\v1.0\\powershell.exe',
-            '-NoLogo', '-NoProfile', '-NonInteractive', '-ExecutionPolicy', 'Bypass', '-WindowStyle', 'Hidden',
+    local function commandIs(call, provider, interval)
+        check(type(call) == 'table', 'Expected a captured host launch')
+        equal(call.provider, provider, 'Launch uses the host dedicated to ' .. provider)
+        equal(call.host, hostFor[provider], 'Fixed host measure for ' .. provider)
+        equal(call.program, systemRoot .. '\\System32\\WindowsPowerShell\\v1.0\\powershell.exe', 'Fixed interpreter')
+        -- The host re-reads these options with DynamicVariables, so neither may
+        -- carry a substitution introducer. safePath already rejects them, which
+        -- is what keeps an option string as safe as the old quoted bang was.
+        for _, option in ipairs({ call.program, call.parameter }) do
+            check(option:find('[%[%]#%%]') == nil, 'Host options carry no substitution introducer: ' .. option)
+        end
+        local args = tokens(call.parameter)
+        local expected = { '-NoLogo', '-NoProfile', '-NonInteractive', '-ExecutionPolicy', 'Bypass', '-WindowStyle', 'Hidden',
             '-File', resources .. 'Modules\\Media\\' .. provider .. '\\' .. (provider == 'Source' and 'SourceProvider.ps1' or 'QueueProvider.ps1'),
             '-Command', 'Resume', '-Quiet' }
         if provider == 'Queue' then expected[#expected + 1] = '-PollSeconds'; expected[#expected + 1] = tostring(interval or 30) end
@@ -237,11 +275,66 @@ function Suite.run(sourcePath, includePath)
             local f = fixture(options); f.resume(); equal(#f.calls, 0, 'Missing path rejected'); f.finish()
         end
     end)
-    scenario('lifecycle include is a passive one-shot measure', function()
+    scenario('each launch fills its own hidden host before running it', function()
+        local f = fixture({ source = true, queue = true }); f.resume()
+        equal(#f.calls, 2, 'Media.ini resumes both providers')
+        equal(#f.bangs, 8, 'Four bangs per launch and nothing else')
+        local expected = {}
+        for _, provider in ipairs({ 'Source', 'Queue' }) do
+            local host = hostFor[provider]
+            expected[#expected + 1] = '!SetOption ' .. host .. ' Program'
+            expected[#expected + 1] = '!SetOption ' .. host .. ' Parameter'
+            expected[#expected + 1] = '!UpdateMeasure ' .. host
+            expected[#expected + 1] = '!CommandMeasure ' .. host .. ' Run'
+        end
+        for index, prefix in ipairs(expected) do
+            equal(f.bangs[index]:sub(1, #prefix), prefix, 'Fixed bang order ' .. index)
+        end
+        -- Neither host may be reused for the other provider: a second Run cannot
+        -- reach a host that is still launching the first.
+        check(f.calls[1].host ~= f.calls[2].host, 'Providers use separate hosts')
+        f.finish()
+    end)
+    scenario('lifecycle include is a passive one-shot measure with inert hidden hosts', function()
         local file = assert(io.open(includePath, 'rb')); local text = file:read('*a'); file:close()
-        check(text:find('ScriptFile=#@#Modules\\Media\\MediaLifecycle.lua', 1, true) ~= nil, 'Include uses fixed lifecycle script')
-        check(text:find('UpdateDivider=-1', 1, true) ~= nil, 'Lifecycle measure must not poll')
-        check(not text:find('Plugin=') and not text:find('Program='), 'Lifecycle include cannot add a provider/plugin')
+        local body = ('\n' .. text:gsub('\r\n', '\n')):gsub('\n[ \t]*;[^\n]*', '')
+        local sections, order, current = {}, {}, nil
+        for line in (body .. '\n'):gmatch('([^\n]*)\n') do
+            line = line:match('^%s*(.-)%s*$')
+            local name = line:match('^%[(.+)%]$')
+            if name then
+                current = {}; sections[name] = current; order[#order + 1] = name
+            elseif current and line ~= '' then
+                local key, value = line:match('^([^=]+)=(.*)$')
+                check(key ~= nil, 'Include declares only key=value options: ' .. line)
+                current[key] = value
+            end
+        end
+        equal(#order, 3, 'Include declares the lifecycle script and one host per provider')
+        equal(order[1], 'MeasureMediaLifecycle', 'Lifecycle measure is declared first')
+        local lifecycle = sections.MeasureMediaLifecycle
+        equal(lifecycle.Measure, 'Script', 'Lifecycle stays a script measure')
+        equal(lifecycle.ScriptFile, '#@#Modules\\Media\\MediaLifecycle.lua', 'Include uses fixed lifecycle script')
+        equal(lifecycle.UpdateDivider, '-1', 'Lifecycle measure must not poll')
+        -- A raw [] bang ShellExecutes powershell.exe with a visible show state,
+        -- so its console exists before -WindowStyle Hidden can apply. State=Hide
+        -- is the only reason no window appears, and it is worth nothing unless
+        -- the host is otherwise inert: a view load must still launch nothing,
+        -- because only a validated ResumeProviders() may supply the command.
+        for _, provider in ipairs({ 'Source', 'Queue' }) do
+            local name = hostFor[provider]
+            local host = sections[name]
+            check(host ~= nil, 'Hidden host declared for ' .. provider)
+            equal(host.Measure, 'Plugin', name .. ' is a plugin measure')
+            equal(host.Plugin, 'RunCommand', name .. ' uses the bundled hidden runner')
+            equal(host.State, 'Hide', name .. ' must create its process hidden')
+            equal(host.UpdateDivider, '-1', name .. ' must not poll')
+            for _, option in ipairs({ 'Program', 'Parameter', 'StartInFolder', 'FinishAction', 'OnUpdateAction', 'IfCondition', 'IfMatch' }) do
+                equal(host[option], nil, name .. ' cannot declare a launchable ' .. option)
+            end
+        end
+        check(body:find('powershell', 1, true) == nil and body:find('.ps1', 1, true) == nil,
+            'Include names no interpreter or provider script; only a validated resume supplies them')
     end)
     return passed, cases
 end

@@ -21,6 +21,20 @@ COLUMNS = (1, 2)
 CONFIGS = ('Setup.ini', 'Media.ini', 'Queue/Queue.ini', 'Settings/Settings.ini')
 EPSILON = 0.001
 
+# Lifecycle.inc gives every view that can resume a provider one hidden launch
+# host per provider. Rainmeter's own [] file bang ShellExecutes with a visible
+# show state, so console-subsystem powershell.exe is given a console before it
+# can parse -WindowStyle Hidden and hide itself; State=Hide creates the process
+# hidden instead and nothing is ever shown. The hosts declare no Program,
+# Parameter or StartInFolder, so loading a view still launches nothing: only a
+# validated MediaLifecycle.ResumeProviders() supplies a command and runs them.
+RESUME_HOSTS = ('MeasureMediaSourceResume', 'MeasureMediaQueueResume')
+RESUME_HOST_OPTIONS = {'Measure': 'Plugin', 'Plugin': 'RunCommand', 'State': 'Hide',
+                       'OutputType': 'UTF8', 'Timeout': '15000', 'UpdateDivider': '-1',
+                       'DynamicVariables': '1'}
+RESUME_HOST_FORBIDDEN = ('Program', 'Parameter', 'StartInFolder', 'FinishAction',
+                         'OnUpdateAction', 'IfCondition', 'IfMatch')
+
 
 def read_config(name, *, scale=1, columns=1, column_width=220,
                 expanded=0, row_limit=5, show_details=1, typography='default', surface=1, bar_thickness=6):
@@ -623,9 +637,22 @@ class SkinContractTests(unittest.TestCase):
                                 self.assertTrue(meter_bounds(panel,val).inside(window))
                                 self.assertTrue(meter_bounds(rule,val).inside(window))
 
+    def assert_inert_resume_hosts(self, sections):
+        """The hosts may hide a launch, but must not be able to start one."""
+        for name in RESUME_HOSTS:
+            host = sections[name]
+            self.assertEqual({key: host.get(key) for key in RESUME_HOST_OPTIONS}, RESUME_HOST_OPTIONS)
+            for option in RESUME_HOST_FORBIDDEN:
+                self.assertNotIn(option, host, f'{name} cannot declare a launchable {option}')
+
     def test_provider_free_setup_and_include_order(self):
         sections, _, visited, _ = read_config('Setup.ini')
-        self.assertFalse(any('Plugin' in section for section in sections.values()))
+        # Setup is still the entrypoint that unloads the player: it holds no
+        # WebNowPlaying measure and nothing else that can collect or launch,
+        # only the two inert hidden hosts a validated resume needs.
+        self.assertEqual([name for name, section in sections.items() if 'Plugin' in section],
+                         list(RESUME_HOSTS))
+        self.assert_inert_resume_hosts(sections)
         scripts = [(name, section) for name, section in sections.items() if 'ScriptFile' in section]
         self.assertEqual([name for name, _ in scripts], ['MeasureMediaOptions', 'MeasureQueueStatus', 'MeasureMediaLifecycle', 'MeasureMediaHeader'])
         self.assertTrue(all(section['Measure'] == 'Script' for _, section in scripts))
@@ -640,9 +667,12 @@ class SkinContractTests(unittest.TestCase):
             self.assertEqual(sections['Rainmeter']['OnRefreshAction'],
                              '[!CommandMeasure MeasureMediaLifecycle "ResumeProviders()"]')
             self.assertEqual(sections['MeasureMediaLifecycle']['UpdateDivider'], '-1')
+            self.assert_inert_resume_hosts(sections)
         sections, _, _, _ = read_config('Settings/Settings.ini')
         self.assertNotIn('MeasureMediaLifecycle', sections)
         self.assertNotIn('ResumeProviders', str(sections))
+        for host in RESUME_HOSTS:
+            self.assertNotIn(host, sections)
 
     def test_plugin_types_commands_and_script_order(self):
         sections, _, _, _ = read_config('Media.ini')
@@ -725,7 +755,13 @@ class SkinContractTests(unittest.TestCase):
                 self.assertEqual(sections['MeterMediaOptions']['Hidden'], '1')
                 self.assertEqual(sections['MeterMediaOptions']['LeftMouseUpAction'],
                                  '[!ActivateConfig "Parallax\\Media\\Settings" "Settings.ini"]')
-            allowed = queue_allowed if name == 'Queue/Queue.ini' else settings_allowed if name == 'Settings/Settings.ini' else {}
+            # Every lifecycle view owns the two inert hidden hosts. They are the
+            # only RunCommand named here without a command: the launch itself
+            # still comes from a validated resume, never from the skin file.
+            lifecycle_allowed = {(host, 'Plugin'): 'RunCommand' for host in RESUME_HOSTS}
+            allowed = dict(settings_allowed) if name == 'Settings/Settings.ini' else dict(lifecycle_allowed)
+            if name == 'Queue/Queue.ini':
+                allowed.update(queue_allowed)
             for section_name, s in sections.items():
                 for key, value in s.items():
                     if (section_name, key) in allowed:
@@ -744,7 +780,9 @@ class SkinContractTests(unittest.TestCase):
             if name == 'Queue/Queue.ini':
                 for section_name, key in allowed:
                     self.assertIn(key, sections[section_name])
-                self.assertEqual([s.get('Plugin') for s in sections.values() if s.get('Plugin')], ['RunCommand'])
+                self.assertEqual([n for n, s in sections.items() if s.get('Plugin')],
+                                 list(RESUME_HOSTS) + ['MeasureQueueProviderControl'])
+                self.assertEqual([s['Plugin'] for s in sections.values() if s.get('Plugin')], ['RunCommand'] * 3)
                 self.assertEqual([s['ScriptFile'] for s in sections.values() if 'ScriptFile' in s],
                                  ['#@#Modules\\Media\\MediaLifecycle.lua',
                                   '#@#Modules\\Media\\Queue\\QueueReader.lua',

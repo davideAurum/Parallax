@@ -41,16 +41,26 @@ function ResumeProviders()
     localRoot = localRoot:gsub('[/\\]+$', '') .. '\\Parallax\\Media\\'
     local program = systemRoot:gsub('[/\\]+$', '') .. '\\System32\\WindowsPowerShell\\v1.0\\powershell.exe'
     resources = resources:gsub('[/\\]+$', '') .. '\\Modules\\Media\\'
-    local function resume(folder, provider, interval)
+    local function resume(folder, host, provider, interval)
         if not enabled(localRoot .. folder) then return end
-        local command = '["' .. program .. '" "-NoLogo" "-NoProfile" "-NonInteractive" "-ExecutionPolicy" "Bypass" "-WindowStyle" "Hidden" "-File" "'
-            .. resources .. provider .. '" "-Command" "Resume" "-Quiet"'
-        if interval then command = command .. ' "-PollSeconds" "' .. interval .. '"' end
-        SKIN:Bang(command .. ']')
+        local parameter = '-NoLogo -NoProfile -NonInteractive -ExecutionPolicy Bypass -WindowStyle Hidden -File "'
+            .. resources .. provider .. '" -Command "Resume" -Quiet'
+        if interval then parameter = parameter .. ' -PollSeconds "' .. interval .. '"' end
+        -- Hand the validated command to the inert RunCommand host declared in
+        -- Lifecycle.inc instead of banging it. RunCommand creates the process
+        -- with SW_HIDE; Rainmeter's own [] bang ShellExecutes it visibly, which
+        -- is what flashed a console before powershell.exe could hide itself.
+        -- safePath already rejects " # % [ ] < > | ? * and control characters,
+        -- so neither option can close a quote or smuggle a #variable# or
+        -- [measure] reference past the host's DynamicVariables expansion.
+        SKIN:Bang('!SetOption', host, 'Program', program)
+        SKIN:Bang('!SetOption', host, 'Parameter', parameter)
+        SKIN:Bang('!UpdateMeasure', host)
+        SKIN:Bang('!CommandMeasure', host, 'Run')
     end
-    if config == 'Media.ini' then resume('Source', 'Source\\SourceProvider.ps1') end
+    if config == 'Media.ini' then resume('Source', 'MeasureMediaSourceResume', 'Source\\SourceProvider.ps1') end
     local raw = SKIN:GetVariable('QueuePollSeconds', '30')
     local interval = type(raw) == 'string' and raw:match('^%d+$') and tonumber(raw) or nil
     if not interval or interval < 30 or interval > 150 then interval = 30 end
-    resume('Spotify', 'Queue\\QueueProvider.ps1', string.format('%d', interval))
+    resume('Spotify', 'MeasureMediaQueueResume', 'Queue\\QueueProvider.ps1', string.format('%d', interval))
 end

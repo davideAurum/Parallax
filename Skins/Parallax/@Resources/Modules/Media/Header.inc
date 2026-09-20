@@ -34,6 +34,7 @@ LucideMonitorPlayPath=(15.033*#MediaHeaderLucideScale#),(9.44*#MediaHeaderLucide
 ToolTipText=Media player
 
 [MeterPlayerIcon]
+MeterStyle=MediaHeaderIconStyle
 Meter=Shape
 DynamicVariables=1
 ; Overrides the style's UpdateDivider=-1: while a track is playing,
@@ -42,7 +43,6 @@ DynamicVariables=1
 ; This meter must take part in normal updates for that to repaint. Idle,
 ; paused or disconnected, it settles back to the static bars below.
 UpdateDivider=1
-MeterStyle=MediaHeaderIconStyle
 X=#MediaPlayerRowX#
 Y=(#MediaPlayerRowY#+(18*#Scale#-#TitleIconSize#)/2)
 W=#TitleIconSize#

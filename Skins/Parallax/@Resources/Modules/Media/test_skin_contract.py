@@ -113,7 +113,7 @@ def media_body_geometry(width, scale, columns, bar_thickness=6):
     wide=columns-1
     base_cover=rounded(rounded(width*scale)*0.9) if wide else 48*scale
     legacy_cover=rounded(base_cover*0.75)
-    cover=legacy_cover+rounded(20*wide*scale)
+    cover=rounded((96+54)*scale) if wide else legacy_cover
     offset=rounded(12*wide*scale)
     legacy_cover_bottom=44*(1-wide)*scale+legacy_cover
     cover_bottom=44*(1-wide)*scale+cover
@@ -1045,10 +1045,10 @@ class SkinContractTests(unittest.TestCase):
                                 wide=columns-1
                                 cover_size,surface_offset,body_height=media_body_geometry(width,scale,columns)
                                 base_cover=math.floor(math.floor(width*scale+0.5)*0.9+0.5) if wide else 48*scale
-                                old_metadata_x=inset+(base_cover+8*scale if wide else padding+54*scale)
+                                old_metadata_x=inset+(cover_size+8*scale if wide else padding+54*scale)
                                 art=box('MeterArtworkPlaceholder')
                                 self.assertAlmostEqual(art.width,cover_size)
-                                self.assertAlmostEqual(art.width,math.floor(base_cover*0.75+0.5)+math.floor(20*wide*scale+0.5))
+                                self.assertAlmostEqual(art.width,math.floor((96+54)*scale+0.5) if wide else math.floor(base_cover*0.75+0.5))
                                 self.assertAlmostEqual(art.height,art.width)
                                 self.assertAlmostEqual(art.left,inset+padding*(1-wide))
                                 self.assertAlmostEqual(art.top,inset+44*(1-wide)*scale)
@@ -1127,7 +1127,7 @@ class SkinContractTests(unittest.TestCase):
                                     self.assertAlmostEqual(val('#ContentX#'),inset+padding)
                                     if config=='Media.ini':
                                         self.assertAlmostEqual(box('MeterTrackTitle').left,val('#ContentX#')+74*scale)
-        self.assertEqual([media_body_geometry(width,1,2)[2] for width in (180,220,320)],[214,214,273])
+        self.assertEqual([media_body_geometry(width,1,2)[2] for width in (180,220,320)],[214,214,253])
         for thickness in (1,6,6.25,12):
             for width in (180,220,320):
                 for scale in (0.75,1,2):

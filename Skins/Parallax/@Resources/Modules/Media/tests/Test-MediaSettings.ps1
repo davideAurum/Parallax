@@ -699,7 +699,7 @@ function Save-ViewCaptures([uint32]$OwnedPid) {
                 $legacyControls=$offset+122+[math]::Max(2,6-$barHeight/2)+$barHeight+8
                 $controls=$offset+$(if ($wide) { 112 } else { 134 })+$barHeight+8
                 $legacyArtBottom=if ($wide) { $art } else { 44+$art }
-                $artBottom=if ($wide) { $art+20 } else { 44+$art }
+                $artBottom=if ($wide) { 96+54 } else { 44+$art }
                 $legacyBody=[math]::Max(162+$offset,[math]::Ceiling([math]::Max($legacyArtBottom,$legacyControls+26)+37))
                 $body=[math]::Max($legacyBody,[math]::Ceiling([math]::Max($artBottom,$controls+26)+37))
                 $left=4+$(if ($wide) { 96 } else { 0 })+6+44

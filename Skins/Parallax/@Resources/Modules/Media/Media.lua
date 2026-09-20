@@ -21,9 +21,11 @@ local playPauseShapes = {
     }
 }
 local commands = {
-    Previous = { measure = 'MeasureCanPrevious', meter = 'MeterPrevious', label = 'Previous track' },
-    PlayPause = { measure = 'MeasureCanPlayPause', meter = 'MeterPlayPause', label = 'Play or pause' },
-    Next = { measure = 'MeasureCanNext', meter = 'MeterNext', label = 'Next track' }
+    -- nudge: optical correction for art that is off-centre in its own
+    -- viewBox; see MediaTransportGlyphNudge in InlineQueueGeometry.inc.
+    Previous = { measure = 'MeasureCanPrevious', meter = 'MeterPrevious', label = 'Previous track', nudge = '-#MediaTransportGlyphNudge#' },
+    PlayPause = { measure = 'MeasureCanPlayPause', meter = 'MeterPlayPause', label = 'Play or pause', nudge = '' },
+    Next = { measure = 'MeasureCanNext', meter = 'MeterNext', label = 'Next track', nudge = '+#MediaTransportGlyphNudge#' }
 }
 function Initialize()
     measures, applied, playPauseHovered = {}, {}, false
@@ -92,10 +94,12 @@ function Update(immediate)
     changed = meter('MeterArtworkLabel', not track and tonumber(SKIN:GetVariable('Columns')) == 2) or changed
     for name, command in pairs(commands) do
         local enabled = online and number(command.measure) == 1
-        local color = SKIN:GetVariable(enabled and 'AccentColor' or 'MutedColor')
+        -- PROVISIONAL: the face is #AccentColor#, so an accent glyph would be
+        -- invisible. Reads against the face until the colour pass.
+        local color = SKIN:GetVariable(enabled and 'BackgroundColor' or 'MutedColor')
         local fill = enabled and transportHovered[name] and color or '0,0,0,0'
         changed = option(command.meter, 'LucideTransportStroke', 'Fill Color ' .. fill .. ' | Stroke Color ' .. color
-            .. ' | StrokeWidth (2*#Scale#) | StrokeStartCap Round | StrokeEndCap Round | StrokeLineJoin Round | Offset (2*#Scale#),#Scale#') or changed
+            .. ' | StrokeWidth (2*#Scale#) | StrokeStartCap Round | StrokeEndCap Round | StrokeLineJoin Round | Offset (#MediaTransportGlyphOffset#' .. command.nudge .. '),#MediaTransportGlyphOffset#') or changed
         changed = option(command.meter, 'MouseActionCursor', enabled and '1' or '0') or changed
         changed = option(command.meter, 'ToolTipText', command.label .. (enabled and ' (reported supported by player).' or ' unavailable: no connection or player does not report support.')) or changed
     end
@@ -105,7 +109,8 @@ function Update(immediate)
     local playPauseMode = online and state == 2 and (hovered and 'stepForward' or 'pause')
         or (hovered and 'playOff' or 'play')
     for index, shape in ipairs(playPauseShapes[playPauseMode]) do
-        changed = option('MeterPlayPause', 'Shape' .. (index + 1), shape) or changed
+        -- Background occupies Shape..Shape3, so the art starts at Shape4.
+        changed = option('MeterPlayPause', 'Shape' .. (index + 3), shape) or changed
     end
     -- Static metadata Shapes need their options rebuilt after hide/show changes.
     -- UpdateDivider=-1 keeps this work confined to track availability transitions.
@@ -129,6 +134,10 @@ local function finite(value)
 end
 
 function LayoutTransport(timingName)
+    -- TEMPORARY: the transport row now straddles the panel's lower border and
+    -- is centred statically by #MediaTransportGroupX#, so there is nothing to
+    -- lay out against the timing text. Restore with the queue footer.
+    do return false end
     -- Only the active String meter calls this after its current text is measured.
     if timingName ~= activeTiming or (timingName ~= 'MeterTiming' and timingName ~= 'MeterTimingUnavailable') then return false end
     local timing = SKIN:GetMeter(timingName)
@@ -140,7 +149,8 @@ function LayoutTransport(timingName)
     if not scale or scale <= 0 or not left or left < 0 or not right or right <= left
         or not timingLeft or not timingWidth or timingWidth <= 0
         or timingLeft + timingWidth > right + 1 then return false end
-    local width = 92 * scale
+    -- Three #MediaTransportSize# circles (34) with a 4px gap: 34*3 + 4*2.
+    local width = 110 * scale
     local space = timingLeft - left
     -- Normal timing is capped to reserve six pixels on each side; allow four
     -- at fractional pixel boundaries, and reject an impossible layout safely.
@@ -149,7 +159,7 @@ function LayoutTransport(timingName)
     local x = math.max(left + gap, math.min((left + timingLeft - width) / 2, timingLeft - gap - width))
     local changed = false
     for index, name in ipairs({ 'MeterPrevious', 'MeterPlayPause', 'MeterNext' }) do
-        local position = tostring(math.floor(x + (index - 1) * 32 * scale + 0.5))
+        local position = tostring(math.floor(x + (index - 1) * 38 * scale + 0.5))
         changed = option(name, 'X', position) or changed
     end
     if changed then

@@ -20,12 +20,63 @@ H=(18*#Scale#)
 Meter=Image
 MeterStyle=StyleBounds
 
+; Tab contents, printed on the sheet: defined before MeterPanel so the panel
+; occludes everything but the notch. Clicking still runs ToggleQueue().
+[MeterQueueDrawer]
+Meter=Shape
+AntiAlias=1
+DynamicVariables=1
+X=#MediaSurfaceX#
+Y=#MediaQueueDrawerTop#
+Hidden=(1-#MediaQueueDrawer#)
+Shape=Rectangle (#BorderThickness#*#Scale#/2),(#BorderThickness#*#Scale#/2),(#MediaQueueDrawerRight#-#MediaSurfaceX#-#BorderThickness#*#Scale#),(#MediaQueueDrawerBottom#-#MediaQueueDrawerTop#-#BorderThickness#*#Scale#),(#CornerRadius#*#Scale#) | Fill Color #MediaQueueDrawerFill# | Stroke Color #BorderColor# | StrokeWidth (#BorderThickness#*#Scale#)
+
+[MeterQueueToggle]
+Meter=Shape
+H=(18*#Scale#)
+X=(#MediaQueueTabX#+6*#Scale#)
+Y=(#MediaQueueTabCenterY#-9*#Scale#)
+W=(18*#Scale#)
+Hidden=(1-#MediaQueueDrawer#)
+AntiAlias=1
+DynamicVariables=1
+UpdateDivider=-1
+; Lucide List Plus / List Minus from the user-supplied SVGs in Icons\Lucide.
+Shape=Rectangle 0,0,(18*#Scale#),(18*#Scale#) | Fill Color 0,0,0,1 | StrokeWidth 0
+Shape2=Line (16*14*#Scale#/24),(5*14*#Scale#/24),(3*14*#Scale#/24),(5*14*#Scale#/24) | Extend MediaQueueToggleStroke
+Shape3=Line (11*14*#Scale#/24),(12*14*#Scale#/24),(3*14*#Scale#/24),(12*14*#Scale#/24) | Extend MediaQueueToggleStroke
+Shape4=Line (16*14*#Scale#/24),(19*14*#Scale#/24),(3*14*#Scale#/24),(19*14*#Scale#/24) | Extend MediaQueueToggleStroke
+Shape5=Line (21*14*#Scale#/24),(12*14*#Scale#/24),(15*14*#Scale#/24),(12*14*#Scale#/24) | Extend MediaQueueToggleStroke
+Shape6=Line (18*14*#Scale#/24),(9*14*#Scale#/24),(18*14*#Scale#/24),(15*14*#Scale#/24) | Stroke Color #HeaderTextColor# | StrokeWidth (2*14*#Scale#/24*(1-#QueueExpanded#)) | StrokeStartCap Round | StrokeEndCap Round | Offset (2*#Scale#),(2*#Scale#)
+MediaQueueToggleStroke=Stroke Color #HeaderTextColor# | StrokeWidth (2*14*#Scale#/24) | StrokeStartCap Round | StrokeEndCap Round | Offset (2*#Scale#),(2*#Scale#)
+ToolTipText=Expand or collapse the Spotify queue below Media. This display choice is remembered.
+MouseActionCursor=1
+LeftMouseUpAction=[!CommandMeasure MeasureMediaOptions "ToggleQueue()"]
+
+[MeterQueueHeading]
+Meter=String
+MeterStyle=StyleHeader
+X=(#MediaQueueTabX#+30*#Scale#)
+Y=#MediaQueueTabCenterY#
+W=(#MediaQueueTabWidth#-34*#Scale#)
+Hidden=(1-#MediaQueueDrawer#)
+StringAlign=LeftCenter
+MeasureName=MeasureMediaOptions
+Text=%1
+ToolTipText=Expand or collapse the Spotify queue below Media. This display choice is remembered.
+MouseActionCursor=1
+LeftMouseUpAction=[!CommandMeasure MeasureMediaOptions "ToggleQueue()"]
+
 [MeterPanel]
 Meter=Shape
 MeterStyle=StylePanel
 X=#MediaSurfaceX#
 Y=#MediaSurfaceY#
 Shape=Rectangle (#BorderThickness#*#Scale#/2),(#BorderThickness#*#Scale#/2),(#MediaSurfaceWidth#-#BorderThickness#*#Scale#),(#PanelHeightPx#-#MediaSurfaceOffset#-#BorderThickness#*#Scale#),(#CornerRadius#*#Scale#) | Fill Color #BackgroundColor# | Stroke Color #BorderColor# | StrokeWidth (#BorderThickness#*#Scale#)
+; Shape2 is the cutout; the combined result keeps Shape's fill and stroke, so
+; the panel border traces the notch, which is what sells the cut-away look.
+Shape2=Rectangle #MediaQueueNotchX#,#MediaQueueNotchY#,#MediaQueueTabWidth#,(#MediaQueueTabHeight#+10*#Scale#),#MediaQueueTabRadius# | StrokeWidth 0
+Shape3=Combine Shape | Exclude Shape2
 
 ; Rounded fallback for idle and plugin-free Setup; the player hides it for tracks.
 [MeterArtworkPlaceholder]
@@ -80,45 +131,15 @@ Meter=Shape
 MeterStyle=StyleRule
 X=#MediaQueueX#
 Y=(#Inset#+#MediaBodyHeightPx#-29*#Scale#)
+Hidden=#MediaQueueHidden#
 Shape=Line 0,0,#MediaQueueWidth#,0 | Stroke Color #DividerColor# | StrokeWidth (#DividerThickness#*#Scale#)
 
-[MeterQueueHeading]
-Meter=String
-MeterStyle=StyleHeader
-X=#MediaQueueX#
-Y=(#Inset#+#MediaBodyHeightPx#-12*#Scale#)
-W=(42*#Scale#)
-StringAlign=LeftCenter
-MeasureName=MeasureMediaOptions
-Text=%1
-ToolTipText=Expand or collapse the Spotify queue below Media. This display choice is remembered.
-MouseActionCursor=1
-LeftMouseUpAction=[!CommandMeasure MeasureMediaOptions "ToggleQueue()"]
 
-[MeterQueueToggle]
-Meter=Shape
-X=(#MediaQueueX#+44*#Scale#)
-Y=(#Inset#+#MediaBodyHeightPx#-21*#Scale#)
-W=(18*#Scale#)
-H=(18*#Scale#)
-AntiAlias=1
-DynamicVariables=1
-UpdateDivider=-1
-; Lucide List Plus / List Minus from the user-supplied SVGs in Icons\Lucide.
-Shape=Rectangle 0,0,(18*#Scale#),(18*#Scale#) | Fill Color 0,0,0,1 | StrokeWidth 0
-Shape2=Line (16*14*#Scale#/24),(5*14*#Scale#/24),(3*14*#Scale#/24),(5*14*#Scale#/24) | Extend MediaQueueToggleStroke
-Shape3=Line (11*14*#Scale#/24),(12*14*#Scale#/24),(3*14*#Scale#/24),(12*14*#Scale#/24) | Extend MediaQueueToggleStroke
-Shape4=Line (16*14*#Scale#/24),(19*14*#Scale#/24),(3*14*#Scale#/24),(19*14*#Scale#/24) | Extend MediaQueueToggleStroke
-Shape5=Line (21*14*#Scale#/24),(12*14*#Scale#/24),(15*14*#Scale#/24),(12*14*#Scale#/24) | Extend MediaQueueToggleStroke
-Shape6=Line (18*14*#Scale#/24),(9*14*#Scale#/24),(18*14*#Scale#/24),(15*14*#Scale#/24) | Stroke Color #HeaderTextColor# | StrokeWidth (2*14*#Scale#/24*(1-#QueueExpanded#)) | StrokeStartCap Round | StrokeEndCap Round | Offset (2*#Scale#),(2*#Scale#)
-MediaQueueToggleStroke=Stroke Color #HeaderTextColor# | StrokeWidth (2*14*#Scale#/24) | StrokeStartCap Round | StrokeEndCap Round | Offset (2*#Scale#),(2*#Scale#)
-ToolTipText=Expand or collapse the Spotify queue below Media. This display choice is remembered.
-MouseActionCursor=1
-LeftMouseUpAction=[!CommandMeasure MeasureMediaOptions "ToggleQueue()"]
 
 [MeterQueueStatus]
 Meter=String
 MeterStyle=StyleLabel|MediaSecondaryStyle
+Hidden=#MediaQueueHidden#
 MeasureName=MeasureQueueStatus
 X=(#MediaQueueX#+66*#Scale#)
 Y=(#Inset#+#MediaBodyHeightPx#-12*#Scale#)
@@ -128,13 +149,13 @@ FontColor=#MediaColor#
 Text=%1
 ToolTipText=Expand or collapse the Spotify queue. Use the gear for queue display and connection settings. The Spotify account queue may differ from WebNowPlaying's player.
 MouseActionCursor=1
+LeftMouseUpAction=[!CommandMeasure MeasureMediaOptions "ToggleQueue()"]
 ; Both dividers match Media.ini/Setup.ini's fast animation tick back down to
 ; the original #MediaInterval# cadence; see InlineQueueGeometry.inc.
-LeftMouseUpAction=[!CommandMeasure MeasureMediaOptions "ToggleQueue()"]
 
 [MeasureMediaOptions]
-UpdateDivider=#MediaLegacyDivider#
 Measure=Script
+UpdateDivider=#MediaLegacyDivider#
 ScriptFile=#@#Modules\Media\MediaOptions.lua
 
 [MeasureQueueStatus]
@@ -142,8 +163,8 @@ Measure=Script
 ScriptFile=#@#Modules\Media\Queue\QueueReader.lua
 ; Compact footer labels; the standalone queue keeps the full status wording.
 Substitute="Storage unavailable":"Storage error","Spotify unavailable":"Spotify error","Queue unavailable":"Queue error","App quota reached":"Quota reached","Provider stopped":"Stopped"
-UpdateDivider=#MediaLegacyDivider#
 QueueExpanded=#QueueExpanded#
+UpdateDivider=#MediaLegacyDivider#
 QueueInline=1
 
 [MediaUtilityIncludes]

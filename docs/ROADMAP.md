@@ -14,13 +14,15 @@ Publish every one of them as a normal GitHub release marked **Latest**, not **Pr
 
 Goal: the repository and the first package are public, and the update check has something to read.
 
-- [ ] Commit the update check, the MIT license and the pending Media/IO/RAM/Settings work.
-- [ ] Repair `tools/tests/Test-PackagingTools.ps1`. It fails at the Settings-only fixture on clean `main`, so none of its packaging assertions run. Add fixtures for the `Version.inc` check, the update feed and the `UpdateInstall.ps1` exception.
-- [ ] Review the 7-commit history once more, then make `davideAurum/Parallax` public.
-- [ ] Build `0.1.0-alpha` with `Package-Parallax.ps1`. Install it into a **disposable** Rainmeter profile and confirm that the Welcome panel loads, Load all works, and the log shows no Parallax errors.
-- [ ] Publish release `v0.1.0-alpha` with the package, `.sha256` and `parallax-update.json`, marked Latest. From the installed copy, **Check for updates** must report `up to date`.
+- [x] Commit the update check, the MIT license and the pending Media/IO/RAM/Settings work.
+- [x] Repair `tools/tests/Test-PackagingTools.ps1`. It failed at the Settings-only fixture because Welcome had become a required component, so none of its packaging assertions ran. Add fixtures for the `Version.inc` check, the update feed and the `UpdateInstall.ps1` exception.
+- [x] Review the 7-commit history once more, then make `davideAurum/Parallax` public.
+- [x] Build `0.1.0-alpha` with `Package-Parallax.ps1`. Install it into a **disposable** Rainmeter profile and confirm that the Welcome panel loads, Load all works, and the log shows no Parallax errors.
+- [x] Publish release `v0.1.0-alpha` with the package, `.sha256` and `parallax-update.json`, marked Latest. From the installed copy, **Check for updates** must report `up to date`.
 
 Allowed to remain unverified: everything in Stage 1 onward. State in the release notes that this is an alpha for early testers.
+
+**Done 2026-09-23.** [v0.1.0-alpha](https://github.com/davideAurum/Parallax/releases/tag/v0.1.0-alpha) was published from commit `b11643e`, marked Latest: package SHA-256 `80a62a945b09d5b7e0cf2ceb0f9fe8a79487aad4d6add2ca3594b031f070ef2c`, 848,295 bytes. The package's 198 skin files were extracted into an isolated Rainmeter 4.5.26.3894 profile with Welcome and all nine components active. All 10 configs loaded, and the only log errors were Media's, because WebNowPlaying is not installed in that profile. The installed copy's **Check for updates** then read the published feed and reported `Parallax 0.1.0-alpha is up to date.` A real install through Skin Installer was not run, because it always targets the live Rainmeter profile. The first real Skin Installer run belongs to Stage 1.
 
 ### Stage 1: Prove the upgrade path (`0.1.0-alpha.2`)
 

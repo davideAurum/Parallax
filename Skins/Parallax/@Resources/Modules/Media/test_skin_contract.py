@@ -121,25 +121,64 @@ def numeric(expression):
     return walk(ast.parse(expression, mode='eval').body)
 
 
+def media_theme_metrics(scale):
+    """Gutter=8 and PanelPadding=6 from Defaults.inc, through Geometry.inc."""
+    rounded=lambda value: math.floor(value+0.5)
+    gap=2*rounded(8*scale/2)
+    return gap, gap//2, rounded(6*scale)
+
+
 def media_body_geometry(width, scale, columns, bar_thickness=6):
-    """Physical dimensions from the current anchored-artwork contract."""
+    """Physical dimensions from the current drawer contract.
+
+    The panel no longer reserves a footer for inline queue rows: the queue is
+    a separate sheet behind the panel (MediaQueueHidden=1), so the body ends a
+    fixed distance below the progress bar's timing text. Everything here is
+    re-derived from the same primitives the skin uses rather than read back
+    from it, so a geometry edit has to agree with an independent calculation.
+
+    Returned offsets are relative to #Inset#, matching the skin's own
+    "-#Inset#" convention.
+    """
     rounded=lambda value: math.floor(value+0.5)
     wide=columns-1
+    _,inset,padding=media_theme_metrics(scale)
     base_cover=rounded(rounded(width*scale)*0.9) if wide else 48*scale
     legacy_cover=rounded(base_cover*0.75)
-    cover=rounded((96+54)*scale) if wide else legacy_cover
     offset=rounded(12*wide*scale)
-    legacy_cover_bottom=44*(1-wide)*scale+legacy_cover
-    cover_bottom=44*(1-wide)*scale+cover
     bar=max(1,rounded(bar_thickness*scale))
-    legacy_progress=offset+122*scale+max(2*scale,6*scale-bar/2)
-    legacy_controls_bottom=legacy_progress+bar+34*scale
+    # MediaProgressY: header bottom, then three metadata rows, a section gap
+    # and the bar's optical pad. MediaTimingTextBottom sits 20*Scale below it.
     progress=offset+(134-22*wide)*scale
-    controls_bottom=progress+bar+34*scale
-    legacy_body=max(rounded(162*scale)+offset,
-                    math.ceil(max(legacy_cover_bottom,legacy_controls_bottom)+37*scale))
-    body=max(legacy_body,math.ceil(max(cover_bottom,controls_bottom)+37*scale))
+    body=math.ceil(progress+bar+20*scale+padding)
+    # Wide artwork is sized to reach the body's lower edge, so it overhangs
+    # the panel by exactly the surface offset; narrow keeps the thumbnail.
+    cover=rounded(body+offset) if wide else legacy_cover
     return cover,offset,body
+
+
+def media_drawer_geometry(width, scale, columns, expanded, rows, bar_thickness=6):
+    """Overhang, queue sheet and window height for the drawer contract.
+
+    Offsets are #Inset#-relative like media_body_geometry; window height is
+    absolute. MeterPanel draws its rectangle #MediaSurfaceOffset# shorter than
+    #PanelHeightPx#, so the panel's lower border is the body height, not
+    #MediaSurfaceY#+#PanelHeightPx#.
+    """
+    cover,offset,body=media_body_geometry(width,scale,columns,bar_thickness)
+    gap,inset,_=media_theme_metrics(scale)
+    wide=columns-1
+    cover_bottom=44*(1-wide)*scale+cover
+    panel_bottom=body
+    # Transport circles are centred on the panel's lower border.
+    transport_bottom=panel_bottom+(34*scale+2*5*scale)/2
+    overhang_bottom=max(cover_bottom,transport_bottom)
+    queue_top=max(cover_bottom,panel_bottom)+4*scale
+    queue_bottom=queue_top+(1+rows)*18*scale+5*scale
+    drawer_bottom=queue_bottom+8*scale if expanded else panel_bottom
+    window=max(max(body+gap,math.ceil(overhang_bottom+2*inset)),
+               math.ceil(drawer_bottom+2*inset))
+    return overhang_bottom,queue_top,drawer_bottom,window
 
 
 def split_arguments(text):
@@ -287,8 +326,39 @@ def meter_bounds(style, value):
                     parts.append(expanded_shape(style[reference],stack+(reference,)))
                 else: parts.append(part)
             return ' | '.join(parts)
-        def covered_shape(shape):
+        def combine_parts(shape):
+            """(base, operations) for a Combine shape, else None.
+
+            Rainmeter draws only the combined result, so the shapes a Combine
+            names are not separate artwork and must not be measured twice.
+            """
+            primitive, *modifiers = [part.strip() for part in expanded_shape(shape).split('|')]
+            kind, _, argument = primitive.partition(' ')
+            if kind != 'Combine':
+                return None
+            operations=[]
+            for modifier in modifiers:
+                operation, _, reference = modifier.partition(' ')
+                assert operation in ('Union','Exclude','XOR','Intersect'), \
+                    f'Uncovered Combine operation: {operation}'
+                operations.append((operation, reference.strip()))
+            return argument.strip(), operations
+        def covered_shape(shape, stack=()):
             shape=expanded_shape(shape)
+            combined=combine_parts(shape)
+            if combined is not None:
+                base, operations = combined
+                assert base not in stack, 'Cyclic Shape Combine'
+                bounds=covered_shape(style[base], stack+(base,))
+                for operation, reference in operations:
+                    assert reference not in stack, 'Cyclic Shape Combine'
+                    other=covered_shape(style[reference], stack+(reference,))
+                    if operation in ('Union','XOR'):
+                        bounds=Bounds(min(bounds.left,other.left),min(bounds.top,other.top),
+                                      max(bounds.right,other.right),max(bounds.bottom,other.bottom))
+                    # Exclude and Intersect only remove area, so the running
+                    # bounds stay a conservative cover of the drawn result.
+                return bounds
             if not shape.startswith('Path '):
                 return shape_bounds(shape, value, x, y)
             primitive, *modifiers = [part.strip() for part in shape.split('|')]
@@ -354,8 +424,16 @@ def meter_bounds(style, value):
                     extent=max(extent,(stroke/2)*min(10,1/max(0.1,math.sqrt((1+cosine)/2))))
             return Bounds(offset_x+min(p[0] for p in points)-extent, offset_y+min(p[1] for p in points)-extent,
                           offset_x+max(p[0] for p in points)+extent, offset_y+max(p[1] for p in points)+extent)
+        consumed=set()
+        for key, shape in style.items():
+            if re.fullmatch(r'Shape\d*', key):
+                combined=combine_parts(shape)
+                if combined is not None:
+                    base, operations = combined
+                    consumed.add(base)
+                    consumed.update(reference for _, reference in operations)
         shapes = [covered_shape(shape) for key, shape in style.items()
-                  if re.fullmatch(r'Shape\d*', key)]
+                  if re.fullmatch(r'Shape\d*', key) and key not in consumed]
         assert shapes, 'Shape meter has no covered primitives'
         if 'W' in style or 'H' in style:
             assert 'W' in style and 'H' in style, 'Partially specified Shape canvas'
@@ -426,9 +504,10 @@ def presentation_style(sections, meter, config, expanded, row_limit):
     if config in ('Setup.ini','Media.ini') and row:
         assert style['Y'] == '#Inset#', 'Hidden anchors must not grow native window bounds'
         if expanded and int(row[1]) <= row_limit:
-            # QueueReader applies this trusted coordinate only for active rows.
+            # QueueReader applies this trusted coordinate only for active rows,
+            # stepping from the drawer's first row rather than the panel body.
             # The native matrix independently verifies the actual Lua result.
-            style['Y'] = f'(#Inset#+#MediaBodyHeightPx#+{2+18*(int(row[1])-1)}*#Scale#)'
+            style['Y'] = f'(#MediaQueueRowsY#+{int(row[1])-1}*#MediaQueueRowPitch#)'
     return style
 
 
@@ -533,8 +612,13 @@ class SkinContractTests(unittest.TestCase):
                                     self.assertTrue(box('MeterSetupInstructions').above(box('MeterDesktopNote')))
                                     self.assertTrue(box('MeterDesktopNote').above(box('MeterLoadPlayer')))
                                 control='MeterPrevious' if config=='Media.ini' else 'MeterLoadPlayer'
-                                self.assertTrue(box(control).above(box('MeterQueueRule')))
-                                self.assertEqual(val('#WindowHeight#'),media_body_geometry(width,scale,columns)[2]+val('#Gap#'))
+                                # MeterQueueRule belonged to the inline queue footer that the
+                                # drawer replaced, and is permanently hidden now. The live
+                                # contract is that the transport clears the sheet's first row;
+                                # the circles deliberately hang past the header, not the rows.
+                                self.assertLessEqual(box(control).bottom,val('#MediaQueueRowsY#')+EPSILON)
+                                self.assertEqual(val('#WindowHeight#'),
+                                                 media_drawer_geometry(width,scale,columns,0,5)[3])
 
     def test_title_rows_scale_and_center_across_supported_extremes(self):
         for config in CONFIGS:
@@ -620,8 +704,10 @@ class SkinContractTests(unittest.TestCase):
                                         control=resolve_style(sections,meter)
                                         self.assertEqual(control['Meter'],'Shape')
                                         self.assertNotIn('FontSize',control)
-                                        self.assertEqual(val(control['W']),28*scale)
-                                        self.assertEqual(val(control['H']),26*scale)
+                                        # Circular buttons: a 34 face plus a 5 shadow pad
+                                        # each side, square so the circle stays round.
+                                        self.assertEqual(val(control['W']),(34+2*5)*scale)
+                                        self.assertEqual(val(control['H']),(34+2*5)*scale)
                                     self.assertEqual(sections['MeterTimingUnavailable']['Text'],'-- / --')
                                     self.assertEqual(val(sections['MeterProgress']['H']),max(1,math.floor(6*scale+0.5)))
                                 secondary='MeterStop' if config=='Settings/Settings.ini' else 'MeterQueueStop' if config=='Queue/Queue.ini' else 'MeterMediaOptions'
@@ -929,10 +1015,15 @@ class SkinContractTests(unittest.TestCase):
                 panel = Bounds(inset, inset, window.right-inset, window.bottom-inset)
                 expected_columns = 2 if name == 'Settings/Settings.ini' else columns
                 self.assertEqual(window.width, expected_columns * (val('#UnitWidth#') + val('#Gap#')))
-                expected_height = math.floor(((554 if expanded else 498) if name == 'Settings/Settings.ini' else 162)*scale+0.5)
                 if name in ('Setup.ini','Media.ini'):
-                    expected_height=media_body_geometry(column_width,scale,columns)[2]+math.floor(expanded*(8+18*rows)*scale+0.5)
-                self.assertEqual(window.height, expected_height+val('#Gap#'))
+                    # The panel no longer grows to hold queue rows. The window
+                    # instead clears whichever of the artwork overhang, the
+                    # transport circles and the queue sheet reaches lowest.
+                    self.assertEqual(window.height,
+                                     media_drawer_geometry(column_width,scale,columns,expanded,rows)[3])
+                else:
+                    expected_height = math.floor(((554 if expanded else 498) if name == 'Settings/Settings.ini' else 162)*scale+0.5)
+                    self.assertEqual(window.height, expected_height+val('#Gap#'))
                 self.assertEqual(val('#UnitWidth#'), math.floor(column_width * scale + 0.5))
                 self.assertEqual(val('#Gap#') % 2, 0)
                 for section_name, section in sections.items():
@@ -988,8 +1079,9 @@ class SkinContractTests(unittest.TestCase):
                     if columns==2: self.assertTrue(box('MeterHeading').before(box('MeterPlayerIcon')))
                     else: self.assertTrue(box('MeterHeading').above(box('MeterPlayerName')))
                     self.assertTrue(box('MeterHeading').before(box('MeterMediaOptions')))
-                    self.assertTrue(box('MeterQueueHeading').before(box('MeterQueueToggle')))
-                    self.assertTrue(box('MeterQueueToggle').before(box('MeterQueueStatus')))
+                    # The drawer tab reads icon-then-label, inverting the old
+                    # footer strip where the label came first.
+                    self.assertTrue(box('MeterQueueToggle').before(box('MeterQueueHeading')))
                     if expanded:
                         self.assertTrue(box('MeterQueueHeading').above(box('MeterQueueRow1')))
                         for row in range(1, rows):
@@ -1029,8 +1121,14 @@ class SkinContractTests(unittest.TestCase):
                     else:
                         self.assertTrue(box('MeterCover').before(box('MeterProgress')))
                     self.assertTrue(box('MeterProgress').above(box('MeterTiming')))
-                    self.assertTrue(box('MeterNext').before(box('MeterTiming')))
-                    self.assertTrue(box('MeterNext').before(box('MeterTimingUnavailable')))
+                    # The transport used to sit left of the timing text. It is now a
+                    # centred row of circles straddling the panel's lower border, and
+                    # the timing is right aligned - so its box spans the content width
+                    # while its glyphs sit at the far right. Comparing the two boxes
+                    # measures allocation, not ink; the real invariant is the centring.
+                    for control in ('MeterPrevious','MeterPlayPause','MeterNext'):
+                        self.assertAlmostEqual((box(control).top+box(control).bottom)/2,
+                                               val('#Inset#')+val('#MediaBodyHeightPx#'),msg=control)
                     self.assertEqual(resolve_style(sections,'MeterTiming')['StringAlign'],'Right')
                     self.assertEqual(resolve_style(sections,'MeterTimingUnavailable')['StringAlign'],'Right')
                     controls = ('MeterPrevious', 'MeterPlayPause', 'MeterNext')
@@ -1040,12 +1138,25 @@ class SkinContractTests(unittest.TestCase):
                     self.assertTrue(box('MeterDesktopNote').above(box('MeterLoadPlayer')))
                     controls = ('MeterWNPDocs', 'MeterLoadPlayer')
                 for previous, following in zip(controls, controls[1:]):
-                    self.assertTrue(box(previous).before(box(following)), (previous, following))
+                    if controls[0] == 'MeterPrevious':
+                        # Each circle's box carries a shadow pad, so adjacent boxes
+                        # overlap by design while the faces keep a real gap. Order
+                        # them by centre rather than by box edge.
+                        self.assertLess((box(previous).left+box(previous).right)/2,
+                                        (box(following).left+box(following).right)/2,
+                                        (previous, following))
+                    else:
+                        self.assertTrue(box(previous).before(box(following)), (previous, following))
                 for meter in controls:
                     self.assertGreaterEqual(box(meter).width / scale, 20 - EPSILON, meter)
                     self.assertGreaterEqual(box(meter).height / scale, 18 - EPSILON, meter)
                     if name == 'Queue/Queue.ini':
                         self.assertTrue(box('MeterQueueRule').above(box(meter)), meter)
+                    elif name in ('Setup.ini','Media.ini'):
+                        # MeterQueueRule belonged to the inline queue footer the
+                        # drawer replaced. The live contract is that the controls
+                        # clear the sheet's first row.
+                        self.assertLessEqual(box(meter).bottom,val('#MediaQueueRowsY#')+EPSILON,meter)
                     else:
                         self.assertTrue(box(meter).above(box('MeterQueueRule')), meter)
 
@@ -1086,7 +1197,10 @@ class SkinContractTests(unittest.TestCase):
                                 old_metadata_x=inset+(cover_size+8*scale if wide else padding+54*scale)
                                 art=box('MeterArtworkPlaceholder')
                                 self.assertAlmostEqual(art.width,cover_size)
-                                self.assertAlmostEqual(art.width,math.floor((96+54)*scale+0.5) if wide else math.floor(base_cover*0.75+0.5))
+                                # Wide artwork is sized from the body so it reaches the
+                                # panel's lower edge plus the surface offset it overhangs by.
+                                self.assertAlmostEqual(art.width,math.floor(body_height+surface_offset+0.5)
+                                                       if wide else math.floor(base_cover*0.75+0.5))
                                 self.assertAlmostEqual(art.height,art.width)
                                 self.assertAlmostEqual(art.left,inset+padding*(1-wide))
                                 self.assertAlmostEqual(art.top,inset+44*(1-wide)*scale)
@@ -1094,21 +1208,25 @@ class SkinContractTests(unittest.TestCase):
                                 self.assertAlmostEqual(box('MeterPanel').top,inset+surface_offset)
                                 self.assertAlmostEqual(box('MeterPanel').right,inset+val('#PanelWidth#'))
                                 self.assertAlmostEqual(val('#MediaBodyHeightPx#'),body_height)
-                                self.assertAlmostEqual(box('MeterQueueHeading').top,inset+body_height-21*scale)
-                                queue_x=box('MeterPanel').left+padding
-                                queue_right=box('MeterPanel').right-padding
-                                self.assertAlmostEqual(box('MeterQueueHeading').left,queue_x)
-                                self.assertAlmostEqual(box('MeterQueueHeading').width,42*scale)
-                                self.assertAlmostEqual(box('MeterQueueToggle').left,queue_x+44*scale)
+                                # The tab holds the toggle then the label, both
+                                # centred on the notch cut into the panel.
+                                tab_x,tab_center=val('#MediaQueueTabX#'),val('#MediaQueueTabCenterY#')
+                                for meter in ('MeterQueueToggle','MeterQueueHeading'):
+                                    self.assertAlmostEqual((box(meter).top+box(meter).bottom)/2,tab_center,
+                                                           delta=scale,msg=meter)
+                                self.assertAlmostEqual(box('MeterQueueToggle').left,tab_x+6*scale)
                                 self.assertAlmostEqual(box('MeterQueueToggle').width,18*scale)
-                                self.assertAlmostEqual(box('MeterQueueToggle').top,box('MeterQueueHeading').top)
-                                self.assertAlmostEqual(box('MeterQueueStatus').left,queue_x+66*scale)
-                                self.assertAlmostEqual(box('MeterQueueStatus').right,queue_right)
-                                self.assertGreaterEqual(val(sections['MeterQueueRule']['Y']),art.bottom+8*scale-0.5)
+                                self.assertAlmostEqual(box('MeterQueueHeading').left,tab_x+30*scale)
+                                self.assertAlmostEqual(box('MeterQueueHeading').width,
+                                                       max(1,val('#MediaQueueTabWidth#')-34*scale))
+                                # The queue is the drawer's content now: it is
+                                # indented inside the sheet, not the panel.
+                                queue_x=val('#MediaQueueX#')
+                                queue_right=queue_x+val('#MediaQueueWidth#')
                                 if expanded:
-                                    self.assertAlmostEqual(box('MeterQueueRow1').top,inset+body_height+2*scale)
+                                    self.assertAlmostEqual(box('MeterQueueHeaderTrack').top,val('#MediaQueueTop#'))
+                                    self.assertAlmostEqual(box('MeterQueueRow1').top,val('#MediaQueueRowsY#'))
                                     for row in range(1,6):
-                                        self.assertAlmostEqual(box('MeterQueueRow'+str(row)).left,queue_x)
                                         self.assertAlmostEqual(box('MeterQueueRow'+str(row)).right,queue_right)
                                 self.assertEqual(val(sections['MeterArtworkPlaceholder']['Hidden']),1-wide)
                                 self.assertEqual(val(sections['MeterArtworkLabel']['Hidden']),1-wide)
@@ -1165,7 +1283,12 @@ class SkinContractTests(unittest.TestCase):
                                     self.assertAlmostEqual(val('#ContentX#'),inset+padding)
                                     if config=='Media.ini':
                                         self.assertAlmostEqual(box('MeterTrackTitle').left,val('#ContentX#')+74*scale)
-        self.assertEqual([media_body_geometry(width,1,2)[2] for width in (180,220,320)],[214,214,253])
+        # The drawer detaches the panel body from the artwork, so the body no
+        # longer grows with column width - only Scale moves it - and the wide
+        # cover is sized from the body rather than from the column.
+        self.assertEqual([media_body_geometry(width,1,2)[2] for width in (180,220,320)],[156,156,156])
+        self.assertEqual([media_body_geometry(width,1,2)[0] for width in (180,220,320)],[168,168,168])
+        self.assertEqual([media_body_geometry(180,scale,2)[2] for scale in (0.75,1,2)],[118,156,312])
         for thickness in (1,6,6.25,12):
             for width in (180,220,320):
                 for scale in (0.75,1,2):
@@ -1179,8 +1302,15 @@ class SkinContractTests(unittest.TestCase):
                             for timing in ('MeterTiming','MeterTimingUnavailable'):
                                 self.assertAlmostEqual(box(timing).top-box('MeterProgress').bottom,2*scale)
                                 self.assertAlmostEqual(box(timing).right,box('MeterProgress').right)
-                            self.assertAlmostEqual(box('MeterPrevious').top-box('MeterProgress').bottom,8*scale)
-                            self.assertGreaterEqual(val(sections['MeterQueueRule']['Y'])-box('MeterNext').bottom,8*scale-EPSILON)
+                            # The button box carries a shadow pad each side, so its top
+                            # is no longer a fixed drop from the bar: the circles are
+                            # centred on the panel's lower border instead.
+                            self.assertAlmostEqual((box('MeterPrevious').top+box('MeterPrevious').bottom)/2,
+                                                   val('#Inset#')+val('#MediaBodyHeightPx#'))
+                            self.assertGreater(box('MeterPrevious').top,box('MeterProgress').bottom)
+                            # MeterQueueRule is the hidden inline-footer remnant; the
+                            # live clearance is from the circles to the sheet's rows.
+                            self.assertLessEqual(box('MeterNext').bottom,val('#MediaQueueRowsY#')+EPSILON)
                             self.assertEqual(val('#MediaBodyHeightPx#'),media_body_geometry(width,scale,columns,thickness)[2])
 
     def test_geometry_checker_accounts_for_strokes_ellipses_and_anchors(self):

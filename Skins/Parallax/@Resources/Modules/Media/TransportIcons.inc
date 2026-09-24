@@ -1,6 +1,9 @@
 ; Lucide transport SVGs translated to native Shape paths, at their original
 ; 24-unit coordinates. See Icons\Lucide\README.md for sources and license.
-; Every art shape is offset by 2,1 scaled pixels inside a 28x26 target.
+; Every art shape is centred in #MediaTransportBox# by
+; #MediaTransportGlyphOffset#. Media.lua then adds
+; #MediaTransportGlyphNudge# to the outer two, optically centring their solid
+; forms rather than their bounding boxes.
 ; Circular buttons centred on the panel's lower border, so half of each sits
 ; outside the panel. They are defined after the panel and artwork, and
 ; Rainmeter paints in definition order, so they land above both.

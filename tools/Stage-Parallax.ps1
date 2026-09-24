@@ -30,6 +30,7 @@ $allowedExtensions = @('.ini', '.inc', '.lua', '.png', '.jpg', '.jpeg', '.gif', 
 $allowedExactPaths = [Collections.Generic.HashSet[string]]::new([StringComparer]::OrdinalIgnoreCase)
 foreach ($path in @(
     '@Resources\Scripts\SettingsInput.ps1',
+    '@Resources\Scripts\UpdateInstall.ps1',
     '@Resources\Modules\Chronometer\EventEditor.exe',
     '@Resources\Modules\Chronometer\EventEditor.cs',
     '@Resources\Modules\Chronometer\EventEditorForm.cs',

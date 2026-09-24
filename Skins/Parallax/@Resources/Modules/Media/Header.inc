@@ -31,11 +31,10 @@ Shape4=Rectangle (2*#MediaHeaderLucideScale#),(3*#MediaHeaderLucideScale#),(20*#
 LucideMonitorPlayStroke=Fill Color 0,0,0,0 | Stroke Color #MediaColor# | StrokeWidth (2*#MediaHeaderLucideScale#) | StrokeStartCap Round | StrokeEndCap Round | StrokeLineJoin Round
 ; SVG sweep=1 maps to Rainmeter clockwise SweepDirection=0.
 LucideMonitorPlayPath=(15.033*#MediaHeaderLucideScale#),(9.44*#MediaHeaderLucideScale#) | ArcTo (15.033*#MediaHeaderLucideScale#),(10.56*#MediaHeaderLucideScale#),(0.647*#MediaHeaderLucideScale#),(0.647*#MediaHeaderLucideScale#),0,0,0 | LineTo (10.968*#MediaHeaderLucideScale#),(12.912*#MediaHeaderLucideScale#) | ArcTo (10*#MediaHeaderLucideScale#),(12.352*#MediaHeaderLucideScale#),(0.645*#MediaHeaderLucideScale#),(0.645*#MediaHeaderLucideScale#),0,0,0 | LineTo (10*#MediaHeaderLucideScale#),(7.648*#MediaHeaderLucideScale#) | ArcTo (10.967*#MediaHeaderLucideScale#),(7.088*#MediaHeaderLucideScale#),(0.645*#MediaHeaderLucideScale#),(0.645*#MediaHeaderLucideScale#),0,0,0 | ClosePath 1
-ToolTipText=Media player
 
 [MeterPlayerIcon]
-MeterStyle=MediaHeaderIconStyle
 Meter=Shape
+MeterStyle=MediaHeaderIconStyle
 DynamicVariables=1
 ; Overrides the style's UpdateDivider=-1: while a track is playing,
 ; MediaPulse.lua rewrites each bar (Shape..Shape6) every tick via !SetOption,
@@ -55,4 +54,3 @@ Shape4=Line (14*#MediaPlayerLucideScale#),(8*#MediaPlayerLucideScale#),(14*#Medi
 Shape5=Line (18*#MediaPlayerLucideScale#),(5*#MediaPlayerLucideScale#),(18*#MediaPlayerLucideScale#),(18*#MediaPlayerLucideScale#) | Extend LucideAudioLinesStroke
 Shape6=Line (22*#MediaPlayerLucideScale#),(10*#MediaPlayerLucideScale#),(22*#MediaPlayerLucideScale#),(13*#MediaPlayerLucideScale#) | Extend LucideAudioLinesStroke
 LucideAudioLinesStroke=Fill Color 0,0,0,0 | Stroke Color #MediaColor# | StrokeWidth (2*#MediaPlayerLucideScale#) | StrokeStartCap Round | StrokeEndCap Round | StrokeLineJoin Round
-ToolTipText=Current player

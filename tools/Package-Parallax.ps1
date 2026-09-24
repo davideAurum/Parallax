@@ -139,6 +139,17 @@ foreach ($item in $stagedItems) {
 }
 if ($stagedItems.Count -ne $manifestFiles.Count) { throw 'Stage contents and manifest disagree.' }
 if (-not $expected.ContainsKey("Skins\$LoadSkin")) { throw "loadSkin is not part of the stage: $LoadSkin" }
+# The running suite reports its version from Version.inc; the Welcome update check
+# compares it with the feed, so a package must never ship a stale value.
+$versionInclude = Join-Path $stageSkinRoot '@Resources\Version.inc'
+if (Test-Path -LiteralPath $versionInclude -PathType Leaf) {
+    $versionMatch = [regex]::Match((Get-Content -LiteralPath $versionInclude -Raw), '(?m)^ParallaxVersion=([^\r\n]*?)\s*$')
+    if (-not $versionMatch.Success -or $versionMatch.Groups[1].Value -cne $Version) {
+        throw "@Resources\Version.inc declares ParallaxVersion '$($versionMatch.Groups[1].Value)' but the package version is '$Version'. Update Version.inc before packaging."
+    }
+} else {
+    Write-Warning '@Resources\Version.inc is not staged; the Welcome update check cannot report this version.'
+}
 foreach ($variableFile in $variablesFiles) {
     if ($variableFile -notmatch "^$skinRootName\\@Resources\\User\\.+\.inc$") { throw "Unexpected Variables file: $variableFile" }
     if (-not $expected.ContainsKey("Skins\$variableFile")) { throw "Variables file is not part of the stage: $variableFile" }
@@ -313,6 +324,28 @@ $record = [ordered]@{
 $recordPath = $packagePath + '.json'
 $record | ConvertTo-Json -Depth 6 | Set-Content -LiteralPath $recordPath -Encoding UTF8
 
+# Update feed read by the Welcome panel. Publish it as the parallax-update.json asset of
+# the same GitHub release as the package; field names are part of the Update.lua contract.
+$updateFeedPath = $null
+$releaseRepository = Get-ReleaseValue $release 'releaseRepository'
+if ($releaseRepository) {
+    if ($releaseRepository -cnotmatch '\A[A-Za-z0-9-]{1,39}/[A-Za-z0-9._-]{1,100}\z') { throw "releaseRepository must be owner/name: '$releaseRepository'" }
+    $releaseBase = "https://github.com/$releaseRepository/releases/"
+    $updateFeed = [ordered]@{
+        schema = 1
+        name = $Name
+        version = $Version
+        url = "${releaseBase}download/v$Version/$packageFileName"
+        sha256 = $packageHash.ToLowerInvariant()
+        bytes = $record.Bytes
+        minimumRainmeter = $MinimumRainmeter
+        notes = "${releaseBase}tag/v$Version"
+    }
+    $updateFeedPath = Join-Path $OutputDirectory 'parallax-update.json'
+    [IO.File]::WriteAllText($updateFeedPath, ($updateFeed | ConvertTo-Json) + "`n", [Text.UTF8Encoding]::new($false))
+    Write-Host "Update feed: $updateFeedPath (attach to GitHub release v$Version with the package)"
+}
+
 Write-Host "Package: $packagePath"
 Write-Host "SHA-256: $packageHash"
 Write-Host "Checksum file: $checksumPath"
@@ -327,6 +360,7 @@ Write-Host 'Next: install this file into a clean or disposable Rainmeter profile
     StageRoot = $StageRoot
     Record = $recordPath
     Checksum = $checksumPath
+    UpdateFeed = $updateFeedPath
     VariablesFiles = $variablesValue
     Plugins = @($pluginNames.ToArray())
 }

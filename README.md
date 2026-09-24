@@ -36,3 +36,11 @@ To build the package from source, run `.\tools\Package-Parallax.ps1` from the re
 To try development sources without packaging, copy the `Parallax` source folder into the actual Rainmeter Skins directory, refresh Rainmeter, then load `Parallax\Settings\Settings.ini`. Back up an existing Parallax installation first. Development sources do not modify your live desktop automatically. A release must still pass the runtime and upgrade checks in the packaging guide.
 
 This is an initial implementation, not a completed distribution. Optional integrations have independent setup and availability requirements. A short default-suite profile is recorded; long-run targets with every optional provider enabled remain unmeasured.
+
+## Updates
+
+The Welcome panel's **Check for updates** button asks GitHub for the newest release once per click. If one is available, **Install** downloads it, verifies it and opens it in Rainmeter's Skin Installer, which asks you to confirm and keeps your settings. See [docs/UPDATES.md](docs/UPDATES.md) for the mechanism and the release procedure.
+
+## License
+
+Parallax is released under the [MIT License](LICENSE). Bundled third-party components (IBM Plex Sans, WebNowPlaying, Lucide icons) keep their own licenses; see [`@Resources/Licenses/NOTICE.txt`](Skins/Parallax/@Resources/Licenses/NOTICE.txt).

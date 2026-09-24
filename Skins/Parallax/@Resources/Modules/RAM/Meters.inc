@@ -141,7 +141,6 @@ Y=(#Inset#+(#RAMInfoHeight#+34)*#Scale#)
 Scale=1000000000.0
 Text=%1/%2 GB
 Hidden=#RAMUseMiB#
-ToolTipText=Used physical RAM / OS-usable total. Available: [MeasureRAMAvailable:0] bytes; used: [MeasureRAMUsed:0] bytes; total: [MeasureRAMTotal:0] bytes.
 
 [MeterRAMUsedMiB]
 Meter=String
@@ -152,7 +151,6 @@ Y=(#Inset#+(#RAMInfoHeight#+34)*#Scale#)
 Scale=1000000.0
 Text=%1/%2 MB
 Hidden=(1-#RAMUseMiB#)
-ToolTipText=Used physical RAM / OS-usable total. Available: [MeasureRAMAvailable:0] bytes; used: [MeasureRAMUsed:0] bytes; total: [MeasureRAMTotal:0] bytes.
 
 [MeterRAMPageLabel]
 Meter=String
@@ -167,7 +165,6 @@ MeterStyle=StyleLabel | StyleRAMRowValue
 Y=(#Inset#+(#RAMInfoHeight#+66+Max(0,#DataBarThickness#-6))*#Scale#)
 Text=Checking...
 Hidden=#RAMUseMiB#
-ToolTipText=Paging-file space in use / current allocated capacity, excluding physical RAM. Waiting for Windows paging-file enumeration.
 
 [MeterRAMPageMiB]
 Meter=String
@@ -175,7 +172,6 @@ MeterStyle=StyleLabel | StyleRAMRowValue
 Y=(#Inset#+(#RAMInfoHeight#+66+Max(0,#DataBarThickness#-6))*#Scale#)
 Text=Checking...
 Hidden=(1-#RAMUseMiB#)
-ToolTipText=Paging-file space in use / current allocated capacity, excluding physical RAM. Waiting for Windows paging-file enumeration.
 
 [MeterRAMHistoryLabel]
 Meter=String

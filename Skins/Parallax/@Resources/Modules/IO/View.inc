@@ -152,7 +152,6 @@ Shape=Rectangle 0.5,0.5,(#ContentWidth#-1),(#IOGraphHeight#*#Scale#-1) | Fill Co
 Shape2=Line 1,(#IOGraphHeight#*#Scale#/4),(#ContentWidth#-1),(#IOGraphHeight#*#Scale#/4) | Stroke Color #GridColor# | StrokeWidth 1
 Shape3=Line 1,(#IOGraphHeight#*#Scale#/2),(#ContentWidth#-1),(#IOGraphHeight#*#Scale#/2) | Stroke Color #GridColor# | StrokeWidth 1
 Shape4=Line 1,(3*#IOGraphHeight#*#Scale#/4),(#ContentWidth#-1),(3*#IOGraphHeight#*#Scale#/4) | Stroke Color #GridColor# | StrokeWidth 1
-ToolTipText=Read/write history. Newest at right; current missing readings plot zero and recorded points connect linearly.
 
 [MeterIODiskGraph]
 Meter=Shape
@@ -193,7 +192,6 @@ ToolTipText=Read activity above zero in Split mode.
 Meter=String
 MeterStyle=StyleIOGraphAxis
 Text=0
-ToolTipText=Zero read/write activity reference.
 
 [MeterIOGraphNegative]
 Meter=String

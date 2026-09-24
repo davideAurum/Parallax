@@ -57,7 +57,6 @@ Meter=Shape
 MeterStyle=StyleWelcomeBox
 Y=(#Inset#+107*#Scale#)
 LeftMouseUpAction=[!CommandMeasure MeasureWelcome "Toggle('Chronometer')"]
-ToolTipText=Load or unload Chronometer.
 
 [MeterWelcomeCheck1]
 Meter=Shape
@@ -85,7 +84,6 @@ Meter=Shape
 MeterStyle=StyleWelcomeBox
 Y=(#Inset#+131*#Scale#)
 LeftMouseUpAction=[!CommandMeasure MeasureWelcome "Toggle('CPU')"]
-ToolTipText=Load or unload CPU.
 
 [MeterWelcomeCheck2]
 Meter=Shape
@@ -113,7 +111,6 @@ Meter=Shape
 MeterStyle=StyleWelcomeBox
 Y=(#Inset#+155*#Scale#)
 LeftMouseUpAction=[!CommandMeasure MeasureWelcome "Toggle('RAM')"]
-ToolTipText=Load or unload RAM.
 
 [MeterWelcomeCheck3]
 Meter=Shape
@@ -141,7 +138,6 @@ Meter=Shape
 MeterStyle=StyleWelcomeBox
 Y=(#Inset#+179*#Scale#)
 LeftMouseUpAction=[!CommandMeasure MeasureWelcome "Toggle('GPU')"]
-ToolTipText=Load or unload GPU.
 
 [MeterWelcomeCheck4]
 Meter=Shape
@@ -169,7 +165,6 @@ Meter=Shape
 MeterStyle=StyleWelcomeBox
 Y=(#Inset#+203*#Scale#)
 LeftMouseUpAction=[!CommandMeasure MeasureWelcome "Toggle('IO')"]
-ToolTipText=Load or unload IO.
 
 [MeterWelcomeCheck5]
 Meter=Shape
@@ -197,7 +192,6 @@ Meter=Shape
 MeterStyle=StyleWelcomeBox
 Y=(#Inset#+227*#Scale#)
 LeftMouseUpAction=[!CommandMeasure MeasureWelcome "Toggle('Network')"]
-ToolTipText=Load or unload Network.
 
 [MeterWelcomeCheck6]
 Meter=Shape
@@ -225,7 +219,6 @@ Meter=Shape
 MeterStyle=StyleWelcomeBox
 Y=(#Inset#+251*#Scale#)
 LeftMouseUpAction=[!CommandMeasure MeasureWelcome "Toggle('Media')"]
-ToolTipText=Load or unload Media.
 
 [MeterWelcomeCheck7]
 Meter=Shape
@@ -253,7 +246,6 @@ Meter=Shape
 MeterStyle=StyleWelcomeBox
 Y=(#Inset#+275*#Scale#)
 LeftMouseUpAction=[!CommandMeasure MeasureWelcome "Toggle('Visualizer')"]
-ToolTipText=Load or unload Visualizer.
 
 [MeterWelcomeCheck8]
 Meter=Shape
@@ -281,7 +273,6 @@ Meter=Shape
 MeterStyle=StyleWelcomeBox
 Y=(#Inset#+311*#Scale#)
 LeftMouseUpAction=[!CommandMeasure MeasureWelcome "Toggle('Settings')"]
-ToolTipText=Load or unload Global Settings.
 
 [MeterWelcomeCheck9]
 Meter=Shape

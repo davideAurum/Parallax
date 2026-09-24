@@ -196,9 +196,14 @@ if (Test-Path -LiteralPath $ioDriveMeters -PathType Leaf) {
 }
 $cpuConfig = Join-Path $SkinRoot 'CPU\CPU.ini'
 if (Test-Path -LiteralPath $cpuConfig -PathType Leaf) {
-    $cpuStyle = (Read-Ini $cpuConfig).Sections | Where-Object Name -eq 'CPUStyleRowSensor' | Select-Object -First 1
-    if ($null -ne $cpuStyle -and $cpuStyle.Keys.ContainsKey('ToolTipText')) {
-        Add-Issue 'Error' $cpuConfig $cpuStyle.Keys.ToolTipText.Line 'The 64-slot CPU sensor style must not instantiate tooltips for the hidden page bank.'
+    # Any per-row style is inherited by the whole 64-slot page bank, so one
+    # ToolTipText here becomes 64 native tooltip controls. Sensors.lua supplies
+    # per-cell text for visible slots; the column headers carry the shared
+    # explanation. Guard every row style, not just the sensor one.
+    foreach ($cpuStyle in ((Read-Ini $cpuConfig).Sections | Where-Object Name -like 'CPUStyleRow*')) {
+        if ($cpuStyle.Keys.ContainsKey('ToolTipText')) {
+            Add-Issue 'Error' $cpuConfig $cpuStyle.Keys.ToolTipText.Line "The 64-slot CPU row style '$($cpuStyle.Name)' must not instantiate tooltips for the hidden page bank; put shared text on the column header."
+        }
     }
 }
 $cpuController = Join-Path $SkinRoot '@Resources\Modules\CPU\CPU.lua'

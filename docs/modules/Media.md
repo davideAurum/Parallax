@@ -118,25 +118,30 @@ inherit `TitleFontSize`/`TitleTextColor`; inline Queue headings inherit
 `HeaderFontSize` and use Accent 1 (`AccentColor`). Song, artist and album text
 inherit the body `FontSize` (9pt by default). Their 14-pixel icons retain their
 size, and each text/icon pair shares the center of its existing 24-pixel row.
-Playback buttons now use 24-pixel
-vector artwork in the existing 28-by-26-pixel hit regions. Statuses, queue rows and Setup
+Playback buttons use 24-pixel
+vector artwork on 34-pixel circular faces. Statuses, queue rows and Setup
 actions retain the chosen body `FontSize`; Setup actions remain 18 pixels tall.
 Actions use zero local padding. Primary actions use
 `AccentColor`; the gear, documentation, Stop and secondary settings/navigation actions
 use `AccentColor2`. Metadata icons use `MutedColor`; the Monitor Play title and Audio Lines player-row icons
 and queue status retain `MediaColor`, and
 unavailable actions remain muted. The double layout provides more metadata/time
-space; the three transport hit regions are centered between the artwork's right
-edge and the measured left edge of the right-aligned time text. Compact layouts
-use the content's left edge because their artwork sits above this row. The group
-retains its 28-by-26-pixel targets and four-pixel gaps. Timing auto-sizes within a
-fixed maximum width that reserves the controls and six-pixel clearance on each
-side; long times clip without growing the window. Setup uses the same panel and queue row.
+space. The three transport circles form a row centered on the panel's lower
+border, so half of each sits outside the panel; horizontally the row is centered
+in the panel width remaining to the right of the artwork. Faces are 34 logical
+pixels with four-pixel gaps, so the group spans 110. Each meter box carries a
+five-pixel pad for the faked drop shadow, so adjacent boxes overlap by design
+while the faces keep their gap. Timing is right-aligned to the progress bar and
+no longer shares that row; it auto-sizes within a fixed maximum width - which
+still reserves the span the controls used to occupy - and long times clip
+without growing the window. Setup uses the same panel and queue row.
 The time readout aligns with the progress bar's right edge and starts two logical
 pixels below the bar. Available and unavailable time use the same position.
 The bar preserves its prior center where space allows and keeps at least two
-logical pixels below metadata. Controls follow eight logical pixels below its
-lower edge; the queue moves down as needed to preserve its clearance.
+logical pixels below metadata. The controls no longer follow the bar: they are
+anchored to the panel's lower border, and the panel's height excludes both them
+and the overhanging artwork so neither can drive it. The window height clears
+that overhang instead.
 
 All four panels inherit the shared background RGBA and outer `BorderThickness`
 through `StylePanel`. Their section separators inherit `DividerColor` and
@@ -414,9 +419,11 @@ it shows Pause, changes to the supplied Step Forward artwork on hover, and
 clicking toggles to play. Leaving the button restores its current-state icon;
 clicking does not fabricate a playback state. Stopped, unknown and disconnected
 states retain the existing Play fallback and capability checks. Previous and
-Next fill with the accent color when hovered and retain their existing track
-commands. All controls keep their capability checks, muted
-unavailable state, tooltips and 28-by-26-pixel hit regions.
+Next fill their glyph interior when hovered and retain their existing track
+commands. The circular face carries `AccentColor`, so an accent glyph would be
+invisible on it; enabled glyphs are drawn in `BackgroundColor` instead, which is
+provisional until the color pass. All controls keep their capability checks,
+muted unavailable state, tooltips and their 34-pixel circular hit regions.
 
 The thirteen source SVGs, pinned revision, adaptation notes and the complete
 upstream ISC and Feather MIT notices are retained in

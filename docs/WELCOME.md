@@ -11,15 +11,19 @@ Inherit the [shared platform and bundling requirements](DEPENDENCIES.md#shared-r
 | Rainmeter's own settings file at `#SETTINGSPATH#Rainmeter.ini` | Required for check marks only; supplied by Rainmeter | Read only, on explicit events, to find which configs Rainmeter records as active. If it cannot be read the check marks clear, the status line says so, and the buttons still load. |
 | `!ActivateConfig` / `!DeactivateConfig` | Required; supplied by Rainmeter | The only writes the panel performs. Rainmeter itself records the resulting active state. |
 | IBM Plex Sans fonts | Bundled, skin-local; SIL OFL 1.1 | Uses the suite font and typography. No system installation. |
+| `@Resources/Version.inc` and `Modules/Welcome/Update.lua` | Bundled source; required for the update check | Installed version, feed address and the check/offer logic. See [UPDATES.md](UPDATES.md). |
+| Rainmeter's built-in WebParser measure and network access to `github.com` | Optional; supplied by Rainmeter / the user's connection | One request per **Check for updates** click. Offline or blocked: `Could not reach the update server.`, and nothing else changes. While `davideAurum/Parallax` is private, the feed is unreachable and the check reports `Update check failed.` |
+| `@Resources/Scripts/UpdateInstall.ps1` via Rainmeter's bundled RunCommand plugin and Windows PowerShell 5.1 | Bundled helper; optional, used only by **Install** | One hidden, one-shot launch per Install click. Downloads the offered package to `%TEMP%\Parallax\Update`, verifies it and opens it in Skin Installer. If PowerShell is unavailable, the status line reports that the download failed and nothing is installed. |
+| Rainmeter's `SkinInstaller.exe` (from `#PROGRAMPATH#`) or the `.rmskin` file association | Required for Install; supplied by Rainmeter | Performs the actual upgrade after the user confirms. |
 | The eight utility configs and Global Settings | Bundled; listed, not required | A component missing from the installation cannot be loaded; Rainmeter reports the failed activation in its log and the row stays clear. |
 
-The panel needs no PowerShell helper, external plugin, network service, account or preference file of its own. It writes nothing to `@Resources/User/`.
+The component loader needs no PowerShell helper, external plugin, network service, account or preference file of its own. Only the explicit update check touches the network, and only Install launches a helper. The panel writes nothing to `@Resources/User/`; the helper writes only its download under `%TEMP%\Parallax\Update`.
 
 ## What it is for
 
 `Parallax\Welcome\Welcome.ini` is the config the `.rmskin` loads after installation (`loadSkin` in [`packaging/release.json`](../packaging/release.json)). It answers the first question a new installation raises — what is in this suite, and how do I put the parts I want on the desktop — without sending the user to Manage Rainmeter.
 
-It uses the shared two-column geometry, font, padding and rounding. Its logical panel height is 400 pixels: the default window is 456 × 408 pixels including the snapping gutter.
+It uses the shared two-column geometry, font, padding and rounding. Its logical panel height is 424 pixels: the default window is 456 × 432 pixels including the snapping gutter. (It was 400 before the update row was added.)
 
 ## The component list
 
@@ -61,6 +65,12 @@ A click also paints its own intent immediately, so the box responds even though 
 
 If the settings file cannot be read, every check clears and the status line reads `Rainmeter settings are not readable; check marks show clicks only.` Toggling and **Load all** still activate configs in that state; **Unload all** deactivates nothing rather than logging an error for each config that may not be loaded.
 
+## Checking for updates
+
+**Check for updates** sits at the right end of the Load all row. The bottom line shows the installed version from `@Resources/Version.inc`. A click makes one WebParser request for the release feed. If a newer version is published, the line reads `Parallax <v> is available.`, and **Install** and **Notes** appear beside it. Install downloads and verifies the package, then opens Rainmeter's Skin Installer, which asks for confirmation before changing anything. The status line keeps short text; its tooltip carries the full reason for any failure. The mechanism, feed format, release procedure and state table are in [UPDATES.md](UPDATES.md).
+
+The update controls run in their own script measure (`MeasureUpdate`), so the loader's controller and its bang allowlist test are unchanged. `MeasureUpdateFeed` stays disabled until a click and is disabled again when the request finishes, so neither a skin load nor a refresh contacts the network.
+
 ## Reopening the panel
 
 Right-click Global Settings and choose **Open the Welcome panel**, or load `Parallax\Welcome\Welcome.ini` from Manage Rainmeter. Right-clicking the Welcome panel opens Global Settings.
@@ -76,6 +86,18 @@ The run on 2026-09-17 with Rainmeter 4.5.26.3894 on Windows 11 26200 recorded:
 - **Load all** produced `Active=1` for all nine configs; **Unload all** returned all nine to `0`.
 - No Rainmeter errors outside `Parallax\Media\Media.ini`. That profile deliberately omits the bundled WebNowPlaying plugin, because its host binds a fixed local port and a second copy terminates Rainmeter when the user's own Rainmeter already runs it; Media's player and cover-art measures therefore report the missing plugin. Those errors belong to Media's own checks.
 
-A native capture through `tools\Preview-Parallax.ps1 -Modules Welcome` renders a 456 × 408 window at scale 1. A capture with CPU loaded and Media loaded through `Setup.ini` shows the CPU row checked, the Media row clear and `1 of 9 components loaded.`
+A native capture through `tools\Preview-Parallax.ps1 -Modules Welcome` rendered a 456 × 408 window at scale 1 before the update row was added. A capture with CPU loaded and Media loaded through `Setup.ini` shows the CPU row checked, the Media row clear and `1 of 9 components loaded.`
 
 Not established by these checks: visual quality at other scales and column widths, mixed-DPI behavior, upgrade behavior over an existing installation, Skin Installer's post-install load of this config, and behavior when a listed config is missing from the installation.
+
+### Update check, 2026-09-23
+
+`Skins\Parallax\@Resources\Modules\Welcome\tests\Run-UpdateSmoke.ps1 -ExerciseInstall` stages the sources, replaces the feed address with local `file://` manifests, and runs the real `MeasureUpdateFeed` / `MeasureUpdate` / `MeasureUpdateInstall` chain in an isolated Rainmeter 4.5.26.3894 instance on Windows 11 26200:
+
+- 26 offline assertions on version ordering (pre-releases, numeric identifiers, refused two-part and `+build` versions) and feed validation (future schema, other package, foreign host, mismatched asset, short checksum, embedded quote, spaces, foreign notes link, empty, 404 body, oversized).
+- A newer feed produced `Parallax 99.0.0 is available.`, an equal feed `up to date`, and a missing feed `Could not reach the update server.` The WebParser connection error for the missing feed is the only log error, and it is expected.
+- Install for the fake 99.0.0 launched the hidden helper through RunCommand, which received GitHub's 404 for the nonexistent asset and reported `Download failed. Nothing was installed.` Skin Installer was not opened. Two earlier runs got `The connection was closed unexpectedly` instead of the 404; the helper now retries once on transport errors (never on HTTP errors), and the rerun passed.
+
+The helper's success path was checked outside Rainmeter with a test-only copy that accepts a `file://` source and records the hand-off instead of launching Skin Installer. The real `dist\Parallax_0.1.0-alpha.rmskin` verified and was handed off. A wrong checksum and a package with its RMSKIN trailer removed were both refused and deleted.
+
+Unverified: a real end-to-end upgrade from a published release (none exists, and the repository is private), the offered-state visual layout with Install and Notes shown, the Notes link opening a browser, the Skin Installer hand-off through `#PROGRAMPATH#` on a portable installation, and proxies or TLS-inspecting networks.

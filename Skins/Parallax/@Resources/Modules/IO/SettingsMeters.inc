@@ -168,7 +168,7 @@ X=(#ContentX#+124*#Scale#)
 Y=(#Inset#+160*#Scale#)
 W=(#ContentWidth#-244*#Scale#)
 Text=1 selected
-ToolTipText=Selected drive letters. Volumes without letters are outside this selector.
+ToolTipText=Selected drive letters; availability is read from the native inventory. Volumes without letters are outside this selector.
 
 [MeterIOSettingsInventoryRefresh]
 Meter=String
@@ -185,364 +185,312 @@ Meter=String
 MeterStyle=IOStyleSettingsDriveLabel|IOStyleSettingsDrive|IOStyleSettingsGroup
 Text=A:
 LeftMouseUpAction=[!CommandMeasure MeasureIOSettings "ToggleDrive('A')"]
-ToolTipText=Drive availability is read from the native inventory.
 
 [MeterIOSettingsDriveA]
 Meter=String
 MeterStyle=StyleUtilitySettingsValue|IOStyleSettingsValue|IOStyleSettingsDrive|IOStyleSettingsDriveValue|IOStyleSettingsGroup
 Text=Off
 LeftMouseUpAction=[!CommandMeasure MeasureIOSettings "ToggleDrive('A')"]
-ToolTipText=Drive availability is read from the native inventory.
 
 [MeterIOSettingsDriveBLabel]
 Meter=String
 MeterStyle=IOStyleSettingsDriveLabel|IOStyleSettingsDrive|IOStyleSettingsGroup
 Text=B:
 LeftMouseUpAction=[!CommandMeasure MeasureIOSettings "ToggleDrive('B')"]
-ToolTipText=Drive availability is read from the native inventory.
 
 [MeterIOSettingsDriveB]
 Meter=String
 MeterStyle=StyleUtilitySettingsValue|IOStyleSettingsValue|IOStyleSettingsDrive|IOStyleSettingsDriveValue|IOStyleSettingsGroup
 Text=Off
 LeftMouseUpAction=[!CommandMeasure MeasureIOSettings "ToggleDrive('B')"]
-ToolTipText=Drive availability is read from the native inventory.
 
 [MeterIOSettingsDriveCLabel]
 Meter=String
 MeterStyle=IOStyleSettingsDriveLabel|IOStyleSettingsDrive|IOStyleSettingsGroup
 Text=C:
 LeftMouseUpAction=[!CommandMeasure MeasureIOSettings "ToggleDrive('C')"]
-ToolTipText=Drive availability is read from the native inventory.
 
 [MeterIOSettingsDriveC]
 Meter=String
 MeterStyle=StyleUtilitySettingsValue|IOStyleSettingsValue|IOStyleSettingsDrive|IOStyleSettingsDriveValue|IOStyleSettingsGroup
 Text=Off
 LeftMouseUpAction=[!CommandMeasure MeasureIOSettings "ToggleDrive('C')"]
-ToolTipText=Drive availability is read from the native inventory.
 
 [MeterIOSettingsDriveDLabel]
 Meter=String
 MeterStyle=IOStyleSettingsDriveLabel|IOStyleSettingsDrive|IOStyleSettingsGroup
 Text=D:
 LeftMouseUpAction=[!CommandMeasure MeasureIOSettings "ToggleDrive('D')"]
-ToolTipText=Drive availability is read from the native inventory.
 
 [MeterIOSettingsDriveD]
 Meter=String
 MeterStyle=StyleUtilitySettingsValue|IOStyleSettingsValue|IOStyleSettingsDrive|IOStyleSettingsDriveValue|IOStyleSettingsGroup
 Text=Off
 LeftMouseUpAction=[!CommandMeasure MeasureIOSettings "ToggleDrive('D')"]
-ToolTipText=Drive availability is read from the native inventory.
 
 [MeterIOSettingsDriveELabel]
 Meter=String
 MeterStyle=IOStyleSettingsDriveLabel|IOStyleSettingsDrive|IOStyleSettingsGroup
 Text=E:
 LeftMouseUpAction=[!CommandMeasure MeasureIOSettings "ToggleDrive('E')"]
-ToolTipText=Drive availability is read from the native inventory.
 
 [MeterIOSettingsDriveE]
 Meter=String
 MeterStyle=StyleUtilitySettingsValue|IOStyleSettingsValue|IOStyleSettingsDrive|IOStyleSettingsDriveValue|IOStyleSettingsGroup
 Text=Off
 LeftMouseUpAction=[!CommandMeasure MeasureIOSettings "ToggleDrive('E')"]
-ToolTipText=Drive availability is read from the native inventory.
 
 [MeterIOSettingsDriveFLabel]
 Meter=String
 MeterStyle=IOStyleSettingsDriveLabel|IOStyleSettingsDrive|IOStyleSettingsGroup
 Text=F:
 LeftMouseUpAction=[!CommandMeasure MeasureIOSettings "ToggleDrive('F')"]
-ToolTipText=Drive availability is read from the native inventory.
 
 [MeterIOSettingsDriveF]
 Meter=String
 MeterStyle=StyleUtilitySettingsValue|IOStyleSettingsValue|IOStyleSettingsDrive|IOStyleSettingsDriveValue|IOStyleSettingsGroup
 Text=Off
 LeftMouseUpAction=[!CommandMeasure MeasureIOSettings "ToggleDrive('F')"]
-ToolTipText=Drive availability is read from the native inventory.
 
 [MeterIOSettingsDriveGLabel]
 Meter=String
 MeterStyle=IOStyleSettingsDriveLabel|IOStyleSettingsDrive|IOStyleSettingsGroup
 Text=G:
 LeftMouseUpAction=[!CommandMeasure MeasureIOSettings "ToggleDrive('G')"]
-ToolTipText=Drive availability is read from the native inventory.
 
 [MeterIOSettingsDriveG]
 Meter=String
 MeterStyle=StyleUtilitySettingsValue|IOStyleSettingsValue|IOStyleSettingsDrive|IOStyleSettingsDriveValue|IOStyleSettingsGroup
 Text=Off
 LeftMouseUpAction=[!CommandMeasure MeasureIOSettings "ToggleDrive('G')"]
-ToolTipText=Drive availability is read from the native inventory.
 
 [MeterIOSettingsDriveHLabel]
 Meter=String
 MeterStyle=IOStyleSettingsDriveLabel|IOStyleSettingsDrive|IOStyleSettingsGroup
 Text=H:
 LeftMouseUpAction=[!CommandMeasure MeasureIOSettings "ToggleDrive('H')"]
-ToolTipText=Drive availability is read from the native inventory.
 
 [MeterIOSettingsDriveH]
 Meter=String
 MeterStyle=StyleUtilitySettingsValue|IOStyleSettingsValue|IOStyleSettingsDrive|IOStyleSettingsDriveValue|IOStyleSettingsGroup
 Text=Off
 LeftMouseUpAction=[!CommandMeasure MeasureIOSettings "ToggleDrive('H')"]
-ToolTipText=Drive availability is read from the native inventory.
 
 [MeterIOSettingsDriveILabel]
 Meter=String
 MeterStyle=IOStyleSettingsDriveLabel|IOStyleSettingsDrive|IOStyleSettingsGroup
 Text=I:
 LeftMouseUpAction=[!CommandMeasure MeasureIOSettings "ToggleDrive('I')"]
-ToolTipText=Drive availability is read from the native inventory.
 
 [MeterIOSettingsDriveI]
 Meter=String
 MeterStyle=StyleUtilitySettingsValue|IOStyleSettingsValue|IOStyleSettingsDrive|IOStyleSettingsDriveValue|IOStyleSettingsGroup
 Text=Off
 LeftMouseUpAction=[!CommandMeasure MeasureIOSettings "ToggleDrive('I')"]
-ToolTipText=Drive availability is read from the native inventory.
 
 [MeterIOSettingsDriveJLabel]
 Meter=String
 MeterStyle=IOStyleSettingsDriveLabel|IOStyleSettingsDrive|IOStyleSettingsGroup
 Text=J:
 LeftMouseUpAction=[!CommandMeasure MeasureIOSettings "ToggleDrive('J')"]
-ToolTipText=Drive availability is read from the native inventory.
 
 [MeterIOSettingsDriveJ]
 Meter=String
 MeterStyle=StyleUtilitySettingsValue|IOStyleSettingsValue|IOStyleSettingsDrive|IOStyleSettingsDriveValue|IOStyleSettingsGroup
 Text=Off
 LeftMouseUpAction=[!CommandMeasure MeasureIOSettings "ToggleDrive('J')"]
-ToolTipText=Drive availability is read from the native inventory.
 
 [MeterIOSettingsDriveKLabel]
 Meter=String
 MeterStyle=IOStyleSettingsDriveLabel|IOStyleSettingsDrive|IOStyleSettingsGroup
 Text=K:
 LeftMouseUpAction=[!CommandMeasure MeasureIOSettings "ToggleDrive('K')"]
-ToolTipText=Drive availability is read from the native inventory.
 
 [MeterIOSettingsDriveK]
 Meter=String
 MeterStyle=StyleUtilitySettingsValue|IOStyleSettingsValue|IOStyleSettingsDrive|IOStyleSettingsDriveValue|IOStyleSettingsGroup
 Text=Off
 LeftMouseUpAction=[!CommandMeasure MeasureIOSettings "ToggleDrive('K')"]
-ToolTipText=Drive availability is read from the native inventory.
 
 [MeterIOSettingsDriveLLabel]
 Meter=String
 MeterStyle=IOStyleSettingsDriveLabel|IOStyleSettingsDrive|IOStyleSettingsGroup
 Text=L:
 LeftMouseUpAction=[!CommandMeasure MeasureIOSettings "ToggleDrive('L')"]
-ToolTipText=Drive availability is read from the native inventory.
 
 [MeterIOSettingsDriveL]
 Meter=String
 MeterStyle=StyleUtilitySettingsValue|IOStyleSettingsValue|IOStyleSettingsDrive|IOStyleSettingsDriveValue|IOStyleSettingsGroup
 Text=Off
 LeftMouseUpAction=[!CommandMeasure MeasureIOSettings "ToggleDrive('L')"]
-ToolTipText=Drive availability is read from the native inventory.
 
 [MeterIOSettingsDriveMLabel]
 Meter=String
 MeterStyle=IOStyleSettingsDriveLabel|IOStyleSettingsDrive|IOStyleSettingsGroup
 Text=M:
 LeftMouseUpAction=[!CommandMeasure MeasureIOSettings "ToggleDrive('M')"]
-ToolTipText=Drive availability is read from the native inventory.
 
 [MeterIOSettingsDriveM]
 Meter=String
 MeterStyle=StyleUtilitySettingsValue|IOStyleSettingsValue|IOStyleSettingsDrive|IOStyleSettingsDriveValue|IOStyleSettingsGroup
 Text=Off
 LeftMouseUpAction=[!CommandMeasure MeasureIOSettings "ToggleDrive('M')"]
-ToolTipText=Drive availability is read from the native inventory.
 
 [MeterIOSettingsDriveNLabel]
 Meter=String
 MeterStyle=IOStyleSettingsDriveLabel|IOStyleSettingsDrive|IOStyleSettingsGroup
 Text=N:
 LeftMouseUpAction=[!CommandMeasure MeasureIOSettings "ToggleDrive('N')"]
-ToolTipText=Drive availability is read from the native inventory.
 
 [MeterIOSettingsDriveN]
 Meter=String
 MeterStyle=StyleUtilitySettingsValue|IOStyleSettingsValue|IOStyleSettingsDrive|IOStyleSettingsDriveValue|IOStyleSettingsGroup
 Text=Off
 LeftMouseUpAction=[!CommandMeasure MeasureIOSettings "ToggleDrive('N')"]
-ToolTipText=Drive availability is read from the native inventory.
 
 [MeterIOSettingsDriveOLabel]
 Meter=String
 MeterStyle=IOStyleSettingsDriveLabel|IOStyleSettingsDrive|IOStyleSettingsGroup
 Text=O:
 LeftMouseUpAction=[!CommandMeasure MeasureIOSettings "ToggleDrive('O')"]
-ToolTipText=Drive availability is read from the native inventory.
 
 [MeterIOSettingsDriveO]
 Meter=String
 MeterStyle=StyleUtilitySettingsValue|IOStyleSettingsValue|IOStyleSettingsDrive|IOStyleSettingsDriveValue|IOStyleSettingsGroup
 Text=Off
 LeftMouseUpAction=[!CommandMeasure MeasureIOSettings "ToggleDrive('O')"]
-ToolTipText=Drive availability is read from the native inventory.
 
 [MeterIOSettingsDrivePLabel]
 Meter=String
 MeterStyle=IOStyleSettingsDriveLabel|IOStyleSettingsDrive|IOStyleSettingsGroup
 Text=P:
 LeftMouseUpAction=[!CommandMeasure MeasureIOSettings "ToggleDrive('P')"]
-ToolTipText=Drive availability is read from the native inventory.
 
 [MeterIOSettingsDriveP]
 Meter=String
 MeterStyle=StyleUtilitySettingsValue|IOStyleSettingsValue|IOStyleSettingsDrive|IOStyleSettingsDriveValue|IOStyleSettingsGroup
 Text=Off
 LeftMouseUpAction=[!CommandMeasure MeasureIOSettings "ToggleDrive('P')"]
-ToolTipText=Drive availability is read from the native inventory.
 
 [MeterIOSettingsDriveQLabel]
 Meter=String
 MeterStyle=IOStyleSettingsDriveLabel|IOStyleSettingsDrive|IOStyleSettingsGroup
 Text=Q:
 LeftMouseUpAction=[!CommandMeasure MeasureIOSettings "ToggleDrive('Q')"]
-ToolTipText=Drive availability is read from the native inventory.
 
 [MeterIOSettingsDriveQ]
 Meter=String
 MeterStyle=StyleUtilitySettingsValue|IOStyleSettingsValue|IOStyleSettingsDrive|IOStyleSettingsDriveValue|IOStyleSettingsGroup
 Text=Off
 LeftMouseUpAction=[!CommandMeasure MeasureIOSettings "ToggleDrive('Q')"]
-ToolTipText=Drive availability is read from the native inventory.
 
 [MeterIOSettingsDriveRLabel]
 Meter=String
 MeterStyle=IOStyleSettingsDriveLabel|IOStyleSettingsDrive|IOStyleSettingsGroup
 Text=R:
 LeftMouseUpAction=[!CommandMeasure MeasureIOSettings "ToggleDrive('R')"]
-ToolTipText=Drive availability is read from the native inventory.
 
 [MeterIOSettingsDriveR]
 Meter=String
 MeterStyle=StyleUtilitySettingsValue|IOStyleSettingsValue|IOStyleSettingsDrive|IOStyleSettingsDriveValue|IOStyleSettingsGroup
 Text=Off
 LeftMouseUpAction=[!CommandMeasure MeasureIOSettings "ToggleDrive('R')"]
-ToolTipText=Drive availability is read from the native inventory.
 
 [MeterIOSettingsDriveSLabel]
 Meter=String
 MeterStyle=IOStyleSettingsDriveLabel|IOStyleSettingsDrive|IOStyleSettingsGroup
 Text=S:
 LeftMouseUpAction=[!CommandMeasure MeasureIOSettings "ToggleDrive('S')"]
-ToolTipText=Drive availability is read from the native inventory.
 
 [MeterIOSettingsDriveS]
 Meter=String
 MeterStyle=StyleUtilitySettingsValue|IOStyleSettingsValue|IOStyleSettingsDrive|IOStyleSettingsDriveValue|IOStyleSettingsGroup
 Text=Off
 LeftMouseUpAction=[!CommandMeasure MeasureIOSettings "ToggleDrive('S')"]
-ToolTipText=Drive availability is read from the native inventory.
 
 [MeterIOSettingsDriveTLabel]
 Meter=String
 MeterStyle=IOStyleSettingsDriveLabel|IOStyleSettingsDrive|IOStyleSettingsGroup
 Text=T:
 LeftMouseUpAction=[!CommandMeasure MeasureIOSettings "ToggleDrive('T')"]
-ToolTipText=Drive availability is read from the native inventory.
 
 [MeterIOSettingsDriveT]
 Meter=String
 MeterStyle=StyleUtilitySettingsValue|IOStyleSettingsValue|IOStyleSettingsDrive|IOStyleSettingsDriveValue|IOStyleSettingsGroup
 Text=Off
 LeftMouseUpAction=[!CommandMeasure MeasureIOSettings "ToggleDrive('T')"]
-ToolTipText=Drive availability is read from the native inventory.
 
 [MeterIOSettingsDriveULabel]
 Meter=String
 MeterStyle=IOStyleSettingsDriveLabel|IOStyleSettingsDrive|IOStyleSettingsGroup
 Text=U:
 LeftMouseUpAction=[!CommandMeasure MeasureIOSettings "ToggleDrive('U')"]
-ToolTipText=Drive availability is read from the native inventory.
 
 [MeterIOSettingsDriveU]
 Meter=String
 MeterStyle=StyleUtilitySettingsValue|IOStyleSettingsValue|IOStyleSettingsDrive|IOStyleSettingsDriveValue|IOStyleSettingsGroup
 Text=Off
 LeftMouseUpAction=[!CommandMeasure MeasureIOSettings "ToggleDrive('U')"]
-ToolTipText=Drive availability is read from the native inventory.
 
 [MeterIOSettingsDriveVLabel]
 Meter=String
 MeterStyle=IOStyleSettingsDriveLabel|IOStyleSettingsDrive|IOStyleSettingsGroup
 Text=V:
 LeftMouseUpAction=[!CommandMeasure MeasureIOSettings "ToggleDrive('V')"]
-ToolTipText=Drive availability is read from the native inventory.
 
 [MeterIOSettingsDriveV]
 Meter=String
 MeterStyle=StyleUtilitySettingsValue|IOStyleSettingsValue|IOStyleSettingsDrive|IOStyleSettingsDriveValue|IOStyleSettingsGroup
 Text=Off
 LeftMouseUpAction=[!CommandMeasure MeasureIOSettings "ToggleDrive('V')"]
-ToolTipText=Drive availability is read from the native inventory.
 
 [MeterIOSettingsDriveWLabel]
 Meter=String
 MeterStyle=IOStyleSettingsDriveLabel|IOStyleSettingsDrive|IOStyleSettingsGroup
 Text=W:
 LeftMouseUpAction=[!CommandMeasure MeasureIOSettings "ToggleDrive('W')"]
-ToolTipText=Drive availability is read from the native inventory.
 
 [MeterIOSettingsDriveW]
 Meter=String
 MeterStyle=StyleUtilitySettingsValue|IOStyleSettingsValue|IOStyleSettingsDrive|IOStyleSettingsDriveValue|IOStyleSettingsGroup
 Text=Off
 LeftMouseUpAction=[!CommandMeasure MeasureIOSettings "ToggleDrive('W')"]
-ToolTipText=Drive availability is read from the native inventory.
 
 [MeterIOSettingsDriveXLabel]
 Meter=String
 MeterStyle=IOStyleSettingsDriveLabel|IOStyleSettingsDrive|IOStyleSettingsGroup
 Text=X:
 LeftMouseUpAction=[!CommandMeasure MeasureIOSettings "ToggleDrive('X')"]
-ToolTipText=Drive availability is read from the native inventory.
 
 [MeterIOSettingsDriveX]
 Meter=String
 MeterStyle=StyleUtilitySettingsValue|IOStyleSettingsValue|IOStyleSettingsDrive|IOStyleSettingsDriveValue|IOStyleSettingsGroup
 Text=Off
 LeftMouseUpAction=[!CommandMeasure MeasureIOSettings "ToggleDrive('X')"]
-ToolTipText=Drive availability is read from the native inventory.
 
 [MeterIOSettingsDriveYLabel]
 Meter=String
 MeterStyle=IOStyleSettingsDriveLabel|IOStyleSettingsDrive|IOStyleSettingsGroup
 Text=Y:
 LeftMouseUpAction=[!CommandMeasure MeasureIOSettings "ToggleDrive('Y')"]
-ToolTipText=Drive availability is read from the native inventory.
 
 [MeterIOSettingsDriveY]
 Meter=String
 MeterStyle=StyleUtilitySettingsValue|IOStyleSettingsValue|IOStyleSettingsDrive|IOStyleSettingsDriveValue|IOStyleSettingsGroup
 Text=Off
 LeftMouseUpAction=[!CommandMeasure MeasureIOSettings "ToggleDrive('Y')"]
-ToolTipText=Drive availability is read from the native inventory.
 
 [MeterIOSettingsDriveZLabel]
 Meter=String
 MeterStyle=IOStyleSettingsDriveLabel|IOStyleSettingsDrive|IOStyleSettingsGroup
 Text=Z:
 LeftMouseUpAction=[!CommandMeasure MeasureIOSettings "ToggleDrive('Z')"]
-ToolTipText=Drive availability is read from the native inventory.
 
 [MeterIOSettingsDriveZ]
 Meter=String
 MeterStyle=StyleUtilitySettingsValue|IOStyleSettingsValue|IOStyleSettingsDrive|IOStyleSettingsDriveValue|IOStyleSettingsGroup
 Text=Off
 LeftMouseUpAction=[!CommandMeasure MeasureIOSettings "ToggleDrive('Z')"]
-ToolTipText=Drive availability is read from the native inventory.
 
 [MeterIOSettingsGraphSection]
 Meter=String

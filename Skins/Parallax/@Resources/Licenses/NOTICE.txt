@@ -1,3 +1,7 @@
+Parallax is released under the MIT License; full terms in Parallax-LICENSE.txt.
+Copyright (c) 2026 davideAurum. Source: https://github.com/davideAurum/Parallax
+The third-party components below keep their own licenses.
+
 Parallax includes unmodified IBM Plex Sans Regular, Medium, SemiBold and Bold.
 Copyright 2017 IBM Corp. with Reserved Font Name "Plex".
 License: SIL Open Font License 1.1; full terms in IBM-Plex-OFL.txt.

@@ -106,7 +106,6 @@ Shape6=Ellipse (5.5*#MediaLucideScale#),(4.5*#MediaLucideScale#),(2.5*#MediaLuci
 LucideArtistBodyPath=(17*#MediaLucideScale#),(21*#MediaLucideScale#) | ArcTo (7*#MediaLucideScale#),(21*#MediaLucideScale#),(5*#MediaLucideScale#),(5*#MediaLucideScale#),0,1,0
 LucideArtistRightPath=(22*#MediaLucideScale#),(10.5*#MediaLucideScale#) | ArcTo (16.493*#MediaLucideScale#),(7.632*#MediaLucideScale#),(3.5*#MediaLucideScale#),(3.5*#MediaLucideScale#),0,1,0
 LucideArtistLeftPath=(7.507*#MediaLucideScale#),(7.632*#MediaLucideScale#) | ArcTo (2*#MediaLucideScale#),(10.5*#MediaLucideScale#),(3.5*#MediaLucideScale#),(3.5*#MediaLucideScale#),0,1,0
-ToolTipText=Artist
 
 [MeterAlbumIcon]
 Meter=Shape
@@ -119,7 +118,6 @@ Shape3=Ellipse (12*#MediaLucideScale#),(12*#MediaLucideScale#),(2*#MediaLucideSc
 Shape4=Path LucideDiscLowerPath | Fill Color 0,0,0,0 | Stroke Color #MutedColor# | StrokeWidth (2*#MediaLucideScale#) | StrokeStartCap Round | StrokeEndCap Round | StrokeLineJoin Round
 LucideDiscUpperPath=(6*#MediaLucideScale#),(12*#MediaLucideScale#) | CurveTo (7.8*#MediaLucideScale#),(7.8*#MediaLucideScale#),(6*#MediaLucideScale#),(10.3*#MediaLucideScale#),(6.7*#MediaLucideScale#),(8.8*#MediaLucideScale#)
 LucideDiscLowerPath=(18*#MediaLucideScale#),(12*#MediaLucideScale#) | CurveTo (16.2*#MediaLucideScale#),(16.2*#MediaLucideScale#),(18*#MediaLucideScale#),(13.7*#MediaLucideScale#),(17.3*#MediaLucideScale#),(15.2*#MediaLucideScale#)
-ToolTipText=Album
 
 [MeterTrackTitle]
 Meter=String

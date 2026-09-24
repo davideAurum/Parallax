@@ -118,9 +118,18 @@ MediaQueueDrawerRight=(#ContentX#+#ContentWidth#)
 MediaQueueDrawerTop=(#MediaQueueTabY#-8*#Scale#)
 MediaQueueDrawerClosedBottom=(#Inset#+#MediaBodyHeightPx#)
 ; --- Queue object (the drawer's only content) --------------------------
-; Its top is not the container's padding: it clears the artwork, which hangs
-; below the panel. It deliberately does NOT clear the transport circles, which
-; hang lower still (182 vs 172): the header's text is short and fixed, so it
+; Its top is not the container's padding: it clears whichever of the artwork
+; and the panel hangs lower. In the wide layout (Columns=2) the artwork
+; overhangs the panel's lower border, so the artwork wins; in the narrow one
+; it is a small thumbnail high in the body, so the panel wins. Anchoring to
+; the artwork alone put the table halfway up the narrow body, across the
+; progress bar, and left the sheet shorter than its own contents - at
+; QueueRowLimit=1 the sheet's height went negative.
+; The panel's lower border is #Inset#+#MediaBodyHeightPx#, not
+; #MediaSurfaceY#+#PanelHeightPx#: MeterPanel draws its rectangle
+; #MediaSurfaceOffset# shorter to absorb the surface offset it is shifted by.
+; It deliberately does NOT clear the transport circles, which hang lower
+; still (182 vs 172 when wide): the header's text is short and fixed, so it
 ; ends well left of the buttons even though its meter box spans the full
 ; width. The ROWS are what can run long, and they start a header plus a
 ; divider lower - far enough down that they clear the circles anyway. If the
@@ -132,12 +141,20 @@ MediaQueueDrawerClosedBottom=(#Inset#+#MediaBodyHeightPx#)
 ; it, so trying colours is a single edit rather than two that can drift.
 MediaQueueArtistColor=#AccentColor2#
 MediaQueueRowPitch=(18*#Scale#)
-MediaQueueTop=(#MediaCoverY#+#MediaCoverSize#+#MediaSectionGap#)
+MediaQueueTop=(Max(#MediaCoverY#+#MediaCoverSize#,#Inset#+#MediaBodyHeightPx#)+#MediaSectionGap#)
 ; A header line labels the columns, then a divider, then the rows. The gap is
 ; split either side of the rule so it sits centred between the two.
-MediaQueueHeaderY=#MediaQueueTop#
+; Both header anchors park at #Inset# while the drawer is closed, the same way
+; QueueReader.lua parks the rows: the window shrinks back to the panel then,
+; and a hidden meter left at its open position still counts toward the skin's
+; native bounds even though it paints nothing.
 MediaQueueDividerGap=(5*#Scale#)
-MediaQueueDividerY=(#MediaQueueTop#+#MediaQueueRowPitch#+#MediaQueueDividerGap#/2)
+MediaQueueHeaderOpenY=#MediaQueueTop#
+MediaQueueHeaderRuleOpenY=(#MediaQueueTop#+#MediaQueueRowPitch#+#MediaQueueDividerGap#/2)
+MediaQueueHeaderY=(#QueueExpanded#*#MediaQueueHeaderOpenY#+(1-#QueueExpanded#)*#Inset#)
+; The rule is a stroked line, so its parked anchor sits half a stroke below
+; #Inset# to keep the stroke's outer edge on the boundary rather than across it.
+MediaQueueDividerY=(#QueueExpanded#*#MediaQueueHeaderRuleOpenY#+(1-#QueueExpanded#)*(#Inset#+#DividerThickness#*#Scale#/2))
 MediaQueueRowsY=(#MediaQueueTop#+#MediaQueueRowPitch#+#MediaQueueDividerGap#)
 ; Left column carries the queue position; the track column takes the rest.
 MediaQueueNumberWidth=(16*#Scale#)

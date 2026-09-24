@@ -2,6 +2,8 @@
 
 A modular Rainmeter instrument suite: Chronometer with multiple countdown lists, CPU, Memory Meter, GPU, Disk Meter, a dedicated Network Monitor, media controls with optional Spotify queue, and an independent audio visualizer.
 
+**[⬇ Download the latest release](https://github.com/davideAurum/Parallax/releases/latest)**: get the `Parallax_<version>.rmskin` file under **Assets** and double-click it. Requires Windows 10/11 and [Rainmeter](https://www.rainmeter.net/) 4.5.26 or newer. Parallax is in alpha.
+
 The revised design follows ModernGadgets' dense instrument layout: near-black bordered panels, IBM Plex Sans, aligned rows, colored data bars, and compact graphs. The default painted widths are 220 and 448 pixels with an 8-pixel gap. Width, scale, colors, fonts and module choices remain customizable. Development now happens directly in Claude rather than through separate per-module Codex tasks (see `docs/TASKS.md` for that historical structure); each utility still keeps its own file ownership for organization.
 
 Global Settings groups its controls into **Appearance** and **Performance**. Appearance includes a **Default** theme dropdown, size/gap/rounding fields, two accent colors, title/header/body typography, background color/transparency, border/divider/table-header colors and thickness, and shared data bar thickness (6 px by default). Performance contains refresh presets and the sampling summary. Each color has a hex readout and swatch opening the shared RGB/HSV/Lab color picker. See [settings behavior](docs/SETTINGS.md) and [current validation and screenshots](docs/SETTINGS-REVIEW.md).
@@ -27,7 +29,7 @@ Target: Windows 10/11, Rainmeter 4.5.26 or newer. Local discovery found Rainmete
 
 ## Install
 
-The whole suite ships as one `Parallax_<version>.rmskin` file. Download it from the project's GitHub Releases page once a release is published, or build it yourself (below), then open the file: Rainmeter's Skin Installer copies `Skins\Parallax`, keeps your existing `@Resources\User\*.inc` choices when upgrading, and loads `Parallax\Welcome\Welcome.ini`.
+The whole suite ships as one `Parallax_<version>.rmskin` file. Download it from the [latest release](https://github.com/davideAurum/Parallax/releases/latest) (or [all releases](https://github.com/davideAurum/Parallax/releases)), or build it yourself (below), then open the file: Rainmeter's Skin Installer copies `Skins\Parallax`, keeps your existing `@Resources\User\*.inc` choices when upgrading, and loads `Parallax\Welcome\Welcome.ini`.
 
 The Welcome panel lists every component — Chronometer, CPU, RAM, GPU, IO, Network, Media, Visualizer and Global Settings — as a check box. Check one to load that utility, clear it to unload, or press **Load all**. Rainmeter remembers the choice, so the panel keeps no settings of its own; see [the Welcome panel](docs/WELCOME.md). You can still load any utility from Manage Rainmeter under `Parallax`, and reopen Welcome from the Global Settings right-click menu. The package also installs the WebNowPlaying 2.0.7.0 plugin (MIT License) that Media uses, unless a newer version is already present; browser playback additionally needs the WebNowPlaying browser extension, and the optional HWiNFO exports remain a manual setup (see [Media dependencies](docs/modules/Media.md#dependencies)).
 

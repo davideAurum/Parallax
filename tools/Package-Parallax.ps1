@@ -37,7 +37,9 @@ param(
     [string]$HeaderImage,
     [switch]$NoHeaderImage,
     [switch]$NoPlugins,
-    [switch]$Force
+    [switch]$Force,
+    # Leave README.md untouched, e.g. for trial builds with a throwaway -Version.
+    [switch]$NoReadme
 )
 Set-StrictMode -Version Latest
 $ErrorActionPreference = 'Stop'
@@ -344,6 +346,27 @@ if ($releaseRepository) {
     $updateFeedPath = Join-Path $OutputDirectory 'parallax-update.json'
     [IO.File]::WriteAllText($updateFeedPath, ($updateFeed | ConvertTo-Json) + "`n", [Text.UTF8Encoding]::new($false))
     Write-Host "Update feed: $updateFeedPath (attach to GitHub release v$Version with the package)"
+
+    # The README download badge links straight to this version's asset. Rewrite the lines
+    # between its markers so the link cannot fall behind a release. Commit the README only
+    # after the release is published; until then the new link would return 404.
+    $readmePath = Join-Path $ProjectRoot 'README.md'
+    if ((Test-Path -LiteralPath $readmePath -PathType Leaf) -and -not $NoReadme) {
+        $readme = [IO.File]::ReadAllText($readmePath)
+        $markers = [regex]'(?s)(<!-- download-badge:start[^\n]*-->\r?\n).*?(\r?\n<!-- download-badge:end -->)'
+        if ($markers.IsMatch($readme)) {
+            $badge = "[![Click here to download](https://img.shields.io/github/v/release/$releaseRepository" +
+                '?include_prereleases&logo=github&label=Click%20here%20to%20download&color=blueviolet&style=for-the-badge)]' +
+                "(${releaseBase}download/v$Version/$packageFileName)"
+            $updated = $markers.Replace($readme, { param($m) $m.Groups[1].Value + $badge + $m.Groups[2].Value }, 1)
+            if ($updated -cne $readme) {
+                [IO.File]::WriteAllText($readmePath, $updated, [Text.UTF8Encoding]::new($false))
+                Write-Host "README download badge now links $packageFileName; commit it after publishing v$Version."
+            }
+        } else {
+            Write-Warning 'README.md has no download-badge markers; its download link was not updated.'
+        }
+    }
 }
 
 Write-Host "Package: $packagePath"

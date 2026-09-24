@@ -2,7 +2,11 @@
 
 A modular Rainmeter instrument suite: Chronometer with multiple countdown lists, CPU, Memory Meter, GPU, Disk Meter, a dedicated Network Monitor, media controls with optional Spotify queue, and an independent audio visualizer.
 
-**[⬇ Download the latest release](https://github.com/davideAurum/Parallax/releases/latest)**: get the `Parallax_<version>.rmskin` file under **Assets** and double-click it. Requires Windows 10/11 and [Rainmeter](https://www.rainmeter.net/) 4.5.26 or newer. Parallax is in alpha.
+<!-- download-badge:start (rewritten by tools\Package-Parallax.ps1; do not edit by hand) -->
+[![Click here to download](https://img.shields.io/github/v/release/davideAurum/Parallax?include_prereleases&logo=github&label=Click%20here%20to%20download&color=blueviolet&style=for-the-badge)](https://github.com/davideAurum/Parallax/releases/download/v0.1.0-alpha/Parallax_0.1.0-alpha.rmskin)
+<!-- download-badge:end -->
+
+Double-click the downloaded `.rmskin` to install. Requires Windows 10/11 and [Rainmeter](https://www.rainmeter.net/) 4.5.26 or newer. Parallax is in alpha; [all releases](https://github.com/davideAurum/Parallax/releases).
 
 The revised design follows ModernGadgets' dense instrument layout: near-black bordered panels, IBM Plex Sans, aligned rows, colored data bars, and compact graphs. The default painted widths are 220 and 448 pixels with an 8-pixel gap. Width, scale, colors, fonts and module choices remain customizable. Development now happens directly in Claude rather than through separate per-module Codex tasks (see `docs/TASKS.md` for that historical structure); each utility still keeps its own file ownership for organization.
 

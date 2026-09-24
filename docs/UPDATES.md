@@ -61,7 +61,11 @@ The addresses baked into an installed copy are the ones it checks forever, until
 # 2. Run the release gates in docs\PACKAGING.md against dist\Parallax_0.2.0.rmskin.
 # 3. Publish: package, checksum and feed in one release, marked Latest.
 gh release create v0.2.0 dist\Parallax_0.2.0.rmskin dist\Parallax_0.2.0.rmskin.sha256 dist\parallax-update.json --title "Parallax 0.2.0" --notes-file <notes.md> --latest
+# 4. Only now commit and push README.md: the packager rewrote its download badge to the new asset.
+git commit -m "Point the README download at v0.2.0" README.md; git push
 ```
+
+The README's download badge links directly to one version's `.rmskin`, like many Rainmeter skin pages. `Package-Parallax.ps1` rewrites the line between the `download-badge` markers on every build, so the link cannot fall behind. Push that README change only after the release exists; pushed earlier, the badge would point at a file that is not there yet. For trial builds with a throwaway `-Version`, pass `-NoReadme`. The badge image comes from shields.io and shows the newest release, including pre-releases, on its own.
 
 Upload the package and the feed in the same `gh release create` call. A release that has the feed but not yet the package would send users to a 404; the helper reports that as a failed download and installs nothing, but it is avoidable. To withdraw a bad release, mark the previous release **Latest** again (or delete the bad one). Installed copies then stop offering it on their next check.
 

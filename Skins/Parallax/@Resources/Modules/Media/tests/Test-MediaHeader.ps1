@@ -146,7 +146,7 @@ SolidColor=0,0,0,0
 [MeterHeading]
 Meter=String
 MeasureName=MeasureMediaHeader
-Text=Media Player: %1
+Text=%1
 UpdateDivider=1
 W=100
 H=20
@@ -205,7 +205,7 @@ function AuditAndQuit()
             SKIN:Bang('!UpdateMeasureGroup', 'HeaderInputs')
             SKIN:Bang('!UpdateMeasure', 'MeasureMediaPulse')
             SKIN:Bang('!UpdateMeasure', 'MeasureMediaHeader')
-            equal(SKIN:GetMeasure('MeasureMediaHeader'):GetStringValue(), expected)
+            equal(SKIN:GetMeasure('MeasureMediaHeader'):GetStringValue(), 'Media Player: '..expected)
             equal(SKIN:GetVariable('HeaderIconRefreshSeen'), '0')
             equal(SKIN:GetVariable('MediaHeaderInjected'), '0')
             local playing = expected ~= 'stopped' and expected ~= 'paused'
@@ -231,7 +231,7 @@ function AuditAndQuit()
         stage(0, 'Spotify')
         stage(12, 'paused')
         equal(SKIN:GetMeter('MeterHeading'):GetOption('MeasureName'), 'MeasureMediaHeader')
-        equal(SKIN:GetMeter('MeterHeading'):GetOption('Text'), 'Media Player: %1')
+        equal(SKIN:GetMeter('MeterHeading'):GetOption('Text'), '%1')
         equal(SKIN:GetMeter('MeterHeading'):GetOption('DynamicVariables', '0'), '0')
         equal(SKIN:GetMeter('MeterMediaIcon'):GetOption('Meter'), 'Shape')
         equal(SKIN:GetMeter('MeterMediaIcon'):GetOption('Hidden'), '0')

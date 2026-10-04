@@ -18,7 +18,8 @@ user-selected Lucide metadata and playback icons are attributed below.
   User Round Group and Disc 3 icons identify the metadata rows. The one-line
   title reads `Media Player: stopped` (or `paused` for a paused track) behind
   Lucide Monitor Play when nothing is playing, and `Media Player: <player>`
-  behind animated Lucide Audio Lines while a track plays. Other playback-state captions
+  behind animated Lucide Audio Lines while a track plays. The compact layout
+  shortens the label to `Media:`. Other playback-state captions
   are omitted; the optional source explanation remains on the song icon's tooltip.
 - Previous, play/pause, and next controls use WNP capability measures. Unsupported
   controls appear muted, explain why in tooltips, and send no command. Lua checks
@@ -450,9 +451,13 @@ reads `paused`. Stopped, idle, disconnected and the plugin-free Setup
 entrypoint read `stopped`, while the body keeps the specific state: `No active
 media` or Setup's WebNowPlaying guidance.
 
-`MediaHeader.lua` runs after the source reader. `MeterHeading` binds its
-returned string as `%1` in `Media Player: %1`, with title typography and a
-fixed width. No player-supplied text becomes a bang, path, variable name or Lua
+`MediaHeader.lua` runs after the source reader. `MeterHeading` shows its
+returned string whole (`Text=%1`), with title typography and a fixed width.
+The script prefixes `Media Player: `, or `Media: ` when `Columns=1` (user
+direction, 2026-10-04): the full label left the compact title too little room
+for the state or a player name at 12 pt. A Columns change refreshes the skin,
+so the label is chosen once per load; `GetPlayerName()` still returns only the
+state or player. No player-supplied text becomes a bang, path, variable name or Lua
 command, and the adapter issues no bangs. The script retains a UTF-16LE BOM so
 Rainmeter's native Lua APIs preserve accented, CJK and non-BMP player names.
 
@@ -478,15 +483,17 @@ Measured title fit, IBM Plex Sans SemiBold advance widths at width 220/scale 1:
 
 | Layout, title size | Title width | `stopped` | `Spotify` | `Unknown` |
 | --- | ---: | ---: | ---: | ---: |
-| Double, 12 pt (live setting) | 221.2 | 165.8 fits | 157.9 fits | 175.5 fits |
-| Double, 10 pt | 224.0 | 138.2 fits | 131.5 fits | 146.2 fits |
-| Compact, 12 pt | 163.2 | 165.8 **clips** | 157.9 fits | 175.5 clips |
-| Compact, 10 pt | 166.0 | 138.2 fits | 131.5 fits | 146.2 fits |
+| Double, 12 pt (live setting), `Media Player:` | 221.2 | 165.8 fits | 157.9 fits | 175.5 fits |
+| Double, 10 pt, `Media Player:` | 224.0 | 138.2 fits | 131.5 fits | 146.2 fits |
+| Compact, 12 pt, `Media:` | 163.2 | 114.5 fits | 106.6 fits | 124.2 fits |
+| Compact, 10 pt, `Media:` | 166.0 | 95.4 fits | 88.8 fits | 103.5 fits |
 
-Compact at 12 pt clips `stopped` by 2.6 px. This is left open rather than
-patched: narrowing the gear clearance to make it fit leaves under 1.5 px of
-margin that any FontFace or renderer change would erase. The options are
-recorded in [Integration and next checks](#integration-and-next-checks).
+With the full label, compact at 12 pt clipped `stopped` by 2.6 px and
+`Unknown` by 12 px. The `Media:` label saves 51.3 px at 12 pt, so `paused`
+(108.3) and names up to about `Apple Music` (144.2) fit; only long names such
+as `Windows Media Player` (222.5) still end in an ellipsis. Widths are IBM Plex
+Sans SemiBold advance widths read from the bundled TTF, which reproduce the
+earlier 165.8 px figure.
 
 Specific WNP player names take precedence over a stale source label. Generic
 Windows sessions receive the Spotify name only when the existing correlation
@@ -627,7 +634,8 @@ Sources: [quota modes](https://developer.spotify.com/documentation/web-api/conce
 
 - `test_skin_contract.py`: 15 tests / 3,472 subtests passed, covering Media,
   Setup, Queue and Settings across widths, scales, columns and font profiles.
-  The header test now asserts the bound `Media Player: %1` title, the removed
+  The header test now asserts the bound `%1` title (the script supplies the
+  label since the compact `Media:` change), the removed
   player row, both icons sharing one box, the 24 px gear clearance and the
   compact art/metadata positions; the independent geometry model moved compact
   progress from 134 to 112 px and compact art from y44 to y30.
@@ -1277,11 +1285,10 @@ the Media header for its gear and click **Queue** or its **List Plus** icon to e
 
 ## Integration and next checks
 
-- Open (2026-10-04): at compact width 220 with a 12 pt title, `Media Player:
-  stopped` clips by 2.6 px (title width 163.2, text 165.8). Options: narrow the
-  gear clearance from 24 px to 20 px (fits with 1.4 px spare, fragile across
-  fonts); restore a second compact header line; or accept the ellipsis. Double
-  width at the live 12 pt setting fits with 55 px to spare.
+- Resolved (2026-10-04): the compact 12 pt clip of `Media Player: stopped`
+  (2.6 px) is fixed by the compact `Media:` label, chosen by the user over a
+  narrower gear clearance, a second header line or accepting the ellipsis.
+  Rendered appearance of the shorter label is not yet checked on screen.
 - Open (2026-10-04): the synthetic settings harness (`tests/Test-MediaSettings.ps1`
   with `tests/MediaSettingsSuite.luatest`) needs a rework. It was already stale
   before the single-row title: its height model predates the queue drawer (40

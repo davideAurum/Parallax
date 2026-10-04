@@ -543,7 +543,7 @@ class SkinContractTests(unittest.TestCase):
             sections,_,visited,_=read_config(config)
             header=sections['MeterHeading']
             self.assertEqual(header['MeasureName'],'MeasureMediaHeader')
-            self.assertEqual(header['Text'],'Media Player: %1')
+            self.assertEqual(header['Text'],'%1')
             self.assertNotIn('ToolTipText',header)
             self.assertEqual(header['UpdateDivider'],'1')
             self.assertNotIn('MeterPlayerName',sections)

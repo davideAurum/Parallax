@@ -13,7 +13,7 @@ function suite.run(sourcePath)
         test()
         cases[#cases + 1] = name .. ': ' .. (passed - before) .. ' assertions'
     end
-    local function fixture(overrides)
+    local function fixture(overrides, columns)
         local values = {
             MeasureConnection = { value = 1 }, MeasurePlayer = { text = 'Spotify' },
             MeasureMediaSource = { text = 'Spotify' }, MeasureTitle = { text = 'Synthetic fixture title' },
@@ -28,6 +28,11 @@ function suite.run(sourcePath)
             if value == false then return nil end
             return { GetValue = function() return value.value end, GetStringValue = function() return value.text end }
         end
+        function mock:GetVariable(name, default)
+            assert(name == 'Columns', 'Unexpected variable lookup: ' .. tostring(name))
+            if columns == nil then return default end
+            return columns
+        end
         function mock:Bang(...)
             calls = calls + 1
             error('The text-only header must never issue a bang; MediaPulse.lua owns the icon')
@@ -39,13 +44,27 @@ function suite.run(sourcePath)
         env.Initialize()
         check(calls == 0, 'Initialize must not issue commands')
         local f = { env = env, values = values }
+        f.label = columns == '1' and 'Media' or 'Media Player'
         function f.expect(name)
-            check(env.Update() == name, 'Incorrect detected name')
+            check(env.Update() == f.label .. ': ' .. name, 'Incorrect title')
             check(env.GetPlayerName() == name, 'Getter identity disagrees with Update')
             check(calls == 0, 'A title update must not swap the icon or issue actions')
         end
         return f
     end
+
+    scenario('compact layout shortens the label and keeps the state or player', function()
+        for _, case in ipairs({ { nil, 'Media Player' }, { '2', 'Media Player' }, { '1', 'Media' },
+                { '', 'Media Player' }, { '3', 'Media Player' }, { ' 1', 'Media Player' } }) do
+            local f = fixture(nil, case[1])
+            check(f.env.Update() == case[2] .. ': Spotify', 'Playing title uses the layout label')
+            f.values.MeasureState.value = 2
+            check(f.env.Update() == case[2] .. ': paused', 'Paused title uses the layout label')
+            f.values.MeasureConnection.value = 0
+            check(f.env.Update() == case[2] .. ': stopped', 'Stopped title uses the layout label')
+            check(f.env.GetPlayerName() == 'stopped', 'Getter stays the bare identity')
+        end
+    end)
 
     scenario('specific player and metadata changes remain passive', function()
         local f = fixture()

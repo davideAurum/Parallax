@@ -106,9 +106,10 @@ Hidden=(1-#MediaWide#)
 UpdateDivider=-1
 
 ; The current player is part of the title itself: "Media Player: stopped", or
-; the player's name while a track plays. MeasureMediaHeader (Header.inc)
-; supplies the suffix as inert text, so a long name clips with an ellipsis
-; before the gear rather than wrapping or shrinking the title font.
+; the player's name while a track plays ("Media: ..." in the compact layout).
+; MeasureMediaHeader (Header.inc) supplies the whole title as inert text, so a
+; long name clips with an ellipsis before the gear rather than wrapping or
+; shrinking the title font.
 [MeterHeading]
 Meter=String
 MeterStyle=StyleTitle|StyleTitleRow
@@ -116,7 +117,7 @@ X=(#ContentX#+#TitleIconSize#+#TitleIconGap#)
 Y=(#TitleRowCenterY#+#MediaSurfaceOffset#)
 W=#MediaHeadingWidth#
 MeasureName=MeasureMediaHeader
-Text=Media Player: %1
+Text=%1
 UpdateDivider=1
 
 [MeterQueueRule]

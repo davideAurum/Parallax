@@ -545,7 +545,7 @@ class SkinContractTests(unittest.TestCase):
             player=sections['MeterPlayerName']
             self.assertEqual(player['MeasureName'],'MeasureMediaHeader')
             self.assertEqual(player['Text'],'%1')
-            self.assertEqual(player['ToolTipText'],'%1')
+            self.assertNotIn('ToolTipText',player)
             self.assertEqual(player['UpdateDivider'],'1')
             self.assertEqual(visited[-1].name,'Header.inc')
             actual={name for name,section in sections.items() if 'Meter' in section and resolve_style(sections,name).get('Group')=='MediaPlayerIcons'}

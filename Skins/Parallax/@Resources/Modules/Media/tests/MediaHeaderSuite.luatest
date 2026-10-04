@@ -107,13 +107,13 @@ function suite.run(sourcePath)
         f.expect('stopped')
     end)
 
-    scenario('only a reported Playing state names the player', function()
+    scenario('only a reported Playing state names the player; Paused reads paused', function()
         local f = fixture()
         f.values.MeasurePlayer.text = 'Windows Media Session'
         f.expect('Spotify')
         for _, state in ipairs({ 2, 0, 3, -1, 'invalid', 0 / 0, math.huge, -math.huge, false }) do
             f.values.MeasureState.value = state
-            f.expect('stopped')
+            f.expect(state == 2 and 'paused' or 'stopped')
         end
         f.values.MeasureState.value = nil
         f.expect('stopped')
@@ -123,7 +123,13 @@ function suite.run(sourcePath)
         f.values.MeasurePlayer.text = 'VLC'
         f.expect('VLC')
         f.values.MeasureState.value = 2
-        f.expect('stopped')
+        f.expect('paused')
+        f.values.MeasureTitle.text = ''
+        f.expect('stopped', 'paused without a track reads stopped')
+        f.values.MeasureTitle.text = 'Synthetic title'
+        f.values.MeasureConnection.value = 0
+        f.expect('stopped', 'disconnected paused state reads stopped')
+        f.values.MeasureConnection.value = 1
         f.values.MeasureState = false
         f.env.Initialize()
         f.expect('stopped')

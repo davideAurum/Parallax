@@ -16,9 +16,9 @@ user-selected Lucide metadata and playback icons are attributed below.
 - `Skins/Parallax/Media/Media.ini`: optional WebNowPlaying player with title,
   artist, album, cover, reported position/duration, and progress. Lucide Music,
   User Round Group and Disc 3 icons identify the metadata rows. The one-line
-  title reads `Media Player: stopped` behind Lucide Monitor Play when nothing is
-  playing, and `Media Player: <player>` behind animated Lucide Audio Lines while
-  a track plays. Other playback-state captions
+  title reads `Media Player: stopped` (or `paused` for a paused track) behind
+  Lucide Monitor Play when nothing is playing, and `Media Player: <player>`
+  behind animated Lucide Audio Lines while a track plays. Other playback-state captions
   are omitted; the optional source explanation remains on the song icon's tooltip.
 - Previous, play/pause, and next controls use WNP capability measures. Unsupported
   controls appear muted, explain why in tooltips, and send no command. Lua checks
@@ -439,14 +439,16 @@ User direction, 2026-10-04: one title, one icon, both driven by whether
 something is playing. Nothing playing shows Lucide Monitor Play and
 `Media Player: stopped`; a playing track shows animated Lucide Audio Lines
 and `Media Player: <player>`. The separate current-player row is removed.
+User direction, later the same day: a paused track reads `Media Player: paused`
+instead of `stopped`, keeping Monitor Play.
 
 "Playing" means WNP is connected, reports state 1 (Playing) and has a
 nonblank track title. `MediaHeader.lua` (the text) and `MediaPulse.lua` (the
 icon) apply that identical test to the same cached measure values, so the two
-switch on the same update. Paused, stopped, idle, disconnected and the
-plugin-free Setup entrypoint all read `stopped` - a literal reading of the
-request - while the body keeps the specific state: `No active media`, the
-paused play/pause glyph, or Setup's WebNowPlaying guidance.
+switch on the same update. A paused track (connected, state 2, nonblank title)
+reads `paused`. Stopped, idle, disconnected and the plugin-free Setup
+entrypoint read `stopped`, while the body keeps the specific state: `No active
+media` or Setup's WebNowPlaying guidance.
 
 `MediaHeader.lua` runs after the source reader. `MeterHeading` binds its
 returned string as `%1` in `Media Player: %1`, with title typography and a

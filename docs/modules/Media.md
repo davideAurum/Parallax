@@ -630,6 +630,94 @@ Sources: [quota modes](https://developer.spotify.com/documentation/web-api/conce
 
 ## Validation report
 
+### Synthetic settings harness brought up to date (2026-10-04)
+
+`tests/Test-MediaSettings.ps1` and `tests/MediaSettingsSuite.luatest` now
+model the current drawer, transport and single-row title. Before this pass,
+40 of the 60 default cases and the label-sync case failed on native skin
+height, probing the removed `MeterPlayerName` logged 40 Rainmeter errors, and
+only the 20 Settings cases passed. The harness changes:
+
+- **Height model.** The suite's geometry mirrors `media_body_geometry` and
+  `media_drawer_geometry` in `test_skin_contract.py` from the same primitives
+  instead of reading the skin's variables back: the body ends one padding below
+  the timing text, wide art is sized from the body, compact art sits at y30,
+  the circles are centred on the panel's lower border, and the window clears
+  the art, circles and open sheet.
+- **Title.** `MeterHeading` must show `MeasureMediaHeader` whole (`Text=%1`),
+  reading `Media Player: <state>` at double width and `Media: <state>` at one
+  column, with title typography, no tooltip, `ClipString=1` and the 24 px gear
+  clearance; `MeterPlayerName` must be absent; exactly one title icon shows in
+  the shared slot, matching the header text. The synthetic WebNowPlaying
+  include now keeps the production `MediaPulse.lua`, which it previously
+  dropped, so the icon swap runs natively. Identity stages wait one
+  `#MediaLegacyDivider#` cycle so the title is observed at its production
+  cadence; the paused stage expects `paused` with Monitor Play, and the
+  disconnected and idle stages expect `stopped`. The title glyph probe binds
+  `MeasureMediaHeader`, so it measures the live text.
+- **Queue.** Rows, digits and delimiters on the drawer pitch from
+  `MediaQueueRowsY`, the column header at the sheet top, hidden parts parked at
+  the inset, the sheet's open and closed bottom, the notch toggle and label,
+  and the retired footer staying hidden. Setup must hide the tab.
+- **Transport.** Static placement (`LayoutTransport` is disabled): 44 px boxes
+  on a 38 px pitch, accent faces with background-coloured glyphs, play/pause art
+  from `Shape4`, clear of the first queue row. Timing keeps its right
+  alignment, cap and auto width.
+- **Runner.** Pixel checks read the rendered bounds the suite reports instead
+  of re-deriving pre-drawer coordinates; the transport check samples each
+  accent face and its glyph. The fixed 50 s report deadline is replaced by a
+  45 s no-progress / 300 s overall limit: full runs now take 58–61 s, so the
+  old deadline would fail them outright. One fixture regex now tolerates a
+  CRLF checkout of `Settings.ini`.
+
+Results in isolated Rainmeter 4.5.26 on main `c95f235` (the paused title and
+compact `Media:` label), zero Rainmeter errors in every run:
+
+- Full default matrix: 60/60 cases and label sync passed, with 7 captures,
+  under the documented `powershell.exe` 5.1 command. Before those two commits
+  it had also passed twice, under PowerShell 7.6 and 5.1.
+- Focused modes under Windows PowerShell 5.1: title row 12, identity 25,
+  player name 5, queue toggle 4, queue empty 1, bar thickness 3, artwork 39,
+  header 12 and compact status 1 layouts, all passing. The settings-only and
+  source-integration modes were not rerun: their code is unchanged and the full
+  run's 30 Settings and Typography Settings cases cover it.
+- `test_skin_contract.py`: 15 tests passed; no production file changed.
+- Inspected captures include compact 180 at 12 pt showing `Media: Spotify`
+  with Audio Lines and `Media: stopped` with Monitor Play, both unclipped.
+  These are synthetic native renders, not the live screen.
+
+Measured by the title probe, which renders the same bound text as the title.
+Fit is asserted except at double width 180 with the 12 pt title, which is
+reported. IBM Plex Sans at scale 1; values are glyph/box px; compact layouts
+read `Media: <state>`, double width `Media Player: <state>`.
+
+| Title | Compact 180 | Compact 220 | Double 180 | Double 220 |
+| --- | --- | --- | --- | --- |
+| 10 pt `stopped` | 96/126 | 96/166 | 138/144 | 138/224 |
+| 10 pt `Spotify` | 89/126 | 89/166 | 132/144 | 132/224 |
+| 12 pt `stopped` | 115/123 | 115/163 | 166/141, clips | not measured |
+| 12 pt `Spotify` | 107/123 | 107/163 | 158/141, clips | 158/221 |
+
+The remaining items are measured but not failed, because each belongs to an
+open design decision below:
+
+- The notch label `Queue` is clamped to 7 px at compact width 180 and to 1 px
+  at double width 180, leaving the icon alone, and clips by 7 px at double 220
+  with a 10 pt header.
+- With the queue expanded at compact width 180, the circles cover part of the
+  `Song / Artist` column header: a 36×13 px box overlap at the default font,
+  52×13 at the maximum. Compact 220 and double width were not measured.
+- The right circle overlaps the timing text in every compact layout and at
+  double 180 (for example 34×11 px at compact 180, 19×11 at compact 220 and
+  8×11 at double 180, all scale 1); double 220 shows none.
+- Setup has no drawer, but with `QueueExpanded=1` its rows still render
+  below the panel with no sheet and no toggle to collapse them.
+
+Not verified: the real WNP plugin and a live player, physical pointer input,
+mixed DPI and performance. Evidence for the final full run:
+`%TEMP%\Parallax-MediaSettings-test-f7a5ef4dec744c7aaeb103353001f230`; the
+focused runs' roots sit beside it.
+
 ### Single-row title and playing-state icon (2026-10-04)
 
 - `test_skin_contract.py`: 15 tests / 3,472 subtests passed, covering Media,
@@ -1288,15 +1376,23 @@ the Media header for its gear and click **Queue** or its **List Plus** icon to e
 - Resolved (2026-10-04): the compact 12 pt clip of `Media Player: stopped`
   (2.6 px) is fixed by the compact `Media:` label, chosen by the user over a
   narrower gear clearance, a second header line or accepting the ellipsis.
-  Rendered appearance of the shorter label is not yet checked on screen.
-- Open (2026-10-04): the synthetic settings harness (`tests/Test-MediaSettings.ps1`
-  with `tests/MediaSettingsSuite.luatest`) needs a rework. It was already stale
-  before the single-row title: its height model predates the queue drawer (40
-  of 60 cases failed only on native skin bounds), and it still expects a
-  player-name tooltip that the 2026-09-19 tooltip audit removed. It also probes
-  the now-removed `MeterPlayerName` and the old static `Media Player` heading.
-  The source contract test and `tests/Test-MediaHeader.ps1` cover the header
-  in the meantime.
+  Rendered appearance of the shorter label is not yet checked on screen; the
+  synthetic native harness renders it unclipped at compact 180 and 220 with
+  both title sizes. Still open: double width 180 at 12 pt clips
+  `Media Player: stopped` (166/141 px) and `Spotify` (158/141).
+- Done (2026-10-04): the synthetic settings harness (`tests/Test-MediaSettings.ps1`
+  with `tests/MediaSettingsSuite.luatest`) now matches the drawer, static
+  transport and single-row title; the full matrix and nine focused modes pass.
+  See [the harness entry](#synthetic-settings-harness-brought-up-to-date-2026-10-04).
+- Open (2026-10-04), part of the deferred transport x-axis decision: the
+  circles overlap the timing text in compact layouts and at double 180, and,
+  with the queue expanded at compact 180, part of the `Song / Artist` header,
+  which `InlineQueueGeometry.inc` assumes ends left of the buttons. The notch
+  label degrades to its icon at width 180 in both layouts. The harness
+  measures and reports all three.
+- Open (2026-10-04): Setup has no drawer, yet `QueueExpanded=1` (saved from
+  the player or Settings) still shows its queue rows below the panel, with no
+  sheet and no toggle. Either suppress the rows in Setup or give it the drawer.
 - Prefer `Setup.ini` for the initial suite layout; Media.ini requires the WNP
   plugin, which the `.rmskin` bundles (source copies need a manual install).
   Preserve `@Resources/User/Media.inc` on upgrades.

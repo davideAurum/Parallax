@@ -67,7 +67,7 @@ function Install-SettingsInputFixture([string]$CaseRoot) {
     $entryPath=Join-Path $CaseRoot 'Media\Settings\Settings.ini'
     $entry=[IO.File]::ReadAllText($entryPath)
     $replacement="[MeasureMediaSettingsInput]`nMeasure=Script`nScriptFile=#@#Modules\Media\SettingsInputFixture.lua`n`n"
-    if ([regex]::Matches($entry,'(?m)^\[MeasureMediaSettingsInput\]$').Count -ne 1) { throw 'Expected exactly one fixed input measure.' }
+    if ([regex]::Matches($entry,'(?m)^\[MeasureMediaSettingsInput\]\r?$').Count -ne 1) { throw 'Expected exactly one fixed input measure.' }
     $entry=[regex]::Replace($entry,'(?ms)^\[MeasureMediaSettingsInput\]\r?\n.*?(?=^\[|\z)',$replacement)
     Write-TestFile $entryPath $entry
     $fixture=@'
@@ -313,6 +313,9 @@ function Tripwire() SKIN:Bang('!SetVariable','IdentitySentinel','escaped'); retu
             [IO.File]::WriteAllText($titlePath,"function Update() if SKIN:GetVariable('FixtureIdle','0')=='1' then return '' end return 'Agpqy title' end",[Text.Encoding]::Unicode)
             $synthetic=[regex]::Replace($synthetic,'(?ms)\[MeasureTitle\]\r?\nMeasure=String\r?\nString=[^\r\n]*\r?\n\r?\n',"[MeasureTitle]`nMeasure=Script`nScriptFile=$titlePath`n`n")
         }
+        # The production title-icon swap: pure, no file/process access, and it
+        # reads only the synthetic Connection/State/Title measures above.
+        $synthetic+="[MeasureMediaPulse]`nMeasure=Script`nScriptFile=#@#Modules\Media\MediaPulse.lua`n`n"
         $synthetic+="[MeasureMediaUI]`nMeasure=Script`nScriptFile=#@#Modules\Media\Media.lua`n"
         Write-TestFile (Join-Path $caseRoot '@Resources\Modules\Media\WebNowPlaying.inc') $synthetic
         if (($IdentityFocused -or $QueueToggleFocused) -and $isPlayer) {
@@ -392,19 +395,24 @@ ExpectedBarThickness=$($barThickness.ToString([Globalization.CultureInfo]::Invar
           @('MeterSourceGuidance','Identifies Spotify locally; no sign-in needed.'),@('MeterQueueGuidance','Sign in starts polling. Restart applies changes.'),
           @('MeterUtilitySettingsNote','Media settings are found here.'),@('MeterUtilitySettingsGlobalLink','Global Settings are found here.'))
     } else {
-        @(@('MeterHeading','Media Player'),@('MeterPlayerName',$(if($isPlayer){'Spotify'}else{'Setup'})),@('MeterQueueHeading','Queue'),@('MeterQueueStatus','Storage error'),@('MeterQueueRow1','Track / Artist'))
+        # The single-row title binds MeasureMediaHeader (see the probe loop),
+        # so its probe renders the same live title text.
+        # The retired footer status is hidden and no longer probed.
+        @(@('MeterHeading','%1'),@('MeterQueueHeading','Queue'),@('MeterQueueHeaderTrack','Song / Artist'),@('MeterQueueRow1','Track / Artist'))
     }
-    if ($IdentityFocused) { $probes=@(@('MeterHeading','Media Player'),@('MeterPlayerName',$(if ($isPlayer) { 'Spotify' } else { 'Setup' }))) }
+    if ($IdentityFocused) { $probes=@(,@('MeterHeading','%1')) }
     if ($TitleRowFocused) {
         if ($isSettings) { $probes=@(@('MeterTitle','Media settings'),@('MeterClose','X')) }
         elseif ($kind.EndsWith('Queue')) { $probes=@(@('MeterHeading','Spotify queue'),@('MeterQueueStatus','Next 5')) }
-        elseif ($isPlayer) { $probes=@(@('MeterHeading','Media Player'),@('MeterPlayerName','Spotify')) }
-        else { $probes=@(@('MeterHeading','Media Player'),@('MeterPlayerName','Setup'),@('MeterSetupStatus','Optional WebNowPlaying')) }
+        elseif ($isPlayer) { $probes=@(,@('MeterHeading','%1')) }
+        else { $probes=@(@('MeterHeading','%1'),@('MeterSetupStatus','Optional WebNowPlaying')) }
     }
     if ($isPlayer) { $probes+=@(@('MeterTrackTitle','Agpqy'),@('MeterArtist','Agpqy'),@('MeterAlbum','Agpqy'),@('MeterTiming','0:45 / 3:00'),@('MeterTimingUnavailable','-- / --'),@('MeterCoverLabel','N/A')) }
     elseif (-not $isSettings) { $probes+=@(@('MeterSetupInstructions','1. WNP plugin is bundled.#CRLF#2. Open a player.'),@('MeterDesktopNote','Browser: add extension.'),@('MeterWNPDocs','WNP docs'),@('MeterLoadPlayer','Load player')) }
     foreach ($probe in $probes) {
-        $entry+="`n[Probe$($probe[0])]`nMeter=String`nGroup=TypographyProbes`nX=0`nY=0`nText=$($probe[1])`nClipString=0`nHidden=1`nFontColor=0,0,0,0`nPadding=0,0,0,0`nAntiAlias=1`n"
+        # Measure binding keeps player names literal, exactly as in MeterHeading.
+        $bound=if ($probe[1].Contains('%1')) { "MeasureName=MeasureMediaHeader`n" } else { '' }
+        $entry+="`n[Probe$($probe[0])]`nMeter=String`nGroup=TypographyProbes`nX=0`nY=0`n${bound}Text=$($probe[1])`nClipString=0`nHidden=1`nFontColor=0,0,0,0`nPadding=0,0,0,0`nAntiAlias=1`n"
     }
     if (-not $isSettings) {
         $statusIndex=0
@@ -566,7 +574,8 @@ function Measure-TitleInkGap([Drawing.Bitmap]$Bitmap,[object]$Case) {
     $queue=$Case.Kind.EndsWith('Queue')
     $inset=[math]::Floor(4*$Case.Scale+0.5)
     $offset=if ($queue) { 0 } else { [math]::Floor(12*($Case.Columns-1)*$Case.Scale+0.5) }
-    $statusY=$inset+$offset+$(if ($queue) { 26 } else { 50 })*$Case.Scale
+    # Setup's status tops the metadata block: 26px title row plus a 4px gap.
+    $statusY=$inset+$offset+$(if ($queue) { 26 } else { 30 })*$Case.Scale
     $limit=[int][math]::Ceiling($statusY+18*$Case.Scale)
     $titleBottom=-1; $statusTop=$limit
     for ($y=0;$y -lt $limit;$y++) { for ($x=0;$x -lt $Bitmap.Width;$x++) {
@@ -578,6 +587,27 @@ function Measure-TitleInkGap([Drawing.Bitmap]$Bitmap,[object]$Case) {
     $clear=$statusTop-$titleBottom-1
     if ($clear -lt 1) { throw "Title/status glyphs collide in $($Case.Name): title bottom $titleBottom, status top $statusTop." }
     return [ordered]@{TitleBottom=$titleBottom;StatusTop=$statusTop;ClearRows=$clear}
+}
+function Get-ReportedBounds([string]$Report,[string]$Meter) {
+    # The native suite reports rendered X,Y,W,H for the meters sampled below,
+    # so pixel checks follow the skin's own layout instead of re-deriving it.
+    $position=[regex]::Match($Report,"(?m)[=;]${Meter}:(-?[0-9.]+),(-?[0-9.]+),([0-9.]+),([0-9.]+)")
+    if (-not $position.Success) { throw "Missing native bounds for $Meter." }
+    return @(1..4 | ForEach-Object { [double]::Parse($position.Groups[$_].Value,[Globalization.CultureInfo]::InvariantCulture) })
+}
+function Measure-TransportFace([Drawing.Bitmap]$Bitmap,[double[]]$Bounds,[double]$Scale) {
+    # Accent face pixels inside the circle, and background-colored glyph pixels
+    # well inside it, where only the face or its art can be painted.
+    $centerX=$Bounds[0]+$Bounds[2]/2; $centerY=$Bounds[1]+$Bounds[3]/2; $radius=17*$Scale
+    $face=0; $glyph=0
+    for ($x=[int][math]::Floor($centerX-$radius);$x -le [math]::Ceiling($centerX+$radius);$x++) { for ($y=[int][math]::Floor($centerY-$radius);$y -le [math]::Ceiling($centerY+$radius);$y++) {
+        $distance=[math]::Sqrt([math]::Pow($x+0.5-$centerX,2)+[math]::Pow($y+0.5-$centerY,2))
+        if ($distance -gt $radius-2*$Scale) { continue }
+        $pixel=$Bitmap.GetPixel($x,$y)
+        if ($pixel.G -gt $pixel.R+20 -and $pixel.B -gt $pixel.G+20) { $face++ }
+        elseif ($distance -le $radius-3*$Scale -and [math]::Max($pixel.R,[math]::Max($pixel.G,$pixel.B)) -lt 70) { $glyph++ }
+    } }
+    return [ordered]@{Face=$face;Glyph=$glyph}
 }
 function Save-ViewCaptures([uint32]$OwnedPid) {
     $captures=@()
@@ -611,18 +641,20 @@ function Save-ViewCaptures([uint32]$OwnedPid) {
             $colors=[Collections.Generic.HashSet[int]]::new()
             for ($x=0;$x -lt $bitmap.Width;$x+=2) { for ($y=0;$y -lt $bitmap.Height;$y+=2) { $null=$colors.Add($bitmap.GetPixel($x,$y).ToArgb()) } }
             if (-not $printed -or $colors.Count -le 16) { throw 'Native capture is blank/unsupported.' }
+            $nativeReport=[IO.File]::ReadAllText($case.Report)
             $artworkPixels=$null
             if ($ArtworkFocused -and $case.Columns -eq 2 -and $case.Scale -eq 1) {
-                # Test fixture has Gutter=8: tile origin(4,4), proportional
-                # size75% of its former90%-column size, radius10 at scale1.
+                # Wide art keeps its top-left anchor at the inset with a 10px
+                # radius; Player draws the cover mask, Setup the placeholder.
                 # The top-left corner is clear of the surface at x100, so an
                 # unmasked rectangular cover cannot accidentally pass here.
-                $artSize=[int][math]::Floor([math]::Floor($case.Width*0.9+0.5)*0.75+0.5)
-                $artMiddle=4+[int][math]::Floor($artSize/2)
-                $corner=$bitmap.GetPixel(5,5)
-                $top=$bitmap.GetPixel($artMiddle,4)
-                $left=$bitmap.GetPixel(4,$artMiddle)
-                $inside=$bitmap.GetPixel(14,14)
+                $art=Get-ReportedBounds $nativeReport $(if ($case.Kind.Contains('Player')) { 'MeterCoverMask' } else { 'MeterArtworkPlaceholder' })
+                $artX=[int]$art[0]; $artY=[int]$art[1]
+                $artMiddle=$artX+[int][math]::Floor($art[2]/2)
+                $corner=$bitmap.GetPixel($artX+1,$artY+1)
+                $top=$bitmap.GetPixel($artMiddle,$artY)
+                $left=$bitmap.GetPixel($artX,$artMiddle)
+                $inside=$bitmap.GetPixel($artX+10,$artY+10)
                 $artworkPixels=[ordered]@{Corner=@($corner.R,$corner.G,$corner.B);TopBorder=@($top.R,$top.G,$top.B);LeftBorder=@($left.R,$left.G,$left.B);Inside=@($inside.R,$inside.G,$inside.B)}
                 if ([math]::Max($corner.R,[math]::Max($corner.G,$corner.B)) -gt 5) { throw "Artwork corner is not clipped in $($case.Name): $($artworkPixels | ConvertTo-Json -Compress)" }
                 foreach ($edge in @($top,$left)) {
@@ -641,97 +673,76 @@ function Save-ViewCaptures([uint32]$OwnedPid) {
                 # stays blank. Check actual neutral icon pixels after the
                 # disconnected -> idle -> playing transition as well.
                 $metadataPixels=[ordered]@{}
-                $wide=$case.Columns -eq 2
-                $inset=[math]::Floor(4*$case.Scale+0.5)
-                $unit=[math]::Floor($case.Width*$case.Scale+0.5)
-                $art=[math]::Floor($unit*0.9+0.5)
-                $contentX=$inset+$(if ($wide) { $art+8*$case.Scale } else { [math]::Floor(6*$case.Scale+0.5) })
-                $iconX=[int]($contentX+$(if ($wide) { 0 } else { 54*$case.Scale }))
-                $iconY=$inset+$(if ($wide) { [math]::Floor(12*$case.Scale+0.5) } else { 0 })+55*$case.Scale
-                $row=0
                 foreach ($iconName in @('Song','Artist','Album')) {
-                    $count=0; $top=[int]($iconY+24*$row*$case.Scale)
-                    for ($x=$iconX;$x -lt $iconX+14*$case.Scale;$x++) { for ($y=$top;$y -lt $top+14*$case.Scale;$y++) {
+                    $icon=Get-ReportedBounds $nativeReport "Meter${iconName}Icon"
+                    $count=0; $iconX=[int][math]::Floor($icon[0]); $top=[int][math]::Floor($icon[1])
+                    for ($x=$iconX;$x -lt $iconX+$icon[2];$x++) { for ($y=$top;$y -lt $top+$icon[3];$y++) {
                         $pixel=$bitmap.GetPixel($x,$y)
                         if ($pixel.R -ge 80 -and $pixel.R -le 210 -and [math]::Abs($pixel.R-$pixel.G) -le 2 -and [math]::Abs($pixel.R-$pixel.B) -le 2) { $count++ }
                     } }
                     $metadataPixels[$iconName]=$count
                     if ($count -lt 3) { throw "Metadata $iconName icon is visually blank after identity transitions in $label; capture $file" }
-                    $row++
                 }
                 $transportPixels=[ordered]@{}
-                $nativeReport=[IO.File]::ReadAllText($case.Report)
                 foreach ($controlName in @('Previous','PlayPause','Next')) {
-                    $position=[regex]::Match($nativeReport,"Meter${controlName}:([0-9.]+),([0-9.]+),([0-9.]+),([0-9.]+)")
-                    if (-not $position.Success) { throw 'Missing native transport bounds for pixel verification.' }
-                    $coordinates=@(1..4 | ForEach-Object { [double]::Parse($position.Groups[$_].Value,[Globalization.CultureInfo]::InvariantCulture) })
-                    $count=0; $left=[int][math]::Floor($coordinates[0]);$controlTop=[int][math]::Floor($coordinates[1])
-                    for ($x=$left;$x -lt $left+$coordinates[2];$x++) { for ($y=$controlTop;$y -lt $controlTop+$coordinates[3];$y++) {
-                        $pixel=$bitmap.GetPixel($x,$y)
-                        if ($pixel.G -gt $pixel.R+20 -and $pixel.B -gt $pixel.G+20) { $count++ }
-                    } }
-                    $transportPixels[$controlName]=$count
-                    if ($count -lt 3) { throw "Transport $controlName icon is visually blank after identity transitions in $label; capture $file" }
+                    $face=Measure-TransportFace $bitmap (Get-ReportedBounds $nativeReport "Meter$controlName") $case.Scale
+                    $transportPixels[$controlName]=$face
+                    if ($face.Face -lt 30 -or $face.Glyph -lt 3) { throw "Transport $controlName face or glyph is visually blank after identity transitions in $label`: $($face | ConvertTo-Json -Compress); capture $file" }
                 }
+                # Exactly one title icon draws: the final stage plays, so the
+                # Audio Lines drawing shows and Monitor Play reports 0x0.
                 $headerPixels=[ordered]@{}
                 foreach ($iconName in @('Media','Player')) {
-                    $position=[regex]::Match($nativeReport,"Meter${iconName}Icon:([0-9.]+),([0-9.]+),([0-9.]+),([0-9.]+)")
-                    if (-not $position.Success) { throw 'Missing native title/player icon bounds.' }
-                    $coordinates=@(1..4 | ForEach-Object { [double]::Parse($position.Groups[$_].Value,[Globalization.CultureInfo]::InvariantCulture) })
-                    $count=0; $left=[int][math]::Floor($coordinates[0]);$top=[int][math]::Floor($coordinates[1])
-                    for ($x=$left;$x -lt $left+$coordinates[2];$x++) { for ($y=$top;$y -lt $top+$coordinates[3];$y++) {
+                    $icon=Get-ReportedBounds $nativeReport "Meter${iconName}Icon"
+                    $count=0; $left=[int][math]::Floor($icon[0]);$top=[int][math]::Floor($icon[1])
+                    for ($x=$left;$x -lt $left+$icon[2];$x++) { for ($y=$top;$y -lt $top+$icon[3];$y++) {
                         $pixel=$bitmap.GetPixel($x,$y)
                         if ($pixel.G -gt $pixel.R+20 -and $pixel.B -gt $pixel.G+20) { $count++ }
                     } }
-                    $headerPixels[$iconName]=$count
-                    if ($count -lt 3) { throw "Title/player $iconName icon is visually blank in $label; capture $file" }
+                    $headerPixels[$iconName]=[ordered]@{Width=$icon[2];Pixels=$count}
+                }
+                if ($headerPixels.Player.Width -le 0 -or $headerPixels.Player.Pixels -lt 3 -or $headerPixels.Media.Width -ne 0) {
+                    throw "Playing title icon is blank or not alone in $label`: $($headerPixels | ConvertTo-Json -Compress); capture $file"
                 }
             }
             $queuePixels=$null
             if ($QueueToggleFocused -and -not $BarThicknessFocused) {
                 # The four fixtures finish in paired expanded Setup / collapsed
-                # Player states. Sample the vertical plus above/below the
-                # horizontal stroke, so nominal bounds alone cannot pass.
-                $wide=$case.Columns -eq 2
-                $baseArt=if ($wide) { [math]::Floor($case.Width*0.9+0.5) } else { 48 }
-                $art=[math]::Floor($baseArt*0.75+0.5)
-                $offset=if ($wide) { 12 } else { 0 }
-                $barHeight=[math]::Max(1,[math]::Floor($case.BarThickness+0.5))
-                # Body is the larger of the frozen legacy anchor and the current
-                # section-gap layout; the latter now wins at standard width.
-                $legacyControls=$offset+122+[math]::Max(2,6-$barHeight/2)+$barHeight+8
-                $controls=$offset+$(if ($wide) { 112 } else { 134 })+$barHeight+8
-                $legacyArtBottom=if ($wide) { $art } else { 44+$art }
-                $artBottom=if ($wide) { 96+54 } else { 44+$art }
-                $legacyBody=[math]::Max(162+$offset,[math]::Ceiling([math]::Max($legacyArtBottom,$legacyControls+26)+37))
-                $body=[math]::Max($legacyBody,[math]::Ceiling([math]::Max($artBottom,$controls+26)+37))
-                $left=4+$(if ($wide) { 96 } else { 0 })+6+44
-                $top=4+$body-21
-                $vertical=0; $list=0
-                for ($x=0;$x -lt 18;$x++) { for ($y=0;$y -lt 18;$y++) {
-                    $pixel=$bitmap.GetPixel($left+$x,$top+$y)
-                    if ($pixel.G -gt $pixel.R+20 -and $pixel.G -gt $pixel.B+10) {
-                        $list++
-                        if ($x -in @(12,13) -and $y -in @(7,10)) { $vertical++ }
-                    }
-                } }
+                # Player states. Setup has no drawer, so its notch toggle is
+                # hidden (0x0) and draws nothing. For Player, sample the
+                # vertical plus above/below the horizontal stroke in the notch,
+                # so nominal bounds alone cannot pass.
+                $toggle=Get-ReportedBounds $nativeReport 'MeterQueueToggle'
                 $expanded=$case.Kind.EndsWith('Setup')
-                $queuePixels=[ordered]@{Expanded=$expanded;X=$left;Y=$top;ListPixels=$list;PlusVerticalPixels=$vertical}
-                if ($list -lt 15 -or ($expanded -and $vertical -ne 0) -or (-not $expanded -and $vertical -lt 1)) {
-                    throw "Queue plus/minus pixels disagree with persisted state in $label`: $($queuePixels | ConvertTo-Json -Compress); capture $file"
+                if ($expanded) {
+                    if ($toggle[2] -ne 0) { throw "Setup shows a queue toggle without a drawer in $label; capture $file" }
+                    $queuePixels=[ordered]@{Expanded=$true;Hidden=$true}
+                } else {
+                    $left=[int][math]::Floor($toggle[0]); $top=[int][math]::Floor($toggle[1])
+                    $vertical=0; $list=0
+                    for ($x=0;$x -lt 18;$x++) { for ($y=0;$y -lt 18;$y++) {
+                        $pixel=$bitmap.GetPixel($left+$x,$top+$y)
+                        if ($pixel.G -gt $pixel.R+20 -and $pixel.G -gt $pixel.B+10) {
+                            $list++
+                            if ($x -in @(12,13) -and $y -in @(7,10)) { $vertical++ }
+                        }
+                    } }
+                    $queuePixels=[ordered]@{Expanded=$false;X=$left;Y=$top;ListPixels=$list;PlusVerticalPixels=$vertical}
+                    if ($list -lt 15 -or $vertical -lt 1) {
+                        throw "Queue plus/minus pixels disagree with persisted state in $label`: $($queuePixels | ConvertTo-Json -Compress); capture $file"
+                    }
                 }
             }
             $titleInkGap=if ($TitleRowFocused) { Measure-TitleInkGap $bitmap $case } else { $null }
             $barPixels=$null
             if ($BarThicknessFocused) {
-                $s=$case.Scale; $wide=$case.Columns -eq 2
-                $inset=[math]::Floor(4*$s+0.5); $padding=[math]::Floor(6*$s+0.5)
-                $art=[math]::Floor([math]::Floor([math]::Floor($case.Width*$s+0.5)*0.9+0.5)*0.75+0.5)
-                $offset=if ($wide) { [math]::Floor(12*$s+0.5) } else { 0 }
+                # The suite asserts the bar's position; here only its painted
+                # height is compared with the rounded shared thickness.
+                $s=$case.Scale
+                $bar=Get-ReportedBounds $nativeReport 'MeterProgress'
                 $barHeight=[math]::Max(1,[math]::Floor($case.BarThickness*$s+0.5))
-                $barTop=$inset+$offset+$(if ($wide) { 112 } else { 134 })*$s
-                $barLeft=$inset+$(if ($wide) { $art+4*$s } else { $padding })
-                $sampleX=[int][math]::Floor($barLeft+6*$s)
+                $barTop=$bar[1]
+                $sampleX=[int][math]::Floor($bar[0]+6*$s)
                 $paintedRows=@()
                 for ($y=[int][math]::Floor($barTop)-2;$y -lt [math]::Ceiling($barTop)+$barHeight+2;$y++) {
                     $pixel=$bitmap.GetPixel($sampleX,$y)
@@ -753,9 +764,20 @@ function Save-ViewCaptures([uint32]$OwnedPid) {
 }
 try {
     $testProcess = Start-Process -FilePath $RainmeterPath -ArgumentList ('"{0}"' -f $iniPath) -WorkingDirectory $runRoot -WindowStyle Hidden -PassThru
-    $deadline = [DateTime]::UtcNow.AddSeconds(50)
-    do { Start-Sleep -Milliseconds 250; $reports = @(Get-ChildItem -LiteralPath $runRoot -Filter 'result-*.txt') } while ($reports.Count -lt $cases.Count -and [DateTime]::UtcNow -lt $deadline)
-    if ($reports.Count -ne $cases.Count) { throw "Only $($reports.Count)/$($cases.Count) native reports; inspect $runRoot\Rainmeter.log" }
+    # Sixty skins share one Rainmeter process, and the multi-refresh Settings
+    # cases finish last, so a fixed 50 s deadline was occasionally missed
+    # (Case24). Wait while reports keep arriving; fail on a 45 s stall or the
+    # overall cap, either of which still means a case never reported.
+    $started=[DateTime]::UtcNow; $progressAt=$started; $seen=0
+    do {
+        Start-Sleep -Milliseconds 250
+        $reports = @(Get-ChildItem -LiteralPath $runRoot -Filter 'result-*.txt')
+        if ($reports.Count -gt $seen) { $seen=$reports.Count; $progressAt=[DateTime]::UtcNow }
+        $now=[DateTime]::UtcNow
+    } while ($reports.Count -lt $cases.Count -and ($now-$progressAt).TotalSeconds -lt 45 -and ($now-$started).TotalSeconds -lt 300)
+    $reportSeconds=[math]::Round(([DateTime]::UtcNow-$started).TotalSeconds,1)
+    if ($reports.Count -ne $cases.Count) { throw "Only $($reports.Count)/$($cases.Count) native reports after $reportSeconds s; inspect $runRoot\Rainmeter.log" }
+    Write-Output "All $($cases.Count) native reports after $reportSeconds s."
     $failed = @()
     foreach ($case in $cases) {
         $report = Get-Content -LiteralPath $case.Report -Raw
@@ -774,10 +796,10 @@ try {
         if ($sync.Report -notmatch '^PASS ') { $failed+='LabelSync' }
         $errors+=@($sync.LogErrors)
     }
-    $evidence = [ordered]@{Synthetic=$true;Cases=$cases.Count;FailedCases=$failed;LogErrors=$errors;OwnedPid=$testProcess.Id;SourceHashes=$sourceHashes;Captures=$captures;LabelSync=$sync;
+    $evidence = [ordered]@{Synthetic=$true;Cases=$cases.Count;FailedCases=$failed;LogErrors=$errors;OwnedPid=$testProcess.Id;ReportSeconds=$reportSeconds;SourceHashes=$sourceHashes;Captures=$captures;LabelSync=$sync;
         RainmeterVersion=(Get-Item -LiteralPath $RainmeterPath).VersionInfo.ProductVersion;
-        Limits='Copied-source native Settings/accordion/player UI. Every WNP include, raw artist and source reader measure is replaced with inert Calc/String fixtures; identity mode uses test-owned Script returns for literal names and empty titles, and a SKIN:Bang proxy that counts/suppresses playback dispatches while forwarding native UI operations. Source scripts are excluded. Typed input uses an inert Script output/status proxy and suppressed Run dispatch; real overlay typing is not exercised. Synthetic queue and temporary preferences; no helper, auth, live settings, real queue or performance test.'}
-    Write-TestFile (Join-Path $runRoot 'media-settings-evidence.json') ($evidence | ConvertTo-Json -Depth 4)
+        Limits='Copied-source native Settings/accordion/player UI. Every WNP include, raw artist and source reader measure is replaced with inert Calc/String fixtures; the production MediaPulse.lua title-icon swap runs against them. Identity mode uses test-owned Script returns for literal names and empty titles, and a SKIN:Bang proxy that counts/suppresses playback dispatches while forwarding native UI operations. Source scripts are excluded. Typed input uses an inert Script output/status proxy and suppressed Run dispatch; real overlay typing is not exercised. Synthetic queue and temporary preferences; no helper, auth, live settings, real queue or performance test.'}
+    Write-TestFile (Join-Path $runRoot 'media-settings-evidence.json') ($evidence | ConvertTo-Json -Depth 6)
     Write-Output "Evidence retained at $runRoot"
     foreach ($path in $sourceHashes.Keys) { if ((Get-FileHash -LiteralPath $path -Algorithm SHA256).Hash -ne $sourceHashes[$path]) { throw 'Source changed during native run; rerun for coherent evidence.' } }
     if ($failed.Count -or $errors.Count) { $errors | Write-Output; throw "$($failed.Count) native cases failed; $($errors.Count) Rainmeter error entries." }

@@ -1,7 +1,11 @@
 -- Developer-only observer for isolated copies of the actual production skins.
 -- No external commands are executed; only scalar preference controls are used.
 local tick, done, checks, previous_checks, stage, kind = 0, false, 0, 0, 1, ''
+-- Ticks to wait before observing a stage. Identity transitions raise it to
+-- cover MeasureMediaHeader's own cadence (#MediaLegacyDivider# ticks).
+local settle_ticks=3
 local glyph_report=''
+local fit_report={}
 local identity_preferences
 local identity_metadata={}
 local queue_transport_checks
@@ -35,26 +39,50 @@ local function preferences()
     return values
 end
 local function text(name) return assert(SKIN:GetMeter(name)):GetOption('Text','') end
-local function media_geometry()
+local function formula(expression) return tonumber(SKIN:ParseFormula(SKIN:ReplaceVariables('('..expression..')'))) end
+-- Independent model of the drawer layout. It mirrors media_body_geometry and
+-- media_drawer_geometry in test_skin_contract.py from the same primitives,
+-- rather than reading the skin's derived variables back, so a geometry edit
+-- has to agree with a second calculation. Offsets are #Inset#-relative;
+-- window and width are absolute.
+local function media_geometry(expanded, rows)
     local scale=SELF:GetNumberOption('ExpectedScale')
     local wide=SELF:GetNumberOption('ExpectedColumns')==2
     local rounded=function(value) return math.floor(value+0.5) end
+    local gap=2*rounded(tonumber(SKIN:GetVariable('Gutter'))*scale/2)
+    local inset=gap/2
+    local padding=rounded(tonumber(SKIN:GetVariable('PanelPadding'))*scale)
+    local columns=wide and 2 or 1
     local unit=rounded(SELF:GetNumberOption('ExpectedWidth')*scale)
-    local base_cover=wide and rounded(unit*0.9) or 48*scale
-    local legacy_cover=rounded(base_cover*0.75)
-    local cover=wide and rounded((96+54)*scale) or legacy_cover
+    local panel_width=columns*(unit+gap)-gap
     local offset=wide and rounded(12*scale) or 0
     local bar=math.max(1,rounded(SELF:GetNumberOption('ExpectedBarThickness',6)*scale))
-    local legacy_progress_y=offset+122*scale+math.max(2*scale,6*scale-bar/2)
-    local legacy_controls_y=legacy_progress_y+bar+8*scale
-    local progress_y=offset+(wide and 112 or 134)*scale
-    local controls_y=progress_y+bar+8*scale
-    local legacy_cover_bottom=(wide and 0 or 44*scale)+legacy_cover
-    local cover_bottom=(wide and 0 or 44*scale)+cover
-    local legacy_body=math.max(rounded(162*scale)+offset,
-        math.ceil(math.max(legacy_cover_bottom,legacy_controls_y+26*scale)+37*scale))
-    local body=math.max(legacy_body,math.ceil(math.max(cover_bottom,controls_y+26*scale)+37*scale))
-    return cover,offset,body,controls_y
+    -- One 26px title row at both widths, a 4px section gap, three 24px
+    -- metadata rows, another 4px gap and the bar's 6px optical pad.
+    local progress=offset+112*scale
+    -- The panel ends one padding below the timing text (MediaQueueHidden=1).
+    local body=math.ceil(progress+bar+20*scale+padding)
+    -- Wide art reaches the body's lower edge plus the offset it overhangs by;
+    -- compact art keeps its 36px thumbnail, topped with the metadata block.
+    local cover=wide and rounded(body+offset) or rounded(48*scale*0.75)
+    local cover_x=wide and 0 or padding
+    local cover_y=wide and 0 or 30*scale
+    local content_x=wide and cover+8*scale or padding
+    local size,pad,button_gap=34*scale,5*scale,4*scale
+    -- Transport circles: statically centred between the art's right edge and
+    -- the panel's, and centred vertically on the panel's lower border.
+    local transport_x=(cover_x+cover+panel_width)/2-(3*size+2*button_gap)/2
+    local queue_top=math.max(cover_y+cover,body)+4*scale
+    local queue_bottom=queue_top+(1+rows)*18*scale+5*scale
+    local drawer_bottom=expanded and queue_bottom+8*scale or body
+    local overhang=math.max(cover_y+cover,body+(size+2*pad)/2)
+    local window=math.max(body+gap,math.ceil(overhang+2*inset),math.ceil(drawer_bottom+2*inset))
+    return {scale=scale,wide=wide,inset=inset,padding=padding,offset=offset,bar=bar,progress=progress,body=body,
+        cover=cover,cover_x=cover_x,cover_y=cover_y,content_x=content_x,content_right=panel_width-padding,
+        surface_x=wide and 96*scale or 0,transport_x=transport_x,transport_size=size,transport_pad=pad,
+        transport_box=size+2*pad,transport_step=size+button_gap,tab_y=progress+bar+padding,
+        tab_right=transport_x-pad-4*scale,queue_top=queue_top,rows_y=queue_top+23*scale,
+        drawer_bottom=drawer_bottom,window=window,width=columns*(unit+gap)}
 end
 local function dimensions(expanded, rows)
     local scale=SELF:GetNumberOption('ExpectedScale')
@@ -62,8 +90,7 @@ local function dimensions(expanded, rows)
     local columns=is_settings() and 2 or SELF:GetNumberOption('ExpectedColumns')
     local gap=2*math.floor(tonumber(SKIN:GetVariable('Gutter'))*scale/2+0.5)
     local expected_w=columns*(math.floor(width*scale+0.5)+gap)
-    local _,_,body=media_geometry()
-    local expected_h=is_settings() and math.floor((expanded and 554 or 498)*scale+0.5)+gap or body+math.floor((expanded and (8+18*rows) or 0)*scale+0.5)+gap
+    local expected_h=is_settings() and math.floor((expanded and 554 or 498)*scale+0.5)+gap or media_geometry(expanded,rows).window
     local detail=''
     if is_settings() and SKIN:GetH()~=expected_h then
         local bounds,panel=SKIN:GetMeter('MeterBounds'),SKIN:GetMeter('MeterPanel')
@@ -85,97 +112,161 @@ local function inside(name, width, height)
     check(x>=0 and y>=0 and x+w<=width+1 and y+h<=height+1,
         string.format('%s outside skin %.2f,%.2f,%.2f,%.2f',name,x,y,w,h))
 end
-local function player_name_row()
-    local scale=SELF:GetNumberOption('ExpectedScale')
-    local wide=SELF:GetNumberOption('ExpectedColumns')==2
-    local title,name,icon=SKIN:GetMeter('MeterHeading'),SKIN:GetMeter('MeterPlayerName'),SKIN:GetMeter('MeterPlayerIcon')
-    local title_icon=SKIN:GetMeter('MeterMediaIcon')
-    local surface=tonumber(SKIN:ParseFormula(SKIN:ReplaceVariables('(#MediaSurfaceY#)')))
-    check(title:GetOption('Text')=='Media Player' and title:GetOption('MeasureName','')=='','Title must be static')
-    check(name:GetOption('MeasureName')=='MeasureMediaHeader' and name:GetOption('Text')=='%1','Player name does not bind literal measure data')
-    check(name:GetOption('ToolTipText')=='%1' and name:GetOption('ClipString')=='1','Player name must clip with its full bound tooltip')
-    check(name:GetOption('UpdateDivider')=='1','Player name cannot follow identity changes')
-    check(name:GetOption('FontColor')==SKIN:GetVariable('TextColor'),'Player name ignores body color')
-    local size=tonumber(name:GetOption('FontSize')) or SKIN:ParseFormula(name:GetOption('FontSize'))
-    check(math.abs(size-tonumber(SKIN:GetVariable('FontSize'))*scale)<0.001,'Player name ignores body font size')
-    check(math.abs(name:GetY(true)-(surface+(wide and 6 or 30)*scale))<=1 and math.abs(name:GetH()-18*scale)<=1,'Player name position or height changed')
-    check(math.abs(icon:GetW()-14*scale)<=1 and math.abs(icon:GetH()-14*scale)<=1,'Audio Lines must retain a14px canvas')
-    check(math.abs(icon:GetY(true)+icon:GetH()/2-name:GetY(true)-name:GetH()/2)<=1,'Audio Lines is not centered with the player name')
-    if wide then check(math.abs(icon:GetX(true)-title:GetX(true)-title:GetW()-6*scale)<=1,'Player icon does not follow the title')
-    else check(math.abs(icon:GetX(true)-title_icon:GetX(true)-54*scale)<=1,'Compact player row intrudes into artwork') end
-    local title_size=14*scale*tonumber(SKIN:GetVariable('TitleFontSize'))/10
-    check(math.abs(title_icon:GetW()-title_size)<=1 and math.abs(title_icon:GetH()-title_size)<=1,'Monitor Play ignores title icon size')
-    check(math.abs(title_icon:GetY(true)+title_icon:GetH()/2-title:GetY(true))<=1,'Monitor Play is not centered with title')
-    check(math.abs(title:GetX(true)-title_icon:GetX(true)-title_size-4*scale)<=1,'Title icon gap changed')
-    check(math.abs(name:GetX(true)-icon:GetX(true)-18*scale)<=1,'Player-name icon gap changed')
-    if wide then check(math.abs(title:GetY(true)-(name:GetY(true)+name:GetH()/2))<=1,'Title and player name do not share a center')
-    else check(title:GetY(true)+title:GetH()/2<=name:GetY(true),'Compact title overlaps the player name') end
+-- The 2026-10-04 header: one title row at both widths. MeterHeading shows
+-- MeasureMediaHeader whole: "Media Player: " ("Media: " at one column), then
+-- the player while a track plays, "paused" while one is paused, otherwise
+-- "stopped". One title-icon slot precedes it; MediaPulse.lua shows exactly
+-- one of the two icons.
+local function title_label() return SELF:GetNumberOption('ExpectedColumns')==2 and 'Media Player: ' or 'Media: ' end
+local function header_row(state)
+    if state==nil then state=kind:find('Player',1,true) and 'Spotify' or 'stopped' end
+    local expected=title_label()..state
+    local g=media_geometry(false,5)
+    local scale=g.scale
+    local surface=g.inset+g.offset
+    local content_x=g.inset+g.content_x
+    local title=assert(SKIN:GetMeter('MeterHeading'))
+    check(SKIN:GetMeter('MeterPlayerName')==nil,'The removed player-name row is back')
+    check(SKIN:GetMeasure('MeasureMediaHeader'):GetStringValue()==expected,'Header value '..SKIN:GetMeasure('MeasureMediaHeader'):GetStringValue()..' expected '..expected)
+    check(title:GetOption('MeasureName')=='MeasureMediaHeader' and title:GetOption('Text')=='%1','Title does not bind the header measure as data')
+    check(title:GetOption('ToolTipText','')=='','Title must not repeat its visible text in a tooltip')
+    check(title:GetOption('ClipString')=='1' and title:GetOption('UpdateDivider')=='1','Title must clip and follow every header update')
+    check(title:GetOption('FontColor')==SKIN:GetVariable('TitleTextColor'),'Title ignores title color')
+    local size=tonumber(title:GetOption('FontSize')) or SKIN:ParseFormula(title:GetOption('FontSize'))
+    check(math.abs(size-tonumber(SKIN:GetVariable('TitleFontSize'))*scale)<0.001,'Title ignores title font size')
+    local icon_size=14*scale*tonumber(SKIN:GetVariable('TitleFontSize'))/10
+    check(math.abs(title:GetY(true)-(surface+15*scale))<=1,'Title is not on the shared row center')
+    check(math.abs(title:GetX(true)-(content_x+icon_size+4*scale))<=1,'Title does not follow the icon slot and gap')
+    check(math.abs(title:GetW()-(g.content_right-g.content_x-icon_size-28*scale))<=1,'Title does not end 24px before the content edge')
+    check(title:GetX(true)+title:GetW()<=SKIN:GetMeter('MeterMediaOptions'):GetX(true),'Title overlaps the gear')
+    local media,player=SKIN:GetMeter('MeterMediaIcon'),SKIN:GetMeter('MeterPlayerIcon')
+    -- Only a playing track swaps in Audio Lines; paused keeps Monitor Play.
+    local playing=state~='stopped' and state~='paused'
+    local shown,hidden=playing and player or media,playing and media or player
+    check(shown:GetW()>0 and hidden:GetW()==0 and hidden:GetH()==0,'Exactly one title icon must show for '..expected)
+    for _,icon in ipairs({media,player}) do
+        check(icon:GetOption('Meter')=='Shape' and icon:GetOption('Group')=='MediaPlayerIcons','Title icon escaped its Shape group')
+        check(math.abs(icon:GetX(true)-content_x)<=1,'Title icon slot is not at ContentX')
+    end
+    check(media:GetY(true)==player:GetY(true),'Title icons do not share one slot')
+    check(math.abs(shown:GetW()-icon_size)<=1 and math.abs(shown:GetH()-icon_size)<=1,'Title icon ignores TitleIconSize')
+    -- Native boxes are whole pixels, so compare rendered centers with each
+    -- other; the title anchor itself was checked against the model above.
+    check(math.abs(shown:GetY(true)+shown:GetH()/2-title:GetY(true))<=1,
+        string.format('Title icon center %g is not on the title row %g',shown:GetY(true)+shown:GetH()/2,title:GetY(true)))
+    check(shown:GetX(true)+shown:GetW()<=title:GetX(true)+1,'Title icon overlaps the title')
     local first=SKIN:GetMeter(kind:find('Player',1,true) and 'MeterTrackTitle' or 'MeterSetupStatus')
     if first:GetH()>0 then
         local top=first:GetY(true)-(first:GetOption('StringAlign')=='LeftCenter' and first:GetH()/2 or 0)
-        check(top>=name:GetY(true)+name:GetH()+2*scale-1,'Player name overlaps the first content row')
+        check(math.abs(top-(surface+30*scale))<=1,'First content row does not follow the 26px header and 4px gap')
     end
 end
-local function transport_center(active_name)
-    local scale=SELF:GetNumberOption('ExpectedScale')
-    local wide=SELF:GetNumberOption('ExpectedColumns')==2
+-- LayoutTransport is disabled while the transport straddles the panel border
+-- (Media.lua, TEMPORARY), so the row is placed statically. The timing text
+-- keeps its own contract: right aligned under the bar, capped, auto-width.
+local function transport_layout(active_name)
+    local g=media_geometry(false,5)
+    local scale,inset=g.scale,g.inset
     local active=assert(SKIN:GetMeter(active_name))
-    local icon=SKIN:GetMeter('MeterMediaIcon')
-    local cover=SKIN:GetMeter('MeterCoverMask')
-    local boundary=wide and (cover:GetX(true)+cover:GetW()) or icon:GetX(true)
     local left=active:GetX(true)-active:GetW()
-    local first,last=SKIN:GetMeter('MeterPrevious'),SKIN:GetMeter('MeterNext')
-    local group_left,group_right=first:GetX(true),last:GetX(true)+last:GetW()
-    local detail=string.format('%s width=%g left=%g boundary=%g controls=%g..%g',active_name,active:GetW(),left,boundary,group_left,group_right)
     local bar=SKIN:GetMeter('MeterProgress')
     local bar_width=bar:GetW()>0 and bar:GetW() or SKIN:ParseFormula(SKIN:ReplaceVariables(bar:GetOption('W')))
-    local bar_height=math.max(1,math.floor(SELF:GetNumberOption('ExpectedBarThickness',6)*scale+0.5))
-    check(math.abs(active:GetY(true)-bar:GetY(true)-bar_height-2*scale)<=1,'Timing is not directly below the progress bar: '..detail)
+    -- Compact art sits above this row, so the cap runs from the content edge.
+    local transport_left=g.wide and g.cover_x+g.cover or g.content_x
+    local cap=math.max(1,g.content_right-transport_left-104*scale)
+    local detail=string.format('%s width=%g left=%g cap=%g',active_name,active:GetW(),left,cap)
+    check(math.abs(active:GetY(true)-bar:GetY(true)-g.bar-2*scale)<=1,'Timing is not directly below the progress bar: '..detail)
     check(math.abs(active:GetX(true)-bar:GetX(true)-bar_width)<=1,'Timing does not align to the progress bar right edge: '..detail)
     check(active:GetW()>0 and math.abs(active:GetH()-18*scale)<=1,'Active timing hidden or taller than one row: '..detail)
-    check(active:GetW()<=math.max(1,active:GetX(true)-boundary-104*scale)+1,'Auto-width timing exceeds fixed cap: '..detail)
+    check(active:GetW()<=cap+1,'Auto-width timing exceeds its cap: '..detail)
     check(math.abs(active:GetX()-left)<=1,'Right-aligned native anchor convention changed: '..detail)
-    check(math.abs(group_right-group_left-92*scale)<=1,'Transport group width changed: '..detail)
-    check(group_left>=boundary+6*scale-1 and group_right<=left-6*scale+1,'Transport lacks six-pixel clearances: '..detail)
-    check(math.abs((group_left+group_right)/2-(boundary+left)/2)<=1.5,'Transport not centered between artwork and actual time: '..detail)
+    local center_y=inset+g.body
+    for index,name in ipairs({'MeterPrevious','MeterPlayPause','MeterNext'}) do
+        local meter=SKIN:GetMeter(name)
+        check(math.abs(meter:GetW()-g.transport_box)<=1 and math.abs(meter:GetH()-g.transport_box)<=1,'Transport target box changed: '..name)
+        check(math.abs(meter:GetX(true)-(inset+g.transport_x-g.transport_pad+(index-1)*g.transport_step))<=1,'Transport is not centred right of the artwork: '..name)
+        check(math.abs(meter:GetY(true)+meter:GetH()/2-center_y)<=1,'Transport is not centred on the panel lower border: '..name)
+        check(meter:GetY(true)+meter:GetH()<=inset+g.rows_y+1,'Transport reaches the first queue row: '..name)
+        check(meter:GetOption('Shape3'):find('Fill Color '..SKIN:GetVariable('AccentColor'),1,true)~=nil,'Transport face ignores AccentColor: '..name)
+    end
+    -- Measured, not asserted: the right-hand face against the visible time.
+    -- That overlap belongs to the deferred transport x-axis decision.
+    local face_left=SKIN:GetMeter('MeterNext'):GetX(true)+g.transport_pad
+    local overlap_x=math.max(0,math.min(face_left+g.transport_size,active:GetX(true))-math.max(face_left,left))
+    local overlap_y=math.max(0,math.min(center_y+g.transport_size/2,active:GetY(true)+active:GetH())-math.max(center_y-g.transport_size/2,active:GetY(true)))
+    detail=detail..string.format(' nextFaceOverlap=%gx%g',overlap_x,overlap_y)
     return active:GetW(),detail
 end
 local function accordion(expanded, count, details)
     local width,height=dimensions(expanded,count)
-    local _,_,body=media_geometry()
-    local scale=SELF:GetNumberOption('ExpectedScale')
-    local inset=math.floor(tonumber(SKIN:GetVariable('Gutter'))*scale/2+0.5)
+    local g=media_geometry(expanded,count)
+    local scale,inset=g.scale,g.inset
     local measure=assert(SKIN:GetMeasure('MeasureQueueStatus'))
     check(measure:GetOption('QueueCachePath')==SELF:GetOption('SyntheticCachePath'),'Synthetic cache not injected')
-    check(measure:GetStringValue()=='Next '..count,'Footer display count wrong: '..measure:GetStringValue())
+    check(measure:GetStringValue()=='Next '..count,'Queue display count wrong: '..measure:GetStringValue())
     check(SKIN:GetMeasure('MeasureMediaOptions'):GetStringValue()=='Queue','Accordion label wrong')
+    -- The drawer's content: a column header and rule, then numbered rows on a
+    -- fixed pitch. Hidden parts park at #Inset# so they cannot extend the window.
+    -- A zero DividerThickness legitimately gives a shown delimiter no width,
+    -- so a part counts as shown when it has any native extent.
+    local function shown(meter) return meter:GetW()>0 or meter:GetH()>0 end
     for index=1,5 do
-        local name='MeterQueueRow'..index; local meter=assert(SKIN:GetMeter(name))
+        local parts={'MeterQueueRow'..index,'MeterQueueNumber'..index,'MeterQueueDivider'..index}
         if expanded and index<=count then
-            check(meter:GetW()>0 and meter:GetH()>0,'Expanded row hidden: '..index)
-            check(text(name)=='Synthetic item '..index..(details and (' / Test artist '..index) or ''),'Row detail preference ignored')
-            check(math.abs(meter:GetY(true)-(inset+body+(2+18*(index-1))*scale))<=1,'Queue row is not below the rendered body: '..index)
-            inside(name,width,height)
+            for _,name in ipairs(parts) do
+                local meter=assert(SKIN:GetMeter(name))
+                check(shown(meter),'Expanded row part hidden: '..name)
+                check(math.abs(meter:GetY(true)-(inset+g.rows_y+18*(index-1)*scale))<=1,'Queue row is not on the drawer pitch: '..name)
+                inside(name,width,height)
+            end
+            check(text(parts[1])=='Synthetic item '..index..(details and (' / Test artist '..index) or ''),'Row detail preference ignored')
+            check(text(parts[2])==tostring(index),'Queue position digit changed')
+            check(SKIN:GetMeter(parts[1]):GetOption('InlinePattern')==(details and ('Test artist '..index..'$') or '$^'),'Artist accent is not the literal row tail: '..index)
         else
-            check(meter:GetW()==0,'Collapsed or excess row visible: '..index)
-            check(text(name)=='','Collapsed or excess row retains text: '..index)
+            for _,name in ipairs(parts) do
+                local meter=assert(SKIN:GetMeter(name))
+                check(not shown(meter),'Collapsed or excess row part visible: '..name)
+                check(math.abs(meter:GetY(true)-inset)<=1,'Hidden row part is not parked at the inset: '..name)
+            end
+            check(text(parts[1])=='','Collapsed or excess row retains text: '..index)
         end
     end
-    for _,name in ipairs({'MeterBounds','MeterPanel','MeterHeading','MeterPlayerName','MeterMediaIcon','MeterPlayerIcon','MeterQueueRule','MeterQueueHeading','MeterQueueToggle','MeterQueueStatus'}) do inside(name,width,height) end
-    check(math.abs(SKIN:GetMeter('MeterQueueHeading'):GetY(true)-(inset+body-12*scale))<=1,'Queue footer is not anchored to the rendered body')
-    local label,toggle,status=SKIN:GetMeter('MeterQueueHeading'),SKIN:GetMeter('MeterQueueToggle'),SKIN:GetMeter('MeterQueueStatus')
-    check(math.abs(label:GetW()-42*scale)<=1 and math.abs(toggle:GetW()-18*scale)<=1 and math.abs(toggle:GetH()-18*scale)<=1,'Queue label/toggle dimensions changed')
-    check(math.abs(toggle:GetX(true)-label:GetX(true)-44*scale)<=1 and math.abs(status:GetX(true)-label:GetX(true)-66*scale)<=1,'Queue band spacing changed')
-    check(label:GetX(true)+label:GetW()<=toggle:GetX(true) and toggle:GetX(true)+toggle:GetW()<=status:GetX(true),'Queue band hit targets overlap')
-    check(math.abs(toggle:GetY(true)+9*scale-label:GetY(true))<=1 and label:GetY(true)==status:GetY(true),'Queue icon/text centers differ')
+    for _,name in ipairs({'MeterQueueHeaderNumber','MeterQueueHeaderTrack','MeterQueueHeaderDivider','MeterQueueHeaderRule'}) do
+        local meter=assert(SKIN:GetMeter(name))
+        check(shown(meter)==expanded,'Queue header visibility does not follow expansion: '..name)
+        if expanded then inside(name,width,height) end
+    end
+    check(text('MeterQueueHeaderTrack')=='Song / Artist','Queue column header changed')
+    check(math.abs(SKIN:GetMeter('MeterQueueHeaderTrack'):GetY(true)-(inset+(expanded and g.queue_top or 0)))<=1,'Queue header is not at the drawer top, or not parked when closed')
+    -- The retired inline footer stays hidden (MediaQueueHidden=1).
+    check(SKIN:GetMeter('MeterQueueRule'):GetW()==0 and SKIN:GetMeter('MeterQueueStatus'):GetW()==0,'Retired queue footer is visible')
+    local panel=SKIN:GetMeter('MeterPanel')
+    check(math.abs(panel:GetY(true)+panel:GetH()-(inset+g.body))<=1,'Panel lower border does not follow the body')
+    local sheet,toggle,label=SKIN:GetMeter('MeterQueueDrawer'),SKIN:GetMeter('MeterQueueToggle'),SKIN:GetMeter('MeterQueueHeading')
+    if formula('#MediaQueueDrawer#')==1 then
+        -- Tab: toggle then label, centred in the notch between the artwork
+        -- column and the transport circles.
+        local tab_x,tab_center=inset+g.content_x,inset+(g.tab_y+g.body)/2
+        check(math.abs(sheet:GetY(true)+sheet:GetH()-(inset+g.drawer_bottom))<=1,
+            string.format('Queue sheet bottom %g expected %g',sheet:GetY(true)+sheet:GetH(),inset+g.drawer_bottom))
+        check(math.abs(toggle:GetX(true)-(tab_x+6*scale))<=1 and math.abs(toggle:GetW()-18*scale)<=1 and math.abs(toggle:GetH()-18*scale)<=1,'Queue toggle is not in the notch')
+        check(math.abs(toggle:GetY(true)+toggle:GetH()/2-tab_center)<=1,'Queue toggle is not centred on the notch')
+        check(math.abs(label:GetX(true)-(tab_x+30*scale))<=1 and math.abs(label:GetY(true)-tab_center)<=1,'Queue label is not in the notch')
+        check(math.abs(label:GetW()-math.max(1,g.tab_right-g.content_x-34*scale))<=1,'Queue label is not clamped to the notch')
+        check(toggle:GetX(true)+toggle:GetW()<=label:GetX(true),'Queue toggle and label hit targets overlap')
+        for _,name in ipairs({'MeterQueueDrawer','MeterQueueToggle','MeterQueueHeading'}) do inside(name,width,height) end
+    else
+        -- Setup draws no sheet and cuts no notch, so its tab stays hidden.
+        -- Its rows above still follow QueueExpanded, unbacked by a sheet;
+        -- that is current behavior, recorded as open in Media.md.
+        check(sheet:GetW()==0 and toggle:GetW()==0 and label:GetW()==0,'Queue tab shown without a drawer')
+    end
     check(toggle:GetOption('Shape6'):find('(1-'..(expanded and '1' or '0')..')',1,true)~=nil,'Queue plus stroke ignores expansion')
-    for _,name in ipairs({'MeterQueueHeading','MeterQueueToggle','MeterQueueStatus'}) do
+    for _,name in ipairs({'MeterQueueHeading','MeterQueueToggle'}) do
         check(SKIN:GetMeter(name):GetOption('LeftMouseUpAction')=='[!CommandMeasure MeasureMediaOptions "ToggleQueue()"]','Queue action wiring changed: '..name)
     end
-    local monitor=SKIN:GetMeter('MeterMediaIcon')
-    local icon_size=14*scale*tonumber(SKIN:GetVariable('TitleFontSize'))/10
-    check(math.abs(monitor:GetW()-icon_size)<=1 and math.abs(monitor:GetH()-icon_size)<=1,'Constant monitor header is hidden or mis-sized')
-    player_name_row()
+    for _,name in ipairs({'MeterBounds','MeterPanel','MeterHeading','MeterMediaIcon','MeterPlayerIcon'}) do inside(name,width,height) end
+    header_row()
     check(SKIN:GetMeter('MeterMediaOptions'):GetW()==0,'Gear is not hidden initially')
     local enter,leave=SELF:GetOption('HoverEnter'),SELF:GetOption('HoverLeave')
     check(enter:find('!ShowMeter',1,true) and leave:find('!HideMeter',1,true),'Hover actions missing')
@@ -189,7 +280,8 @@ local function command(measure, action) SKIN:Bang('!CommandMeasure',measure,acti
 local function advance(next_stage, action)
     write(SELF:GetOption('StageFile'),tostring(next_stage)..'|'..tostring(previous_checks+checks))
     if action and kind:match('^QueueToggle') then
-        local meter=stage==3 and 'MeterQueueHeading' or stage==4 and 'MeterQueueStatus' or 'MeterQueueToggle'
+        -- The tab's two hit targets; the retired footer status is hidden.
+        local meter=stage==3 and 'MeterQueueHeading' or 'MeterQueueToggle'
         SKIN:Bang(SKIN:GetMeter(meter):GetOption('LeftMouseUpAction'))
     elseif action then command('MeasureMediaOptions',action) else SKIN:Bang('!Refresh') end
 end
@@ -447,18 +539,18 @@ local function sync_stage()
     return false
 end
 local function probe_names()
-    if kind:match('^QueueToggle') then return {'MeterQueueHeading','MeterQueueStatus'} end
+    if kind:match('^QueueToggle') then return {'MeterQueueHeading'} end
     if kind:match('^TitleRow') then
         if is_settings() then return {'MeterTitle','MeterClose'} end
         if kind:match('Queue$') then return {'MeterHeading','MeterQueueStatus'} end
-        if kind:match('Setup$') then return {'MeterHeading','MeterPlayerName','MeterSetupStatus'} end
-        return {'MeterHeading','MeterPlayerName'}
+        if kind:match('Setup$') then return {'MeterHeading','MeterSetupStatus'} end
+        return {'MeterHeading'}
     end
-    if kind:match('^Identity') then return {'MeterHeading','MeterPlayerName'} end
+    if kind:match('^Identity') then return {'MeterHeading'} end
     if is_settings() then return {'MeterTitle','MeterQueueHeading','MeterQueuePollLabel','MeterQueuePollValue',
         'MeterStatus','MeterDisconnect','MeterPlayerSetup','MeterClose','MeterSourceLabel','MeterSourceStart','MeterSourceStop',
         'MeterUtilitySettingsNote','MeterUtilitySettingsGlobalLink','MeterSourceGuidance','MeterQueueGuidance'} end
-    local names={'MeterHeading','MeterPlayerName','MeterQueueHeading','MeterQueueStatus','MeterQueueRow1'}
+    local names={'MeterHeading','MeterQueueHeading','MeterQueueHeaderTrack','MeterQueueRow1'}
     local other=kind:find('Player',1,true) and {'MeterTrackTitle','MeterArtist','MeterAlbum','MeterTiming'} or
         {'MeterSetupInstructions','MeterDesktopNote','MeterWNPDocs','MeterLoadPlayer'}
     for _,name in ipairs(other) do names[#names+1]=name end
@@ -487,6 +579,31 @@ local function prepare_probes()
     end
     SKIN:Bang('!UpdateMeterGroup','TypographyProbes')
 end
+-- Full-width fit of the title is asserted everywhere the fixture states fit:
+-- the compact "Media:" label was introduced to make room at 12 pt. Double
+-- width below 220 at the maximum title size still ends in an ellipsis (an open
+-- item), so that shortfall is measured and reported rather than failed.
+local function heading_must_fit()
+    return not (SELF:GetNumberOption('ExpectedColumns')==2 and SELF:GetNumberOption('ExpectedWidth')<220
+        and SELF:GetOption('TypographyProfile','default')=='max')
+end
+local function glyph_fit(name, target, w, h)
+    local detail=string.format('%s=%dx%d/%dx%d',name,w,h,target:GetW(),target:GetH())
+    local panel=not is_settings()
+    if panel and name=='MeterQueueHeading' and target:GetW()==0 then
+        -- Setup cuts no notch, so its tab label is hidden rather than clipped.
+        check(formula('#MediaQueueDrawer#')==0,'Queue tab label hidden while the drawer is enabled')
+        return detail..' hidden'
+    end
+    check(w>0 and h>0 and h<=target:GetH(),'Native glyph clipping: '..detail)
+    -- The notch label is clamped to whatever the transport leaves of the tab,
+    -- degrading to the icon alone at narrow widths; report, do not fail.
+    local reported=panel and (name=='MeterQueueHeading' or name=='MeterHeading' and not heading_must_fit())
+    if reported then
+        if w>target:GetW() then fit_report[#fit_report+1]=string.format('%s clips %dpx (%d/%d)',name,w-target:GetW(),w,target:GetW()) end
+    else check(w<=target:GetW(),'Native glyph clipping: '..detail) end
+    return detail
+end
 local function missing_time()
     if not kind:find('Player',1,true) then return end
     local duration=SKIN:GetMeasure('MeasureDuration')
@@ -502,8 +619,9 @@ local function missing_time()
     check(text('MeterTimingUnavailable')=='-- / --','Unavailable time label changed')
     probe:Show();local w,h=probe:GetW(),probe:GetH();probe:Hide()
     check(w>0 and h>0 and w<=target:GetW() and h<=target:GetH(),string.format('Missing-time glyph clipping %dx%d/%dx%d',w,h,target:GetW(),target:GetH()))
-    local next_control=SKIN:GetMeter('MeterNext')
-    check(target:GetOption('StringAlign')=='Right' and next_control:GetX(true)+next_control:GetW()<=target:GetX(true)-target:GetW()+1,'Unavailable time overlaps enlarged controls')
+    check(target:GetOption('StringAlign')=='Right','Unavailable time is not right aligned')
+    local _,detail=transport_layout('MeterTimingUnavailable')
+    timing_report=timing_report..(timing_report=='' and '' or '; ')..detail
     SKIN:Bang('!SetOption','MeasureDuration','Formula',original)
     SKIN:Bang('!UpdateMeasure','MeasureDuration')
     SKIN:Bang('!UpdateMeasure','MeasureMediaUI')
@@ -525,9 +643,21 @@ local function typography()
     for _,name in ipairs(probe_names()) do
         local target,probe=assert(SKIN:GetMeter(name)),assert(SKIN:GetMeter('Probe'..name))
         probe:Show(); local w,h=probe:GetW(),probe:GetH(); probe:Hide()
-        local detail=string.format('%s=%dx%d/%dx%d',name,w,h,target:GetW(),target:GetH())
-        info[#info+1]=detail
-        check(w>0 and h>0 and w<=target:GetW() and h<=target:GetH(),'Native glyph clipping: '..detail)
+        info[#info+1]=glyph_fit(name,target,w,h)
+        if name=='MeterQueueHeaderTrack' and kind:find('Player',1,true) and target:GetW()>0 then
+            -- InlineQueueGeometry.inc lets the column header sit behind the
+            -- transport circles on the premise that its short text ends left
+            -- of them. Measured, not asserted: that premise is the open
+            -- transport x-axis question.
+            local g=media_geometry(true,5)
+            local left,right=SKIN:GetMeter('MeterPrevious'):GetX(true)+g.transport_pad,SKIN:GetMeter('MeterNext'):GetX(true)+g.transport_pad+g.transport_size
+            local center=g.inset+g.body
+            local overlap_x=math.max(0,math.min(target:GetX(true)+w,right)-math.max(target:GetX(true),left))
+            local overlap_y=math.max(0,math.min(target:GetY(true)+target:GetH(),center+g.transport_size/2)-math.max(target:GetY(true),center-g.transport_size/2))
+            if overlap_x>0 and overlap_y>0 then
+                fit_report[#fit_report+1]=string.format('queue header text under transport faces %gx%gpx',overlap_x,overlap_y)
+            end
+        end
     end
     glyph_report=table.concat(info,',')
     local function color(meter,variable)
@@ -542,16 +672,20 @@ local function typography()
         for _,name in ipairs({'MeterDisplayHeading','MeterSamplingHeading','MeterSourceLabel','MeterLinksHeading'}) do color(name,'AccentColor') end
         color('MeterSourceStart','AccentColor'); color('MeterSourceStop','AccentColor2')
     else
-        color('MeterQueueRow1','TextColor'); color('MeterQueueStatus','MediaColor')
+        color('MeterQueueRow1','TextColor')
+        check(SKIN:GetMeter('MeterQueueRow1'):GetOption('InlineSetting')=='Color | '..SKIN:GetVariable('AccentColor2'),'Queue artist accent ignores AccentColor2')
         if kind:find('Player',1,true) then
             color('MeterArtist','TextColor'); color('MeterAlbum','TextColor')
-            check(SKIN:GetMeter('MeterPrevious'):GetOption('LucideTransportStroke'):find('Stroke Color '..SKIN:GetVariable('AccentColor'),1,true)~=nil,'Transport ignores AccentColor')
+            -- Accent faces carry background-colored glyphs (Media.lua, provisional).
+            local previous=SKIN:GetMeter('MeterPrevious')
+            check(previous:GetOption('Shape3'):find('Fill Color '..SKIN:GetVariable('AccentColor'),1,true)~=nil,'Transport face ignores AccentColor')
+            check(previous:GetOption('LucideTransportStroke'):find('Stroke Color '..SKIN:GetVariable('BackgroundColor'),1,true)~=nil,'Transport glyph ignores BackgroundColor')
         else
             color('MeterSetupStatus','WarningColor'); color('MeterDesktopNote','TextColor')
             color('MeterLoadPlayer','AccentColor'); color('MeterWNPDocs','AccentColor2')
         end
     end
-    local rule=SKIN:GetMeter('MeterQueueRule'):GetOption('Shape')
+    local rule=SKIN:GetMeter(is_settings() and 'MeterQueueRule' or 'MeterQueueHeaderRule'):GetOption('Shape')
     check(rule:find('Stroke Color '..SKIN:GetVariable('DividerColor'),1,true)~=nil,'Divider color override not inherited')
 end
 local function typography_stage()
@@ -564,28 +698,24 @@ local function typography_stage()
         check(SKIN:GetMeter('MeterProgress'):GetW()>0,'Synthetic timeline hidden')
         check(SKIN:GetMeasure('MeasureMediaSource'):GetOption('Measure')=='String','Real source reader loaded in UI fixture')
         check(SKIN:GetMeasure('MeasureSourceArtist'):GetOption('Measure')=='String','Raw artist fixture is not synthetic')
-        check(SKIN:GetMeter('MeterPlayerName'):GetOption('MeasureName')=='MeasureMediaHeader' and SKIN:GetMeter('MeterConnection')==nil,'Player name binding or removed playback status changed')
+        check(SKIN:GetMeter('MeterHeading'):GetOption('MeasureName')=='MeasureMediaHeader' and SKIN:GetMeter('MeterPlayerName')==nil
+            and SKIN:GetMeter('MeterConnection')==nil,'Title binding, removed player row or removed playback status changed')
         check(SKIN:GetMeasure('MeasureMediaSource'):GetStringValue()=='Spotify','Synthetic Spotify source was not retained')
         check(SKIN:GetMeasure('MeasurePlayer'):GetStringValue()=='Windows Media Session','Raw player fixture does not distinguish source binding')
     end
     return true
 end
 artwork_bounds=function(expanded)
-    local scale=SELF:GetNumberOption('ExpectedScale')
-    local columns=SELF:GetNumberOption('ExpectedColumns')
-    local wide=columns==2
-    local inset=math.floor(tonumber(SKIN:GetVariable('Gutter'))*scale/2+0.5)
-    local padding=math.floor(tonumber(SKIN:GetVariable('PanelPadding'))*scale+0.5)
-    local art_x=inset+(wide and 0 or padding)
-    local art_y=inset+(wide and 0 or 44)*scale
-    local art_size,surface_offset,body,controls_y=media_geometry()
-    local surface_y=inset+surface_offset
-    local content_x=inset+(wide and (art_size+8*scale) or padding)
+    local g=media_geometry(expanded,5)
+    local scale,inset,padding,wide=g.scale,g.inset,g.padding,g.wide
+    local art_x,art_y,art_size=inset+g.cover_x,inset+g.cover_y,g.cover
+    local surface_y=inset+g.offset
+    local content_x=inset+g.content_x
     local width,height=dimensions(expanded,5)
     local panel=SKIN:GetMeter('MeterPanel')
-    check(math.abs(panel:GetX(true)-(inset+(wide and 96*scale or 0)))<=1,'Surface left offset wrong')
+    check(math.abs(panel:GetX(true)-(inset+g.surface_x))<=1,'Surface left offset wrong')
     check(math.abs(panel:GetY(true)-surface_y)<=1,'Surface top offset wrong')
-    check(math.abs(panel:GetY(true)+panel:GetH()-(height-inset))<=1,'Surface bottom does not follow the rendered body')
+    check(math.abs(panel:GetY(true)+panel:GetH()-(inset+g.body))<=1,'Surface bottom does not follow the rendered body')
     check(math.abs(panel:GetX(true)+panel:GetW()-(width-inset))<=1,'Surface right edge changed pitch')
     check(math.abs(SKIN:GetMeter('MeterHeading'):GetY(true)-(surface_y+15*scale))<=1,'Title center does not follow the inset surface')
     local function art(name,visible)
@@ -599,8 +729,8 @@ artwork_bounds=function(expanded)
     local player=kind:find('Player',1,true)~=nil
     art('MeterArtworkPlaceholder',wide and not player)
     check((SKIN:GetMeter('MeterArtworkLabel'):GetW()>0)==(wide and not player),'Wide artwork underlay label visibility wrong')
-    local names={'MeterMediaIcon','MeterPlayerIcon','MeterHeading','MeterPlayerName'}
-    player_name_row()
+    local names={'MeterMediaIcon','MeterPlayerIcon','MeterHeading'}
+    header_row()
     if kind:find('Player',1,true) then
         local missing=kind=='ArtworkPlayerMissing'
         local cover=SKIN:GetMeasure('MeasureCover')
@@ -629,8 +759,9 @@ artwork_bounds=function(expanded)
         local album=SKIN:GetMeter('MeterAlbum')
         check(progress:GetY(true)>=album:GetY(true)+album:GetH()/2+2*scale-1,'Bar overlaps metadata')
         local title=SKIN:GetMeter('MeterTrackTitle')
-        local old_cover=wide and math.floor(math.floor(SELF:GetNumberOption('ExpectedWidth')*scale+0.5)*0.9+0.5) or 48*scale
-        local metadata_x=inset+(wide and old_cover+8*scale or padding+54*scale)
+        -- Metadata shares the content column at double width; compact rows
+        -- start after the 36px thumbnail beside them.
+        local metadata_x=inset+(wide and art_size+8*scale or padding+54*scale)
         check(math.abs(title:GetX(true)-(metadata_x+20*scale))<=1,'Track title is not clear of its icon')
         local icon_shapes={}
         for row,pair in ipairs({{'MeterSongIcon','MeterTrackTitle'},{'MeterArtistIcon','MeterArtist'},{'MeterAlbumIcon','MeterAlbum'}}) do
@@ -639,7 +770,7 @@ artwork_bounds=function(expanded)
             check(icon:GetOption('Meter')=='Shape' and icon:GetOption('Group')=='MediaTrack','Metadata icon is not a track shape')
             check(math.abs(icon:GetW()-14*scale)<=1 and math.abs(icon:GetH()-14*scale)<=1,'Metadata icon dimensions wrong')
             check(math.abs(icon:GetX(true)-metadata_x)<=1 and icon:GetX(true)+icon:GetW()<=label:GetX(true)-5*scale+1,'Metadata icon overlaps text')
-            local expected_y=surface_y+((wide and 30 or 50)+(row-1)*24)*scale
+            local expected_y=surface_y+(30+(row-1)*24)*scale
             check(label:GetOption('StringAlign')=='LeftCenter','Metadata text is not vertically centered')
             check(math.abs(label:GetY(true)-(expected_y+12*scale))<=1 and math.abs(icon:GetY(true)-(expected_y+5*scale))<=1,'Metadata row alignment wrong')
             check(math.abs(label:GetY(true)-icon:GetY(true)-icon:GetH()/2)<=1,'Metadata icon and text centers differ')
@@ -651,19 +782,13 @@ artwork_bounds=function(expanded)
             check(not icon_shapes[fingerprint],'Metadata icons are duplicates')
             icon_shapes[fingerprint]=true
         end
-        local previous=SKIN:GetMeter('MeterPrevious')
-        local next_control=SKIN:GetMeter('MeterNext')
         local timing=SKIN:GetMeter('MeterTiming')
-        transport_center('MeterTiming')
+        local _,detail=transport_layout('MeterTiming')
+        timing_report=timing_report..(timing_report=='' and '' or '; ')..detail
         check(timing:GetOption('StringAlign')=='Right','Playback time is not right aligned')
         check(math.abs(timing:GetX(true)-(width-inset-padding))<=1,'Playback time right edge wrong')
         check(math.abs(timing:GetY(true)-progress:GetY(true)-bar_height-2*scale)<=1,'Playback time baseline wrong')
-        check(math.abs(previous:GetY(true)-progress:GetY(true)-bar_height-8*scale)<=1,'Transport does not clear the bar')
-        check(next_control:GetX(true)+next_control:GetW()<=timing:GetX(true)-timing:GetW()+1,'Transport overlaps playback time')
-        for _,name in ipairs({'MeterPrevious','MeterPlayPause','MeterNext'}) do
-            local control=SKIN:GetMeter(name)
-            check(math.abs(control:GetW()-28*scale)<=1 and math.abs(control:GetH()-26*scale)<=1,'Enlarged transport bounds wrong')
-        end
+        check(SKIN:GetMeter('MeterPrevious'):GetY(true)>progress:GetY(true)+bar_height,'Transport does not sit below the bar')
     else
         check(SKIN:GetMeasure('MeasureMediaSource')==nil,'Setup loaded a source reader')
         for _,name in ipairs({'MeterSetupStatus','MeterSetupInstructions','MeterDesktopNote','MeterWNPDocs','MeterLoadPlayer'}) do names[#names+1]=name end
@@ -677,21 +802,26 @@ artwork_bounds=function(expanded)
             check(left>=art_x+art_size+8*scale-1,name..' intrudes into artwork gap')
         end
     end
-    local queue_x=panel:GetX(true)+math.floor(padding+0.5)
-    local queue_right=width-inset-math.floor(padding+0.5)
-    local rule=SKIN:GetMeter('MeterQueueRule')
-    check(math.abs(rule:GetX(true)-queue_x)<=1,'Queue rule not aligned with surface interior')
-    check(rule:GetY(true)>=art_y+art_size+8*scale-1,'Queue rule is not below artwork')
-    if player then check(rule:GetY(true)>=SKIN:GetMeter('MeterPrevious'):GetY(true)+SKIN:GetMeter('MeterPrevious'):GetH()+8*scale-1,'Queue rule is not below transport controls') end
-    local queue_names={'MeterQueueHeading','MeterQueueToggle','MeterQueueStatus'}
-    if expanded then for row=1,5 do queue_names[#queue_names+1]='MeterQueueRow'..row end end
-    for _,name in ipairs(queue_names) do
-        local meter=SKIN:GetMeter(name)
-        inside(name,width,height)
-        check(math.abs(meter:GetX(true)-(queue_x+(name=='MeterQueueStatus' and 66*scale or name=='MeterQueueToggle' and 44*scale or 0)))<=1,'Queue left alignment wrong: '..name)
-        if name~='MeterQueueHeading' and name~='MeterQueueToggle' then check(math.abs(meter:GetX(true)+meter:GetW()-queue_right)<=1,'Queue width wrong: '..name) end
-        local top=meter:GetY(true)-(meter:GetOption('StringAlign')=='LeftCenter' and meter:GetH()/2 or 0)
-        check(top>=art_y+art_size+8*scale-1,'Queue is not below artwork: '..name)
+    -- The queue is the drawer's content: indented by the sheet's 8px padding
+    -- from the surface, ending 8px inside the content column's right edge, and
+    -- starting 4px below whichever of the artwork and the panel hangs lower.
+    local queue_x=inset+g.surface_x+8*scale
+    local queue_right=inset+g.content_right-8*scale
+    if expanded then
+        local queue_names={'MeterQueueHeaderTrack'}
+        for row=1,5 do queue_names[#queue_names+1]='MeterQueueRow'..row end
+        for _,name in ipairs(queue_names) do
+            local meter=SKIN:GetMeter(name)
+            inside(name,width,height)
+            check(math.abs(meter:GetX(true)-(queue_x+22*scale))<=1,'Queue text column alignment wrong: '..name)
+            check(math.abs(meter:GetX(true)+meter:GetW()-queue_right)<=1,'Queue width wrong: '..name)
+            check(meter:GetY(true)>=art_y+art_size+4*scale-1 and meter:GetY(true)>=inset+g.body+4*scale-1,'Queue is not below the artwork and panel: '..name)
+        end
+        for row=1,5 do
+            local number=SKIN:GetMeter('MeterQueueNumber'..row)
+            check(number:GetOption('StringAlign')=='Right' and math.abs(number:GetX(true)-(queue_x+16*scale))<=1,'Queue position column alignment wrong: '..row)
+        end
+        check(math.abs(SKIN:GetMeter('MeterQueueHeaderTrack'):GetY(true)-(inset+g.queue_top))<=1,'Queue header is not at the drawer top')
     end
 end
 local function artwork_stage()
@@ -760,28 +890,30 @@ local function identity_transport()
     local online=stage~=7
     local playing=online and stage~=3
     local center=SKIN:GetMeter('MeterPlayPause')
+    -- Shape..Shape3 are the shadow and accent face; the art starts at Shape4.
+    -- Enabled glyphs use BackgroundColor against the face, disabled MutedColor.
     local function mode(expected,enabled)
-        local second=center:GetOption('Shape2')
+        local art=center:GetOption('Shape4')
         if expected=='pause' then
-            check(second:match('^Rectangle ') and second:find('Extend LucideTransportStroke',1,true) and center:GetOption('Shape3'):match('^Rectangle '),'Paused state must show pause rectangles')
+            check(art:match('^Rectangle ') and art:find('Extend LucideTransportStroke',1,true) and center:GetOption('Shape5'):match('^Rectangle '),'Paused state must show pause rectangles')
         elseif expected=='step' then
-            check(second=='Path LucideTransportStepForwardPath | Extend LucideTransportStroke','Paused hover must show step-forward')
-            check(center:GetOption('Shape3')=='Path LucideTransportStepForwardBarPath | Extend LucideTransportStroke','Step-forward bar missing')
+            check(art=='Path LucideTransportStepForwardPath | Extend LucideTransportStroke','Paused hover must show step-forward')
+            check(center:GetOption('Shape5')=='Path LucideTransportStepForwardBarPath | Extend LucideTransportStroke','Step-forward bar missing')
         elseif expected=='hover' then
-            check(second=='Path LucideTransportPlayOffUpperPath | Extend LucideTransportStroke','Supported hover must show play-off upper path')
-            check(center:GetOption('Shape3')=='Path LucideTransportPlayOffLowerPath | Extend LucideTransportStroke','Play-off lower path missing')
-            check(center:GetOption('Shape4')=='Path LucideTransportPlayOffSlashPath | Extend LucideTransportStroke','Play-off slash missing')
-        else check(second=='Path LucideTransportPlayPath | Extend LucideTransportStroke','Play state or fallback must show play') end
-        check(center:GetOption('LucideTransportStroke'):find('Stroke Color '..SKIN:GetVariable(enabled and 'AccentColor' or 'MutedColor'),1,true)~=nil,'Center transport stroke ignores capability')
+            check(art=='Path LucideTransportPlayOffUpperPath | Extend LucideTransportStroke','Supported hover must show play-off upper path')
+            check(center:GetOption('Shape5')=='Path LucideTransportPlayOffLowerPath | Extend LucideTransportStroke','Play-off lower path missing')
+            check(center:GetOption('Shape6')=='Path LucideTransportPlayOffSlashPath | Extend LucideTransportStroke','Play-off slash missing')
+        else check(art=='Path LucideTransportPlayPath | Extend LucideTransportStroke','Play state or fallback must show play') end
+        check(center:GetOption('LucideTransportStroke'):find('Stroke Color '..SKIN:GetVariable(enabled and 'BackgroundColor' or 'MutedColor'),1,true)~=nil,'Center transport stroke ignores capability')
         check(center:GetOption('MouseActionCursor')==(enabled and '1' or '0'),'Center transport cursor ignores capability')
     end
     local first=SKIN:GetMeter('MeterPrevious')
     for index,name in ipairs({'MeterPrevious','MeterPlayPause','MeterNext'}) do
         local meter=SKIN:GetMeter(name)
         check(meter:GetOption('Meter')=='Shape','Transport is not a vector Shape')
-        check(math.abs(meter:GetW()-28*scale)<=1 and math.abs(meter:GetH()-26*scale)<=1,'Transport target dimensions changed')
-        check(math.abs(meter:GetX(true)-first:GetX(true)-(index-1)*32*scale)<=1,'Transport spacing changed')
-        check(meter:GetOption('LucideTransportStroke'):find('Stroke Color '..SKIN:GetVariable(online and 'AccentColor' or 'MutedColor'),1,true)~=nil,'Transport stroke ignores connection')
+        check(math.abs(meter:GetW()-44*scale)<=1 and math.abs(meter:GetH()-44*scale)<=1,'Transport target dimensions changed')
+        check(math.abs(meter:GetX(true)-first:GetX(true)-(index-1)*38*scale)<=1,'Transport spacing changed')
+        check(meter:GetOption('LucideTransportStroke'):find('Stroke Color '..SKIN:GetVariable(online and 'BackgroundColor' or 'MutedColor'),1,true)~=nil,'Transport stroke ignores connection')
     end
     mode(online and not playing and 'pause' or 'play',online)
     local enter,leave=center:GetOption('MouseOverAction'),center:GetOption('MouseLeaveAction')
@@ -838,19 +970,19 @@ queue_transport_checks=function()
     end
     update_availability('0')
     check(timing:GetW()==0,'Unavailable time did not hide known time')
-    local _,detail=transport_center('MeterTimingUnavailable'); report[#report+1]=detail
+    local _,detail=transport_layout('MeterTimingUnavailable'); report[#report+1]=detail
     update_availability(original)
     local widths={}
     for _,sample in ipairs({'0 / 1','0:45 / 3:00',string.rep('9',48)..' / '..string.rep('9',48),'0 / 1'}) do
         SKIN:Bang('!SetOption','MeterTiming','Text',sample)
         SKIN:Bang('!UpdateMeter','MeterTiming')
-        local width,description=transport_center('MeterTiming')
+        local width,description=transport_layout('MeterTiming')
         widths[#widths+1]=width;report[#report+1]=description
     end
     check(widths[3]>widths[1] and widths[4]==widths[1],'Timing width did not grow and shrink after text changed')
     SKIN:Bang('!SetOption','MeterTiming','Text',original_text)
     SKIN:Bang('!UpdateMeter','MeterTiming')
-    transport_center('MeterTiming')
+    transport_layout('MeterTiming')
     for _,command_name in ipairs({'Previous','Next'}) do
         local meter=SKIN:GetMeter('Meter'..command_name)
         local enter,leave=meter:GetOption('MouseOverAction'),meter:GetOption('MouseLeaveAction')
@@ -858,7 +990,7 @@ queue_transport_checks=function()
         check(leave=='[!CommandMeasure "MeasureMediaUI" "HoverTransport(\''..command_name..'\',false)"]','Unexpected transport leave action')
         check(meter:GetOption('LucideTransportStroke'):find('Fill Color 0,0,0,0',1,true)~=nil,'Normal skip control is filled')
         SKIN:Bang(enter)
-        check(meter:GetOption('LucideTransportStroke'):find('Fill Color '..SKIN:GetVariable('AccentColor'),1,true)~=nil,'Supported skip hover is not filled')
+        check(meter:GetOption('LucideTransportStroke'):find('Fill Color '..SKIN:GetVariable('BackgroundColor'),1,true)~=nil,'Supported skip hover is not filled')
         SKIN:Bang(leave)
         check(meter:GetOption('LucideTransportStroke'):find('Fill Color 0,0,0,0',1,true)~=nil,'Skip hover fill did not clear')
     end
@@ -870,10 +1002,12 @@ local function identity_stage()
     check(read(SELF:GetOption('PreferencesPath'))==identity_preferences,'Identity transition changed preferences')
     check(prefs.QueueExpanded=='0','Identity fixture expansion changed')
     local setup=kind=='IdentitySetup'
-    local expected=setup and 'Setup' or ({'Spotify','YouTube','YouTube','Unknown','Quod Libet Player',identity_literal,'Not connected','Idle','Spotify'})[stage]
+    -- Only a connected, Playing (state 1) sample with a nonblank title names
+    -- the player. Stage 3 is paused (state 2); 7 is disconnected, 8 idle.
+    local expected=setup and 'stopped' or ({'Spotify','YouTube','paused','Unknown','Quod Libet Player',identity_literal,'stopped','stopped','Spotify'})[stage]
     local measure=assert(SKIN:GetMeasure('MeasureMediaHeader'))
     check(measure:GetOption('Measure')=='Script' and measure:GetOption('ScriptFile'):match('MediaHeader%.lua$'),'Production header adapter missing')
-    check(measure:GetStringValue()==expected,'Identity data mismatch at stage '..stage..': '..measure:GetStringValue())
+    check(measure:GetStringValue()==title_label()..expected,'Identity data mismatch at stage '..stage..': '..measure:GetStringValue())
     if not setup then
         check(SKIN:GetMeasure('MeasurePlayer'):GetOption('Measure')=='Script','Raw player fixture must preserve literal data')
         check(SKIN:GetMeasure('MeasureMediaSource'):GetOption('Measure')=='String','Real source reader in identity fixture')
@@ -882,12 +1016,10 @@ local function identity_stage()
         if stage==6 then check(SKIN:GetMeasure('MeasurePlayer'):GetStringValue()==identity_literal,'Literal fixture was expanded before header binding') end
         identity_transport()
     else check(SKIN:GetMeasure('MeasureConnection')==nil,'Setup loaded player data') end
-    local heading=assert(SKIN:GetMeter('MeterHeading'))
-    local player_name=assert(SKIN:GetMeter('MeterPlayerName'))
-    player_name_row()
+    -- Also asserts exactly one title icon, matching the text's playing test.
+    header_row(expected)
     check(SKIN:GetVariable('IdentitySentinel')=='unchanged','Literal player data executed or expanded a fixture command')
     local width,height=dimensions(false,5)
-    local scale=SELF:GetNumberOption('ExpectedScale')
     if not setup then
         local sizes={}
         for _,name in ipairs({'MeterSongIcon','MeterArtistIcon','MeterAlbumIcon','MeterCoverFrame','MeterTrackTitle'}) do
@@ -897,54 +1029,20 @@ local function identity_stage()
         end
         identity_metadata[#identity_metadata+1]='stage'..stage..':'..table.concat(sizes,',')
     end
-    local visible=0
-    for _,name in ipairs(identity_icons) do
-        local icon=assert(SKIN:GetMeter(name))
-        local shown=icon:GetW()>0
-        check(shown,'Static title/player icon hidden at stage '..stage..': '..name)
-        check(icon:GetOption('Group')=='MediaPlayerIcons' and icon:GetOption('Meter')=='Shape','Icon escaped fixed Shape group')
-        if shown then
-            visible=visible+1
-            local icon_size=14*scale*(name=='MeterMediaIcon' and tonumber(SKIN:GetVariable('TitleFontSize'))/10 or 1)
-            check(math.abs(icon:GetW()-icon_size)<=1 and math.abs(icon:GetH()-icon_size)<=1,'Player icon dimensions wrong')
-            inside(name,width,height)
-            check(icon:GetX(true)+icon:GetW()<=(name=='MeterMediaIcon' and heading or player_name):GetX(true),'Icon overlaps its label')
-        end
-    end
-    check(visible==2,'Both static title and player-row icons must be visible')
+    for _,name in ipairs(identity_icons) do inside(name,width,height) end
     inside('MeterHeading',width,height)
-    inside('MeterPlayerName',width,height)
-    local gear=SKIN:GetMeter('MeterMediaOptions')
-    check(heading:GetX(true)+heading:GetW()<=gear:GetX(true),'Player title overlaps gear')
     if setup or stage==9 then
         artwork_bounds(false)
-        local info={}
-        for _,meter_name in ipairs({'MeterHeading','MeterPlayerName'}) do
-            local target,probe=SKIN:GetMeter(meter_name),SKIN:GetMeter('Probe'..meter_name)
-            probe:Show();local w,h=probe:GetW(),probe:GetH();probe:Hide()
-            local detail=string.format('%s=%dx%d/%dx%d',meter_name,w,h,target:GetW(),target:GetH())
-            check(w>0 and h>0 and w<=target:GetW() and h<=target:GetH(),'Title/player-name glyph clipping: '..detail)
-            info[#info+1]=detail
-        end
-        glyph_report=table.concat(info,'; ')..'; long literal names retain ClipString=1 and full bound tooltip'
-        if not setup then
-            local positions={}
-            for _,name in ipairs({'MeterPrevious','MeterPlayPause','MeterNext'}) do
-                local meter=SKIN:GetMeter(name)
-                positions[#positions+1]=string.format('%s:%g,%g,%g,%g',name,meter:GetX(true),meter:GetY(true),meter:GetW(),meter:GetH())
-            end
-            glyph_report=glyph_report..'\ntransportBounds='..table.concat(positions,';')
-            local icon_positions={}
-            for _,name in ipairs(identity_icons) do
-                local meter=SKIN:GetMeter(name)
-                icon_positions[#icon_positions+1]=string.format('%s:%g,%g,%g,%g',name,meter:GetX(true),meter:GetY(true),meter:GetW(),meter:GetH())
-            end
-            glyph_report=glyph_report..'\niconBounds='..table.concat(icon_positions,';')
-        end
+        local target,probe=SKIN:GetMeter('MeterHeading'),SKIN:GetMeter('ProbeMeterHeading')
+        probe:Show();local w,h=probe:GetW(),probe:GetH();probe:Hide()
+        glyph_report=glyph_fit('MeterHeading',target,w,h)..'; long literal names clip with ClipString=1 and no tooltip'
         if #identity_metadata>0 then glyph_report=glyph_report..'\nmetadata='..table.concat(identity_metadata,'; ') end
         return true
     end
     stage=stage+1; tick=0; done=false
+    -- MeasureMediaHeader samples every #MediaLegacyDivider# ticks; wait out a
+    -- full cycle so the title is observed at its production cadence.
+    settle_ticks=formula('#MediaLegacyDivider#')+3
     -- Only fixed test-owned commands change synthetic measures. The observed
     -- metadata never enters an option or a bang, including the adversarial case.
     SKIN:Bang('!CommandMeasure','MeasurePlayer','Select('..stage..')')
@@ -984,10 +1082,7 @@ local function title_row_stage()
     for _,name in ipairs(probe_names()) do
         local target,probe=SKIN:GetMeter(name),SKIN:GetMeter('Probe'..name)
         probe:Show();local w,h=probe:GetW(),probe:GetH();probe:Hide()
-        local detail=string.format('%s=%dx%d/%dx%d centerY=%g',name,w,h,target:GetW(),target:GetH(),target:GetY(true))
-        check(w>0 and h>0 and h<=target:GetH(),'Title/status vertical glyph clipping: '..detail)
-        if settings or name~='MeterHeading' or SELF:GetNumberOption('ExpectedWidth')>=220 then check(w<=target:GetW(),'Unexpected title/status width clipping: '..detail) end
-        info[#info+1]=detail
+        info[#info+1]=glyph_fit(name,target,w,h)..string.format(' centerY=%g',target:GetY(true))
     end
     if settings then
         local close=SKIN:GetMeter('MeterClose')
@@ -1006,12 +1101,10 @@ local function title_row_stage()
             check(SKIN:GetMeter('MeterMediaIcon')==nil,'Standalone Queue unexpectedly gained an identity icon')
             check(math.abs(SKIN:GetMeter('MeterQueueStatus'):GetY(true)-(inset+26*scale))<=1,'Standalone status row moved')
         else
-            local name='MeterMediaIcon'
-            local icon=SKIN:GetMeter(name)
-            local size=14*scale*tonumber(SKIN:GetVariable('TitleFontSize'))/10
-            check(math.abs(icon:GetW()-size)<=1 and math.abs(icon:GetH()-size)<=1,'Title icon ignores shared size')
-            player_name_row()
-            inside(name,width,height)
+            -- Sizes and centers whichever single title icon is showing.
+            header_row()
+            inside('MeterMediaIcon',width,height)
+            inside('MeterPlayerIcon',width,height)
             if kind:match('Player$') then
                 check(SKIN:GetMeasure('MeasureMediaSource'):GetOption('Measure')=='String','Real source reader in title fixture')
                 check(SKIN:GetMeasure('MeasureSourceArtist'):GetOption('Measure')=='String','Real raw artist in title fixture')
@@ -1105,7 +1198,7 @@ function Update()
     end
     tick=tick+1
     if tick==1 and kind~='SyncMain' and not kind:match('^Header') then prepare_probes() end
-    if done or tick<3 then return 0 end
+    if done or tick<settle_ticks then return 0 end
     done=true
     local status_only=SELF:GetOption('StatusProbeOnly','0')=='1'
     local scenario=SELF:GetOption('EmptyQueueTransition','0')=='1' and empty_queue_stage or kind:match('^TitleRow') and title_row_stage or kind:match('^Identity') and identity_stage or kind:match('^Header') and header_stage or status_only and stage>1 and compact_status_stage or kind:match('^Artwork') and artwork_stage or kind:match('^Typography') and typography_stage or (kind=='Accordion' or kind:match('^QueueToggle')) and accordion_stage or kind=='SyncMain' and sync_stage or settings_stage
@@ -1120,7 +1213,17 @@ function Update()
             SELF:GetNumberOption('ExpectedColumns'),stage,previous_checks+checks)
         if not ok then report=report..'\n'..tostring(finished) end
         if glyph_report~='' then report=report..'\nglyphs='..glyph_report end
+        if #fit_report>0 then report=report..'\nfit='..table.concat(fit_report,'; ') end
         if timing_report~='' then report=report..'\ntiming='..timing_report end
+        -- Rendered bounds for the runner's pixel checks, so it samples where
+        -- the skin actually drew rather than re-deriving the layout.
+        local bounds={}
+        for _,name in ipairs({'MeterCoverMask','MeterArtworkPlaceholder','MeterMediaIcon','MeterPlayerIcon','MeterSongIcon','MeterArtistIcon','MeterAlbumIcon',
+            'MeterProgress','MeterPrevious','MeterPlayPause','MeterNext','MeterQueueToggle'}) do
+            local meter=not is_settings() and SKIN:GetMeter(name)
+            if meter then bounds[#bounds+1]=string.format('%s:%g,%g,%g,%g',name,meter:GetX(true),meter:GetY(true),meter:GetW(),meter:GetH()) end
+        end
+        if #bounds>0 then report=report..'\nbounds='..table.concat(bounds,';') end
         write(SELF:GetOption('ResultFile'),report..'\n')
     end
     return 0

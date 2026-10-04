@@ -143,8 +143,11 @@ function Install-RunCommandFixtures([string]$CaseRoot) {
     # Provider controls are dormant in the visual scenarios, but replace every
     # copied RunCommand host so a fixture can never launch a real helper.
     Write-TestFile (Join-Path $CaseRoot '@Resources\Modules\Media\ProviderControlFixture.lua') "function Update() return 1 end`nfunction Run() end`n"
-    $names=@('MeasureMediaSourceControl','MeasureMediaQueueControl','MeasureQueueProviderControl')
-    foreach ($entryPath in Get-ChildItem -LiteralPath $CaseRoot -Recurse -Filter '*.ini' -File) {
+    # Lifecycle.inc's resume hosts are inert, but are replaced too so the
+    # fixture guard below can keep rejecting every Plugin= line.
+    $names=@('MeasureMediaSourceControl','MeasureMediaQueueControl','MeasureQueueProviderControl',
+        'MeasureMediaSourceResume','MeasureMediaQueueResume')
+    foreach ($entryPath in Get-ChildItem -LiteralPath $CaseRoot -Recurse -File | Where-Object { $_.Extension -in @('.ini','.inc') }) {
         $entry=[IO.File]::ReadAllText($entryPath.FullName)
         $changed=$false
         foreach ($name in $names) {

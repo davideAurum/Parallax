@@ -3,13 +3,18 @@ MediaHeaderLucideScale=(#TitleIconSize#/24)
 MediaPlayerLucideScale=(#TitleIconSize#/24)
 
 ; Last measure: read the current provider/source sample without starting either.
-; Divider matches WebNowPlaying.inc's: this only needs the original cadence.
+; Its value fills MeterHeading's "Media Player: %1" - "stopped", or the current
+; player while a track plays. Divider matches WebNowPlaying.inc's: this only
+; needs the original cadence.
 [MeasureMediaHeader]
 Measure=Script
 ScriptFile=#@#Modules\Media\MediaHeader.lua
 UpdateDivider=#MediaLegacyDivider#
 
-; Constant Lucide monitor-play beside the title, audio-lines beside the player.
+; One title-icon slot, two drawings, exactly one shown. Lucide monitor-play is
+; the default and stands whenever nothing is playing; Setup, which has no
+; player, never leaves it. While a track plays, MediaPulse.lua hides it and
+; shows the animated Lucide audio-lines in the same box, then swaps back.
 ; SVG source and license: Icons\Lucide\README.md.
 [MediaHeaderIconStyle]
 X=#ContentX#
@@ -39,14 +44,12 @@ DynamicVariables=1
 ; Overrides the style's UpdateDivider=-1: while a track is playing,
 ; MediaPulse.lua rewrites each bar (Shape..Shape6) every tick via !SetOption,
 ; matching the audio-lines equalizer pulse at https://lucide-animated.com/.
-; This meter must take part in normal updates for that to repaint. Idle,
-; paused or disconnected, it settles back to the static bars below.
+; This meter must take part in normal updates for that to repaint. It shares
+; the style's box with MeterMediaIcon and starts hidden; the same script shows
+; it only while a track plays, and settles the bars back to the static values
+; below whenever it is hidden again.
 UpdateDivider=1
-X=#MediaPlayerRowX#
-Y=(#MediaPlayerRowY#+(18*#Scale#-#TitleIconSize#)/2)
-W=#TitleIconSize#
-H=#TitleIconSize#
-Hidden=0
+Hidden=1
 Shape=Line (2*#MediaPlayerLucideScale#),(10*#MediaPlayerLucideScale#),(2*#MediaPlayerLucideScale#),(13*#MediaPlayerLucideScale#) | Extend LucideAudioLinesStroke
 Shape2=Line (6*#MediaPlayerLucideScale#),(6*#MediaPlayerLucideScale#),(6*#MediaPlayerLucideScale#),(17*#MediaPlayerLucideScale#) | Extend LucideAudioLinesStroke
 Shape3=Line (10*#MediaPlayerLucideScale#),(3*#MediaPlayerLucideScale#),(10*#MediaPlayerLucideScale#),(21*#MediaPlayerLucideScale#) | Extend LucideAudioLinesStroke

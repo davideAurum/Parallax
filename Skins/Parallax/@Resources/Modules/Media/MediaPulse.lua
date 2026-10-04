@@ -1,5 +1,5 @@
--- Time-driven pulse for the current-player icon. No file I/O, subprocesses,
--- timers or network; it only rewrites MeterPlayerIcon's bar geometry.
+-- Time-driven title icon. No file I/O, subprocesses, timers or network; it
+-- only swaps the title icon and rewrites MeterPlayerIcon's bar geometry.
 --
 -- Deliberately separate from Media.lua: that adapter is a pure function of the
 -- current provider sample, and its suite asserts an identical sample produces
@@ -22,7 +22,7 @@ local period = 1100
 
 function Initialize()
     measures, applied, tick = {}, {}, 0
-    for _, name in ipairs({ 'MeasureConnection', 'MeasureState' }) do
+    for _, name in ipairs({ 'MeasureConnection', 'MeasureState', 'MeasureTitle' }) do
         measures[name] = SKIN:GetMeasure(name)
     end
     local interval = tonumber(SKIN:GetVariable('MediaAnimationInterval')) or 50
@@ -37,14 +37,30 @@ local function number(name)
     return value
 end
 
+local function nonblank(name)
+    local measure = measures[name]
+    local value = measure and measure:GetStringValue()
+    return type(value) == 'string' and value:find('%S') ~= nil
+end
+
 local function shape(bar, half)
     return string.format('Line (%d*#MediaPlayerLucideScale#),(%.3f*#MediaPlayerLucideScale#),(%d*#MediaPlayerLucideScale#),(%.3f*#MediaPlayerLucideScale#) | Extend LucideAudioLinesStroke',
         bar.x, bar.center - half, bar.x, bar.center + half)
 end
 
 function Update()
-    local playing = number('MeasureConnection') == 1 and number('MeasureState') == 1
+    -- Playing means connected, reporting Playing (state 1) and holding a track.
+    -- MediaHeader.lua applies the identical test to the title text, so the
+    -- icon and "Media Player: <name>" always switch together.
+    local playing = number('MeasureConnection') == 1 and number('MeasureState') == 1 and nonblank('MeasureTitle')
     tick = playing and (tick + 1) or 0
+    -- Exactly one title icon is visible. The first tick applies this
+    -- unconditionally, so it never depends on the ini defaults agreeing.
+    if applied.playing ~= playing then
+        applied.playing = playing
+        SKIN:Bang(playing and '!ShowMeter' or '!HideMeter', 'MeterPlayerIcon')
+        SKIN:Bang(playing and '!HideMeter' or '!ShowMeter', 'MeterMediaIcon')
+    end
     for index, bar in ipairs(bars) do
         local half = bar.half
         if playing then

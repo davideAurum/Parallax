@@ -49,9 +49,9 @@ Plugin=WebNowPlaying
 PlayerType=Cover
 UpdateDivider=#MediaLegacyDivider#
 
-; State: 1=Playing, 2=Paused, 0=Stopped. Media.lua's Update() reads this
-; directly (as it already does for the play/pause icon) to drive the
-; player icon's pulse; no separate skin Variable needed.
+; State: 1=Playing, 2=Paused, 0=Stopped. Read directly by Media.lua (the
+; play/pause icon), MediaPulse.lua (the title icon swap and pulse) and
+; MediaHeader.lua (the title's player name); no separate skin Variable needed.
 [MeasureState]
 Measure=Plugin
 Plugin=WebNowPlaying
@@ -102,8 +102,9 @@ Measure=Script
 ScriptFile=#@#Modules\Media\Source\SourceReader.lua
 UpdateDivider=#MediaLegacyDivider#
 
-; Player-icon pulse. Runs every fast tick (no divider) so the animation is
-; smooth; it only reads the two measures' last-cached values between their own
+; Title icon: swaps monitor-play for audio-lines while a track plays, and
+; pulses the bars. Runs every fast tick (no divider) so the animation is
+; smooth; it only reads three measures' last-cached values between their own
 ; slower refreshes, so it adds no extra plugin polling. Kept out of Media.lua
 ; because that adapter must stay a pure function of the current sample.
 [MeasureMediaPulse]

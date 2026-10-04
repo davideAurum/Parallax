@@ -16,7 +16,9 @@ MediaSurfaceOffset=(Round(12*#MediaWide#*#Scale#))
 MediaSurfaceY=(#Inset#+#MediaSurfaceOffset#)
 MediaHeaderY=#MediaSurfaceY#
 MediaCoverX=(#Inset#+#Padding#*(1-#MediaWide#))
-MediaCoverY=(#Inset#+44*(1-#MediaWide#)*#Scale#)
+; Compact art tops the metadata block it sits beside (#MediaMetadataY#), which
+; also keeps it clear of the title icon directly above it at #ContentX#.
+MediaCoverY=(#Inset#+(1-#MediaWide#)*(#MediaMetadataY#-#Inset#))
 MediaCoverBaseSize=(48*#Scale#*(1-#MediaWide#)+Round(#UnitWidth#*0.9)*#MediaWide#)
 MediaLegacyCoverSize=(Round(#MediaCoverBaseSize#*0.75))
 MediaCoverSize=((1-#MediaWide#)*#MediaLegacyCoverSize#+#MediaWide#*Round(#Inset#+#MediaBodyHeightPx#+#MediaSurfaceOffset#-#MediaCoverY#))
@@ -32,10 +34,10 @@ MediaCoverRadius=((6+4*#MediaWide#)*#Scale#)
 ; Queue has its own surface-wide bounds below both artwork and controls.
 ContentX=(#Inset#+#Padding#+#MediaWide#*(#MediaCoverSize#+8*#Scale#-#Padding#))
 ContentWidth=(#Inset#+#PanelWidth#-#Padding#-#ContentX#)
-; Current-player identity now shares the title row, after its fixed title label.
-MediaHeadingWidth=(97*#MediaWide#*#Scale#+(1-#MediaWide#)*(#ContentWidth#-#TitleIconSize#-#TitleIconGap#-24*#Scale#))
-MediaPlayerRowX=(#MediaWide#*(#ContentX#+#TitleIconSize#+#TitleIconGap#+#MediaHeadingWidth#+6*#Scale#)+(1-#MediaWide#)*(#ContentX#+54*#Scale#))
-MediaPlayerRowY=(#MediaWide#*(#MediaHeaderY#+#TitleRowCenterY#-#Inset#-9*#Scale#)+(1-#MediaWide#)*(#MediaSurfaceY#+30*#Scale#))
+; The title carries the current player ("Media Player: <name>"), so it is one
+; row at both widths: from after the title icon to 24px before the content's
+; right edge, which is the 18px gear plus a 6px gap.
+MediaHeadingWidth=(#ContentWidth#-#TitleIconSize#-#TitleIconGap#-24*#Scale#)
 ; Keyed to MediaCoverSize, not MediaCoverBaseSize: the base is the unshrunk
 ; figure, so keying to it left the metadata block indented from the title row
 ; and progress bar. All three now share the same 8*Scale gutter off the art.
@@ -43,10 +45,9 @@ MediaMetadataX=(#Inset#+#Padding#+#MediaWide#*(#MediaCoverSize#+8*#Scale#-#Paddi
 MediaMetadataWidth=(#Inset#+#PanelWidth#-#Padding#-#MediaMetadataX#)
 ; The panel stacks three subsections - title row, song metadata, then the
 ; progress/transport block - separated by one shared gap. MediaHeaderBottom is
-; where the title row ends: the centered heading's lower edge at double width
-; (#TitleRowCenterY#+#TitleRowHeight#/2, i.e. 26*Scale below the surface), or
-; the player-name row's lower edge where it wraps below the heading at standard
-; width (#MediaPlayerRowY#+18*Scale, i.e. 48*Scale below the surface).
+; where the title row ends: the centered heading's lower edge
+; (#TitleRowCenterY#+#TitleRowHeight#/2, i.e. 26*Scale below the surface) at
+; both widths, now that no separate player-name row wraps below it.
 MediaSectionGap=(4*#Scale#)
 ; A text row's box carries leading below its glyphs, but the progress bar's top
 ; edge is solid ink, so an equal box gap reads as visibly tighter above the bar.
@@ -55,7 +56,7 @@ MediaSectionGap=(4*#Scale#)
 ; and TitleFontSize (measured ~6px for IBM Plex Sans at default typography,
 ; ranging ~5-8px across the min/max title sizes).
 MediaBarOpticalPad=(6*#Scale#)
-MediaHeaderBottom=(#MediaSurfaceY#+(48-22*#MediaWide#)*#Scale#)
+MediaHeaderBottom=(#MediaSurfaceY#+26*#Scale#)
 MediaMetadataY=(#MediaHeaderBottom#+#MediaSectionGap#)
 MediaMetadataPitch=(24*#Scale#)
 MediaProgressX=#ContentX#

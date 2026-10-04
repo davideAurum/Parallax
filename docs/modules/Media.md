@@ -15,8 +15,10 @@ user-selected Lucide metadata and playback icons are attributed below.
 - `Skins/Parallax/Media/Setup.ini`: dependency-free onboarding and fallback.
 - `Skins/Parallax/Media/Media.ini`: optional WebNowPlaying player with title,
   artist, album, cover, reported position/duration, and progress. Lucide Music,
-  User Round Group and Disc 3 icons identify the metadata rows. Beside the static
-  `Media Player` title with Monitor Play, the body-font current-player name uses the selected Lucide Audio Lines icon. Playback-state captions
+  User Round Group and Disc 3 icons identify the metadata rows. The one-line
+  title reads `Media Player: stopped` behind Lucide Monitor Play when nothing is
+  playing, and `Media Player: <player>` behind animated Lucide Audio Lines while
+  a track plays. Other playback-state captions
   are omitted; the optional source explanation remains on the song icon's tooltip.
 - Previous, play/pause, and next controls use WNP capability measures. Unsupported
   controls appear muted, explain why in tooltips, and send no command. Lua checks
@@ -123,7 +125,7 @@ vector artwork on 34-pixel circular faces. Statuses, queue rows and Setup
 actions retain the chosen body `FontSize`; Setup actions remain 18 pixels tall.
 Actions use zero local padding. Primary actions use
 `AccentColor`; the gear, documentation, Stop and secondary settings/navigation actions
-use `AccentColor2`. Metadata icons use `MutedColor`; the Monitor Play title and Audio Lines player-row icons
+use `AccentColor2`. Metadata icons use `MutedColor`; the Monitor Play and Audio Lines title icons
 and queue status retain `MediaColor`, and
 unavailable actions remain muted. The double layout provides more metadata/time
 space. The three transport circles form a row centered on the panel's lower
@@ -370,7 +372,7 @@ WNP maps Windows Playing to state 1 and other statuses to state 2. Incomplete,
 unmatched, ambiguous, unavailable, stopped or expired observations produce a
 fixed explanatory tooltip without claiming Spotify. The header uses the reader's
 confirmed Spotify result; an unresolved generic Windows result displays
-`Unknown` beneath the `Media Player` title. Specific WNP names, such as a browser extension's player
+`Media Player: Unknown` while playing. Specific WNP names, such as a browser extension's player
 name, bypass the local observation and receive a generic reported-source tooltip.
 
 One process collects every two seconds, with a four-second asynchronous work
@@ -433,45 +435,67 @@ These vector adaptations add no plugin, font or runtime network dependency.
 
 ## Player title, current player and icon
 
-`MediaHeader.lua` reads the current WNP connection, track and reported player
-after the source reader has updated. `MeterPlayerName` binds directly to its
-returned string as `%1`; the tooltip uses the same measure value, retaining
-the full name when the row truncates it. No player-supplied text becomes
-a bang, path, variable name or Lua command. The static `Media Player` heading
-inherits title typography, and the adjacent player name inherits body `FontSize`
-and `TextColor`. Both retain fixed bounds without wrapping or shrinking global font choices.
-The script retains a UTF-16LE BOM so Rainmeter's native Lua APIs preserve
-accented, CJK and non-BMP player names.
+User direction, 2026-10-04: one title, one icon, both driven by whether
+something is playing. Nothing playing shows Lucide Monitor Play and
+`Media Player: stopped`; a playing track shows animated Lucide Audio Lines
+and `Media Player: <player>`. The separate current-player row is removed.
 
-Player and Setup titles use the shared `StyleTitleRow` center, translated to
-their offset surface. Monitor Play returns to that title row at `ContentX`,
-with its paths and strokes scaled by `TitleIconSize / 24`. Title text starts
-after the icon and shared four-pixel gap. Its fixed 97-pixel title area is
-followed by a six-pixel gap, the 14-pixel Audio Lines icon and current player;
-the player ends 24 logical pixels before the gear. Audio Lines scales with the
-suite, and its paths and strokes scale by
-`14 * Scale / 24`. A four-pixel gap separates the icon from the player name.
-The title and current-player text share the same vertical center. The icon and
-source name remain visible in every player/setup state.
+"Playing" means WNP is connected, reports state 1 (Playing) and has a
+nonblank track title. `MediaHeader.lua` (the text) and `MediaPulse.lua` (the
+icon) apply that identical test to the same cached measure values, so the two
+switch on the same update. Paused, stopped, idle, disconnected and the
+plugin-free Setup entrypoint all read `stopped` - a literal reading of the
+request - while the body keeps the specific state: `No active media`, the
+paused play/pause glyph, or Setup's WebNowPlaying guidance.
+
+`MediaHeader.lua` runs after the source reader. `MeterHeading` binds its
+returned string as `%1` in `Media Player: %1`, with title typography and a
+fixed width. No player-supplied text becomes a bang, path, variable name or Lua
+command, and the adapter issues no bangs. The script retains a UTF-16LE BOM so
+Rainmeter's native Lua APIs preserve accented, CJK and non-BMP player names.
+
+Both icons live in one title-icon box at `ContentX` on the shared
+`StyleTitleRow` center, scaled by `TitleIconSize / 24`. Monitor Play is the
+ini default (`Hidden=0`) and Audio Lines starts hidden. `MediaPulse.lua`, the
+existing every-tick animation script, shows one and hides the other whenever
+the playing test changes - always on its first update, so the swap never relies
+on the ini defaults agreeing - and animates the Audio Lines bars while
+playing. Setup loads no pulse script, so it only ever shows Monitor Play.
+
+The title starts after the icon and the shared four-pixel gap and ends 24
+logical pixels (the 18-pixel gear plus six) before the content's right edge, at
+both widths. Longer text clips with an ellipsis; there is no tooltip, since it
+would only repeat the visible label (see the 2026-09-19 tooltip audit). The
+compact layout's stacked player row is gone, so its header ends at 26 pixels
+like the double-width one: compact metadata, progress and transport move up 22
+pixels, and the compact artwork now tops the metadata block (y30) instead of
+sitting at y44. At width 220 and scale 1 the compact window is 228×174
+(was 228×196); the double-width window is unchanged at 456×186.
+
+Measured title fit, IBM Plex Sans SemiBold advance widths at width 220/scale 1:
+
+| Layout, title size | Title width | `stopped` | `Spotify` | `Unknown` |
+| --- | ---: | ---: | ---: | ---: |
+| Double, 12 pt (live setting) | 221.2 | 165.8 fits | 157.9 fits | 175.5 fits |
+| Double, 10 pt | 224.0 | 138.2 fits | 131.5 fits | 146.2 fits |
+| Compact, 12 pt | 163.2 | 165.8 **clips** | 157.9 fits | 175.5 clips |
+| Compact, 10 pt | 166.0 | 138.2 fits | 131.5 fits | 146.2 fits |
+
+Compact at 12 pt clips `stopped` by 2.6 px. This is left open rather than
+patched: narrowing the gear clearance to make it fit leaves under 1.5 px of
+margin that any FontFace or renderer change would erase. The options are
+recorded in [Integration and next checks](#integration-and-next-checks).
+
+Specific WNP player names take precedence over a stale source label. Generic
+Windows sessions receive the Spotify name only when the existing correlation
+confirms it; otherwise the player is `Unknown`.
 
 Standalone Queue uses the same title center without a leading identity icon.
 Settings keeps its centered title using `CenterCenter`; its close control shares
 the title's vertical center. Settings notes and existing content rows retain
 their positions.
 
-Specific WNP player names take precedence over a stale source label. Generic
-Windows sessions receive the Spotify name only when the existing correlation
-confirms it; otherwise the app is Unknown. Disconnected, empty-track and
-plugin-free Setup states show Not connected, Idle and Setup respectively.
-Pausing a track retains its player identity.
-
-The title uses Monitor Play and the adjacent player identity uses the user-selected Lucide
-Audio Lines drawing for every player and setup state. Their native Shape paths
-preserve the supplied SVGs. The name adapter only returns inert text;
-it no longer changes icon visibility or sends UI bangs. Player detection
-remains available in the title row and full-name tooltip.
-See [Rainmeter measure-bound tooltips](https://github.com/rainmeter/rainmeter-docs/blob/master/source/manual/meters/general-options/tooltips.html)
-and [Shape primitives](https://github.com/rainmeter/rainmeter-docs/blob/master/source/manual/meters/shape/index.html).
+See [Rainmeter Shape primitives](https://github.com/rainmeter/rainmeter-docs/blob/master/source/manual/meters/shape/index.html).
 
 ## Large artwork layout
 
@@ -596,6 +620,34 @@ Sources: [quota modes](https://developer.spotify.com/documentation/web-api/conce
 [rate limits](https://developer.spotify.com/documentation/web-api/concepts/rate-limits).
 
 ## Validation report
+
+### Single-row title and playing-state icon (2026-10-04)
+
+- `test_skin_contract.py`: 15 tests / 3,472 subtests passed, covering Media,
+  Setup, Queue and Settings across widths, scales, columns and font profiles.
+  The header test now asserts the bound `Media Player: %1` title, the removed
+  player row, both icons sharing one box, the 24 px gear clearance and the
+  compact art/metadata positions; the independent geometry model moved compact
+  progress from 134 to 112 px and compact art from y44 to y30.
+- `tests/Test-MediaHeader.ps1`: 526 assertions passed in an isolated Rainmeter
+  4.5.26 with the unchanged UTF-16 `MediaHeader.lua`, the real `MediaPulse.lua`
+  and `Header.inc`, and a clean log. Synthetic stages cover playing names,
+  paused (state 2), stopped (state 0), disconnected and empty-track samples, and
+  playing again afterwards. At every stage exactly one icon is visible (the
+  hidden one reports 0×0) and it agrees with the title text.
+- Owned-window captures from a scratch fixture that replaces the WNP plugin
+  measures with fixed Script values (Media.ini, width 220, scale 1, 12 pt):
+  double playing 456×186 (Audio Lines, `Media Player: Spotify`), double paused
+  456×186 (Monitor Play, `Media Player: stopped`), compact playing 228×174 and
+  compact stopped 228×174, which shows the `stopp…` clip measured above. All
+  four were inspected. Their logs' only errors came from the fixture's fake
+  cover value, not from the skin.
+
+Not verified: the real WNP plugin and a live player, the animation's smoothness
+on screen, and mixed DPI. The compact captures also show the transport circles
+overlapping the timing text's right end. That overlap existed before this
+change, because everything below the header moved together, and it belongs to
+the deferred transport x-axis decision.
 
 ### Anchored 20-pixel artwork and raised player layout (2026-09-13)
 
@@ -1223,6 +1275,19 @@ the Media header for its gear and click **Queue** or its **List Plus** icon to e
 
 ## Integration and next checks
 
+- Open (2026-10-04): at compact width 220 with a 12 pt title, `Media Player:
+  stopped` clips by 2.6 px (title width 163.2, text 165.8). Options: narrow the
+  gear clearance from 24 px to 20 px (fits with 1.4 px spare, fragile across
+  fonts); restore a second compact header line; or accept the ellipsis. Double
+  width at the live 12 pt setting fits with 55 px to spare.
+- Open (2026-10-04): the synthetic settings harness (`tests/Test-MediaSettings.ps1`
+  with `tests/MediaSettingsSuite.luatest`) needs a rework. It was already stale
+  before the single-row title: its height model predates the queue drawer (40
+  of 60 cases failed only on native skin bounds), and it still expects a
+  player-name tooltip that the 2026-09-19 tooltip audit removed. It also probes
+  the now-removed `MeterPlayerName` and the old static `Media Player` heading.
+  The source contract test and `tests/Test-MediaHeader.ps1` cover the header
+  in the meantime.
 - Prefer `Setup.ini` for the initial suite layout; Media.ini requires the WNP
   plugin, which the `.rmskin` bundles (source copies need a manual install).
   Preserve `@Resources/User/Media.inc` on upgrades.

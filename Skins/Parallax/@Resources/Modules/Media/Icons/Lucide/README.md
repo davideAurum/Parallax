@@ -15,8 +15,8 @@ The user selected these Lucide icons on 2026-09-12:
 | Next track | fast-forward, supplied by the user as an SVG data URL |
 | Expand Queue | list-plus, supplied by the user as an SVG data URL |
 | Collapse Queue | list-minus, supplied by the user as an SVG data URL |
-| Media title | monitor-play, supplied by the user as an SVG data URL |
-| Current player below Media title | audio-lines, supplied by the user as an SVG data URL |
+| Media title, nothing playing | monitor-play, supplied by the user as an SVG data URL |
+| Media title, track playing (animated) | audio-lines, supplied by the user as an SVG data URL |
 
 The first six unmodified upstream SVGs and the full upstream LICENSE are retained here from
 [Lucide revision a79b2d131dab2bf20cb224bd0937b439a9c4fa99](https://github.com/lucide-icons/lucide/tree/a79b2d131dab2bf20cb224bd0937b439a9c4fa99).
@@ -38,10 +38,12 @@ control shows Play Off on Play hover and Step Forward on Pause hover; these
 are visual changes only, and clicking still performs the play/pause action.
 `Common.inc` fits List Plus/Minus into a 14-pixel canvas centered in an 18-pixel
 queue toggle. The vertical plus stroke is omitted when expanded, matching
-List Minus. `Header.inc` scales Monitor Play with `TitleIconSize / 24` and
-centers it beside the static Media Player title. Audio Lines uses six vertical
-native lines with the supplied round caps, scaling by `14 * Scale / 24`, beside
-the body-font detected player name below the title. Both icons use `MediaColor`.
+List Minus. `Header.inc` scales Monitor Play and Audio Lines with
+`TitleIconSize / 24` and places both in the same title-icon box beside the
+`Media Player: <player>` title; exactly one is visible. Monitor Play shows
+whenever nothing is playing. While a track plays, `MediaPulse.lua` swaps in
+Audio Lines - six vertical native lines with the supplied round caps - and
+animates their heights. Both icons use `MediaColor`.
 There is no new runtime dependency. The source SVGs are kept
 for provenance rather than loaded by Rainmeter.
 

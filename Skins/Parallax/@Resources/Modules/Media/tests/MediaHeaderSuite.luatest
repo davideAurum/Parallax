@@ -30,7 +30,7 @@ function suite.run(sourcePath)
         end
         function mock:Bang(...)
             calls = calls + 1
-            error('The name-only header must never issue a bang')
+            error('The text-only header must never issue a bang; MediaPulse.lua owns the icon')
         end
         local env = setmetatable({ SKIN = mock }, { __index = _G })
         local chunk = assert(loadfile(sourcePath))
@@ -42,7 +42,7 @@ function suite.run(sourcePath)
         function f.expect(name)
             check(env.Update() == name, 'Incorrect detected name')
             check(env.GetPlayerName() == name, 'Getter identity disagrees with Update')
-            check(calls == 0, 'A name update must not alter the constant icon or issue actions')
+            check(calls == 0, 'A title update must not swap the icon or issue actions')
         end
         return f
     end
@@ -80,39 +80,53 @@ function suite.run(sourcePath)
         f.expect('Unknown')
     end)
 
-    scenario('setup disconnected and idle states cannot retain a player', function()
-        local setup = fixture({ MeasureConnection = false })
-        setup.expect('Setup')
+    scenario('setup disconnected and idle states read stopped and cannot retain a player', function()
+        local setup = fixture({ MeasureConnection = false, MeasureState = false, MeasurePlayer = false,
+            MeasureMediaSource = false, MeasureTitle = false })
+        setup.expect('stopped')
         local f = fixture()
         f.expect('Spotify')
         for _, connection in ipairs({ 0, -1, 2, 'invalid', 0 / 0, math.huge, -math.huge, false }) do
             f.values.MeasureConnection.value = connection
-            f.expect('Not connected')
+            f.expect('stopped')
         end
         f.values.MeasureConnection.value = nil
-        f.expect('Not connected')
+        f.expect('stopped')
         f.values.MeasureConnection.value = '1'
+        f.expect('Spotify')
         for _, title in ipairs({ '', ' ', '\t\r\n', false }) do
             f.values.MeasureTitle.text = title
-            f.expect('Idle')
+            f.expect('stopped')
         end
         f.values.MeasureTitle.text = nil
-        f.expect('Idle')
+        f.expect('stopped')
         f.values.MeasureTitle.text = 'Synthetic resumed title'
         f.expect('Spotify')
         f.values.MeasureTitle = false
         f.env.Initialize()
-        f.expect('Idle')
+        f.expect('stopped')
     end)
 
-    scenario('paused stopped and unknown playback state retain a known player', function()
+    scenario('only a reported Playing state names the player', function()
         local f = fixture()
         f.values.MeasurePlayer.text = 'Windows Media Session'
         f.expect('Spotify')
-        for _, state in ipairs({ 2, 0, 3, -1, 'invalid', 0 / 0, math.huge }) do
+        for _, state in ipairs({ 2, 0, 3, -1, 'invalid', 0 / 0, math.huge, -math.huge, false }) do
             f.values.MeasureState.value = state
-            f.expect('Spotify')
+            f.expect('stopped')
         end
+        f.values.MeasureState.value = nil
+        f.expect('stopped')
+        f.values.MeasureState.value = '1'
+        f.expect('Spotify')
+        f.values.MeasureState.value = 1
+        f.values.MeasurePlayer.text = 'VLC'
+        f.expect('VLC')
+        f.values.MeasureState.value = 2
+        f.expect('stopped')
+        f.values.MeasureState = false
+        f.env.Initialize()
+        f.expect('stopped')
     end)
 
     scenario('specific WNP names preserve case whitespace and stale-source priority', function()
@@ -147,7 +161,7 @@ function suite.run(sourcePath)
             'Synthetic\r\n[Rainmeter]\nOnRefreshAction=[!Quit]',
             'Synthetic\0player', 'Synthetic\255\192\128player',
             'Spotify.exe', 'Spotify Web', 'YouTube Evil', 'Evil VLC', 'Apple Music plus',
-            'Windows Media Session extra', 'Media Player', string.rep('Synthetic ', 400)
+            'Windows Media Session extra', 'Media Player', 'stopped', string.rep('Synthetic ', 400)
         }) do
             f.values.MeasurePlayer.text = name
             f.expect(name)

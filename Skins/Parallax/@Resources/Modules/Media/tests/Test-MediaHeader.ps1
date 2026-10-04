@@ -7,13 +7,14 @@ $ErrorActionPreference = 'Stop'
 $testProcess = $null
 $sourcePath = [IO.Path]::GetFullPath((Join-Path $PSScriptRoot '..\MediaHeader.lua'))
 $headerSourcePath = [IO.Path]::GetFullPath((Join-Path $PSScriptRoot '..\Header.inc'))
+$pulseSourcePath = [IO.Path]::GetFullPath((Join-Path $PSScriptRoot '..\MediaPulse.lua'))
 $suiteSourcePath = Join-Path $PSScriptRoot 'MediaHeaderSuite.luatest'
 $tempParent = [IO.Path]::GetFullPath([IO.Path]::GetTempPath())
 $runRoot = [IO.Path]::GetFullPath((Join-Path $tempParent ('Parallax-MediaHeader-test-' + [Guid]::NewGuid().ToString('N'))))
 if (-not $runRoot.StartsWith($tempParent.TrimEnd('\') + '\', [StringComparison]::OrdinalIgnoreCase)) { throw 'Run path must remain inside the temp parent.' }
 if ((Get-Item -LiteralPath $tempParent).Attributes -band [IO.FileAttributes]::ReparsePoint) { throw 'Temp parent must not be a junction.' }
 if (Test-Path -LiteralPath $runRoot) { throw 'Test run root must be fresh.' }
-foreach ($required in @($RainmeterPath, $sourcePath, $headerSourcePath, $suiteSourcePath)) {
+foreach ($required in @($RainmeterPath, $sourcePath, $headerSourcePath, $pulseSourcePath, $suiteSourcePath)) {
     if (-not (Test-Path -LiteralPath $required -PathType Leaf)) { throw "Required installed executable or source is missing: $required. Nothing is installed by this runner." }
 }
 
@@ -31,6 +32,7 @@ foreach ($directory in @($runRoot, $skinRoot, $configRoot, "$runRoot\Production"
 $productionPath = Join-Path $runRoot 'Production\MediaHeader.lua'
 $nativePath = Join-Path $runRoot 'Production\NativeMediaHeader.lua'
 $nativeHeaderPath = Join-Path $runRoot 'Production\NativeHeader.inc'
+$nativePulsePath = Join-Path $runRoot 'Production\NativeMediaPulse.lua'
 $suitePath = Join-Path $runRoot 'MediaHeaderSuite.lua'
 $iniPath = Join-Path $runRoot 'Rainmeter.ini'
 $resultPath = Join-Path $runRoot 'results.txt'
@@ -46,9 +48,11 @@ if ($sourceBytes.Length -lt 2 -or $sourceBytes[0] -ne 0xFF -or $sourceBytes[1] -
 Write-TestFile $productionPath ([IO.File]::ReadAllText($sourcePath))
 Copy-Item -LiteralPath $sourcePath -Destination $nativePath
 Copy-Item -LiteralPath $headerSourcePath -Destination $nativeHeaderPath
+Copy-Item -LiteralPath $pulseSourcePath -Destination $nativePulsePath
 Copy-Item -LiteralPath $suiteSourcePath -Destination $suitePath
 $sourceHash = (Get-FileHash -LiteralPath $sourcePath -Algorithm SHA256).Hash
 $headerHash = (Get-FileHash -LiteralPath $headerSourcePath -Algorithm SHA256).Hash
+$pulseHash = (Get-FileHash -LiteralPath $pulseSourcePath -Algorithm SHA256).Hash
 Write-TestFile $iniPath @"
 [Rainmeter]
 SkinPath=$skinRoot\
@@ -82,7 +86,6 @@ MediaHeaderInjected=0
 HeaderIconRefreshSeen=0
 ContentX=0
 Scale=1
-MediaPlayerRowY=20
 TitleIconSize=14
 TitleRowCenterY=10
 MediaSurfaceOffset=0
@@ -111,6 +114,17 @@ Measure=Script
 ScriptFile=$runRoot\FixtureMeasures.lua
 Field=title
 Group=HeaderInputs
+
+[MeasureState]
+Measure=Script
+ScriptFile=$runRoot\FixtureMeasures.lua
+Field=state
+Group=HeaderInputs
+
+; The real title-icon swap, driven by the same fixture measures.
+[MeasureMediaPulse]
+Measure=Script
+ScriptFile=$nativePulsePath
 @Include1=$nativeHeaderPath
 
 ; Override only the script's copied path; the actual icon include is unchanged.
@@ -133,7 +147,6 @@ SolidColor=0,0,0,0
 Meter=String
 MeasureName=MeasureMediaHeader
 Text=Media Player: %1
-ToolTipText=Media Player: %1
 UpdateDivider=1
 W=100
 H=20
@@ -156,7 +169,9 @@ local samples = {
     { player='Spotify', source='Spotify', title='' },
     { player='VLC', source='Spotify' },
     { player='Windows Media Player', source='Spotify' },
-    { player='Apple Music', source='Spotify' }
+    { player='Apple Music', source='Spotify' },
+    { player='Spotify', source='Spotify', state=2 },
+    { player='Spotify', source='Spotify', state=0 }
 }
 function Initialize() end
 function Update()
@@ -164,6 +179,7 @@ function Update()
     local field = SELF:GetOption('Field')
     if field == 'connection' then return sample.connection or 1 end
     if field == 'title' then return sample.title or 'Synthetic native title' end
+    if field == 'state' then return sample.state or 1 end
     return assert(sample[field])
 end
 "@ -Unicode
@@ -178,16 +194,24 @@ function AuditAndQuit()
             count = count + 1
             assert(actual == expected, 'native binding: '..tostring(actual)..' ~= '..tostring(expected))
         end
+        -- A hidden meter reports zero size, so W/H show which icon is visible.
+        local function shown(name, visible)
+            equal(SKIN:GetMeter(name):GetW(), visible and 14 or 0)
+            equal(SKIN:GetMeter(name):GetH(), visible and 14 or 0)
+        end
         local function stage(index, expected)
             SKIN:Bang('!SetVariable', 'HeaderIconRefreshSeen', '0')
             SKIN:Bang('!SetVariable', 'NativeStage', tostring(index))
             SKIN:Bang('!UpdateMeasureGroup', 'HeaderInputs')
+            SKIN:Bang('!UpdateMeasure', 'MeasureMediaPulse')
             SKIN:Bang('!UpdateMeasure', 'MeasureMediaHeader')
             equal(SKIN:GetMeasure('MeasureMediaHeader'):GetStringValue(), expected)
             equal(SKIN:GetVariable('HeaderIconRefreshSeen'), '0')
             equal(SKIN:GetVariable('MediaHeaderInjected'), '0')
-            equal(SKIN:GetMeter('MeterMediaIcon'):GetW(), 14)
-            equal(SKIN:GetMeter('MeterMediaIcon'):GetH(), 14)
+            local playing = expected ~= 'stopped'
+            equal(SKIN:GetMeasure('MeasureMediaPulse'):GetValue(), playing and 1 or 0)
+            shown('MeterMediaIcon', not playing)
+            shown('MeterPlayerIcon', playing)
         end
         stage(0, 'Spotify')
         stage(1, 'YouTube')
@@ -197,22 +221,29 @@ function AuditAndQuit()
         stage(4, '[!SetVariable MediaHeaderInjected 1]#HeaderToken#[MeasureConnection]')
         stage(5, 'Spotify')
         stage(6, 'Unknown')
-        stage(7, 'Not connected')
-        stage(8, 'Idle')
+        stage(7, 'stopped')
+        stage(8, 'stopped')
         stage(9, 'VLC')
         stage(10, 'Windows Media Player')
         stage(11, 'Apple Music')
+        stage(12, 'stopped')
+        stage(13, 'stopped')
+        stage(0, 'Spotify')
+        stage(12, 'stopped')
         equal(SKIN:GetMeter('MeterHeading'):GetOption('MeasureName'), 'MeasureMediaHeader')
         equal(SKIN:GetMeter('MeterHeading'):GetOption('Text'), 'Media Player: %1')
-        equal(SKIN:GetMeter('MeterHeading'):GetOption('ToolTipText'), 'Media Player: %1')
         equal(SKIN:GetMeter('MeterHeading'):GetOption('DynamicVariables', '0'), '0')
         equal(SKIN:GetMeter('MeterMediaIcon'):GetOption('Meter'), 'Shape')
         equal(SKIN:GetMeter('MeterMediaIcon'):GetOption('Hidden'), '0')
         equal(SKIN:GetMeter('MeterMediaIcon'):GetOption('UpdateDivider'), '-1')
         equal(SKIN:GetMeter('MeterMediaIcon'):GetOption('Shape'), 'Path LucideMonitorPlayPath | Extend LucideMonitorPlayStroke')
-        cases[#cases+1] = 'native unchanged UTF-16 script and icon include: literal Unicode, injection data and constant monitor-play across name transitions'
+        equal(SKIN:GetMeter('MeterPlayerIcon'):GetOption('Hidden'), '1')
+        equal(SKIN:GetMeter('MeterPlayerIcon'):GetOption('UpdateDivider'), '1')
+        equal(SKIN:GetMeter('MeterPlayerIcon'):GetX(), SKIN:GetMeter('MeterMediaIcon'):GetX())
+        equal(SKIN:GetMeter('MeterPlayerIcon'):GetY(), SKIN:GetMeter('MeterMediaIcon'):GetY())
+        cases[#cases+1] = 'native unchanged UTF-16 script, pulse and icon include: literal Unicode, injection data, stopped text and one shared icon slot swapping monitor-play and audio-lines'
         return 'PASS: '..count..' assertions in '..#cases..' synthetic header scenarios; '.._VERSION..'.\n'
-            ..table.concat(cases, '\n')..'\nProduction SHA256: $sourceHash\nHeader include SHA256: $headerHash\n'
+            ..table.concat(cases, '\n')..'\nProduction SHA256: $sourceHash\nHeader include SHA256: $headerHash\nPulse SHA256: $pulseHash\n'
             ..'Synthetic measures only. No WNP plugin, native sessions, network, auth, live cache, live configuration or screenshot verification.\n'
     end)
     if not ok then report = 'FAIL: '..tostring(report)..'\n' end
@@ -234,6 +265,7 @@ try {
         SkinPath = $skinRoot
         TestedSourceSha256 = $sourceHash
         TestedHeaderIncludeSha256 = $headerHash
+        TestedPulseSha256 = $pulseHash
         SourceEncoding = 'UTF-16LE BOM; same text decoded to UTF-8 for Lua loadfile mock tests'
         SuiteSha256 = (Get-FileHash -LiteralPath $suitePath -Algorithm SHA256).Hash
         Provider = 'None; injected synthetic measures only'
@@ -251,6 +283,7 @@ try {
     }
     if ((Get-FileHash -LiteralPath $sourcePath -Algorithm SHA256).Hash -ne $sourceHash) { throw 'Production source changed during the test; rerun for current evidence.' }
     if ((Get-FileHash -LiteralPath $headerSourcePath -Algorithm SHA256).Hash -ne $headerHash) { throw 'Header include changed during the test; rerun for current evidence.' }
+    if ((Get-FileHash -LiteralPath $pulseSourcePath -Algorithm SHA256).Hash -ne $pulseHash) { throw 'Pulse script changed during the test; rerun for current evidence.' }
     Write-Output "Isolated evidence retained at $runRoot"
 } finally {
     if ($null -ne $testProcess) {

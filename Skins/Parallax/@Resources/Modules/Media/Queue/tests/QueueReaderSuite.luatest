@@ -55,11 +55,12 @@ function Suite.run(sourcePath, scratchPath, optionsSourcePath)
     end
     local function fixture(data, options)
         options = options or {}
-        local calls, texts, visible, positions = {}, {}, {}, {}
+        local calls, texts, visible, positions, patterns = {}, {}, {}, {}, {}
         local state = { data = data, time = 1001, reads = 0, closes = 0, opens = 0 }
         local skin = {}
         function skin:GetMeter(name)
             if options.noMeters or name == options.absentMeter then return nil end
+            if options.absentMeters and options.absentMeters[name] then return nil end
             return {}
         end
         if options.variables then
@@ -77,19 +78,22 @@ function Suite.run(sourcePath, scratchPath, optionsSourcePath)
                 equal(#args, 4, 'SetOption uses separate arguments')
                 if args[3] == 'Y' then
                     check(options.inline, 'only inline queue may reposition rows')
-                    check(args[4] == '#Inset#' or args[4]:match('^%(#Inset#%+#MediaBodyHeightPx#%+%d+%*#Scale#%)$'),
-                        'inline geometry contains only a fixed trusted formula')
+                    check(target:match('^MeterQueue[RND][a-z]+[1-5]$'), 'only row, digit or divider meters move')
+                    check(args[4] == '#Inset#' or args[4]:match('^%(#MediaQueueRowsY#%+[0-4]%*#MediaQueueRowPitch#%)$'),
+                        'inline geometry only indexes into the skin-owned row formula')
                     positions[target] = args[4]
                 else
-                    equal(args[3], 'Text', 'only text or inline Y mutation')
+                    check(target:match('^MeterQueueRow[1-5]$'), 'only the row text meter changes text or pattern')
+                    check(args[3] == 'Text' or args[3] == 'InlinePattern', 'only text, pattern or inline Y mutation')
                     check(not args[4]:find('[#%[%]%%%z\001-\031\127]'), 'no active delimiters/control bytes reach meters')
-                    texts[target] = args[4]
+                    if args[3] == 'Text' then texts[target] = args[4] else patterns[target] = args[4] end
                 end
             elseif bang == '!ShowMeterGroup' or bang == '!HideMeterGroup' then
                 equal(target, 'QueueRows', 'only queue row group')
                 for index = 1, 5 do visible['MeterQueueRow' .. index] = bang == '!ShowMeterGroup' end
             elseif bang == '!ShowMeter' or bang == '!HideMeter' then
-                check(target:match('^MeterQueueRow[1-5]$'), 'only row meter visibility')
+                check(target:match('^MeterQueueRow[1-5]$') or target:match('^MeterQueueNumber[1-5]$')
+                    or target:match('^MeterQueueDivider[1-5]$'), 'only row, digit or divider visibility')
                 visible[target] = bang == '!ShowMeter'
             elseif bang == '!CommandMeasure' then
                 check(options.inline and state.reader.expanded, 'only expanded inline queue can request collapse')
@@ -131,7 +135,7 @@ function Suite.run(sourcePath, scratchPath, optionsSourcePath)
             rowLimit = options.rowLimit, showDetails = options.showDetails, expanded = options.expanded,
             inline = options.inline }
         state.reader = Reader.new(state.env)
-        state.calls, state.texts, state.visible, state.positions = calls, texts, visible, positions
+        state.calls, state.texts, state.visible, state.positions, state.patterns = calls, texts, visible, positions, patterns
         return state
     end
 
@@ -303,6 +307,20 @@ function Suite.run(sourcePath, scratchPath, optionsSourcePath)
         partial.reader:update()
         for _, call in ipairs(partial.calls) do check(call[2] ~= 'MeterQueueRow4', 'absent meter skipped') end
     end)
+    scenario('standalone queue without digit or divider meters only drives its row meters', function()
+        local absent = {}
+        for index = 1, 5 do
+            absent['MeterQueueNumber' .. index], absent['MeterQueueDivider' .. index] = true, true
+        end
+        local state = fixture(snapshot({count=2}, {{'One','A'}, {'Two',''}}), {absentMeters=absent})
+        equal(state.reader:update(), 'Next 2')
+        equal(state.visible.MeterQueueRow1, true)
+        equal(state.texts.MeterQueueRow1, 'One / A')
+        equal(state.patterns.MeterQueueRow2, '$^', 'title-only row has a never-matching accent')
+        for _, call in ipairs(state.calls) do
+            check(not absent[call[2] or ''], 'undeclared digit/divider meter never receives a bang')
+        end
+    end)
     scenario('display preferences limit rows and details without changing cache parsing', function()
         local data = snapshot({count=5}, {{'One','A'}, {'Two','B'}, {'Three','C'}, {'Four','D'}, {'Five','E'}})
         for _, limit in ipairs({1, 3, 5}) do
@@ -437,16 +455,24 @@ function Suite.run(sourcePath, scratchPath, optionsSourcePath)
         state.reader = Reader.new(state.env)
         equal(state.reader:update(), 'Next 3')
         for index = 1, 3 do
-            equal(state.positions['MeterQueueRow' .. index], '(#Inset#+#MediaBodyHeightPx#+' .. (2+18*(index-1)) .. '*#Scale#)',
-                'visible row uses fixed index-based geometry')
+            local y = '(#MediaQueueRowsY#+' .. (index-1) .. '*#MediaQueueRowPitch#)'
+            equal(state.positions['MeterQueueRow' .. index], y, 'visible row uses fixed index-based geometry')
+            equal(state.positions['MeterQueueNumber' .. index], y, 'digit moves with its row')
+            equal(state.positions['MeterQueueDivider' .. index], y, 'divider moves with its row')
+            equal(state.visible['MeterQueueNumber' .. index], true)
         end
-        for index = 4, 5 do equal(state.positions['MeterQueueRow' .. index], '#Inset#', 'excess row stays inside panel') end
+        equal(state.patterns.MeterQueueRow1, 'A$', 'artist accent is anchored to the end of the row')
+        for index = 4, 5 do
+            equal(state.positions['MeterQueueRow' .. index], '#Inset#', 'excess row stays inside panel')
+            equal(state.positions['MeterQueueNumber' .. index], '#Inset#', 'excess digit stays inside panel')
+            equal(state.visible['MeterQueueDivider' .. index], false)
+        end
         local before = #state.calls
         equal(state.reader:update(), 'Next 3')
         equal(#state.calls, before, 'unchanged positions do not trigger repeated bangs')
         state.data = snapshot({count=1}, {{'Only',''}})
         equal(state.reader:update(), 'Next 1')
-        equal(state.positions.MeterQueueRow1, '(#Inset#+#MediaBodyHeightPx#+2*#Scale#)')
+        equal(state.positions.MeterQueueRow1, '(#MediaQueueRowsY#+0*#MediaQueueRowPitch#)')
         equal(state.positions.MeterQueueRow2, '#Inset#', 'decreased count returns former row inside panel')
         state.data = data
         equal(state.reader:update(), 'Next 3')
@@ -587,7 +613,7 @@ function Suite.run(sourcePath, scratchPath, optionsSourcePath)
         runtime()
         env.Initialize()
         equal(env.Update(), 'Next 1')
-        equal(state.positions.MeterQueueRow1, '(#Inset#+#MediaBodyHeightPx#+2*#Scale#)')
+        equal(state.positions.MeterQueueRow1, '(#MediaQueueRowsY#+0*#MediaQueueRowPitch#)')
         equal(state.positions.MeterQueueRow2, '#Inset#')
     end)
     scenario('actual file I/O reads only an explicitly injected synthetic temp snapshot', function()

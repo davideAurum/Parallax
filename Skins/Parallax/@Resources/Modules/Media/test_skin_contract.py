@@ -147,9 +147,10 @@ def media_body_geometry(width, scale, columns, bar_thickness=6):
     legacy_cover=rounded(base_cover*0.75)
     offset=rounded(12*wide*scale)
     bar=max(1,rounded(bar_thickness*scale))
-    # MediaProgressY: header bottom, then three metadata rows, a section gap
-    # and the bar's optical pad. MediaTimingTextBottom sits 20*Scale below it.
-    progress=offset+(134-22*wide)*scale
+    # MediaProgressY: header bottom (26 at both widths, since the player name
+    # joined the title row), then three metadata rows, a section gap and the
+    # bar's optical pad. MediaTimingTextBottom sits 20*Scale below it.
+    progress=offset+112*scale
     body=math.ceil(progress+bar+20*scale+padding)
     # Wide artwork is sized to reach the body's lower edge, so it overhangs
     # the panel by exactly the surface offset; narrow keeps the thumbnail.
@@ -168,7 +169,8 @@ def media_drawer_geometry(width, scale, columns, expanded, rows, bar_thickness=6
     cover,offset,body=media_body_geometry(width,scale,columns,bar_thickness)
     gap,inset,_=media_theme_metrics(scale)
     wide=columns-1
-    cover_bottom=44*(1-wide)*scale+cover
+    # Compact art tops the metadata block (header bottom 26 + section gap 4).
+    cover_bottom=30*(1-wide)*scale+cover
     panel_bottom=body
     # Transport circles are centred on the panel's lower border.
     transport_bottom=panel_bottom+(34*scale+2*5*scale)/2
@@ -535,27 +537,36 @@ class SkinContractTests(unittest.TestCase):
                         offset=0 if config=='Queue/Queue.ini' else math.floor(12*(columns-1)*scale+0.5)
                         self.assertAlmostEqual(val(gear['Y']),val('#Inset#')+offset+6*scale)
 
-    def test_player_header_uses_measure_data_and_fixed_icons(self):
+    def test_player_header_uses_measure_data_and_one_icon_slot(self):
         names={'MeterMediaIcon','MeterPlayerIcon'}
         for config in ('Media.ini','Setup.ini'):
             sections,_,visited,_=read_config(config)
             header=sections['MeterHeading']
-            self.assertNotIn('MeasureName',header)
-            self.assertEqual(header['Text'],'Media Player')
-            player=sections['MeterPlayerName']
-            self.assertEqual(player['MeasureName'],'MeasureMediaHeader')
-            self.assertEqual(player['Text'],'%1')
-            self.assertNotIn('ToolTipText',player)
-            self.assertEqual(player['UpdateDivider'],'1')
+            self.assertEqual(header['MeasureName'],'MeasureMediaHeader')
+            self.assertEqual(header['Text'],'Media Player: %1')
+            self.assertNotIn('ToolTipText',header)
+            self.assertEqual(header['UpdateDivider'],'1')
+            self.assertNotIn('MeterPlayerName',sections)
             self.assertEqual(visited[-1].name,'Header.inc')
             actual={name for name,section in sections.items() if 'Meter' in section and resolve_style(sections,name).get('Group')=='MediaPlayerIcons'}
             self.assertEqual(actual,names)
             self.assertFalse(any(re.fullmatch(r'MeterPlayer\w+Icon', name) for name in sections))
-            for name in names:
+            # Monitor-play is the default face. Only Media.ini's MediaPulse.lua
+            # swaps in audio-lines, so Setup can never show it.
+            for name,hidden in (('MeterMediaIcon','0'),('MeterPlayerIcon','1')):
                 icon=resolve_style(sections,name)
                 self.assertEqual(icon['Meter'],'Shape')
-                self.assertEqual(icon['Hidden'],'0')
+                self.assertEqual(icon['Hidden'],hidden)
                 self.assertFalse(any(key.endswith('Action') for key in icon))
+            for key in ('X','Y','W','H'):
+                self.assertNotIn(key,sections['MeterPlayerIcon'])
+                self.assertNotIn(key,sections['MeterMediaIcon'])
+            if config=='Media.ini':
+                pulse=sections['MeasureMediaPulse']
+                self.assertEqual(pulse['ScriptFile'],'#@#Modules\\Media\\MediaPulse.lua')
+                self.assertNotIn('UpdateDivider',pulse)
+            else:
+                self.assertNotIn('MeasureMediaPulse',sections)
             if config=='Media.ini':
                 for name in ('MeterSongIcon','MeterArtistIcon','MeterAlbumIcon'):
                     icon=resolve_style(sections,name)
@@ -572,38 +583,35 @@ class SkinContractTests(unittest.TestCase):
                                 box=lambda name:meter_bounds(resolve_style(sections,name),val)
                                 surface=val('#MediaSurfaceY#')
                                 title_size=val('#TitleIconSize#')
-                                self.assertAlmostEqual(box('MeterHeading').left,val('#ContentX#')+title_size+4*scale)
-                                expected_heading=97*scale if columns==2 else val('#ContentWidth#')-title_size-28*scale
-                                self.assertAlmostEqual(box('MeterHeading').width,expected_heading)
-                                self.assertTrue(box('MeterHeading').before(box('MeterMediaOptions')))
-                                if columns==2: self.assertTrue(box('MeterHeading').before(box('MeterPlayerIcon')))
-                                else: self.assertTrue(box('MeterHeading').above(box('MeterPlayerName')))
+                                heading=box('MeterHeading')
+                                self.assertAlmostEqual(heading.left,val('#ContentX#')+title_size+4*scale)
+                                # One title row at both widths, ending 24px (gear plus gap) short.
+                                self.assertAlmostEqual(heading.width,val('#ContentWidth#')-title_size-28*scale)
+                                self.assertAlmostEqual(heading.right,val('#ContentX#')+val('#ContentWidth#')-24*scale)
+                                self.assertAlmostEqual((heading.top+heading.bottom)/2,surface+15*scale)
+                                self.assertTrue(heading.before(box('MeterMediaOptions')))
+                                # Both drawings occupy the one slot before the title.
+                                self.assertEqual(box('MeterPlayerIcon'),box('MeterMediaIcon'))
                                 self.assertAlmostEqual(box('MeterMediaIcon').width,title_size)
                                 self.assertAlmostEqual(box('MeterMediaIcon').height,title_size)
                                 self.assertAlmostEqual(box('MeterMediaIcon').left,val('#ContentX#'))
                                 self.assertAlmostEqual(box('MeterMediaIcon').top+title_size/2,surface+15*scale)
-                                self.assertAlmostEqual(box('MeterPlayerIcon').width,title_size)
-                                self.assertAlmostEqual(box('MeterPlayerIcon').height,title_size)
-                                self.assertAlmostEqual(box('MeterPlayerIcon').top,
-                                                       surface+(6 if columns==2 else 30)*scale+(18*scale-title_size)/2)
-                                self.assertAlmostEqual(box('MeterPlayerName').top,surface+(6 if columns==2 else 30)*scale)
-                                self.assertAlmostEqual(box('MeterPlayerName').height,18*scale)
-                                self.assertAlmostEqual(box('MeterPlayerName').left-box('MeterPlayerIcon').right,4*scale)
-                                self.assertAlmostEqual(box('MeterPlayerName').right,
-                                                       val('#ContentX#')+val('#ContentWidth#')-24*(columns-1)*scale)
-                                if columns==2:
-                                    self.assertAlmostEqual((box('MeterHeading').top+box('MeterHeading').bottom)/2,
-                                                           (box('MeterPlayerName').top+box('MeterPlayerName').bottom)/2)
-                                style=resolve_style(sections,'MeterPlayerName')
+                                self.assertAlmostEqual(heading.left-box('MeterMediaIcon').right,4*scale)
+                                style=resolve_style(sections,'MeterHeading')
                                 self.assertEqual(val(style['FontSize']),(12 if profile=='max' else 10)*scale)
-                                self.assertEqual(expand(style['FontColor']),expand('#TextColor#'))
                                 self.assertEqual(style['ClipString'],'1')
                                 first='MeterTrackTitle' if config=='Media.ini' else 'MeterSetupStatus'
-                                self.assertAlmostEqual(box(first).top,surface+(30 if columns==2 else 52)*scale)
-                                self.assertTrue(box('MeterPlayerName').above(box(first)))
+                                self.assertAlmostEqual(box(first).top,surface+30*scale)
+                                self.assertTrue(heading.above(box(first)))
                                 if columns==1:
-                                    self.assertAlmostEqual(box('MeterPlayerIcon').left,val('#ContentX#')+54*scale)
-                                    self.assertTrue(box('MeterArtworkPlaceholder').before(box('MeterPlayerIcon')))
+                                    # Compact art sits under the title icon, topped with the metadata.
+                                    art=box('MeterArtworkPlaceholder')
+                                    self.assertAlmostEqual(art.top,box(first).top)
+                                    self.assertTrue(box('MeterMediaIcon').above(art))
+                                    self.assertTrue(heading.above(art))
+                                    # Setup shows no compact art (the placeholder is
+                                    # double-width only), so only the player's rows sit beside it.
+                                    if config=='Media.ini': self.assertTrue(art.before(box(first)))
                                 if config=='Media.ini':
                                     self.assertTrue(box('MeterAlbum').above(box('MeterProgress')))
                                     self.assertTrue(box('MeterProgress').above(box('MeterTiming')))
@@ -655,15 +663,13 @@ class SkinContractTests(unittest.TestCase):
                                         self.assertAlmostEqual(box('MeterQueueStatus').top,val('#Inset#')+26*scale)
                                         self.assertTrue(box(title_name).above(box('MeterQueueStatus')))
                                     else:
-                                        for name in ('MeterMediaIcon',):
+                                        for name in ('MeterMediaIcon','MeterPlayerIcon'):
                                             icon=resolve_style(sections,name)
                                             expected=14*scale*size/10
                                             self.assertAlmostEqual(box(name).width,expected)
                                             self.assertAlmostEqual(box(name).height,expected)
                                             self.assertAlmostEqual((box(name).top+box(name).bottom)/2,center)
                                             self.assertAlmostEqual(box(title_name).left-box(name).right,4*scale)
-                                            if columns==2: self.assertTrue(box(title_name).before(box('MeterPlayerIcon')))
-                                            else: self.assertTrue(box(title_name).above(box('MeterPlayerName')))
                                             self.assertTrue(box(name).inside(window))
                                             for key,value in icon.items():
                                                 if re.fullmatch(r'Shape\d*|.*Path',key):
@@ -779,7 +785,7 @@ class SkinContractTests(unittest.TestCase):
         self.assertLess(measures.index('MeasureSourceArtist'), measures.index('MeasureMediaSource'))
         self.assertLess(measures.index('MeasureCanNext'), measures.index('MeasureMediaSource'))
         self.assertLess(measures.index('MeasureMediaSource'), measures.index('MeasureMediaUI'))
-        self.assertEqual(sections['MeterPlayerName']['MeasureName'],'MeasureMediaHeader')
+        self.assertEqual(sections['MeterHeading']['MeasureName'],'MeasureMediaHeader')
         self.assertNotIn('MeterConnection', sections)
         self.assertFalse(any(s.get('Meter') and s.get('MeasureName') in ('MeasureMediaSource','MeasureMediaUI')
                              for s in sections.values()), 'Playback/source status remains visible')
@@ -1075,9 +1081,7 @@ class SkinContractTests(unittest.TestCase):
                     controls = ('MeterQueueConnect', 'MeterQueueStart', 'MeterQueueStop')
                 elif name != 'Settings/Settings.ini':
                     self.assertTrue(box('MeterMediaIcon').before(box('MeterHeading')))
-                    self.assertTrue(box('MeterPlayerIcon').before(box('MeterPlayerName')))
-                    if columns==2: self.assertTrue(box('MeterHeading').before(box('MeterPlayerIcon')))
-                    else: self.assertTrue(box('MeterHeading').above(box('MeterPlayerName')))
+                    self.assertTrue(box('MeterPlayerIcon').before(box('MeterHeading')))
                     self.assertTrue(box('MeterHeading').before(box('MeterMediaOptions')))
                     # The drawer tab reads icon-then-label, inverting the old
                     # footer strip where the label came first.
@@ -1203,7 +1207,7 @@ class SkinContractTests(unittest.TestCase):
                                                        if wide else math.floor(base_cover*0.75+0.5))
                                 self.assertAlmostEqual(art.height,art.width)
                                 self.assertAlmostEqual(art.left,inset+padding*(1-wide))
-                                self.assertAlmostEqual(art.top,inset+44*(1-wide)*scale)
+                                self.assertAlmostEqual(art.top,inset+30*(1-wide)*scale)
                                 self.assertAlmostEqual(box('MeterPanel').left,inset+96*wide*scale)
                                 self.assertAlmostEqual(box('MeterPanel').top,inset+surface_offset)
                                 self.assertAlmostEqual(box('MeterPanel').right,inset+val('#PanelWidth#'))
@@ -1237,7 +1241,7 @@ class SkinContractTests(unittest.TestCase):
                                     for row,name in enumerate(('MeterTrackTitle','MeterArtist','MeterAlbum')):
                                         self.assertAlmostEqual(box(name).left,old_metadata_x+20*scale)
                                         self.assertAlmostEqual(box(name).width,box('MeterPanel').right-padding-old_metadata_x-20*scale)
-                                        self.assertAlmostEqual(box(name).top,inset+surface_offset+(52-22*wide+row*24)*scale)
+                                        self.assertAlmostEqual(box(name).top,inset+surface_offset+(30+row*24)*scale)
                                         icon=('MeterSongIcon','MeterArtistIcon','MeterAlbumIcon')[row]
                                         self.assertAlmostEqual((box(name).top+box(name).bottom)/2,(box(icon).top+box(icon).bottom)/2)
                                     self.assertEqual(box('MeterCover'),art)

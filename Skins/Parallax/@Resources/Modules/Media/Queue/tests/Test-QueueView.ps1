@@ -62,6 +62,11 @@ foreach ($profile in $profiles) { foreach ($width in $widths) { foreach ($scale 
         $null = New-Item -ItemType Directory -Path (Split-Path -Parent $destination) -Force
         Copy-Item -LiteralPath $sourceMap[$relative] -Destination $destination
     }
+    # Queue.ini also loads provider control and the resume lifecycle. Neither is
+    # copied: inert stand-ins keep the view loadable without any launch host.
+    Write-TestFile (Join-Path $caseRoot '@Resources\Modules\Media\Queue\QueueControl.lua') "function Update() return 0 end`n"
+    Write-TestFile (Join-Path $caseRoot '@Resources\Modules\Media\InertLifecycle.lua') "function ResumeProviders() end`n"
+    Write-TestFile (Join-Path $caseRoot '@Resources\Modules\Media\Lifecycle.inc') "[MeasureMediaLifecycle]`nMeasure=Script`nScriptFile=#@#Modules\Media\InertLifecycle.lua`nUpdateDivider=-1`n"
     $scaleText = $scale.ToString([Globalization.CultureInfo]::InvariantCulture)
     $preferencesPath = Join-Path $caseRoot '@Resources\User\Media.inc'
     $preferences = Get-Content -LiteralPath $preferencesPath -Raw

@@ -3,7 +3,7 @@
 A modular Rainmeter instrument suite: Chronometer with multiple countdown lists, CPU, Memory Meter, GPU, Disk Meter, a dedicated Network Monitor, media controls with optional Spotify queue, and an independent audio visualizer.
 
 <!-- download-badge:start (rewritten by tools\Package-Parallax.ps1; do not edit by hand) -->
-[![Click here to download](https://img.shields.io/github/v/release/davideAurum/Parallax?include_prereleases&logo=github&label=Click%20here%20to%20download&color=blueviolet&style=for-the-badge)](https://github.com/davideAurum/Parallax/releases/download/v0.1.0-alpha/Parallax_0.1.0-alpha.rmskin)
+[![Click here to download](https://img.shields.io/github/v/release/davideAurum/Parallax?include_prereleases&logo=github&label=Click%20here%20to%20download&color=blueviolet&style=for-the-badge)](https://github.com/davideAurum/Parallax/releases/download/v0.1.0-alpha.2/Parallax_0.1.0-alpha.2.rmskin)
 <!-- download-badge:end -->
 
 Double-click the downloaded `.rmskin` to install. Requires Windows 10/11 and [Rainmeter](https://www.rainmeter.net/) 4.5.26 or newer. Parallax is in alpha; [all releases](https://github.com/davideAurum/Parallax/releases).

@@ -136,7 +136,7 @@ The wrapper runs `%SystemRoot%\Microsoft.NET\Framework64\v4.0.30319\csc.exe` wit
 | --- | --- |
 | `name` | `Parallax`, which is also the skin root folder and the first part of the file name `Parallax_<version>.rmskin` |
 | `author` | `davideAurum`, the credit shown by Skin Installer; change it here if a different public credit is preferred |
-| `version` | `0.1.0-alpha`, used for the stage, the file name and `RMSKIN.ini` |
+| `version` | `0.1.0-alpha.2`, used for the stage, the file name and `RMSKIN.ini` |
 | `loadType` / `loadSkin` | `Skin` and `Parallax\Welcome\Welcome.ini`, the component loader shown after installation unless the user unticks it |
 | `mergeSkins` | `false`; Variables files preservation is incompatible with Merge skins |
 | `headerImage` | `packaging\RMSKIN.bmp`, a 400x60 bitmap drawn from the suite palette with the bundled IBM Plex Sans; `-NoHeaderImage` omits it |

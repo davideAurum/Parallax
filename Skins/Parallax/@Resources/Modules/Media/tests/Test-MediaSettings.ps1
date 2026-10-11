@@ -53,11 +53,11 @@ $sourceMap['@Resources\User\Visualizer.inc'] = Join-Path $resourcesRoot 'User\Vi
 foreach ($relative in @('Fallbacks.inc','Options.inc')) { $sourceMap[('@Resources\Modules\Visualizer\'+$relative)] = Join-Path $visualizerRoot $relative }
 foreach ($preset in Get-ChildItem -LiteralPath (Join-Path $visualizerRoot 'HeightPresets') -Filter '*.inc') { $sourceMap[('@Resources\Modules\Visualizer\HeightPresets\'+$preset.Name)] = $preset.FullName }
 # Only the open drawer (VisualizerDrawer=2) includes the shared AudioLevel
-# capture, spectrum meters and palette script, and only the drawer mode opens
-# it. Every other case leaves them uncopied, so a stray open state fails loudly
-# on a missing include instead of capturing audio.
+# capture, spectrum meters and palette and path scripts, and only the drawer
+# mode opens it. Every other case leaves them uncopied, so a stray open state
+# fails loudly on a missing include instead of capturing audio.
 if ($VisualizerDrawerFocused) {
-    foreach ($relative in @('Capture.inc','Spectrum.inc','Color.lua')) { $sourceMap[('@Resources\Modules\Visualizer\'+$relative)] = Join-Path $visualizerRoot $relative }
+    foreach ($relative in @('Capture.inc','Spectrum.inc','Color.lua','SpectrumPaths.lua')) { $sourceMap[('@Resources\Modules\Visualizer\'+$relative)] = Join-Path $visualizerRoot $relative }
 }
 foreach ($font in Get-ChildItem -LiteralPath (Join-Path $resourcesRoot 'Fonts') -Filter '*.ttf') { $sourceMap[('@Resources\Fonts\'+$font.Name)] = $font.FullName }
 $sourceHashes = @{}

@@ -312,6 +312,17 @@ const paletteCallbacks = [...sections].flatMap(([name, section]) =>
   Object.entries(section).filter(([key, value]) => key.includes('Action') &&
     /!CommandMeasure\s+"?MeasureVisualizerColor(?:"|\s)/i.test(value)).map(([key]) => name + '.' + key));
 assert.deepEqual(paletteCallbacks, ['Rainmeter.OnRefreshAction'], 'Palette changes must only run on refresh');
+// SpectrumPaths.lua rewrites the 24 BandPath options with literal geometry once
+// per load; without it the mask re-expands every geometry formula each update.
+const pathCompiler = sections.get('MeasureVisualizerSpectrumPaths');
+assert.equal(pathCompiler.Measure, 'Script');
+assert.equal(pathCompiler.ScriptFile, '#@#Modules\\Visualizer\\SpectrumPaths.lua');
+assert.equal(pathCompiler.UpdateDivider, '-1', 'Path compilation must run once per load, never per tick');
+const pathScript = readFileSync(resolve(skinRoot, '@Resources/Modules/Visualizer/SpectrumPaths.lua'), 'utf8');
+assert.ok(!/\b(io|os)\./.test(pathScript), 'SpectrumPaths.lua must not touch files or processes');
+assert.match(pathScript, /local MASK = 'MeterVisualizerSpectrumMask'/);
+assert.deepEqual([...pathScript.matchAll(/SKIN:Bang\('([^']+)'/g)].map((match) => match[1]), ['!SetOption'],
+  'SpectrumPaths.lua may only set the mask\'s path options');
 // Actual Color.lua gradient binding, parsing, solid-mode reset and forbidden side
 // effects are executed separately by Tests/ColorSuite.lua under mocked SKIN.
 // User includes may hold valid concurrent edits. Verify option wiring here;

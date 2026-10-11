@@ -2411,7 +2411,7 @@ class SkinContractTests(unittest.TestCase):
                     self.assertFalse([name for name in sections if name.startswith('MeasureVisualizer')])
                     for name in OPEN_DRAWER_METERS:
                         self.assertNotIn(name,sections)
-                    self.assertFalse({'Capture.inc','Spectrum.inc','Color.lua'}&{path.name for path in visited})
+                    self.assertFalse({'Capture.inc','Spectrum.inc','Color.lua','SpectrumPaths.lua'}&{path.name for path in visited})
         for columns in COLUMNS:
             with self.subTest(config='Media.ini',drawer=2,columns=columns):
                 sections,variables,visited,expand=read_config('Media.ini',drawer=2,columns=columns)
@@ -2442,6 +2442,11 @@ class SkinContractTests(unittest.TestCase):
                                   'OnUpdateAction':'[!CommandMeasure MeasureVisualizerColor "Apply(false)"]'})
                 self.assertEqual(sections['MeasureVisualizerColor']['ScriptFile'],'#@#Modules\\Visualizer\\Color.lua')
                 self.assertEqual(sections['MeasureVisualizerColor']['UpdateDivider'],'-1')
+                # The band paths are compiled to literal geometry once per load;
+                # re-parsing Media's plot-width chain every tick saturated the
+                # main thread (docs/PERFORMANCE.md).
+                self.assertEqual(sections['MeasureVisualizerSpectrumPaths']['ScriptFile'],'#@#Modules\\Visualizer\\SpectrumPaths.lua')
+                self.assertEqual(sections['MeasureVisualizerSpectrumPaths']['UpdateDivider'],'-1')
                 # The other plugins are unchanged: the player and the inert hosts.
                 plugins={section['Plugin'] for section in sections.values() if 'Plugin' in section}
                 self.assertEqual(plugins,{'AudioLevel','WebNowPlaying','RunCommand'})

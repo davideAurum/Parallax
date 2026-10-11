@@ -134,6 +134,15 @@ Measure=Script
 ScriptFile=#@#Modules\Visualizer\Color.lua
 UpdateDivider=-1
 
+; Rewrites the 24 BandPath options below once per load with literal geometry,
+; leaving only each band's measure dynamic; see SpectrumPaths.lua. The raw
+; paths remain the fallback and draw the same bars at a far higher per-update
+; cost: the mask re-expands every geometry formula they name on each update.
+[MeasureVisualizerSpectrumPaths]
+Measure=Script
+ScriptFile=#@#Modules\Visualizer\SpectrumPaths.lua
+UpdateDivider=-1
+
 ; One fully opaque native path mask; measured heights update with the spectrum.
 ; Only top corners are rounded. Fixed bounds retain the full plot at silence.
 [MeterVisualizerSpectrumMask]

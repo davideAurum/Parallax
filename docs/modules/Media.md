@@ -64,7 +64,7 @@ user-selected Lucide metadata and playback icons are attributed below.
 | Feature | Dependencies | Cadence and fallback |
 | --- | --- | --- |
 | Base UI and Setup — required | Windows, Rainmeter, built-in measures/meters and bundled Lua/includes. | The player updates every 50 ms (`MediaAnimationInterval`) for its title-icon animation; `MediaLegacyDivider` keeps provider polling and queue/options reads at `MediaInterval` (1 second). Setup updates at `MediaInterval` and loads without external plugins. |
-| Spectrum drawer — optional, plugin bundled with Rainmeter | Rainmeter's bundled AudioLevel plugin, a Windows output endpoint, and the Visualizer module's shared `Modules/Visualizer/{Fallbacks,Options,Capture,Spectrum}.inc`, `HeightPresets/*.inc`, `Color.lua` and `User/Visualizer.inc`. Writes `AnchorY` and its `ParallaxDrawerAnchorY` record in this config's own Rainmeter.ini section on tab clicks, Media settings saves and any load whose drawer-owned anchor does not match (that load-time repair's `!SetAnchor` also rewrites `AnchorX` with its existing value); a user-set anchor is never changed. | Capture exists only while `VisualizerDrawer=2`; collapsed, hidden and Setup load no AudioLevel measure. Open, it runs on Media's 50 ms tick (100 ms for the Visualizer's 100 ms choice). A missing or unavailable endpoint shows `Output unavailable`; quiet output shows `Idle - quiet`; an invalid format shows `Unsupported format`. Loading the standalone Visualizer too runs a second, independent capture. |
+| Spectrum drawer — optional, plugin bundled with Rainmeter | Rainmeter's bundled AudioLevel plugin, a Windows output endpoint, and the Visualizer module's shared `Modules/Visualizer/{Fallbacks,Options,Capture,Spectrum}.inc`, `HeightPresets/*.inc`, `Color.lua`, `SpectrumPaths.lua` and `User/Visualizer.inc`. Writes `AnchorY` and its `ParallaxDrawerAnchorY` record in this config's own Rainmeter.ini section on tab clicks, Media settings saves and any load whose drawer-owned anchor does not match (that load-time repair's `!SetAnchor` also rewrites `AnchorX` with its existing value); a user-set anchor is never changed. | Capture exists only while `VisualizerDrawer=2`; collapsed, hidden and Setup load no AudioLevel measure. Open, it runs on Media's 50 ms tick (100 ms for the Visualizer's 100 ms choice). A missing or unavailable endpoint shows `Output unavailable`; quiet output shows `Idle - quiet`; an invalid format shows `Unsupported format`. Loading the standalone Visualizer too runs a second, independent capture. |
 | Fonts and icons — bundled | Private IBM Plex Sans fonts ([license](../../Skins/Parallax/@Resources/Licenses/IBM-Plex-OFL.txt)); native Shape adaptations of Lucide artwork ([provenance and licenses](../../Skins/Parallax/@Resources/Modules/Media/Icons/Lucide/README.md)). | No download, system font installation or SVG-rendering plugin required. |
 | Typed numeric settings — bundled | Rainmeter's bundled RunCommand plugin, Windows PowerShell/.NET WinForms and the shared `Scripts/SettingsInput.ps1` overlay. | An explicit numeric-field click starts one temporary editor. Fixed numeric/cancel output is revalidated before saving; invalid, cancelled, unrequested or hidden-field results do not save. No polling or provider starts. |
 | Playback metadata and controls — optional, plugin bundled | [WebNowPlaying](https://wnp.keifufu.dev/rainmeter/getting-started) plugin 2.0.7.0 (MIT License, keifufu and Trevor Hamilton), bundled in the Parallax `.rmskin` from `packaging/Plugins/WebNowPlaying` and installed by Skin Installer unless a newer version is present ([license](../../Skins/Parallax/@Resources/Licenses/WebNowPlaying-LICENSE.txt), [provenance](../../packaging/Plugins/WebNowPlaying/README.md)); a supported player. Browser playback additionally requires the separately installed WebNowPlaying browser extension; desktop adapters are also separate. A development copy of the skin without the package needs a manual plugin install (2.x+). | Sampled on the skin update; `MediaInterval` does not throttle WNP internally. Inactive connections show no active media; unsupported controls remain disabled. Setup unloads the optional plugin. |
@@ -442,9 +442,13 @@ and Options.inc so the shared geometry chain resolves; it stays plugin-free.
 inside the panel's rounded top-left corner, the same way the queue sheet
 already shows at the bottom-left. A translucent `BackgroundColor` shows both
 sheets through the panel. Whether AudioLevel releases the capture on collapse
-was reviewed in source but not measured live, and the open drawer's CPU cost is
-unmeasured (the standalone measured about 5.94% of one core at 50 ms; see
-[PERFORMANCE.md](../PERFORMANCE.md)). There is still no slide animation: the
+was reviewed in source but not measured live. The open drawer costs about 9%
+of one core with square bars and 11% with 4 px rounded bars, against 8–10%
+collapsed. As first shipped it cost 96%, because its band paths re-parsed
+Media's 7 KB plot-width formula dozens of times per bar on every tick;
+`SpectrumPaths.lua` now compiles them once per load (see
+[PERFORMANCE.md](../PERFORMANCE.md#spectrum-drawer-path-cost-2026-10-11)).
+There is still no slide animation: the
 tab writes the preference and refreshes, which restarts the skin.
 
 ## Provider behavior and limits
@@ -827,6 +831,25 @@ Sources: [quota modes](https://developer.spotify.com/documentation/web-api/conce
 [rate limits](https://developer.spotify.com/documentation/web-api/concepts/rate-limits).
 
 ## Validation report
+
+### Spectrum drawer path cost (2026-10-11)
+
+The open drawer saturated Rainmeter's main thread (96% of one core for Media
+alone; 92% for the live seven-skin profile). The shared `SpectrumPaths.lua`
+now rewrites the 24 band paths with literal geometry once per load, which
+brings the open drawer to about 9% (square bars) or 11% (4 px rounded) in an
+isolated Media-only instance. Raw and compiled paths evaluate to identical
+coordinates under Rainmeter's own parser in eight configurations, 360 cases
+each. `Test-MediaSettings.ps1 -VisualizerDrawerFocused`, which now also copies
+`SpectrumPaths.lua`, passes its 4 cases (2,181 checks) with no Rainmeter errors
+and the 8 known Settings-refresh warnings. On a clean export of the tree,
+`test_skin_contract.py` passes 28 tests (now also pinning the compile measure),
+`validate.mjs` passes, and `tools/Test-Parallax.ps1 -RequireAllModules
+-WarningsAsErrors` reports 0 errors and 0 warnings. In the working checkout,
+`test_skin_contract.py` errors because its `*.ini` glob reaches git-ignored
+UTF-16 `Rainmeter.ini` files left by old CPU, RAM and Network runs. Details:
+[PERFORMANCE.md](../PERFORMANCE.md#spectrum-drawer-path-cost-2026-10-11). The
+native captures were not re-run; the compiled outline is coordinate-identical.
 
 ### Spectrum drawer (2026-10-10)
 

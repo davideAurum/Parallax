@@ -56,7 +56,7 @@ try {
     Add-Glyph 'MeterNetworkTitle' 'Network'
     foreach ($caption in @('Up / 1 s samples','Up / sampling...','Disconnected','Not present','Down','Status unknown','Dormant','Testing','Selected NIC not found','Select one adapter','Adapter unavailable','Lower layer down','Sample unavailable')) { Add-Glyph 'MeterNetworkStatus' $caption }
     foreach ($direction in @('In','Out')) {
-        foreach ($caption in @('1023.9 Gbit/s','1023.9 GiB/s','0.0 bit/s','Check units')) { Add-Glyph ('MeterNetwork'+$direction+'Rate') $caption }
+        foreach ($caption in @('1023.9 Gbit/s','1023.9 GB/s','0.0 bit/s','Check units')) { Add-Glyph ('MeterNetwork'+$direction+'Rate') $caption }
         foreach ($caption in @('Set positive graph ceiling','Ceiling 100.0 Mbit/s','Clipped: 100.0 Mbit/s')) { Add-Glyph ('MeterNetwork'+$direction+'Ceiling') $caption }
     }
     Add-Glyph 'MeterNetworkFooter' '60/60 samples / incl. LAN'

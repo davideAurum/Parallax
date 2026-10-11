@@ -359,7 +359,7 @@ public static class ParallaxGpuInfo
 
             uint value;
             string physicalMemory = "?", type = "?", vendor = "?";
-            // Public API returns physical framebuffer size in KiB, excluding
+            // Public API returns physical framebuffer size in 1024-byte KB, excluding
             // dedicated system RAM. Cast before multiplication to avoid overflow.
             if (TryNvidiaScalar(query, 0x46fbeb03, selectedPhysical, out value) && value > 0)
                 physicalMemory = ((ulong)value * 1024).ToString(CultureInfo.InvariantCulture);

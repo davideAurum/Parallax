@@ -79,7 +79,7 @@ H=(18*#Scale#)
 Padding=0,0,0,0
 Text=Traffic units
 LeftMouseUpAction=[!CommandMeasure MeasureNetworkSettings "ToggleUnits()"]
-ToolTipText=Previous or next traffic units; wraps between decimal bits/s and binary bytes/s. Center switches the current choice.
+ToolTipText=Previous or next traffic units; wraps between decimal bits/s and decimal bytes/s. Center switches the current choice.
 
 [MeterNetworkSettingsUnitsDecrease]
 Meter=String
@@ -88,7 +88,7 @@ X=(#ContentX#+159*#Scale#)
 Y=(#Inset#+130*#Scale#)
 Text=<
 LeftMouseUpAction=[!CommandMeasure MeasureNetworkSettings "CycleUnits(-1)"]
-ToolTipText=Previous or next traffic units; wraps between decimal bits/s and binary bytes/s. Center switches the current choice.
+ToolTipText=Previous or next traffic units; wraps between decimal bits/s and decimal bytes/s. Center switches the current choice.
 
 [MeterNetworkSettingsUnitsFrame]
 Meter=Shape
@@ -99,7 +99,7 @@ W=(#ContentWidth#-194*#Scale#)
 H=(20*#Scale#)
 Shape=Rectangle (#Scale#/2),(#Scale#/2),(#ContentWidth#-195*#Scale#),(19*#Scale#),(2*#Scale#) | Fill Color #GraphBackgroundColor# | Stroke Color #BorderColor# | StrokeWidth #Scale#
 LeftMouseUpAction=[!CommandMeasure MeasureNetworkSettings "ToggleUnits()"]
-ToolTipText=Previous or next traffic units; wraps between decimal bits/s and binary bytes/s. Center switches the current choice.
+ToolTipText=Previous or next traffic units; wraps between decimal bits/s and decimal bytes/s. Center switches the current choice.
 
 [MeterNetworkSettingsUnitsValue]
 Meter=String
@@ -110,7 +110,7 @@ W=(#ContentWidth#-200*#Scale#)
 H=(18*#Scale#)
 Text=...
 LeftMouseUpAction=[!CommandMeasure MeasureNetworkSettings "ToggleUnits()"]
-ToolTipText=Previous or next traffic units; wraps between decimal bits/s and binary bytes/s. Center switches the current choice.
+ToolTipText=Previous or next traffic units; wraps between decimal bits/s and decimal bytes/s. Center switches the current choice.
 
 [MeterNetworkSettingsUnitsIncrease]
 Meter=String
@@ -119,7 +119,7 @@ X=(#ContentX#+#ContentWidth#-9*#Scale#)
 Y=(#Inset#+130*#Scale#)
 Text=>
 LeftMouseUpAction=[!CommandMeasure MeasureNetworkSettings "CycleUnits(1)"]
-ToolTipText=Previous or next traffic units; wraps between decimal bits/s and binary bytes/s. Center switches the current choice.
+ToolTipText=Previous or next traffic units; wraps between decimal bits/s and decimal bytes/s. Center switches the current choice.
 
 [MeterNetworkSettingsWidthRow]
 Meter=Shape

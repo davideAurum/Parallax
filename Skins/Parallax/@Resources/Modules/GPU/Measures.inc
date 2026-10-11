@@ -1,6 +1,8 @@
 ; Built-in UsageMonitor has a shared 1 Hz worker independent of UpdateDivider.
 ; Keep the raw PID/adapter/engine instance: translating to an executable name
-; may combine multiple engines or PIDs. Index=1 selects one ranked instance.
+; may combine multiple engines or PIDs. Index=1 selects one ranked instance;
+; it feeds row 1 of the process table only. The header figure and the History
+; graph come from the direct driver sample (TemperatureMeasures.inc).
 [MeasureGPUActivity]
 Measure=Plugin
 Plugin=UsageMonitor
@@ -11,20 +13,9 @@ PIDToName=0
 Percent=0
 RawValue=0
 
-; Wraps MeasureGPUActivity with an explicit 0-100 range so the Line meter's
-; native scaling (AutoScale=0) is correct regardless of what UsageMonitor
-; itself reports as this counter's bounds. This traces the same "busiest
-; ranked process-engine" figure as the headline Activity value and process
-; table row 1 above -- not a true whole-adapter total; see GraphMeters.inc.
-[MeasureGPUUtilizationHistory]
-Measure=Calc
-Formula=MeasureGPUActivity
-MinValue=0
-MaxValue=100
-UpdateDivider=1
-
 ; Self reference starts at zero on load AND refresh; global Counter does not.
-; Match the Line meter's update cadence. This is a sample count, not telemetry.
+; Match the Line meter's update cadence. This is a sample count, not telemetry,
+; and it only drives the startup cover over the History graph.
 [MeasureGPUGraphSamples]
 Measure=Calc
 Formula=Min(MeasureGPUGraphSamples+1,#ContentWidth#)

@@ -8,8 +8,10 @@
 // Current graphics clock: https://docs.nvidia.com/nvapi/group__gpuclock.html
 // Installed NVML power (mW, GPU plus associated circuitry):
 // https://docs.nvidia.com/deploy/nvml-api/api/group__nvmlDeviceQueries.html
-// Process basename lookup (retained query-limited handles; no process enumeration):
+// Process basename lookup (retained query-limited handles; PIDs that refuse a
+// handle use one handle-free process listing per sample, with a reuse identity):
 // https://learn.microsoft.com/en-us/windows/win32/api/winbase/nf-winbase-queryfullprocessimagenamew
+// https://learn.microsoft.com/en-us/windows/win32/api/winternl/nf-winternl-ntquerysysteminformation
 using System;
 using System.Collections.Generic;
 using System.Globalization;
@@ -20,10 +22,20 @@ using System.Threading;
 
 public static class ParallaxGpuTemperature
 {
-    private const int MaximumSnapshotBytes = 4096;
+    private const int MaximumSnapshotBytes = 8192;
     private const int MaximumNameBytes = 1024;
     private const int MaximumProcessNameBytes = 128;
+    // Five ranked rows plus five recently ranked PIDs kept for their names.
+    private const int MaximumRequestedProcesses = 10;
+    // token|timestamp|request|ten 10-digit PIDs is at most 172 characters.
+    private const int MaximumLeaseBytes = 192;
+    // Ten "pid,hex" entries of at most 10 digits and 256 hex digits.
+    private const int MaximumProcessMapLength = MaximumRequestedProcesses * (11 + MaximumProcessNameBytes * 2) + MaximumRequestedProcesses - 1;
     private const long MaximumSequence = 9007199254740991L;
+    // Lua passes this reserved all-zero LUID when no single discrete adapter
+    // was selected. The host then never opens a GPU and publishes process
+    // names only; every GPU field stays UNSUPPORTED.
+    private const string NamesOnlyLuid = "0000000000000000";
     private static readonly DateTime Epoch = new DateTime(1970, 1, 1, 0, 0, 0, DateTimeKind.Utc);
     private static readonly Encoding Ascii = new ASCIIEncoding();
 
@@ -66,8 +78,12 @@ public static class ParallaxGpuTemperature
         string luid = ValidateLuid(luidHex);
         ValidateInterval(intervalMs);
         Paths paths = new Paths(token);
-        Lease validLease;
-        if (!ReadLease(paths.Lease, token, Now(), intervalMs, out validLease)) return;
+        // Lua may be rewriting the lease (truncate, then write) at this very
+        // moment; retry briefly rather than end a fresh session on one read.
+        Lease validLease = null;
+        for (int attempt = 0; attempt < 10 && !ReadLease(paths.Lease, token, Now(), intervalMs, out validLease); ++attempt)
+            Thread.Sleep(50);
+        if (validLease == null) return;
         Driver driver = null;
         ParentGuard parent = null;
         ProcessNames processNames = new ProcessNames();
@@ -76,11 +92,15 @@ public static class ParallaxGpuTemperature
             parent = ParentGuard.Capture();
             if (!parent.Alive) return;
             WriteSnapshot(paths, Snapshot(token, 0, Now(), new Frame("STARTING"), luid, "?", validLease.RequestId, "?"), true);
-            driver = new Driver(UInt64.Parse(luid, NumberStyles.AllowHexSpecifier, CultureInfo.InvariantCulture));
-            string terminal = driver.Open();
-            string nameHex = driver.NameHex;
-            if (terminal == "OK") terminal = null;
-            else { driver.Dispose(); driver = null; }
+            string terminal = "UNSUPPORTED", nameHex = "?";
+            if (luid != NamesOnlyLuid)
+            {
+                driver = new Driver(UInt64.Parse(luid, NumberStyles.AllowHexSpecifier, CultureInfo.InvariantCulture));
+                terminal = driver.Open();
+                nameHex = driver.NameHex;
+                if (terminal == "OK") terminal = null;
+                else { driver.Dispose(); driver = null; }
+            }
             long sequence = 0;
             while (parent.Alive)
             {
@@ -186,7 +206,7 @@ public static class ParallaxGpuTemperature
     private static bool ParseLease(string text, string token, long now, int intervalMs, out Lease lease)
     {
         lease = null;
-        if (text == null || text.Length < 34 || text.Length > 128) return false;
+        if (text == null || text.Length < 34 || text.Length > MaximumLeaseBytes) return false;
         string[] fields = text.Split('|');
         if ((fields.Length != 2 && fields.Length != 4) || fields[0] != token) return false;
         long timestamp, requestId = 0;
@@ -198,7 +218,7 @@ public static class ParallaxGpuTemperature
             if (fields[3] != "?")
             {
                 string[] values = fields[3].Split(',');
-                if (values.Length > 5) return false;
+                if (values.Length > MaximumRequestedProcesses) return false;
                 processIds = new uint[values.Length];
                 HashSet<uint> unique = new HashSet<uint>();
                 for (int index = 0; index < values.Length; ++index)
@@ -220,17 +240,25 @@ public static class ParallaxGpuTemperature
         {
             using (FileStream stream = new FileStream(path, FileMode.Open, FileAccess.Read,
                 FileShare.ReadWrite | FileShare.Delete))
-            {
-                if (stream.Length > 128) return false;
-                byte[] bytes = new byte[129];
-                int used = 0, read;
-                while (used < bytes.Length && (read = stream.Read(bytes, used, bytes.Length - used)) != 0) used += read;
-                if (used > 128) return false;
-                for (int index = 0; index < used; ++index) if (bytes[index] > 127) return false;
-                return ParseLease(Ascii.GetString(bytes, 0, used), token, now, intervalMs, out lease);
-            }
+                return ReadLease(stream, token, now, intervalMs, out lease);
         }
         catch { return false; }
+    }
+
+    // Reading a different byte count than the length seen at open means Lua
+    // rewrote the lease mid-read and the bytes may splice two versions; the
+    // caller keeps its last valid lease instead.
+    private static bool ReadLease(Stream stream, string token, long now, int intervalMs, out Lease lease)
+    {
+        lease = null;
+        long length = stream.Length;
+        if (length > MaximumLeaseBytes) return false;
+        byte[] bytes = new byte[MaximumLeaseBytes + 1];
+        int used = 0, read;
+        while (used < bytes.Length && (read = stream.Read(bytes, used, bytes.Length - used)) != 0) used += read;
+        if (used != length) return false;
+        for (int index = 0; index < used; ++index) if (bytes[index] > 127) return false;
+        return ParseLease(Ascii.GetString(bytes, 0, used), token, now, intervalMs, out lease);
     }
 
     private sealed class Frame
@@ -376,7 +404,8 @@ public static class ParallaxGpuTemperature
 
     private static string ProcessNameHex(string name)
     {
-        if (String.IsNullOrEmpty(name) || name == "." || name == "..") return null;
+        // A blank name would make the Lua readers reject every row's name.
+        if (String.IsNullOrEmpty(name) || name.Trim().Length == 0 || name == "." || name == "..") return null;
         foreach (char value in name)
             if (Char.IsControl(value) || value == '\\' || value == '/' || value == ':') return null;
         try
@@ -390,9 +419,9 @@ public static class ParallaxGpuTemperature
     private static bool ValidProcessMap(string map)
     {
         if (map == "?") return true;
-        if (String.IsNullOrEmpty(map) || map.Length > 1339) return false;
+        if (String.IsNullOrEmpty(map) || map.Length > MaximumProcessMapLength) return false;
         string[] entries = map.Split(';');
-        if (entries.Length > 5) return false;
+        if (entries.Length > MaximumRequestedProcesses) return false;
         HashSet<uint> unique = new HashSet<uint>();
         foreach (string entry in entries)
         {
@@ -413,30 +442,45 @@ public static class ParallaxGpuTemperature
         return true;
     }
 
+    // Fills found/identities/names for the requested PIDs from one process
+    // listing; false means the listing itself failed for this sample.
+    internal delegate bool ProcessLister(uint[] processIds, bool[] found, ulong[] identities, string[] names);
+
     // Each requested PID is opened once until it leaves the requested set. An
     // exited or denied entry stays unnamed, so a recycled PID cannot replace a
     // retained observation's name. UsageMonitor supplies no creation timestamp;
     // an already stale counter before this first lookup remains unknowable.
+    // A non-elevated host cannot open dwm, csrss, System or other protected
+    // and SYSTEM processes at all. Such a PID instead takes its name and
+    // identity from the process listing at first sight; the identity stands in
+    // for the retained handle, so a later mismatch or absence leaves it unnamed
+    // while it remains requested, exactly like an exited handle.
     private sealed class ProcessNames : IDisposable
     {
         private sealed class Entry
         {
             internal IntPtr Handle;
             internal string NameHex;
+            internal bool Listed;
+            internal ulong Identity;
         }
         private readonly Dictionary<uint, Entry> entries = new Dictionary<uint, Entry>();
         private readonly Func<uint, IntPtr> open;
         private readonly Func<IntPtr, bool> alive;
         private readonly Func<IntPtr, string> queryName;
         private readonly Action<IntPtr> close;
+        private readonly ProcessLister list;
+        private readonly IDisposable listing;
         private bool disposed;
-        internal ProcessNames() : this(
+        internal ProcessNames() : this(new ProcessListing()) { }
+        private ProcessNames(ProcessListing listing) : this(
             delegate(uint pid) { return OpenProcess(0x00101000, false, pid); },
             delegate(IntPtr handle) { return WaitForSingleObject(handle, 0) == 258; },
-            QueryName, delegate(IntPtr handle) { CloseHandle(handle); }) { }
+            QueryName, delegate(IntPtr handle) { CloseHandle(handle); }, listing.Read)
+        { this.listing = listing; }
         internal ProcessNames(Func<uint, IntPtr> open, Func<IntPtr, bool> alive,
-            Func<IntPtr, string> queryName, Action<IntPtr> close)
-        { this.open = open; this.alive = alive; this.queryName = queryName; this.close = close; }
+            Func<IntPtr, string> queryName, Action<IntPtr> close, ProcessLister list)
+        { this.open = open; this.alive = alive; this.queryName = queryName; this.close = close; this.list = list; }
 
         private static string QueryName(IntPtr handle)
         {
@@ -447,18 +491,30 @@ public static class ParallaxGpuTemperature
             return Path.GetFileNameWithoutExtension(image.ToString());
         }
 
-        private void Release(Entry entry)
+        private void CloseHandleOf(Entry entry)
         {
             IntPtr handle = entry.Handle;
             entry.Handle = IntPtr.Zero;
-            entry.NameHex = null;
             if (handle != IntPtr.Zero) try { close(handle); } catch { }
+        }
+
+        private void Release(Entry entry)
+        {
+            CloseHandleOf(entry);
+            entry.NameHex = null;
+            entry.Listed = false;
+        }
+
+        private static string ListedNameHex(string image)
+        {
+            try { return image == null ? null : ProcessNameHex(Path.GetFileNameWithoutExtension(image)); }
+            catch (ArgumentException) { return null; }
         }
 
         internal string Read(uint[] processIds)
         {
             if (disposed) return "?";
-            if (processIds == null || processIds.Length > 5) throw new ArgumentException("Invalid process request.");
+            if (processIds == null || processIds.Length > MaximumRequestedProcesses) throw new ArgumentException("Invalid process request.");
             HashSet<uint> requested = new HashSet<uint>();
             foreach (uint pid in processIds)
                 if (pid == 0 || !requested.Add(pid)) throw new ArgumentException("Invalid process request.");
@@ -466,20 +522,72 @@ public static class ParallaxGpuTemperature
             foreach (KeyValuePair<uint, Entry> pair in entries)
                 if (!requested.Contains(pair.Key)) { Release(pair.Value); dropped.Add(pair.Key); }
             foreach (uint pid in dropped) entries.Remove(pid);
-            List<string> result = new List<string>();
-            foreach (uint pid in processIds)
+            int count = processIds.Length;
+            Entry[] current = new Entry[count];
+            bool[] pending = new bool[count];
+            bool listingNeeded = false;
+            for (int index = 0; index < count; ++index)
             {
                 Entry entry;
-                bool added = !entries.TryGetValue(pid, out entry);
-                if (added) { entry = new Entry(); entries.Add(pid, entry); }
+                if (entries.TryGetValue(processIds[index], out entry))
+                {
+                    current[index] = entry;
+                    listingNeeded |= entry.Listed;
+                    continue;
+                }
+                current[index] = entry = new Entry();
+                entries.Add(processIds[index], entry);
                 try
                 {
-                    if (added) entry.Handle = open(pid);
-                    if (entry.Handle == IntPtr.Zero) continue;
-                    if (!alive(entry.Handle)) { Release(entry); continue; }
-                    if (added) entry.NameHex = ProcessNameHex(queryName(entry.Handle));
-                    if (entry.NameHex == null || !alive(entry.Handle)) { Release(entry); continue; }
-                    result.Add(Number(pid) + "," + entry.NameHex);
+                    entry.Handle = open(processIds[index]);
+                    if (entry.Handle != IntPtr.Zero)
+                    {
+                        if (!alive(entry.Handle)) { Release(entry); continue; }
+                        entry.NameHex = ProcessNameHex(queryName(entry.Handle));
+                        if (entry.NameHex != null) continue;
+                    }
+                    // Denied, or opened without a usable image name: any handle
+                    // stays open across the listing so the PID cannot be reused.
+                    pending[index] = listingNeeded = true;
+                }
+                catch { Release(entry); }
+            }
+            bool listed = false;
+            bool[] found = new bool[count];
+            ulong[] identities = new ulong[count];
+            string[] images = new string[count];
+            if (listingNeeded && list != null)
+                try { listed = list(processIds, found, identities, images); } catch { listed = false; }
+            List<string> result = new List<string>();
+            for (int index = 0; index < count; ++index)
+            {
+                Entry entry = current[index];
+                try
+                {
+                    if (pending[index])
+                    {
+                        CloseHandleOf(entry);
+                        // No identity is recorded yet, so a failed listing is
+                        // simply a fresh first sight again on the next sample.
+                        if (!listed) { entries.Remove(processIds[index]); continue; }
+                        string nameHex = found[index] ? ListedNameHex(images[index]) : null;
+                        if (nameHex == null) { Release(entry); continue; }
+                        entry.NameHex = nameHex;
+                        entry.Listed = true;
+                        entry.Identity = identities[index];
+                    }
+                    else if (entry.Listed)
+                    {
+                        // A failed listing withholds the name for this sample only.
+                        if (!listed) continue;
+                        if (!found[index] || identities[index] != entry.Identity) { Release(entry); continue; }
+                    }
+                    else
+                    {
+                        if (entry.Handle == IntPtr.Zero) continue;
+                        if (entry.NameHex == null || !alive(entry.Handle)) { Release(entry); continue; }
+                    }
+                    result.Add(Number(processIds[index]) + "," + entry.NameHex);
                 }
                 catch { Release(entry); }
             }
@@ -492,6 +600,92 @@ public static class ParallaxGpuTemperature
             disposed = true;
             foreach (Entry entry in entries.Values) Release(entry);
             entries.Clear();
+            if (listing != null) listing.Dispose();
+        }
+    }
+
+    // One bounded NtQuerySystemInformation call per sample, no process handles.
+    // SystemBasicProcessInformation (252; Windows 11 26100.4770 and later) is
+    // compact and carries SequenceNumber, which Microsoft documents for
+    // detecting PID reuse. Earlier builds use SystemProcessInformation (5) and
+    // its CreateTime at offset 0x20 inside the documented Reserved1 bytes,
+    // which costs far more (every thread, ~1 MB). The first class that
+    // succeeds is kept, so identities never mix classes; a transient class
+    // 252 failure is retried rather than locking in the costlier class 5.
+    private sealed class ProcessListing : IDisposable
+    {
+        private const int Basic = 252, Full = 5;
+        private const int LengthMismatch = unchecked((int)0xC0000004);
+        private const int NoMemory = unchecked((int)0xC0000017), InsufficientResources = unchecked((int)0xC000009A);
+        private const int MinimumBytes = 65536, MaximumBytes = 16 << 20;
+        private IntPtr buffer;
+        private int capacity, mode;
+
+        internal bool Read(uint[] processIds, bool[] found, ulong[] identities, string[] names)
+        {
+            uint used;
+            if (mode == 0)
+            {
+                int status = Query(Basic, out used);
+                if (status == 0) mode = Basic;
+                else if (status == LengthMismatch || status == NoMemory || status == InsufficientResources) return false;
+                else if (Query(Full, out used) == 0) mode = Full;
+                else return false;
+            }
+            else if (Query(mode, out used) != 0) return false;
+            bool wide = IntPtr.Size == 8;
+            int pidAt = mode == Basic ? IntPtr.Size : (wide ? 0x50 : 0x44);
+            int identityAt = mode == Basic ? (wide ? 24 : 16) : 0x20;
+            int nameAt = mode == Basic ? (wide ? 32 : 24) : 0x38;
+            int extent = Math.Max(Math.Max(pidAt + IntPtr.Size, identityAt + 8), nameAt + 2 * IntPtr.Size);
+            long start = buffer.ToInt64(), end = start + used, offset = 0;
+            for (int visited = 0; visited < 65536; ++visited)
+            {
+                if (offset + extent > used) return false;
+                IntPtr entry = new IntPtr(start + offset);
+                long pid = Marshal.ReadIntPtr(entry, pidAt).ToInt64();
+                int index = pid > 0 && pid <= UInt32.MaxValue ? Array.IndexOf(processIds, (uint)pid) : -1;
+                if (index >= 0)
+                {
+                    int bytes = (ushort)Marshal.ReadInt16(entry, nameAt);
+                    long text = Marshal.ReadIntPtr(entry, nameAt + IntPtr.Size).ToInt64();
+                    found[index] = true;
+                    identities[index] = unchecked((ulong)Marshal.ReadInt64(entry, identityAt));
+                    names[index] = bytes > 0 && (bytes & 1) == 0 && text >= start && text + bytes <= end
+                        ? Marshal.PtrToStringUni(new IntPtr(text), bytes / 2) : null;
+                }
+                uint next = unchecked((uint)Marshal.ReadInt32(entry, 0));
+                if (next == 0) return true;
+                offset += next;
+            }
+            return false;
+        }
+
+        private int Query(int informationClass, out uint used)
+        {
+            used = 0;
+            for (int attempt = 0; attempt < 4; ++attempt)
+            {
+                if (buffer == IntPtr.Zero)
+                {
+                    capacity = Math.Max(capacity, MinimumBytes);
+                    buffer = Marshal.AllocHGlobal(capacity);
+                }
+                int status = NtQuerySystemInformation(informationClass, buffer, (uint)capacity, out used);
+                if (status == 0) return used <= capacity ? 0 : LengthMismatch;
+                if (status != LengthMismatch) return status;
+                long wanted = Math.Max(2L * capacity, (long)used + MinimumBytes);
+                if (wanted > MaximumBytes) return status;
+                Marshal.FreeHGlobal(buffer);
+                buffer = IntPtr.Zero;
+                capacity = (int)wanted;
+            }
+            return LengthMismatch;
+        }
+
+        public void Dispose()
+        {
+            if (buffer != IntPtr.Zero) { Marshal.FreeHGlobal(buffer); buffer = IntPtr.Zero; }
         }
     }
 
@@ -584,6 +778,9 @@ public static class ParallaxGpuTemperature
     [DllImport("kernel32.dll", ExactSpelling = true)]
     [DefaultDllImportSearchPaths(DllImportSearchPath.System32)]
     [return: MarshalAs(UnmanagedType.Bool)] private static extern bool CloseHandle(IntPtr handle);
+    [DllImport("ntdll.dll", ExactSpelling = true)]
+    [DefaultDllImportSearchPaths(DllImportSearchPath.System32)]
+    private static extern int NtQuerySystemInformation(int informationClass, IntPtr information, uint length, out uint returned);
 
     private sealed class Driver : IDisposable
     {

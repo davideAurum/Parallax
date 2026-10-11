@@ -46,7 +46,7 @@ These readings use the installed NVIDIA driver for the detected discrete card.
 Shared RAM separately shows Windows-reported GPU residency in system RAM;
 its tooltip includes committed bytes. It is not a maximum memory allowance,
 and committed and resident are different accounting values that need not match.
-Memory amounts use binary MiB/GiB units; the overview retains its existing format.
+Memory amounts use decimal MB/GB units (1 GB = 1,000,000,000 bytes).
 
 GPU, Memory ctrl., Video and Bus are separate driver activity percentages.
 They describe busy time, not memory allocated to these functions. Do not add

@@ -26,3 +26,15 @@ UpdateDivider=1
 [MeasureGPUTemperatureController]
 Measure=Script
 ScriptFile=#@#Modules\GPU\Temperature.lua
+
+; Temperature.lua returns the driver's GPU busy percentage as this Script
+; measure's number (0 while the direct reading is unavailable) and the
+; process-name packet as its string. Wrapping it in an explicit 0-100 range
+; keeps the Line meter's native scaling (AutoScale=0) correct. It sits after
+; the controller so each update traces the sample just read.
+[MeasureGPUUtilizationHistory]
+Measure=Calc
+Formula=MeasureGPUTemperatureController
+MinValue=0
+MaxValue=100
+UpdateDivider=1

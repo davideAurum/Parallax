@@ -116,7 +116,7 @@ Y=(#Inset#+130*#Scale#)
 Text=Fit panel height
 MouseActionCursor=1
 LeftMouseUpAction=[!CommandMeasure MeasureGPUSettings "FitHeight()"]
-ToolTipText=Set the GPU meter height to 650 logical pixels to fit its GPU overview, process bars and sensor rows.
+ToolTipText=Set the GPU meter height to 462 logical pixels, the natural height of its overview, engine table, memory rows, process table and history graph.
 W=(134*#Scale#)
 
 [MeterSettingsHeightValue]
@@ -125,7 +125,7 @@ MeterStyle=StyleUtilitySettingsValue|GPUSettingsValue
 Y=(#Inset#+128*#Scale#)
 Text=...
 LeftMouseUpAction=[!CommandMeasure MeasureGPUSettings "FitHeight()"]
-ToolTipText=Set the GPU meter height to 650 logical pixels to fit its GPU overview, process bars and sensor rows.
+ToolTipText=Set the GPU meter height to 462 logical pixels, the natural height of its overview, engine table, memory rows, process table and history graph.
 X=(#ContentX#+140*#Scale#)
 W=(#ContentWidth#-146*#Scale#)
 

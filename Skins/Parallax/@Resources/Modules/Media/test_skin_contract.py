@@ -6,6 +6,7 @@ from collections import OrderedDict
 from dataclasses import dataclass
 import functools
 import math
+import os
 from pathlib import Path
 import re
 import tempfile
@@ -36,6 +37,11 @@ OPEN_DRAWER_METERS = ('MeterVisualizerOutputIcon', 'MeterVisualizerDeviceName', 
                       'MeterVisualizerDbMax', 'MeterVisualizerDbMid', 'MeterVisualizerDbMin',
                       'MeterVisualizerLow', 'MeterVisualizerHigh',
                       'MeterVisualizerSpectrumMask', 'MeterVisualizerFill')
+# The packager's path rule (tools/Parallax.Build.psm1, Get-ParallaxExclusionReason):
+# hidden, developer, cache and runtime folders never ship. Native test runs
+# leave UTF-16 Rainmeter.ini files under .runtime and Network QA run folders.
+NOT_SHIPPED = re.compile(r'^\.|^(Cache|Caches|Runtime|Logs?|Temp|Tmp|Private|Secrets?|Tokens?|'
+                         r'Credentials?|Tests?|QA|Fixtures|__pycache__)$', re.IGNORECASE)
 
 
 @functools.lru_cache(maxsize=None)
@@ -43,6 +49,16 @@ def source_lines(path):
     """One read per file per run; every config re-reads the same includes."""
     assert path.is_file(), path
     return tuple(path.read_text(encoding='utf-8-sig').splitlines())
+
+
+def shipped_sources(*suffixes):
+    """Skin files with these suffixes that the package would ship, in path order."""
+    found = []
+    for folder, folders, files in os.walk(ROOT):
+        folders[:] = [name for name in folders if not NOT_SHIPPED.match(name)]
+        found.extend(Path(folder) / name for name in files
+                     if name.lower().endswith(suffixes) and not NOT_SHIPPED.match(name))
+    return sorted(found)
 
 
 # Lifecycle.inc gives every view that can resume a provider one hidden launch
@@ -2251,11 +2267,7 @@ class SkinContractTests(unittest.TestCase):
         # geometry and 1 only in the open drawer's own include. Nothing else -
         # entrypoint, User file or other include - may set it.
         definitions=[]
-        for path in sorted(list(ROOT.rglob('*.inc'))+list(ROOT.rglob('*.ini'))):
-            # Module test runners leave isolated Rainmeter instances (UTF-16
-            # Rainmeter.ini included) in gitignored .runtime folders.
-            if '.runtime' in path.parts:
-                continue
+        for path in shipped_sources('.inc','.ini'):
             for raw in source_lines(path):
                 key,_,value=raw.strip().partition('=')
                 if key.strip()=='MediaVisualizerOpen':

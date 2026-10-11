@@ -898,6 +898,21 @@ Sources: [quota modes](https://developer.spotify.com/documentation/web-api/conce
 
 ## Validation report
 
+### Contract test scans shipped files only (2026-10-11)
+
+`test_only_the_open_drawer_include_opens_the_geometry` searched every `*.inc`
+and `*.ini` under `Skins/Parallax`, so in a working checkout it reached the
+git-ignored UTF-16 `Rainmeter.ini` files old native runs leave in `.runtime`
+and Network `QA` run folders, and errored (the caveat in the entry below). It
+now reads only paths the packager ships: `shipped_sources()` prunes the same
+hidden, test, QA, cache and runtime folders as
+`Get-ParallaxExclusionReason` in `tools/Parallax.Build.psm1`, without needing
+git. No production file changed and the leftover folders were left in place.
+Run against the working checkout's tree (8,127 `.inc`/`.ini` files on disk),
+it selects 98, exactly the files `git ls-files --cached --others
+--exclude-standard` reports, and all 28 tests pass in about 27 s. Adding a
+stray `MediaVisualizerOpen=1` to a shipped include still fails the test.
+
 ### Spectrum drawer output row and Spectrum settings (2026-10-11)
 
 Later the same day the drawer gained the standalone's output row and Media

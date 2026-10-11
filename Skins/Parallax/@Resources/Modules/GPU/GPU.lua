@@ -71,10 +71,10 @@ local function memoryOverview(parts, reason)
     local capacity, detail = 'VRAM unknown', 'The driver did not return a usable memory capacity.'
     if finite(bytes) and bytes > 0 and bytes <= 9007199254740991 then
         if parts[5] == 'PHYSICAL' then
-            capacity = string.format('%.0f MB', bytes / 1048576)
+            capacity = string.format('%.0f MB', bytes / 1000000)
             detail = 'Total physical video memory reported by the graphics driver: ' .. parts[2] .. ' bytes (' .. capacity .. ').'
         else
-            capacity = string.format('%.1f GiB', bytes / 1073741824)
+            capacity = string.format('%.1f GB', bytes / 1000000000)
             detail = 'Windows-reported dedicated adapter memory: ' .. parts[2] .. ' bytes (' .. capacity .. '). Physical framebuffer capacity was unavailable; this may exclude driver-reserved memory.'
         end
     end

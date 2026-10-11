@@ -43,7 +43,7 @@ H=((16+#NetworkRowExtra#)*#Scale#)
 StringAlign=LeftCenter
 Text=bits
 LeftMouseUpAction=[!CommandMeasure MeasureNetworkController "ToggleUnits()"]
-ToolTipText=Switch rate display between decimal bits/s and binary bytes/s. Saves the module choice.
+ToolTipText=Switch rate display between decimal bits/s and decimal bytes/s. Saves the module choice.
 
 [MeterNetworkWidth]
 Meter=String

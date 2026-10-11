@@ -150,8 +150,8 @@ The reader accepts only bounded inert ASCII `PARALLAX_QUEUE_V2`: header; state,
 observed, valid_until, retry_not_before, count; and exactly five titleN/detailN
 pairs encoded as UTF-8 hex. Unused fields are empty. Nonready states contain no
 rows or observation/expiry. Unknown/duplicate keys, invalid Unicode, oversized
-files/fields, and invalid timestamps are rejected. Limits: 32KiB snapshot,
-512 UTF-8 bytes per title/detail, 1MiB API JSON, depth 24. Metadata is never
+files/fields, and invalid timestamps are rejected. Limits: 32,768-byte snapshot,
+512 UTF-8 bytes per title/detail, 1,048,576-byte API JSON, depth 24. Metadata is never
 interpreted as INI, Lua, actions, or URLs. Controls and bidi characters are filtered;
 Rainmeter metacharacters are neutralized before literal meter text is set.
 

@@ -455,8 +455,8 @@ function Suite.run(path)
     end)
     test('memory capacity and activity domains stay separate in their units', function()
         local f = fixture(); f:live()
-        eq(f:text('MeterGPUVRAMUsage'), 'VRAM: 2.00 / 8.00 GiB')
-        eq(f:text('MeterGPUSharedMemory'), 'Shared RAM: 174 MiB')
+        eq(f:text('MeterGPUVRAMUsage'), 'VRAM: 2.15 / 8.59 GB')
+        eq(f:text('MeterGPUSharedMemory'), 'Shared RAM: 182 MB')
         local endpoint, stroke, y = f:bar(); eq(endpoint, 50); eq(stroke, 6); eq(y, 3)
         for index, name in ipairs(loadMeters) do eq(f:text(name), tostring(index * 25) .. '%') end
         for index, name in ipairs(loadBars) do
@@ -477,14 +477,14 @@ function Suite.run(path)
             if item[1] == 10 then
                 contains(f:text('MeterGPUVRAMUsage'), '--')
                 local endpoint, stroke = f:bar(); eq(endpoint, 0); eq(stroke, 0)
-            else eq(f:text('MeterGPUVRAMUsage'), 'VRAM: 2.00 / 8.00 GiB') end
+            else eq(f:text('MeterGPUVRAMUsage'), 'VRAM: 2.15 / 8.59 GB') end
             if item[1] == 14 then contains(f:text('MeterGPUSharedMemory'), '--')
-            else eq(f:text('MeterGPUSharedMemory'), 'Shared RAM: 174 MiB') end
+            else eq(f:text('MeterGPUSharedMemory'), 'Shared RAM: 182 MB') end
             for index, name in ipairs(loadMeters) do eq(f:text(name), item[1] == 17 and '--' or tostring(index * 25) .. '%') end
         end
         local f = fixture(); f:live({[7] = 'NaN'})
-        eq(f.meter.Text, 'Unavailable'); eq(f:text('MeterGPUVRAMUsage'), 'VRAM: 2.00 / 8.00 GiB')
-        eq(f:text('MeterGPUSharedMemory'), 'Shared RAM: 174 MiB'); eq(f:text('MeterGPULoadValue'), '25%')
+        eq(f.meter.Text, 'Unavailable'); eq(f:text('MeterGPUVRAMUsage'), 'VRAM: 2.15 / 8.59 GB')
+        eq(f:text('MeterGPUSharedMemory'), 'Shared RAM: 182 MB'); eq(f:text('MeterGPULoadValue'), '25%')
     end)
     test('any changed adapter status and bad common identity clear every prior category', function()
         local overrides = {{[6] = 'DEVICE_CHANGED'}, {[10] = 'DEVICE_CHANGED'}, {[14] = 'DEVICE_CHANGED'},
@@ -506,13 +506,13 @@ function Suite.run(path)
         for _, override in ipairs(invalid) do
             local f = fixture(); f:live(override); contains(f:text('MeterGPUVRAMUsage'), '--')
             local endpoint, stroke = f:bar(); eq(endpoint, 0); eq(stroke, 0)
-            eq(f.meter.Text, '42 °C'); eq(f:text('MeterGPUSharedMemory'), 'Shared RAM: 174 MiB')
+            eq(f.meter.Text, '42 °C'); eq(f:text('MeterGPUSharedMemory'), 'Shared RAM: 182 MB')
             eq(f:text('MeterGPULoadValue'), '25%')
         end
     end)
     test('VRAM zero-use, full-use and maximum exact integer remain bounded', function()
-        local cases = {{'8589934592', '8589934592', '8589934592', 'VRAM: 0.00 / 8.00 GiB', 0},
-            {'8589934592', '8053063680', '0', 'VRAM: 8.00 / 8.00 GiB', 200},
+        local cases = {{'8589934592', '8589934592', '8589934592', 'VRAM: 0.00 / 8.59 GB', 0},
+            {'8589934592', '8053063680', '0', 'VRAM: 8.59 / 8.59 GB', 200},
             {'9007199254740991', '9007199254740991', '9007199254740991', nil, 0},
             {'9007199254740991', '9007199254740991', '0', nil, 200}}
         for _, item in ipairs(cases) do
@@ -523,16 +523,16 @@ function Suite.run(path)
         end
     end)
     test('shared memory uses observed residency, preserves zero, and does not substitute a capacity limit', function()
-        local f = fixture(); f:live({[15] = '0', [16] = '0'}); eq(f:text('MeterGPUSharedMemory'), 'Shared RAM: 0 MiB')
+        local f = fixture(); f:live({[15] = '0', [16] = '0'}); eq(f:text('MeterGPUSharedMemory'), 'Shared RAM: 0 MB')
         f = fixture(); f:live({[15] = '1048576', [16] = '2147483648'})
-        eq(f:text('MeterGPUSharedMemory'), 'Shared RAM: 2.00 GiB', 'resident may exceed committed')
+        eq(f:text('MeterGPUSharedMemory'), 'Shared RAM: 2.15 GB', 'resident may exceed committed')
         f = fixture(); f:live({[15] = '17179869184', [16] = '182452224'})
-        eq(f:text('MeterGPUSharedMemory'), 'Shared RAM: 174 MiB', 'committed value must not replace resident')
+        eq(f:text('MeterGPUSharedMemory'), 'Shared RAM: 182 MB', 'committed value must not replace resident')
         for _, override in ipairs({{[15] = '-1'}, {[16] = '-1'}, {[15] = '9007199254740992'},
             {[16] = '1.5'}, {[16] = '1e3'}, {[15] = '?'}, {[16] = '?'}, {[14] = 'FAKE'},
             {[14] = 'UNSUPPORTED', [15] = '?', [16] = '?'}}) do
             f = fixture(); f:live(override); contains(f:text('MeterGPUSharedMemory'), '--')
-            eq(f:text('MeterGPUVRAMUsage'), 'VRAM: 2.00 / 8.00 GiB'); eq(f.meter.Text, '42 °C')
+            eq(f:text('MeterGPUVRAMUsage'), 'VRAM: 2.15 / 8.59 GB'); eq(f.meter.Text, '42 °C')
         end
     end)
     test('utilization accepts zero and 100 while unavailable domains remain independent', function()
@@ -545,7 +545,7 @@ function Suite.run(path)
                 for other, otherName in ipairs(loadMeters) do
                     if other ~= index then eq(f:text(otherName), tostring(other * 25) .. '%') end
                 end
-                eq(f:text('MeterGPUVRAMUsage'), 'VRAM: 2.00 / 8.00 GiB'); eq(f.meter.Text, '42 °C')
+                eq(f:text('MeterGPUVRAMUsage'), 'VRAM: 2.15 / 8.59 GB'); eq(f.meter.Text, '42 °C')
             end
         end
     end)
@@ -565,7 +565,7 @@ function Suite.run(path)
         for _, vars in ipairs({{ContentWidth = '0'}, {ContentWidth = '-1'}, {ContentWidth = 'NaN'},
             {DataBarThicknessPx = '0'}, {DataBarThicknessPx = '-1'}, {DataBarThicknessPx = 'NaN'}}) do
             f = fixture({vars = vars}); f:live(); local endpoint, stroke = f:bar(); eq(endpoint, 0); eq(stroke, 0)
-            eq(f:text('MeterGPUVRAMUsage'), 'VRAM: 2.00 / 8.00 GiB')
+            eq(f:text('MeterGPUVRAMUsage'), 'VRAM: 2.15 / 8.59 GB')
         end
     end)
     test('driver power and graphics clock are the default despite enabled legacy export mappings', function()
@@ -597,7 +597,7 @@ function Suite.run(path)
             for _, value in ipairs(cases) do
                 local f = fixture(); f:live({[field[2]] = value})
                 eq(f:text(field[3]), 'Unavailable'); eq(f:text(field[4]), field[5])
-                eq(f.meter.Text, '42 °C'); eq(f:text('MeterGPUVRAMUsage'), 'VRAM: 2.00 / 8.00 GiB')
+                eq(f.meter.Text, '42 °C'); eq(f:text('MeterGPUVRAMUsage'), 'VRAM: 2.15 / 8.59 GB')
             end
             for _, status in ipairs({'FAKE', 'UNAVAILABLE', 'UNSUPPORTED', 'STARTING'}) do
                 local f = fixture(); f:live({[field[1]] = status, [field[2]] = '?'})

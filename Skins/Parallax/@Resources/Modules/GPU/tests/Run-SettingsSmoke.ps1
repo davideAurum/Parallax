@@ -136,20 +136,41 @@ local function observeProcessMemory()
     end
     memoryUpdates=memoryUpdates+1
     local ok,problem=pcall(function()
+        -- Rebuild the controller's table from the same five ranked engine
+        -- instances: valid ranks grouped by PID in rank order, each row bound
+        -- to its first (busiest) engine identity. This observes one completed
+        -- native measure pass, so the ranks match the ones the controller read.
+        local groups,order={},{}
         for rank=1,5 do
-            local prefix='Row'..rank..'.'
             local engine=SKIN:GetMeasure(rank==1 and 'MeasureGPUActivity' or ('MeasureGPUProcess'..rank))
-            local memory=SKIN:GetMeasure('MeasureGPUProcessMemory'..rank)
-            local label=SKIN:GetMeter('MeterGPUProcessMemory'..rank)
-            local name=SKIN:GetMeter('MeterGPUProcessName'..rank)
-            local bar=SKIN:GetMeter('MeterGPUProcessBar'..rank)
-            check(engine and memory and label and name and bar,'Missing native process/memory bank or meter at row '..rank)
-            local raw,value=engine:GetStringValue(),engine:GetValue()
+            check(engine,'Missing native ranked engine measure '..rank)
+            local raw=tostring(engine:GetStringValue() or ''):match('^%s*(.-)%s*$')
+            local value=engine:GetValue()
+            evidence[#evidence+1]='Rank'..rank..'.RawEngine='..raw
+            evidence[#evidence+1]='Rank'..rank..'.EnginePercent='..tostring(value)
+            local pid=raw:match('^pid_(%d+)_')
+            local number=pid and #pid<=16 and tonumber(pid)
+            if raw~='' and raw~='0' and finite(value) and value>0 and value<=100
+                and number and number>=1 and number<=4294967295
+                and raw:find('_luid_',1,true) and raw:match('_eng_%d+_') and not groups[number] then
+                groups[number]={raw=raw}
+                order[#order+1]=groups[number]
+            end
+        end
+        evidence[#evidence+1]='ProcessRows='..#order
+        for slot=1,5 do
+            local prefix='Row'..slot..'.'
+            local memory=SKIN:GetMeasure('MeasureGPUProcessMemory'..slot)
+            local label=SKIN:GetMeter('MeterGPUProcessMemory'..slot)
+            local name=SKIN:GetMeter('MeterGPUProcessName'..slot)
+            local percent=SKIN:GetMeter('MeterGPUProcessValue'..slot)
+            check(memory and label and name and percent,'Missing native memory bank or table meter at row '..slot)
             local wanted=memory:GetOption('Name','')
             local returned,bytes=memory:GetStringValue(),memory:GetValue()
             local text,tip=label:GetOption('Text',''),label:GetOption('ToolTipText','')
-            evidence[#evidence+1]=prefix..'RawEngine='..tostring(raw)
-            evidence[#evidence+1]=prefix..'EnginePercent='..tostring(value)
+            local group=order[slot]
+            evidence[#evidence+1]=prefix..'BoundEngine='..(group and group.raw or '')
+            evidence[#evidence+1]=prefix..'NameText='..name:GetOption('Text','')
             evidence[#evidence+1]=prefix..'RequestedInstance='..wanted
             evidence[#evidence+1]=prefix..'ReturnedInstance='..tostring(returned)
             evidence[#evidence+1]=prefix..'RawBytes='..tostring(bytes)
@@ -159,57 +180,61 @@ local function observeProcessMemory()
                 evidence[#evidence+1]=prefix..option..'Option='..memory:GetOption(option,'')
             end
             evidence[#evidence+1]=prefix..'NameBounds='..bounds(name)
-            evidence[#evidence+1]=prefix..'BarBounds='..bounds(bar)
             evidence[#evidence+1]=prefix..'MemoryBounds='..bounds(label)
-            check(memory:GetOption('Alias','')=='VRAM','Memory bank uses a different category at row '..rank)
+            evidence[#evidence+1]=prefix..'ValueBounds='..bounds(percent)
+            check(memory:GetOption('Alias','')=='VRAM','Memory bank uses a different category at row '..slot)
             for _,option in ipairs({'Index','PIDToName','Rollup','Percent'}) do
-                check(memory:GetOption(option,'')=='0','Memory bank enables ranking, renaming, rollup or normalization at row '..rank..': '..option)
+                check(memory:GetOption(option,'')=='0','Memory bank enables ranking, renaming, rollup or normalization at row '..slot..': '..option)
             end
-            check(memory:GetOption('RawValue','')=='1','Memory bank does not expose raw dedicated bytes at row '..rank)
-            -- This observes one completed native measure pass. Name is the
-            -- exact parser option after the controller's rebind, and returned
-            -- string/value are the plugin's current pair, not another rank.
-            local identity,pid,physical,engineIndex=raw:match('^(pid_(%d+)_luid_0x%x%x%x%x%x%x%x%x_0x%x%x%x%x%x%x%x%x_phys_(%d+))_eng_(%d+)_engtype_.*$')
-            local active=identity and #raw<=1024 and finite(value) and value>0 and value<=100
-                and tonumber(pid)>0 and tonumber(pid)<=4294967295 and #pid<=16
-                and #physical<=10 and tonumber(physical)<=4294967295
-                and #engineIndex<=10 and tonumber(engineIndex)<=4294967295
-            if previousMemoryBindings[rank] and previousMemoryBindings[rank]~=wanted then memoryTransitions=memoryTransitions+1 end
-            previousMemoryBindings[rank]=wanted
-            if active then
-                check(wanted==identity,'Memory request does not match the exact current PID / LUID / physical GPU at row '..rank)
+            check(memory:GetOption('RawValue','')=='1','Memory bank does not expose raw dedicated bytes at row '..slot)
+            local identity
+            if group then
+                local candidate,physical,engineIndex=group.raw:match('^(pid_%d+_luid_0x%x%x%x%x%x%x%x%x_0x%x%x%x%x%x%x%x%x_phys_(%d+))_eng_(%d+)_engtype_.*$')
+                if candidate and #group.raw<=1024 and #physical<=10 and tonumber(physical)<=4294967295
+                    and #engineIndex<=10 and tonumber(engineIndex)<=4294967295 then identity=candidate end
+            end
+            if previousMemoryBindings[slot] and previousMemoryBindings[slot]~=wanted then memoryTransitions=memoryTransitions+1 end
+            previousMemoryBindings[slot]=wanted
+            if identity then
+                check(wanted==identity,'Memory request does not match the exact busiest PID / LUID / physical GPU at row '..slot)
                 local usable=returned==identity and finite(bytes) and bytes>0 and bytes<=9007199254740991 and bytes==math.floor(bytes)
                 if usable then
                     local expected
-                    if bytes<1048576 then expected='VRAM: <1 MiB'
-                    elseif bytes<1073741824 then expected=string.format('VRAM: %.0f MiB',bytes/1048576)
-                    else expected=string.format('VRAM: %.2f GiB',bytes/1073741824) end
-                    check(text==expected,'Native VRAM label does not match its exact requested instance and positive raw bytes at row '..rank)
-                    check(tip:find(identity,1,true)~=nil and tip:find(string.format('%.0f bytes',bytes),1,true)~=nil,'VRAM tooltip omits its exact identity or raw byte reading at row '..rank)
+                    if bytes<1000 then expected=string.format('%.0f B',bytes)
+                    elseif bytes<1000000 then expected=string.format('%.0f KB',bytes/1000)
+                    elseif bytes<1000000000 then expected=string.format('%.0f MB',bytes/1000000)
+                    elseif bytes<1000000000000 then expected=string.format('%.2f GB',bytes/1000000000)
+                    else expected=string.format('%.2f TB',bytes/1000000000000) end
+                    check(text==expected,'Native VRAM label does not match its exact requested instance and positive raw bytes at row '..slot)
+                    check(tip:find(identity,1,true)~=nil and tip:find(string.format('%.0f bytes',bytes),1,true)~=nil,'VRAM tooltip omits its exact identity or raw byte reading at row '..slot)
                     positive=positive+1
                 else
-                    check(text=='VRAM: --','Missing, zero or mismatched native memory counter is presented as measured capacity at row '..rank)
+                    check(text=='--','Missing, zero or mismatched native memory counter is presented as measured capacity at row '..slot)
                     missing=missing+1
                 end
             else
-                check(wanted=='__ParallaxNoGPUProcess__','Idle/invalid rank retained an active memory request at row '..rank)
-                check(text=='VRAM: --','Idle/invalid rank retained previous process memory at row '..rank)
+                check(wanted=='__ParallaxNoGPUProcess__','Row without an exact active process identity retained a memory request at row '..slot)
+                -- Hidden rows keep their last text; only row 1 explains an empty table.
+                if group or slot==1 then check(text=='--','Row without an exact process identity presents process memory at row '..slot) end
+                if not group and slot==1 then
+                    check(name:GetOption('Text','')=='No active GPU process data','Empty ranking does not explain itself in row 1')
+                end
                 missing=missing+1
             end
             -- Native meter dimensions are available after the first draw.
             -- DisabledOption above is the configuration text, not proof of
             -- the current !EnableMeasure / !DisableMeasure runtime state.
             if memoryUpdates>1 then
-                check(label:GetW()>0 and label:GetH()>0,'VRAM label has no visible native bounds at row '..rank)
-                check(math.abs(label:GetX()-bar:GetX())<=1 and math.abs(label:GetW()-bar:GetW())<=1,'VRAM label and activity bar do not share the content width at row '..rank)
-                check(name:GetY()+name:GetH()<=bar:GetY()+1,'Name overlaps the activity bar at row '..rank)
-                check(bar:GetY()+bar:GetH()<=label:GetY()+1,'Activity bar overlaps the VRAM label at row '..rank)
-                if rank<5 then
-                    local nextName=SKIN:GetMeter('MeterGPUProcessName'..(rank+1))
-                    check(label:GetY()+label:GetH()<=nextName:GetY()+1,'VRAM label overlaps the next process row at row '..rank)
+                check(label:GetW()>0 and label:GetH()>0,'VRAM label has no visible native bounds at row '..slot)
+                check(name:GetY()==label:GetY() and label:GetY()==percent:GetY(),'Process, VRAM and GPU % columns do not share one row at row '..slot)
+                check(name:GetX()+name:GetW()<=label:GetX()+1,'Process name overlaps the VRAM column at row '..slot)
+                check(label:GetX()+label:GetW()<=percent:GetX()+1,'VRAM column overlaps the GPU % column at row '..slot)
+                if slot<5 then
+                    local nextName=SKIN:GetMeter('MeterGPUProcessName'..(slot+1))
+                    check(name:GetY()+name:GetH()<=nextName:GetY()+1,'Process row overlaps the next process row at row '..slot)
                 else
                     local bottom=SKIN:ParseFormula(SKIN:ReplaceVariables('(#Inset#+#PanelHeightPx#)'))
-                    check(bottom and label:GetY()+label:GetH()<=bottom,'Last VRAM label extends below the painted monitor')
+                    check(bottom and percent:GetY()+percent:GetH()<=bottom,'Last process row extends below the painted monitor')
                 end
             end
         end
@@ -257,10 +282,10 @@ function Update()
     write([=[$runRoot\metadata-observed.txt]=],table.concat(info,'\n'))
     local graph={}
     for i=1,5 do
-        for _,part in ipairs({'Name','Value','Memory','Bar'}) do
+        for _,part in ipairs({'Name','Value','Memory'}) do
             local name='MeterGPUProcess'..part..i
             local meter=SKIN:GetMeter(name)
-            if meter then graph[#graph+1]=name..'='..meter:GetOption(part=='Bar' and 'Shape2' or 'Text','') end
+            if meter then graph[#graph+1]=name..'='..meter:GetOption('Text','') end
         end
     end
     write([=[$runRoot\process-graph-observed.txt]=],table.concat(graph,'\n'))
@@ -609,8 +634,8 @@ try {
     Wait-Condition {
         if (-not (Test-Path -LiteralPath $metricsPath)) {return $false}
         $metrics=Get-Content -LiteralPath $metricsPath -Raw
-        if ($combined[9] -eq 'OK' -and $metrics -notmatch '(?m)^MeterGPUVRAMUsage=VRAM: [0-9.]+ / [0-9.]+ [GT]iB\r?$') {return $false}
-        if ($combined[13] -eq 'OK' -and $metrics -notmatch '(?m)^MeterGPUSharedMemory=Shared RAM: [0-9.]+ [MGT]iB\r?$') {return $false}
+        if ($combined[9] -eq 'OK' -and $metrics -notmatch '(?m)^MeterGPUVRAMUsage=VRAM: [0-9.]+ / [0-9.]+ [GT]B\r?$') {return $false}
+        if ($combined[13] -eq 'OK' -and $metrics -notmatch '(?m)^MeterGPUSharedMemory=Shared RAM: [0-9.]+ [MGT]B\r?$') {return $false}
         if ($combined[21] -eq 'OK' -and $metrics -notmatch '(?m)^MeterPowerValue=[0-9]+\.[0-9] W\r?$') {return $false}
         if ($combined[23] -eq 'OK' -and $metrics -notmatch '(?m)^MeterClockValue=[0-9]+(?:\.[0-9]{1,3})? MHz\r?$') {return $false}
         if ($combined[16] -eq 'OK') {
@@ -632,7 +657,7 @@ try {
         $namesObserved=Get-Content -LiteralPath (Join-Path $runRoot 'process-names-observed.txt') -Raw
         $graphObserved=Get-Content -LiteralPath (Join-Path $runRoot 'process-graph-observed.txt') -Raw
         $memoryObserved=Get-Content -LiteralPath (Join-Path $runRoot 'process-memory-observed.txt') -Raw
-        $namesVisible=$namesObserved -match '(?m)^NamesPacket=GPU_NAMES\|1\|' -and $graphObserved -match '(?m)^MeterGPUProcessName[1-5]=(?!PID [0-9]+(?: /|$)|--).+'
+        $namesVisible=$namesObserved -match '(?m)^NamesPacket=GPU_NAMES\|1\|' -and $graphObserved -match '(?m)^MeterGPUProcessName[1-5]=(?!PID [0-9]+$|--$|No active GPU process data$).+'
         $memoryVisible=$memoryObserved -match '(?m)^PositiveRows=[1-5]\r?$'
         if (-not ($namesVisible -and $memoryVisible)) {Start-Sleep -Milliseconds 250}
     } while (-not ($namesVisible -and $memoryVisible) -and [DateTime]::UtcNow -lt $namesDeadline)

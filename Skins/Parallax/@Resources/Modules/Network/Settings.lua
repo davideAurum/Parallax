@@ -23,7 +23,7 @@ local order = {'NetworkInterface', 'NetworkUnits', 'Columns', 'PanelHeight', 'Ne
     'NetworkOutCeilingMbps', 'NetworkWiFiEnabled', 'NetworkWiFiInterface'}
 local help = {
     NetworkInterface = 'Saved selector; adapter availability is not queried here. Click to edit Network.inc, save, then Apply.',
-    NetworkUnits = 'Click the value or either arrow to toggle decimal bits/s and binary bytes/s. Refreshes Network only.',
+    NetworkUnits = 'Click the value or either arrow to toggle decimal bits/s and decimal bytes/s. Refreshes Network only.',
     Columns = 'Click the value to enter 1 or 2 columns. Arrows move one column without wrapping.',
     PanelHeight = 'Click the value to enter a minimum height from 0.0001 to 1000000000 logical px, with up to 4 decimals. Arrows move 1 px without wrapping. The combined panel grows to fit its content. Custom formulas remain available through the file editor.',
     NetworkInCeilingMbps = 'Click the value to enter 0.0001 to 1000000000 Mbit/s, with up to 4 decimals. Arrows choose neighboring graph ceilings: 10, 25, 50, 100, 250, 500, 1000 Mbit/s without wrapping. This is not link speed.',
@@ -89,7 +89,7 @@ local function readSaved()
     local data = file:read(MAX_FILE_BYTES + 1)
     local closed = file:close()
     if not data or not closed then return nil, 'Could not read Network.inc completely.' end
-    if #data > MAX_FILE_BYTES then return nil, 'Network.inc exceeds the 256 KiB settings limit.' end
+    if #data > MAX_FILE_BYTES then return nil, 'Network.inc exceeds the 262,144-byte settings limit.' end
     local text, decodeError = decode(data)
     if not text then return nil, decodeError end
     local values, inVariables, foundVariables = {}, false, false

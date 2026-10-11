@@ -86,15 +86,14 @@ local function processNames()
     return result
 end
 
--- Binary-multiple sizing (1024 per step) shown with the plain unit names
--- users expect (KB/MB/GB/TB), matching Task Manager's own display rather
--- than the strict KiB/MiB/GiB naming.
+-- Decimal sizing (1000 per step), matching the suite-wide KB/MB/GB/TB
+-- convention used by the Memory and Disk Meters.
 local function formatBytes(bytes)
-    if bytes < 1024 then return string.format('%.0f B', bytes) end
-    if bytes < 1048576 then return string.format('%.0f KB', bytes / 1024) end
-    if bytes < 1073741824 then return string.format('%.0f MB', bytes / 1048576) end
-    if bytes < 1099511627776 then return string.format('%.2f GB', bytes / 1073741824) end
-    return string.format('%.2f TB', bytes / 1099511627776)
+    if bytes < 1000 then return string.format('%.0f B', bytes) end
+    if bytes < 1000000 then return string.format('%.0f KB', bytes / 1000) end
+    if bytes < 1000000000 then return string.format('%.0f MB', bytes / 1000000) end
+    if bytes < 1000000000000 then return string.format('%.2f GB', bytes / 1000000000) end
+    return string.format('%.2f TB', bytes / 1000000000000)
 end
 
 local function set(meter, option, value)

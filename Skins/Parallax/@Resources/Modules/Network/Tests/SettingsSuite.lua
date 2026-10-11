@@ -176,7 +176,7 @@ function Suite.run(Core, fixtures)
         for _, suffix in ipairs({'Adapter','Units','Width','Height','InCeiling','OutCeiling','WiFiEnabled','WiFiIndex'}) do
             contains(mock.latest['MeterNetworkSettings' .. suffix .. 'Value:ToolTipText'],'Click')
         end
-        contains(mock.latest['MeterNetworkSettingsUnitsValue:ToolTipText'],'binary bytes/s')
+        contains(mock.latest['MeterNetworkSettingsUnitsValue:ToolTipText'],'decimal bytes/s')
         contains(mock.latest['MeterNetworkSettingsWiFiIndexValue:ToolTipText'],'separate from the Network adapter')
     end)
     test('missing keys stay explicit until the user chooses that setting', function()

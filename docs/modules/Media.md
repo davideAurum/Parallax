@@ -394,7 +394,7 @@ local runtime data and must never be distributed. The strict ASCII
 `PARALLAX_SOURCE_V1` envelope carries state, observation/expiry timestamps and
 up to 16 records of source classification, uppercase UTF-8 hex title/artist,
 and playing state. Each field is limited to 1,024 UTF-8 bytes and the file to
-128 KiB; invalid UTF-8/NUL, incomplete collections and excess limits fail closed.
+131,072 bytes; invalid UTF-8/NUL, incomplete collections and excess limits fail closed.
 Nonready snapshots contain no metadata. The helper also offers a one-observation
 `Once` developer command, and restricts custom storage to dedicated temp roots.
 `SourceReader.lua` must retain its **UTF-16LE BOM**, just like QueueReader, so

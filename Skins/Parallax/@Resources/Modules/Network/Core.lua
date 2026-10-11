@@ -23,7 +23,7 @@ function M.rate(bits, units)
     if not M.finite(bits) or bits < 0 then return '--' end
     local n, base, labels = bits, 1000, {'bit/s', 'kbit/s', 'Mbit/s', 'Gbit/s', 'Tbit/s'}
     if units == 'bytes' then
-        n, base, labels = bits / 8, 1024, {'B/s', 'KiB/s', 'MiB/s', 'GiB/s', 'TiB/s'}
+        n, base, labels = bits / 8, 1000, {'B/s', 'KB/s', 'MB/s', 'GB/s', 'TB/s'}
     elseif units ~= 'bits' then
         return 'Check units'
     end

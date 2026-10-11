@@ -5,7 +5,7 @@ PanelHeight=236
 ; Best, an exact adapter alias/description, or a positive interface index.
 ; Best prefers wired over wireless. Index 0 / aggregate mode is not supported.
 NetworkInterface=Best
-; bits uses decimal bit/s; bytes uses binary B/s, KiB/s, MiB/s.
+; bits uses decimal bit/s; bytes uses decimal B/s, KB/s, MB/s.
 NetworkUnits=bits
 ; Independent fixed graph ceilings in decimal Mbit/s, regardless of display units.
 ; Positive plain numbers only. These are graph scales, not measured link speeds.

@@ -10,7 +10,7 @@ The single Network header contains the original three-node icon, `bits`/`bytes` 
 
 Click the adapter name or use **Network settings** in the context menu to open the editor. The context menu also retains Global Settings, the module settings-file editor and Windows Wi-Fi settings. There is one monitor width preference; the Connection block no longer has its own title, frame, width control or navigation action.
 
-Rates use native `UseBits=1`. The display uses decimal bit/s, kbit/s, Mbit/s and Gbit/s or binary B/s, KiB/s, MiB/s and GiB/s. Byte display divides bits by eight. Link rates are reported link capacity, not a speed test or measured Internet bandwidth. Traffic includes LAN activity, not just Internet traffic.
+Rates use native `UseBits=1`. The display uses decimal bit/s, kbit/s, Mbit/s and Gbit/s or decimal B/s, KB/s, MB/s and GB/s (1 KB = 1,000 bytes). Byte display divides bits by eight. Link rates are reported link capacity, not a speed test or measured Internet bandwidth. Traffic includes LAN activity, not just Internet traffic.
 
 Each graph retains up to 60 valid one-second samples without prefilling. It clips only the trace to its independent configured ceiling and reports clipping while an over-ceiling sample remains in history; numeric traffic stays unclipped. Invalid ceilings leave rates usable and show a configuration message. A singleton has no invented predecessor or line segment.
 
@@ -65,7 +65,7 @@ Settings has its own two-column, 598-logical-pixel layout. It reads the module u
 | `Columns` | `1` | One or two columns for the entire merged monitor. |
 | `PanelHeight` | `236` | Saved minimum; derived content geometry increases the actual height as above. |
 | `NetworkInterface` | `Best` | Best, exact adapter alias/description, or positive decimal interface index. |
-| `NetworkUnits` | `bits` | Decimal bits/s or binary bytes/s. |
+| `NetworkUnits` | `bits` | Decimal bits/s or decimal bytes/s. |
 | `NetworkInCeilingMbps` | `100` | Positive inbound graph ceiling in decimal Mbit/s. |
 | `NetworkOutCeilingMbps` | `25` | Positive outbound graph ceiling in decimal Mbit/s. |
 | `NetworkWiFiEnabled` | `1` | Enable module Wi-Fi queries; does not change the Windows radio. |
@@ -139,6 +139,8 @@ The combined monitor passes **30/30 native cases and 3,390 intrinsic glyph check
 Current monitor evidence is under `@Resources/Modules/Network/QA/unified-run-055592b24bfc43b5bf81fa3f0f9c15b6/`. Inspected captures are `Captures/Network-combined-width180-scale0.75-maximum.png` (141×359) and `Captures/Network-combined-width220-scale1-maximum.png` (228×478). Wi-Fi was unavailable on the test machine and its fill stayed hidden. These two captures each show one valid traffic sample after startup/gap resets, so no line is drawn; other matrix cases exercised multi-point histories. They use explicit test appearance preferences and are not evidence of real WLAN accuracy. Pre-merge separate-panel captures are historical.
 
 `QA/Run-UnifiedSmoke.ps1` is the current monitor harness. The old `Run-Smoke.ps1` and `Run-ConnectionSmoke.ps1` commands forward to it. The final shared static validator passed 22 configs and 83 INI/includes with zero errors or warnings. These checks establish tested layout, routing and state handling; transfer accuracy, mixed-monitor DPI and sustained performance remain separate acceptance work.
+
+Decimal byte units, 2026-10-10: bytes mode now divides by 1,000 per step and shows B/s, KB/s, MB/s, GB/s and TB/s. It previously divided by 1,024 and showed KiB/s, MiB/s, GiB/s and TiB/s. Bits mode is unchanged. `Tests/Run-Tests.ps1` passes 27/27 (8,000,000 bits/s reads `1.0 MB/s`) and `Tests/Run-SettingsTests.ps1` passes 47/47, including the decimal-bytes tooltip. The unified glyph-width harness now probes `1023.9 GB/s`; it was not re-run for this label-only change.
 
 ## Remaining acceptance and extensions
 

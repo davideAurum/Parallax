@@ -1,6 +1,7 @@
 -- Test-only: runs in a copied RAM skin owned by the isolated smoke instance.
 -- API reference: https://github.com/rainmeter/rainmeter-docs/blob/master/source/manual/lua-scripting/index.html
 local ticks, completed, checks = 0, false, 0
+local loadedAt = os.time()
 
 local function check(condition, message)
     if not condition then error(message, 2) end
@@ -541,7 +542,13 @@ local function checkProcesses(checkLayout)
         equalOption(meter('MeterRAMProcessesHeader'), 'ToolTipText', 'Five largest private working sets, highest first. '..result.tip)
         check(result.tip:find(count..' of 5 ranked entries',1,true) ~= nil, 'Process header must report ranked-entry availability')
         local state = meter('MeterRAMProcessesState')
-        equalOption(state, 'Text', result.state)
+        -- Process.lua keeps its startup label for three seconds after load;
+        -- allow one more for second-boundary skew, then require the result.
+        local expectedState = result.state
+        if count == 0 and os.time() <= loadedAt+4 and state:GetOption('Text') == 'Waiting for process data...' then
+            expectedState = 'Waiting for process data...'
+        end
+        equalOption(state, 'Text', expectedState)
         check(number(state:GetOption('Hidden','0')) == (count == 0 and 0 or 1), 'Process availability state visibility is incorrect')
         for rank=1,5 do
             local row = result.rows[rank]

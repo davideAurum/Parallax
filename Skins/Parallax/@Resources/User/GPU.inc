@@ -4,7 +4,10 @@
 ; Right-click GPU > GPU mapping guide opens the bundled setup instructions.
 [Variables]
 Columns=1
-PanelHeight=650
+; Minimum monitor height. 462 is the natural height of the current layout
+; (Fit); larger values add space below the history graph. 650 was the Fit
+; value of the previous layout and is still treated as Fit.
+PanelHeight=462
 GPUEnableSensors=1
 ; Power/clock source: 0=direct driver (default), 1=explicit HWiNFO override.
 ; Overrides also require GPUEnableSensors=1 and a valid mapping below.

@@ -6,11 +6,16 @@
 -- Task Manager uses for its per-process GPU column (see
 -- https://devblogs.microsoft.com/directx/gpus-in-the-task-manager/), never a
 -- sum of engines. Windows names decorate, but never merge, raw identities.
-local measures, previous, memoryBindings
+local measures, previous, memoryBindings, recentPIDs
 local sources = {'MeasureGPUActivity', 'MeasureGPUProcess2',
     'MeasureGPUProcess3', 'MeasureGPUProcess4', 'MeasureGPUProcess5'}
 local namesSource = 'MeasureGPUTemperatureController'
 local noMemoryInstance = '__ParallaxNoGPUProcess__'
+-- PIDs ranked this recently stay in spare name-request slots, so a row that
+-- drops in and out of the top five keeps its resolved name.
+local stickySeconds = 15
+-- The helper accepts at most ten requested PIDs: five rows plus five recent.
+local requestLimit = 10
 local noDataTip = 'No ranked GPU process-engine observation: idle, starting up, unsupported driver, or missing counter. These cannot be distinguished here.'
 
 local function trim(value)
@@ -63,7 +68,7 @@ local function processNames()
     if not measures[namesSource] then measures[namesSource] = SKIN:GetMeasure(namesSource) end
     local source = measures[namesSource]
     local packet = source and source:GetStringValue() or ''
-    if type(packet) ~= 'string' or #packet > 2048 then return {} end
+    if type(packet) ~= 'string' or #packet > 4096 then return {} end
     local rawEpoch, entries = packet:match('^GPU_NAMES|1|(%d+)|([^|]+)$')
     local epoch = integer(rawEpoch, 9007199254740991)
     if not epoch then return {} end
@@ -80,14 +85,14 @@ local function processNames()
         local rawPid, nameHex = entry:match('^(%d+),(%x+)$')
         local pid = integer(rawPid, 4294967295)
         local name = nameHex and basename(nameHex)
-        if count > 5 or not pid or not name or result[pid] then return {} end
+        if count > requestLimit or not pid or not name or result[pid] then return {} end
         result[pid] = name
     end
     return result
 end
 
--- Decimal sizing (1000 per step), matching the suite-wide KB/MB/GB/TB
--- convention used by the Memory and Disk Meters.
+-- Decimal sizing (1000 per step: KB/MB/GB/TB), the suite convention shared
+-- with Memory Meter and Disk Meter rather than Task Manager's binary GB.
 local function formatBytes(bytes)
     if bytes < 1000 then return string.format('%.0f B', bytes) end
     if bytes < 1000000 then return string.format('%.0f KB', bytes / 1000) end
@@ -134,9 +139,9 @@ local function memoryObservation(slot, raw)
         end
         return '--', 'No exact active PID / adapter / physical GPU identity is available for the memory lookup.'
     end
-    local tip = 'Windows dedicated GPU memory for ' .. identity .. '. This is memory attributed to this PID on this adapter, not to one engine.'
-        .. ' The same PID / adapter value repeats across its engine rows; do not sum those rows.'
-        .. ' Cross-process shared allocations may be counted in more than one process. This dedicated memory is separate from the Shared RAM system-memory row.'
+    local tip = 'Windows GPU Process Memory Local Usage for ' .. identity .. ': memory this process holds in the adapter\'s own local memory (VRAM). This is memory attributed to this PID on this adapter, not to one engine.'
+        .. ' It covers every engine this process uses on that adapter, not only the one ranked here.'
+        .. ' Cross-process shared allocations may be counted in more than one process. This local memory is separate from the Shared RAM system-memory row.'
         .. ' Counter sample age is not exposed; collection failures may retain an older observation.'
     local ready = pcall(function()
         if memoryBindings[slot] ~= identity then
@@ -163,7 +168,7 @@ local function memoryObservation(slot, raw)
     if not finite(bytes) or bytes <= 0 or bytes > 9007199254740991 or bytes ~= math.floor(bytes) then
         return '--', tip .. ' No usable positive byte reading. Zero bytes, an absent counter, startup and unsupported data cannot be distinguished by this named lookup.'
     end
-    return formatBytes(bytes), tip .. string.format(' Reported dedicated memory: %.0f bytes.', bytes)
+    return formatBytes(bytes), tip .. string.format(' Reported local memory: %.0f bytes.', bytes)
 end
 
 -- One raw ranked process-engine-adapter instance. Renamed or merged values
@@ -184,7 +189,7 @@ local function rawObservation(rank)
 end
 
 function Initialize()
-    measures, previous, memoryBindings = {}, {}, {}
+    measures, previous, memoryBindings, recentPIDs = {}, {}, {}, {}
 end
 
 function Update()
@@ -258,8 +263,19 @@ function Update()
     -- Rainmeter repaints changed meters at the end of the normal skin cycle;
     -- an explicit mid-cycle !UpdateMeterGroup/!Redraw here would only add a
     -- redundant partial frame.
-    local pids = {}
-    for pid in pairs(requested) do pids[#pids + 1] = pid end
+    -- Request every ranked PID, then fill spare slots with the most recently
+    -- ranked others. Rows still show only the current ranking.
+    local now, pids, spare = os.time(), {}, {}
+    for pid in pairs(requested) do recentPIDs[pid] = now; pids[#pids + 1] = pid end
+    for pid, seen in pairs(recentPIDs) do
+        if seen > now or now - seen > stickySeconds then recentPIDs[pid] = nil
+        elseif not requested[pid] then spare[#spare + 1] = pid end
+    end
+    table.sort(spare, function(a, b)
+        if recentPIDs[a] ~= recentPIDs[b] then return recentPIDs[a] > recentPIDs[b] end
+        return a < b
+    end)
+    for index = 1, math.min(#spare, requestLimit - #pids) do pids[#pids + 1] = spare[index] end
     table.sort(pids)
     for index, pid in ipairs(pids) do pids[index] = string.format('%.0f', pid) end
     return 0, #pids > 0 and table.concat(pids, ',') or '?'

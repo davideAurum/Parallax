@@ -4,8 +4,12 @@
 -- never as command text. DiscoverExports.ps1.txt runs only after Browse / Rescan.
 local state
 local fields = { 'Temperature', 'Power', 'Clock' }
+-- Natural monitor height with the default 48 px graph and 6 px bars. The
+-- monitor itself grows past this for larger graphs or thicker bars, and treats
+-- the pre-2026-10 saved value 650 as Fit (see GPU.ini).
+local fitHeight = '462'
 local defaults = {
-    Columns = '1', PanelHeight = '650', GPUEnableSensors = '0',
+    Columns = '1', PanelHeight = fitHeight, GPUEnableSensors = '0',
     GPUPowerSource = '0', GPUClockSource = '0',
     GPURegHKey = 'HKEY_CURRENT_USER', GPURegKey = 'SOFTWARE\\HWiNFO64\\VSB'
 }
@@ -113,7 +117,7 @@ local function render()
     set('MeterSettingsColumnsValue', 'Text', v.Columns == '1' and '1' or v.Columns == '2' and '2' or 'Custom')
     set('MeterSettingsColumnsValue', 'ToolTipText', 'GPU monitor columns: ' .. v.Columns .. '. Click to enter 1 or 2. Arrows stop at these limits; settings keep their own width.')
     set('MeterSettingsHeightValue', 'Text', v.PanelHeight .. ' px / Fit')
-    set('MeterSettingsHeightValue', 'ToolTipText', 'Saved GPU minimum height: ' .. v.PanelHeight .. ' logical pixels. Current content needs at least 650; Fit saves 650.')
+    set('MeterSettingsHeightValue', 'ToolTipText', 'Saved GPU minimum height: ' .. v.PanelHeight .. ' logical pixels. Default content needs ' .. fitHeight .. '; Fit saves ' .. fitHeight .. '. The monitor grows past a smaller saved value on its own, and treats the old 650 Fit value as Fit.')
     set('MeterSettingsSensorsValue', 'Text', v.GPUEnableSensors == '1' and 'On' or v.GPUEnableSensors == '0' and 'Off' or 'Custom')
     for _, field in ipairs({'Power', 'Clock'}) do
         local source = v['GPU' .. field .. 'Source']
@@ -185,7 +189,7 @@ end
 local function valid(key, value)
     if not defaults[key] or type(value) ~= 'string' then return false end
     if key == 'Columns' then return value == '1' or value == '2' end
-    if key == 'PanelHeight' then return value == '650' end
+    if key == 'PanelHeight' then return value == fitHeight end
     if key == 'GPUEnableSensors' then return value == '0' or value == '1' end
     if key == 'GPUPowerSource' or key == 'GPUClockSource' then return value == '0' or value == '1' end
     if key == 'GPURegHKey' then return value == 'HKEY_CURRENT_USER' or value == 'HKEY_LOCAL_MACHINE' end
@@ -328,7 +332,7 @@ function CancelInput()
     return true
 end
 
-function FitHeight() return save({PanelHeight = '650'}) end
+function FitHeight() return save({PanelHeight = fitHeight}) end
 
 function CycleHive(direction)
     direction = direction == nil and 1 or direction

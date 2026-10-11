@@ -20,7 +20,7 @@ function Suite.run(path)
         for _,part in ipairs({'Index','Sensor','Label'}) do allowed['GPU'..field..part]=true end
     end
     local function fixture(overrides)
-        local persisted={Columns='1',PanelHeight='650',GPUEnableSensors='0',GPURegHKey='HKEY_CURRENT_USER',GPURegKey='SOFTWARE\\HWiNFO64\\VSB'}
+        local persisted={Columns='1',PanelHeight='462',GPUEnableSensors='0',GPURegHKey='HKEY_CURRENT_USER',GPURegKey='SOFTWARE\\HWiNFO64\\VSB'}
         for _,field in ipairs({'Temperature','Power','Clock'}) do
             persisted['GPU'..field..'Index']='-1';persisted['GPU'..field..'Sensor']='';persisted['GPU'..field..'Label']=''
         end
@@ -138,7 +138,8 @@ function Suite.run(path)
     end)
     test('sensor toggle and fit-height change only explicit keys',function()
         local f=fixture({PanelHeight='399'});f.env.ToggleSensors();saved(f,{GPUEnableSensors='1'});eq(f.persisted.PanelHeight,'399')
-        f:clear();f.env.ToggleSensors();saved(f,{GPUEnableSensors='0'});f:clear();f.env.FitHeight();saved(f,{PanelHeight='650'});eq(f.vars.PanelHeight,'648')
+        ok(f.options.MeterSettingsHeightValue.ToolTipText:find('462',1,true),'height tooltip names the fit height while 399 is saved')
+        f:clear();f.env.ToggleSensors();saved(f,{GPUEnableSensors='0'});f:clear();f.env.FitHeight();saved(f,{PanelHeight='462'});eq(f.vars.PanelHeight,'648')
         f:clear();f.env.FitHeight();idle(f)
     end)
     test('provider off keeps setup and recovery available and saved mappings intact',function()

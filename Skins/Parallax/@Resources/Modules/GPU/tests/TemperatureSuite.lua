@@ -16,6 +16,7 @@ function Suite.run(path)
     local function hex(value) return (value:gsub('.', function(c) return string.format('%02X', c:byte()) end)) end
     local adapter = 'Fixture Graphics 9000'
     local luid, token = '0123456789ABCDEF', '0123456789abcdef0123456789abcdef'
+    local namesOnlyLuid = string.rep('0', 16)
     local tempRoot = 'C:\\Fixture Temp'
     local base = tempRoot .. '\\Parallax-GPU-' .. token
     local dataPath, leasePath, tmpPath = base .. '.dat', base .. '.lease', base .. '.tmp'
@@ -27,8 +28,8 @@ function Suite.run(path)
         for key, value in pairs(overrides or {}) do f[key] = value end
         return table.concat(f, '|')
     end
-    local meterNames = {MeterTemperatureValue = true, MeterGPUVRAMUsage = true,
-        MeterGPUVRAMBar = true, MeterGPUSharedMemory = true, MeterGPULoadValue = true,
+    local meterNames = {MeterTemperatureValue = true, MeterActivityValue = true, MeterGPUVRAMValue = true,
+        MeterGPUVRAMBar = true, MeterGPUSharedValue = true, MeterGPULoadValue = true,
         MeterGPUControllerLoadValue = true, MeterGPUVideoLoadValue = true, MeterGPUBusLoadValue = true,
         MeterGPULoadBar = true, MeterGPUControllerLoadBar = true, MeterGPUVideoLoadBar = true, MeterGPUBusLoadBar = true,
         MeterPowerValue = true, MeterClockValue = true}
@@ -36,6 +37,8 @@ function Suite.run(path)
         'MeterGPUVideoLoadValue', 'MeterGPUBusLoadValue'}
     local loadBars = {'MeterGPULoadBar', 'MeterGPUControllerLoadBar',
         'MeterGPUVideoLoadBar', 'MeterGPUBusLoadBar'}
+    -- Engine bars span the Engine table track (ContentWidth - 102 * Scale); the VRAM bar keeps the full ContentWidth.
+    local engineWidth = 98 -- fixture ContentWidth 200, Scale 1
     local registryNames = {MeasureGPURegistryNames = true}
     for _, field in ipairs({'Power', 'Clock'}) do
         for _, suffix in ipairs({'Sensor', 'Label', 'Value', 'ValueRaw'}) do registryNames['MeasureGPU' .. field .. suffix] = true end
@@ -60,10 +63,14 @@ function Suite.run(path)
         f.vars.ContentWidth = f.vars.ContentWidth or '200'
         f.vars.DataBarThickness = f.vars.DataBarThickness or '6'
         f.vars.DataBarThicknessPx = f.vars.DataBarThicknessPx or '(Max(1,Round(#DataBarThickness#*#Scale#)))'
+        f.vars.GPUEngineBarWidth = f.vars.GPUEngineBarWidth or '(#ContentWidth#-102*#Scale#)'
+        local panelFormula, engineFormula = '(#PanelWidth#-2*#Padding#)', '(#ContentWidth#-102*#Scale#)'
+        -- Rainmeter expands nested variables fully, so a derived ContentWidth appears inside the engine width.
+        local function expandedWidth() return f.vars.ContentWidth == panelFormula and '(220-2*10)' or f.vars.ContentWidth end
         local skin = {}
         function skin:GetVariable(name, fallback)
             assert(name == 'MetricsInterval' or name == 'SensorInterval' or name == 'ContentWidth'
-                or name == 'DataBarThicknessPx' or name == 'GPUEnableSensors'
+                or name == 'GPUEngineBarWidth' or name == 'DataBarThicknessPx' or name == 'GPUEnableSensors'
                 or name:match('^GPUPowerSource$') or name:match('^GPUClockSource$')
                 or name:match('^GPUPowerIndex$') or name:match('^GPUPowerSensor$') or name:match('^GPUPowerLabel$')
                 or name:match('^GPUClockIndex$') or name:match('^GPUClockSensor$') or name:match('^GPUClockLabel$'),
@@ -71,12 +78,18 @@ function Suite.run(path)
             return f.vars[name] or fallback
         end
         function skin:ReplaceVariables(raw)
-            if raw == '(#PanelWidth#-2*#Padding#)' then return '(220-2*10)' end
+            if raw == panelFormula then return '(220-2*10)' end
+            if raw == engineFormula then return '(' .. expandedWidth() .. '-102*' .. f.vars.Scale .. ')' end
             assert(raw == '(Max(1,Round(#DataBarThickness#*#Scale#)))', 'unexpected geometry expansion')
             return '(Max(1,Round(' .. f.vars.DataBarThickness .. '*' .. f.vars.Scale .. ')))'
         end
         function skin:ParseFormula(raw)
             if raw == '((220-2*10))' then return 200 end
+            if raw == '((' .. expandedWidth() .. '-102*' .. f.vars.Scale .. '))' then
+                local width = f.vars.ContentWidth == panelFormula and 200 or tonumber(f.vars.ContentWidth)
+                local scale = tonumber(f.vars.Scale)
+                return width and scale and width - 102 * scale or nil
+            end
             assert(raw == '((Max(1,Round(' .. f.vars.DataBarThickness .. '*' .. f.vars.Scale .. '))))', 'unexpected geometry formula')
             local thickness, scale = tonumber(f.vars.DataBarThickness), tonumber(f.vars.Scale)
             return thickness and scale and math.max(1, math.floor(thickness * scale + 0.5)) or nil
@@ -177,7 +190,7 @@ function Suite.run(path)
             if f.files[filename] == nil then return nil end
             local handle = {close = function() return true end}
             function handle:read(count)
-                assert(count == 4097, 'snapshot read must be bounded')
+                assert(count == 8193, 'snapshot read must be bounded')
                 if f.nilRead then return nil end
                 return f.files[filename]:sub(1, count)
             end
@@ -225,12 +238,16 @@ function Suite.run(path)
         end
         function f:allUnavailable()
             eq(self.meter.Text, 'Unavailable')
-            contains(self:text('MeterGPUVRAMUsage'), '--')
-            contains(self:text('MeterGPUSharedMemory'), '--')
+            eq(self:text('MeterActivityValue'), '--')
+            contains(self:text('MeterGPUVRAMValue'), '--')
+            contains(self:text('MeterGPUSharedValue'), '--')
             for _, name in ipairs(loadMeters) do eq(self:text(name), '--') end
             if canonical(self.vars.GPUPowerSource) ~= '1' then eq(self:text('MeterPowerValue'), 'Unavailable') end
             if canonical(self.vars.GPUClockSource) ~= '1' then eq(self:text('MeterClockValue'), 'Unavailable') end
             local endpoint, stroke = self:bar(); eq(endpoint, 0); eq(stroke, 0)
+            for _, name in ipairs(loadBars) do
+                local engineEndpoint, engineStroke = self:bar(name); eq(engineEndpoint, 0, name); eq(engineStroke, 0, name)
+            end
         end
         function f:ownedClean()
             eq(self.files[dataPath], nil); eq(self.files[leasePath], nil); eq(self.files[tmpPath], nil)
@@ -265,13 +282,15 @@ function Suite.run(path)
             local f = fixture({vars = item[1]}); contains(f.parameters[bootstrap], "'," .. item[2] .. '))')
         end
     end)
-    test('pending or missing metadata has a deadline and never launches from stale output', function()
+    test('pending or missing metadata has a deadline, then runs names only and never launches from stale output', function()
         for _, status in ipairs({-1, 0, 2, 101, 102, 103}) do
             local f = fixture({infoStatus = status}); eq(f.meter.Text, 'Checking...'); eq(f.reads[info], nil)
-            f.now = 1014; f:update(); eq(f.meter.Text, 'Unavailable'); eq(f.launches[bootstrap], nil)
-            f.statuses[info] = 1; f.now = 2000; f:update(); eq(f.launches[bootstrap], nil)
+            f.now = 1014; f:update(); eq(f.meter.Text, 'Unavailable'); contains(f.meter.ToolTipText, 'GPU identity is unavailable.')
+            eq(f.launches[bootstrap], 1); contains(f.parameters[bootstrap], "CreateSession('" .. namesOnlyLuid .. "',2000)")
+            f.statuses[info] = 1; f.now = 2000; f:update(); eq(f.launches[bootstrap], 1); eq(f.reads[info], nil, 'late metadata is never read')
         end
         local f = fixture({missingInfo = true}); f.now = 1014; f:update(); eq(f.meter.Text, 'Unavailable')
+        contains(f.parameters[bootstrap], "CreateSession('" .. namesOnlyLuid .. "',")
     end)
     test('never-launched helpers reporting minus one are not killed during metadata failure or Stop', function()
         local function untouched(f)
@@ -279,25 +298,34 @@ function Suite.run(path)
             eq(f.kills[bootstrap], nil); eq(f.kills[driver], nil)
             eq(next(f.removed), nil, 'unaccepted sessions have no owned files')
         end
+        -- Failed metadata now owns only a names-only bootstrap; the driver host
+        -- was never launched and must never be killed.
+        local function namesOnlyBootstrap(f)
+            eq(f.launches[bootstrap], 1); eq(f.launches[driver], nil); eq(f.kills[driver], nil)
+            eq(next(f.removed), nil, 'unaccepted sessions have no owned files')
+        end
         local f = fixture({metadata = 'NONE', bootstrapStatus = -1, driverStatus = -1})
-        eq(f.meter.Text, 'Unavailable'); untouched(f)
-        f.env.Stop(); untouched(f)
+        eq(f.meter.Text, 'Unavailable'); namesOnlyBootstrap(f); eq(f.kills[bootstrap], nil)
+        f.env.Stop(); namesOnlyBootstrap(f); eq(f.kills[bootstrap], 1, 'owned running bootstrap is stopped')
         for _, statusValue in ipairs({0, -1}) do
             f = fixture({infoStatus = statusValue, bootstrapStatus = -1, driverStatus = -1})
             eq(f.meter.Text, 'Checking...'); untouched(f)
-            f.now = 1014; f:update(); eq(f.meter.Text, 'Unavailable'); untouched(f)
+            f.now = 1014; f:update(); eq(f.meter.Text, 'Unavailable'); namesOnlyBootstrap(f)
             f = fixture({infoStatus = statusValue, bootstrapStatus = -1, driverStatus = -1})
             f.env.Stop(); untouched(f)
             f:clear(); f.now = 2000; f:update(); eq(#f.calls, 0); untouched(f)
         end
     end)
-    test('malformed and ambiguous metadata cannot select any driver adapter', function()
+    test('malformed and ambiguous metadata cannot select any driver adapter, only a names-only session', function()
         local cases = {'NONE', metadata:gsub('OK|', 'AMBIGUOUS|', 1), metadata:gsub('PHYSICAL', 'UNKNOWN'),
             metadata:gsub('GPU_ADAPTER|1|', 'GPU_ADAPTER|2|'), metadata .. '|extra', metadata .. '\nother',
-            metadata:gsub(luid, '123'), metadata:gsub(luid, 'G123456789ABCDEF'), metadata:gsub(adapter, ''), string.rep('x', 12001)}
+            metadata:gsub(luid, '123'), metadata:gsub(luid, 'G123456789ABCDEF'), metadata:gsub(adapter, ''),
+            (metadata:gsub(luid, namesOnlyLuid)), string.rep('x', 12001)}
         for _, output in ipairs(cases) do
-            local f = fixture({metadata = output}); eq(f.meter.Text, 'Unavailable'); eq(f.launches[bootstrap], nil)
-            f:update(); eq(f.launches[bootstrap], nil)
+            local f = fixture({metadata = output}); eq(f.meter.Text, 'Unavailable')
+            contains(f.meter.ToolTipText, 'No unambiguous discrete GPU identity is available. Refresh GPU to retry.')
+            eq(f.launches[bootstrap], 1); contains(f.parameters[bootstrap], "CreateSession('" .. namesOnlyLuid .. "',2000)")
+            f:update(); eq(f.launches[bootstrap], 1)
         end
         local f = fixture({metadata = metadata:gsub('\n', '\r\n'):gsub('PHYSICAL', 'DEDICATED')})
         eq(f.launches[bootstrap], 1, 'CRLF dedicated metadata accepted')
@@ -343,7 +371,7 @@ function Suite.run(path)
             local f = fixture(); f:live(override); eq(f.meter.Text, 'Unavailable')
             eq(f.launches[bootstrap], 1); eq(f.launches[driver], 1)
         end
-        for _, data in ipairs({'', 'GPU_TEMP', string.rep('x', 4097), 'GPU_TEMP|1|' .. token .. '|1|1000|OK|42|' .. luid .. '|' .. hex(adapter) .. '|extra'}) do
+        for _, data in ipairs({'', 'GPU_TEMP', string.rep('x', 8193), 'GPU_TEMP|1|' .. token .. '|1|1000|OK|42|' .. luid .. '|' .. hex(adapter) .. '|extra'}) do
             local f = fixture(); f:start(); f.files[dataPath] = data; f:update(); eq(f.meter.Text, 'Unavailable')
         end
         local f = fixture(); f:live(); f.nilRead = true; f:update(); eq(f.meter.Text, 'Unavailable')
@@ -433,8 +461,8 @@ function Suite.run(path)
         for _, stateValue in ipairs({-1, 0, 1, 101, 102, 103}) do
             local f = fixture({metadata = 'NONE', bootstrapStatus = stateValue, driverStatus = stateValue})
             eq(f.meter.Text, 'Unavailable'); f.env.Stop()
-            eq(f.launches[bootstrap], nil); eq(f.launches[driver], nil)
-            eq(f.kills[bootstrap], nil); eq(f.kills[driver], nil)
+            eq(f.launches[bootstrap], 1, 'names-only bootstrap is owned'); eq(f.launches[driver], nil)
+            eq(f.kills[driver], nil, 'the never-launched driver host is never killed')
             f = fixture({infoStatus = 0, bootstrapStatus = stateValue, driverStatus = stateValue})
             f.env.Stop(); eq(f.launches[bootstrap], nil); eq(f.launches[driver], nil)
             eq(f.kills[bootstrap], nil); eq(f.kills[driver], nil)
@@ -455,18 +483,55 @@ function Suite.run(path)
     end)
     test('memory capacity and activity domains stay separate in their units', function()
         local f = fixture(); f:live()
-        eq(f:text('MeterGPUVRAMUsage'), 'VRAM: 2.15 / 8.59 GB')
-        eq(f:text('MeterGPUSharedMemory'), 'Shared RAM: 182 MB')
-        local endpoint, stroke, y = f:bar(); eq(endpoint, 50); eq(stroke, 6); eq(y, 3)
+        eq(f:text('MeterGPUVRAMValue'), '2.1/8.6 GB')
+        eq(f:text('MeterGPUSharedValue'), '182 MB')
+        local endpoint, stroke, y = f:bar(); eq(endpoint, 50); eq(stroke, 6); eq(y, 3) -- fixture ContentWidth 200
         for index, name in ipairs(loadMeters) do eq(f:text(name), tostring(index * 25) .. '%') end
         for index, name in ipairs(loadBars) do
-            local endpoint, stroke, y = f:bar(name); eq(endpoint, index * 25 * 2); eq(stroke, 6); eq(y, 3) -- fixture ContentWidth 200
+            local endpoint, stroke, y = f:bar(name); eq(endpoint, index * 25 / 100 * engineWidth, name); eq(stroke, 6); eq(y, 3)
             contains(f.meters[name].Shape2, 'Stroke Color #GPUColor#'); contains(f:tip(name), 'activity')
         end
-        contains(f:tip('MeterGPUVRAMUsage'), adapter)
-        contains(f:tip('MeterGPUSharedMemory'), adapter)
+        contains(f:tip('MeterGPUVRAMValue'), adapter)
+        contains(f:tip('MeterGPUVRAMValue'), 'decimal units')
+        eq(f:tip('MeterGPUVRAMBar'), f:tip('MeterGPUVRAMValue'), 'bar and value share one explanation')
+        contains(f:tip('MeterGPUSharedValue'), adapter)
         contains(f.meters.MeterGPUVRAMBar.Shape2, 'StrokeStartCap Flat | StrokeEndCap Flat')
         contains(f.meters.MeterGPUVRAMBar.Shape2, 'Stroke Color #GPUColor#')
+    end)
+    test('headline activity follows the Core domain and is the numeric return value', function()
+        local f = fixture(); f:start(); f:sample()
+        local n = f:update(); eq(n, 25); eq(f:text('MeterActivityValue'), '25%')
+        contains(f:tip('MeterActivityValue'), adapter); contains(f:tip('MeterActivityValue'), 'History graph')
+        f:sample({[4] = '2', [18] = '0'}); n = f:update(); eq(n, 0); eq(f:text('MeterActivityValue'), '0%', 'measured zero keeps its unit')
+        f:sample({[4] = '3', [18] = '100'}); n = f:update(); eq(n, 100); eq(f:text('MeterActivityValue'), '100%')
+        eq(f:bar('MeterGPULoadBar'), engineWidth, 'full Core activity fills the engine track')
+        for _, value in ipairs({'?', '-1', '101', '1.5', '1e2', 'NaN', '', '9007199254740992'}) do
+            f = fixture(); f:live({[18] = value}); n = f:update(); eq(n, 0, 'invalid Core percent ' .. value)
+            eq(f:text('MeterActivityValue'), '--'); eq(f:text('MeterGPULoadValue'), '--')
+            local endpoint, stroke = f:bar('MeterGPULoadBar'); eq(endpoint, 0); eq(stroke, 0)
+            eq(f:text('MeterGPUControllerLoadValue'), '50%'); eq(f:text('MeterGPUVideoLoadValue'), '75%'); eq(f:text('MeterGPUBusLoadValue'), '100%')
+            eq(f:bar('MeterGPUControllerLoadBar'), engineWidth / 2)
+            eq(f:text('MeterGPUVRAMValue'), '2.1/8.6 GB'); eq(f:text('MeterGPUSharedValue'), '182 MB')
+            eq(f.meter.Text, '42 °C'); eq(f:text('MeterPowerValue'), '55.3 W'); eq(f:text('MeterClockValue'), '1607.5 MHz')
+        end
+        f = fixture(); f:live({[17] = 'UNSUPPORTED', [18] = '?', [19] = '?', [20] = '?', [21] = '?'})
+        n = f:update(); eq(n, 0); eq(f:text('MeterActivityValue'), '--'); eq(f.meter.Text, '42 °C')
+        f = fixture(); f:live({[7] = 'NaN'}); n = f:update()
+        eq(n, 25, 'unusable temperature keeps a valid Core reading'); eq(f:text('MeterActivityValue'), '25%'); eq(f.meter.Text, 'Unavailable')
+    end)
+    test('unavailable, stale, failed and stopped states return zero activity and clear the headline', function()
+        local f = fixture(); local n = f:update(); eq(n, 0); eq(f:text('MeterActivityValue'), '--'); eq(f.meter.Text, 'Checking...')
+        f = fixture({metadata = 'NONE'}); n = f:update(); eq(n, 0, 'metadata failure'); eq(f:text('MeterActivityValue'), '--')
+        f = fixture(); f:start(); n = f:update(); eq(n, 0, 'no snapshot yet'); eq(f:text('MeterActivityValue'), '--')
+        f = fixture(); f:live(); n = f:update(); eq(n, 25)
+        f.now = 1009; n = f:update(); eq(n, 0, 'stale sample'); eq(f:text('MeterActivityValue'), '--')
+        f = fixture(); f:live(); f:sample({[4] = '2', [6] = 'DEVICE_CHANGED'}); n = f:update(); eq(n, 0, 'changed device'); f:allUnavailable()
+        f = fixture(); f:live(); f:sample({[4] = '2', [17] = 'DEVICE_CHANGED'}); n = f:update(); eq(n, 0, 'changed engine identity'); f:allUnavailable()
+        f = fixture(); f:live(); f.files[dataPath] = f.files[dataPath] .. '|extra'; n = f:update(); eq(n, 0, 'malformed sample'); f:allUnavailable()
+        f = fixture(); f:live(); f.statuses[driver] = 1; n = f:update(); eq(n, 0, 'stopped host'); f:allUnavailable()
+        f:clear(); n = f:update(); eq(n, 0, 'failed state stays zero'); eq(#f.calls, 0)
+        f = fixture(); f:live(); f.failOpen = true; f.now = 1005; n = f:update(); eq(n, 0, 'lost lease'); eq(f:text('MeterActivityValue'), '--')
+        f = fixture(); f:live(); f.env.Stop(); local stopped, names = f:update(); eq(stopped, 0, 'stopped'); eq(names, '')
     end)
     test('unsupported metric categories retain other independently valid observations', function()
         for _, item in ipairs({{6, {7}}, {10, {11, 12, 13}}, {14, {15, 16}}, {17, {18, 19, 20, 21}}}) do
@@ -475,16 +540,17 @@ function Suite.run(path)
             local f = fixture(); f:live(override)
             eq(f.meter.Text, item[1] == 6 and 'Unsupported' or '42 °C')
             if item[1] == 10 then
-                contains(f:text('MeterGPUVRAMUsage'), '--')
+                contains(f:text('MeterGPUVRAMValue'), '--')
                 local endpoint, stroke = f:bar(); eq(endpoint, 0); eq(stroke, 0)
-            else eq(f:text('MeterGPUVRAMUsage'), 'VRAM: 2.15 / 8.59 GB') end
-            if item[1] == 14 then contains(f:text('MeterGPUSharedMemory'), '--')
-            else eq(f:text('MeterGPUSharedMemory'), 'Shared RAM: 182 MB') end
+            else eq(f:text('MeterGPUVRAMValue'), '2.1/8.6 GB') end
+            if item[1] == 14 then contains(f:text('MeterGPUSharedValue'), '--')
+            else eq(f:text('MeterGPUSharedValue'), '182 MB') end
             for index, name in ipairs(loadMeters) do eq(f:text(name), item[1] == 17 and '--' or tostring(index * 25) .. '%') end
+            eq(f:text('MeterActivityValue'), item[1] == 17 and '--' or '25%')
         end
         local f = fixture(); f:live({[7] = 'NaN'})
-        eq(f.meter.Text, 'Unavailable'); eq(f:text('MeterGPUVRAMUsage'), 'VRAM: 2.15 / 8.59 GB')
-        eq(f:text('MeterGPUSharedMemory'), 'Shared RAM: 182 MB'); eq(f:text('MeterGPULoadValue'), '25%')
+        eq(f.meter.Text, 'Unavailable'); eq(f:text('MeterGPUVRAMValue'), '2.1/8.6 GB')
+        eq(f:text('MeterGPUSharedValue'), '182 MB'); eq(f:text('MeterGPULoadValue'), '25%'); eq(f:text('MeterActivityValue'), '25%')
     end)
     test('any changed adapter status and bad common identity clear every prior category', function()
         local overrides = {{[6] = 'DEVICE_CHANGED'}, {[10] = 'DEVICE_CHANGED'}, {[14] = 'DEVICE_CHANGED'},
@@ -504,35 +570,35 @@ function Suite.run(path)
             {[11] = '-1'}, {[12] = '1.5'}, {[13] = '-1'}, {[13] = '1e3'}, {[11] = '9007199254740992'},
             {[12] = 'NaN'}, {[13] = '?'}, {[11] = '?'}, {[10] = 'FAKE'}, {[12] = '0', [13] = '0'}}
         for _, override in ipairs(invalid) do
-            local f = fixture(); f:live(override); contains(f:text('MeterGPUVRAMUsage'), '--')
+            local f = fixture(); f:live(override); contains(f:text('MeterGPUVRAMValue'), '--')
             local endpoint, stroke = f:bar(); eq(endpoint, 0); eq(stroke, 0)
-            eq(f.meter.Text, '42 °C'); eq(f:text('MeterGPUSharedMemory'), 'Shared RAM: 182 MB')
+            eq(f.meter.Text, '42 °C'); eq(f:text('MeterGPUSharedValue'), '182 MB')
             eq(f:text('MeterGPULoadValue'), '25%')
         end
     end)
     test('VRAM zero-use, full-use and maximum exact integer remain bounded', function()
-        local cases = {{'8589934592', '8589934592', '8589934592', 'VRAM: 0.00 / 8.59 GB', 0},
-            {'8589934592', '8053063680', '0', 'VRAM: 8.59 / 8.59 GB', 200},
-            {'9007199254740991', '9007199254740991', '9007199254740991', nil, 0},
-            {'9007199254740991', '9007199254740991', '0', nil, 200}}
+        local cases = {{'8589934592', '8589934592', '8589934592', '0.0/8.6 GB', 0},
+            {'8589934592', '8053063680', '0', '8.6/8.6 GB', 200},
+            {'9007199254740991', '9007199254740991', '9007199254740991', '0.0/9007.2 TB', 0},
+            {'9007199254740991', '9007199254740991', '0', '9007.2/9007.2 TB', 200}}
         for _, item in ipairs(cases) do
             local f = fixture(); f:live({[11] = item[1], [12] = item[2], [13] = item[3]})
-            if item[4] then eq(f:text('MeterGPUVRAMUsage'), item[4]) end
-            eq(not not f:text('MeterGPUVRAMUsage'):find('--', 1, true), false)
+            if item[4] then eq(f:text('MeterGPUVRAMValue'), item[4]) end
+            eq(not not f:text('MeterGPUVRAMValue'):find('--', 1, true), false)
             local endpoint, stroke = f:bar(); eq(endpoint, item[5]); eq(stroke, item[5] == 0 and 0 or 6)
         end
     end)
     test('shared memory uses observed residency, preserves zero, and does not substitute a capacity limit', function()
-        local f = fixture(); f:live({[15] = '0', [16] = '0'}); eq(f:text('MeterGPUSharedMemory'), 'Shared RAM: 0 MB')
+        local f = fixture(); f:live({[15] = '0', [16] = '0'}); eq(f:text('MeterGPUSharedValue'), '0 MB')
         f = fixture(); f:live({[15] = '1048576', [16] = '2147483648'})
-        eq(f:text('MeterGPUSharedMemory'), 'Shared RAM: 2.15 GB', 'resident may exceed committed')
+        eq(f:text('MeterGPUSharedValue'), '2.15 GB', 'resident may exceed committed')
         f = fixture(); f:live({[15] = '17179869184', [16] = '182452224'})
-        eq(f:text('MeterGPUSharedMemory'), 'Shared RAM: 182 MB', 'committed value must not replace resident')
+        eq(f:text('MeterGPUSharedValue'), '182 MB', 'committed value must not replace resident')
         for _, override in ipairs({{[15] = '-1'}, {[16] = '-1'}, {[15] = '9007199254740992'},
             {[16] = '1.5'}, {[16] = '1e3'}, {[15] = '?'}, {[16] = '?'}, {[14] = 'FAKE'},
             {[14] = 'UNSUPPORTED', [15] = '?', [16] = '?'}}) do
-            f = fixture(); f:live(override); contains(f:text('MeterGPUSharedMemory'), '--')
-            eq(f:text('MeterGPUVRAMUsage'), 'VRAM: 2.15 / 8.59 GB'); eq(f.meter.Text, '42 °C')
+            f = fixture(); f:live(override); contains(f:text('MeterGPUSharedValue'), '--')
+            eq(f:text('MeterGPUVRAMValue'), '2.1/8.6 GB'); eq(f.meter.Text, '42 °C')
         end
     end)
     test('utilization accepts zero and 100 while unavailable domains remain independent', function()
@@ -545,7 +611,7 @@ function Suite.run(path)
                 for other, otherName in ipairs(loadMeters) do
                     if other ~= index then eq(f:text(otherName), tostring(other * 25) .. '%') end
                 end
-                eq(f:text('MeterGPUVRAMUsage'), 'VRAM: 2.15 / 8.59 GB'); eq(f.meter.Text, '42 °C')
+                eq(f:text('MeterGPUVRAMValue'), '2.1/8.6 GB'); eq(f.meter.Text, '42 °C')
             end
         end
     end)
@@ -557,15 +623,24 @@ function Suite.run(path)
                 f:live(); local endpoint, stroke, y = f:bar()
                 local expected = math.max(1, math.floor(thickness * scale + 0.5))
                 eq(endpoint, width / 4); eq(stroke, expected); eq(y, expected / 2)
+                local engineEndpoint, engineStroke, engineY = f:bar('MeterGPULoadBar')
+                eq(engineEndpoint, (width - 102 * scale) / 4, 'engine track follows ContentWidth - 102 * Scale'); eq(engineStroke, expected); eq(engineY, expected / 2)
                 f:sample({[4] = '2', [13] = '0'}); f:update(); eq(f:bar(), width)
             end
         end
         local f = fixture({vars = {ContentWidth = '(#PanelWidth#-2*#Padding#)'}})
         f:live(); eq(f:bar(), 50, 'derived geometry resolves before use')
+        eq(f:bar('MeterGPULoadBar'), engineWidth / 4, 'nested derived engine geometry resolves before use')
         for _, vars in ipairs({{ContentWidth = '0'}, {ContentWidth = '-1'}, {ContentWidth = 'NaN'},
             {DataBarThicknessPx = '0'}, {DataBarThicknessPx = '-1'}, {DataBarThicknessPx = 'NaN'}}) do
             f = fixture({vars = vars}); f:live(); local endpoint, stroke = f:bar(); eq(endpoint, 0); eq(stroke, 0)
-            eq(f:text('MeterGPUVRAMUsage'), 'VRAM: 2.15 / 8.59 GB')
+            local engineEndpoint, engineStroke = f:bar('MeterGPULoadBar'); eq(engineEndpoint, 0); eq(engineStroke, 0)
+            eq(f:text('MeterGPUVRAMValue'), '2.1/8.6 GB'); eq(f:text('MeterGPULoadValue'), '25%')
+        end
+        for _, vars in ipairs({{GPUEngineBarWidth = '0'}, {GPUEngineBarWidth = '-1'}, {GPUEngineBarWidth = 'NaN'}}) do
+            f = fixture({vars = vars}); f:live()
+            local engineEndpoint, engineStroke = f:bar('MeterGPULoadBar'); eq(engineEndpoint, 0); eq(engineStroke, 0)
+            eq(f:bar(), 50, 'VRAM bar keeps the full content width'); eq(f:text('MeterGPULoadValue'), '25%')
         end
     end)
     test('driver power and graphics clock are the default despite enabled legacy export mappings', function()
@@ -597,7 +672,7 @@ function Suite.run(path)
             for _, value in ipairs(cases) do
                 local f = fixture(); f:live({[field[2]] = value})
                 eq(f:text(field[3]), 'Unavailable'); eq(f:text(field[4]), field[5])
-                eq(f.meter.Text, '42 °C'); eq(f:text('MeterGPUVRAMUsage'), 'VRAM: 2.15 / 8.59 GB')
+                eq(f.meter.Text, '42 °C'); eq(f:text('MeterGPUVRAMValue'), '2.1/8.6 GB')
             end
             for _, status in ipairs({'FAKE', 'UNAVAILABLE', 'UNSUPPORTED', 'STARTING'}) do
                 local f = fixture(); f:live({[field[1]] = status, [field[2]] = '?'})
@@ -723,32 +798,104 @@ function Suite.run(path)
             f:allUnavailable(); eq(f:text('MeterPowerValue'), '77.7 W'); eq(f:text('MeterClockValue'), '1234.5 MHz')
         end
         local options = manualOptions(true, false); options.metadata = 'NONE'
-        f = fixture(options); eq(f:text('MeterPowerValue'), '77.7 W'); eq(f.launches[bootstrap], nil)
+        f = fixture(options); eq(f:text('MeterPowerValue'), '77.7 W'); eq(f.launches[bootstrap], 1)
         f.exports.MeasureGPUPowerValue, f.exports.MeasureGPUPowerValueRaw = '81.0 W', '81'
-        f:update(); eq(f:text('MeterPowerValue'), '81.0 W'); eq(f.launches[bootstrap], nil)
+        f:update(); eq(f:text('MeterPowerValue'), '81.0 W'); eq(f.launches[bootstrap], 1); eq(f.launches[driver], nil)
     end)
-    test('process requests use existing lease cadence and only canonical bounded PID data', function()
+    test('changed process requests are sent at once, renewed every five seconds, as canonical bounded PID data', function()
         local f = fixture({pids = '7,42,4294967295'}); f:live()
-        eq(f.files[leasePath], token .. '|1000|1|7,42,4294967295')
-        eq(f.reads.MeasureGPUProcessController, 1)
+        eq(f.files[leasePath], token .. '|1000|1|7,42,4294967295'); eq(f.leaseWrites, 1)
         f.outputs.MeasureGPUProcessController = '8'
-        f.now = 1004; f:update(); eq(f.leaseWrites, 1); eq(f.reads.MeasureGPUProcessController, 1)
-        f.now = 1005; f:sample(); f:update()
-        eq(f.files[leasePath], token .. '|1005|2|8'); eq(f.leaseWrites, 2)
-        f.now = 1010; f:sample(); f:update()
-        eq(f.files[leasePath], token .. '|1010|2|8')
+        f:update(); eq(f.leaseWrites, 1, 'at most one lease write per second')
+        f.now = 1001; f:sample(); f:update()
+        eq(f.files[leasePath], token .. '|1001|2|8'); eq(f.leaseWrites, 2)
+        f.now = 1005; f:sample(); f:update(); eq(f.leaseWrites, 2, 'an unchanged request waits for renewal')
+        f.now = 1006; f:sample(); f:update()
+        eq(f.files[leasePath], token .. '|1006|2|8'); eq(f.leaseWrites, 3)
         f.outputs.MeasureGPUProcessController = '?'
-        f.now = 1015; f:sample(); f:update(); eq(f.files[leasePath], token .. '|1015|3|?')
+        f.now = 1007; f:sample(); f:update(); eq(f.files[leasePath], token .. '|1007|3|?')
         eq(f.launches[bootstrap], 1); eq(f.launches[driver], 1)
         for _, csv in ipairs({'', '0', '-1', '01', '1.0', '1e0', '4294967296', '2,1', '1,1', ',1', '1,',
-            '1,2,3,4,5,6', '1|2', '1;2', ' 1', '1 ', string.rep('9', 55)}) do
+            '1,2,3,4,5,6,7,8,9,10,11', '1|2', '1;2', ' 1', '1 ', string.rep('9', 55), string.rep('9', 110)}) do
             f = fixture({pids = csv}); f:live(); eq(f.files[leasePath], token .. '|1000|0|?')
         end
+    end)
+    test('a failed changed-request write retries under a new number; a failed renewal still ends the session', function()
+        local f = fixture({pids = '7'}); f:live(); eq(f.files[leasePath], token .. '|1000|1|7')
+        f.outputs.MeasureGPUProcessController = '8'; f.failOpen = true
+        f.now = 1001; f:sample(); f:update()
+        eq(f.meter.Text, '42 °C'); eq(f.kills[driver], nil); eq(f.files[leasePath], token .. '|1000|1|7')
+        f.failOpen = false; f.now = 1002; f:sample(); f:update()
+        eq(f.files[leasePath], token .. '|1002|3|8', 'a failed request number is never reused')
+        f.failWrite = true; f.outputs.MeasureGPUProcessController = '9'; f.now = 1007; f:sample(); f:update()
+        eq(f.meter.Text, 'Unavailable'); eq(f.kills[driver], 1); f:ownedClean()
+        -- A failed change followed by a revert is still committed under a fresh
+        -- number; renewing the burned number would leave every reply unmatched.
+        local game = '7,' .. hex('game.exe')
+        f = fixture({pids = '7'}); f:live({[27] = game})
+        f.outputs.MeasureGPUProcessController = '7,8'; f.failOpen = true; f.now = 1001; f:sample({[27] = game}); f:update()
+        eq(f.names, 'GPU_NAMES|1|1001|' .. game, 'the committed request still names 7')
+        f.failOpen = false; f.outputs.MeasureGPUProcessController = '7'; f.now = 1002; f:sample({[27] = game}); f:update()
+        eq(f.files[leasePath], token .. '|1002|3|7', 'the reverted request is committed under a fresh number')
+        f.now = 1060; for second = 1003, 1060 do f.now = second; f:sample({[27] = game}); f:update() end
+        eq(f.files[leasePath], token .. '|1057|3|7'); eq(f.names, 'GPU_NAMES|1|1060|' .. game)
+    end)
+    test('without one discrete GPU the same host runs for process names only', function()
+        local map = '7,' .. hex('game.exe') .. ';42,' .. hex('tool.exe')
+        for _, output in ipairs({'NONE', (metadata:gsub('OK|', 'AMBIGUOUS|', 1))}) do
+            local f = fixture({metadata = output, pids = '7,42'})
+            eq(f.meter.Text, 'Unavailable'); local reason = f.meter.ToolTipText
+            eq(reason, 'No unambiguous discrete GPU identity is available. Refresh GPU to retry.')
+            f:start(sessionOutput({[5] = namesOnlyLuid}))
+            eq(f.launches[driver], 1); contains(f.parameters[driver], "','" .. namesOnlyLuid .. "',2000)")
+            eq(f.files[leasePath], token .. '|1000|1|7,42')
+            f:update(); eq(f.meter.ToolTipText, reason, 'no Checking state before the first reply')
+            -- GPU readings in a names-only reply (here a plausible 42 C) are never shown.
+            f:sample({[8] = namesOnlyLuid, [9] = '?', [27] = map}); f:update()
+            eq(f.names, 'GPU_NAMES|1|1000|' .. map); f:allUnavailable(); eq(f.meter.ToolTipText, reason)
+            f.now = 1001; f:sample({[8] = namesOnlyLuid, [9] = '?', [27] = map}); f:update()
+            eq(f.names, 'GPU_NAMES|1|1001|' .. map); eq(f.launches[driver], 1)
+            f:sample({[27] = map}); f:update(); eq(f.names, '', 'a reply for a real adapter LUID is rejected')
+            eq(f.meter.ToolTipText, reason)
+            f.statuses[driver] = 1; f:update(); eq(f.names, '')
+            eq(f.meter.ToolTipText, reason, 'a stopped host keeps the metadata reason'); f:ownedClean()
+        end
+        local f = fixture({metadata = 'NONE'}); f:start()
+        eq(f.launches[driver], nil, 'a session must echo the names-only LUID'); eq(f.meter.Text, 'Unavailable')
+    end)
+    test('a request change keeps names of PIDs still requested and withholds re-entered ones until answered', function()
+        local game, tool, extra = '7,' .. hex('game.exe'), '42,' .. hex('tool.exe'), '9,' .. hex('extra.exe')
+        local f = fixture({pids = '7,42'}); f:live({[27] = game .. ';' .. tool})
+        eq(f.names, 'GPU_NAMES|1|1000|' .. game .. ';' .. tool)
+        -- The helper has not read request 2 yet; its reply to request 1 still names 7.
+        f.outputs.MeasureGPUProcessController = '7,9'; f.now = 1001
+        f:sample({[26] = '1', [27] = game .. ';' .. tool}); f:update()
+        eq(f.files[leasePath], token .. '|1001|2|7,9')
+        eq(f.names, 'GPU_NAMES|1|1001|' .. game, 'a continuing PID keeps its name and a dropped one loses it')
+        f.now = 1002; f:sample({[27] = game .. ';' .. extra}); f:update()
+        eq(f.names, 'GPU_NAMES|1|1002|' .. game .. ';' .. extra)
+        -- 42 re-enters at request 3. Neither a reply to request 2, which dropped
+        -- it, nor one to request 1, from before it left, may name it: a listed
+        -- PID is not pinned between samples and may have been reused.
+        f.outputs.MeasureGPUProcessController = '7,42'; f.now = 1003
+        f:sample({[26] = '2', [27] = game}); f:update()
+        eq(f.names, 'GPU_NAMES|1|1003|' .. game, 'a reply to a request without 42 cannot name it')
+        f:sample({[26] = '1', [27] = game .. ';' .. tool}); f:update()
+        eq(f.names, 'GPU_NAMES|1|1003|' .. game, 'a re-entered PID needs a reply at or after its re-entry')
+        f.now = 1004; f:sample({[27] = game .. ';' .. tool}); f:update()
+        eq(f.names, 'GPU_NAMES|1|1004|' .. game .. ';' .. tool)
+        f:sample({[26] = '4', [27] = game}); f:update(); eq(f.names, '', 'an uncommitted request number')
+        f:sample({[26] = '2', [27] = game .. ';' .. tool}); f:update(); eq(f.names, '', 'a PID the old request never asked for')
+        for i = 1, 32 do
+            f.outputs.MeasureGPUProcessController = '7,' .. (100 + i); f.now = 1004 + i; f:sample(); f:update()
+        end
+        f:sample({[26] = '4', [27] = game}); f:update(); contains(f.names, 'GPU_NAMES|1|')
+        f:sample({[26] = '3', [27] = game}); f:update(); eq(f.names, '', 'a request older than the bounded history')
     end)
     test('matching process names are data-only and retain telemetry and numeric return value', function()
         local map = '7,' .. hex('game.exe') .. ';42,' .. hex('渲染.exe')
         local f = fixture({pids = '7,42'}); f:live({[27] = map})
-        local n, names = f:update(); eq(n, 0); eq(names, 'GPU_NAMES|1|1000|' .. map)
+        local n, names = f:update(); eq(n, 25, 'Core activity accompanies the name packet'); eq(names, 'GPU_NAMES|1|1000|' .. map)
         eq(f.meter.Text, '42 °C'); eq(f:text('MeterPowerValue'), '55.3 W')
         -- A name is never inserted in a controller Bang; the graph handles text.
         for _, call in ipairs(f.calls) do
@@ -768,7 +915,7 @@ function Suite.run(path)
         local maps = {'?', '', '7,' .. hex(' '), '7,' .. hex('.'), '7,' .. hex('..'), '7,', '7,GG', '07,' .. hex('game.exe'), '8,' .. hex('game.exe'),
             good .. ';' .. good, good .. ';', ';' .. good, '7,' .. hex('C:\\game.exe'),
             '7,' .. hex('folder/game.exe'), '7,' .. hex('bad\nname.exe'), '7,C080', '7,EDA080',
-            '7,' .. string.rep('61', 129), string.rep('a', 1345)}
+            '7,' .. string.rep('61', 129), string.rep('a', 2680)}
         for _, map in ipairs(maps) do
             local f = fixture({pids = '7'}); f:live({[27] = good}); eq(f.names, 'GPU_NAMES|1|1000|' .. good)
             f:sample({[27] = map}); f:update(); eq(f.names, '')
@@ -778,15 +925,21 @@ function Suite.run(path)
             local f = fixture({pids = '7'}); f:live({[26] = request, [27] = good})
             eq(f.names, ''); eq(f.meter.Text, '42 °C')
         end
-        local f = fixture({pids = '1,2,3,4,5'})
-        local full = {}; for i=1,5 do full[#full+1] = i .. ',' .. string.rep('61', 128) end
-        f:live({[27] = table.concat(full, ';')}); contains(f.names, 'GPU_NAMES|1|1000|')
+        local f = fixture({pids = '1,2,3,4,5,6,7,8,9,10'})
+        local full = {}; for i=1,10 do full[#full+1] = i .. ',' .. string.rep('61', 128) end
+        f:live({[27] = table.concat(full, ';')}); eq(f.names, 'GPU_NAMES|1|1000|' .. table.concat(full, ';'), 'ten maximum names pass')
+        f = fixture({pids = '4294967286,4294967287,4294967288,4294967289,4294967290,4294967291,4294967292,4294967293,4294967294,4294967295'}); f:live(); eq(f.files[leasePath], token .. '|1000|1|4294967286,4294967287,4294967288,4294967289,4294967290,4294967291,4294967292,4294967293,4294967294,4294967295', 'the longest request fits the lease')
     end)
-    test('common failure clears process names while isolated metric failure retains them', function()
+    test('common failure clears process names while isolated metric and driver identity failures retain them', function()
         local map = '7,' .. hex('game.exe')
-        for _, override in ipairs({{[6]='DEVICE_CHANGED'}, {[3]=string.rep('a',32)}, {[2]='3'}}) do
+        for _, override in ipairs({{[3]=string.rep('a',32)}, {[2]='3'}}) do
             local f = fixture({pids='7'}); f:live({[27]=map}); contains(f.names, 'GPU_NAMES|1|')
             override[27]=map; f:sample(override); f:update(); eq(f.names,''); f:allUnavailable()
+        end
+        for _, field in ipairs({6, 10, 14, 17, 22, 24}) do
+            local f = fixture({pids='7'}); f:live({[27]=map})
+            f:sample({[field]='DEVICE_CHANGED', [27]=map}); f:update()
+            eq(f.names, 'GPU_NAMES|1|1000|' .. map, 'names do not depend on the GPU driver'); f:allUnavailable()
         end
         local f = fixture({pids='7'}); f:live({[27]=map}); f.now=1009; f:update(); eq(f.names,'')
         f = fixture({pids='7'}); f:live({[27]=map}); f.statuses[driver]=1; f:update(); eq(f.names,'')

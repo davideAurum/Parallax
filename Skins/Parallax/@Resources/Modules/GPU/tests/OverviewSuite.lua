@@ -22,11 +22,13 @@ function Suite.run(path)
             .. (pass and '' or ': ' .. tostring(err))
         if not pass then failed = failed + 1 end
     end
+    -- The adapter inset is the overview's only output. The title-row headline
+    -- (MeterActivityValue) and every live reading belong to Temperature.lua.
     local allowedMeters = {
-        MeterAdapterName = true, MeterVRAMValue = true,
-        MeterActivityValue = true
+        MeterAdapterName = true, MeterAdapterDetails = true
     }
     local removedMeters = {
+        'MeterVRAMValue', 'MeterActivityValue',
         'MeterDirect3DValue', 'MeterShaderValue', 'MeterRayTracingValue',
         'MeterDriverValue', 'MeterGPUClocksValue',
         'MeterGPUBaseClockValue', 'MeterGPUBoostClockValue',
@@ -40,10 +42,10 @@ function Suite.run(path)
     local function fixture(output, status, missing)
         local f = {
             output = output or '', status = status or 1, missing = missing,
-            now = 1000, infoReads = 0, statusReads = 0, calls = {},
+            now = 1000, infoReads = 0, statusReads = 0, activityReads = 0, calls = {},
             options = {
                 MeterAdapterName = {Text = 'Checking...'},
-                MeterVRAMValue = {Text = 'Checking...'}
+                MeterAdapterDetails = {Text = 'Checking...'}
             }
         }
         local info = {}
@@ -55,7 +57,9 @@ function Suite.run(path)
         local skin = {}
         function skin:GetMeasure(name)
             if name == 'MeasureGPUInfo' then return not f.missing and info or nil end
-            if name == 'MeasureGPUActivity' then return activity end
+            -- Still resolvable, but the overview must never consult it: the
+            -- headline percentage is Temperature.lua's direct driver reading.
+            if name == 'MeasureGPUActivity' then f.activityReads = f.activityReads + 1; return activity end
             error('unexpected measure access: ' .. tostring(name))
         end
         function skin:GetVariable(name, fallback)
@@ -101,25 +105,25 @@ function Suite.run(path)
     end
     local function unavailable(f, name)
         eq(f:text('MeterAdapterName'), name or 'GPU name unavailable', 'adapter state')
-        eq(f:text('MeterVRAMValue'), 'VRAM unavailable @ -- MHz (-- MHz)', 'memory and clock state')
+        eq(f:text('MeterAdapterDetails'), 'VRAM unavailable @ -- MHz', 'memory and clock state')
     end
 
     test('physical capacity type and manufacturer come from the returned adapter fixture', function()
         local f = fixture(payload('Fixture graphics board A', 8192 * 1048576, 'GDDR5X', 'Micron'))
         eq(f:text('MeterAdapterName'), 'Fixture graphics board A')
-        eq(f:text('MeterVRAMValue'), '8590 MB GDDR5X @ -- MHz (-- MHz)')
-        contains(f:tip('MeterVRAMValue'), '8589934592 bytes')
-        contains(f:tip('MeterVRAMValue'), 'Memory manufacturer: Micron.')
-        contains(f:tip('MeterVRAMValue'), 'Total physical video memory')
+        eq(f:text('MeterAdapterDetails'), '8.6 GB GDDR5X @ -- MHz')
+        contains(f:tip('MeterAdapterDetails'), '8589934592 bytes')
+        contains(f:tip('MeterAdapterDetails'), 'Memory manufacturer: Micron.')
+        contains(f:tip('MeterAdapterDetails'), 'Total physical video memory')
     end)
     test('Initialize clears metadata cache and accepts a different adapter and memory', function()
         local f = fixture(payload('Fixture board A', 8192 * 1048576, 'GDDR5X', 'Micron', 'PHYSICAL', 1607000, 1733500))
         f.output = payload('Different fixture board B', 6144 * 1048576, 'GDDR6', 'Samsung', 'PHYSICAL', 1500000, 2100000)
         f.env.Initialize(); f.env.Update()
         eq(f:text('MeterAdapterName'), 'Different fixture board B')
-        eq(f:text('MeterVRAMValue'), '6442 MB GDDR6 @ 1500 MHz (2100 MHz)')
-        contains(f:tip('MeterVRAMValue'), 'Memory manufacturer: Samsung.')
-        ok(not f:tip('MeterVRAMValue'):find('Micron', 1, true), 'previous memory vendor discarded')
+        eq(f:text('MeterAdapterDetails'), '6.4 GB GDDR6 @ 1500-2100 MHz')
+        contains(f:tip('MeterAdapterDetails'), 'Memory manufacturer: Samsung.')
+        ok(not f:tip('MeterAdapterDetails'):find('Micron', 1, true), 'previous memory vendor discarded')
         eq(f.infoReads, 2, 'one metadata read per initialization')
     end)
     test('NONE explicitly reports absent discrete GPU and unavailable memory', function()
@@ -143,7 +147,7 @@ function Suite.run(path)
     test('pending metadata retains checking until successful completion', function()
         local f = fixture(payload('Stale fixture board', 8589934592, 'GDDR5X'), -1)
         eq(f:text('MeterAdapterName'), 'Checking...')
-        eq(f:text('MeterVRAMValue'), 'Checking...')
+        eq(f:text('MeterAdapterDetails'), 'Checking...')
         eq(f.infoReads, 0, 'running command output not consumed')
         f.status = 0; f.now = 1005; f.env.Update()
         eq(f:text('MeterAdapterName'), 'Checking...')
@@ -151,34 +155,53 @@ function Suite.run(path)
         f.output = payload('Completed fixture board', 4294967296, 'GDDR6')
         f.status = 1; f.env.Update()
         eq(f:text('MeterAdapterName'), 'Completed fixture board')
-        eq(f:text('MeterVRAMValue'), '4295 MB GDDR6 @ -- MHz (-- MHz)')
+        eq(f:text('MeterAdapterDetails'), '4.3 GB GDDR6 @ -- MHz')
     end)
     test('deadline expires pending metadata without accepting stale output', function()
         for _, status in ipairs({-1, 0}) do
             local f = fixture(payload('Stale fixture board', 8589934592, 'GDDR5X'), status)
             f.now = 1014; f.env.Update(); unavailable(f)
-            contains(f:tip('MeterVRAMValue'), 'failed or timed out')
+            contains(f:tip('MeterAdapterDetails'), 'failed or timed out')
         end
     end)
     test('dedicated fallback retains exact byte evidence and unknown memory type', function()
         local f = fixture(payload('Fallback fixture board', 8450473984, '?', '?', 'DEDICATED'))
-        eq(f:text('MeterVRAMValue'), '8.5 GB / type unknown @ -- MHz (-- MHz)')
-        contains(f:tip('MeterVRAMValue'), '8450473984 bytes')
-        contains(f:tip('MeterVRAMValue'), 'Physical framebuffer capacity was unavailable')
-        contains(f:tip('MeterVRAMValue'), 'may exclude driver-reserved memory')
+        eq(f:text('MeterAdapterDetails'), '8.5 GB (type unknown) @ -- MHz')
+        contains(f:tip('MeterAdapterDetails'), '8450473984 bytes')
+        contains(f:tip('MeterAdapterDetails'), 'Physical framebuffer capacity was unavailable')
+        contains(f:tip('MeterAdapterDetails'), 'may exclude driver-reserved memory')
+    end)
+    test('capacity rounds to decimal GB with one decimal like Memory Meter and Disk Meter', function()
+        for _, case in ipairs({
+            {8589934592, 'PHYSICAL', '8.6 GB'}, {8450473984, 'DEDICATED', '8.5 GB'},
+            {6442450944, 'PHYSICAL', '6.4 GB'}, {536870912, 'PHYSICAL', '537 MB'},
+            {8589803520, 'PHYSICAL', '8.6 GB'}
+        }) do
+            local f = fixture(payload('Capacity fixture', case[1], 'GDDR6', '?', case[2]))
+            eq(f:text('MeterAdapterDetails'), case[3] .. ' GDDR6 @ -- MHz', 'capacity ' .. case[1] .. ' ' .. case[2])
+        end
+    end)
+    test('details tooltip names the decimal GB convention only when a capacity is shown', function()
+        local f = fixture(payload('Physical scope fixture', 8589934592, 'GDDR5X', 'Micron'))
+        contains(f:tip('MeterAdapterDetails'), 'decimal GB')
+        contains(f:tip('MeterAdapterDetails'), '8589934592 bytes (8.6 GB, decimal GB)')
+        f = fixture(payload('Dedicated scope fixture', 8450473984, '?', '?', 'DEDICATED'))
+        contains(f:tip('MeterAdapterDetails'), '8450473984 bytes (8.5 GB, decimal GB)')
+        f = fixture(payload('Unknown capacity fixture', '?', 'HBM2'))
+        ok(not f:tip('MeterAdapterDetails'):find('decimal GB', 1, true), 'no unit convention without a capacity')
     end)
     test('unknown physical capacity preserves a valid independently queried memory type', function()
         local f = fixture(payload('Partial fixture board', '?', 'HBM2', '?', 'PHYSICAL'))
         eq(f:text('MeterAdapterName'), 'Partial fixture board')
-        eq(f:text('MeterVRAMValue'), 'VRAM unknown HBM2 @ -- MHz (-- MHz)')
-        contains(f:tip('MeterVRAMValue'), 'did not return a usable memory capacity')
-        contains(f:tip('MeterVRAMValue'), 'Memory type: HBM2.')
+        eq(f:text('MeterAdapterDetails'), 'VRAM unknown HBM2 @ -- MHz')
+        contains(f:tip('MeterAdapterDetails'), 'did not return a usable memory capacity')
+        contains(f:tip('MeterAdapterDetails'), 'Memory type: HBM2.')
     end)
     test('invalid noninteger nonfinite and unsafe-size capacities remain unknown', function()
         for _, bytes in ipairs({'0', '-1', '1.5', 'NaN', 'inf', '1e309',
             '9007199254740992', string.rep('9', 400)}) do
             local f = fixture(payload('Invalid capacity fixture', bytes, 'GDDR6'))
-            eq(f:text('MeterVRAMValue'), 'VRAM unknown GDDR6 @ -- MHz (-- MHz)', 'invalid capacity ' .. bytes)
+            eq(f:text('MeterAdapterDetails'), 'VRAM unknown GDDR6 @ -- MHz', 'invalid capacity ' .. bytes)
         end
     end)
     test('old malformed and unsupported-scope protocols are rejected', function()
@@ -197,7 +220,7 @@ function Suite.run(path)
         local f = fixture(payload('Board [!Quit] #Scale# "Demo"\nRev', 8589934592,
             'GDDR6[#Type#]', 'Vendor "Quoted"\tName'))
         eq(f:text('MeterAdapterName'), "Board (!Quit) Scale 'Demo' Rev")
-        eq(f:text('MeterVRAMValue'), '8590 MB GDDR6(Type) @ -- MHz (-- MHz)')
+        eq(f:text('MeterAdapterDetails'), '8.6 GB GDDR6(Type) @ -- MHz')
         for _, call in ipairs(f.calls) do
             if call.command == '!SetOption' then
                 ok(not call.args[3]:find('[#%[%]"%c]'), 'safe display option')
@@ -210,8 +233,8 @@ function Suite.run(path)
         for _, separator in ipairs({'\n', '\r\n'}) do
             local f = fixture(base .. separator .. suffix)
             eq(f:text('MeterAdapterName'), 'Temperature suffix fixture')
-            eq(f:text('MeterVRAMValue'), '8590 MB GDDR5X @ 1607 MHz (1733.5 MHz)')
-            contains(f:tip('MeterVRAMValue'), 'Memory manufacturer: Micron.')
+            eq(f:text('MeterAdapterDetails'), '8.6 GB GDDR5X @ 1607-1734 MHz')
+            contains(f:tip('MeterAdapterDetails'), 'Memory manufacturer: Micron.')
             eq(f.options.MeterTemperatureValue, nil, 'temperature belongs to its own controller')
         end
     end)
@@ -219,8 +242,8 @@ function Suite.run(path)
         local f = fixture(payload('Fixture\nBoard', 8589934592, 'GDDR6', 'Vendor\nName', 'PHYSICAL', 1500000, 2100000)
             .. '\nGPU_ADAPTER|1|0123456789ABCDEF')
         eq(f:text('MeterAdapterName'), 'Fixture Board')
-        eq(f:text('MeterVRAMValue'), '8590 MB GDDR6 @ 1500 MHz (2100 MHz)')
-        contains(f:tip('MeterVRAMValue'), 'Memory manufacturer: Vendor Name.')
+        eq(f:text('MeterAdapterDetails'), '8.6 GB GDDR6 @ 1500-2100 MHz')
+        contains(f:tip('MeterAdapterDetails'), 'Memory manufacturer: Vendor Name.')
     end)
     test('wrong nonterminal and repeated adapter suffixes cannot disguise malformed metadata', function()
         local base = payload('Invalid suffix fixture', 8589934592, 'GDDR6', '?', 'PHYSICAL', 1607000, 1733500)
@@ -231,7 +254,7 @@ function Suite.run(path)
             '\n' .. suffix .. '\n' .. suffix
         }) do unavailable(fixture(base .. tail)) end
         local f = fixture(base .. '\ntrailing junk')
-        eq(f:text('MeterVRAMValue'), '8590 MB GDDR6 @ 1607 MHz (-- MHz)', 'unrecognized trailing text never restores a valid boost')
+        eq(f:text('MeterAdapterDetails'), '8.6 GB GDDR6 @ 1607 MHz base', 'unrecognized trailing text never restores a valid boost')
     end)
     test('ordinary updates cache metadata and never write removed capability meters', function()
         local f = fixture(payload('Cached fixture board', 8589934592, 'GDDR5X', 'Micron', 'PHYSICAL', 1607000, 1733500))
@@ -240,34 +263,35 @@ function Suite.run(path)
         f:clear()
         for _ = 1, 5 do f.now = f.now + 100; f.env.Update() end
         eq(f:text('MeterAdapterName'), 'Cached fixture board')
-        eq(f:text('MeterVRAMValue'), '8590 MB GDDR5X @ 1607 MHz (1733.5 MHz)')
+        eq(f:text('MeterAdapterDetails'), '8.6 GB GDDR5X @ 1607-1734 MHz')
         eq(f.infoReads, reads, 'metadata output remains cached')
         eq(f.statusReads, statusReads, 'metadata status remains cached')
+        eq(f.activityReads, 0, 'headline activity measure is never consulted by the overview')
         eq(#f.calls, 0, 'unchanged values produce no redraw or action')
         for _, meter in ipairs(removedMeters) do eq(f.options[meter], nil, meter) end
     end)
 
-    test('base and boost graphics clocks retain driver precision in MHz', function()
+    test('base and boost graphics clocks display as whole MHz with exact kHz in the tooltip', function()
         local f = fixture(payload('Clock fixture', 8589934592, 'GDDR5X', '?', 'PHYSICAL', 1607000, 1733500))
-        eq(f:text('MeterVRAMValue'), '8590 MB GDDR5X @ 1607 MHz (1733.5 MHz)')
-        contains(f:tip('MeterVRAMValue'), 'Base: 1607000 kHz.')
-        contains(f:tip('MeterVRAMValue'), 'Boost: 1733500 kHz.')
-        contains(f:tip('MeterVRAMValue'), 'not the current clock or a measured peak')
+        eq(f:text('MeterAdapterDetails'), '8.6 GB GDDR5X @ 1607-1734 MHz')
+        contains(f:tip('MeterAdapterDetails'), 'Base: 1607000 kHz.')
+        contains(f:tip('MeterAdapterDetails'), 'Boost: 1733500 kHz.')
+        contains(f:tip('MeterAdapterDetails'), 'not the current clock or a measured peak')
         f = fixture(payload('Fine clock fixture', 8589934592, 'GDDR6', '?', 'PHYSICAL', 1607123, 1900001))
-        eq(f:text('MeterVRAMValue'), '8590 MB GDDR6 @ 1607.123 MHz (1900.001 MHz)')
+        eq(f:text('MeterAdapterDetails'), '8.6 GB GDDR6 @ 1607-1900 MHz')
     end)
     test('unavailable base and boost remain independent of each other and memory', function()
         local f = fixture(payload('Partial clock fixture', 8589934592, 'GDDR6', '?', 'PHYSICAL', '?', 1733500))
-        eq(f:text('MeterVRAMValue'), '8590 MB GDDR6 @ -- MHz (1733.5 MHz)')
-        contains(f:tip('MeterVRAMValue'), 'Base clock unavailable.')
+        eq(f:text('MeterAdapterDetails'), '8.6 GB GDDR6 @ 1734 MHz boost')
+        contains(f:tip('MeterAdapterDetails'), 'Base clock unavailable.')
         f = fixture(payload('Partial clock fixture', '?', '?', '?', 'DEDICATED', 1607000, '?'))
-        eq(f:text('MeterVRAMValue'), 'VRAM unknown / type unknown @ 1607 MHz (-- MHz)')
-        contains(f:tip('MeterVRAMValue'), 'Boost clock unavailable.')
+        eq(f:text('MeterAdapterDetails'), 'VRAM unknown (type unknown) @ 1607 MHz base')
+        contains(f:tip('MeterAdapterDetails'), 'Boost clock unavailable.')
     end)
     test('invalid clock values never become reference frequencies', function()
         for _, clock in ipairs({'0', '-1', '1.5', 'NaN', 'inf', '1e309', '4294967296', string.rep('9', 400)}) do
             local f = fixture(payload('Invalid clock fixture', 8589934592, 'GDDR6', '?', 'PHYSICAL', clock, clock))
-            eq(f:text('MeterVRAMValue'), '8590 MB GDDR6 @ -- MHz (-- MHz)', 'invalid clock ' .. clock)
+            eq(f:text('MeterAdapterDetails'), '8.6 GB GDDR6 @ -- MHz', 'invalid clock ' .. clock)
         end
     end)
 

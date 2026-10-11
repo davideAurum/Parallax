@@ -1,36 +1,35 @@
-; GPU utilization history -- one tracing for now. This graphs the same
-; "busiest ranked process-engine" figure already shown as the panel's
-; headline Activity value and as row 1 of the process table above (see
-; MeasureGPUActivity's own comments in Measures.inc). It is deliberately
-; NOT a true whole-adapter/rollup total: UsageMonitor's GPU Engine category
-; only exposes per-engine-instance counters, and summing them risks
-; double-counting shared engines, so no single honest "overall GPU %"
-; exists here beyond the busiest ranked instance. Height follows the
-; shared #GraphHeight# suite variable -- override it in User/GPU.inc to
-; give this graph more or less room; the panel grows to fit.
+; GPU load history in Memory Meter's style: a History header with its fixed
+; range at the right, then the graph. The trace is the driver's GPU busy time
+; (the header value and the Engine table's Core row), supplied by
+; Temperature.lua through MeasureGPUUtilizationHistory. Height follows the
+; shared #GraphHeight# variable; the panel grows to fit.
 
-[MeterGPUGraphHeading]
+[MeterGPUHistoryLabel]
 Meter=String
 MeterStyle=StyleHeader
-Y=(#Inset#+522*#Scale#)
-H=(16*#Scale#)
-Text=GPU utilization
-ToolTipText=Traces the same busiest-ranked-process-engine figure shown above (the panel's headline % and the process table's top row), not a true whole-adapter total. UsageMonitor's GPU Engine counters cannot be honestly summed into one adapter-wide percentage without risking double-counting shared engines.
+Y=(#Inset#+(386+#GPUBarExtra#)*#Scale#)
+W=(#ContentWidth#-60*#Scale#)
+H=(18*#Scale#)
+Text=History
+ToolTipText=GPU busy time from the selected card's driver, newest at right. History starts over on refresh and fills one sample per update. Uncollected history is not a measurement.
+UpdateDivider=-1
 
-[MeterGPUGraphRule]
-Meter=Shape
-X=#ContentX#
-Y=(#Inset#+538*#Scale#)
-W=#ContentWidth#
-H=(#TableHeaderBorderThickness#*#Scale#)
-Shape=Line 0,(#TableHeaderBorderThickness#*#Scale#/2),#ContentWidth#,(#TableHeaderBorderThickness#*#Scale#/2) | Stroke Color #TableHeaderBorderColor# | StrokeWidth (#TableHeaderBorderThickness#*#Scale#)
+[MeterGPUHistoryRange]
+Meter=String
+MeterStyle=StyleLabel
+X=(#ContentX#+#ContentWidth#)
+Y=(#Inset#+(386+#GPUBarExtra#)*#Scale#)
+W=(58*#Scale#)
+H=(18*#Scale#)
+StringAlign=Right
+Text=0 - 100%
 UpdateDivider=-1
 
 [MeterGPUUtilizationGraph]
 Meter=Line
 MeasureName=MeasureGPUUtilizationHistory
 X=#ContentX#
-Y=(#Inset#+546*#Scale#)
+Y=(#Inset#+(406+#GPUBarExtra#)*#Scale#)
 W=#ContentWidth#
 H=(#GraphHeight#*#Scale#)
 LineCount=1
@@ -44,7 +43,7 @@ GraphOrientation=Vertical
 AntiAlias=1
 DynamicVariables=1
 UpdateDivider=1
-ToolTipText=GPU utilization history, fixed 0-100% range. Each horizontal pixel holds one update; width, suite scale and MetricsInterval change the nominal time span. Traces the busiest ranked process-engine instance (see the heading above) -- idle and "no counter available" both read as 0% and cannot be told apart here. Refresh clears history.
+ToolTipText=Driver GPU busy time, fixed 0-100% range. Each horizontal pixel holds one update; width, suite scale and MetricsInterval change the nominal time span. While the direct driver reading is unavailable the trace reads 0% and the header shows --. Refresh clears history.
 
 ; Native Line starts with a zero-filled ring buffer. Cover its uncollected
 ; left side; do not portray those zeros as observed GPU usage. Overlap by
@@ -52,7 +51,7 @@ ToolTipText=GPU utilization history, fixed 0-100% range. Each horizontal pixel h
 [MeterGPUGraphUncollected]
 Meter=Shape
 X=#ContentX#
-Y=(#Inset#+546*#Scale#)
+Y=(#Inset#+(406+#GPUBarExtra#)*#Scale#)
 Shape=Rectangle 0,0,(Min(#ContentWidth#,Max(0,(#ContentWidth#-[MeasureGPUGraphSamples]+2*#Scale#)*([MeasureGPUGraphSamples]<#ContentWidth#)))),(#GraphHeight#*#Scale#) | Fill Color #GraphBackgroundColor#,255 | StrokeWidth 0
 ; DynamicVariables is required: without it [MeasureGPUGraphSamples] is read once
 ; at load (0 samples), leaving this cover at full width over the whole graph.
@@ -64,5 +63,5 @@ ToolTipText=This blank area has no collected samples yet. History fills from the
 [MeterGPUGraphFrame]
 Meter=Shape
 MeterStyle=StyleGraph
-Y=(#Inset#+546*#Scale#)
+Y=(#Inset#+(406+#GPUBarExtra#)*#Scale#)
 Shape=Rectangle 0.5,0.5,(#ContentWidth#-1),(#GraphHeight#*#Scale#-1),(2*#Scale#) | Fill Color 0,0,0,0 | Stroke Color #BorderColor# | StrokeWidth 1

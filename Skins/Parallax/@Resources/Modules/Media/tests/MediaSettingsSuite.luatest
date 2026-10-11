@@ -11,6 +11,7 @@ local identity_metadata={}
 local queue_transport_checks
 local artwork_bounds
 local timing_report=''
+local drawer_report=''
 local settings_expanded_height
 local function is_settings() return kind:match('Settings$')~=nil end
 local function check(ok, message) checks=checks+1; assert(ok, message) end
@@ -34,17 +35,59 @@ local function preferences()
     check(tonumber(values.Scale)==SELF:GetNumberOption('ExpectedScale'),'Scale preference changed')
     check(tonumber(values.ColumnWidth)==SELF:GetNumberOption('ExpectedWidth'),'ColumnWidth preference changed')
     local allowed={Columns=true,PanelHeight=true,MediaInterval=true,QueueExpanded=true,QueueRowLimit=true,
-        QueueShowDetails=true,QueuePollSeconds=true,Scale=true,ColumnWidth=true,UnrelatedSentinel=true}
+        QueueShowDetails=true,QueuePollSeconds=true,Scale=true,ColumnWidth=true,VisualizerDrawer=true,UnrelatedSentinel=true}
     for key in pairs(values) do check(allowed[key],'Unexpected preference written: '..key) end
     return values
 end
 local function text(name) return assert(SKIN:GetMeter(name)):GetOption('Text','') end
 local function formula(expression) return tonumber(SKIN:ParseFormula(SKIN:ReplaceVariables('('..expression..')'))) end
+-- Only Media.ini hosts the spectrum drawer (MediaVisualizerHost=1); every
+-- Player kind loads it, every other panel kind loads Setup.ini or Queue.ini.
+local function hosted() return kind:find('Player',1,true)~=nil end
+-- The Visualizer preferences the drawer follows, read from the copied
+-- User\Visualizer.inc itself rather than from the skin's derived variables.
+local function visualizer_preferences()
+    local bytes=read(SKIN:GetVariable('@')..'User\\Visualizer.inc')
+    if bytes:sub(1,2)=='\255\254' then bytes=bytes:sub(3):gsub('(.).','%1') end
+    local values={}
+    for line in (bytes..'\n'):gmatch('([^\r\n]*)\r?\n') do
+        local key,value=line:match('^%s*([%w_]+)%s*=%s*(.-)%s*$')
+        if key then values[key]=value end
+    end
+    return values
+end
+-- The open plot's inset inside its sheet: the queue sheet's 8px padding, unless
+-- a large corner radius brings the sheet's rounded inner stroke closer to the
+-- plot frame's rounded outer edge (a 2px radius drawn at 0.5) than the
+-- padding keeps along the straight sides (padding - border). Both corners are
+-- circles on the same 45-degree diagonal, so the clearance is the distance
+-- between their centres less both radii.
+local function plot_inset(scale)
+    local r=tonumber(SKIN:GetVariable('CornerRadius'))*scale
+    local b=tonumber(SKIN:GetVariable('BorderThickness'))*scale
+    local padding,frame=8*scale,2*scale+0.5
+    return math.max(padding,math.ceil(b/2+r-frame-(r-b/2-frame-(padding-b))*math.sqrt(0.5)))
+end
+-- The open drawer's plot and lift: the standalone Visualizer's plot height for
+-- the Audio settings Height preset, plus the queue sheet's spacing mirrored
+-- (the plot inset at the far edge, 4px section gap), whole pixels. Also
+-- returns the inset and the spectrum's bar height (plot interior less the
+-- baseline gap), which places the drawer's grid lines.
+local function drawer_lift(scale)
+    local prefs=visualizer_preferences()
+    local preset=tonumber(prefs.PanelHeight) or 146
+    local baseline=math.floor(math.max(0,math.min(24,tonumber(prefs.VisualizerBaselineGap) or 0))*scale+0.5)
+    local shift=math.max(0,tonumber(SKIN:GetVariable('BorderThickness'))-2)
+    local plot=math.max(math.floor((preset-66-shift)*scale+0.5),math.ceil(54*scale)+baseline+2)
+    local inset=plot_inset(scale)
+    return math.ceil(inset+plot+4*scale),plot,inset,plot-2-baseline
+end
 -- Independent model of the drawer layout. It mirrors media_body_geometry and
 -- media_drawer_geometry in test_skin_contract.py from the same primitives,
 -- rather than reading the skin's derived variables back, so a geometry edit
--- has to agree with a second calculation. Offsets are #Inset#-relative;
--- window and width are absolute.
+-- has to agree with a second calculation. Offsets are relative to the player's
+-- top (#MediaTop#: #Inset# plus the open spectrum drawer's lift, so equal to
+-- #Inset# whenever the drawer is closed); top, window and width are absolute.
 local function media_geometry(expanded, rows)
     local scale=SELF:GetNumberOption('ExpectedScale')
     local wide=SELF:GetNumberOption('ExpectedColumns')==2
@@ -55,7 +98,15 @@ local function media_geometry(expanded, rows)
     local columns=wide and 2 or 1
     local unit=rounded(SELF:GetNumberOption('ExpectedWidth')*scale)
     local panel_width=columns*(unit+gap)-gap
-    local offset=wide and rounded(12*scale) or 0
+    -- Spectrum drawer preference: 1 shows the tab, 2 opens it; anything else
+    -- hides it. While the tab can show, the compact panel reserves the same
+    -- 12px top strip the double-width artwork overhangs; only the hosting
+    -- Media.ini lifts the player under the open drawer.
+    local drawer=SKIN:GetVariable('VisualizerDrawer','1')
+    local shown=drawer=='1' or drawer=='2'
+    local open=drawer=='2' and hosted()
+    local lift=open and drawer_lift(scale) or 0
+    local offset=(wide or shown) and rounded(12*scale) or 0
     local bar=math.max(1,rounded(SELF:GetNumberOption('ExpectedBarThickness',6)*scale))
     -- One 26px title row at both widths, a 4px section gap, three 24px
     -- metadata rows, another 4px gap and the bar's 6px optical pad.
@@ -66,7 +117,8 @@ local function media_geometry(expanded, rows)
     -- compact art keeps its 36px thumbnail, topped with the metadata block.
     local cover=wide and rounded(body+offset) or rounded(48*scale*0.75)
     local cover_x=wide and 0 or padding
-    local cover_y=wide and 0 or 30*scale
+    -- Compact art tops the metadata block: below the strip, title row and gap.
+    local cover_y=wide and 0 or offset+30*scale
     local content_x=wide and cover+8*scale or padding
     local size,pad,button_gap=34*scale,5*scale,4*scale
     -- Transport circles: statically centred between the art's right edge and
@@ -76,8 +128,20 @@ local function media_geometry(expanded, rows)
     local queue_bottom=queue_top+(1+rows)*18*scale+5*scale
     local drawer_bottom=expanded and queue_bottom+8*scale or body
     local overhang=math.max(cover_y+cover,body+(size+2*pad)/2)
-    local window=math.max(body+gap,math.ceil(overhang+2*inset),math.ceil(drawer_bottom+2*inset))
+    local window=math.max(lift+body+gap,math.ceil(lift+overhang+2*inset),math.ceil(lift+drawer_bottom+2*inset))
+    -- Spectrum tab: the gear's 18px column unless the corner radius exceeds
+    -- the padding; collapsed it fills the strip, open it also takes the 4px
+    -- gap under the plot. Both tab edges snap down to whole pixels (the inset
+    -- is whole), so at 0.75 and 1.25 the tab is 14 or 23px wide. The open
+    -- sheet and plot share the queue sheet's x-bounds; the plot sits the plot
+    -- inset in from both sides.
+    local tab_right=math.floor(math.min(panel_width-padding,panel_width-tonumber(SKIN:GetVariable('CornerRadius'))*scale))
+    local tab_x=math.floor(tab_right-18*scale)
+    local inset_plot=plot_inset(scale)
     return {scale=scale,wide=wide,inset=inset,padding=padding,offset=offset,bar=bar,progress=progress,body=body,
+        lift=lift,top=inset+lift,open=open,spectrum_tab=shown and hosted(),spectrum_x=tab_x,spectrum_w=tab_right-tab_x,
+        spectrum_toggle_y=open and -4*scale or 0,spectrum_plot_inset=inset_plot,spectrum_plot_x=(wide and 96*scale or 0)+inset_plot,
+        spectrum_plot_width=panel_width-padding-(wide and 96*scale or 0)-2*inset_plot,
         cover=cover,cover_x=cover_x,cover_y=cover_y,content_x=content_x,content_right=panel_width-padding,
         surface_x=wide and 96*scale or 0,transport_x=transport_x,transport_size=size,transport_pad=pad,
         transport_box=size+2*pad,transport_step=size+button_gap,tab_y=progress+bar+padding,
@@ -90,7 +154,7 @@ local function dimensions(expanded, rows)
     local columns=is_settings() and 2 or SELF:GetNumberOption('ExpectedColumns')
     local gap=2*math.floor(tonumber(SKIN:GetVariable('Gutter'))*scale/2+0.5)
     local expected_w=columns*(math.floor(width*scale+0.5)+gap)
-    local expected_h=is_settings() and math.floor((expanded and 554 or 498)*scale+0.5)+gap or media_geometry(expanded,rows).window
+    local expected_h=is_settings() and math.floor((expanded and 582 or 526)*scale+0.5)+gap or media_geometry(expanded,rows).window
     local detail=''
     if is_settings() and SKIN:GetH()~=expected_h then
         local bounds,panel=SKIN:GetMeter('MeterBounds'),SKIN:GetMeter('MeterPanel')
@@ -123,7 +187,7 @@ local function header_row(state)
     local expected=title_label()..state
     local g=media_geometry(false,5)
     local scale=g.scale
-    local surface=g.inset+g.offset
+    local surface=g.top+g.offset
     local content_x=g.inset+g.content_x
     local title=assert(SKIN:GetMeter('MeterHeading'))
     check(SKIN:GetMeter('MeterPlayerName')==nil,'The removed player-name row is back')
@@ -180,13 +244,13 @@ local function transport_layout(active_name)
     check(active:GetW()>0 and math.abs(active:GetH()-18*scale)<=1,'Active timing hidden or taller than one row: '..detail)
     check(active:GetW()<=cap+1,'Auto-width timing exceeds its cap: '..detail)
     check(math.abs(active:GetX()-left)<=1,'Right-aligned native anchor convention changed: '..detail)
-    local center_y=inset+g.body
+    local center_y=g.top+g.body
     for index,name in ipairs({'MeterPrevious','MeterPlayPause','MeterNext'}) do
         local meter=SKIN:GetMeter(name)
         check(math.abs(meter:GetW()-g.transport_box)<=1 and math.abs(meter:GetH()-g.transport_box)<=1,'Transport target box changed: '..name)
         check(math.abs(meter:GetX(true)-(inset+g.transport_x-g.transport_pad+(index-1)*g.transport_step))<=1,'Transport is not centred right of the artwork: '..name)
         check(math.abs(meter:GetY(true)+meter:GetH()/2-center_y)<=1,'Transport is not centred on the panel lower border: '..name)
-        check(meter:GetY(true)+meter:GetH()<=inset+g.rows_y+1,'Transport reaches the first queue row: '..name)
+        check(meter:GetY(true)+meter:GetH()<=g.top+g.rows_y+1,'Transport reaches the first queue row: '..name)
         check(meter:GetOption('Shape3'):find('Fill Color '..SKIN:GetVariable('AccentColor'),1,true)~=nil,'Transport face ignores AccentColor: '..name)
     end
     -- Measured, not asserted: the right-hand face against the visible time.
@@ -197,10 +261,50 @@ local function transport_layout(active_name)
     detail=detail..string.format(' nextFaceOverlap=%gx%g',overlap_x,overlap_y)
     return active:GetW(),detail
 end
+-- Spectrum drawer folder tab (top). Media.ini shows it while VisualizerDrawer
+-- is 1 or 2; Setup.ini never does. The AudioLevel capture exists only while
+-- the drawer is open (VisualizerDrawer2.inc).
+local function spectrum_tab(g, width, height)
+    local scale=g.scale
+    check(SKIN:GetVariable('MediaVisualizerHost')==(hosted() and '1' or '0'),'Entrypoint spectrum-drawer host flag changed')
+    check((SKIN:GetMeasure('MeasureVisualizerAudio')~=nil)==g.open,'AudioLevel capture does not follow the open drawer')
+    -- Only VisualizerDrawer2.inc raises the open geometry; every other state
+    -- keeps InlineQueueGeometry.inc's 0.
+    check(SKIN:GetVariable('MediaVisualizerOpen')==(g.open and '1' or '0'),'MediaVisualizerOpen does not follow the loaded drawer include')
+    local sheet,toggle=assert(SKIN:GetMeter('MeterVisualizerSheet')),assert(SKIN:GetMeter('MeterVisualizerToggle'))
+    -- Default miter join, like StylePanel, so CornerRadius 0 corners stay square.
+    check(sheet:GetOption('Shape'):find('StrokeLineJoin',1,true)==nil,'Spectrum sheet outline sets a stroke line join')
+    if not g.spectrum_tab then
+        check(sheet:GetW()==0 and toggle:GetW()==0,'Spectrum tab shown without a hosted drawer')
+        return
+    end
+    check(toggle:GetOption('LeftMouseUpAction')=='[!CommandMeasure MeasureMediaOptions "ToggleVisualizer()"]','Spectrum tab action wiring changed')
+    -- Whole-pixel tab: exact X and width.
+    local x,y=g.inset+g.spectrum_x,g.top+g.spectrum_toggle_y
+    check(toggle:GetX(true)==x and toggle:GetW()==g.spectrum_w,
+        string.format('Spectrum toggle x=%g w=%g expected x=%g w=%g',toggle:GetX(true),toggle:GetW(),x,g.spectrum_w))
+    -- The chevron keeps the gear's centre: 9px (scaled) in from the tab's X,
+    -- which is the gear's truncated X whenever the tab is in its column.
+    local glyph_center=formula('#MediaVisualizerGlyphX#+12*#MediaVisualizerGlyphScale#')
+    check(math.abs(glyph_center-9*scale)<0.001,string.format('Spectrum chevron centre %g expected %g',glyph_center,9*scale))
+    check(math.abs(toggle:GetY(true)-y)<=1 and math.abs(toggle:GetY(true)+toggle:GetH()-(g.top+g.offset))<=1,
+        string.format('Spectrum toggle band %g..%g expected %g..%g',toggle:GetY(true),toggle:GetY(true)+toggle:GetH(),y,g.top+g.offset))
+    -- The open sheet spans the queue sheet's x-bounds; collapsed, just the tab.
+    local sheet_x=g.inset+(g.open and g.surface_x or g.spectrum_x)
+    check(math.abs(sheet:GetX(true)-sheet_x)<=1 and math.abs(sheet:GetY(true)-g.inset)<=1,
+        string.format('Spectrum sheet origin %g,%g expected %g,%g',sheet:GetX(true),sheet:GetY(true),sheet_x,g.inset))
+    if tonumber(SKIN:GetVariable('CornerRadius'))*scale<=g.padding then
+        local gear=SKIN:GetMeter('MeterMediaOptions')
+        check(toggle:GetX(true)==gear:GetX(true),string.format('Spectrum tab x=%g is not the gear column x=%g',toggle:GetX(true),gear:GetX(true)))
+    end
+    inside('MeterVisualizerSheet',width,height)
+    inside('MeterVisualizerToggle',width,height)
+end
 local function accordion(expanded, count, details)
     local width,height=dimensions(expanded,count)
     local g=media_geometry(expanded,count)
     local scale,inset=g.scale,g.inset
+    spectrum_tab(g,width,height)
     local measure=assert(SKIN:GetMeasure('MeasureQueueStatus'))
     check(measure:GetOption('QueueCachePath')==SELF:GetOption('SyntheticCachePath'),'Synthetic cache not injected')
     check(measure:GetStringValue()=='Next '..count,'Queue display count wrong: '..measure:GetStringValue())
@@ -216,7 +320,7 @@ local function accordion(expanded, count, details)
             for _,name in ipairs(parts) do
                 local meter=assert(SKIN:GetMeter(name))
                 check(shown(meter),'Expanded row part hidden: '..name)
-                check(math.abs(meter:GetY(true)-(inset+g.rows_y+18*(index-1)*scale))<=1,'Queue row is not on the drawer pitch: '..name)
+                check(math.abs(meter:GetY(true)-(g.top+g.rows_y+18*(index-1)*scale))<=1,'Queue row is not on the drawer pitch: '..name)
                 inside(name,width,height)
             end
             check(text(parts[1])=='Synthetic item '..index..(details and (' / Test artist '..index) or ''),'Row detail preference ignored')
@@ -237,18 +341,18 @@ local function accordion(expanded, count, details)
         if expanded then inside(name,width,height) end
     end
     check(text('MeterQueueHeaderTrack')=='Song / Artist','Queue column header changed')
-    check(math.abs(SKIN:GetMeter('MeterQueueHeaderTrack'):GetY(true)-(inset+(expanded and g.queue_top or 0)))<=1,'Queue header is not at the drawer top, or not parked when closed')
+    check(math.abs(SKIN:GetMeter('MeterQueueHeaderTrack'):GetY(true)-(expanded and g.top+g.queue_top or inset))<=1,'Queue header is not at the drawer top, or not parked when closed')
     -- The retired inline footer stays hidden (MediaQueueHidden=1).
     check(SKIN:GetMeter('MeterQueueRule'):GetW()==0 and SKIN:GetMeter('MeterQueueStatus'):GetW()==0,'Retired queue footer is visible')
     local panel=SKIN:GetMeter('MeterPanel')
-    check(math.abs(panel:GetY(true)+panel:GetH()-(inset+g.body))<=1,'Panel lower border does not follow the body')
+    check(math.abs(panel:GetY(true)+panel:GetH()-(g.top+g.body))<=1,'Panel lower border does not follow the body')
     local sheet,toggle,label=SKIN:GetMeter('MeterQueueDrawer'),SKIN:GetMeter('MeterQueueToggle'),SKIN:GetMeter('MeterQueueHeading')
     if formula('#MediaQueueDrawer#')==1 then
         -- Tab: toggle then label, centred in the notch between the artwork
         -- column and the transport circles.
-        local tab_x,tab_center=inset+g.content_x,inset+(g.tab_y+g.body)/2
-        check(math.abs(sheet:GetY(true)+sheet:GetH()-(inset+g.drawer_bottom))<=1,
-            string.format('Queue sheet bottom %g expected %g',sheet:GetY(true)+sheet:GetH(),inset+g.drawer_bottom))
+        local tab_x,tab_center=inset+g.content_x,g.top+(g.tab_y+g.body)/2
+        check(math.abs(sheet:GetY(true)+sheet:GetH()-(g.top+g.drawer_bottom))<=1,
+            string.format('Queue sheet bottom %g expected %g',sheet:GetY(true)+sheet:GetH(),g.top+g.drawer_bottom))
         check(math.abs(toggle:GetX(true)-(tab_x+6*scale))<=1 and math.abs(toggle:GetW()-18*scale)<=1 and math.abs(toggle:GetH()-18*scale)<=1,'Queue toggle is not in the notch')
         check(math.abs(toggle:GetY(true)+toggle:GetH()/2-tab_center)<=1,'Queue toggle is not centred on the notch')
         check(math.abs(label:GetX(true)-(tab_x+30*scale))<=1 and math.abs(label:GetY(true)-tab_center)<=1,'Queue label is not in the notch')
@@ -322,19 +426,23 @@ local function settings_bounds(expanded)
     if expanded==nil then expanded=SKIN:GetVariable('QueueExpanded','0')=='1' end
     local width,height=dimensions(expanded,0)
     for _,name in ipairs({'MeterBounds','MeterPanel','MeterTitle','MeterClose','MeterWidthLabel','MeterWidthValue',
-        'MeterQueueExpandedLabel','MeterQueueExpandedValue','MeterQueueRowsLabel','MeterQueueRowsValue','MeterQueueDetailsLabel',
+        'MeterVisualizerDrawerLabel','MeterVisualizerDrawerValue','MeterQueueExpandedLabel','MeterQueueExpandedValue','MeterQueueRowsLabel','MeterQueueRowsValue','MeterQueueDetailsLabel',
         'MeterQueueDetailsValue','MeterQueuePollLabel','MeterQueuePollValue','MeterStatus','MeterQueueRule','MeterQueueHeading',
         'MeterSourceLabel','MeterSourceStart','MeterSourceStop','MeterSignIn','MeterStart','MeterStop','MeterRestart','MeterDisconnect','MeterLinksRule','MeterOpenQueue','MeterPlayerSetup','MeterHelp',
         'MeterUtilitySettingsNote','MeterUtilitySettingsGlobalLink','MeterDisplayHeading','MeterDisplayRule','MeterSamplingHeading',
         'MeterSamplingRule','MeterSourceRule','MeterSourceGuidance','MeterQueueGuidance','MeterLinksHeading'}) do inside(name,width,height) end
     local scale=SELF:GetNumberOption('ExpectedScale')
     local inset=math.floor(tonumber(SKIN:GetVariable('Gutter'))*scale/2+0.5)
-    for _,stem in ipairs({'Width','QueueExpanded','QueueRows','QueueDetails','QueuePoll'}) do
+    for _,stem in ipairs({'Width','VisualizerDrawer','QueueExpanded','QueueRows','QueueDetails','QueuePoll'}) do
         local label,value=SKIN:GetMeter('Meter'..stem..'Label'),SKIN:GetMeter('Meter'..stem..'Value')
         local numeric=stem=='Width' or stem=='QueueRows' or stem=='QueuePoll'
+        -- The three-way Spectrum drawer choice uses the same previous/value/next
+        -- group as the numbers, with a 76px field so Collapsed/Expanded fit.
+        local stepper=numeric or stem=='VisualizerDrawer'
+        local field=stem=='VisualizerDrawer' and 76 or 56
         local hidden=not expanded and (stem=='QueueRows' or stem=='QueueDetails')
         local meters={label,value}
-        if numeric then for _,part in ipairs({'Decrease','Frame','Increase'}) do
+        if stepper then for _,part in ipairs({'Decrease','Frame','Increase'}) do
             local meter=assert(SKIN:GetMeter('Meter'..stem..part));meters[#meters+1]=meter;inside('Meter'..stem..part,width,height)
         end end
         if hidden then
@@ -342,13 +450,13 @@ local function settings_bounds(expanded)
                 check(meter:GetW()==0 and meter:GetH()==0,'Collapsed setting retains a hit target: '..stem)
                 check(meter:GetY(true)==inset,'Hidden settings anchor can enlarge window: '..stem)
             end
-        elseif numeric then
+        elseif stepper then
             local decrease,frame,increase=unpack({meters[3],meters[4],meters[5]})
             check(label:GetX()+label:GetW()<=decrease:GetX(),'Settings label overlaps decrement: '..stem)
             check(decrease:GetX()+decrease:GetW()<=frame:GetX() and frame:GetX()+frame:GetW()<=increase:GetX(),'Stepper components overlap: '..stem)
-            check(math.abs(increase:GetX()+increase:GetW()-decrease:GetX()-96*scale)<=1,'Stepper group width changed')
-            check(math.abs(frame:GetW()-56*scale)<=1 and math.abs(frame:GetH()-20*scale)<=1,'Stepper frame bounds changed')
-            check(value:GetH()==math.floor(18*scale) and math.abs(value:GetW()-56*scale)<=1,'Numeric center bounds changed')
+            check(math.abs(increase:GetX()+increase:GetW()-decrease:GetX()-(field+40)*scale)<=1,'Stepper group width changed: '..stem)
+            check(math.abs(frame:GetW()-field*scale)<=1 and math.abs(frame:GetH()-20*scale)<=1,'Stepper frame bounds changed: '..stem)
+            check(value:GetH()==math.floor(18*scale) and math.abs(value:GetW()-field*scale)<=1,'Stepper center bounds changed: '..stem)
             check(math.abs(value:GetY()-frame:GetY()-scale)<=1 and value:GetY()==decrease:GetY(),'Stepper text not vertically aligned')
             check(frame:GetOption('Shape'):find(SKIN:GetVariable('GraphBackgroundColor'),1,true)~=nil,'Stepper frame not shaded')
             check(value:GetOption('FontColor')==SKIN:GetVariable('TextColor'),'Numeric field ignores body color')
@@ -360,13 +468,23 @@ local function settings_bounds(expanded)
             local field_height=math.floor(18*scale)+2*math.floor(scale)
             check(value:GetH()==field_height,'Toggle field height differs from native shared dimensions')
         end
-        if not numeric then check(value:GetOption('SolidColor')==SKIN:GetVariable('GraphBackgroundColor'),'Toggle field is not shaded') end
+        if not stepper then check(value:GetOption('SolidColor')==SKIN:GetVariable('GraphBackgroundColor'),'Toggle field is not shaded') end
         check(label:GetOption('SolidColor','')=='','Settings label should not have a row background')
         check(label:GetOption('LeftMouseUpAction')==value:GetOption('LeftMouseUpAction'),'Settings label action differs from field')
     end
+    -- The Spectrum drawer row sits above the collapsible queue rows, so the
+    -- queue section moved down one 28px row and only the rows below it reflow.
+    for name,y in pairs({MeterVisualizerDrawerLabel=130,MeterVisualizerDrawerDecrease=129,MeterVisualizerDrawerFrame=128,
+        MeterVisualizerDrawerValue=129,MeterVisualizerDrawerIncrease=129,MeterQueueExpandedLabel=158,MeterQueueExpandedValue=156}) do
+        check(math.abs(SKIN:GetMeter(name):GetY(true)-(inset+y*scale))<=1,'Display row moved: '..name)
+    end
+    -- The wider drawer group shares the numeric groups' left column.
+    for _,part in ipairs({'Decrease','Frame'}) do
+        check(SKIN:GetMeter('MeterVisualizerDrawer'..part):GetX()==SKIN:GetMeter('MeterWidth'..part):GetX(),'Spectrum drawer stepper left column differs: '..part)
+    end
     local shift=expanded and 0 or 56
-    for name,y in pairs({MeterSamplingHeading=218,MeterQueuePollValue=245,MeterStatus=272,
-        MeterSourceLabel=302,MeterSourceStart=339,MeterQueueHeading=386,MeterSignIn=423,MeterLinksHeading=498}) do
+    for name,y in pairs({MeterSamplingHeading=246,MeterQueuePollValue=273,MeterStatus=300,
+        MeterSourceLabel=330,MeterSourceStart=367,MeterQueueHeading=414,MeterSignIn=451,MeterLinksHeading=526}) do
         local meter=SKIN:GetMeter(name)
         check(meter:GetW()>0 and meter:GetH()>0,'Recovery/sampling control hidden: '..name)
         check(math.abs(meter:GetY(true)-(inset+(y-shift)*scale))<=1,'Dependent settings did not reflow: '..name)
@@ -412,7 +530,9 @@ local function settings_stage()
         check(settings_count('FixtureInputRuns')==0 and settings_count('FixtureSettingsWrites')==0,'Settings auto-started input or wrote on load')
         unchanged(function()
             for _,action in ipairs({"StepNumber('Columns',1)","StepNumber('QueuePollSeconds',-1)","StepNumber('QueueRowLimit',-1)",
-                "BeginNumberInput('QueueRowLimit')","StepNumber('Scale',1)","StepNumber('Columns',2)","StepNumber('Columns','1')",'CommitNumberInput()'}) do settings_action(action) end
+                "BeginNumberInput('QueueRowLimit')","StepNumber('Scale',1)","StepNumber('Columns',2)","StepNumber('Columns','1')",'CommitNumberInput()',
+                "StepChoice('VisualizerDrawer',2)","StepChoice('VisualizerDrawer',0)","StepChoice('VisualizerDrawer','1')",
+                "StepChoice('QueueExpanded',1)","StepChoice('Columns',-1)"}) do settings_action(action) end
         end,'Bounds/hidden/invalid action')
         check(settings_count('FixtureInputRuns')==0,'Hidden field opened input')
         SKIN:Bang(SKIN:GetMeter('MeterWidthDecrease'):GetOption('LeftMouseUpAction'))
@@ -424,6 +544,37 @@ local function settings_stage()
         check(prefs.Columns=='1' and prefs.QueueExpanded=='1' and prefs.QueueRowLimit=='4' and prefs.QueueShowDetails=='0' and prefs.QueuePollSeconds=='31','Arrows must step exactly one')
         check(settings_count('FixtureSettingsWrites')==5 and settings_count('FixtureSettingsRefreshes')==10,'Explicit edits did not write once and refresh only fixed targets')
         check(text('MeterStatus')=='Use Restart to apply interval.','Interval lacks explicit restart reminder')
+        -- Spectrum drawer: the fixture omits the key, so the entrypoint
+        -- fallback reads Collapsed. The row is the shared previous/value/next
+        -- group: the label, frame, value and next arrow step forward, the
+        -- previous arrow back, wrapping over Hidden / Collapsed / Expanded.
+        -- Every click saves once and hands Media its own anchor-then-reload
+        -- (ApplyVisualizerPreference) instead of a blind !Refresh of
+        -- Parallax\Media; the Queue refresh is unchanged.
+        check(prefs.VisualizerDrawer==nil and text('MeterVisualizerDrawerValue')=='Collapsed','Spectrum drawer fallback label wrong')
+        local forward='[!CommandMeasure MeasureMediaSettings "StepChoice(\'VisualizerDrawer\',1)"]'
+        local backward='[!CommandMeasure MeasureMediaSettings "StepChoice(\'VisualizerDrawer\',-1)"]'
+        for _,part in ipairs({'Label','Frame','Value','Increase'}) do
+            check(SKIN:GetMeter('MeterVisualizerDrawer'..part):GetOption('LeftMouseUpAction')==forward,'Spectrum drawer forward wiring changed: '..part)
+        end
+        check(SKIN:GetMeter('MeterVisualizerDrawerDecrease'):GetOption('LeftMouseUpAction')==backward,'Spectrum drawer previous wiring changed')
+        local writes,refreshes=settings_count('FixtureSettingsWrites'),settings_count('FixtureSettingsRefreshes')
+        local media_refreshes,applies=settings_count('FixtureMediaRefreshes'),settings_count('FixtureDrawerApplies')
+        -- Forward round trip, then backward round trip; then a non-literal
+        -- saved '02', which Media shows as just the tab, steps from Collapsed.
+        local clicks={{'Value','2','Expanded'},{'Increase','0','Hidden'},{'Label','1','Collapsed'},
+            {'Decrease','0','Hidden'},{'Decrease','2','Expanded'},{'Decrease','1','Collapsed'},
+            {'Decrease','0','Hidden','02'},{'Frame','1','Collapsed'}}
+        for step,click in ipairs(clicks) do
+            if click[4] then SKIN:Bang('!WriteKeyValue','Variables','VisualizerDrawer',click[4],SELF:GetOption('PreferencesPath')) end
+            SKIN:Bang(SKIN:GetMeter('MeterVisualizerDrawer'..click[1]):GetOption('LeftMouseUpAction'))
+            local saved=preferences().VisualizerDrawer
+            check(saved==click[2] and text('MeterVisualizerDrawerValue')==click[3],
+                string.format('Spectrum drawer %s click %d saved %s/%s expected %s/%s',click[1],step,tostring(saved),text('MeterVisualizerDrawerValue'),click[2],click[3]))
+            check(settings_count('FixtureDrawerApplies')==applies+step,'Drawer save did not hand Media its anchor placement exactly once: click '..step)
+            check(settings_count('FixtureSettingsWrites')==writes+step and settings_count('FixtureSettingsRefreshes')==refreshes+step,'Drawer save wrote or refreshed more than once: click '..step)
+            check(settings_count('FixtureMediaRefreshes')==media_refreshes,'Drawer save refreshed Media directly: click '..step)
+        end
         settle(2)
     elseif stage==2 then
         begin_number('Columns')
@@ -549,7 +700,8 @@ local function probe_names()
     if kind:match('^Identity') then return {'MeterHeading'} end
     if is_settings() then return {'MeterTitle','MeterQueueHeading','MeterQueuePollLabel','MeterQueuePollValue',
         'MeterStatus','MeterDisconnect','MeterPlayerSetup','MeterClose','MeterSourceLabel','MeterSourceStart','MeterSourceStop',
-        'MeterUtilitySettingsNote','MeterUtilitySettingsGlobalLink','MeterSourceGuidance','MeterQueueGuidance'} end
+        'MeterUtilitySettingsNote','MeterUtilitySettingsGlobalLink','MeterSourceGuidance','MeterQueueGuidance',
+        'MeterVisualizerDrawerValue'} end
     local names={'MeterHeading','MeterQueueHeading','MeterQueueHeaderTrack','MeterQueueRow1'}
     local other=kind:find('Player',1,true) and {'MeterTrackTitle','MeterArtist','MeterAlbum','MeterTiming'} or
         {'MeterSetupInstructions','MeterDesktopNote','MeterWNPDocs','MeterLoadPlayer'}
@@ -642,8 +794,17 @@ local function typography()
     end
     for _,name in ipairs(probe_names()) do
         local target,probe=assert(SKIN:GetMeter(name)),assert(SKIN:GetMeter('Probe'..name))
-        probe:Show(); local w,h=probe:GetW(),probe:GetH(); probe:Hide()
-        info[#info+1]=glyph_fit(name,target,w,h)
+        -- Every Spectrum drawer state must fit the drawer's stepper field.
+        local states=name=='MeterVisualizerDrawerValue' and {'Hidden','Collapsed','Expanded'} or {false}
+        local w,h
+        for _,state in ipairs(states) do
+            if state then
+                SKIN:Bang('!SetOption','Probe'..name,'Text',state)
+                SKIN:Bang('!UpdateMeter','Probe'..name)
+            end
+            probe:Show(); w,h=probe:GetW(),probe:GetH(); probe:Hide()
+            info[#info+1]=glyph_fit(state and (name..'['..state..']') or name,target,w,h)
+        end
         if name=='MeterQueueHeaderTrack' and kind:find('Player',1,true) and target:GetW()>0 then
             -- InlineQueueGeometry.inc lets the column header sit behind the
             -- transport circles on the premise that its short text ends left
@@ -651,7 +812,7 @@ local function typography()
             -- transport x-axis question.
             local g=media_geometry(true,5)
             local left,right=SKIN:GetMeter('MeterPrevious'):GetX(true)+g.transport_pad,SKIN:GetMeter('MeterNext'):GetX(true)+g.transport_pad+g.transport_size
-            local center=g.inset+g.body
+            local center=g.top+g.body
             local overlap_x=math.max(0,math.min(target:GetX(true)+w,right)-math.max(target:GetX(true),left))
             local overlap_y=math.max(0,math.min(target:GetY(true)+target:GetH(),center+g.transport_size/2)-math.max(target:GetY(true),center-g.transport_size/2))
             if overlap_x>0 and overlap_y>0 then
@@ -667,7 +828,7 @@ local function typography()
     color('MeterQueueHeading',is_settings() and 'AccentColor' or 'HeaderTextColor')
     if is_settings() then
         color('MeterQueuePollLabel','TextColor'); color('MeterStatus','TextColor')
-        for _,name in ipairs({'MeterWidthValue','MeterQueueExpandedValue','MeterQueueRowsValue','MeterQueueDetailsValue','MeterQueuePollValue'}) do color(name,'TextColor') end
+        for _,name in ipairs({'MeterWidthValue','MeterVisualizerDrawerValue','MeterQueueExpandedValue','MeterQueueRowsValue','MeterQueueDetailsValue','MeterQueuePollValue'}) do color(name,'TextColor') end
         color('MeterStart','AccentColor'); color('MeterStop','AccentColor2'); color('MeterPlayerSetup','AccentColor2')
         for _,name in ipairs({'MeterDisplayHeading','MeterSamplingHeading','MeterSourceLabel','MeterLinksHeading'}) do color(name,'AccentColor') end
         color('MeterSourceStart','AccentColor'); color('MeterSourceStop','AccentColor2')
@@ -708,14 +869,14 @@ end
 artwork_bounds=function(expanded)
     local g=media_geometry(expanded,5)
     local scale,inset,padding,wide=g.scale,g.inset,g.padding,g.wide
-    local art_x,art_y,art_size=inset+g.cover_x,inset+g.cover_y,g.cover
-    local surface_y=inset+g.offset
+    local art_x,art_y,art_size=inset+g.cover_x,g.top+g.cover_y,g.cover
+    local surface_y=g.top+g.offset
     local content_x=inset+g.content_x
     local width,height=dimensions(expanded,5)
     local panel=SKIN:GetMeter('MeterPanel')
     check(math.abs(panel:GetX(true)-(inset+g.surface_x))<=1,'Surface left offset wrong')
     check(math.abs(panel:GetY(true)-surface_y)<=1,'Surface top offset wrong')
-    check(math.abs(panel:GetY(true)+panel:GetH()-(inset+g.body))<=1,'Surface bottom does not follow the rendered body')
+    check(math.abs(panel:GetY(true)+panel:GetH()-(g.top+g.body))<=1,'Surface bottom does not follow the rendered body')
     check(math.abs(panel:GetX(true)+panel:GetW()-(width-inset))<=1,'Surface right edge changed pitch')
     check(math.abs(SKIN:GetMeter('MeterHeading'):GetY(true)-(surface_y+15*scale))<=1,'Title center does not follow the inset surface')
     local function art(name,visible)
@@ -815,13 +976,13 @@ artwork_bounds=function(expanded)
             inside(name,width,height)
             check(math.abs(meter:GetX(true)-(queue_x+22*scale))<=1,'Queue text column alignment wrong: '..name)
             check(math.abs(meter:GetX(true)+meter:GetW()-queue_right)<=1,'Queue width wrong: '..name)
-            check(meter:GetY(true)>=art_y+art_size+4*scale-1 and meter:GetY(true)>=inset+g.body+4*scale-1,'Queue is not below the artwork and panel: '..name)
+            check(meter:GetY(true)>=art_y+art_size+4*scale-1 and meter:GetY(true)>=g.top+g.body+4*scale-1,'Queue is not below the artwork and panel: '..name)
         end
         for row=1,5 do
             local number=SKIN:GetMeter('MeterQueueNumber'..row)
             check(number:GetOption('StringAlign')=='Right' and math.abs(number:GetX(true)-(queue_x+16*scale))<=1,'Queue position column alignment wrong: '..row)
         end
-        check(math.abs(SKIN:GetMeter('MeterQueueHeaderTrack'):GetY(true)-(inset+g.queue_top))<=1,'Queue header is not at the drawer top')
+        check(math.abs(SKIN:GetMeter('MeterQueueHeaderTrack'):GetY(true)-(g.top+g.queue_top))<=1,'Queue header is not at the drawer top')
     end
 end
 local function artwork_stage()
@@ -849,7 +1010,8 @@ local function header_stage()
     local rounded=function(value) return math.floor(value+0.5) end
     local inset=rounded(tonumber(SKIN:GetVariable('Gutter'))*scale/2)
     local queue=kind=='HeaderQueue'
-    local offset=queue and 0 or rounded(12*(columns-1)*scale)
+    -- Media/Setup: the model's top strip (double-width art or spectrum tab).
+    local offset=queue and 0 or media_geometry(false,5).offset
     local width,height
     if queue then
         width=columns*(rounded(SELF:GetNumberOption('ExpectedWidth')*scale)+2*inset)
@@ -1066,7 +1228,7 @@ local function title_row_stage()
     local inset=rounded(tonumber(SKIN:GetVariable('Gutter'))*scale/2)
     local queue=kind:match('Queue$')~=nil
     local settings=is_settings()
-    local center=inset+15*scale+((queue or settings) and 0 or rounded(12*(columns-1)*scale))
+    local center=inset+15*scale+((queue or settings) and 0 or media_geometry(false,5).offset)
     local width,height
     if queue then
         width=columns*(rounded(SELF:GetNumberOption('ExpectedWidth')*scale)+2*inset)
@@ -1174,8 +1336,137 @@ local function compact_status_stage()
     advance(stage+1)
     return false
 end
+-- Spectrum drawer (top): closed -> open -> closed through the tab's own
+-- production action (MediaOptions.lua ToggleVisualizer), which saves the
+-- preference, pre-writes this config's AnchorY in the isolated Rainmeter.ini
+-- together with its ParallaxDrawerAnchorY ownership record, and refreshes.
+-- Each stage appends its native measurements to DrawerStateFile, so the next
+-- load compares positions across the refresh. DrawerPlayerAnchored starts
+-- from a custom AnchorY=20 the drawer never wrote: that anchor is the user's,
+-- so it must survive every toggle and the panel moves with the lift instead.
+local custom_anchor='20'
+local function config_anchor()
+    -- Raw AnchorX/AnchorY/ParallaxDrawerAnchorY of this config's section;
+    -- nil when absent.
+    local bytes=read(SKIN:GetVariable('SETTINGSPATH')..'Rainmeter.ini')
+    if bytes:sub(1,2)=='\255\254' then bytes=bytes:sub(3):gsub('(.).','%1') end
+    local wanted,in_section,found,values=SKIN:GetVariable('CURRENTCONFIG'):lower(),false,false,{}
+    for line in (bytes..'\n'):gmatch('([^\r\n]*)\r?\n') do
+        local section=line:match('^%s*%[([^%]]+)%]%s*$')
+        if section then
+            in_section=section:lower()==wanted; found=found or in_section
+        elseif in_section then
+            local key,value=line:match('^%s*([%w_]+)%s*=%s*(.-)%s*$')
+            if key then values[key:lower()]=value end
+        end
+    end
+    check(found,'Isolated Rainmeter.ini has no section for '..SKIN:GetVariable('CURRENTCONFIG'))
+    return values.anchorx,values.anchory,values.parallaxdraweranchory
+end
+local function drawer_history()
+    local history,lines={},{}
+    for line in read(SELF:GetOption('DrawerStateFile')):gmatch('[^\r\n]+') do
+        local entry={}
+        for key,value in line:gmatch('(%w+)=(%S+)') do entry[key]=value end
+        history[tonumber(entry.stage)]=entry; lines[#lines+1]=line
+    end
+    return history,lines
+end
+local function drawer_stage()
+    local prefs=preferences()
+    local open=stage==2
+    local state=open and '2' or '1'
+    check(prefs.VisualizerDrawer==state and SKIN:GetVariable('VisualizerDrawer')==state,
+        string.format('Drawer preference %s/%s expected %s at stage %d',tostring(prefs.VisualizerDrawer),SKIN:GetVariable('VisualizerDrawer'),state,stage))
+    local scale=SELF:GetNumberOption('ExpectedScale')
+    local lift,plot,plot_inset_px,bar_height=drawer_lift(scale)
+    local g=media_geometry(false,5)
+    check(g.open==open and g.lift==(open and lift or 0),'Geometry model disagrees with the drawer state')
+    local skin_lift=SKIN:GetMeasure('MeasureMediaVisualizerLift'):GetValue()
+    check(skin_lift==lift,string.format('Skin open lift %g expected %d (plot %d, inset %d)',skin_lift,lift,plot,plot_inset_px))
+    local skin_inset=formula('#MediaVisualizerPlotInset#')
+    check(skin_inset==plot_inset_px,string.format('Skin plot inset %g expected %d',skin_inset,plot_inset_px))
+    local width,height=dimensions(false,5)
+    -- The capture, palette script and plot exist only in the open state.
+    for _,name in ipairs({'MeasureVisualizerAudio','MeasureVisualizerState','MeasureVisualizerBand23','MeasureVisualizerColor','MeasureVisualizerColorApply'}) do
+        check((SKIN:GetMeasure(name)~=nil)==open,name..(open and ' missing from the open drawer' or ' loaded while the drawer is closed'))
+    end
+    for _,name in ipairs({'MeterVisualizerPlot','MeterVisualizerUnavailable','MeterVisualizerSpectrumMask','MeterVisualizerFill'}) do
+        check((SKIN:GetMeter(name)~=nil)==open,name..(open and ' missing from the open drawer' or ' loaded while the drawer is closed'))
+    end
+    spectrum_tab(g,width,height)
+    if open then
+        check(SKIN:GetMeasure('MeasureVisualizerAudio'):GetOption('Port')=='Output','Drawer does not capture the output device')
+        -- The plot hangs 4px above the player; the far padding takes the slack.
+        local meter=SKIN:GetMeter('MeterVisualizerPlot')
+        local x,y=g.inset+g.spectrum_plot_x,g.top-4*scale-plot
+        check(math.abs(meter:GetX(true)-x)<=1 and math.abs(meter:GetY(true)-y)<=1,
+            string.format('Spectrum plot origin %g,%g expected %g,%g',meter:GetX(true),meter:GetY(true),x,y))
+        check(math.abs(meter:GetW()-g.spectrum_plot_width)<=1 and math.abs(meter:GetH()-plot)<=1,
+            string.format('Spectrum plot %gx%g expected %gx%d',meter:GetW(),meter:GetH(),g.spectrum_plot_width,plot))
+        check(meter:GetY(true)>=g.inset+g.spectrum_plot_inset-1,'Spectrum plot crosses the drawer padding')
+        inside('MeterVisualizerPlot',width,height)
+        -- Grid lines on pixel centres: Floor(k/4 of the bar height)+1.5.
+        for k=1,3 do
+            local expression=meter:GetOption('Shape'..(k+1)):match('^Line 1,(%b()),')
+            local y=expression and formula(expression)
+            check(y==math.floor(bar_height*k/4)+1.5,string.format('Spectrum grid line %d at y=%s expected %g (bar %d)',k,tostring(y),math.floor(bar_height*k/4)+1.5,bar_height))
+        end
+    end
+    -- Every vertical player position derives from #MediaTop#.
+    artwork_bounds(false)
+    local panel=SKIN:GetMeter('MeterPanel')
+    local anchor_x,anchor_y,marker=config_anchor()
+    local custom=kind=='DrawerPlayerAnchored'
+    local entry=string.format('stage=%d w=%d h=%d x=%d y=%d panel=%d anchorx=%s anchory=%s marker=%s audio=%d lift=%d',stage,SKIN:GetW(),SKIN:GetH(),
+        SKIN:GetX(),SKIN:GetY(),SKIN:GetY()+panel:GetY(true),anchor_x or 'absent',anchor_y or 'absent',marker or 'absent',open and 1 or 0,lift)
+    local history,lines=drawer_history()
+    if custom then
+        -- Never the drawer's: no write and no ownership record at any stage.
+        check(anchor_y==custom_anchor and marker==nil,
+            string.format('Custom AnchorY changed at stage %d: AnchorY=%s ParallaxDrawerAnchorY=%s',stage,tostring(anchor_y),tostring(marker)))
+    end
+    if stage==1 then
+        if not custom then
+            check(anchor_y==nil or anchor_y=='0','Closed drawer starts with a nonzero AnchorY: '..tostring(anchor_y))
+            check(marker==nil or marker=='0','Closed drawer starts with a nonzero ownership record: '..tostring(marker))
+        end
+    else
+        local first=assert(history[1],'Closed-stage drawer record missing')
+        local delta=open and lift or 0
+        check(SKIN:GetW()==tonumber(first.w) and SKIN:GetX()==tonumber(first.x),'Drawer changed the window width or X')
+        check(SKIN:GetH()==tonumber(first.h)+delta,string.format('Window height %d expected %d+%d',SKIN:GetH(),first.h,delta))
+        check((anchor_x or 'absent')==first.anchorx,'AnchorX changed: '..tostring(anchor_x))
+        if custom then
+            -- The custom anchor keeps the window's top: the panel moves down by
+            -- the lift while the drawer is open.
+            check(SKIN:GetY()==tonumber(first.y),string.format('Window Y %d expected %s under a custom anchor',SKIN:GetY(),first.y))
+            check(SKIN:GetY()+panel:GetY(true)==tonumber(first.panel)+delta,string.format('Panel screen Y %d expected %s+%d',SKIN:GetY()+panel:GetY(true),first.panel,delta))
+        else
+            -- The window grows and shrinks above the panel: same X and width,
+            -- Y and height shift by the lift, and the panel holds its screen Y.
+            -- The drawer records each AnchorY it writes beside it.
+            check(SKIN:GetY()==tonumber(first.y)-delta,string.format('Window Y %d expected %d-%d',SKIN:GetY(),first.y,delta))
+            check(SKIN:GetY()+panel:GetY(true)==tonumber(first.panel),string.format('Panel screen Y %d expected %s',SKIN:GetY()+panel:GetY(true),first.panel))
+            check(anchor_y==tostring(delta),string.format('AnchorY %s expected %d',tostring(anchor_y),delta))
+            check(marker==tostring(delta),string.format('ParallaxDrawerAnchorY %s expected %d',tostring(marker),delta))
+        end
+    end
+    local file=assert(io.open(SELF:GetOption('DrawerStateFile'),'ab')); assert(file:write(entry..'\n')); assert(file:close())
+    lines[#lines+1]=entry
+    drawer_report=table.concat(lines,'; ')
+    if stage==3 then return true end
+    -- Click the tab from inside the skin; the production action saves, places
+    -- the anchor and refreshes, after which Initialize resumes at stage+1.
+    write(SELF:GetOption('StageFile'),tostring(stage+1)..'|'..tostring(previous_checks+checks))
+    SKIN:Bang(SKIN:GetMeter('MeterVisualizerToggle'):GetOption('LeftMouseUpAction'))
+    check(preferences().VisualizerDrawer==(open and '1' or '2'),'Spectrum tab did not save the next drawer state')
+    return false
+end
 function Initialize()
     kind=SELF:GetOption('Kind')
+    -- A drawer refresh resizes and re-anchors the window; observe it settled.
+    if kind:match('^Drawer') then settle_ticks=10 end
     if kind:match('^Identity') then
         identity_preferences=read(SELF:GetOption('PreferencesPath'))
         SKIN:Bang('!SetVariable','IdentitySentinel','unchanged')
@@ -1197,13 +1488,13 @@ function Update()
         return 0
     end
     tick=tick+1
-    if tick==1 and kind~='SyncMain' and not kind:match('^Header') then prepare_probes() end
+    if tick==1 and kind~='SyncMain' and not kind:match('^Header') and not kind:match('^Drawer') then prepare_probes() end
     if done or tick<settle_ticks then return 0 end
     done=true
     local status_only=SELF:GetOption('StatusProbeOnly','0')=='1'
-    local scenario=SELF:GetOption('EmptyQueueTransition','0')=='1' and empty_queue_stage or kind:match('^TitleRow') and title_row_stage or kind:match('^Identity') and identity_stage or kind:match('^Header') and header_stage or status_only and stage>1 and compact_status_stage or kind:match('^Artwork') and artwork_stage or kind:match('^Typography') and typography_stage or (kind=='Accordion' or kind:match('^QueueToggle')) and accordion_stage or kind=='SyncMain' and sync_stage or settings_stage
+    local scenario=SELF:GetOption('EmptyQueueTransition','0')=='1' and empty_queue_stage or kind:match('^Drawer') and drawer_stage or kind:match('^TitleRow') and title_row_stage or kind:match('^Identity') and identity_stage or kind:match('^Header') and header_stage or status_only and stage>1 and compact_status_stage or kind:match('^Artwork') and artwork_stage or kind:match('^Typography') and typography_stage or (kind=='Accordion' or kind:match('^QueueToggle')) and accordion_stage or kind=='SyncMain' and sync_stage or settings_stage
     local ok,finished=pcall(scenario)
-    if ok and finished and kind~='SyncMain' and not kind:match('^Artwork') and not kind:match('^Header') and not kind:match('^Identity') and not kind:match('^TitleRow') and not (status_only and stage>1) then ok,finished=pcall(function() typography(); return true end) end
+    if ok and finished and kind~='SyncMain' and not kind:match('^Artwork') and not kind:match('^Header') and not kind:match('^Identity') and not kind:match('^TitleRow') and not kind:match('^Drawer') and not (status_only and stage>1) then ok,finished=pcall(function() typography(); return true end) end
     if ok and finished and status_only and stage==1 then
         write_status('error'); advance(2); finished=false
     end
@@ -1215,11 +1506,12 @@ function Update()
         if glyph_report~='' then report=report..'\nglyphs='..glyph_report end
         if #fit_report>0 then report=report..'\nfit='..table.concat(fit_report,'; ') end
         if timing_report~='' then report=report..'\ntiming='..timing_report end
+        if drawer_report~='' then report=report..'\ndrawer='..drawer_report end
         -- Rendered bounds for the runner's pixel checks, so it samples where
         -- the skin actually drew rather than re-deriving the layout.
         local bounds={}
         for _,name in ipairs({'MeterCoverMask','MeterArtworkPlaceholder','MeterMediaIcon','MeterPlayerIcon','MeterSongIcon','MeterArtistIcon','MeterAlbumIcon',
-            'MeterProgress','MeterPrevious','MeterPlayPause','MeterNext','MeterQueueToggle'}) do
+            'MeterProgress','MeterPrevious','MeterPlayPause','MeterNext','MeterQueueToggle','MeterVisualizerToggle'}) do
             local meter=not is_settings() and SKIN:GetMeter(name)
             if meter then bounds[#bounds+1]=string.format('%s:%g,%g,%g,%g',name,meter:GetX(true),meter:GetY(true),meter:GetW(),meter:GetH()) end
         end

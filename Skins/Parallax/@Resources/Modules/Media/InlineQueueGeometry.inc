@@ -10,18 +10,59 @@ MediaLegacyDivider=(Max(1,Round(#MediaInterval#/#MediaAnimationInterval#)))
 ; Two columns retain the shared outer pitch while the cover overhangs the
 ; narrower surface, sized from its fixed top-left by the rule below.
 MediaWide=(#Columns#-1)
+; --- Spectrum drawer (top) ---------------------------------------------
+; A second sheet behind the panel that rises ABOVE it, the way the queue sheet
+; drops below it. Its folder tab is the gear's own 18px column carried up into
+; the strip the double-width artwork already leaves above the panel (the art
+; overhangs the panel's top by #MediaSurfaceOffset#), so neither the title nor
+; the gear moves. User\Media.inc VisualizerDrawer: 0 hidden, 1 collapsed (tab
+; only), 2 expanded. The value also names the include that carries the
+; AudioLevel capture (Media.ini, VisualizerDrawer<n>.inc), so the OPEN state is
+; set by that include itself: MediaVisualizerOpen stays 0 here and
+; VisualizerDrawer2.inc raises it. Any other text - even '02' or '2 ' - finds no
+; include, logs Rainmeter's missing-file error and stays closed, so the window
+; never lifts an empty sheet. MediaVisualizerHost comes from the
+; entrypoint, BEFORE this file: 1 in Media.ini; 0 in Setup.ini, which gets no
+; tab, no capture and no lift but the same panel position. Do not override it
+; after the includes instead: Rainmeter's final variable pass resolves
+; forward references (e.g. MediaCoverSize -> MediaBodyHeightPx) with values
+; from its last include pass, so a late override leaks the old value.
+MediaVisualizerShown=(#VisualizerDrawer#=1 ? 1 : (#VisualizerDrawer#=2 ? 1 : 0))
+MediaVisualizerTab=(#MediaVisualizerHost#*#MediaVisualizerShown#)
+MediaVisualizerOpen=0
+; The drawer's plot is the standalone Visualizer's own plot height for the
+; Audio settings Height preset (Options.inc), captured by Media.ini through
+; Modules\Visualizer\HeightPresets\.
+VisualizerPanelHeight=#VisualizerPresetHeight#
+MediaVisualizerPlotHeight=#VisualizerPlotHeightPx#
+; How far the open window grows upward: the plot plus the queue sheet's own
+; spacing, mirrored - its inset (#MediaDrawerPadding# unless a large corner
+; radius needs more; see MediaVisualizerPlotInset) at the far edge,
+; #MediaSectionGap# between the plot and the player. Whole pixels, because this value is also
+; the config's AnchorY while the drawer is open (MediaOptions.lua): Rainmeter
+; keeps the anchor point at the saved WindowY, so the panel holds its screen
+; position while the window grows above it.
+MediaVisualizerOpenLift=(Ceil(#MediaVisualizerPlotInset#+#MediaVisualizerPlotHeight#+#MediaSectionGap#))
+MediaVisualizerLift=(#MediaVisualizerOpen#*#MediaVisualizerOpenLift#)
+; Vertical origin of the whole player: the window's top inset plus the lift.
+; Every player position below is measured from it. Parked queue meters stay at
+; #Inset#, which is inside the window in every state.
+MediaTop=(#Inset#+#MediaVisualizerLift#)
 MediaSurfaceX=(#Inset#+96*#MediaWide#*#Scale#)
 MediaSurfaceWidth=(#PanelWidth#-96*#MediaWide#*#Scale#)
-MediaSurfaceOffset=(Round(12*#MediaWide#*#Scale#))
-MediaSurfaceY=(#Inset#+#MediaSurfaceOffset#)
+; The compact layout reserves the same 12px strip while the tab can show. It
+; follows the preference rather than the entrypoint, so Media.ini and Setup.ini
+; keep one panel position; VisualizerDrawer=0 restores the flush compact panel.
+MediaSurfaceOffset=(Round(12*Max(#MediaWide#,#MediaVisualizerShown#)*#Scale#))
+MediaSurfaceY=(#MediaTop#+#MediaSurfaceOffset#)
 MediaHeaderY=#MediaSurfaceY#
 MediaCoverX=(#Inset#+#Padding#*(1-#MediaWide#))
 ; Compact art tops the metadata block it sits beside (#MediaMetadataY#), which
 ; also keeps it clear of the title icon directly above it at #ContentX#.
-MediaCoverY=(#Inset#+(1-#MediaWide#)*(#MediaMetadataY#-#Inset#))
+MediaCoverY=(#MediaTop#+(1-#MediaWide#)*(#MediaMetadataY#-#MediaTop#))
 MediaCoverBaseSize=(48*#Scale#*(1-#MediaWide#)+Round(#UnitWidth#*0.9)*#MediaWide#)
 MediaLegacyCoverSize=(Round(#MediaCoverBaseSize#*0.75))
-MediaCoverSize=((1-#MediaWide#)*#MediaLegacyCoverSize#+#MediaWide#*Round(#Inset#+#MediaBodyHeightPx#+#MediaSurfaceOffset#-#MediaCoverY#))
+MediaCoverSize=((1-#MediaWide#)*#MediaLegacyCoverSize#+#MediaWide#*Round(#MediaTop#+#MediaBodyHeightPx#+#MediaSurfaceOffset#-#MediaCoverY#))
 MediaCoverRadius=((6+4*#MediaWide#)*#Scale#)
 ; Double-width artwork keeps its top-left anchor so it lines up with the
 ; utilities directly above. Its size is derived, not tuned: the art overhangs
@@ -104,7 +145,7 @@ MediaQueueTabGap=#Padding#
 MediaQueueTabX=#ContentX#
 MediaQueueTabWidth=(#MediaQueueTabRight#-#MediaQueueTabX#)
 MediaQueueTabY=(#MediaProgressY#+#DataBarThicknessPx#+#MediaQueueTabGap#)
-MediaQueueTabHeight=(#Inset#+#MediaBodyHeightPx#-#MediaQueueTabY#)
+MediaQueueTabHeight=(#MediaTop#+#MediaBodyHeightPx#-#MediaQueueTabY#)
 ; The sheet must read as a separate surface behind the panel. GraphBackgroundColor
 ; is only 10 levels lighter than BackgroundColor, which is invisible through a
 ; small notch. If this design sticks, promote it to a theme token in Settings.inc.
@@ -117,7 +158,7 @@ MediaQueueTabCenterY=(#MediaQueueTabY#+#MediaQueueTabHeight#/2)
 ; continuation of the panel. That is also where the queue rows end.
 MediaQueueDrawerRight=(#ContentX#+#ContentWidth#)
 MediaQueueDrawerTop=(#MediaQueueTabY#-8*#Scale#)
-MediaQueueDrawerClosedBottom=(#Inset#+#MediaBodyHeightPx#)
+MediaQueueDrawerClosedBottom=(#MediaTop#+#MediaBodyHeightPx#)
 ; --- Queue object (the drawer's only content) --------------------------
 ; Its top is not the container's padding: it clears whichever of the artwork
 ; and the panel hangs lower. In the wide layout (Columns=2) the artwork
@@ -126,7 +167,7 @@ MediaQueueDrawerClosedBottom=(#Inset#+#MediaBodyHeightPx#)
 ; the artwork alone put the table halfway up the narrow body, across the
 ; progress bar, and left the sheet shorter than its own contents - at
 ; QueueRowLimit=1 the sheet's height went negative.
-; The panel's lower border is #Inset#+#MediaBodyHeightPx#, not
+; The panel's lower border is #MediaTop#+#MediaBodyHeightPx#, not
 ; #MediaSurfaceY#+#PanelHeightPx#: MeterPanel draws its rectangle
 ; #MediaSurfaceOffset# shorter to absorb the surface offset it is shifted by.
 ; It deliberately does NOT clear the transport circles, which hang lower
@@ -142,7 +183,7 @@ MediaQueueDrawerClosedBottom=(#Inset#+#MediaBodyHeightPx#)
 ; it, so trying colours is a single edit rather than two that can drift.
 MediaQueueArtistColor=#AccentColor2#
 MediaQueueRowPitch=(18*#Scale#)
-MediaQueueTop=(Max(#MediaCoverY#+#MediaCoverSize#,#Inset#+#MediaBodyHeightPx#)+#MediaSectionGap#)
+MediaQueueTop=(Max(#MediaCoverY#+#MediaCoverSize#,#MediaTop#+#MediaBodyHeightPx#)+#MediaSectionGap#)
 ; A header line labels the columns, then a divider, then the rows. The gap is
 ; split either side of the rule so it sits centred between the two.
 ; Both header anchors park at #Inset# while the drawer is closed, the same way
@@ -195,6 +236,55 @@ MediaDrawerContentX=(#MediaSurfaceX#+#MediaDrawerPadding#)
 MediaDrawerContentWidth=(#MediaQueueDrawerRight#-#MediaSurfaceX#-2*#MediaDrawerPadding#)
 MediaQueueX=#MediaDrawerContentX#
 MediaQueueWidth=#MediaDrawerContentWidth#
+; --- Spectrum drawer sheet, tab and plot (top) -------------------------
+; The same container rules, mirrored above the panel: the open sheet shares the
+; queue sheet's x-bounds and padding, and its only object is the spectrum plot.
+; Tab: the gear's 18px column, so the chevron's centre is the gear's centre.
+; It moves left of the gear only when the panel's corner radius exceeds the
+; padding, so the tab never sits on the corner's curve. Both edges snap to
+; whole pixels, as Rainmeter truncates the gear's own X: at scales where
+; 18*Scale is fractional (0.75, 1.25) the tab is then 14 or 23px wide and the
+; chevron, kept on the gear's centre, sits 0.25px left of the tab's centre.
+MediaVisualizerTabRight=(Floor(Min(#ContentX#+#ContentWidth#,#MediaSurfaceX#+#MediaSurfaceWidth#-#CornerRadius#*#Scale#)))
+MediaVisualizerTabX=(Floor(#MediaVisualizerTabRight#-18*#Scale#))
+MediaVisualizerTabWidth=(#MediaVisualizerTabRight#-#MediaVisualizerTabX#)
+; The sheet's outline is stroked half a border inside its box, like StylePanel.
+MediaVisualizerStroke=(#BorderThickness#*#Scale#/2)
+MediaVisualizerTabRadius=(Min(#CornerRadius#*#Scale#,#MediaVisualizerTabWidth#/2-#MediaVisualizerStroke#))
+; Toggle box: the clear band directly above the panel. Collapsed that is the
+; strip itself; expanded it also takes the section gap under the plot.
+MediaVisualizerToggleY=(#MediaTop#-#MediaVisualizerOpen#*#MediaSectionGap#)
+MediaVisualizerToggleHeight=(#MediaSurfaceY#-#MediaVisualizerToggleY#)
+; The chevron is centred in that band's visible part: below the tab's own top
+; stroke when collapsed, between the plot frame and the panel when expanded.
+MediaVisualizerGlyphCenterY=((#MediaVisualizerToggleY#+(1-#MediaVisualizerOpen#)*#BorderThickness#*#Scale#+#MediaSurfaceY#)/2)
+MediaVisualizerGlyphScale=(14*#Scale#/24)
+MediaVisualizerGlyphX=(9*#Scale#-12*#MediaVisualizerGlyphScale#)
+MediaVisualizerGlyphY=(#MediaVisualizerGlyphCenterY#-#MediaVisualizerToggleY#-12*#MediaVisualizerGlyphScale#)
+; Sheet: just the tab when collapsed, the queue sheet's x-bounds when expanded.
+; Its top is always #Inset#. The square-cornered bottom tucks behind the panel
+; deep enough to clear the panel's own top corner curve.
+MediaVisualizerSheetTuck=(Max(8,#CornerRadius#)*#Scale#)
+MediaVisualizerSheetX=(#MediaVisualizerOpen#*#MediaSurfaceX#+(1-#MediaVisualizerOpen#)*#MediaVisualizerTabX#)
+MediaVisualizerSheetRight=(#MediaVisualizerOpen#*#MediaQueueDrawerRight#+(1-#MediaVisualizerOpen#)*#MediaVisualizerTabRight#)
+MediaVisualizerSheetWidth=(#MediaVisualizerSheetRight#-#MediaVisualizerSheetX#)
+MediaVisualizerSheetHeight=(#MediaSurfaceY#+#MediaVisualizerSheetTuck#-#Inset#)
+MediaVisualizerSheetRadius=(#MediaVisualizerOpen#*#CornerRadius#*#Scale#+(1-#MediaVisualizerOpen#)*#MediaVisualizerTabRadius#)
+; The plot's inset inside the open sheet is the queue sheet's padding, unless
+; the sheet's rounded top corners would come closer to the plot frame's corners
+; than that padding keeps along the straight sides (Padding - Border). Corner
+; centres: the sheet's inner stroke edge is a circle of radius R-B/2 centred
+; B/2+R in from each edge; the frame's outer edge (drawn at 0.5 with radius 2S)
+; is a circle of radius 2S+0.5 centred that far in from the plot's corner. With
+; R=CornerRadius*S and B=BorderThickness*S, keeping that clearance needs
+;   inset >= B/2 + R - (2S+0.5) - (R - B/2 - (2S+0.5) - (Padding-B)) / sqrt(2),
+; which stays at the padding up to CornerRadius 10 at scale 1 (border 1).
+MediaVisualizerPlotInset=(Max(#MediaDrawerPadding#,Ceil(#BorderThickness#*#Scale#/2+#CornerRadius#*#Scale#-(2*#Scale#+0.5)-(#CornerRadius#*#Scale#-#BorderThickness#*#Scale#/2-(2*#Scale#+0.5)-(#MediaDrawerPadding#-#BorderThickness#*#Scale#))*0.70710678)))
+; The plot hangs from its near edge, mirroring MediaQueueTop below the panel;
+; the lift's Ceil slack lands in the far padding.
+MediaVisualizerPlotX=(#MediaSurfaceX#+#MediaVisualizerPlotInset#)
+MediaVisualizerPlotWidth=(#MediaQueueDrawerRight#-#MediaSurfaceX#-2*#MediaVisualizerPlotInset#)
+MediaVisualizerPlotY=(#MediaTop#-#MediaSectionGap#-#MediaVisualizerPlotHeight#)
 ; Bottom of the timing text: the last thing inside the panel once the queue is
 ; hidden, since the transport row now straddles the panel's lower border.
 MediaTimingTextBottom=(#MediaProgressY#+#DataBarThicknessPx#+20*#Scale#)
@@ -202,11 +292,11 @@ MediaTimingTextBottom=(#MediaProgressY#+#DataBarThicknessPx#+20*#Scale#)
 ; enlarged art would otherwise collide with the untouched queue footer.
 MediaLegacyProgressY=(#MediaSurfaceY#+50*#Scale#+3*#MediaMetadataPitch#+Max(2*#Scale#,6*#Scale#-#DataBarThicknessPx#/2))
 MediaLegacyTimingY=(#MediaLegacyProgressY#+#DataBarThicknessPx#+8*#Scale#)
-MediaLegacyBodyHeightPx=(Max(Round(#PanelHeight#*#Scale#)+#MediaSurfaceOffset#,Ceil(Max(#MediaCoverY#+#MediaLegacyCoverSize#,#MediaLegacyTimingY#+26*#Scale#)-#Inset#+37*#Scale#)))
+MediaLegacyBodyHeightPx=(Max(Round(#PanelHeight#*#Scale#)+#MediaSurfaceOffset#,Ceil(Max(#MediaCoverY#+#MediaLegacyCoverSize#,#MediaLegacyTimingY#+26*#Scale#)-#MediaTop#+37*#Scale#)))
 ; The artwork no longer contributes: it deliberately overhangs the panel's
 ; lower edge, so it must not drive the panel's height (and referencing it here
 ; would make MediaCoverSize circular, since the art is now derived from this).
-MediaBodyHeightPx=((1-#MediaQueueHidden#)*Max(#MediaLegacyBodyHeightPx#,Ceil(#MediaTimingY#+26*#Scale#-#Inset#+37*#Scale#))+#MediaQueueHidden#*Ceil(#MediaTimingTextBottom#-#Inset#+#Padding#))
+MediaBodyHeightPx=((1-#MediaQueueHidden#)*Max(#MediaLegacyBodyHeightPx#,Ceil(#MediaTimingY#+26*#Scale#-#MediaTop#+37*#Scale#))+#MediaQueueHidden#*Ceil(#MediaTimingTextBottom#-#MediaTop#+#Padding#))
 MediaSurfaceHeightPx=(#MediaBodyHeightPx#-#MediaSurfaceOffset#)
 ; PanelHeight is the user's base Media height. Expansion never overwrites it.
 PanelHeightPx=(#MediaBodyHeightPx#+Round((1-#MediaQueueHidden#)*#QueueExpanded#*(8+18*#QueueRowLimit#)*#Scale#))
@@ -240,7 +330,7 @@ MediaTransportGlyphOffset=((#MediaTransportBox#-24*#Scale#)/2)
 ; offset its own weight - that is what makes it look centred. Media.lua applies
 ; this per button, since it rewrites the same stroke option every update.
 MediaTransportGlyphNudge=(1.1795*#Scale#)
-MediaTransportCenterY=(#Inset#+#MediaBodyHeightPx#)
+MediaTransportCenterY=(#MediaTop#+#MediaBodyHeightPx#)
 MediaTransportY=(#MediaTransportCenterY#-#MediaTransportBox#/2)
 ; Statically centred in the panel background remaining to the right of the
 ; artwork. The old LayoutTransport centring measured against the timing text,
@@ -249,4 +339,6 @@ MediaTransportGap=(4*#Scale#)
 MediaTransportGroupWidth=(3*#MediaTransportSize#+2*#MediaTransportGap#)
 MediaTransportGroupX=(((#MediaCoverX#+#MediaCoverSize#)+(#Inset#+#PanelWidth#))/2-#MediaTransportGroupWidth#/2)
 MediaOverhangBottom=(Max(#MediaCoverY#+#MediaCoverSize#,#MediaTransportY#+#MediaTransportBox#))
-WindowHeight=(Max(Max(#PanelHeightPx#+#Gap#,Ceil(#MediaOverhangBottom#+#Inset#)),Ceil(#MediaQueueDrawerBottom#+#Inset#)))
+; The panel band clears the lift above it; the overhang and the open queue
+; sheet are absolute positions, so they already include it.
+WindowHeight=(Max(Max(#MediaVisualizerLift#+#PanelHeightPx#+#Gap#,Ceil(#MediaOverhangBottom#+#Inset#)),Ceil(#MediaQueueDrawerBottom#+#Inset#)))

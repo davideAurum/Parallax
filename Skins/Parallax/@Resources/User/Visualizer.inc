@@ -1,5 +1,7 @@
 ; Persistent Visualizer choices. Save, then refresh Visualizer to apply.
 ; Shipped settings never contain a machine-specific endpoint ID.
+; Media's spectrum drawer follows these choices too, except Columns; its height
+; follows the 126 / 146 / 186 PanelHeight presets. Refresh Media to apply there.
 [Variables]
 Columns=2
 PanelHeight=146

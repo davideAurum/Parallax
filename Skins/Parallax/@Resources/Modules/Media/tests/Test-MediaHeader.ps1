@@ -88,7 +88,11 @@ ContentX=0
 Scale=1
 TitleIconSize=14
 TitleRowCenterY=10
-MediaSurfaceOffset=0
+; Header.inc places the icon row from MediaHeaderY, which InlineQueueGeometry.inc
+; derives as Inset + open spectrum-drawer lift + surface offset. A nonzero lift
+; (92) and offset (12) show the icon follows the lifted surface, not Inset.
+Inset=4
+MediaHeaderY=(#Inset#+92+12)
 MediaColor=137,190,250
 
 [MeasureConnection]
@@ -241,7 +245,9 @@ function AuditAndQuit()
         equal(SKIN:GetMeter('MeterPlayerIcon'):GetOption('UpdateDivider'), '1')
         equal(SKIN:GetMeter('MeterPlayerIcon'):GetX(), SKIN:GetMeter('MeterMediaIcon'):GetX())
         equal(SKIN:GetMeter('MeterPlayerIcon'):GetY(), SKIN:GetMeter('MeterMediaIcon'):GetY())
-        cases[#cases+1] = 'native unchanged UTF-16 script, pulse and icon include: literal Unicode, injection data, stopped text and one shared icon slot swapping monitor-play and audio-lines'
+        -- MediaHeaderY + TitleRowCenterY - Inset - TitleIconSize/2 = 108 + 10 - 4 - 7.
+        equal(SKIN:GetMeter('MeterMediaIcon'):GetY(), 107)
+        cases[#cases+1] = 'native unchanged UTF-16 script, pulse and icon include: literal Unicode, injection data, stopped text and one shared icon slot, centred on the lifted header row, swapping monitor-play and audio-lines'
         return 'PASS: '..count..' assertions in '..#cases..' synthetic header scenarios; '.._VERSION..'.\n'
             ..table.concat(cases, '\n')..'\nProduction SHA256: $sourceHash\nHeader include SHA256: $headerHash\nPulse SHA256: $pulseHash\n'
             ..'Synthetic measures only. No WNP plugin, native sessions, network, auth, live cache, live configuration or screenshot verification.\n'

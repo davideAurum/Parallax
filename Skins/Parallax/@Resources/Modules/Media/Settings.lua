@@ -4,10 +4,13 @@
 -- shared one-shot input overlay; queue/source workers remain explicit actions.
 local settingsPath, values, status, restartPending, layoutExpanded
 local editingRequest, settingsRevision, providerLaunched
-local defaults = { Columns = '1', QueueExpanded = '0', QueueRowLimit = '5', QueueShowDetails = '1', QueuePollSeconds = '30' }
+local defaults = { Columns = '1', QueueExpanded = '0', QueueRowLimit = '5', QueueShowDetails = '1', QueuePollSeconds = '30',
+    VisualizerDrawer = '1' }
 local allowed = {
-    QueueExpanded = { '0', '1' }, QueueShowDetails = { '0', '1' }
+    QueueExpanded = { '0', '1' }, QueueShowDetails = { '0', '1' },
+    VisualizerDrawer = { '0', '1', '2' }
 }
+local drawerNames = { ['0'] = 'Hidden', ['1'] = 'Collapsed', ['2'] = 'Expanded' }
 local numberFields = {
     Columns = { minimum = 1, maximum = 2, meter = 'MeterWidthFrame' },
     QueueRowLimit = { minimum = 1, maximum = 5, meter = 'MeterQueueRowsFrame' },
@@ -91,6 +94,14 @@ local function current(key)
     if numberFields[key] then
         return storedNumber(key, { [key:lower()] = value }) or defaults[key]
     end
+    -- Show what Media shows (MediaOptions.lua readDrawer): only the literal
+    -- digits name its drawer includes; another number equal to 1 or 2 (such as
+    -- '02') shows just the tab, and any other text hides it.
+    if key == 'VisualizerDrawer' then
+        if value == '0' or value == '1' or value == '2' then return value end
+        local number = tonumber(value)
+        return (number == 1 or number == 2) and '1' or '0'
+    end
     return accepted(key, value) or defaults[key]
 end
 
@@ -101,7 +112,7 @@ local function renderLayout()
     if layoutExpanded == expanded then return end
     layoutExpanded = expanded
     local collapsedHeight = (1 - expanded) * 56
-    local settingsHeight = 554 - collapsedHeight
+    local settingsHeight = 582 - collapsedHeight
     -- Rainmeter expands nested variable references at load, so rebuild both
     -- physical heights instead of retaining the initial collapsed expression.
     local heightPx = SKIN:ParseFormula(SKIN:ReplaceVariables('(Round(' .. settingsHeight .. '*#Scale#))'))
@@ -116,6 +127,7 @@ end
 function Render()
     renderLayout()
     option('MeterWidthValue', current('Columns'))
+    option('MeterVisualizerDrawerValue', drawerNames[current('VisualizerDrawer')])
     option('MeterQueueExpandedValue', current('QueueExpanded') == '1' and 'Expanded' or 'Collapsed')
     option('MeterQueueRowsValue', current('QueueRowLimit'))
     option('MeterQueueDetailsValue', current('QueueShowDetails') == '1' and 'Shown' or 'Hidden')
@@ -167,7 +179,13 @@ local function save(key, value)
     Render()
     -- Refresh active Media variants without loading an absent plugin/player or
     -- closing this settings menu. Unloaded target configs remain unloaded.
-    SKIN:Bang('!Refresh', 'Parallax\\Media')
+    -- The drawer state also moves Media's anchor, which Media itself places
+    -- before it reloads, so the panel keeps its screen position.
+    if key == 'VisualizerDrawer' then
+        SKIN:Bang('!CommandMeasure', 'MeasureMediaOptions', 'ApplyVisualizerPreference()', 'Parallax\\Media')
+    else
+        SKIN:Bang('!Refresh', 'Parallax\\Media')
+    end
     SKIN:Bang('!Refresh', 'Parallax\\Media\\Queue')
     return true
 end
@@ -294,7 +312,20 @@ end
 -- Compatibility callbacks retain the same bounded numeric behavior. The
 -- settings UI uses explicit arrows and the numeric overlay instead.
 function ToggleColumns() return StepNumber('Columns', 1) end
+-- Categorical previous/next with wrapping; only the drawer state uses it.
+function StepChoice(key, delta)
+    local choices = key == 'VisualizerDrawer' and allowed[key]
+    if not choices or (delta ~= -1 and delta ~= 1) or editingRequest then return false end
+    values = readValues() or values
+    local now, index = current(key), 1
+    for position, choice in ipairs(choices) do
+        if choice == now then index = position end
+    end
+    return save(key, choices[(index - 1 + delta) % #choices + 1])
+end
+
 function ToggleQueueExpanded() return cycle('QueueExpanded') end
+function ToggleVisualizerDrawer() return StepChoice('VisualizerDrawer', 1) end
 function CycleQueueRows() return StepNumber('QueueRowLimit', 1) end
 function ToggleQueueDetails() return cycle('QueueShowDetails') end
 function CycleQueuePoll() return StepNumber('QueuePollSeconds', 1) end

@@ -152,5 +152,38 @@ return function(modulePath)
         equal(mock.variables.AccentColor2, '78,90,12,128')
         equal(rawget(mock.env, 'Update'), nil)
     end)
+    -- Media's one-shot drawer hook runs Apply(false) while measures update, before
+    -- any meter has; it must make exactly the standalone's option/update calls
+    -- and leave drawing to Media's own update. Only an explicit false skips it.
+    local function record(mock, invoke)
+        mock.calls = {}
+        invoke(mock.env.Apply)
+        return mock.calls
+    end
+    for _, mode in ipairs({'0', '1', '2', '3', '4'}) do
+        test('Apply(false) repeats the fill calls without a redraw, mode ' .. mode, function()
+            local mock = fixture({VisualizerColorMode=mode})
+            local default = record(mock, function(apply) apply() end)
+            local explicitNil = record(mock, function(apply) apply(nil) end)
+            local quiet = record(mock, function(apply) apply(false) end)
+            local options = (mode == '3' or mode == '4') and 2 or 1
+            for _, calls in ipairs({default, explicitNil}) do
+                equal(#calls, options + 2, 'Apply() and Apply(nil) keep the redraw')
+                equal(calls[options + 2].name, '!Redraw')
+            end
+            equal(#quiet, options + 1, 'Apply(false) call count')
+            equal(quiet[options + 1].name, '!UpdateMeter', 'fill is still updated explicitly')
+            for index = 1, options + 1 do
+                for _, other in ipairs({explicitNil, quiet}) do
+                    equal(other[index].name, default[index].name, 'call ' .. index)
+                    equal(#other[index].args, #default[index].args, 'call ' .. index .. ' arity')
+                    for arg = 1, #default[index].args do
+                        equal(other[index].args[arg], default[index].args[arg], 'call ' .. index .. ' arg ' .. arg)
+                    end
+                end
+            end
+            for _, call in ipairs(quiet) do truth(call.name ~= '!Redraw', 'Apply(false) must not redraw') end
+        end)
+    end
     return passed
 end

@@ -45,6 +45,12 @@ local function save(field, value)
     local canonical = string.format('%.0f', value)
     SKIN:Bang('!WriteKeyValue', 'Variables', field.key, canonical, SKIN:GetVariable('@') .. 'User\\Visualizer.inc')
     SKIN:Bang('!Refresh', 'Parallax\\Visualizer')
+    -- Media's spectrum drawer follows every key except the standalone's width.
+    -- Media reloads only while its drawer is open; never refresh it directly,
+    -- because each Media load also resumes its providers.
+    if field.key ~= 'Columns' then
+        SKIN:Bang('!CommandMeasure', 'MeasureMediaOptions', 'RefreshVisualizerDrawer()', 'Parallax\\Media')
+    end
     SKIN:Bang('!Refresh')
     return true
 end

@@ -18,7 +18,7 @@ UpdateDivider=#MediaLegacyDivider#
 ; SVG source and license: Icons\Lucide\README.md.
 [MediaHeaderIconStyle]
 X=#ContentX#
-Y=(#TitleRowCenterY#+#MediaSurfaceOffset#-#TitleIconSize#/2)
+Y=(#MediaHeaderY#+#TitleRowCenterY#-#Inset#-#TitleIconSize#/2)
 W=#TitleIconSize#
 H=#TitleIconSize#
 AntiAlias=1

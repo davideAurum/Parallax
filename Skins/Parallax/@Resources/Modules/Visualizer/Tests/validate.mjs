@@ -52,12 +52,12 @@ function formula(source, overrides = {}, measures = {}) {
     expression = expression.replaceAll(new RegExp('\\b' + key + '\\b', 'g'), String(value));
   }
   assert.ok(!expression.includes('#'), 'Unresolved variable: ' + expression);
-  assert.ok(/^[\d\s()+*/,?.:<>=!&|_-]+$/.test(expression.replace(/\b(Max|Min|Round|Ceil)\b/g, '')),
+  assert.ok(/^[\d\s()+*/,?.:<>=!&|_-]+$/.test(expression.replace(/\b(Max|Min|Round|Ceil|Floor)\b/g, '')),
     'Unknown formula identifier: ' + expression);
   assert.ok(!/[;{}\[\]'"\\]/.test(expression), 'Unexpected formula syntax');
   expression = expression.replace(/(?<![<>=!])=(?!=)/g, '===').replaceAll('<>', '!==');
-  return Function('Max', 'Min', 'Round', 'Ceil', 'return (' + expression + ')')(
-    Math.max, Math.min, Math.round, Math.ceil);
+  return Function('Max', 'Min', 'Round', 'Ceil', 'Floor', 'return (' + expression + ')')(
+    Math.max, Math.min, Math.round, Math.ceil, Math.floor);
 }
 function effective(section) {
   const own = sections.get(section);
@@ -640,6 +640,7 @@ for (const ColumnWidth of (titleFocus ? [180, 220] : [180, 200, 220, 240, 280, 3
 assert.equal(dimensions.length, titleFocus ? 36 : 540);
 let appearanceCases = 0;
 let pathCases = 0;
+let gridCases = 0;
 const shapeProfiles = [
   { VisualizerBarRadius: '-1', VisualizerBaselineGap: '-1' },
   { VisualizerBarRadius: '2', VisualizerBaselineGap: '4' },
@@ -747,6 +748,25 @@ for (const shapeProfile of shapeProfiles) {
   for (const [key, shape] of Object.entries(plotMeter).filter(([key]) => /^Shape\d*$/.test(key))) {
     within(shapeGeometry(plotMeter, shape, f).bounds, { x: 0, y: 0, w: plot.w, h: plot.h }, key + ' ' + scenario);
   }
+  // Each 1px grid line must sit on a pixel centre (N+0.5 in the plot meter,
+  // whose origin Rainmeter truncates to whole pixels) so it renders as one
+  // crisp row, and stay within half a pixel of the exact quarter of the bar
+  // area, which starts below the frame's 1px top edge.
+  const gridBarHeight = f('#VisualizerBarHeight#');
+  let previousGridY = 1;
+  for (const [quarter, key] of [[1, 'Shape2'], [2, 'Shape3'], [3, 'Shape4']]) {
+    const shape = plotMeter[key];
+    assert.match(shape, /^Line /, key + ' must stay a grid line');
+    assert.match(shape, /\| StrokeWidth 1$/, key + ' must stay a 1px line');
+    const [, y1, , y2] = shapeGeometry(plotMeter, shape, f).parameters;
+    const exact = 1 + gridBarHeight * quarter / 4;
+    assert.equal(y1, y2, key + ' must be horizontal ' + scenario);
+    assert.ok(Number.isInteger(y1 - 0.5), key + ' y ' + y1 + ' is not a pixel centre ' + scenario);
+    assert.ok(Math.abs(y1 - exact) <= 0.5, key + ' y ' + y1 + ' is more than 0.5px from quarter ' + exact + ' ' + scenario);
+    assert.ok(y1 > previousGridY && y1 < 1 + gridBarHeight, key + ' out of order or outside the bar area ' + scenario);
+    previousGridY = y1;
+    gridCases++;
+  }
   const overlay = rect(effective('MeterVisualizerUnavailable'), f);
   within(overlay, insidePlot, 'Overlay ' + scenario);
   assert.ok(Math.abs(overlay.x + overlay.w / 2 - plot.x - plot.w / 2) < 0.00001);
@@ -778,6 +798,7 @@ for (const shapeProfile of shapeProfiles) {
 }
 }
 assert.equal(appearanceCases, 432);
+assert.equal(gridCases, appearanceCases * 3);
 // Exercise every binding at all amplitude edges in the most constrained
 // geometry, in both monitor widths; the layout matrix already covers the rest.
 for (const Columns of [1, 2]) {
@@ -808,7 +829,7 @@ for (const selected of [-100, 0, 10, 20, 35, 50, 65, 80, 999]) {
   }
 }
 assert.equal(effective('MeterVisualizerDbMax').Text, '0 dB');
-console.log('PASS: includes; one output parent; 24 band/path mappings; setting bounds; volume numeric/mute/error/recovery states and 250/264/300ms schedules; four-state visibility; alternating gear/readout; context reconnect/unload; semantic typography/colors; ' + dimensions.length + ' title/width/scale/column/surface cases; ' + appearanceCases + ' height/gap/radius/baseline cases and ' + pathCases + ' bounded cubic paths including six narrow amplitude edges; zero height/radius;54px axis clearance; nine sensitivity clamps/dB endpoints; one fixed container fill; refresh-only palette binding (ColorSuite.lua validates behavior separately); preserved device row.');
+console.log('PASS: includes; one output parent; 24 band/path mappings; setting bounds; volume numeric/mute/error/recovery states and 250/264/300ms schedules; four-state visibility; alternating gear/readout; context reconnect/unload; semantic typography/colors; ' + dimensions.length + ' title/width/scale/column/surface cases; ' + appearanceCases + ' height/gap/radius/baseline cases with ' + gridCases + ' pixel-centred grid lines and ' + pathCases + ' bounded cubic paths including six narrow amplitude edges; zero height/radius;54px axis clearance; nine sensitivity clamps/dB endpoints; one fixed container fill; refresh-only palette binding (ColorSuite.lua validates behavior separately); preserved device row.');
 console.table(dimensions.filter(row => row.border === (titleFocus ? '4' : '1') && row.Columns === 1 && [0.75, 1, 2].includes(row.Scale) && [180, 220].includes(row.ColumnWidth)));
 console.log('Checked ' + readFiles.length + ' files: ' + readFiles.map(p => relative(skinRoot, p)).join(', '));
 console.log('Offline checks do not verify Rainmeter rendering, audio capture, timing, DPI, persistence, or CPU cost.');

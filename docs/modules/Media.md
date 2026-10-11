@@ -48,6 +48,10 @@ user-selected Lucide metadata and playback icons are attributed below.
 - An optional local Windows media-session observer identifies Spotify desktop
   when exactly one session matches the current WNP title, raw artist and state.
   Start/Stop controls live in Media settings; Spotify sign-in is unnecessary.
+- A spectrum drawer folds the Visualizer into the player: a folder tab above
+  the hover gear opens a sheet that rises above the panel and shows the
+  Visualizer's 24-band output spectrum. Its AudioLevel capture exists only
+  while the drawer is open. See [Spectrum drawer](#spectrum-drawer).
 - At two columns, a rounded album tile measuring 169 pixels at the current
   default (20 pixels larger in both dimensions than the preceding layout) with a thin white border
   overhangs the top and left edges of a narrower
@@ -59,7 +63,8 @@ user-selected Lucide metadata and playback icons are attributed below.
 
 | Feature | Dependencies | Cadence and fallback |
 | --- | --- | --- |
-| Base UI and Setup — required | Windows, Rainmeter, built-in measures/meters and bundled Lua/includes. | Default skin update: 1 second. Setup loads without external plugins. |
+| Base UI and Setup — required | Windows, Rainmeter, built-in measures/meters and bundled Lua/includes. | The player updates every 50 ms (`MediaAnimationInterval`) for its title-icon animation; `MediaLegacyDivider` keeps provider polling and queue/options reads at `MediaInterval` (1 second). Setup updates at `MediaInterval` and loads without external plugins. |
+| Spectrum drawer — optional, plugin bundled with Rainmeter | Rainmeter's bundled AudioLevel plugin, a Windows output endpoint, and the Visualizer module's shared `Modules/Visualizer/{Fallbacks,Options,Capture,Spectrum}.inc`, `HeightPresets/*.inc`, `Color.lua` and `User/Visualizer.inc`. Writes `AnchorY` and its `ParallaxDrawerAnchorY` record in this config's own Rainmeter.ini section on tab clicks, Media settings saves and any load whose drawer-owned anchor does not match (that load-time repair's `!SetAnchor` also rewrites `AnchorX` with its existing value); a user-set anchor is never changed. | Capture exists only while `VisualizerDrawer=2`; collapsed, hidden and Setup load no AudioLevel measure. Open, it runs on Media's 50 ms tick (100 ms for the Visualizer's 100 ms choice). A missing or unavailable endpoint shows `Output unavailable`; quiet output shows `Idle - quiet`; an invalid format shows `Unsupported format`. Loading the standalone Visualizer too runs a second, independent capture. |
 | Fonts and icons — bundled | Private IBM Plex Sans fonts ([license](../../Skins/Parallax/@Resources/Licenses/IBM-Plex-OFL.txt)); native Shape adaptations of Lucide artwork ([provenance and licenses](../../Skins/Parallax/@Resources/Modules/Media/Icons/Lucide/README.md)). | No download, system font installation or SVG-rendering plugin required. |
 | Typed numeric settings — bundled | Rainmeter's bundled RunCommand plugin, Windows PowerShell/.NET WinForms and the shared `Scripts/SettingsInput.ps1` overlay. | An explicit numeric-field click starts one temporary editor. Fixed numeric/cancel output is revalidated before saving; invalid, cancelled, unrequested or hidden-field results do not save. No polling or provider starts. |
 | Playback metadata and controls — optional, plugin bundled | [WebNowPlaying](https://wnp.keifufu.dev/rainmeter/getting-started) plugin 2.0.7.0 (MIT License, keifufu and Trevor Hamilton), bundled in the Parallax `.rmskin` from `packaging/Plugins/WebNowPlaying` and installed by Skin Installer unless a newer version is present ([license](../../Skins/Parallax/@Resources/Licenses/WebNowPlaying-LICENSE.txt), [provenance](../../packaging/Plugins/WebNowPlaying/README.md)); a supported player. Browser playback additionally requires the separately installed WebNowPlaying browser extension; desktop adapters are also separate. A development copy of the skin without the package needs a manual plugin install (2.x+). | Sampled on the skin update; `MediaInterval` does not throttle WNP internally. Inactive connections show no active media; unsupported controls remain disabled. Setup unloads the optional plugin. |
@@ -105,6 +110,7 @@ The user file ships these defaults in `[Variables]`:
 | `QueueRowLimit` | `5` | Maximum shown entries, every integer 1–5; arrow step 1 or typed value. |
 | `QueueShowDetails` | `1` | Show artist/podcast details beside titles; 0 hides them. |
 | `QueuePollSeconds` | `30` | Spotify request interval in whole seconds, 30–150; arrow step 1 or typed value. |
+| `VisualizerDrawer` | `1` | Spectrum drawer above the player: `0` hidden, `1` tab only, `2` open (captures the output device). Literal digits only. |
 
 Global colors, font, and scale flow through the shared defaults/settings; a user
 can add local overrides to `User/Media.inc`. The shipped layouts target the
@@ -200,8 +206,12 @@ The compact Media footer shortens long status phrases to Storage error,
 Spotify error, Queue error, Quota reached or Stopped so they fit at the maximum
 body size. The standalone Queue panel retains the full status wording.
 
-The settings panel is always two pitches wide. It is 554 logical pixels tall
-with Queue expanded and 498 with Queue collapsed.
+The settings panel is always two pitches wide. It is 582 logical pixels tall
+with Queue expanded and 526 with Queue collapsed (554/498 before the Spectrum
+drawer row). That row sits directly under Panel columns: a wrapping previous/value/next
+group for Hidden, Collapsed and Expanded with a 76 px field (the shared stepper
+widened so the longer names fit at the largest body size). Saving it asks Media
+to place its anchor and reload.
 Its local `SettingsPanelHeight` and rendered window dimensions preserve the
 monitor's loaded and saved `Columns` and `PanelHeight` values.
 Below its title, shared context text identifies Media settings and links back
@@ -252,6 +262,190 @@ saved interval. Server Retry-After and quota pauses remain intact. Sign in,
 Start, Stop and Disconnect are also explicit buttons. Opening/closing the menu
 never authenticates or enables a helper. A refreshed view may restore a missing
 worker that was previously enabled, using the current saved interval.
+
+## Spectrum drawer
+
+User direction, 2026-10-10: fold the Visualizer into the player as an upper
+slider, like the queue drawer but on top, with its tab near the top-right
+corner. Of the variants mocked up, the user chose a folder tab that rises
+*above* the panel over a notch cut into its top border (the notch would have
+cost the title 36 px and moved the gear 36 px left). The user also chose to
+show the tab by default at both widths and to have the open spectrum follow the
+Audio settings Height preset.
+
+**Shape.** A second sheet sits behind the panel and rises above it, the mirror
+of the queue sheet below. Collapsed, only its tab shows: the gear's own 18 px
+column, carried up into the 12 px strip that the double-width artwork already
+leaves above the panel (the art overhangs the panel's top by
+`MediaSurfaceOffset`). The panel's top border runs straight across in front of
+the tab's base, the way a folder's front cover crosses the back sheet's tab, so
+neither the title nor the gear moves. The tab's right edge is
+`Min(ContentX+ContentWidth, panel right − CornerRadius)`: the gear's right
+edge, unless a corner radius larger than the padding would put the tab on the
+corner's curve. Open, the sheet takes the queue sheet's x-bounds
+(`MediaSurfaceX` to `ContentX+ContentWidth`) and the same `MediaDrawerPadding`;
+its only object is the spectrum plot. The sheet's square bottom is tucked
+`Max(8, CornerRadius)` logical px behind the panel, so the panel always hides it.
+
+**Control.** An original three-point chevron (24-unit points 6,15 / 12,9 /
+18,15, the same form as Lucide's chevron-up; no source bytes are copied) in
+`HeaderTextColor`, at the queue icon's 14/24 Lucide scale and 2-unit round
+stroke. It points up while collapsed and flips down while open, the way List
+Plus/Minus swaps below. The whole band above the panel in the gear's column is
+the hit target: 18×12 px collapsed, 18×16 px open at scale 1, so it overlaps
+neither the gear nor the title. Its single tooltip names the capture, the
+40 Hz–16 kHz range and the relative dB scale. The tab's edges snap to whole
+pixels, as Rainmeter truncates the gear's own position; where 18×Scale is
+fractional the tab is 14 px (scale 0.75) or 23 px (1.25) wide and the chevron,
+kept on the gear's centre, sits 0.25 px left of the tab's own centre. The
+chevron is centred by its stroked bounding box. As an open stroke it does not
+read as a solid figure, so the centroid rule used for the transport glyphs does
+not apply; its round end caps put its ink centroid 0.267 units (0.156×Scale px)
+toward the open ends. Measured on the native captures with linear coverage
+weights, the ink centroid is at x 437.0 (double) and 209.0 (compact), the
+gear's centre column, and vertically 10.60 px collapsed (band centre 10.5) and
+99.90 px open (band centre 100).
+
+**Preference.** `VisualizerDrawer` in `User\Media.inc`: `0` hidden, `1`
+collapsed (default), `2` open. The tab toggles between collapsed and open,
+following what is on screen; Media settings steps through all three with
+wrapping previous/next arrows. The value also names the include Media.ini
+loads (`Modules\Media\VisualizerDrawer<n>.inc`), and only `VisualizerDrawer2.inc`
+opens the drawer geometry, so the window never lifts an empty sheet. Save only
+the literal digits: another number equal to 1 or 2 (for example `02`) shows the
+collapsed tab, any other text hides it, and both log one Rainmeter
+"Unable to read file" error for the missing `VisualizerDrawer<value>.inc`; the
+next tab click or settings step writes a literal digit again. Hidden restores
+the previous window size and panel position exactly, including the compact
+panel's flush top.
+
+**Geometry** (`InlineQueueGeometry.inc`; S is `#Scale#`). Everything vertical in
+the player is now measured from one origin, `MediaTop = Inset + Lift`, where
+`Lift = Open × OpenLift` and
+`OpenLift = Ceil(PlotInset + PlotHeight + MediaSectionGap)` — the queue sheet's
+spacing mirrored: the inset at the far edge, 4S between the plot and the
+player. `PlotHeight` is the standalone Visualizer's own plot height for the
+Audio settings Height preset (`VisualizerPlotHeightPx` in the shared
+`Options.inc`), so the drawer's spectrum is the same size as the standalone's.
+`PlotInset` is the queue sheet's `MediaDrawerPadding` (8S) unless the open
+sheet's rounded top corners would come closer to the plot frame's corners than
+that padding keeps along the straight sides (Padding − Border). With
+R = CornerRadius×S and B = BorderThickness×S, the sheet's inner stroke edge is a
+circle of radius R − B/2 centred B/2 + R in from each edge, and the frame's
+outer edge a circle of radius 2S + 0.5, so the inset is
+`Max(Padding, Ceil(B/2 + R − (2S+0.5) − (R − B/2 − (2S+0.5) − (Padding − B))/√2))`.
+It equals the padding up to CornerRadius 10 at scale 1 with a 1 px border; it
+is 9 at CornerRadius 11–12 and 13 at CornerRadius 24 with a 4 px border. The
+compact layout reserves the same 12S strip while the tab can show:
+`MediaSurfaceOffset = Round(12 × Max(MediaWide, Shown) × S)`. The window adds
+`Lift` above the panel band; the overhang and the open queue sheet are absolute
+positions and already include it.
+
+| Width 220, scale 1, CornerRadius 6, BorderThickness 1 | Double | Compact |
+| --- | --- | --- |
+| Hidden (`0`) window | 456×186 | 228×174 |
+| Collapsed (`1`) window | 456×186 (unchanged) | 228×186 |
+| Tab box, radius | x428–446, y4–16, r6 | x200–218, y4–16, r6 |
+| Open (`2`) window, Normal preset | 456×278 | 228×278 |
+| Open sheet x-range | 100–446 | 4–218 |
+| Open plot (x, y, w×h) | 108, 12, 330×80 | 12, 12, 198×80 |
+| Panel top in window, collapsed → open | 16 → 108 | 16 → 108 |
+
+| Height preset (Audio settings) | Plot | Lift, open window growth |
+| --- | --- | --- |
+| Small 126 | 60 | 72 |
+| Normal 146 | 80 | 92 |
+| Tall 186 | 120 | 132 |
+
+The plot keeps the Visualizer's 54 logical px minimum of usable bars, so a
+large axis gap can raise these numbers as it raises the standalone's. A border
+thicker than 2 px lowers the plot by up to 2 logical px (`VisualizerTopShift`):
+BorderThickness 4 on Normal gives a 78 px plot, a lift of 90 and an open
+456×276 window. The grid lines sit on pixel centres (`Floor(BarHeight×k/4) + 1.5`,
+within half a pixel of each quarter), so each renders as one crisp row; the
+standalone Visualizer's plot uses the same rule.
+
+**Keeping the panel still.** A Rainmeter window grows down and right from its
+top-left corner. Rainmeter keeps a skin's anchor point at the saved `WindowY`
+(`AnchorY` in its Rainmeter.ini section), so `MediaOptions.lua` keeps this
+config's `AnchorY` equal to the open lift (0 otherwise). The panel's screen top
+is then `WindowY + Inset + MediaSurfaceOffset` in every state, and the window
+grows upward instead. The tab writes `VisualizerDrawer`, reads it back,
+pre-writes `AnchorY` into `#SETTINGSPATH#Rainmeter.ini` and reads that back,
+then refreshes; the refresh reads the new anchor and draws the new layout at
+its final position. A once-per-load check (`MeasureMediaVisualizerLift`,
+`CheckAnchor()`) repairs a mismatch with `!SetAnchor` — on Rainmeter start,
+when switching between Media.ini and Setup.ini, after a hand edit, or after a
+Scale or height change while the drawer is open. A fresh load corrects the
+anchor before its window is shown; a refresh of a visible skin can show one
+displaced frame.
+
+Media corrects only an anchor it owns: Rainmeter's default 0, or the value it
+last wrote, which it records as `ParallaxDrawerAnchorY` beside the anchor in the
+same Rainmeter.ini section (a saved layout copies both together). Any other
+`AnchorY` — a hand-set pixel value, a percentage or a bottom-relative value — is
+the user's own and is left alone in every state, including hidden and Setup;
+the panel then moves when the drawer opens (a 50% anchor moved it by half the
+lift in the native check). So Media writes three keys, all in this config's own
+Rainmeter.ini section: `AnchorY` and `ParallaxDrawerAnchorY` on tab clicks,
+Media settings saves and any load whose owned anchor does not match, and
+`AnchorX` — rewritten with its existing value, or 0 when absent — whenever that
+load-time repair uses `!SetAnchor`.
+
+Near the top of a monitor, Rainmeter's KeepOnScreen clamps the grown window,
+so the panel drops by the overflow while the drawer is open and returns when it
+closes; with KeepOnScreen off the drawer goes off-screen instead.
+
+**Capture and cadence.** Media.ini includes `VisualizerDrawer2.inc` only in the
+open state; states 0 and 1 load comment-only stubs, so collapsed and hidden
+Media contain no AudioLevel measure at all (AudioLevel opens its capture at
+initialization, so `Disabled=1` would not have stopped it). The open drawer
+hosts the Visualizer's shared `Capture.inc` (one output parent plus device,
+format, RMS, state and 24 band children) and `Spectrum.inc` (band geometry,
+palette script, mask and fill). It adds no Win7Audio measure, output-device row,
+volume readout, dB axis or frequency labels; the standalone keeps those. Media
+already updates every 50 ms (`MediaAnimationInterval`), so no other skin's
+cadence changes. The Visualizer interval maps onto that tick through
+`VisualizerCaptureDivider = Max(1, Round(interval / 50))`: 50 and 33 ms run
+every tick (33 ms cannot be met inside Media), 100 ms every other tick.
+Collapsing, and any Media refresh while open, releases and reopens the capture
+(AudioLevel's finalize path, reviewed in source). With a blank
+`VisualizerDeviceID` the drawer follows the default output that was current
+when it opened, until Media next refreshes. If the standalone Visualizer is
+also loaded, two independent loopback captures run; nothing detects this.
+
+**Shared preferences.** Media.ini reads `Modules\Visualizer\Fallbacks.inc` and
+`User\Visualizer.inc` *before* Defaults.inc and `User\Media.inc`, so Media's
+own `Columns` and `PanelHeight` win while every other Visualizer choice (color
+mode, bar gap, radius, axis gap, quality, sensitivity, attack, decay, device ID,
+idle threshold, interval) drives the drawer. The Height preset is captured by
+file name: Media.ini includes `HeightPresets\#PanelHeight#.inc` right after
+`User\Visualizer.inc`, because Rainmeter resolves an include path when it reads
+it, while `PanelHeight` still holds the Visualizer's value; variables resolve
+only after every file. Only the three presets exist, so a hand-edited
+non-preset height logs one missing-file error in Media and the drawer keeps
+Normal. Global colors come from Defaults, User\Settings and User\Media as
+before, so a color override kept in `User\Visualizer.inc` does not reach Media.
+Saving any Audio setting except Width, and the standalone Visualizer's
+Quality and Cadence menu items, ask Media to refresh; Media does so only while
+its drawer is open. Like a queue or drawer toggle, each such refresh reopens
+the capture and re-runs provider resume: one hidden, mutex-guarded
+`powershell.exe -Command Resume` per enabled provider, which starts no
+duplicate worker.
+
+**Setup.ini** sets `MediaVisualizerHost=0` before its includes: no tab, no
+capture include and no lift, but the same panel position as Media.ini
+(including the compact strip). It includes only the variable files Fallbacks.inc
+and Options.inc so the shared geometry chain resolves; it stays plugin-free.
+
+**Known limits.** At compact width the open sheet's square left edge shows
+inside the panel's rounded top-left corner, the same way the queue sheet
+already shows at the bottom-left. A translucent `BackgroundColor` shows both
+sheets through the panel. Whether AudioLevel releases the capture on collapse
+was reviewed in source but not measured live, and the open drawer's CPU cost is
+unmeasured (the standalone measured about 5.94% of one core at 50 ms; see
+[PERFORMANCE.md](../PERFORMANCE.md)). There is still no slide animation: the
+tab writes the preference and refreshes, which restarts the skin.
 
 ## Provider behavior and limits
 
@@ -305,8 +499,9 @@ in this interface. The skin never claims a command succeeded on click.
 
 This milestone does not add seek, volume, rating, repeat, shuffle, player
 selection, or audio capture. Desktop volume/rating are unsupported by WNP's
-Windows API path. The separate Visualizer config owns mixed output capture;
-Media neither loads nor controls it.
+Windows API path. Media's own optional [spectrum drawer](#spectrum-drawer)
+captures mixed output audio only while it is open; it neither loads nor
+controls the separate Visualizer config.
 
 ## Optional Spotify source detection
 
@@ -476,8 +671,11 @@ would only repeat the visible label (see the 2026-09-19 tooltip audit). The
 compact layout's stacked player row is gone, so its header ends at 26 pixels
 like the double-width one: compact metadata, progress and transport move up 22
 pixels, and the compact artwork now tops the metadata block (y30) instead of
-sitting at y44. At width 220 and scale 1 the compact window is 228×174
-(was 228×196); the double-width window is unchanged at 456×186.
+sitting at y44. At width 220 and scale 1 the compact window was 228×174
+(was 228×196); the double-width window is unchanged at 456×186. Since the
+2026-10-10 [spectrum drawer](#spectrum-drawer), 228×174 holds only with
+`VisualizerDrawer=0`: the default tab reserves a 12 px strip above the compact
+panel, so the window is 228×186 and every compact position moves down 12 px.
 
 Measured title fit, IBM Plex Sans SemiBold advance widths at width 220/scale 1:
 
@@ -629,6 +827,69 @@ Sources: [quota modes](https://developer.spotify.com/documentation/web-api/conce
 [rate limits](https://developer.spotify.com/documentation/web-api/concepts/rate-limits).
 
 ## Validation report
+
+### Spectrum drawer (2026-10-10)
+
+The change was designed by a research and judge panel, built, then reviewed
+through three independent lenses (Rainmeter semantics, sub-pixel geometry,
+regressions), each with a refuting verifier. Every confirmed finding was fixed
+and re-verified: anchor ownership, the open state tied to the drawer include,
+the plot inset at large corner radii, whole-pixel tab edges, miter corners at
+CornerRadius 0, pixel-centred grid lines, the Visualizer menu's Quality and
+Cadence reaching an open drawer, and the stepper settings row. All runs used
+isolated Rainmeter 4.5.26 profiles; the live configuration was not touched.
+
+- `test_skin_contract.py`: 28 tests pass in about 25 s (the suite now evaluates
+  formulas numerically instead of expanding text; the unchanged HEAD suite took
+  744 s). New tests cover the eager include-path capture, include order for
+  each drawer state, closed identity with the pre-drawer formulas (identical at
+  double width and when hidden; compact shifted by `Round(12×Scale)`), the open
+  lift and every meter's shift, capture only at state 2, height presets, the
+  plot-corner clearance at CornerRadius 0/6/12/24 × border 1/4 × scale
+  1/1.25/2, the tab and chevron on the gear centre, pixel-centred grid lines,
+  non-literal saved values, the settings stepper and the Visualizer menu bangs.
+  Two rounds of deliberate production mutations (11 and 10) were all caught.
+- `tests/Test-MediaSettings.ps1`: the full default matrix passed 60/60 plus
+  label sync and 7 captures; focused Settings 2, QueueToggle 4, Header 12 and
+  TitleRow 12 passed. The new `-VisualizerDrawerFocused` mode toggles closed →
+  open → closed through the production tab action: compact and double
+  186 → 278 → 186, Tall 186 → 318 → 186, the panel's screen Y unchanged at every
+  stage, `AnchorY` and `ParallaxDrawerAnchorY` absent → lift → 0 with `AnchorX`
+  untouched, AudioLevel present only while open, and a custom `AnchorY=20` left
+  at 20 throughout. The settings stage steps the stepper both ways with
+  wrapping, one save and one `ApplyVisualizerPreference` per click, and reads a
+  saved `02` as Collapsed.
+- `Test-Media.ps1` 449, `Test-MediaHeader.ps1` 563 (its harness now models the
+  header icon's `MediaHeaderY`), `Test-MediaLifecycle.ps1` 6258 assertions.
+  Visualizer `ColorSuite.lua` 69 cases (5 new for `Apply(false)`) and
+  `SettingsSuite.lua` 236, through a scratch runner that is not checked in.
+  `validate.mjs` (now with 1,296 grid-line checks) and `validate-settings.mjs`
+  pass; `tools/Test-Parallax.ps1 -RequireAllModules -WarningsAsErrors` reports
+  0 errors and 0 warnings.
+- Standalone Visualizer: every resolved section and variable is identical to
+  HEAD except measure order, five new host variables and an explicit
+  `UpdateDivider=1`; its fresh preview logged no errors and its grid lines now
+  render as single rows.
+- Native pixel checks from scratch captures (R channel; border 50, sheet 45):
+  CornerRadius 0 / border 4 tab and sheet corners are solid 50 with 0 outside;
+  at scale 1.25 both tab edges are crisp and the chevron's ink centre is within
+  0.06 px of the gear centre (0.3 px left of the 23 px tab's centre, as
+  designed); at CornerRadius 24 / border 4 / scale 1.25 the plot inset is 16 px
+  (padding 10) and the narrowest diagonal gap between the plot frame and the
+  sheet stroke is 5.39 px against the required 5 (it overlapped by 3.08 px
+  before); the three grid lines are single rows. A saved `02` renders the
+  closed default tab with exactly one missing-file error and no capture, and
+  one click opens the drawer normally. Setup corrects a drawer-owned anchor of
+  92 to 0 and leaves a custom 20 alone.
+
+Not verified: physical clicks (all toggles were dispatched to the production
+action from inside the skin), the real WebNowPlaying plugin, mixed DPI, the
+open drawer's CPU cost, live release of the capture on collapse, KeepOnScreen
+near a monitor's top edge, and pixel crispness at scales 0.75, 1.5 and 2.
+Windows taller than about 349 px are resampled by PrintWindow on the test host,
+so scale-1.25 open captures were measured on the 126 preset instead. Each tab
+click logs Rainmeter's "Parallax\Media\Settings is not active" warning when
+Media settings is closed, the same as the existing queue toggle.
 
 ### Synthetic settings harness brought up to date (2026-10-04)
 
@@ -1393,6 +1654,14 @@ the Media header for its gear and click **Queue** or its **List Plus** icon to e
 - Open (2026-10-04): Setup has no drawer, yet `QueueExpanded=1` (saved from
   the player or Settings) still shows its queue rows below the panel, with no
   sheet and no toggle. Either suppress the rows in Setup or give it the drawer.
+- Open (2026-10-10), spectrum drawer: measure the open drawer's CPU cost with
+  WebNowPlaying loaded; confirm on the live desktop that the panel holds still
+  through physical tab clicks, near a monitor's top edge and at mixed DPI; and
+  decide whether the tab's warning about an unloaded Media settings config (shared
+  with the queue toggle) is worth suppressing. The compact open sheet's square
+  edge in the panel's rounded corner is shared with the queue sheet and belongs
+  to any later sheet-corner pass. A slide animation is still blocked by the
+  write-and-refresh toggle.
 - Prefer `Setup.ini` for the initial suite layout; Media.ini requires the WNP
   plugin, which the `.rmskin` bundles (source copies need a manual install).
   Preserve `@Resources/User/Media.inc` on upgrades.

@@ -12,6 +12,6 @@ GearPath=(9.000*#Scale#),(3.300*#Scale#) | LineTo (10.444*#Scale#),(1.742*#Scale
 Hidden=1
 UpdateDivider=-1
 MouseActionCursor=1
-ToolTipText=Media settings: queue section, row count, artist names, layout and Spotify connection.
+ToolTipText=Media settings: spectrum drawer, queue section, row count, artist names, layout and Spotify connection.
 LeftMouseUpAction=[!ActivateConfig "Parallax\Media\Settings" "Settings.ini"]
 

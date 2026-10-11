@@ -1,5 +1,9 @@
--- Runs only through the main skin's OnRefreshAction, after meters exist.
--- No Update callback, file access, helper process or recurring color work.
+-- Runs once per load after meters exist: from the standalone's OnRefreshAction,
+-- or from Media's one-shot drawer hook as Apply(false). Media's hook fires while
+-- measures update, before any meter has; a redraw there would paint the window
+-- with not-yet-updated meters, so it skips the redraw and Media's own update
+-- draws the fill. No Update callback, file access, helper process or recurring
+-- color work.
 local function byte(value)
     local number = tonumber(value)
     if not number or number ~= number or number == math.huge or number == -math.huge then return nil end
@@ -23,7 +27,7 @@ local function parseColor(raw, fallback)
     return result
 end
 
-function Apply()
+function Apply(redraw)
     local mode = tonumber(SKIN:GetVariable('VisualizerColorMode', '0'))
     local shape = 'Rectangle 0,0,#VisualizerPlotInnerWidth#,#VisualizerBarHeight#'
     if mode == 3 or mode == 4 then
@@ -41,5 +45,5 @@ function Apply()
     end
     SKIN:Bang('!SetOption', 'MeterVisualizerFill', 'Shape', shape)
     SKIN:Bang('!UpdateMeter', 'MeterVisualizerFill')
-    SKIN:Bang('!Redraw')
+    if redraw ~= false then SKIN:Bang('!Redraw') end
 end

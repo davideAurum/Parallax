@@ -1,7 +1,7 @@
 # Native copied-source Media settings/accordion/typography tests. Synthetic data only.
 # No helper executable, OAuth material, live queue or live Rainmeter config is used.
 [CmdletBinding()]
-param([string]$RainmeterPath = (Join-Path $env:ProgramFiles 'Rainmeter\Rainmeter.exe'),[switch]$TypographyStatusProbeOnly,[switch]$SourceIntegrationFocused,[switch]$ArtworkFocused,[switch]$HeaderFocused,[switch]$IdentityFocused,[switch]$IdentityIconsFocused,[switch]$TitleRowFocused,[switch]$QueueToggleFocused,[switch]$QueueToggleNarrowPlayerOnly,[switch]$QueueTogglePlayersOnly,[switch]$BarThicknessFocused,[switch]$BarThicknessThinOnly,[switch]$SettingsStepperFocused,[switch]$QueueEmptyFocused,[switch]$SettingsFocused,[switch]$SettingsNarrowOnly,[switch]$SettingsWideOnly,[switch]$PlayerNameFocused,[switch]$PlayerNameIconsFocused)
+param([string]$RainmeterPath = (Join-Path $env:ProgramFiles 'Rainmeter\Rainmeter.exe'),[switch]$TypographyStatusProbeOnly,[switch]$SourceIntegrationFocused,[switch]$ArtworkFocused,[switch]$HeaderFocused,[switch]$IdentityFocused,[switch]$IdentityIconsFocused,[switch]$TitleRowFocused,[switch]$QueueToggleFocused,[switch]$QueueToggleNarrowPlayerOnly,[switch]$QueueTogglePlayersOnly,[switch]$BarThicknessFocused,[switch]$BarThicknessThinOnly,[switch]$SettingsStepperFocused,[switch]$QueueEmptyFocused,[switch]$SettingsFocused,[switch]$SettingsNarrowOnly,[switch]$SettingsWideOnly,[switch]$PlayerNameFocused,[switch]$PlayerNameIconsFocused,[switch]$VisualizerDrawerFocused)
 if ($QueueEmptyFocused) { $QueueToggleFocused=$true }
 if ($PlayerNameIconsFocused) { $PlayerNameFocused=$true }
 if ($PlayerNameFocused) { $IdentityFocused=$true }
@@ -44,6 +44,21 @@ foreach ($file in Get-ChildItem -LiteralPath $moduleRoot -Recurse -File) {
     if ($relative -match '(^|\\)tests\\|^Source\\' -or $file.Extension -notin @('.inc','.lua')) { continue }
     $sourceMap[('@Resources\Modules\Media\'+$relative)] = $file.FullName
 }
+# The spectrum drawer: Media.ini reads the Visualizer preferences and resolves
+# HeightPresets\#PanelHeight#.inc by name; Media.ini and Setup.ini both read the
+# variable-only Fallbacks.inc and Options.inc. VisualizerDrawer0/1/2.inc come
+# from the module loop above.
+$visualizerRoot = Join-Path $resourcesRoot 'Modules\Visualizer'
+$sourceMap['@Resources\User\Visualizer.inc'] = Join-Path $resourcesRoot 'User\Visualizer.inc'
+foreach ($relative in @('Fallbacks.inc','Options.inc')) { $sourceMap[('@Resources\Modules\Visualizer\'+$relative)] = Join-Path $visualizerRoot $relative }
+foreach ($preset in Get-ChildItem -LiteralPath (Join-Path $visualizerRoot 'HeightPresets') -Filter '*.inc') { $sourceMap[('@Resources\Modules\Visualizer\HeightPresets\'+$preset.Name)] = $preset.FullName }
+# Only the open drawer (VisualizerDrawer=2) includes the shared AudioLevel
+# capture, spectrum meters and palette script, and only the drawer mode opens
+# it. Every other case leaves them uncopied, so a stray open state fails loudly
+# on a missing include instead of capturing audio.
+if ($VisualizerDrawerFocused) {
+    foreach ($relative in @('Capture.inc','Spectrum.inc','Color.lua')) { $sourceMap[('@Resources\Modules\Visualizer\'+$relative)] = Join-Path $visualizerRoot $relative }
+}
 foreach ($font in Get-ChildItem -LiteralPath (Join-Path $resourcesRoot 'Fonts') -Filter '*.ttf') { $sourceMap[('@Resources\Fonts\'+$font.Name)] = $font.FullName }
 $sourceHashes = @{}
 foreach ($path in $sourceMap.Values) { $sourceHashes[$path] = (Get-FileHash -LiteralPath $path -Algorithm SHA256).Hash }
@@ -60,6 +75,13 @@ function Write-TypographyFixture([string]$CaseRoot,[string]$Profile,[double]$Fix
     $thickness=if ($Profile -eq 'max') { if ($FixtureScale -in @(0.75,1.5)) { 0 } else { 4 } } else { 1 }
     $barText=$FixtureBarThickness.ToString([Globalization.CultureInfo]::InvariantCulture)
     Write-TestFile (Join-Path $CaseRoot '@Resources\User\Settings.inc') "[Variables]`nTitleFontSize=$titleSize`nHeaderFontSize=$headerSize`nFontSize=$bodySize`nDataBarThickness=$barText`nTitleTextColor=211,181,249`nHeaderTextColor=110,218,175`nTextColor=234,210,145`nAccentColor=95,188,246`nAccentColor2=246,138,174`nBorderThickness=$thickness`nDividerThickness=$thickness`nDividerColor=219,122,81`n"
+}
+function Get-CopiedSetting([string]$CaseRoot,[string]$Key) {
+    # A plain numeric value from the copied User\Settings.inc, else $null.
+    $text=[IO.File]::ReadAllText((Join-Path $CaseRoot '@Resources\User\Settings.inc'))
+    $match=[regex]::Match($text,'(?m)^'+[regex]::Escape($Key)+'=([0-9]+(?:\.[0-9]+)?)[ \t]*\r?$')
+    if (-not $match.Success) { return $null }
+    return [double]::Parse($match.Groups[1].Value,[Globalization.CultureInfo]::InvariantCulture)
 }
 function Install-SettingsInputFixture([string]$CaseRoot) {
     # Replace the optional input plugin in every copied Settings entrypoint.
@@ -95,7 +117,8 @@ local os=setmetatable({time=function(...)
 end},{__index=fixtureNativeOs})
 local function InstallSettingsFixtureProxy()
     local native=SKIN
-    for _,name in ipairs({'FixtureInputRuns','FixtureSettingsWrites','FixtureSettingsRefreshes','FixtureInputAge'}) do native:Bang('!SetVariable',name,'0') end
+    for _,name in ipairs({'FixtureInputRuns','FixtureSettingsWrites','FixtureSettingsRefreshes','FixtureInputAge',
+        'FixtureMediaRefreshes','FixtureDrawerApplies'}) do native:Bang('!SetVariable',name,'0') end
     native:Bang('!SetVariable','FixtureInputSentinel','unchanged')
     native:Bang('!SetVariable','FixtureInputStatus','-1')
     local function count(name) native:Bang('!SetVariable',name,tonumber(native:GetVariable(name,'0'))+1) end
@@ -121,10 +144,16 @@ local function InstallSettingsFixtureProxy()
                 if (args[2]=='MeasureMediaSourceControl' or args[2]=='MeasureMediaQueueControl') and args[3]=='Run' then
                     return
                 end
+                -- A saved drawer state asks Media to place its anchor and
+                -- reload itself. Counted and suppressed: Media is not loaded.
+                if args[2]=='MeasureMediaOptions' and args[3]=='ApplyVisualizerPreference()' and args[4]=='Parallax\\Media' and #args==4 then
+                    count('FixtureDrawerApplies');return
+                end
                 error('Unexpected settings helper dispatch')
             end
             if args[1]=='!WriteKeyValue' then count('FixtureSettingsWrites') end
             if args[1]=='!Refresh' then count('FixtureSettingsRefreshes') end
+            if args[1]=='!Refresh' and args[2]=='Parallax\\Media' then count('FixtureMediaRefreshes') end
             local allowed={['!SetVariable']=true,['!SetOption']=true,['!UpdateMeasure']=true,['!UpdateMeter']=true,
                 ['!UpdateMeterGroup']=true,['!Redraw']=true,['!Refresh']=true,['!WriteKeyValue']=true}
             assert(allowed[args[1]],'Unexpected settings action '..tostring(args[1]))
@@ -182,9 +211,13 @@ function Write-SyntheticCover([string]$Path) {
         $bitmap.Save($Path,[Drawing.Imaging.ImageFormat]::Png)
     } finally { $graphics.Dispose();$bitmap.Dispose() }
 }
-$kinds=if ($SettingsFocused) { @('Settings') } elseif ($QueueToggleFocused) { @('QueueToggleSetup','QueueTogglePlayer') } elseif ($TitleRowFocused) { foreach ($profile in @('Min','Default','Max')) { foreach ($variant in @('Player','Setup','Queue','Settings')) { "TitleRow$profile$variant" } } } elseif ($IdentityFocused) { @('IdentityPlayer','IdentityPlayerMax','IdentitySetup') } elseif ($HeaderFocused) { @('HeaderSetup','HeaderPlayer','HeaderQueue') } elseif ($ArtworkFocused) { @('ArtworkSetup','ArtworkPlayer','ArtworkPlayerMissing') } else { @('Accordion','Settings','TypographySetup','TypographySettings','TypographyPlayer','TypographyPlayerDefault') }
-$widths=if ($HeaderFocused) { @(220) } elseif ($ArtworkFocused -or $BarThicknessFocused) { @(180,220,320) } else { @(180,220) }
+$kinds=if ($VisualizerDrawerFocused) { @('DrawerPlayer','DrawerPlayerTall','DrawerPlayerAnchored') } elseif ($SettingsFocused) { @('Settings') } elseif ($QueueToggleFocused) { @('QueueToggleSetup','QueueTogglePlayer') } elseif ($TitleRowFocused) { foreach ($profile in @('Min','Default','Max')) { foreach ($variant in @('Player','Setup','Queue','Settings')) { "TitleRow$profile$variant" } } } elseif ($IdentityFocused) { @('IdentityPlayer','IdentityPlayerMax','IdentitySetup') } elseif ($HeaderFocused) { @('HeaderSetup','HeaderPlayer','HeaderQueue') } elseif ($ArtworkFocused) { @('ArtworkSetup','ArtworkPlayer','ArtworkPlayerMissing') } else { @('Accordion','Settings','TypographySetup','TypographySettings','TypographyPlayer','TypographyPlayerDefault') }
+$widths=if ($HeaderFocused -or $VisualizerDrawerFocused) { @(220) } elseif ($ArtworkFocused -or $BarThicknessFocused) { @(180,220,320) } else { @(180,220) }
 foreach ($kind in $kinds) { foreach ($width in $widths) { foreach ($scale in @(0.75,1,1.25,1.5,2)) { foreach ($columns in @(1,2)) {
+    # Drawer mode: the measured default (scale 1, width 220) at both widths,
+    # plus the Tall Height preset at double width and, at single width, a
+    # custom pixel AnchorY the drawer does not own.
+    if ($VisualizerDrawerFocused -and -not ($scale -eq 1 -and ($kind -eq 'DrawerPlayer' -or ($kind -eq 'DrawerPlayerTall' -and $columns -eq 2) -or ($kind -eq 'DrawerPlayerAnchored' -and $columns -eq 1)))) { continue }
     if ($PlayerNameFocused) {
         if ($PlayerNameIconsFocused -and $kind -ne 'IdentityPlayerMax') { continue }
         $wanted=if ($kind -eq 'IdentityPlayer') { $width -eq 220 -and $scale -eq 1 -and $columns -eq 2 } else { ($width -eq 180 -and $scale -eq 0.75 -and $columns -eq 1) -or ($width -eq 220 -and $scale -eq 2 -and $columns -eq 2) }
@@ -218,8 +251,10 @@ foreach ($kind in $kinds) { foreach ($width in $widths) { foreach ($scale in @(0
     $isPlayer=$kind.Contains('Player')
     if ($isSettings -and $columns -eq 1) { continue }
     if ($isTypography -and -not $isSettings -and $columns -eq 2) { continue }
-    if ($isPlayer -and $width -eq 220 -and -not $ArtworkFocused -and -not $HeaderFocused -and -not $IdentityFocused -and -not $TitleRowFocused -and -not $QueueToggleFocused) { continue }
-    $profile=if ($TitleRowFocused) { if ($kind.Contains('Min')) { 'min' } elseif ($kind.Contains('Max')) { 'max' } else { 'default' } } elseif (($PlayerNameFocused -and $kind -ne 'IdentityPlayer') -or $SettingsFocused -or $QueueToggleFocused -or $ArtworkFocused -or $kind -eq 'IdentityPlayerMax' -or ($isTypography -and $kind -ne 'TypographyPlayerDefault')) { 'max' } else { 'default' }
+    if ($isPlayer -and $width -eq 220 -and -not $ArtworkFocused -and -not $HeaderFocused -and -not $IdentityFocused -and -not $TitleRowFocused -and -not $QueueToggleFocused -and -not $VisualizerDrawerFocused) { continue }
+    # Drawer mode keeps the copied repo User\Settings.inc ('repo'): the contract
+    # heights were measured with its typography and border.
+    $profile=if ($VisualizerDrawerFocused) { 'repo' } elseif ($TitleRowFocused) { if ($kind.Contains('Min')) { 'min' } elseif ($kind.Contains('Max')) { 'max' } else { 'default' } } elseif (($PlayerNameFocused -and $kind -ne 'IdentityPlayer') -or $SettingsFocused -or $QueueToggleFocused -or $ArtworkFocused -or $kind -eq 'IdentityPlayerMax' -or ($isTypography -and $kind -ne 'TypographyPlayerDefault')) { 'max' } else { 'default' }
     if ($SettingsStepperFocused -and $width -eq 220) { $profile='default' }
     $index++
     $name = 'Case{0:D2}' -f $index
@@ -230,7 +265,18 @@ foreach ($kind in $kinds) { foreach ($width in $widths) { foreach ($scale in @(0
         Copy-Item -LiteralPath $sourceMap[$relative] -Destination $destination
     }
     $barThickness=if ($BarThicknessFocused) { if ($width -eq 180) { 1 } elseif ($width -eq 220) { 6.25 } else { 12 } } else { 6 }
-    Write-TypographyFixture $caseRoot $profile $scale $barThickness
+    if ($profile -eq 'repo') {
+        $copiedBar=Get-CopiedSetting $caseRoot 'DataBarThickness'
+        if ($null -ne $copiedBar) { $barThickness=$copiedBar }
+    } else { Write-TypographyFixture $caseRoot $profile $scale $barThickness }
+    if ($kind -eq 'DrawerPlayerTall') {
+        # The Audio settings Tall preset; Media reads it through
+        # HeightPresets\186.inc while its own PanelHeight stays 162.
+        $visualizerPath=Join-Path $caseRoot '@Resources\User\Visualizer.inc'
+        $visualizer=[IO.File]::ReadAllText($visualizerPath)
+        if ([regex]::Matches($visualizer,'(?m)^PanelHeight=.*$').Count -ne 1) { throw 'Expected exactly one Visualizer PanelHeight preference.' }
+        Write-TestFile $visualizerPath ([regex]::Replace($visualizer,'(?m)^PanelHeight=[^\r\n]*','PanelHeight=186'))
+    }
     Install-SettingsInputFixture $caseRoot
     Install-RunCommandFixtures $caseRoot
     if ($QueueEmptyFocused) {
@@ -257,8 +303,14 @@ end
     $scaleText = $scale.ToString([Globalization.CultureInfo]::InvariantCulture)
     $preferencesPath = Join-Path $caseRoot '@Resources\User\Media.inc'
     $expanded=if ($isTypography -and -not $isSettings) { 1 } else { 0 }
-    $preferences = "[Variables]`nColumns=$columns`nPanelHeight=162`nMediaInterval=1000`nQueueExpanded=$expanded`nQueueRowLimit=5`nQueueShowDetails=1`nQueuePollSeconds=30`nScale=$scaleText`nColumnWidth=$width`nUnrelatedSentinel=preserve-me`n"
+    # Other modes omit VisualizerDrawer, so the entrypoints' fallback (1, tab
+    # only) applies; drawer mode starts from the shipped explicit value.
+    $drawerPreference=if ($VisualizerDrawerFocused) { "VisualizerDrawer=1`n" } else { '' }
+    $preferences = "[Variables]`nColumns=$columns`nPanelHeight=162`nMediaInterval=1000`nQueueExpanded=$expanded`nQueueRowLimit=5`nQueueShowDetails=1`nQueuePollSeconds=30`nScale=$scaleText`nColumnWidth=$width`n${drawerPreference}UnrelatedSentinel=preserve-me`n"
     Write-TestFile $preferencesPath $preferences
+    # Drawer mode only: per-stage window/anchor records kept across refreshes.
+    $drawerState = if ($VisualizerDrawerFocused) { Join-Path $runRoot ("drawer-$name.txt") } else { '' }
+    if ($drawerState) { Write-TestFile $drawerState '' }
     $cache = Join-Path $runRoot ("synthetic-$name.snapshot")
     $now = [DateTimeOffset]::UtcNow.ToUnixTimeSeconds()
     $snapshot = "PARALLAX_QUEUE_V2`nstate=ready`nobserved=$now`nvalid_until=$($now+240)`nretry_not_before=0`ncount=5`n"
@@ -379,6 +431,7 @@ StatusProbeOnly=$([int]$TypographyStatusProbeOnly.IsPresent)
 SyntheticCachePath=$cache
 ResultFile=$report
 StageFile=$stateFile
+DrawerStateFile=$drawerState
 PreferencesPath=$preferencesPath
 HoverEnter=$hoverEnter
 HoverLeave=$hoverLeave
@@ -386,14 +439,17 @@ EditSettingsAction=$([regex]::Match($entry,'(?m)^ContextAction2=(.*)$').Groups[1
 ExpectedWidth=$width
 ExpectedScale=$scaleText
 ExpectedColumns=$columns
-ExpectedBarThickness=$($barThickness.ToString([Globalization.CultureInfo]::InvariantCulture))
+ExpectedBarThickness=$(([double]$barThickness).ToString([Globalization.CultureInfo]::InvariantCulture))
 "@
     $probes=if ($isSettings) {
         @(@('MeterTitle','Media settings'),@('MeterQueueHeading','Spotify queue'),@('MeterQueuePollLabel','Queue refresh (s)'),
           @('MeterQueuePollValue','150'),@('MeterStatus','Use Restart to apply interval.'),@('MeterDisconnect','Disconnect'),
           @('MeterPlayerSetup','Player setup'),@('MeterClose','X'),@('MeterSourceLabel','Source detection'),@('MeterSourceStart','Start'),@('MeterSourceStop','Stop'),
           @('MeterSourceGuidance','Identifies Spotify locally; no sign-in needed.'),@('MeterQueueGuidance','Sign in starts polling. Restart applies changes.'),
-          @('MeterUtilitySettingsNote','Media settings are found here.'),@('MeterUtilitySettingsGlobalLink','Global Settings are found here.'))
+          @('MeterUtilitySettingsNote','Media settings are found here.'),@('MeterUtilitySettingsGlobalLink','Global Settings are found here.'),
+          # The suite also sets Hidden and Expanded: every Spectrum drawer state
+          # must fit its 76px stepper field.
+          @('MeterVisualizerDrawerValue','Collapsed'))
     } else {
         # The single-row title binds MeasureMediaHeader (see the probe loop),
         # so its probe renders the same live title text.
@@ -426,13 +482,21 @@ ExpectedBarThickness=$($barThickness.ToString([Globalization.CultureInfo]::Invar
     $variantNames=@(Get-ChildItem -LiteralPath (Split-Path -Parent $entryPath) -Filter '*.ini' | Sort-Object Name | ForEach-Object { $_.Name })
     $activeVariant=[Array]::IndexOf($variantNames,(Split-Path -Leaf $entryPath))+1
     if ($activeVariant -lt 1) { throw 'Cannot select exact copied config variant.' }
-    $settings += "`n[$configName]`nActive=$activeVariant`nWindowX=-20000`nWindowY=-20000`nKeepOnScreen=0`nSavePosition=0`nDraggable=0`nClickThrough=1`nAlphaValue=255`n"
-    $cases += [pscustomobject]@{Name=$name;Kind=$kind;Profile=$profile;Width=$width;Scale=$scale;Columns=$columns;BarThickness=$barThickness;Report=$report;Preferences=$preferencesPath}
+    # A hand-set pixel anchor with no ParallaxDrawerAnchorY record: the drawer
+    # must leave it alone through every toggle.
+    $customAnchor=if ($kind -eq 'DrawerPlayerAnchored') { "AnchorY=20`n" } else { '' }
+    $settings += "`n[$configName]`nActive=$activeVariant`nWindowX=-20000`nWindowY=-20000`n${customAnchor}KeepOnScreen=0`nSavePosition=0`nDraggable=0`nClickThrough=1`nAlphaValue=255`n"
+    $cases += [pscustomobject]@{Name=$name;Kind=$kind;Profile=$profile;Width=$width;Scale=$scale;Columns=$columns;BarThickness=$barThickness;Report=$report;Preferences=$preferencesPath;Root=$caseRoot;ConfigName=$configName}
 } } } }
 # Fail closed before launching any fixture if a copied active or inactive variant
 # could load a real player plugin or the private source-detection cache reader.
 foreach ($fixture in Get-ChildItem -LiteralPath $skinRoot -Recurse -File | Where-Object { $_.Extension -in @('.ini','.inc') }) {
     $fixtureText=[IO.File]::ReadAllText($fixture.FullName)
+    if ($VisualizerDrawerFocused -and $fixture.FullName.EndsWith('\@Resources\Modules\Visualizer\Capture.inc',[StringComparison]::OrdinalIgnoreCase)) {
+        # The open drawer's shared capture may use only Rainmeter's bundled
+        # AudioLevel (display only); any other plugin line still fails closed.
+        $fixtureText=[regex]::Replace($fixtureText,'(?m)^[ \t]*Plugin[ \t]*=[ \t]*AudioLevel[ \t]*\r?$','')
+    }
     if ($fixtureText -match '(?m)^\s*Plugin\s*=' -or $fixtureText -match '(?im)^\s*ScriptFile=.*SourceReader\.lua') {
         throw 'A native UI fixture still contains a real provider or source reader.'
     }
@@ -573,7 +637,9 @@ function Measure-TitleInkGap([Drawing.Bitmap]$Bitmap,[object]$Case) {
     # rows yellow/tan ink. Read rendered pixels, not overlapping empty boxes.
     $queue=$Case.Kind.EndsWith('Queue')
     $inset=[math]::Floor(4*$Case.Scale+0.5)
-    $offset=if ($queue) { 0 } else { [math]::Floor(12*($Case.Columns-1)*$Case.Scale+0.5) }
+    # Media/Setup reserve the 12px top strip at both widths while the default
+    # VisualizerDrawer=1 shows the spectrum tab; the standalone Queue does not.
+    $offset=if ($queue) { 0 } else { [math]::Floor(12*$Case.Scale+0.5) }
     # Setup's status tops the metadata block: 26px title row plus a 4px gap.
     $statusY=$inset+$offset+$(if ($queue) { 26 } else { 30 })*$Case.Scale
     $limit=[int][math]::Ceiling($statusY+18*$Case.Scale)
@@ -615,7 +681,7 @@ function Save-ViewCaptures([uint32]$OwnedPid) {
         $captureCases=@('Case13','Case27','Case31','Case32','Case42','Case52','Case57')
         $case=@($cases | Where-Object { $window.Title.Contains($_.Name+'\Media') })
         if ($case.Count -ne 1) { continue }
-        if ($PlayerNameFocused -or $TitleRowFocused -or $QueueToggleFocused -or $SettingsFocused) {
+        if ($PlayerNameFocused -or $TitleRowFocused -or $QueueToggleFocused -or $SettingsFocused -or $VisualizerDrawerFocused) {
             # The bounded title-row matrix is itself the capture subset.
         } elseif ($IdentityFocused) {
             $wideRepresentative=$case[0].Columns -eq 2 -and $case[0].Scale -eq 1
@@ -751,13 +817,29 @@ function Save-ViewCaptures([uint32]$OwnedPid) {
                 $barPixels=[ordered]@{LogicalThickness=$case.BarThickness;ExpectedPixelHeight=$barHeight;ExpectedTop=$barTop;SampleX=$sampleX;PaintedRows=$paintedRows}
                 if ($paintedRows.Count -ne $barHeight) { throw "Native bar painted height differs in $label`: $($barPixels | ConvertTo-Json -Compress); capture $file" }
             }
-            $captures+=[pscustomobject]@{File=$file;Synthetic=$true;Width=$window.Width;Height=$window.Height;Colors=$colors.Count;ArtworkPixels=$artworkPixels;MetadataPixels=$metadataPixels;TransportPixels=$transportPixels;PlayerHeaderPixels=$headerPixels;TitleInkGap=$titleInkGap;QueuePixels=$queuePixels;BarPixels=$barPixels}
+            $drawerPixels=$null
+            if ($VisualizerDrawerFocused) {
+                # Each fixture finishes collapsed again, so the folder tab above
+                # the gear must paint the drawer sheet's fill (45,45,45) and a
+                # chevron far brighter than it, inside the toggle's own bounds.
+                $toggle=Get-ReportedBounds $nativeReport 'MeterVisualizerToggle'
+                $left=[int][math]::Floor($toggle[0]); $top=[int][math]::Floor($toggle[1])
+                $fill=0; $ink=0
+                for ($x=$left;$x -lt $left+[int]$toggle[2];$x++) { for ($y=$top;$y -lt $top+[int]$toggle[3];$y++) {
+                    $pixel=$bitmap.GetPixel($x,$y)
+                    if ([math]::Abs($pixel.R-45) -le 4 -and [math]::Abs($pixel.G-45) -le 4 -and [math]::Abs($pixel.B-45) -le 4) { $fill++ }
+                    elseif ([math]::Max($pixel.R,[math]::Max($pixel.G,$pixel.B)) -ge 105) { $ink++ }
+                } }
+                $drawerPixels=[ordered]@{X=$left;Y=$top;W=$toggle[2];H=$toggle[3];SheetFill=$fill;ChevronInk=$ink}
+                if ($toggle[2] -le 0 -or $fill -lt 20 -or $ink -lt 3) { throw "Collapsed spectrum tab is not painted in $label`: $($drawerPixels | ConvertTo-Json -Compress); capture $file" }
+            }
+            $captures+=[pscustomobject]@{File=$file;Synthetic=$true;Width=$window.Width;Height=$window.Height;Colors=$colors.Count;ArtworkPixels=$artworkPixels;MetadataPixels=$metadataPixels;TransportPixels=$transportPixels;PlayerHeaderPixels=$headerPixels;TitleInkGap=$titleInkGap;QueuePixels=$queuePixels;BarPixels=$barPixels;DrawerPixels=$drawerPixels}
         } finally {
             if ($hdc -ne [IntPtr]::Zero) { $graphics.ReleaseHdc($hdc) }
             $graphics.Dispose();$bitmap.Dispose()
         }
     }
-    $expectedCaptures=if ($QueueEmptyFocused) { 1 } elseif ($PlayerNameIconsFocused) { 2 } elseif ($PlayerNameFocused) { 5 } elseif ($SettingsNarrowOnly -or $SettingsWideOnly) { 1 } elseif ($SettingsFocused) { 2 } elseif ($BarThicknessThinOnly) { 1 } elseif ($BarThicknessFocused) { 3 } elseif ($QueueToggleNarrowPlayerOnly) { 1 } elseif ($QueueTogglePlayersOnly) { 2 } elseif ($QueueToggleFocused) { 4 } elseif ($TitleRowFocused) { 12 } elseif ($IdentityIconsFocused) { 2 } elseif ($IdentityFocused) { 6 } elseif ($ArtworkFocused) { 9 } elseif ($SourceIntegrationFocused) { 4 } else { 7 }
+    $expectedCaptures=if ($VisualizerDrawerFocused) { 4 } elseif ($QueueEmptyFocused) { 1 } elseif ($PlayerNameIconsFocused) { 2 } elseif ($PlayerNameFocused) { 5 } elseif ($SettingsNarrowOnly -or $SettingsWideOnly) { 1 } elseif ($SettingsFocused) { 2 } elseif ($BarThicknessThinOnly) { 1 } elseif ($BarThicknessFocused) { 3 } elseif ($QueueToggleNarrowPlayerOnly) { 1 } elseif ($QueueTogglePlayersOnly) { 2 } elseif ($QueueToggleFocused) { 4 } elseif ($TitleRowFocused) { 12 } elseif ($IdentityIconsFocused) { 2 } elseif ($IdentityFocused) { 6 } elseif ($ArtworkFocused) { 9 } elseif ($SourceIntegrationFocused) { 4 } else { 7 }
     if ($captures.Count -ne $expectedCaptures) { throw "Expected $expectedCaptures representative default/max typography captures." }
     if (@($captures.File | Sort-Object -Unique).Count -ne $expectedCaptures) { throw 'Capture files must be distinct.' }
     return $captures
@@ -768,11 +850,16 @@ try {
     # cases finish last, so a fixed 50 s deadline was occasionally missed
     # (Case24). Wait while reports keep arriving; fail on a 45 s stall or the
     # overall cap, either of which still means a case never reported.
-    $started=[DateTime]::UtcNow; $progressAt=$started; $seen=0
+    # Under CPU load, loading all sixty skins can itself outlast the stall
+    # window before any case can report, so new isolated-log entries (skin
+    # loads and refreshes) also count as progress.
+    $started=[DateTime]::UtcNow; $progressAt=$started; $seen=0; $logSeen=0
+    $progressLog=Join-Path $runRoot 'Rainmeter.log'
     do {
         Start-Sleep -Milliseconds 250
         $reports = @(Get-ChildItem -LiteralPath $runRoot -Filter 'result-*.txt')
-        if ($reports.Count -gt $seen) { $seen=$reports.Count; $progressAt=[DateTime]::UtcNow }
+        $logLength=if (Test-Path -LiteralPath $progressLog) { (Get-Item -LiteralPath $progressLog).Length } else { 0 }
+        if ($reports.Count -gt $seen -or $logLength -gt $logSeen) { $seen=$reports.Count; $logSeen=$logLength; $progressAt=[DateTime]::UtcNow }
         $now=[DateTime]::UtcNow
     } while ($reports.Count -lt $cases.Count -and ($now-$progressAt).TotalSeconds -lt 45 -and ($now-$started).TotalSeconds -lt 300)
     $reportSeconds=[math]::Round(([DateTime]::UtcNow-$started).TotalSeconds,1)
@@ -787,23 +874,75 @@ try {
     $captures=@(); $sync=$null
     if (-not $TypographyStatusProbeOnly -and -not $HeaderFocused) {
         $captures=@(Save-ViewCaptures ([uint32]$testProcess.Id))
-        if (-not $SettingsWideOnly -and -not $SourceIntegrationFocused -and -not $ArtworkFocused -and -not $IdentityFocused -and -not $TitleRowFocused -and -not $QueueToggleFocused) { $sync=Test-LabelSync; Write-Output $sync.Report }
+        if (-not $SettingsWideOnly -and -not $SourceIntegrationFocused -and -not $ArtworkFocused -and -not $IdentityFocused -and -not $TitleRowFocused -and -not $QueueToggleFocused -and -not $VisualizerDrawerFocused) { $sync=Test-LabelSync; Write-Output $sync.Report }
     }
     $errors = @()
     $log = Join-Path $runRoot 'Rainmeter.log'
     if (Test-Path -LiteralPath $log) { $errors = @(Get-Content -LiteralPath $log | Where-Object { $_ -match '^ERRO' }) }
+    $drawerEvidence=$null
+    if ($VisualizerDrawerFocused) {
+        # The tab refreshes an already-open Media settings panel; none is loaded
+        # here, so that one warning is expected. Any other warning fails.
+        $warnings=@(Get-Content -LiteralPath $log | Where-Object { $_ -match '^WARN' })
+        $knownWarning='!Refresh: Skin "Parallax\Media\Settings" is not active'
+        $errors+=@($warnings | Where-Object { -not $_.Contains($knownWarning) })
+        # Second, literal check of the measured contract, independent of the
+        # suite's model: closed 186, open 186+lift, closed 186 again. Only
+        # meaningful while the copied repo settings match the measured ones.
+        $finalIni=[IO.File]::ReadAllText($iniPath)
+        $drawerEvidence=@()
+        foreach ($case in $cases) {
+            $line=[regex]::Match((Get-Content -LiteralPath $case.Report -Raw),'(?m)^drawer=(.*)$')
+            if (-not $line.Success) { $failed+=$case.Name; continue }
+            $stages=@($line.Groups[1].Value.Trim().Split(';') | ForEach-Object {
+                $entry=@{}; foreach ($pair in $_.Trim().Split(' ')) { $parts=$pair.Split('='); if ($parts.Count -eq 2) { $entry[$parts[0]]=$parts[1] } }; $entry })
+            $measured=@{Gutter=Get-CopiedSetting $case.Root 'Gutter';PanelPadding=Get-CopiedSetting $case.Root 'PanelPadding';DataBarThickness=Get-CopiedSetting $case.Root 'DataBarThickness';BorderThickness=Get-CopiedSetting $case.Root 'BorderThickness'}
+            $literal=$measured.Gutter -eq 8 -and $measured.PanelPadding -eq 6 -and $measured.DataBarThickness -eq 6 -and $null -ne $measured.BorderThickness -and $measured.BorderThickness -le 2
+            $openHeight=if ($case.Kind -eq 'DrawerPlayerTall') { 318 } else { 278 }
+            $heights=@($stages | ForEach-Object { [int]$_['h'] })
+            $problems=@()
+            if ($stages.Count -ne 3) { $problems+="recorded $($stages.Count) drawer stages, expected 3" }
+            if ($literal -and (($heights -join ',') -ne "186,$openHeight,186")) { $problems+="window heights $($heights -join ' -> ') expected 186 -> $openHeight -> 186" }
+            if ((@($stages | ForEach-Object { $_['audio'] }) -join ',') -ne '0,1,0') { $problems+='AudioLevel presence did not follow closed -> open -> closed' }
+            # The isolated Rainmeter.ini after the last refresh. A drawer-owned
+            # anchor is back at AnchorY=0 with its ParallaxDrawerAnchorY=0
+            # record; the custom anchor is still AnchorY=20 with no record. No
+            # case ever writes AnchorX.
+            $custom=$case.Kind -eq 'DrawerPlayerAnchored'
+            $wantedAnchor=if ($custom) { '20' } else { '0' }
+            $section=[regex]::Match($finalIni,'(?ms)^\['+[regex]::Escape($case.ConfigName)+'\]\r?$(.*?)(?=^\[|\z)')
+            if (-not $section.Success) { $problems+='no section in the isolated Rainmeter.ini' }
+            else {
+                $body=$section.Groups[1].Value
+                $anchorY=[regex]::Match($body,'(?m)^AnchorY=([^\r\n]*)')
+                $marker=[regex]::Match($body,'(?m)^ParallaxDrawerAnchorY=([^\r\n]*)')
+                $markerOk=if ($custom) { -not $marker.Success } else { $marker.Success -and $marker.Groups[1].Value.Trim() -eq '0' }
+                if (-not $anchorY.Success -or $anchorY.Groups[1].Value.Trim() -ne $wantedAnchor -or -not $markerOk -or $body -match '(?m)^AnchorX=') {
+                    $wantedMarker=if ($custom) { 'no ParallaxDrawerAnchorY' } else { 'ParallaxDrawerAnchorY=0' }
+                    $problems+="final anchor is not AnchorY=$wantedAnchor with $wantedMarker and AnchorX untouched: $($body.Trim() -replace '\r?\n',' | ')"
+                }
+            }
+            if ($problems.Count) { $failed+=$case.Name; $errors+=@($problems | ForEach-Object { "DRAWER $($case.Name): $_" }) }
+            $drawerEvidence+=[pscustomobject]@{Case=$case.Name;Kind=$case.Kind;Columns=$case.Columns;Heights=$heights -join ' -> ';LiteralHeightsChecked=$literal;
+                WindowY=@($stages | ForEach-Object { $_['y'] }) -join ' -> ';PanelScreenY=@($stages | ForEach-Object { $_['panel'] }) -join ' -> ';
+                AnchorY=@($stages | ForEach-Object { $_['anchory'] }) -join ' -> ';DrawerAnchorRecord=@($stages | ForEach-Object { $_['marker'] }) -join ' -> ';Lift=$stages[0]['lift']}
+        }
+        $drawerEvidence | Format-Table -AutoSize | Out-String -Width 260 | Write-Output
+        Write-Output "Rainmeter WARN lines (known Settings refresh only): $($warnings.Count)"
+    }
     if ($null -ne $sync) {
         if ($sync.Report -notmatch '^PASS ') { $failed+='LabelSync' }
         $errors+=@($sync.LogErrors)
     }
-    $evidence = [ordered]@{Synthetic=$true;Cases=$cases.Count;FailedCases=$failed;LogErrors=$errors;OwnedPid=$testProcess.Id;ReportSeconds=$reportSeconds;SourceHashes=$sourceHashes;Captures=$captures;LabelSync=$sync;
+    $evidence = [ordered]@{Synthetic=$true;Cases=$cases.Count;FailedCases=$failed;LogErrors=$errors;OwnedPid=$testProcess.Id;ReportSeconds=$reportSeconds;SourceHashes=$sourceHashes;Captures=$captures;LabelSync=$sync;Drawer=$drawerEvidence;
         RainmeterVersion=(Get-Item -LiteralPath $RainmeterPath).VersionInfo.ProductVersion;
-        Limits='Copied-source native Settings/accordion/player UI. Every WNP include, raw artist and source reader measure is replaced with inert Calc/String fixtures; the production MediaPulse.lua title-icon swap runs against them. Identity mode uses test-owned Script returns for literal names and empty titles, and a SKIN:Bang proxy that counts/suppresses playback dispatches while forwarding native UI operations. Source scripts are excluded. Typed input uses an inert Script output/status proxy and suppressed Run dispatch; real overlay typing is not exercised. Synthetic queue and temporary preferences; no helper, auth, live settings, real queue or performance test.'}
+        Limits='Copied-source native Settings/accordion/player UI. Every WNP include, raw artist and source reader measure is replaced with inert Calc/String fixtures; the production MediaPulse.lua title-icon swap runs against them. Identity mode uses test-owned Script returns for literal names and empty titles, and a SKIN:Bang proxy that counts/suppresses playback dispatches while forwarding native UI operations. Source scripts are excluded. Typed input uses an inert Script output/status proxy and suppressed Run dispatch; real overlay typing is not exercised. Synthetic queue and temporary preferences; no helper, auth, live settings, real queue or performance test. Drawer mode toggles the spectrum drawer through the production tab action; its open stage loads Rainmeter''s bundled AudioLevel, which captures this machine''s output device for display only, and its AnchorY and ParallaxDrawerAnchorY writes go to the isolated Rainmeter.ini, where one case pre-seeds a custom AnchorY=20 that must never be rewritten.'}
     Write-TestFile (Join-Path $runRoot 'media-settings-evidence.json') ($evidence | ConvertTo-Json -Depth 6)
     Write-Output "Evidence retained at $runRoot"
     foreach ($path in $sourceHashes.Keys) { if ((Get-FileHash -LiteralPath $path -Algorithm SHA256).Hash -ne $sourceHashes[$path]) { throw 'Source changed during native run; rerun for coherent evidence.' } }
     if ($failed.Count -or $errors.Count) { $errors | Write-Output; throw "$($failed.Count) native cases failed; $($errors.Count) Rainmeter error entries." }
     if ($TypographyStatusProbeOnly) { Write-Output 'PASS: compact footer substitutions and native max-font player glyph checks.' }
+    elseif ($VisualizerDrawerFocused) { Write-Output "PASS: $($cases.Count) spectrum drawer closed -> open -> closed toggles, isolated drawer-owned anchors with their ParallaxDrawerAnchorY records, one custom AnchorY=20 left untouched and $($captures.Count) synthetic collapsed-tab captures." }
     elseif ($SettingsFocused) { Write-Output "PASS: $($cases.Count) focused settings layouts, saved preferences and $($captures.Count) synthetic endpoint captures." }
     elseif ($QueueToggleFocused) { Write-Output "PASS: $($cases.Count) focused queue-toggle persistence layouts and $($captures.Count) synthetic expanded/collapsed captures." }
     elseif ($TitleRowFocused) { Write-Output "PASS: $($cases.Count) focused title-row layouts and $($captures.Count) synthetic centered-title captures." }

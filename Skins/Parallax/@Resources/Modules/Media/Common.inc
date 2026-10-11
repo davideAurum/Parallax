@@ -20,6 +20,42 @@ H=(18*#Scale#)
 Meter=Image
 MeterStyle=StyleBounds
 
+; Spectrum drawer sheet (top). Like the queue sheet it is drawn before
+; MeterPanel, so the panel hides its square, tucked lower edge; collapsed, only
+; the folder tab above the gear shows. Geometry: InlineQueueGeometry.inc.
+[MeterVisualizerSheet]
+Meter=Shape
+AntiAlias=1
+X=#MediaVisualizerSheetX#
+Y=#Inset#
+Hidden=(1-#MediaVisualizerTab#)
+UpdateDivider=-1
+Shape=Path MediaVisualizerSheetPath | Fill Color #MediaQueueDrawerFill# | Stroke Color #BorderColor# | StrokeWidth (#BorderThickness#*#Scale#)
+; Up the left side, round both top corners, down the right side. SVG sweep=1
+; maps to Rainmeter's clockwise SweepDirection=0. The closing bottom edge stays
+; behind the panel.
+MediaVisualizerSheetPath=#MediaVisualizerStroke#,#MediaVisualizerSheetHeight# | LineTo #MediaVisualizerStroke#,(#MediaVisualizerStroke#+#MediaVisualizerSheetRadius#) | ArcTo (#MediaVisualizerStroke#+#MediaVisualizerSheetRadius#),#MediaVisualizerStroke#,#MediaVisualizerSheetRadius#,#MediaVisualizerSheetRadius#,0,0,0 | LineTo (#MediaVisualizerSheetWidth#-#MediaVisualizerStroke#-#MediaVisualizerSheetRadius#),#MediaVisualizerStroke# | ArcTo (#MediaVisualizerSheetWidth#-#MediaVisualizerStroke#),(#MediaVisualizerStroke#+#MediaVisualizerSheetRadius#),#MediaVisualizerSheetRadius#,#MediaVisualizerSheetRadius#,0,0,0 | LineTo (#MediaVisualizerSheetWidth#-#MediaVisualizerStroke#),#MediaVisualizerSheetHeight# | ClosePath 1
+
+; The tab's control: the clear band above the panel in the gear's column. An
+; original three-point chevron at the queue icon's 14/24 Lucide scale and
+; 2-unit round stroke (24-unit points 6,15 / 12,9 / 18,15). It points up to
+; open and flips down while the drawer is open, as List Plus/Minus does below.
+[MeterVisualizerToggle]
+Meter=Shape
+X=#MediaVisualizerTabX#
+Y=#MediaVisualizerToggleY#
+W=#MediaVisualizerTabWidth#
+H=#MediaVisualizerToggleHeight#
+Hidden=(1-#MediaVisualizerTab#)
+AntiAlias=1
+UpdateDivider=-1
+Shape=Rectangle 0,0,#MediaVisualizerTabWidth#,#MediaVisualizerToggleHeight# | Fill Color 0,0,0,1 | StrokeWidth 0
+Shape2=Path MediaVisualizerChevron | Fill Color 0,0,0,0 | Stroke Color #HeaderTextColor# | StrokeWidth (2*#MediaVisualizerGlyphScale#) | StrokeStartCap Round | StrokeEndCap Round | StrokeLineJoin Round
+MediaVisualizerChevron=(#MediaVisualizerGlyphX#+6*#MediaVisualizerGlyphScale#),(#MediaVisualizerGlyphY#+(15-6*#MediaVisualizerOpen#)*#MediaVisualizerGlyphScale#) | LineTo (#MediaVisualizerGlyphX#+12*#MediaVisualizerGlyphScale#),(#MediaVisualizerGlyphY#+(9+6*#MediaVisualizerOpen#)*#MediaVisualizerGlyphScale#) | LineTo (#MediaVisualizerGlyphX#+18*#MediaVisualizerGlyphScale#),(#MediaVisualizerGlyphY#+(15-6*#MediaVisualizerOpen#)*#MediaVisualizerGlyphScale#)
+MouseActionCursor=1
+ToolTipText=Show or hide the audio spectrum above Media. While shown, Rainmeter's AudioLevel plugin captures the Windows output device - all mixed audio, not only this player - as 24 bands from 40 Hz to 16 kHz on a relative dB scale; hiding it stops the capture. Height, colors, sensitivity and quality follow Audio settings (right-click Media). This display choice is remembered.
+LeftMouseUpAction=[!CommandMeasure MeasureMediaOptions "ToggleVisualizer()"]
+
 ; Tab contents, printed on the sheet: defined before MeterPanel so the panel
 ; occludes everything but the notch. Clicking still runs ToggleQueue().
 [MeterQueueDrawer]
@@ -114,7 +150,7 @@ UpdateDivider=-1
 Meter=String
 MeterStyle=StyleTitle|StyleTitleRow
 X=(#ContentX#+#TitleIconSize#+#TitleIconGap#)
-Y=(#TitleRowCenterY#+#MediaSurfaceOffset#)
+Y=(#MediaHeaderY#+#TitleRowCenterY#-#Inset#)
 W=#MediaHeadingWidth#
 MeasureName=MeasureMediaHeader
 Text=%1
@@ -124,7 +160,7 @@ UpdateDivider=1
 Meter=Shape
 MeterStyle=StyleRule
 X=#MediaQueueX#
-Y=(#Inset#+#MediaBodyHeightPx#-29*#Scale#)
+Y=(#MediaTop#+#MediaBodyHeightPx#-29*#Scale#)
 Shape=Line 0,0,#MediaQueueWidth#,0 | Stroke Color #DividerColor# | StrokeWidth (#DividerThickness#*#Scale#)
 Hidden=#MediaQueueHidden#
 
@@ -136,7 +172,7 @@ MeterStyle=StyleLabel|MediaSecondaryStyle
 MeasureName=MeasureQueueStatus
 Hidden=#MediaQueueHidden#
 X=(#MediaQueueX#+66*#Scale#)
-Y=(#Inset#+#MediaBodyHeightPx#-12*#Scale#)
+Y=(#MediaTop#+#MediaBodyHeightPx#-12*#Scale#)
 W=(#MediaQueueWidth#-66*#Scale#)
 StringAlign=LeftCenter
 FontColor=#MediaColor#
@@ -151,6 +187,15 @@ LeftMouseUpAction=[!CommandMeasure MeasureMediaOptions "ToggleQueue()"]
 Measure=Script
 ScriptFile=#@#Modules\Media\MediaOptions.lua
 UpdateDivider=#MediaLegacyDivider#
+
+; Once per load: keep this config's AnchorY equal to the open drawer's lift
+; (0 otherwise). Load-time corrections land before a freshly loaded window is
+; shown, e.g. after switching between Media.ini and Setup.ini.
+[MeasureMediaVisualizerLift]
+Measure=Calc
+Formula=#MediaVisualizerOpenLift#
+UpdateDivider=-1
+OnUpdateAction=[!CommandMeasure MeasureMediaOptions "CheckAnchor()"]
 
 [MeasureQueueStatus]
 Measure=Script

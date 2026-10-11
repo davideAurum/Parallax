@@ -12,3 +12,7 @@ QueueRowLimit=5
 QueueShowDetails=1
 ; Queue request seconds. Use Restart in Media settings after changing this value.
 QueuePollSeconds=30
+; Spectrum drawer above the player: 0 hidden, 1 tab only, 2 open. While open,
+; Rainmeter's AudioLevel plugin captures the Windows output device. Its height,
+; colors and sensitivity follow Audio settings (User\Visualizer.inc).
+VisualizerDrawer=1

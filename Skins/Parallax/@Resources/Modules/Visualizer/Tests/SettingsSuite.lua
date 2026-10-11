@@ -56,7 +56,11 @@ return function(modulePath)
                 assert(args[4]:match('^%d+$'))
                 vars[args[3]] = args[4]
             elseif args[1] == '!Refresh' then
+                -- Never Parallax\Media: each Media load also resumes its providers.
                 assert(args[2] == nil or args[2] == 'Parallax\\Visualizer')
+            elseif args[1] == '!CommandMeasure' and args[2] == 'MeasureMediaOptions' then
+                -- Media's spectrum drawer reloads itself only while it is open.
+                eq(#args,4); eq(args[3],'RefreshVisualizerDrawer()'); eq(args[4],'Parallax\\Media')
             elseif args[1] == '!SetOption' then
                 eq(args[2],'MeasureVisualizerSettingsInput'); eq(args[3],'Parameter')
                 assert(args[4]:find('-Key UtilityNumber',1,true))
@@ -72,10 +76,18 @@ return function(modulePath)
         eq(#calls,0); eq(env.Update(),0); eq(#calls,0)
         return env, vars, calls, function(value) output=value end
     end
+    -- Every key except the standalone's Columns also asks Media's drawer to follow,
+    -- between the Visualizer refresh and the settings skin's own refresh.
     local function saved(calls, key, value)
-        eq(#calls,3); eq(calls[1][1],'!WriteKeyValue'); eq(calls[1][3],key)
+        local drawer = key ~= 'Columns'
+        eq(#calls,drawer and 4 or 3); eq(calls[1][1],'!WriteKeyValue'); eq(calls[1][3],key)
         eq(calls[1][4],tostring(value)); eq(calls[2][1],'!Refresh')
-        eq(calls[2][2],'Parallax\\Visualizer'); eq(calls[3][1],'!Refresh'); eq(calls[3][2],nil)
+        eq(calls[2][2],'Parallax\\Visualizer')
+        if drawer then
+            eq(calls[3][1],'!CommandMeasure'); eq(calls[3][2],'MeasureMediaOptions')
+            eq(calls[3][3],'RefreshVisualizerDrawer()'); eq(calls[3][4],'Parallax\\Media')
+        end
+        eq(calls[#calls][1],'!Refresh'); eq(calls[#calls][2],nil)
     end
     for _, definition in ipairs(definitions) do
         local name,key,values,categorical = unpack(definition)
@@ -135,7 +147,8 @@ return function(modulePath)
                     for i=#calls,1,-1 do calls[i]=nil end
                     setOutput('PARALLAX_INPUT_V1|ok|'..value..'\r\n')
                     eq(env.CommitInput(),true); saved(calls,key,value)
-                    eq(env.CommitInput(),false); eq(#calls,3)
+                    local count=#calls
+                    eq(env.CommitInput(),false); eq(#calls,count)
                 end)
             end
             local invalid={'','PARALLAX_INPUT_V1|cancel|','PARALLAX_INPUT_V1|ok|nan',

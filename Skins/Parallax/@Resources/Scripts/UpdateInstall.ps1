@@ -18,6 +18,14 @@ param(
 )
 Set-StrictMode -Version Latest
 $ErrorActionPreference = 'Stop'
+# A Rainmeter started from PowerShell 7 passes on PowerShell 7's PSModulePath, and
+# Windows PowerShell then autoloads PowerShell 7's modules and loses commands such
+# as Get-FileHash. Use Windows PowerShell's own module folders before any autoload.
+$env:PSModulePath = @(
+    [IO.Path]::Combine([Environment]::GetFolderPath('MyDocuments'), 'WindowsPowerShell\Modules'),
+    [IO.Path]::Combine($env:ProgramFiles, 'WindowsPowerShell\Modules'),
+    [IO.Path]::Combine($PSHOME, 'Modules')
+) -join ';'
 $maxBytes = 64MB
 $partial = $null
 

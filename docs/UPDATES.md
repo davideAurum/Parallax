@@ -113,6 +113,12 @@ From 0.1.0-alpha.5 three changes cover it (details in [Media: Provider lifetime 
 
 The helper that runs on Install is the one in the *installed* copy, so a copy at alpha.4 or earlier upgrading to alpha.5 still has the old workers and no pre-check. If that upgrade fails with the message above, quit Rainmeter, end those `powershell.exe` processes in Task Manager (Details tab, Command line column), and open the downloaded package from `%TEMP%\Parallax\Update` again.
 
+## Rainmeter started from PowerShell 7
+
+`UpdateInstall.ps1` runs under Windows PowerShell 5.1, which inherits Rainmeter's environment. A Rainmeter launched from a PowerShell 7 session (for example Skin Installer started by `Start-Process` in `pwsh`, which then restarts Rainmeter) carries PowerShell 7's `PSModulePath`, with its module folders listed first. Windows PowerShell then autoloads PowerShell 7's `Microsoft.PowerShell.Utility` and loses commands such as `Get-FileHash`. Install on 0.1.0-alpha.5 failed this way on 2026-10-19 with `Download failed. Nothing was installed.`, because the helper's real error (`The term 'Get-FileHash' is not recognized`) never reaches the panel.
+
+The helper now sets `PSModulePath` to Windows PowerShell's own folders (Documents, Program Files and `$PSHOME`) before anything autoloads. Checked in a scratch copy of Rainmeter 4.5.28 launched from `pwsh` with a stand-in `SkinInstaller.exe`, against the real alpha.5 release: the alpha.4 helper failed on `Get-FileHash`, and the fixed helper downloaded and verified the package and reported `Confirm in Skin Installer to finish.` Not covered: the other Windows PowerShell helpers Rainmeter starts (RAM's paging-file host, GPU temperature, the Media providers) don't reset `PSModulePath` and could hit the same problem under a Rainmeter started from `pwsh`.
+
 ## Possible later steps
 
 - An opt-in check when the Welcome panel opens (still one request per open, off by default).

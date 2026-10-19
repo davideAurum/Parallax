@@ -4,10 +4,12 @@
 param(
     [ValidateSet('Help','Start','Resume','Run','Stop','Once')][string]$Command = 'Help',
     [string]$DataRoot,
+    [string]$OwnerLease = '',
     [switch]$Quiet
 )
 
 Set-StrictMode -Version 2.0
+Import-Module (Join-Path (Split-Path -Parent $PSScriptRoot) 'ProviderOwner.psm1') -Force -DisableNameChecking
 $script:SourceProviderPath = $PSCommandPath
 $script:SourceManager = $null
 $script:SourcePendingTask = $null
@@ -340,7 +342,9 @@ function Invoke-SourceOnce {
 }
 
 function Invoke-SourceRun {
-    param([string]$Root, [scriptblock]$Collector = { Get-SourceCollection })
+    param([string]$Root, [scriptblock]$Collector = { Get-SourceCollection }, [string]$Lease = '')
+    $owner = Open-MediaOwner $Lease
+    if ($owner -is [bool]) { return $false }
     $mutex = New-SourceMutex $Root; $owned = $false
     try {
         $owned = Enter-SourceMutex $mutex
@@ -352,12 +356,17 @@ function Invoke-SourceRun {
             try { $snapshot = & $Collector } catch { $snapshot = New-SourceSnapshot 'unavailable' }
             if (Test-SourceStop $Root) { break }
             Publish-SourceSnapshot $Root $snapshot
-            while ($cycle.ElapsedMilliseconds -lt 2000 -and -not (Test-SourceStop $Root)) { Start-Sleep -Milliseconds 100 }
+            while ($cycle.ElapsedMilliseconds -lt 2000 -and -not (Test-SourceStop $Root)) {
+                # The launching Rainmeter is gone. Exit without a 'stopped'
+                # snapshot: resume intent is unchanged, and the next Rainmeter's
+                # skin load starts a fresh worker.
+                if (Wait-MediaOwnerExit $owner 100) { return $true }
+            }
             $cycle.Stop()
         }
         Publish-SourceSnapshot $Root (New-SourceSnapshot 'stopped')
         return $true
-    } finally { if ($owned) { $mutex.ReleaseMutex() }; $mutex.Dispose() }
+    } finally { if ($owned) { $mutex.ReleaseMutex() }; $mutex.Dispose(); if ($owner) { $owner.Dispose() } }
 }
 
 function Stop-SourceObserver {
@@ -385,6 +394,9 @@ function Start-SourceObserver {
     $executable = Join-Path $env:SystemRoot 'System32\WindowsPowerShell\v1.0\powershell.exe'
     if (-not [IO.File]::Exists($executable) -or $script:SourceProviderPath -match '["\r\n]') { throw 'Windows PowerShell is unavailable.' }
     $arguments = '-NoLogo -NoProfile -NonInteractive -ExecutionPolicy Bypass -File "{0}" -Command Run -DataRoot "{1}" -Quiet' -f $script:SourceProviderPath,$Root
+    # Bind the worker to the Rainmeter that asked for it (no lease from a shell).
+    $lease = Get-MediaOwnerLease
+    if ($lease) { $arguments += ' -OwnerLease ' + $lease }
     $control = New-SourceControlMutex $Root; $controlOwned = $false
     $mutex = New-SourceMutex $Root; $owned = $false
     try {
@@ -408,7 +420,7 @@ function Start-SourceObserver {
             $stop = Get-SourceRuntimeFile $Root 'stop.request'
             if ([IO.File]::Exists($stop)) { [IO.File]::Delete($stop) }
         }
-        Start-Process -FilePath $executable -ArgumentList $arguments -WindowStyle Hidden -ErrorAction Stop
+        Start-Process -FilePath $executable -ArgumentList $arguments -WorkingDirectory $Root -WindowStyle Hidden -ErrorAction Stop
     } finally {
         if ($owned) { $mutex.ReleaseMutex() }; $mutex.Dispose()
         if ($controlOwned) { $control.ReleaseMutex() }; $control.Dispose()
@@ -427,6 +439,7 @@ function Invoke-SourceCommand {
         return
     }
     if ($PSVersionTable.PSEdition -ne 'Desktop') { throw 'Use Windows PowerShell 5.1 for native media sessions.' }
+    if (-not (Test-MediaOwnerLeaseText $OwnerLease)) { throw 'Invalid owner lease.' }
     if ($Action -eq 'Resume') {
         $candidate = Resolve-SourceDataRoot $Path
         # A load-time resume check must not create private runtime storage for
@@ -437,7 +450,13 @@ function Invoke-SourceCommand {
     switch ($Action) {
         'Start' { Start-SourceObserver $root }
         'Resume' { Resume-SourceObserver $root }
-        'Run' { $null = Invoke-SourceRun $root }
+        'Run' {
+            # Never keep the skin folder as the working directory: a live worker
+            # would then stop Skin Installer moving Skins\Parallax on upgrade.
+            [Environment]::CurrentDirectory = $root
+            Set-Location -LiteralPath $root
+            $null = Invoke-SourceRun $root -Lease $OwnerLease
+        }
         'Stop' { Stop-SourceObserver $root }
         'Once' { $null = Invoke-SourceOnce $root }
         default { throw 'Unknown source observer command.' }

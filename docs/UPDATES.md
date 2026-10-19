@@ -99,6 +99,19 @@ Upload the package and the feed in the same `gh release create` call. A release 
 | `Could not reach the update server.` | WebParser connection error | Check for updates |
 | `Update check failed.` | No feed, unreadable or rejected feed | Check for updates |
 | `Download failed. Nothing was installed.` | 404, checksum mismatch, non-RMSKIN file, size cap, redirect or network error | Install (retry), Notes |
+| `A media helper is running. Quit Rainmeter.` | Package verified, but a Media provider worker would not end, so Skin Installer was not opened | Install (retry), Notes |
+
+## Upgrading past running Media helpers
+
+Skin Installer backs up the old copy by renaming `Skins\Parallax` to `Skins\@Backup\Parallax`. Windows refuses that rename while any process has its working directory, or an open handle, inside the folder, and Skin Installer then stops with "Unable to move to: ...\Skins\@Backup\Parallax". Media's resident Source and Queue workers were such processes up to 0.1.0-alpha.4: they outlived the Rainmeter that started them and kept a config folder as working directory. The alpha.4 upgrade of the maintainer's own install on 2026-10-19 failed this way until two workers left over from the previous evening were ended by hand.
+
+From 0.1.0-alpha.5 three changes cover it (details in [Media: Provider lifetime and upgrades](modules/Media.md#provider-lifetime-and-upgrades)):
+
+- Workers carry an owner lease and exit within one idle wait (100 ms for Source, 1 second for Queue, after any in-flight queue request) of the Rainmeter that started them, so Skin Installer's own Rainmeter shutdown also ends them. Their saved resume intent is kept, so the reloaded Media restarts them.
+- Workers run with their `%LOCALAPPDATA%\Parallax\Media\...` data root as working directory, so even a live one holds nothing inside the skin.
+- Just before opening Skin Installer, `UpdateInstall.ps1` ends any `powershell.exe` whose command line runs this installed skin's `SourceProvider.ps1` or `QueueProvider.ps1` with `-Command Run` (the only helpers that stay resident; RAM's PageFileHost and GPU's DriverTemperature already exit with Rainmeter). Resume intent is left as it was. If one will not end within 5 seconds, the helper reports `blocked` and does not open Skin Installer. If the user then cancels Skin Installer, those workers stay stopped until Media next loads.
+
+The helper that runs on Install is the one in the *installed* copy, so a copy at alpha.4 or earlier upgrading to alpha.5 still has the old workers and no pre-check. If that upgrade fails with the message above, quit Rainmeter, end those `powershell.exe` processes in Task Manager (Details tab, Command line column), and open the downloaded package from `%TEMP%\Parallax\Update` again.
 
 ## Possible later steps
 

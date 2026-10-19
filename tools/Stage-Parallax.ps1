@@ -47,6 +47,7 @@ foreach ($path in @(
     '@Resources\Modules\Media\Queue\QueueCore.psm1',
     '@Resources\Modules\Media\Queue\QueueAuth.psm1',
     '@Resources\Modules\Media\Source\SourceProvider.ps1',
+    '@Resources\Modules\Media\ProviderOwner.psm1',
     '@Resources\Modules\Media\Icons\Lucide\LICENSE',
     '@Resources\Modules\RAM\Icons\Lucide\LICENSE',
     '@Resources\Modules\IO\Icons\Lucide\LICENSE',

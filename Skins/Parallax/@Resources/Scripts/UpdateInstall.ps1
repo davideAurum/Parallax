@@ -3,7 +3,10 @@
 # verifies its size, SHA-256 and RMSKIN trailer, then hands it to Rainmeter's own
 # Skin Installer, which shows the package and asks the user to confirm. This helper
 # installs nothing itself, writes nothing under Skins, and exits right after the hand-off.
-# Output is one line of data for the caller: PARALLAX_UPDATE_V1|ok|<file> or PARALLAX_UPDATE_V1|error|<reason>.
+# Just before the hand-off it ends this skin's own resident Media provider workers,
+# which would otherwise stop Skin Installer moving the old skin folder aside.
+# Output is one line of data for the caller: PARALLAX_UPDATE_V1|ok|<file>, PARALLAX_UPDATE_V1|error|<reason>,
+# or PARALLAX_UPDATE_V1|blocked|<reason> when a media helper that would block the upgrade could not be ended.
 [CmdletBinding()]
 param(
     [string]$Url,
@@ -28,6 +31,33 @@ function Test-UpdateArguments {
     if ($Sha256 -cnotmatch '\A[0-9A-Fa-f]{64}\z') { return 'The offered checksum is not a SHA-256 value.' }
     $expected = $ReleaseBase + 'download/v' + $Version + '/Parallax_' + $Version + '.rmskin'
     if (-not [string]::Equals($Url, $expected, [StringComparison]::Ordinal)) { return 'The offered package is not the release asset for that version.' }
+    return $null
+}
+
+# Skin Installer renames Skins\Parallax to @Backup before copying the new files, and
+# fails with "Unable to move to: ...\@Backup\Parallax" while any process keeps its
+# working directory or a handle inside it. Media's resident provider workers did,
+# and before 0.1.0-alpha.5 they also outlived the Rainmeter that started them. End
+# only workers running this installed skin's own provider scripts; their saved
+# resume intent is untouched, so the restarted Rainmeter's Media load resumes them.
+# Returns $null when none remain, otherwise a description of what is still running.
+function Stop-ParallaxMediaWorkers {
+    $skinRoot = [IO.Path]::GetFullPath((Join-Path $PSScriptRoot '..\..')).TrimEnd('\')
+    $prefix = ($skinRoot + '\@Resources\Modules\Media\').ToLowerInvariant()
+    $workers = @(Get-CimInstance -ClassName Win32_Process -Filter "Name='powershell.exe'" -Property ProcessId, CommandLine |
+        Where-Object {
+            $line = [string]$_.CommandLine
+            $_.ProcessId -ne $PID -and $line -match '(?i)-Command\s+"?Run\b' -and
+                $line.Replace('/', '\').ToLowerInvariant().Contains($prefix) -and
+                $line -match '(?i)\\(?:Source\\SourceProvider|Queue\\QueueProvider)\.ps1'
+        })
+    foreach ($worker in $workers) { Stop-Process -Id $worker.ProcessId -Force -ErrorAction SilentlyContinue }
+    $left = @()
+    foreach ($worker in $workers) {
+        try { $process = [Diagnostics.Process]::GetProcessById([int]$worker.ProcessId) } catch { continue }
+        try { if (-not $process.WaitForExit(5000)) { $left += $worker.ProcessId } } finally { $process.Dispose() }
+    }
+    if ($left.Count) { return 'Parallax media helper process ' + ($left -join ', ') + ' is still running and would block the upgrade.' }
     return $null
 }
 
@@ -97,6 +127,12 @@ try {
         Write-Result 'error' 'The download is not a Rainmeter skin package. Nothing was installed.'; exit 0
     }
     Move-Item -LiteralPath $partial -Destination $target -Force
+
+    $blocked = Stop-ParallaxMediaWorkers
+    if ($blocked) {
+        Write-Result 'blocked' ($blocked + ' Quit Rainmeter, end it in Task Manager, then try again. The package is saved at ' + $target)
+        exit 0
+    }
 
     # Prefer the Skin Installer beside the running Rainmeter (portable installs have no
     # .rmskin file association); otherwise let Windows open the package.

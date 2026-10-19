@@ -27,7 +27,8 @@ Assert-Test ($null -eq $script:SourceManager -and $null -eq $script:SourceAsTask
 $script:SourceTestLaunches=@()
 $script:SourceCheckControlLock=$false
 function Start-Process {
-    [CmdletBinding()]param($FilePath,$ArgumentList,$WindowStyle)
+    [CmdletBinding()]param($FilePath,$ArgumentList,$WorkingDirectory,$WindowStyle)
+    Assert-Test ($WorkingDirectory -eq $root) 'Worker must start in its private storage, never the skin folder.'
     if ($script:SourceCheckControlLock) {
         $controlName=(Get-SourceMutexName $root)+'.Control'
         Assert-Test (-not [ParallaxSourceTestMutexHolder]::CanAcquireOnOtherThread($controlName)) 'Concurrent lifecycle action could enter during observer launch.'

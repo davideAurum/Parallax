@@ -187,6 +187,12 @@ function InstallDone()
         return true
     end
     state = 'available'
+    if result == 'blocked' then
+        -- Verified package, but a Parallax media helper would not end and would
+        -- stop Skin Installer moving the old skin folder aside.
+        show('A media helper is running. Quit Rainmeter.', true)
+        return false
+    end
     show('Download failed. Nothing was installed.', true)
     return false
 end

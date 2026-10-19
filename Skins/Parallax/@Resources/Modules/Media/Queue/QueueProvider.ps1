@@ -10,12 +10,14 @@ param(
     [switch]$Quiet,
     [switch]$ResumeAfterQuota,
     [ValidatePattern('\A(?:[a-f0-9]{32})?\z')][string]$LaunchId = '',
-    [string]$DataRoot = ''
+    [string]$DataRoot = '',
+    [ValidatePattern('\A(?:[1-9][0-9]{0,9}:[1-9][0-9]{0,18})?\z')][string]$OwnerLease = ''
 )
 Set-StrictMode -Version Latest
 $ErrorActionPreference = 'Stop'
 Import-Module (Join-Path $PSScriptRoot 'QueueAuth.psm1') -Force -DisableNameChecking
 Import-Module (Join-Path $PSScriptRoot 'QueueCore.psm1') -Force -DisableNameChecking
+Import-Module (Join-Path (Split-Path -Parent $PSScriptRoot) 'ProviderOwner.psm1') -Force -DisableNameChecking
 $script:ProviderPath = $PSCommandPath
 
 function Show-QueueHelp {
@@ -209,11 +211,17 @@ function Start-QueueBackground {
     $identifier = New-QueueLaunchId $Root
     $arguments = '-NoLogo -NoProfile -ExecutionPolicy Bypass -File "' + $script:ProviderPath + '" -Command Run -Quiet -PollSeconds ' + $Interval + ' -LaunchId ' + $identifier + ' -DataRoot "' + $Root + '"'
     if ($RetryQuota) { $arguments += ' -ResumeAfterQuota' }
-    $null = Start-Process -FilePath $hostPath -ArgumentList $arguments -WindowStyle Hidden -PassThru
+    # Bind the worker to the Rainmeter that asked for it (no lease from a shell),
+    # and start it outside the skin folder so it cannot block an upgrade.
+    $lease = Get-MediaOwnerLease
+    if ($lease) { $arguments += ' -OwnerLease ' + $lease }
+    $null = Start-Process -FilePath $hostPath -ArgumentList $arguments -WorkingDirectory $Root -WindowStyle Hidden -PassThru
 }
 
 function Invoke-QueueRun {
-    param([string]$Root, [int]$Interval=30, [switch]$Single, [switch]$RetryQuota, [switch]$Silent, [string]$LaunchId = '')
+    param([string]$Root, [int]$Interval=30, [switch]$Single, [switch]$RetryQuota, [switch]$Silent, [string]$LaunchId = '', [string]$Lease = '')
+    $owner = Open-MediaOwner $Lease
+    if ($owner -is [bool]) { return }
     $control = New-QueueControlMutex $Root
     $controlOwned = $false
     $mutex = New-QueueRunMutex $Root
@@ -248,7 +256,13 @@ function Invoke-QueueRun {
         if (-not $Silent) { Write-Output 'Queue helper running. Close this console or use Stop in the queue skin to stop it.' }
         $failures = 0
         while (-not (Test-QueueStop $Root)) {
-            if ((Get-QueueUnixTime) -lt $next) { Start-Sleep -Milliseconds 1000; continue }
+            if ((Get-QueueUnixTime) -lt $next) {
+                # The launching Rainmeter is gone. Exit without a 'stopped'
+                # snapshot: resume intent is unchanged, and the next Rainmeter's
+                # skin load starts a fresh worker.
+                if (Wait-MediaOwnerExit $owner 1000) { return }
+                continue
+            }
             $result = Invoke-QueueCycle -Root $Root -Interval $Interval -FailureCount $failures
             if (Test-QueueStop $Root) {
                 # A stop/restart during an HTTP request must still retain any
@@ -276,6 +290,7 @@ function Invoke-QueueRun {
         $mutex.Dispose()
         if ($controlOwned) { $control.ReleaseMutex() }
         $control.Dispose()
+        if ($owner) { $owner.Dispose() }
     }
 }
 
@@ -290,7 +305,14 @@ function Invoke-QueueCommand {
         if (-not (Test-QueueEnabledIntent $candidate) -or (Test-QueueStop $candidate)) { return }
     }
     $DataRoot = Initialize-QueuePrivateDirectory -DataRoot $DataRoot
-    if ($Command -eq 'Run') { Invoke-QueueRun $DataRoot $PollSeconds -Single:$Once -RetryQuota:$ResumeAfterQuota -Silent:$Quiet -LaunchId $LaunchId; return }
+    if ($Command -eq 'Run') {
+        # Never keep the skin folder as the working directory: a live worker
+        # would then stop Skin Installer moving Skins\Parallax on upgrade.
+        [Environment]::CurrentDirectory = $DataRoot
+        Set-Location -LiteralPath $DataRoot
+        Invoke-QueueRun $DataRoot $PollSeconds -Single:$Once -RetryQuota:$ResumeAfterQuota -Silent:$Quiet -LaunchId $LaunchId -Lease $OwnerLease
+        return
+    }
     # Control ownership spans the launch, so Stop cannot finish between an
     # enabling command clearing its marker and requesting the child process.
     $control = New-QueueControlMutex $DataRoot

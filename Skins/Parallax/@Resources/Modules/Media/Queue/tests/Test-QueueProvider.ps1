@@ -171,10 +171,11 @@ function Test-MutexAvailable {
     } finally { $probe.Dispose() }
 }
 function Start-Process {
-    param([string]$FilePath,[string]$ArgumentList,[string]$WindowStyle,[switch]$PassThru)
+    param([string]$FilePath,[string]$ArgumentList,[string]$WorkingDirectory,[string]$WindowStyle,[switch]$PassThru)
     Assert-Check ($FilePath -ceq (Join-Path $env:SystemRoot 'System32\WindowsPowerShell\v1.0\powershell.exe') -and $WindowStyle -ceq 'Hidden' -and $PassThru) 'Background launcher uses hidden Windows PowerShell'
     Assert-Check ($ArgumentList -match ' -DataRoot "([^"]+)"') 'Launch root is quoted'
     $Root=$Matches[1]
+    Assert-Check ($WorkingDirectory -ceq $Root) 'Worker starts in its private storage, never the skin folder'
     Assert-Check ($ArgumentList -match ' -PollSeconds (\d+) ') 'Launch interval is a fixed integer'
     $Interval=[int]$Matches[1]
     Assert-Check ($ArgumentList -match ' -LaunchId ([a-f0-9]{32}) ') 'Child receives a fixed canonical launch permit'

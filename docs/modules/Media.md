@@ -68,14 +68,17 @@ user-selected Lucide metadata and playback icons are attributed below.
 | Fonts and icons — bundled | Private IBM Plex Sans fonts ([license](../../Skins/Parallax/@Resources/Licenses/IBM-Plex-OFL.txt)); native Shape adaptations of Lucide artwork ([provenance and licenses](../../Skins/Parallax/@Resources/Modules/Media/Icons/Lucide/README.md)). | No download, system font installation or SVG-rendering plugin required. |
 | Typed numeric settings — bundled | Rainmeter's bundled RunCommand plugin, Windows PowerShell/.NET WinForms and the shared `Scripts/SettingsInput.ps1` overlay. | An explicit numeric-field click starts one temporary editor. Fixed numeric/cancel output is revalidated before saving; invalid, cancelled, unrequested or hidden-field results do not save. No polling or provider starts. |
 | Playback metadata and controls — optional, plugin bundled | [WebNowPlaying](https://wnp.keifufu.dev/rainmeter/getting-started) plugin 2.0.7.0 (MIT License, keifufu and Trevor Hamilton), bundled in the Parallax `.rmskin` from `packaging/Plugins/WebNowPlaying` and installed by Skin Installer unless a newer version is present ([license](../../Skins/Parallax/@Resources/Licenses/WebNowPlaying-LICENSE.txt), [provenance](../../packaging/Plugins/WebNowPlaying/README.md)); a supported player. Browser playback additionally requires the separately installed WebNowPlaying browser extension; desktop adapters are also separate. A development copy of the skin without the package needs a manual plugin install (2.x+). | Sampled on the skin update; `MediaInterval` does not throttle WNP internally. Inactive connections show no active media; unsupported controls remain disabled. Setup unloads the optional plugin. |
-| Spotify source identification — optional | Bundled `SourceProvider.ps1`, Rainmeter's bundled RunCommand plugin, Windows PowerShell 5.1, built-in .NET and Windows media-session APIs. No Spotify authentication or network request. | Explicit Start uses a dormant `State=Hide` RunCommand control and enables one persistent observer targeting a 2-second collection cadence, with load-time recovery through `MediaLifecycle.lua`/`Lifecycle.inc`. Stop uses the same hidden event-only path. Observations expire after 6 seconds. Missing or inconclusive evidence leaves generic Windows playback identified as `Unknown`. |
-| Spotify queue — optional | Bundled `QueueProvider.ps1`, `QueueCore.psm1`, `QueueAuth.psm1`; Rainmeter's bundled RunCommand plugin; Windows PowerShell 5.1/.NET; network access; Spotify Developer app public Client ID and user-authorized PKCE sign-in. The [queue setup guide](../../Skins/Parallax/@Resources/Modules/Media/Queue/README.md) records Development Mode prerequisites, including owner Premium and user allowlisting. No client secret. | Start, Stop, Restart and Disconnect use dormant `State=Hide` RunCommand controls with a fixed allowlist and do not overlap. One opt-in worker requests every 30 seconds by default, configurable to 30–150 seconds, subject to backoff/quota pauses. Sign in deliberately retains a visible setup console/browser flow. Passive views read local snapshots on their update. Missing, stopped, expired or failed data produces explicit status and suppresses rows. |
+| Spotify source identification — optional | Bundled `SourceProvider.ps1` and the shared `ProviderOwner.psm1` owner lease, Rainmeter's bundled RunCommand plugin, Windows PowerShell 5.1, built-in .NET and Windows media-session APIs. No Spotify authentication or network request. | Explicit Start uses a dormant `State=Hide` RunCommand control and enables one persistent observer targeting a 2-second collection cadence, with load-time recovery through `MediaLifecycle.lua`/`Lifecycle.inc`. Stop uses the same hidden event-only path. Observations expire after 6 seconds. Missing or inconclusive evidence leaves generic Windows playback identified as `Unknown`. |
+| Spotify queue — optional | Bundled `QueueProvider.ps1`, `QueueCore.psm1`, `QueueAuth.psm1` and the shared `ProviderOwner.psm1` owner lease; Rainmeter's bundled RunCommand plugin; Windows PowerShell 5.1/.NET; network access; Spotify Developer app public Client ID and user-authorized PKCE sign-in. The [queue setup guide](../../Skins/Parallax/@Resources/Modules/Media/Queue/README.md) records Development Mode prerequisites, including owner Premium and user allowlisting. No client secret. | Start, Stop, Restart and Disconnect use dormant `State=Hide` RunCommand controls with a fixed allowlist and do not overlap. One opt-in worker requests every 30 seconds by default, configurable to 30–150 seconds, subject to backoff/quota pauses. Sign in deliberately retains a visible setup console/browser flow. Passive views read local snapshots on their update. Missing, stopped, expired or failed data produces explicit status and suppresses rows. |
 
 Both provider helpers require an explicit initial Start (or successful queue sign-in).
 They save private enabled intent and can resume once when their Media view loads
 in the normal `%APPDATA%\Rainmeter` profile. Stop disables recovery; queue Disconnect
 also disables it. Missing or invalid intent never opts in. Settings and isolated
 preview profiles never restore providers. There is no startup task or service.
+A worker started from Rainmeter exits with that Rainmeter process (see
+[Provider lifetime](#provider-lifetime-and-upgrades)), and every worker runs with
+its LocalAppData data root as working directory, never the skin folder.
 Their 100ms/1-second internal waits are stop/scheduling checks, not
 extra collection or API polling. Keep this inventory and its provider/license
 references aligned with shipped components and cadence changes; developer test
@@ -606,6 +609,51 @@ Interactive Connect retains its existing bounded locking behavior: Stop can time
 out while consent is pending. This change does not add sign-in cancellation.
 Completed Stop/Disconnect prevents delayed recovery workers from collecting.
 
+### Provider lifetime and upgrades
+
+Until 0.1.0-alpha.4 each `-Command Run` worker was a detached `Start-Process`
+child with no tie to Rainmeter: it ran until Stop, across Rainmeter quits and
+restarts (the next load's Resume found the worker mutex held and launched
+nothing). It also inherited RunCommand's default working directory, the
+config's own folder under `Skins\Parallax`. On 2026-10-19 two such workers,
+started by a Rainmeter instance the evening before, made Skin Installer fail
+the alpha.4 upgrade with "Unable to move to: ...\Skins\@Backup\Parallax" until
+they were ended by hand.
+
+Since 0.1.0-alpha.5 the shared `@Resources\Modules\Media\ProviderOwner.psm1`
+gives each worker an owner lease:
+
+- Start, Resume, Restart and Connect walk at most four parent processes from the
+  controlling `powershell.exe` (one CIM read each, only on that enabling command)
+  and, when one is `Rainmeter.exe`, pass `-OwnerLease <pid>:<start ticks UTC>` to
+  the worker. A parent that started after its child is a recycled ID and ends
+  the walk.
+- The worker opens that process, requires the same start time, and keeps the
+  handle so the ID cannot be recycled while it watches. Its existing idle waits
+  (Source 100 ms, Queue 1 second) become `WaitForExit` on the owner, so it
+  leaves within one wait of Rainmeter exiting, including a crash or kill (a
+  queue request already in flight finishes first). It
+  exits without writing a `stopped` snapshot or touching `enabled.intent`, so
+  the next Rainmeter's normal Media load resumes it as before. A lease naming a
+  process that is gone or replaced makes the worker exit at once.
+- A start with no Rainmeter ancestor (a developer shell) carries no lease and
+  keeps the explicit Start/Stop lifetime.
+- Workers start with `-WorkingDirectory` set to their data root and also set
+  their process and PowerShell locations there, so even a live worker holds no
+  directory handle inside `Skins\Parallax`.
+
+Media unloading on its own (closing the Player while Rainmeter keeps running)
+still leaves an enabled worker running, as before. Stopping it there would need
+a launch on every unload and refresh, and Stop also clears resume intent; a
+non-destructive release path is left for later if it proves worth that cost.
+
+Copies at 0.1.0-alpha.4 or earlier still run the old workers, so upgrading
+*from* them can fail the same way once: quit Rainmeter, end any `powershell.exe`
+whose command line runs `SourceProvider.ps1` or `QueueProvider.ps1` with
+`-Command Run` in Task Manager, then run the package again. The Welcome Install
+helper's pre-check (see [UPDATES.md](../UPDATES.md#upgrading-past-running-media-helpers))
+covers this from alpha.5 on.
+
 ### Source setup and behavior
 
 Open the Media gear and choose **Start** on the **Source detection** row.
@@ -897,6 +945,35 @@ Sources: [quota modes](https://developer.spotify.com/documentation/web-api/conce
 [rate limits](https://developer.spotify.com/documentation/web-api/concepts/rate-limits).
 
 ## Validation report
+
+### Provider owner lease and upgrade pre-check (2026-10-19)
+
+Changed `SourceProvider.ps1`, `QueueProvider.ps1`, new `ProviderOwner.psm1`,
+`Scripts/UpdateInstall.ps1`, `Modules/Welcome/Update.lua` and the staging
+allowlist; see [Provider lifetime and upgrades](#provider-lifetime-and-upgrades).
+
+- `Source/tests/Test-SourceProvider.ps1` (182 assertions) and
+  `Queue/tests/Test-QueueProvider.ps1` (226) pass; their `Start-Process`
+  stand-ins now also require the worker's working directory to be its data root.
+- New `tests/Test-ProviderLease.ps1` runs a separate Rainmeter 4.5 instance
+  (own `Rainmeter.ini`, `SkinPath` in a temp copy) whose skin starts both
+  providers through hidden RunCommand with temp data roots, then quits itself.
+  The queue worker is held in a synthetic unpaused offline retry wait, so no
+  Spotify request is made. 12/12 checks passed: both workers carried the test
+  Rainmeter's lease, both exited 146 ms after it quit, `enabled.intent` stayed
+  enabled with no `stopped` snapshot, and the copied `Skins\Parallax` then
+  renamed. Lease-less workers started from a shell renamed the folder while
+  they were alive, and the `Stop-ParallaxMediaWorkers` function extracted from
+  `UpdateInstall.ps1` ended exactly those workers. The live Rainmeter and its
+  helpers were not touched.
+- `tools/tests/Test-PackagingTools.ps1` passes, and a real stage includes
+  `ProviderOwner.psm1`. `Welcome/tests/Run-UpdateSmoke.ps1` (without
+  `-ExerciseInstall`) passes under PowerShell 7.
+- Not verified: the Welcome `blocked` state (needs a worker that refuses to
+  end), a real Skin Installer upgrade with live workers, and a worker started by
+  the normal-profile `ResumeProviders()` path, which the isolated profile
+  deliberately refuses; that path launches the same Start/Resume code tested
+  here.
 
 ### Contract test scans shipped files only (2026-10-11)
 

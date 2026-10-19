@@ -41,8 +41,8 @@ local function layout()
     end
     section('Appearance')
     row('Info'); row('CPUFan'); row('MotherboardFan'); row('Cores'); row('Decimals') -- Percentage precision also formats the always-visible total.
-    -- The always-visible sensor footer also uses both precisions, independently
-    -- of the Info and Thread visibility flags or current provider availability.
+    -- Both precisions format the Thread table's V/T cells. The footer is status
+    -- only now, so these rows stay visible even while that table is hidden.
     row('VoltageDecimals'); row('TemperatureDecimals')
     -- Colors are shared by the thread table and per-thread graph.
     row('ThreadColors', state.CPUShowCores == 1 or (state.CPUShowHistory == 1 and state.CPUHistorySource == 1))

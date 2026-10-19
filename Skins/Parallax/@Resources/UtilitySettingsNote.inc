@@ -28,4 +28,3 @@ FontColor=#AccentColor#
 Text=Global Settings are found here.
 MouseActionCursor=1
 LeftMouseUpAction=[!ActivateConfig "Parallax\Settings" "Settings.ini"]
-ToolTipText=Open Global Settings for suite-wide appearance, text, colors and geometry.

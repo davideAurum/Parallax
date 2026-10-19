@@ -11,7 +11,6 @@ Y=(#Inset#+(386+#GPUBarExtra#)*#Scale#)
 W=(#ContentWidth#-60*#Scale#)
 H=(18*#Scale#)
 Text=History
-ToolTipText=GPU busy time from the selected card's driver, newest at right. History starts over on refresh and fills one sample per update. Uncollected history is not a measurement.
 UpdateDivider=-1
 
 [MeterGPUHistoryRange]
@@ -43,7 +42,6 @@ GraphOrientation=Vertical
 AntiAlias=1
 DynamicVariables=1
 UpdateDivider=1
-ToolTipText=Driver GPU busy time, fixed 0-100% range. Each horizontal pixel holds one update; width, suite scale and MetricsInterval change the nominal time span. While the direct driver reading is unavailable the trace reads 0% and the header shows --. Refresh clears history.
 
 ; Native Line starts with a zero-filled ring buffer. Cover its uncollected
 ; left side; do not portray those zeros as observed GPU usage. Overlap by
@@ -57,7 +55,6 @@ Shape=Rectangle 0,0,(Min(#ContentWidth#,Max(0,(#ContentWidth#-[MeasureGPUGraphSa
 ; at load (0 samples), leaving this cover at full width over the whole graph.
 DynamicVariables=1
 UpdateDivider=1
-ToolTipText=This blank area has no collected samples yet. History fills from the right and restarts on refresh.
 
 ; Overlay guide after the startup cover so blank history still has a frame.
 [MeterGPUGraphFrame]

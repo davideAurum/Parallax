@@ -182,50 +182,28 @@ foreach ($config in $configs) {
     }
 }
 
-# Performance contracts for the continuously loaded utility surfaces. Rainmeter
-# creates a native tooltip control per tooltip-bearing meter and revisits it on
-# every skin update, including hidden meters. Keep fixed placeholder banks free
-# of static tooltips and let their controllers populate only visible rows.
-$ioDriveMeters = Join-Path $SkinRoot '@Resources\Modules\IO\DriveMeters.inc'
-if (Test-Path -LiteralPath $ioDriveMeters -PathType Leaf) {
-    foreach ($section in (Read-Ini $ioDriveMeters).Sections) {
-        if ($section.Name -match '^MeterIODisk(?:ReadLabel|WriteLabel|Legend)[A-Z]$' -and $section.Keys.ContainsKey('ToolTipText')) {
-            Add-Issue 'Error' $ioDriveMeters $section.Keys.ToolTipText.Line 'Hidden A-Z drive-bank glyphs must not own static tooltips; IO.lua supplies detailed tooltips only for visible drives.'
+# Parallax ships no tooltips (removed suite-wide 2026-10-18). Rainmeter creates
+# a native tooltip window per tooltip-bearing meter, about 40 ms of skin load
+# each, and the owner found them unhelpful. Reject static options, bang-set
+# options and dialog tooltips until a new tooltip plan replaces this guard.
+$tooltipOption = '\bToolTip(?:Text|Title|Icon|Type|Width|Hidden)\b'
+foreach ($path in @($cache.Keys)) {
+    foreach ($section in $cache[$path].Sections) {
+        foreach ($key in $section.Keys.Keys) {
+            if ($key -like 'ToolTip*' -or $section.Keys[$key].Value -match $tooltipOption) {
+                Add-Issue 'Error' $path $section.Keys[$key].Line "[$($section.Name)] $key sets a tooltip; Parallax ships no tooltips."
+            }
         }
     }
 }
-$cpuConfig = Join-Path $SkinRoot 'CPU\CPU.ini'
-if (Test-Path -LiteralPath $cpuConfig -PathType Leaf) {
-    # Any per-row style is inherited by the whole 64-slot page bank, so one
-    # ToolTipText here becomes 64 native tooltip controls. Sensors.lua supplies
-    # per-cell text for visible slots; the column headers carry the shared
-    # explanation. Guard every row style, not just the sensor one.
-    foreach ($cpuStyle in ((Read-Ini $cpuConfig).Sections | Where-Object Name -like 'CPUStyleRow*')) {
-        if ($cpuStyle.Keys.ContainsKey('ToolTipText')) {
-            Add-Issue 'Error' $cpuConfig $cpuStyle.Keys.ToolTipText.Line "The 64-slot CPU row style '$($cpuStyle.Name)' must not instantiate tooltips for the hidden page bank; put shared text on the column header."
-        }
-    }
-}
-$cpuController = Join-Path $SkinRoot '@Resources\Modules\CPU\CPU.lua'
-$cpuSensors = Join-Path $SkinRoot '@Resources\Modules\CPU\Sensors.lua'
-if ((Test-Path -LiteralPath $cpuController -PathType Leaf) -and (Test-Path -LiteralPath $cpuSensors -PathType Leaf)) {
-    $cpuControllerSource = Get-Content -LiteralPath $cpuController -Raw
-    $cpuSensorSource = Get-Content -LiteralPath $cpuSensors -Raw
-    if ($cpuControllerSource -notmatch [regex]::Escape("SetThreadPage(' .. first .. ',' .. visibleSlots .. ')")) {
-        Add-Issue 'Error' $cpuController 0 'CPU must pass the visible row count to its sensor tooltip controller.'
-    }
-    if ($cpuSensorSource -notmatch 'activeSlots=0' -or $cpuSensorSource -notmatch 'slot <= state\.activeSlots') {
-        Add-Issue 'Error' $cpuSensors 0 'CPU sensor tooltips must start inactive and be limited to visible page slots.'
-    }
-}
-$visualizerView = Join-Path $SkinRoot '@Resources\Modules\Visualizer\View.inc'
-if (Test-Path -LiteralPath $visualizerView -PathType Leaf) {
-    $visualizerSections = @((Read-Ini $visualizerView).Sections)
-    foreach ($name in 'MeterVisualizerVolume', 'MeterVisualizerUnavailable', 'MeterVisualizerDbMax', 'MeterVisualizerDbMid', 'MeterVisualizerDbMin') {
-        $section = $visualizerSections | Where-Object Name -eq $name | Select-Object -First 1
-        if ($null -ne $section -and $section.Keys.ContainsKey('ToolTipText')) {
-            Add-Issue 'Error' $visualizerView $section.Keys.ToolTipText.Line 'High-frequency Visualizer diagnostics must be consolidated into the device tooltip.'
-        }
+foreach ($script in Get-ChildItem -LiteralPath $SkinRoot -Recurse -File -Include *.lua, *.ps1) {
+    if ($script.FullName -match '\\(?:tests|QA)\\') { continue }
+    $pattern = if ($script.Extension -ieq '.ps1') { 'Windows\.Forms\.ToolTip\b' } else { $tooltipOption }
+    $lineNumber = 0
+    foreach ($line in Get-Content -LiteralPath $script.FullName) {
+        $lineNumber++
+        if ($line.TrimStart().StartsWith('--') -or $line.TrimStart().StartsWith('#')) { continue }
+        if ($line -match $pattern) { Add-Issue 'Error' $script.FullName $lineNumber 'Script assigns a tooltip; Parallax ships no tooltips.' }
     }
 }
 $uniqueIssues = @($issues | Sort-Object Level, File, Line, Message -Unique)

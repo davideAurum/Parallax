@@ -144,7 +144,6 @@ local function waitFor(pattern, label, limit)
     local text = status()
     if text:find(pattern) or waited >= limit then
         lines[#lines + 1] = label .. '=' .. text
-        lines[#lines + 1] = label .. '-tip=' .. (SKIN:GetMeter('MeterUpdateStatus'):GetOption('ToolTipText') or '')
         waited = 0
         return true
     end
@@ -229,13 +228,11 @@ try {
         'offline' = '^PASS$'
         'initial' = [regex]::Escape("Parallax $installed installed.")
         'newer' = [regex]::Escape("Parallax 99.0.0 is available.")
-        'newer-tip' = [regex]::Escape("You have $installed.")
         'same' = [regex]::Escape("Parallax $installed is up to date.")
         'missing' = '^Could not reach the update server\.$'
     }
     if ($ExerciseInstall) {
         $expected['install'] = '^Download failed\. Nothing was installed\.$'
-        $expected['install-tip'] = '^Download failed: .*\(404\)'
     }
     $failures = @()
     foreach ($key in $expected.Keys) {

@@ -146,7 +146,7 @@ function suite.run(sourcePath)
         for _, meter in ipairs({ 'MeterPrevious', 'MeterPlayPause', 'MeterNext' }) do
             check(f.strokeColor(meter) == '24,25,26', 'Enabled glyph must use BackgroundColor against its AccentColor face')
             check(f.option(meter, 'MouseActionCursor') == '1', 'Supported control must have active cursor')
-            check(f.option(meter, 'ToolTipText'):find('reported supported', 1, true) ~= nil, 'Supported control tooltip missing')
+            check(f.option(meter, 'ToolTipText') == nil, 'Transport controls must not set a tooltip')
         end
         f.assertRefresh()
     end)
@@ -180,7 +180,6 @@ function suite.run(sourcePath)
         for _, meter in ipairs({ 'MeterPrevious', 'MeterPlayPause', 'MeterNext' }) do
             check(f.strokeColor(meter) == '111,112,113', 'Disconnected control must use MutedColor')
             check(f.option(meter, 'MouseActionCursor') == '0', 'Disconnected cursor must be inactive')
-            check(f.option(meter, 'ToolTipText'):find('unavailable', 1, true) ~= nil, 'Disconnected tooltip must explain unavailability')
         end
         f.assertRefresh()
         f.reset()

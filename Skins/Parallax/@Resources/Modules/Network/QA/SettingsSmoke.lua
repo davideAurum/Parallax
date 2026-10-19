@@ -165,7 +165,7 @@ local function layout()
     if SELF:GetNumberOption('LongValueFixture')==1 then
         local adapter=meter(prefix..'AdapterValue')
         assert(adapter:GetOption('ClipString')=='1' and adapter:GetOption('Text'):find('QA long adapter alias',1,true), 'Long saved selector fixture missing')
-        assert(adapter:GetOption('ToolTipText'):find('without changing the window',1,true), 'Full long selector missing from tooltip')
+        assert(adapter:GetOption('ToolTipText','')=='', 'Settings values must not carry tooltips')
         assert(meter(prefix..'WidthValue'):GetOption('Text')=='2' and meter(prefix..'HeightValue'):GetOption('Text')=='333',
             'Settings did not read monitor geometry independently from its local size')
     end

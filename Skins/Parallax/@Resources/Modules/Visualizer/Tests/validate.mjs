@@ -97,7 +97,6 @@ const options = effective('MeterVisualizerOptions');
 assert.equal(options.Meter, 'Shape');
 assert.equal(options.Hidden, '1');
 assert.equal(options.LeftMouseUpAction, '[!ActivateConfig "Parallax\\Visualizer\\Settings" "Settings.ini"]');
-assert.ok(options.ToolTipText);
 assert.match(options.Shape, /Fill Color #AccentColor2#/);
 assert.equal(rainmeter.MouseOverAction, '[!HideMeter MeterVisualizerVolume][!ShowMeter MeterVisualizerOptions][!Redraw]');
 assert.equal(rainmeter.MouseLeaveAction, '[!HideMeter MeterVisualizerOptions][!ShowMeter MeterVisualizerVolume][!Redraw]');
@@ -140,7 +139,6 @@ assert.equal(outputIcon.Meter, 'Shape');
 assert.equal(outputIcon.W, '(14*#Scale#)');
 assert.equal(outputIcon.H, '(14*#Scale#)');
 assert.equal(outputIcon.UpdateDivider, '-1');
-assert.equal(outputIcon.ToolTipText, undefined);
 assert.match(outputIcon.LucideSpeakerStroke, /Stroke Color #MediaColor#/);
 assert.match(outputIcon.LucideSpeakerStroke, /StrokeStartCap Round/);
 assert.match(outputIcon.LucideSpeakerStroke, /StrokeEndCap Round/);
@@ -159,10 +157,8 @@ assert.equal(deviceHit.UpdateDivider, '-1');
 assert.equal(deviceHit.LeftMouseUpAction, switchPrefix + '"ToggleNext"]' + clearCaptureId + '[!Refresh]');
 assert.equal(deviceHit.MouseScrollDownAction, deviceHit.LeftMouseUpAction);
 assert.equal(deviceHit.MouseScrollUpAction, switchPrefix + '"TogglePrevious"]' + clearCaptureId + '[!Refresh]');
-assert.match(deviceHit.ToolTipText, /changes the system default output/i);
-assert.match(deviceHit.ToolTipText, /clears a custom Visualizer device ID/i);
-assert.deepEqual(meters.filter(([, meter]) => meter.ToolTipText).map(([name]) => name),
-  ['MeterVisualizerOptions', 'MeterVisualizerDeviceHit']);
+// Parallax ships no tooltips; Rainmeter's per-meter tooltip windows cost load time.
+assert.deepEqual(meters.filter(([, meter]) => meter.ToolTipText).map(([name]) => name), []);
 const spectrumMask = effective('MeterVisualizerSpectrumMask');
 const spectrumFill = effective('MeterVisualizerFill');
 assert.equal(meters.filter(([, meter]) => meter.Meter === 'Bar').length, 0);
@@ -581,7 +577,6 @@ for (const ColumnWidth of (titleFocus ? [180, 220] : [180, 200, 220, 240, 280, 3
             within(geometry.bounds, { x: 0, y: 0, w: box.w, h: box.h }, name + '.' + key + ' stroke ' + scenario);
           }
         }
-        if (meter.LeftMouseUpAction) assert.ok(meter.ToolTipText);
       }
       const pairs = [
         ['Icon', 'Title'], ['Title', 'Volume'], ['Volume', 'DeviceName'],

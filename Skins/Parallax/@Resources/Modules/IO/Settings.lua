@@ -13,13 +13,8 @@ local graphModes = { 'c', 'combined', 'overlay', 'split' }
 local graphLabels = { c = 'C: only', combined = 'Combined', overlay = 'Overlay', split = 'Split + / -' }
 local nameModes = { 'letters', 'volume', 'model', 'both' }
 local nameLabels = { letters = 'Letters only', volume = 'Volume labels', model = 'Drive models', both = 'Both' }
-local driveTypes = {
-    [3] = 'Detected removable drive. Empty or inaccessible media is unavailable.',
-    [4] = 'Detected fixed drive. Transfer counters can still be unavailable.',
-    [5] = 'Detected network drive. Capacity needs access; local transfer counters may be unavailable.',
-    [6] = 'Detected optical drive. Native CD/DVD capacity is unsupported; transfer counters may be unavailable.',
-    [7] = 'Detected RAM drive. Transfer counters may be unavailable.'
-}
+-- Native removable, fixed, network, optical and RAM drive types.
+local driveTypes = { [3] = true, [4] = true, [5] = true, [6] = true, [7] = true }
 
 local function canonicalDrives(value)
     if value == 'all' or value == 'none' then return value end
@@ -92,10 +87,6 @@ end
 
 local function text(meter, value)
     SKIN:Bang('!SetOption', meter, 'Text', safe(value))
-end
-
-local function tip(meter, value)
-    SKIN:Bang('!SetOption', meter, 'ToolTipText', safe(value))
 end
 
 local function position(meter, logicalY, scale, inset)
@@ -172,33 +163,20 @@ local function render()
     if not state then return end
     local detected = inventory()
     local selected, selection = selectedDrives(detected)
-    local chosen, count = serializeDrives(selected)
+    local _, count = serializeDrives(selected)
     text('MeterIOSettingsAllValue', selection == 'all' and 'On' or 'Off')
     text('MeterIOSettingsNamesValue', nameLabels[namesMode()])
-    tip('MeterIOSettingsNamesValue', 'Choose drive letters, volume labels, physical drive models, or both names. '
-        .. 'Model names are queried at load, when choosing a model mode, or with Refresh drives; unknown names remain explicit.')
     text('MeterIOSettingsDriveValue', selection == 'all' and ('All detected (' .. count .. ')')
         or count == 0 and 'None selected' or (count .. ' selected'))
-    tip('MeterIOSettingsDriveValue', (canonicalDrives(state.IODiskDrives) and ''
-        or 'Saved selection is invalid; using C: until changed. ')
-        .. (selection == 'all' and 'All detected drive letters. Current selection: ' or 'Selected drive letters: ')
-        .. chosen .. '. Drive letters do not cover volumes without letters.')
     for code = string.byte('A'), string.byte('Z') do
         local letter = string.char(code)
         local meter = 'MeterIOSettingsDrive' .. letter
-        local name, nameDetail = Names.Format(SKIN, letter, namesMode())
+        local name = Names.Format(SKIN, letter, namesMode())
         text(meter, selected[letter] and 'On' or 'Off')
         text(meter .. 'Label', letter .. ':' .. (name ~= '' and (' ' .. name) or ''))
-        local detail = letter .. ': ' .. (selected[letter] and 'selected. ' or 'not selected. ')
-            .. (driveTypes[detected[letter]] or 'Not detected or unavailable. You may select this letter for when it returns.')
-            .. ' ' .. nameDetail .. ' Click to toggle this letter.'
-        tip(meter, detail)
-        tip(meter .. 'Label', detail)
     end
     local mode = graphLabels[state.IOGraphMode] and state.IOGraphMode or defaults.IOGraphMode
     text('MeterIOSettingsGraphValue', graphLabels[mode])
-    tip('MeterIOSettingsGraphValue', 'One graph: C: only shows C: activity independently of the selected rows; '
-        .. 'Combined sums selected drives; Overlay shows individual traces; Split + / - sums reads above zero and writes below zero. Center cycles forward; arrows go backward or forward.')
     text('MeterIOSettingsQuotaValue', onOff(state.IODiskQuota))
     text('MeterIOSettingsUnitsValue', state.IODiskUnits == 'bytes' and 'Bytes'
         or state.IODiskUnits == 'bits' and 'Bits' or 'Check')
@@ -220,12 +198,6 @@ local function render()
         SKIN:Bang('!SetOption', meter, 'LeftMouseUpAction', enabled
             and ('[!CommandMeasure MeasureIOSettings "CycleLimit(' .. arrow[2] .. ')"]') or '')
     end
-    tip('MeterIOSettingsLimitValue', validCap
-        and string.format('Automatic history scale cannot exceed this cap: %.9g MB/s, regardless of rate display units. Arrows choose adjacent presets without wrapping. %s', capMBs,
-            capMBs >= .0001 and capMBs <= 1000000000
-                and 'Click the center to enter 0.0001 to 1000000000 MB/s, up to four decimals.'
-                or 'This saved cap is outside the numeric editor range; use Edit file to retain its precision or range.')
-        or 'Graph cap unavailable. Use Edit file to correct the saved cap before using numeric controls.')
     text('MeterIOSettingsNotice', state.notice)
     layout(detected, selected)
     SKIN:Bang('!UpdateMeterGroup', 'IOSettingsUI')

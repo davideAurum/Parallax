@@ -267,7 +267,6 @@ $boxScreen = $box.PointToScreen([Drawing.Point]::Empty)
 if ($form.Location.X -ne 100 -or $form.Location.Y -ne 120 -or $form.Width -ne $scenario.Width -or $form.Height -ne 20) { throw ('Unexpected form HWND bounds: ' + $form.Bounds.ToString() + ', expected width ' + $scenario.Width) }
 if ($boxScreen.X -ne 101 -or $boxScreen.Y -ne 121 -or $box.Width -ne ($scenario.Width - 2) -or $box.Height -ne 18) { throw 'Unexpected TextBox HWND bounds.' }
 $box.Text = $scenario.Text
-$tip.Active = $false
 $onKeyDown = $box.GetType().GetMethod('OnKeyDown', [Reflection.BindingFlags]'Instance,NonPublic')
 if ($scenario.Action -eq 'deactivate') {
     $form.Tag.Active = $true

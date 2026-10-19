@@ -165,7 +165,7 @@ def check_drive_bank():
         assert marker["Hidden"] == "1" and marker["Y"] == "0", (name, "split markers must start hidden")
         assert marker["StringAlign"] == "Right" and marker["ClipString"] == "1", (name, "bounded axis alignment")
         assert marker["FontFace"] == "#FontFace#" and marker["FontColor"] == "#MutedColor#", (name, "shared metadata styling")
-        assert marker.get("ToolTipText") and not any(key.endswith("Action") for key in marker), (name, "axis markers are passive")
+        assert not any(key.endswith("Action") for key in marker), (name, "axis markers are passive")
     model = read_sections(("@Resources/Modules/IO/Model.inc",))
     assert set(model) == {"MeasureIOModelQuery"}, "one explicit model query provider"
     query = model["MeasureIOModelQuery"]
@@ -237,7 +237,7 @@ def check_settings_steppers(bounds, sections, variables, scale):
             item = options[part]
             assert style in item.get("MeterStyle", "").split("|"), (names[part], "shared stepper style")
             assert item.get("Group") == "IOSettingsUI" and item.get("MouseActionCursor") == "1"
-            assert item.get("ToolTipText") and not item.get("RightMouseUpAction"), (names[part], "explicit directional interaction")
+            assert not item.get("RightMouseUpAction"), (names[part], "explicit directional interaction")
             assert item.get("Hidden", "0") == "0", (names[part], "stepper must remain accessible")
             box = boxes[part]
             assert content_x <= box[0] and box[0] + box[2] <= content_right + .001, (names[part], "stepper outside content")
@@ -372,6 +372,8 @@ def check_profile(includes, column_counts, fonts, widths=WIDTHS, panel_height=No
             if "Meter" not in section:
                 continue
             options = resolved_options(name, sections)
+            # Each ToolTipText meter costs a native tooltip window at load.
+            assert "ToolTipText" not in options, (name, "tooltips were removed suite-wide")
             if name in GRAPH_MARKERS:
                 assert math.isclose(formula(options["FontSize"], variables), max(6, fonts["FontSize"] - 2) * scale, abs_tol=.001), (name, "shared axis font")
             x, y, w, h = [formula(options.get(key, 0), variables) for key in "XYWH"]

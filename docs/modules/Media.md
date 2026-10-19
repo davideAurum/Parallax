@@ -20,11 +20,11 @@ user-selected Lucide metadata and playback icons are attributed below.
   Lucide Monitor Play when nothing is playing, and `Media Player: <player>`
   behind animated Lucide Audio Lines while a track plays. The compact layout
   shortens the label to `Media:`. Other playback-state captions
-  are omitted; the optional source explanation remains on the song icon's tooltip.
+  are omitted.
 - Previous, play/pause, and next controls use WNP capability measures. Unsupported
-  controls appear muted, explain why in tooltips, and send no command. Lua checks
+  controls appear muted with an inactive cursor and send no command. Lua checks
   connection/support again when clicked. Lucide rewind, play/pause and
-  fast-forward artwork retains descriptive tooltips and track-skip behavior.
+  fast-forward artwork retains track-skip behavior.
   The center shows the current state: Play while playing and Pause while paused.
   Playing hover uses Play Off; paused hover uses Step Forward. Clicking retains
   the existing playback toggle, so playing pauses and paused playback resumes.
@@ -232,7 +232,7 @@ when collapsed, reclaims their two 28-pixel rows, and moves later sections up.
 The Queue section toggle and Edit Media options context command remain
 accessible. Expanding restores the fields and their existing `QueueRowLimit`
 and `QueueShowDetails` values. Those two display choices also affect the
-standalone Queue panel, as their tooltips explain. Shared sampling, source
+standalone Queue panel. Shared sampling, source
 detection, sign-in and recovery controls stay visible; collapse never stops
 polling. `QueueShowDetails` has no additional settings beneath it to collapse.
 Reflow uses the existing initialization, save and refresh paths, without a new
@@ -241,8 +241,8 @@ Its three numeric controls accept columns 1–2, queue rows 1–5 and queue refr
 30–150 whole seconds. Each arrow moves by one and clamps without writing or
 refreshing at a bound. Every previously supported integer remains valid; the
 former 1/3/5-row and 30/60/120-second menu presets no longer limit the editor.
-Values use the body color, arrows use Accent 1, and units remain in labels and
-tooltips. Each group is 96 logical pixels wide: 18-pixel arrows, two-pixel gaps
+Values use the body color, arrows use Accent 1, and units remain in labels.
+Each group is 96 logical pixels wide: 18-pixel arrows, two-pixel gaps
 and a 56-pixel bordered center. Hidden Queue rows controls lose all frame,
 arrow, value and label hit bounds. Textual arbitrary values are never accepted.
 
@@ -293,8 +293,7 @@ its only object is the spectrum plot. The sheet's square bottom is tucked
 stroke. It points up while collapsed and flips down while open, the way List
 Plus/Minus swaps below. The whole band above the panel in the gear's column is
 the hit target: 18×12 px collapsed, 18×16 px open at scale 1, so it overlaps
-neither the gear nor the title. Its single tooltip names the capture, the
-40 Hz–16 kHz range and the relative dB scale. The tab's edges snap to whole
+neither the gear nor the title. The tab's edges snap to whole
 pixels, as Rainmeter truncates the gear's own position; where 18×Scale is
 fractional the tab is 14 px (scale 0.75) or 23 px (1.25) wide and the chevron,
 kept on the gear's centre, sits 0.25 px left of the tab's own centre. The
@@ -463,7 +462,7 @@ Source: [WNP usage](https://wnp.keifufu.dev/rainmeter/usage).
 The user's later layout revision removes the separate playback caption and
 places the identified player beside the static Media Player title. WNP's source and
 state remain internal measures; the optional observer
-updates only the song icon's fixed tooltip. WNP 2.0.7's native desktop adapter
+only lets the title confirm Spotify. WNP 2.0.7's native desktop adapter
 supplies the generic `Windows Media Session` name and needs the observer below
 to confirm a unique Spotify match. The separate Spotify queue is never used
 to infer the active playback source.
@@ -491,7 +490,7 @@ or retain video metadata.
 | Missing artist/album/cover | Explicit unavailable text or neutral cover placeholder. |
 | Positive duration and nonnegative position | Provider-reported progress and time. |
 | Missing/invalid duration or position | Time unavailable; timeline hidden. |
-| No positive capability signal | Control inactive, with explanatory tooltip. |
+| No positive capability signal | Control muted and inactive. |
 
 The WNP connection flag alone cannot distinguish a missing/failed plugin from
 an inactive connection. Opening the player without the plugin may log Rainmeter
@@ -566,14 +565,14 @@ Source IDs are classified by exact case-insensitive matches to `Spotify.exe`,
 The passive `SourceReader.lua` compares WNP's exact nonblank title and raw
 artist to every observation. Multiple matching sessions remain ambiguous even
 when they belong to the same app or have different playback states. Only one
-match classified as Spotify, with matching state, confirms Spotify in the
-song icon's tooltip. Native
+match classified as Spotify, with matching state, confirms Spotify. Native
 WNP maps Windows Playing to state 1 and other statuses to state 2. Incomplete,
-unmatched, ambiguous, unavailable, stopped or expired observations produce a
-fixed explanatory tooltip without claiming Spotify. The header uses the reader's
+unmatched, ambiguous, unavailable, stopped or expired observations never claim
+Spotify; the reader also returns which of these cases applied, but only its
+tests read that reason and nothing displays it. The header uses the reader's
 confirmed Spotify result; an unresolved generic Windows result displays
 `Media Player: Unknown` while playing. Specific WNP names, such as a browser extension's player
-name, bypass the local observation and receive a generic reported-source tooltip.
+name, bypass the local observation. The reader issues no bangs.
 
 One process collects every two seconds, with a four-second asynchronous work
 budget and no overlapping pending requests. Observations expire six seconds
@@ -613,7 +612,7 @@ The user selected [Music](https://lucide.dev/icons/music) for song,
 Pause and supplied rewind/fast-forward/step-forward SVGs for the playback controls.
 The artwork is adapted to native Rainmeter Shapes with the original paths,
 arcs, curves and rounded strokes. Metadata retains its existing 14-pixel
-canvas, color, position, visibility handling and source tooltip.
+canvas, color, position and visibility handling.
 
 The center artwork shows the provider's current state. While playing it shows
 Play, changes to Play Off on hover, and clicking toggles to pause. While paused
@@ -625,7 +624,7 @@ Next fill their glyph interior when hovered and retain their existing track
 commands. The circular face carries `AccentColor`, so an accent glyph would be
 invisible on it; enabled glyphs are drawn in `BackgroundColor` instead, which is
 provisional until the color pass. All controls keep their capability checks,
-muted unavailable state, tooltips and their 34-pixel circular hit regions.
+muted unavailable state and their 34-pixel circular hit regions.
 
 The thirteen source SVGs, pinned revision, adaptation notes and the complete
 upstream ISC and Feather MIT notices are retained in
@@ -670,8 +669,7 @@ playing. Setup loads no pulse script, so it only ever shows Monitor Play.
 
 The title starts after the icon and the shared four-pixel gap and ends 24
 logical pixels (the 18-pixel gear plus six) before the content's right edge, at
-both widths. Longer text clips with an ellipsis; there is no tooltip, since it
-would only repeat the visible label (see the 2026-09-19 tooltip audit). The
+both widths. Longer text clips with an ellipsis. The
 compact layout's stacked player row is gone, so its header ends at 26 pixels
 like the double-width one: compact metadata, progress and transport move up 22
 pixels, and the compact artwork now tops the metadata block (y30) instead of
@@ -742,8 +740,8 @@ tile uses six-pixel radii. A built-in Shape container clips the dynamic Image
 meter to a rounded alpha mask. Matching rounded fallback Shapes keep missing
 art and Setup corners transparent, and the border draws inside the tile bounds.
 The mask stays visible while the image child retains its normal availability
-checks. Missing artwork uses an `N/A` caption with a `No artwork available.`
-tooltip so the compact tile remains readable at the maximum body font size.
+checks. Missing artwork uses an `N/A` caption so the compact tile remains
+readable at the maximum body font size.
 No image file processing, new dependency or extra polling is involved.
 References: [Rainmeter Container](https://github.com/rainmeter/rainmeter-docs/blob/master/source/manual/meters/general-options/container.html),
 [Shape](https://github.com/rainmeter/rainmeter-docs/blob/master/source/manual/meters/shape/index.html).
@@ -775,8 +773,8 @@ clips within its column. The previous/play/next buttons form a 92-pixel group,
 centered between the artwork's right edge and the measured left edge of the
 right-aligned time text. Compact layouts use the content's left edge instead.
 The buttons retain four-pixel gaps, while capped timing width reserves six-pixel
-clearance on each side of the group. Missing time displays `-- / --` with an
-explanatory tooltip and uses the same measured-text centering.
+clearance on each side of the group. Missing time displays `-- / --` and uses
+the same measured-text centering.
 Both time states sit directly beneath the progress bar with a two-pixel scaled
 gap. The playback controls follow the bar's lower edge with an eight-pixel scaled gap.
 
@@ -831,6 +829,21 @@ Sources: [quota modes](https://developer.spotify.com/documentation/web-api/conce
 [rate limits](https://developer.spotify.com/documentation/web-api/concepts/rate-limits).
 
 ## Validation report
+
+### Tooltips removed (2026-10-18)
+
+Tooltips were removed suite-wide: Rainmeter creates a native tooltip window
+for every `ToolTipText` meter, about 40 ms of skin load each, and the owner did
+not find them helpful. Media lost its static tooltips and its three runtime
+ones: the transport controls' support text (`Media.lua`), the queue and
+spectrum-tab read/save failure messages (`MediaOptions.lua`) and the song
+icon's source explanation (`SourceReader.lua`, which now issues no bangs).
+Visible text and other behavior are unchanged; those failures still return
+without writing or refreshing, but nothing shows their message now.
+`test_skin_contract.py` now rejects `ToolTipText` on every meter in its 1,320
+layout states and passes 28 tests on a clean export of the working tree. The
+Lua suites and native runners now assert the absence instead, but were not
+run: no standalone Lua interpreter is installed and native checks are pending.
 
 ### Spectrum drawer path cost (2026-10-11)
 

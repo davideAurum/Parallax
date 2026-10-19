@@ -23,9 +23,7 @@ return function(model, check)
     end
     local function formatted(frame, units, decimals, expected)
         local result = model.Format(frame,units,decimals)
-        check(type(result)=='table' and type(result.text)=='string' and type(result.tip)=='string',
-            'Paging-file display must supply literal text and tooltip')
-        check(#result.tip>0,'Paging-file display lost its explanatory tooltip')
+        check(type(result)=='table' and type(result.text)=='string','Paging-file display must supply literal text')
         if expected then check(result.text==expected,'Unexpected paging-file display: '..result.text) end
         return result
     end
@@ -55,16 +53,6 @@ return function(model, check)
     local maximum = accepted(wire({[7]='9007199254740991',[8]='9007199254740991',[9]='512'}))
     check(maximum.used==9007199254740991 and maximum.total==9007199254740991 and maximum.count==512,
         'Exact maximum supported paging-file values lost')
-    local usedTip = formatted(precise,0,2).tip
-    check(usedTip:find('123456789 bytes',1,true) and usedTip:find('1987654321 bytes',1,true),
-        'Paging-file tooltip lost exact used or allocated bytes')
-    check(usedTip:find('1 paging file.',1,true),'Single paging-file tooltip is grammatically incorrect')
-    local scopeTip = formatted(sample,0,1).tip
-    check(scopeTip:find('2 paging files.',1,true),'Paging-file count missing from tooltip')
-    check(scopeTip:find('Excludes physical RAM and system commit accounting.',1,true),
-        'Paging-file scope is not distinguished from RAM and system commit')
-    check(scopeTip:find('Allocated capacity can grow automatically.',1,true),
-        'Paging-file allocated capacity was represented as a fixed maximum')
     formatted(sample,0,99,'2.60/10.00 GB')
     formatted(sample,0,-2,'3/10 GB')
     formatted(sample,0,1.9,'2.6/10.0 GB')

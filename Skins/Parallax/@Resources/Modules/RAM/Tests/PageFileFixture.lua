@@ -19,14 +19,10 @@ function Display()
     SKIN:Bang('!SetOption','MeterRAMPageBar','Hidden',ratio ~= nil and tonumber(SKIN:GetVariable('RAMShowPageBar')) == 1 and '0' or '1')
     SKIN:Bang('!UpdateMeter','MeterRAMPageBar')
     for _, pair in ipairs({{'GiB',0}, {'MiB',1}}) do
-        local value = model.Format(frame, pair[2], decimals)
         local name = 'MeterRAMPage'..pair[1]
-        SKIN:Bang('!SetOption', name, 'Text', value.text)
-        SKIN:Bang('!SetOption', name, 'ToolTipText', value.tip)
+        SKIN:Bang('!SetOption', name, 'Text', model.Format(frame, pair[2], decimals).text)
         SKIN:Bang('!UpdateMeter', name)
     end
-    SKIN:Bang('!SetOption', 'MeterRAMPageLabel', 'ToolTipText', model.Format(frame,0,decimals).tip)
-    SKIN:Bang('!UpdateMeter', 'MeterRAMPageLabel')
 end
 
 function Update() if not displayed then Display() end; return parses end

@@ -287,6 +287,7 @@ function Suite.run(Core, fixtures)
         equal(mock:count('!SetVariable'), 0)
         equal(mock:count('!Refresh'), 0)
         contains(mock.latest['MeterNetworkFooter:Text'], '60/60 samples')
+        for key in pairs(mock.latest) do truth(not key:match(':ToolTipText$'), 'controller set a tooltip: ' .. key) end
     end)
     test('traffic controller leaves adapter display to metadata and reports invalid fallback', function()
         local mock = controller()

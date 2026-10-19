@@ -16,7 +16,6 @@ local noMemoryInstance = '__ParallaxNoGPUProcess__'
 local stickySeconds = 15
 -- The helper accepts at most ten requested PIDs: five rows plus five recent.
 local requestLimit = 10
-local noDataTip = 'No ranked GPU process-engine observation: idle, starting up, unsupported driver, or missing counter. These cannot be distinguished here.'
 
 local function trim(value)
     return tostring(value or ''):match('^%s*(.-)%s*$')
@@ -137,12 +136,10 @@ local function memoryObservation(slot, raw)
             end)
             if cleared then memoryBindings[slot] = nil end
         end
-        return '--', 'No exact active PID / adapter / physical GPU identity is available for the memory lookup.'
+        return '--'
     end
-    local tip = 'Windows GPU Process Memory Local Usage for ' .. identity .. ': memory this process holds in the adapter\'s own local memory (VRAM). This is memory attributed to this PID on this adapter, not to one engine.'
-        .. ' It covers every engine this process uses on that adapter, not only the one ranked here.'
-        .. ' Cross-process shared allocations may be counted in more than one process. This local memory is separate from the Shared RAM system-memory row.'
-        .. ' Counter sample age is not exposed; collection failures may retain an older observation.'
+    -- GPU Process Memory Local Usage: this PID's VRAM on this adapter across
+    -- all of its engines, not only the one ranked here.
     local ready = pcall(function()
         if memoryBindings[slot] ~= identity then
             SKIN:Bang('!SetOption', key, 'Name', identity)
@@ -153,22 +150,21 @@ local function memoryObservation(slot, raw)
             memoryBindings[slot] = identity
         end
     end)
-    if not ready then return '--', tip .. ' The memory lookup could not be rebound.' end
+    if not ready then return '--' end
     local readable, returnedName, bytes = pcall(function()
         if not measures[key] then measures[key] = SKIN:GetMeasure(key) end
         local source = measures[key]
         return source and source:GetStringValue() or '', source and source:GetValue() or nil
     end)
-    if not readable or returnedName ~= identity then
-        return '--', tip .. ' The memory counter did not return the exact requested instance.'
-    end
+    -- The counter must return the exact requested instance.
+    if not readable or returnedName ~= identity then return '--' end
     -- UsageMonitor creates a zero-valued named instance even when absent.
     -- RawValue bypasses the computed counter's initial zero, but cannot give
     -- zero a trustworthy availability flag. Never present it as measured zero.
     if not finite(bytes) or bytes <= 0 or bytes > 9007199254740991 or bytes ~= math.floor(bytes) then
-        return '--', tip .. ' No usable positive byte reading. Zero bytes, an absent counter, startup and unsupported data cannot be distinguished by this named lookup.'
+        return '--'
     end
-    return formatBytes(bytes), tip .. string.format(' Reported local memory: %.0f bytes.', bytes)
+    return formatBytes(bytes)
 end
 
 -- One raw ranked process-engine-adapter instance. Renamed or merged values
@@ -185,7 +181,7 @@ local function rawObservation(rank)
     local pid = name:match('^pid_(%d+)_')
     local processId = integer(pid, 4294967295)
     if not processId or not name:find('_luid_', 1, true) or not name:match('_eng_%d+_') then return nil end
-    return {pid = processId, value = value, raw = name, engine = name:match('_engtype_(.+)$') or 'unknown engine'}
+    return {pid = processId, value = value, raw = name}
 end
 
 function Initialize()
@@ -197,19 +193,16 @@ function Update()
 
     -- Group the 5 raw ranked instances by PID. Ranks arrive pre-sorted by
     -- descending value, so the first sighting of a PID already holds its
-    -- busiest engine reading; later sightings only add to its engine list.
+    -- busiest engine reading; later sightings of it are not shown.
     local groups, order = {}, {}
     for rank = 1, #sources do
         local entry = rawObservation(rank)
         if entry then
             requested[entry.pid] = true
-            local group = groups[entry.pid]
-            if not group then
-                group = {pid = entry.pid, value = entry.value, raw = entry.raw, engines = {}}
-                groups[entry.pid] = group
-                order[#order + 1] = group
+            if not groups[entry.pid] then
+                groups[entry.pid] = entry
+                order[#order + 1] = entry
             end
-            group.engines[#group.engines + 1] = {engine = entry.engine, value = entry.value}
         end
     end
 
@@ -221,27 +214,11 @@ function Update()
             local pidText = string.format('%.0f', group.pid)
             local label = processName or ('PID ' .. pidText)
             local percentage = group.value < 0.1 and '<0.1%' or string.format('%.1f%%', group.value)
-            local memoryLabel, memoryTip = memoryObservation(slot, group.raw)
-            local others = ''
-            if #group.engines > 1 then
-                local parts = {}
-                for index = 2, #group.engines do
-                    local engine = group.engines[index]
-                    parts[#parts + 1] = engine.engine .. ' ' .. (engine.value < 0.1 and '<0.1%' or string.format('%.1f%%', engine.value))
-                end
-                others = ' Also observed here: ' .. table.concat(parts, ', ') .. '.'
-            end
-            local tip = display('Busiest engine for this process: ' .. group.engines[1].engine .. ' at ' .. percentage
-                .. '. This is the busiest of its ranked engines among the top 5 process-engine instances across all exposed GPUs, not a sum -- the same convention Task Manager uses for its per-process GPU column.' .. others
-                .. (processName and (' Current Windows name lookup for PID ' .. pidText .. ': ' .. processName .. '.')
-                    or (' Current Windows name lookup for PID ' .. pidText .. ' is unavailable; showing its PID.'))
-                .. ' A process may also use additional engines outside this ranked list. Counter sample age is not exposed; collection failures may retain an older observation.')
+            -- Rebind memory before writing the row, so its bangs come first.
+            local memoryLabel = memoryObservation(slot, group.raw)
             set(nameMeter, 'Text', display(label))
             set(valueMeter, 'Text', display(percentage))
             set(memoryMeter, 'Text', memoryLabel)
-            set(memoryMeter, 'ToolTipText', display(memoryTip))
-            set(nameMeter, 'ToolTipText', tip)
-            set(valueMeter, 'ToolTipText', tip)
             SKIN:Bang('!ShowMeterGroup', 'GPUProcessRow' .. slot)
         elseif slot == 1 then
             -- Keep the first row visible to explain an empty ranking instead
@@ -250,9 +227,6 @@ function Update()
             set(nameMeter, 'Text', 'No active GPU process data')
             set(valueMeter, 'Text', '--')
             set(memoryMeter, 'Text', '--')
-            set(nameMeter, 'ToolTipText', noDataTip)
-            set(valueMeter, 'ToolTipText', noDataTip)
-            set(memoryMeter, 'ToolTipText', noDataTip)
             SKIN:Bang('!ShowMeterGroup', 'GPUProcessRow1')
         else
             memoryObservation(slot, nil)

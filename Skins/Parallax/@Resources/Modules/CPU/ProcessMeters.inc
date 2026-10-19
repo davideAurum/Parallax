@@ -8,7 +8,6 @@ H=(16*#Scale#)
 FontColor=#HeaderTextColor#
 FontSize=(#HeaderFontSize#*#Scale#)
 Text=Process
-ToolTipText=Highest CPU usage first. Processes with the same name are grouped; percentages are shares of total CPU. Idle and _Total are excluded.
 Hidden=1
 Group=CPUProcessFrame|CPUUI
 
@@ -23,7 +22,6 @@ H=(14*#Scale#)
 ImageName=#@#Modules\CPU\Icons\gauge.png
 Greyscale=1
 ImageTint=#HeaderTextColor#,255
-ToolTipText=Gauge symbol: Process utilization as a share of total CPU; same-name instances are grouped.
 Hidden=1
 Group=CPUProcessFrame|CPUUI
 
@@ -54,7 +52,6 @@ Y=(#Inset#+48*#Scale#)
 H=(28*#Scale#)
 FontSize=(#FontSize#*#Scale#)
 Text=Waiting for process data...
-ToolTipText=UsageMonitor supplies no separate freshness signal. Empty rankings can mean no active samples or unavailable counters; they are not displayed as measured zero.
 Hidden=1
 Group=CPUUI
 

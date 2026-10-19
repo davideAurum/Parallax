@@ -72,8 +72,6 @@ function Update()
                 -- No test Reload, EditorFinished, refresh or meter write is issued.
                 -- The production FinishAction alone must publish the saved event.
                 check(text('MeterEventName') == 'Countdown to Release party:', 'Production FinishAction refreshed the event label')
-                check(SKIN:GetMeter('MeterEventCountdown'):GetOption('ToolTipText'):find(os.date('%Y-%m-%d %H:%M', state.deadline), 1, true) ~= nil,
-                    'Production FinishAction refreshed the target date in the event tooltip')
                 local days, hours, minutes, seconds = text('MeterEventCountdown'):match('^(%d+)d (%d+)h (%d+)m (%d+)s$')
                 check(days ~= nil, 'Production FinishAction rendered a future countdown')
                 local remaining = tonumber(days) * 86400 + tonumber(hours) * 3600 + tonumber(minutes) * 60 + tonumber(seconds)

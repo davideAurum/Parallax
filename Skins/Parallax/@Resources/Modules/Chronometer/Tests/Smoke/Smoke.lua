@@ -142,7 +142,7 @@ local function gearVisible()
         x + w <= panel:GetX() + panel:GetW() - 1 and y + h <= panel:GetY() + panel:GetH() - 1,
         'Visible settings gear must remain inside the painted panel')
     check(gear:GetOption('MouseActionCursor') == '1', 'Visible gear must expose an action cursor')
-    check(gear:GetOption('ToolTipText') ~= '', 'Visible gear must describe its settings action')
+    check(gear:GetOption('ToolTipText') == '', 'Visible gear has no tooltip')
     check(math.abs(y + h / 2 - numberVariable('TitleRowCenterY')) <= 1,
         'Visible gear shares the title center within native pixel quantization')
     local title = meter('MeterTitle')
@@ -330,16 +330,14 @@ local function futureRemaining(event)
     local displayed = text('MeterEventCountdown')
     local label = 'Countdown to ' .. eventCore.displayName(event.name) .. ':'
     check(text('MeterEventName') == label, 'Event label includes the prefix and sanitized saved name')
-    check(meter('MeterEventCountdown'):GetOption('ToolTipText'):find(label .. '\n' .. displayed, 1, true) ~= nil,
-        'Event tooltip preserves the label and compact units on separate lines')
+    check(meter('MeterEventName'):GetOption('ToolTipText') == '' and meter('MeterEventCountdown'):GetOption('ToolTipText') == '',
+        'Event rows set no tooltip')
     local days, hours, minutes, seconds = displayed:match('^(%d+)d (%d+)h (%d+)m (%d+)s$')
     check(days ~= nil, 'Future event renders compact day/hour/minute/second units')
     days, hours, minutes, seconds = tonumber(days), tonumber(hours), tonumber(minutes), tonumber(seconds)
     check(hours < 24 and minutes < 60 and seconds < 60, 'Event countdown fields remain in range')
     local remaining = days * 86400 + hours * 3600 + minutes * 60 + seconds
     check(remaining > 0 and math.abs(remaining - (event.deadline - os.time())) <= 2, 'Event display agrees with the future deadline')
-    check(meter('MeterEventCountdown'):GetOption('ToolTipText'):find(os.date('%Y-%m-%d %H:%M', event.deadline), 1, true) ~= nil,
-        'Event tooltip preserves the current local target date/time')
     return remaining
 end
 
@@ -358,7 +356,6 @@ local function eventScenario()
         check(displayed == 'Countdown to ' .. eventCore.displayName(futureEventName) .. ':', 'Event label retains the complete sanitized name')
         check(not displayed:find('[#%%%[%]]'), 'Event name cannot expose Rainmeter expansion tokens')
         check(meter('MeterEventName'):GetOption('ClipString') == '1', 'Long event name uses a fixed clipping box')
-        check(meter('MeterEventName'):GetOption('ToolTipText'):find(displayed, 1, true) ~= nil, 'Full event name is available in the label tooltip')
     elseif ticks == 4 then
         check(futureRemaining(futureEvent) < initialEventRemaining, 'Event countdown advances across native updates')
         check(eventContents() == futureEventText, 'Event updates leave the persisted state untouched')
@@ -368,9 +365,6 @@ local function eventScenario()
     elseif ticks == 5 then
         check(text('MeterEventCountdown') == '0d 0h 0m 0s', 'Expired event shows zero units')
         check(text('MeterEventName') == 'Event reached: Finished event', 'Expired event explicitly marks its reached status with the saved name')
-        local past = assert(eventCore.decode(eventContents()))
-        check(meter('MeterEventCountdown'):GetOption('ToolTipText'):find(os.date('%Y-%m-%d %H:%M', past.deadline), 1, true) ~= nil,
-            'Expired event keeps its original target date in the tooltip')
         writeEvent('intentionally corrupt event state\n', false)
     elseif ticks == 6 then
         check(text('MeterEventCountdown') == '0d 0h 0m 0s' and text('MeterEventName') == 'Event reached: Finished event',
@@ -387,8 +381,6 @@ local function eventScenario()
     elseif ticks == 8 then
         futureRemaining(midnightEvent)
         check(text('MeterEventName') == 'Countdown to Date-only event:', 'Date-only event loads its name above the countdown units')
-        check(meter('MeterEventCountdown'):GetOption('ToolTipText'):find(' 00:00', 1, true) ~= nil,
-            'Date-only fixture retains its local midnight deadline in the tooltip')
         writeEvent(assert(eventCore.encode({ enabled = false, deadline = 0, name = '', localDate = '' })), true)
     elseif ticks == 9 then
         eventUnset()

@@ -65,7 +65,6 @@ GearPath=(9.000*#Scale#),(3.300*#Scale#) | LineTo (10.444*#Scale#),(1.742*#Scale
 Hidden=1
 UpdateDivider=-1
 MouseActionCursor=1
-ToolTipText=Open Audio settings for spectrum color, rounding, axis gap, sensitivity and animation.
 LeftMouseUpAction=[!ActivateConfig "Parallax\Visualizer\Settings" "Settings.ini"]
 
 ; User-selected Lucide Speaker beside the current output device.
@@ -110,7 +109,6 @@ MouseActionCursor=1
 LeftMouseUpAction=[!CommandMeasure MeasureVisualizerVolume "ToggleNext"][!WriteKeyValue Variables VisualizerDeviceID "" "#@#User\Visualizer.inc"][!Refresh]
 MouseScrollDownAction=[!CommandMeasure MeasureVisualizerVolume "ToggleNext"][!WriteKeyValue Variables VisualizerDeviceID "" "#@#User\Visualizer.inc"][!Refresh]
 MouseScrollUpAction=[!CommandMeasure MeasureVisualizerVolume "TogglePrevious"][!WriteKeyValue Variables VisualizerDeviceID "" "#@#User\Visualizer.inc"][!Refresh]
-ToolTipText=Click for the next Windows output device; scroll for previous or next. Switching changes the system default output, clears a custom Visualizer device ID and reconnects the spectrum. [MeasureVisualizerDeviceName] | [MeasureVisualizerFormat] | Windows default output volume: [MeasureVisualizerVolume]. Audio playing through this spectrum device uses the first two channels and no volume processing. Spectrum dB scale: 0 at full normalized height, midpoint at minus half the selected sensitivity, and the bottom at minus the selected sensitivity. It is neither calibrated dBFS nor sound pressure and is separate from Windows volume. Quiet means the available endpoint is below the display threshold; mute, silence and quiet playback are indistinguishable. For capture problems, check Windows output settings and Rainmeter About > Log, then choose Reconnect output device from this skin's context menu.
 DynamicVariables=1
 UpdateDivider=-1
 

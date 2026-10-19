@@ -28,8 +28,7 @@ UpdateDivider=-1
 OnUpdateAction=[!CommandMeasure MeasureVisualizerColor "Apply(false)"]
 
 ; Frame and grid of the drawer's only object. No dB axis, frequency labels,
-; output-device row or volume readout: those stay in the standalone
-; Visualizer, and the tab's tooltip names the range and the relative scale.
+; output-device row or volume readout: those stay in the standalone Visualizer.
 [MeterVisualizerPlot]
 Meter=Shape
 X=#MediaVisualizerPlotX#

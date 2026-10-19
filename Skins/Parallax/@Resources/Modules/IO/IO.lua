@@ -1,7 +1,7 @@
 -- Original Parallax presentation controller. Native measures own all telemetry.
 -- The optional model-name query runs once at initialization, never for telemetry.
 local cache, history, lastObservationTime, shapeCount
-local selected, selectedKey, graphMode, graphDrives, selectionKind, selectionWarning
+local selected, selectedKey, graphMode, graphDrives, selectionKind
 local capacityEnabled, ratesEnabled, layoutKey
 local Names
 local letters = {}
@@ -109,15 +109,9 @@ local function capacityType(kind)
     return kind == 3 or kind == 4 or kind == 5 or kind == 7
 end
 
-local function names(drives)
-    local result = {}
-    for _, letter in ipairs(drives) do result[#result + 1] = letter .. ':' end
-    return #result > 0 and table.concat(result, ', ') or 'none'
-end
-
 local function compactRate(value)
     -- Reuse the already-rounded value; only remove redundant display spacing
-    -- and a trailing .0. The tooltip retains the original formatted rate.
+    -- and a trailing .0.
     local amount, unit = value:match('^(%d+%.%d+) ([^ ]+)$')
     return amount and (amount:gsub('%.0$', '') .. unit) or value
 end
@@ -130,7 +124,7 @@ end
 
 local function parseSelection()
     local raw = variable('IODiskDrives', 'C')
-    local found, kind, warning = {}, raw, ''
+    local found, kind = {}, raw
     if raw == 'all' then
         for _, letter in ipairs(letters) do
             if present(number('MeasureIOType' .. letter)) then found[letter] = true end
@@ -144,17 +138,14 @@ local function parseSelection()
                 found[token], previous = true, token
             end
         end
-        if not valid then
-            found, kind = { C = true }, 'C'
-            warning = 'Invalid drive selection; using C:. '
-        end
+        if not valid then found, kind = { C = true }, 'C' end
     end
     local result = {}
     if found.C then result[1] = 'C' end
     for _, letter in ipairs(letters) do
         if letter ~= 'C' and found[letter] then result[#result + 1] = letter end
     end
-    return result, kind, warning
+    return result, kind
 end
 
 local function updateBanks()
@@ -181,7 +172,7 @@ local function updateBanks()
 end
 
 local function syncSelection()
-    local drives, kind, warning = parseSelection()
+    local drives, kind = parseSelection()
     local key = table.concat(drives, ',')
     local mode = variable('IOGraphMode', 'combined')
     if mode ~= 'c' and mode ~= 'overlay' and mode ~= 'split' then mode = 'combined' end
@@ -189,7 +180,7 @@ local function syncSelection()
         history, lastObservationTime = {}, nil
     end
     selected, selectedKey, graphMode = drives, key, mode
-    selectionKind, selectionWarning = kind, warning
+    selectionKind = kind
     graphDrives = mode == 'c' and {'C'} or selected
     updateBanks()
 end
@@ -307,20 +298,11 @@ end
 local function renderNames(immediate)
     local mode, changed = nameMode(), false
     for _, letter in ipairs(selected) do
-        local display, tooltip = Names.Format(SKIN, letter, mode)
+        local display = Names.Format(SKIN, letter, mode)
         local meter = 'MeterIODrive' .. letter
         local dirty = text(meter, letter .. ':' .. (display ~= '' and (' ' .. display) or ''))
-        dirty = option(meter, 'ToolTipText', safe(letter .. ': ' .. tooltip)) or dirty
         if immediate and dirty then SKIN:Bang('!UpdateMeter', meter) end
         changed = dirty or changed
-        if graphMode == 'overlay' then
-            local legend = 'MeterIOLegend' .. letter
-            local detail = letter .. ': read is solid; write is dashed. Both use this drive color.'
-            if tooltip ~= '' then detail = detail .. ' ' .. tooltip end
-            dirty = option(legend, 'ToolTipText', safe(detail))
-            if immediate and dirty then SKIN:Bang('!UpdateMeter', legend) end
-            changed = dirty or changed
-        end
     end
     if immediate and changed then SKIN:Bang('!Redraw') end
 end
@@ -386,24 +368,6 @@ local function graph()
         for _, trace in ipairs(series) do peak = math.max(peak, valueFor(sample, trace) or 0) end
     end
     local top = ceiling and math.min(ceiling, math.max(65536, math.min(peak, ceiling) * 1.15)) or nil
-    local detail = not ceiling and 'Check graph limit. Traces hidden.'
-        or not geometryValid and 'Graph dimensions unavailable. Traces hidden.'
-        or (graphMode == 'split'
-            and string.format('Displayed range: -%g to +%g MB/s; symmetric autoscale, cap %g MB/s per direction.',
-                top / 1000000, top / 1000000, ceiling / 1000000)
-            or string.format('Displayed range: 0-%g MB/s; autoscaled, cap %g MB/s.', top / 1000000, ceiling / 1000000))
-    local modeText = graphMode == 'c' and 'C: only'
-        or graphMode == 'overlay' and ('Individual overlay: ' .. names(graphDrives))
-        or graphMode == 'split' and ('Split + / -; combined selected drives: ' .. names(graphDrives))
-        or ('Combined selected drives: ' .. names(graphDrives))
-    local tooltip = selectionWarning .. modeText .. '. Read/write observation history. ' .. detail
-        .. (graphMode == 'overlay' and ' Each drive has a stable color; read is solid and write is dashed.' or '')
-        .. (graphMode == 'split' and ' Read is positive above zero; write is negative below zero. Signs are a display convention; physical transfer rates remain nonnegative.' or '')
-        .. ' 60 nominal one-second slots, newest at right. Current unavailable or nonpositive readings plot as zero; zero can mean idle or unavailable.'
-        .. ' Retained observations connect by straight-line interpolation across missed intervals. History before the first observation stays blank.'
-        .. ' Provider sample freshness is unknown; unchanged reports may be stale. Refresh, drive membership or graph mode changes clear history.'
-    option('MeterIODiskGraphTrack', 'ToolTipText', tooltip)
-    option('MeterIODiskGraph', 'ToolTipText', tooltip)
     if ceiling and geometryValid then
         width = math.floor(width)
         local step = (width - 2 * inset) / (historySlots - 1)
@@ -469,18 +433,12 @@ local function capacity(letter)
         detail = 'Unavailable'
     else
         valid = true
-        local freeText, totalText = capacityBytes(free), capacityBytes(total)
-        detail = freeText .. ' / ' .. totalText
-        display = compactCapacity(freeText, totalText)
+        display = compactCapacity(capacityBytes(free), capacityBytes(total))
     end
     text('MeterIOCapacity' .. letter, display or detail)
     option('MeterIOCapacity' .. letter, 'FontColor', valid
         and variable('TextColor', '220,220,220') or variable('MutedColor', '175,175,175'))
-    option('MeterIOCapacity' .. letter, 'ToolTipText', letter .. ': ' .. detail .. (valid and ' (free / total)' or ''))
     visible('MeterIOUsed' .. letter, valid)
-    if valid then
-        option('MeterIOUsed' .. letter, 'ToolTipText', string.format('%.1f%% used', 100 * (1 - free / total)))
-    end
     return valid, total, free
 end
 
@@ -494,10 +452,6 @@ local function updateCapacities()
     allValid = allValid and finite(total) and finite(free) and total > 0
     local percent = allValid and 100 * (1 - free / total) or nil
     text('MeterIOTotal', percent and string.format('%.0f%%', percent) or '--')
-    local tooltip = #selected == 0 and 'No selected drive capacity.'
-        or allValid and string.format('Selected %s; %.1f%% used, weighted by total capacity.', names(selected), percent)
-        or ('Selected ' .. names(selected) .. '; used percentage unavailable until every selected drive has valid capacity.')
-    option('MeterIOTotal', 'ToolTipText', selectionWarning .. tooltip)
 end
 
 local function disk()
@@ -517,11 +471,7 @@ local function disk()
         for _, direction in ipairs({'Read', 'Write'}) do
             local value = sample[direction]
             local meter = 'MeterIODisk' .. direction .. letter
-            local formatted = value > 0 and diskRate(value) or '--'
-            text(meter, compactRate(formatted))
-            option(meter, 'ToolTipText', value > 0
-                and (letter .. ': ' .. direction .. ': ' .. formatted .. '. Provider-reported; sample freshness is unknown.')
-                or (letter .. ': ' .. direction .. ': no positive rate; idle, missing counter, unavailable provider, or initial sample.'))
+            text(meter, compactRate(value > 0 and diskRate(value) or '--'))
         end
     end
     if #graphDrives > 0 then
@@ -540,14 +490,10 @@ end
 function Initialize()
     cache = {}
     history, lastObservationTime, shapeCount = {}, nil, 0
-    selected, selectedKey, graphMode, graphDrives, selectionKind, selectionWarning = {}, nil, nil, {}, 'C', ''
+    selected, selectedKey, graphMode, graphDrives, selectionKind = {}, nil, nil, {}, 'C'
     capacityEnabled, ratesEnabled, layoutKey = {}, {}, nil
     Names = dofile(variable('@', '') .. 'Modules\\IO\\Names.lua')
     Names.Query(SKIN, nameMode())
-    local interval = tonumber(variable('CapacityInterval', '30000')) or 30000
-    option('MeterIOCapacityHeading', 'ToolTipText', string.format(
-        'Native capacity sampled every %d seconds. Bars show used percentage.',
-        math.max(5, math.ceil(interval / 1000))))
 end
 
 function NamesReady()

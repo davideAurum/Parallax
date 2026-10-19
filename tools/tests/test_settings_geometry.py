@@ -116,14 +116,13 @@ def run() -> None:
         assert value["leftmouseupaction"] == f'[!CommandMeasure MeasureSettings "BeginEdit(\'{key}\')"]', (key, "Value must retain the shared numeric editor")
         frame = options((base + "Frame").lower(), sections)
         assert frame.get("meter", "").lower() == "shape", (base, "Editable value requires its outlined frame")
-        assert frame.get("leftmouseupaction") == value["leftmouseupaction"] and frame.get("tooltiptext"), (base, "Frame must open the same numeric editor")
+        assert frame.get("leftmouseupaction") == value["leftmouseupaction"], (base, "Frame must open the same numeric editor")
         for suffix, direction in (("Decrease", -1), ("Increase", 1)):
             name = (base + suffix).lower()
             arrow_names.add(name)
             arrow = options(name, sections)
             expected = f'[!CommandMeasure MeasureSettings "Adjust(\'{key}\',{direction})"]'
             assert arrow.get("leftmouseupaction", "").replace(" ", "") == expected.replace(" ", ""), (name, "Arrow must target only its numeric setting and direction")
-            assert arrow.get("tooltiptext"), (name, "Arrow requires a descriptive tooltip")
             assert arrow.get("hidden", "0") != "1", (name, "Numeric arrow unexpectedly hidden")
             assert arrow.get("fontcolor") == "#AccentColor#", (name, "Numeric arrows must use Accent 1")
     theme_arrows = {"meterthemedecrease", "meterthemeincrease"}
@@ -131,7 +130,7 @@ def run() -> None:
         arrow = options(name, sections)
         assert not any(key.endswith("action") and value for key, value in arrow.items()), (name, "Single-theme arrows must not dispatch actions")
         assert arrow.get("mouseactioncursor") == "0" and arrow.get("fontcolor") == "175,175,175", (name, "Single-theme arrows must appear disabled")
-        assert arrow.get("tooltiptext") and arrow.get("hidden", "0") != "1", (name, "Disabled theme arrows must remain visible and explained")
+        assert arrow.get("hidden", "0") != "1", (name, "Disabled theme arrows must remain visible")
     for name in ("meterthemeselect", "meterthemearrow"):
         assert options(name, sections).get("leftmouseupaction") == '[!CommandMeasure MeasureSettings "ToggleThemeMenu()"]', (name, "Theme center must retain its dropdown")
     arrow_names.update(theme_arrows)
@@ -206,7 +205,6 @@ def run() -> None:
                     assert y + h <= popup_y + 24 * scale + 1e-7, (name, label, "popup height")
                     assert resolved.get("group") == "ThemeMenu", "Option must dismiss with the menu"
                 if "leftmouseupaction" in resolved:
-                    assert resolved.get("tooltiptext"), (name, "button needs a tooltip")
                     minimum_button_margin = min(minimum_button_margin, var("ContentX") + var("ContentWidth") - x - w)
         for base in (*NUMERIC_CONTROLS, "MeterRefresh"):
             left, value, right = (control_boxes[(base + suffix).lower()] for suffix in ("Decrease", "Value" if base == "MeterRefresh" else "Input", "Increase"))

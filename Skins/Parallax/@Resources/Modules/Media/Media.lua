@@ -23,9 +23,9 @@ local playPauseShapes = {
 local commands = {
     -- nudge: optical correction for art that is off-centre in its own
     -- viewBox; see MediaTransportGlyphNudge in InlineQueueGeometry.inc.
-    Previous = { measure = 'MeasureCanPrevious', meter = 'MeterPrevious', label = 'Previous track', nudge = '-#MediaTransportGlyphNudge#' },
-    PlayPause = { measure = 'MeasureCanPlayPause', meter = 'MeterPlayPause', label = 'Play or pause', nudge = '' },
-    Next = { measure = 'MeasureCanNext', meter = 'MeterNext', label = 'Next track', nudge = '+#MediaTransportGlyphNudge#' }
+    Previous = { measure = 'MeasureCanPrevious', meter = 'MeterPrevious', nudge = '-#MediaTransportGlyphNudge#' },
+    PlayPause = { measure = 'MeasureCanPlayPause', meter = 'MeterPlayPause', nudge = '' },
+    Next = { measure = 'MeasureCanNext', meter = 'MeterNext', nudge = '+#MediaTransportGlyphNudge#' }
 }
 function Initialize()
     measures, applied, playPauseHovered = {}, {}, false
@@ -101,7 +101,6 @@ function Update(immediate)
         changed = option(command.meter, 'LucideTransportStroke', 'Fill Color ' .. fill .. ' | Stroke Color ' .. color
             .. ' | StrokeWidth (2*#Scale#) | StrokeStartCap Round | StrokeEndCap Round | StrokeLineJoin Round | Offset (#MediaTransportGlyphOffset#' .. command.nudge .. '),#MediaTransportGlyphOffset#') or changed
         changed = option(command.meter, 'MouseActionCursor', enabled and '1' or '0') or changed
-        changed = option(command.meter, 'ToolTipText', command.label .. (enabled and ' (reported supported by player).' or ' unavailable: no connection or player does not report support.')) or changed
     end
     local hovered = online and number('MeasureCanPlayPause') == 1 and playPauseHovered
     -- Artwork shows the reported state; hover previews the opposite action.

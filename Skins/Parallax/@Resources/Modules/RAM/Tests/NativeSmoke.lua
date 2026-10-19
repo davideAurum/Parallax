@@ -55,7 +55,7 @@ local function checkPageController()
         elseif command == '!SetOption' then
             options[name] = options[name] or {}; options[name][key] = value
         elseif command == '!UpdateMeter' then
-            check(name == 'MeterRAMPageLabel' or name == 'MeterRAMPageGiB' or name == 'MeterRAMPageMiB' or name == 'MeterRAMPageBar',
+            check(name == 'MeterRAMPageGiB' or name == 'MeterRAMPageMiB' or name == 'MeterRAMPageBar',
                 'PAGE updates must not force physical history or other meters')
         elseif command == '!UpdateMeasure' then
             if name == 'MeasureRAMPageRatio' then
@@ -516,7 +516,7 @@ local function checkPage()
         local item = meter('MeterRAMPage'..pair[1])
         local value = pageModel.Format(frame, pair[2], SKIN:GetVariable('RAMDecimals'))
         equalOption(item, 'Text', value.text)
-        equalOption(item, 'ToolTipText', value.tip)
+        equalOption(item, 'ToolTipText', '')
         equalOption(item, 'MeasureName', '')
         equalOption(item, 'MeasureName2', '')
         equalOption(item, 'ClipString', '1')
@@ -539,8 +539,6 @@ local function checkProcesses(checkLayout)
         local result = processModel.Format(samples, SKIN:GetVariable('RAMUseMiB'), SKIN:GetVariable('RAMDecimals'))
         count = #result.rows
         check(count == SELF:GetNumberOption('ExpectedProcesses'), 'Ranked/missing process fixture did not format correctly')
-        equalOption(meter('MeterRAMProcessesHeader'), 'ToolTipText', 'Five largest private working sets, highest first. '..result.tip)
-        check(result.tip:find(count..' of 5 ranked entries',1,true) ~= nil, 'Process header must report ranked-entry availability')
         local state = meter('MeterRAMProcessesState')
         -- Process.lua keeps its startup label for three seconds after load;
         -- allow one more for second-boundary skew, then require the result.
@@ -555,11 +553,9 @@ local function checkProcesses(checkLayout)
             for _, kind in ipairs({'Name','Value'}) do
                 local item = meter('MeterRAMProcess'..kind..rank)
                 equalOption(item, 'Text', row and (kind == 'Name' and row.name or row.text) or '')
+                equalOption(item, 'ToolTipText', '')
                 check(number(item:GetOption('Hidden','0')) == (row and 0 or 1), 'Missing or ranked process row visibility is incorrect')
-                if row then
-                    equalOption(item, 'ClipString', '1')
-                    check(item:GetOption('ToolTipText'):find('private working set',1,true) ~= nil, 'Process value must explain its memory metric')
-                end
+                if row then equalOption(item, 'ClipString', '1') end
             end
         end
         if count > 0 then
@@ -600,7 +596,7 @@ local function checkHardware(checkLayout)
     equalOption(item, 'ClipString', '2')
     check(item:GetOption('Group'):find('RAMHardwareInfo',1,true) ~= nil, 'Summary cannot update independently from history')
     check(item:GetOption('Text') ~= 'Checking...', 'Hardware summary did not settle')
-    check(#item:GetOption('ToolTipText') > 20, 'Summary has no metadata explanation')
+    equalOption(item, 'ToolTipText', '')
     local expectedGroups = SELF:GetNumberOption('ExpectedGroups', -1)
     if expectedGroups >= 0 then check(#fields.groups == expectedGroups, 'Duplicate or mixed module groups formatted incorrectly') end
     if checkLayout then
@@ -680,9 +676,8 @@ local function run()
         end
     end
     local used = assert(SKIN:GetMeasure('MeasureRAMUsed'))
-    local available = assert(SKIN:GetMeasure('MeasureRAMAvailable'))
     local total = assert(SKIN:GetMeasure('MeasureRAMTotal'))
-    for _, measure in ipairs({used, available, total}) do
+    for _, measure in ipairs({used, total}) do
         equalOption(measure, 'Measure', 'PhysicalMemory')
         check(measure:GetNumberOption('UpdateDivider') == 1, measure:GetName() .. ' changed cadence')
         check(measure:GetValue() >= 0 and measure:GetValue() <= total:GetValue(), measure:GetName() .. ' outside physical memory range')
@@ -691,7 +686,6 @@ local function run()
     check(used:GetMaxValue() == total:GetValue(), 'Used range lost native total')
     check(used:GetMinValue() == 0, 'Used native range minimum changed')
     check(math.abs(used:GetRelativeValue() - used:GetValue() / total:GetValue()) < 0.000001, 'Native relative value is not used/total')
-    equalOption(available, 'InvertMeasure', '1')
     equalOption(total, 'Total', '1')
     equalOption(meter('MeterRAMUsedLabel'), 'Text', 'RAM:')
     equalOption(meter('MeterRAMPageLabel'), 'Text', 'PAGE:')
@@ -916,6 +910,10 @@ end
 function Update()
     if completed then return 0 end
     ticks = ticks + 1
+    -- The harness watches this per-case tick so a slow but advancing run is
+    -- not mistaken for a stalled one.
+    local progress = io.open(SELF:GetOption('ProgressPath'), 'wb')
+    if progress then progress:write(ticks); progress:close() end
     -- At least two completed meter updates precede the assertions; no test-only
     -- !UpdateMeter calls can append graph samples or alter production cadence.
     if ticks < 3 then return 0 end

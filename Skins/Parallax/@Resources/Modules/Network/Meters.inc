@@ -43,7 +43,6 @@ H=((16+#NetworkRowExtra#)*#Scale#)
 StringAlign=LeftCenter
 Text=bits
 LeftMouseUpAction=[!CommandMeasure MeasureNetworkController "ToggleUnits()"]
-ToolTipText=Switch rate display between decimal bits/s and decimal bytes/s. Saves the module choice.
 
 [MeterNetworkWidth]
 Meter=String
@@ -55,7 +54,6 @@ H=((16+#NetworkRowExtra#)*#Scale#)
 StringAlign=LeftCenter
 Text=1x
 LeftMouseUpAction=[!CommandMeasure MeasureNetworkController "ToggleWidth()"]
-ToolTipText=Switch between one and two columns. Saves the module choice and refreshes Network.
 
 [MeterNetworkTrafficRule]
 Meter=Shape
@@ -97,7 +95,6 @@ MeterStyle=StyleLabel
 Y=(#Inset#+284*#Scale#+#DataBarThicknessPx#)
 H=(18*#Scale#)
 Text=Graph ceiling
-ToolTipText=User-configured inbound graph ceiling. Clipped means history exceeds the scale; the numeric rate remains unclipped.
 
 [MeterNetworkInGrid]
 Meter=Shape
@@ -123,7 +120,6 @@ Shape2=Path History | Stroke Color #NetworkInColor# | StrokeWidth #Scale# | Fill
 History=1,1 | LineTo 1,1
 DynamicVariables=1
 AntiAlias=1
-ToolTipText=Recent inbound NIC samples; newest at right. Gaps clear history. Includes LAN traffic.
 
 [MeterNetworkOutLabel]
 Meter=String
@@ -153,7 +149,6 @@ MeterStyle=StyleLabel
 Y=(#Inset#+370*#Scale#+#DataBarThicknessPx#)
 H=(18*#Scale#)
 Text=Graph ceiling
-ToolTipText=User-configured outbound graph ceiling. Clipped means history exceeds the scale; the numeric rate remains unclipped.
 
 [MeterNetworkOutGrid]
 Meter=Shape
@@ -179,7 +174,6 @@ Shape2=Path History | Stroke Color #NetworkOutColor# | StrokeWidth #Scale# | Fil
 History=1,1 | LineTo 1,1
 DynamicVariables=1
 AntiAlias=1
-ToolTipText=Recent outbound NIC samples; newest at right. Gaps clear history. Includes LAN traffic.
 
 [MeterNetworkFooter]
 Meter=String
@@ -187,4 +181,3 @@ MeterStyle=StyleLabel
 Y=(#Inset#+436*#Scale#+#DataBarThicknessPx#)
 H=(18*#Scale#)
 Text=60 samples / incl. LAN
-ToolTipText=Up to sixty one-second samples. Selected NIC traffic includes LAN; it is not whole-network Internet traffic.

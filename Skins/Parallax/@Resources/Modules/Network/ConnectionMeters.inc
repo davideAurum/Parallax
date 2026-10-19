@@ -53,7 +53,6 @@ Meter=String
 MeterStyle=StyleLabel | StyleConnectionValue
 Y=(#Inset#+80*#Scale#)
 Text=Unknown
-ToolTipText=Windows' PC-wide Internet report. Detected means Windows reports Internet access on some connection. Not reported can mean no access or an unavailable status query; it is not a reachability or speed test.
 
 [MeterConnectionIPLabel]
 Meter=String
@@ -97,7 +96,6 @@ Y=(#Inset#+134*#Scale#)
 W=(#ContentWidth#-56*#Scale#)
 FontColor=#NetworkInColor#
 Text=--
-ToolTipText=Selected adapter receive link speed reported by Windows, in decimal bits/s. Actual traffic is shown below; this is not measured Internet bandwidth.
 
 [MeterConnectionTxLabel]
 Meter=String
@@ -113,7 +111,6 @@ Y=(#Inset#+152*#Scale#)
 W=(#ContentWidth#-56*#Scale#)
 FontColor=#NetworkOutColor#
 Text=--
-ToolTipText=Selected adapter transmit link speed reported by Windows, in decimal bits/s. Actual traffic is shown below; this is not measured Internet bandwidth.
 
 [MeterConnectionRule]
 Meter=Shape

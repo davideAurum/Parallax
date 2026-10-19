@@ -101,15 +101,10 @@ end
 local function renderSensors()
     for kind, meter in pairs({TEMP='MeterSettingsTemperatureValue', VOLT='MeterSettingsVoltageValue'}) do
         SKIN:Bang('!SetOption', meter, 'Text', safe(sensorCaption(kind)))
-        local selected = state.sensorSelected[kind]
-        local detail = selected and (selected.sensor .. ' / ' .. selected.label .. '; export ' .. selected.index .. '. ') or ''
-        detail = detail .. 'Click to cycle Auto and supported exported sensors. Changes save and reconnect CPU Meter.'
-        SKIN:Bang('!SetOption', meter, 'ToolTipText', safe(detail))
     end
     SKIN:Bang('!SetOption', 'MeterSettingsSensorHiveValue', 'Text', hiveNames[state.CPUSensorHive])
     SKIN:Bang('!SetOption', 'MeterSettingsSensorStatus', 'Text', safe(state.scanStatus))
     SKIN:Bang('!SetOption', 'MeterSettingsSensorDetail', 'Text', safe(state.scanDetail))
-    SKIN:Bang('!SetOption', 'MeterSettingsSensorDetail', 'ToolTipText', safe(state.scanDetail))
     SKIN:Bang('!SetOption', 'MeterSettingsScan', 'Text', state.scanRunning and 'Scanning...' or 'Scan sensors')
 end
 
@@ -119,16 +114,6 @@ local function bounded(value, rule)
         return rule[1]
     end
     return math.max(rule[2], math.min(rule[3], math.floor(value)))
-end
-
-local function rateCaption(milliseconds)
-    return milliseconds < 1000 and (milliseconds .. 'ms') or ((milliseconds / 1000) .. 's')
-end
-
-local function sensorRateCaption()
-    local effective = math.ceil(state.CPUSensorInterval / state.CPUUpdateInterval) * state.CPUUpdateInterval
-    local target, actual = rateCaption(state.CPUSensorInterval), rateCaption(effective)
-    return target == actual and target or (target .. '→' .. actual)
 end
 
 local function render()
@@ -153,8 +138,6 @@ local function render()
     for meter, value in pairs(values) do
         SKIN:Bang('!SetOption', meter, 'Text', value)
     end
-    SKIN:Bang('!SetOption', 'MeterSettingsSensorRateValue', 'ToolTipText',
-        'Requested ' .. rateCaption(state.CPUSensorInterval) .. '; effective ' .. sensorRateCaption() .. '. Enter integer milliseconds from 500 to 5000.')
     for key, field in pairs(numberFields) do
         for _, direction in ipairs({-1, 1}) do
             local meter = 'MeterSettings' .. field[1] .. (direction == -1 and 'Decrease' or 'Increase')

@@ -105,7 +105,6 @@ X=(#ContentX#+#ContentWidth#)
 W=(48*#Scale#)
 StringAlign=RightCenter
 Text=--
-ToolTipText=Selected drives: combined used percentage. Unavailable until all selected capacities are valid.
 
 [MeterIOOptions]
 Meter=Shape
@@ -122,7 +121,6 @@ Hidden=1
 UpdateDivider=-1
 MouseActionCursor=1
 LeftMouseUpAction=[!ActivateConfig "Parallax\IO\Settings" "Settings.ini"]
-ToolTipText=Open the separate Disk Meter settings utility.
 
 
 [MeterIOCapacityHeading]
@@ -130,7 +128,6 @@ Meter=String
 MeterStyle=StyleIOHeader
 Y=(#Inset#+24*#Scale#)
 Text=Capacity: free / total
-ToolTipText=Native capacity. Bars show used percentage.
 
 [IODriveMeterInclude]
 @Include10=#@#Modules\IO\DriveMeters.inc
@@ -164,7 +161,6 @@ Shape=Line 0,0,0,0 | StrokeWidth 0
 Hidden=1
 DynamicVariables=1
 UpdateDivider=1
-ToolTipText=Read/write history. Newest at right; current missing readings plot zero and recorded points connect linearly.
 
 ; Split-mode axis markers stay inside the single graph. Controller positions
 ; and shows these only for the positive/negative view; no extra graph is drawn.
@@ -186,7 +182,6 @@ Hidden=1
 Meter=String
 MeterStyle=StyleIOGraphAxis
 Text=+
-ToolTipText=Read activity above zero in Split mode.
 
 [MeterIOGraphZero]
 Meter=String
@@ -197,4 +192,3 @@ Text=0
 Meter=String
 MeterStyle=StyleIOGraphAxis
 Text=-
-ToolTipText=Write activity below zero in Split mode; the negative sign is a display convention.

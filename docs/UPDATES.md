@@ -92,13 +92,13 @@ Upload the package and the feed in the same `gh release create` call. A release 
 | --- | --- | --- |
 | `Parallax <installed> installed.` | Initial state; nothing has been requested | Check for updates |
 | `Checking for updates...` | WebParser request in flight; the button reads *Working...* | — |
-| `Parallax <v> is up to date.` | Feed version equals, or is older than, the installed one (tooltip says which) | Check for updates |
-| `Parallax <v> is available.` | Newer release offered; tooltip names the installed version | Install, Notes |
+| `Parallax <v> is up to date.` | Feed version equals, or is older than, the installed one | Check for updates |
+| `Parallax <v> is available.` | Newer release offered | Install, Notes |
 | `Downloading <v>...` | Helper running (180-second limit) | — |
 | `Confirm in Skin Installer to finish.` | Verified package handed to Skin Installer | Check for updates |
 | `Could not reach the update server.` | WebParser connection error | Check for updates |
-| `Update check failed.` | No feed, unreadable or rejected feed; tooltip has the reason | Check for updates |
-| `Download failed. Nothing was installed.` | 404, checksum mismatch, non-RMSKIN file, size cap, redirect or network error; tooltip has the reason | Install (retry), Notes |
+| `Update check failed.` | No feed, unreadable or rejected feed | Check for updates |
+| `Download failed. Nothing was installed.` | 404, checksum mismatch, non-RMSKIN file, size cap, redirect or network error | Install (retry), Notes |
 
 ## Possible later steps
 

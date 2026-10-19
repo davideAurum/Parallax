@@ -52,7 +52,6 @@ H=(16*#Scale#)
 FontColor=#HeaderTextColor#
 FontSize=(#HeaderFontSize#*#Scale#)
 Text=Engine
-ToolTipText=NVIDIA driver activity domains, each independent busy time over the preceding one-second interval. Core is the GPU itself (the header figure); Memory is the framebuffer/memory controller; Video is the combined video engine; Bus is the bus interface. These are not shares of one total and are never added together.
 
 ; Lucide gauge, adapted to native Shapes from @Resources/Modules/CPU/Icons/gauge.svg
 ; (the CPU table's own column glyph), centered over the percentage column.
@@ -69,7 +68,6 @@ GPUEngineHeaderIconStroke=Fill Color 0,0,0,0 | Stroke Color #HeaderTextColor# | 
 ; reverse of SVG's, so this must be 0,0,1.
 GPUEngineGaugeArc=(3.34*14*#Scale#/24),(19*14*#Scale#/24) | ArcTo (20.66*14*#Scale#/24),(19*14*#Scale#/24),(10*14*#Scale#/24),(10*14*#Scale#/24),0,0,1
 UpdateDivider=-1
-ToolTipText=Busy time of each engine over the preceding second, 0-100%.
 
 [MeterGPUEngineHeaderRule]
 Meter=Shape
@@ -84,7 +82,6 @@ Meter=String
 MeterStyle=GPUStyleEngineLabel
 Y=(#Inset#+144*#Scale#)
 Text=Core
-ToolTipText=NVIDIA GPU-domain busy time, the same figure as the header value and the History graph. This is a driver activity reading, distinct from the Windows D3D engine counters used by the process table.
 
 [MeterGPULoadBar]
 Meter=Shape
@@ -101,7 +98,6 @@ Meter=String
 MeterStyle=GPUStyleEngineLabel
 Y=(#Inset#+160*#Scale#)
 Text=Memory
-ToolTipText=Framebuffer/memory-controller busy time. It does not measure how much VRAM is occupied; see the VRAM row for that.
 
 [MeterGPUControllerLoadBar]
 Meter=Shape
@@ -118,7 +114,6 @@ Meter=String
 MeterStyle=GPUStyleEngineLabel
 Y=(#Inset#+176*#Scale#)
 Text=Video
-ToolTipText=Driver video-engine busy time (decode and encode combined). It does not measure memory allocated to video.
 
 [MeterGPUVideoLoadBar]
 Meter=Shape
@@ -135,7 +130,6 @@ Meter=String
 MeterStyle=GPUStyleEngineLabel
 Y=(#Inset#+192*#Scale#)
 Text=Bus
-ToolTipText=Driver bus-interface busy time. It is not memory capacity or a transfer rate in bytes per second.
 
 [MeterGPUBusLoadBar]
 Meter=Shape
@@ -159,7 +153,6 @@ Y=(#Inset#+218*#Scale#)
 W=(50*#Scale#)
 H=(18*#Scale#)
 Text=VRAM:
-ToolTipText=Occupied and total dedicated framebuffer from the selected GPU driver, in decimal GB (1 GB = 1,000,000,000 bytes) like Memory Meter. Occupied includes memory reserved by the driver. Hover the value for exact bytes.
 
 [MeterGPUVRAMValue]
 Meter=String
@@ -189,7 +182,6 @@ Y=(#Inset#+(250+#GPUBarExtra#)*#Scale#)
 W=(50*#Scale#)
 H=(18*#Scale#)
 Text=Shared:
-ToolTipText=Windows-reported shared GPU residency in system RAM. This is separate from dedicated VRAM and from the maximum shared-memory allowance, so it has no bar.
 
 [MeterGPUSharedValue]
 Meter=String

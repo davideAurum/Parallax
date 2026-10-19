@@ -21,7 +21,6 @@ X=(#ContentX#+6*#Scale#)
 Y=(#Inset#+32*#Scale#)
 W=(#ContentWidth#-12*#Scale#)
 Text=Checking...
-ToolTipText=Reading each memory module once on refresh.
 Group=RAMHardwareInfo
 DynamicVariables=1
 UpdateDivider=-1

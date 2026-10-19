@@ -115,36 +115,25 @@ local function render()
     if not state then return end
     local v = state.values
     set('MeterSettingsColumnsValue', 'Text', v.Columns == '1' and '1' or v.Columns == '2' and '2' or 'Custom')
-    set('MeterSettingsColumnsValue', 'ToolTipText', 'GPU monitor columns: ' .. v.Columns .. '. Click to enter 1 or 2. Arrows stop at these limits; settings keep their own width.')
     set('MeterSettingsHeightValue', 'Text', v.PanelHeight .. ' px / Fit')
-    set('MeterSettingsHeightValue', 'ToolTipText', 'Saved GPU minimum height: ' .. v.PanelHeight .. ' logical pixels. Default content needs ' .. fitHeight .. '; Fit saves ' .. fitHeight .. '. The monitor grows past a smaller saved value on its own, and treats the old 650 Fit value as Fit.')
     set('MeterSettingsSensorsValue', 'Text', v.GPUEnableSensors == '1' and 'On' or v.GPUEnableSensors == '0' and 'Off' or 'Custom')
     for _, field in ipairs({'Power', 'Clock'}) do
         local source = v['GPU' .. field .. 'Source']
         set('MeterSettings' .. field .. 'SourceValue', 'Text', source == '0' and 'Driver' or source == '1' and 'HWiNFO' or 'Custom')
-        set('MeterSettings' .. field .. 'SourceValue', 'ToolTipText', 'Choose the ' .. field:lower() .. ' source: Driver reads the detected GPU directly; HWiNFO uses only the explicit override below and requires HWiNFO overrides On. Missing readings stay unavailable; sources do not switch automatically. Saved mappings are preserved.')
     end
     set('MeterSettingsHiveValue', 'Text', v.GPURegHKey == 'HKEY_CURRENT_USER' and 'Current user'
         or v.GPURegHKey == 'HKEY_LOCAL_MACHINE' and 'Local machine' or 'Custom')
-    set('MeterSettingsHiveValue', 'ToolTipText', v.GPURegHKey .. '. HWiNFO source for optional power and clock mappings and the picker. Temperature uses the NVIDIA driver independently.')
     set('MeterSettingsKeyValue', 'Text', v.GPURegKey)
-    set('MeterSettingsKeyValue', 'ToolTipText', 'Optional power and clock source: ' .. v.GPURegHKey .. '\\' .. v.GPURegKey .. '. Advanced opens custom settings.')
     for _, field in ipairs(fields) do
         local prefix = 'GPU' .. field
         local mapped = v[prefix .. 'Index']:match('^%d+$') and v[prefix .. 'Sensor'] ~= '' and v[prefix .. 'Label'] ~= ''
         if field == 'Temperature' then
             set('MeterSettingsTemperatureValue', 'Text', 'Driver')
-            set('MeterSettingsTemperatureValue', 'ToolTipText', 'Regular GPU temperature from the installed NVIDIA driver for the detected card. Hotspot is a separate reading and is not reported here. HWiNFO is not required; missing driver readings show Unsupported or Unavailable.')
         else
             set('MeterSettings' .. field .. 'Value', 'Text', mapped and v[prefix .. 'Label'] or 'Unmapped / choose')
-            set('MeterSettings' .. field .. 'Value', 'ToolTipText', (mapped and
-                ('Index ' .. v[prefix .. 'Index'] .. ': ' .. v[prefix .. 'Sensor'] .. ' / ' .. v[prefix .. 'Label'])
-                or ('Choose the exported ' .. field:lower() .. ' measurement for your GPU.'))
-                .. '. Used only with source HWiNFO and overrides On. Choosing or clearing a mapping does not change the source.')
         end
     end
     set('MeterSettingsNotice', 'Text', state.notice)
-    set('MeterSettingsNotice', 'ToolTipText', state.detail or state.notice)
     set('MeterSettingsPickerTitle', 'Text', state.busy and 'Reading exported sensors...'
         or state.target and ('Choose ' .. state.target:lower() .. ' override') or 'Choose an override above')
     local pages = math.max(1, math.ceil(#state.items / 5))
@@ -161,9 +150,6 @@ local function render()
         end
         set(meter, 'Text', item and (item.index .. ': ' .. item.label .. ' / ' .. item.formatted) or placeholder)
         set(meter, 'FontColor', SKIN:GetVariable(item and 'TextColor' or 'MutedColor', '175,175,175'))
-        set(meter, 'ToolTipText', item and (item.sensor .. ' / ' .. item.label .. ': ' .. item.formatted
-            .. '. Registry snapshot; age unknown. Confirm this is your GPU and the selected measurement.'
-            .. (item.safe and '' or ' This identity cannot be saved safely in Rainmeter.')) or placeholder)
         set(meter, 'MouseActionCursor', item and item.safe and '1' or '0')
     end
     SKIN:Bang('!UpdateMeterGroup', 'GPUSettingsUI')
@@ -171,15 +157,16 @@ local function render()
     SKIN:Bang('!Redraw')
 end
 
-local function notice(text, detail)
-    state.notice, state.detail = text, detail
+local function notice(text)
+    state.notice = text
     render()
 end
 
 local function refreshValues()
     local values = readValues()
     if not values then
-        notice('Cannot read GPU settings.', 'GPU.inc is missing, unreadable, too large, or has an unsupported encoding. No settings were changed.')
+        -- GPU.inc is missing, unreadable, too large or in an unsupported encoding.
+        notice('Cannot read GPU settings.')
         return false
     end
     state.values = values
@@ -350,7 +337,7 @@ function Browse(field)
     state.target, state.items, state.page = field, {}, 1
     state.sourceHive, state.sourceKey = state.values.GPURegHKey, state.values.GPURegKey
     state.busy = true
-    notice('Reading HWiNFO exports once...', 'Only the configured registry source is read. Existing exports may be retained after HWiNFO stops; sample age is unknown.')
+    notice('Reading HWiNFO exports once...')
     SKIN:Bang('!CommandMeasure', 'MeasureGPUDiscover', 'Run')
     return true
 end
@@ -366,29 +353,25 @@ function FinishDiscovery()
     local source = SKIN:GetMeasure('MeasureGPUDiscover')
     local output = source and source:GetStringValue() or ''
     if not source or source:GetValue() ~= 1 or type(output) ~= 'string' or #output > 1048576 then
-        notice('Could not read HWiNFO exports.', 'The one-shot helper failed or timed out. Verify the configured registry source, then Rescan.'); return false
+        notice('Could not read HWiNFO exports.'); return false
     end
     if not refreshValues() then return false end
     local header, body = output:match('^([^\r\n]+)[\r\n]*(.*)$')
-    local status, encodedHive, encodedKey, skipped, limited
+    -- The skipped-export count and bounded-list flag are validated, not shown.
+    local status, encodedHive, encodedKey
     if header then
-        status, encodedHive, encodedKey, skipped, limited = header:match('^GPU_EXPORTS|1|([A-Z_]+)|(%x*)|(%x*)|(%d+)|([01])$')
+        status, encodedHive, encodedKey = header:match('^GPU_EXPORTS|1|([A-Z_]+)|(%x*)|(%x*)|(%d+)|([01])$')
     end
     if not status then notice('Invalid sensor discovery response.'); return false end
     local hive, key = unhex(encodedHive), unhex(encodedKey)
-    if status == 'INVALID_CONFIG' then
-        notice('Check the registry source.', 'GPU.inc must contain an HKCU or HKLM hive and a literal registry path. Open Advanced file to review custom settings.'); return false
-    end
+    if status == 'INVALID_CONFIG' then notice('Check the registry source.'); return false end
     if hive ~= state.sourceHive or key ~= state.sourceKey or hive ~= state.values.GPURegHKey or key ~= state.values.GPURegKey then
         state.items = {}
         notice('Registry source changed; Rescan first.'); return false
     end
     local statusText = { EMPTY = 'No complete sensor exports found.', MISSING = 'HWiNFO export key was not found.',
         UNAVAILABLE = 'HWiNFO exports could not be read.', TOO_MANY = 'Too many registry values to browse safely.' }
-    if status ~= 'OK' then
-        notice(statusText[status] or 'Invalid sensor discovery response.',
-            'Enable the desired HWiNFO Gadget exports, check the configured hive/key, then Rescan. Complete Sensor, Label, Value and numeric ValueRaw fields are required. No provider is installed or started by this utility.'); return false
-    end
+    if status ~= 'OK' then notice(statusText[status] or 'Invalid sensor discovery response.'); return false end
     local items, seen = {}, {}
     for line in body:gmatch('[^\r\n]+') do
         local index, sensorHex, labelHex, formattedHex, rawHex = line:match('^ITEM|(%d+)|(%x+)|(%x+)|(%x+)|(%x+)$')
@@ -405,10 +388,7 @@ function FinishDiscovery()
     end
     if #items == 0 then notice('No complete sensor exports found.'); return false end
     state.items = items
-    local detail = 'Choose the exact measurement for your discrete GPU; the list does not infer GPU identity or metric type. Values are registry snapshots with unknown age.'
-    if tonumber(skipped) > 0 then detail = detail .. ' Skipped ' .. skipped .. ' incomplete or unusable exports.' end
-    if limited == '1' then detail = detail .. ' The bounded list omits additional exports.' end
-    notice('Select an export for ' .. state.target:lower() .. '.', detail)
+    notice('Select an export for ' .. state.target:lower() .. '.')
     return true
 end
 
@@ -427,9 +407,7 @@ function Select(slot)
     if not slot or slot ~= math.floor(slot) or slot < 1 or slot > 5 or state.busy or not knownField(state.target) then return false end
     local item = state.items[(state.page - 1) * 5 + slot]
     if not item then return false end
-    if not item.safe then
-        notice('This export name cannot be saved safely.', 'Rename unsafe custom sensor/label text in HWiNFO, then Rescan. Exact ordinal markers such as GPU [#0] are supported; other Rainmeter syntax, quotes and control characters are not.'); return false
-    end
+    if not item.safe then notice('This export name cannot be saved safely.'); return false end
     if not refreshValues() then return false end
     if state.sourceHive ~= state.values.GPURegHKey or state.sourceKey ~= state.values.GPURegKey then
         state.items = {}
@@ -447,7 +425,7 @@ end
 
 function RefreshGPU()
     SKIN:Bang('!RefreshGroup', 'ParallaxGPU')
-    notice('GPU refresh requested.', 'Loaded GPU monitor configs detect the card again and restart direct temperature, memory, activity, power and clock readings. GPU Settings remains open; saved preferences are unchanged.')
+    notice('GPU refresh requested.')
 end
 
 function Close() CancelInput(); SKIN:Bang('!DeactivateConfig', 'Parallax\\GPU\\Settings') end

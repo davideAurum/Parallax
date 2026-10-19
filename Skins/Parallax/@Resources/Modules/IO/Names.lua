@@ -5,7 +5,7 @@ local modes = { letters = true, volume = true, model = true, both = true }
 local maximumNameBytes, maximumPacketBytes = 512, 14000
 -- One in-memory packet per loaded library. Public Parse stays pure; repeated
 -- per-drive formatting shares this result until the provider string changes.
-local packetRaw, packetModels, packetStatus
+local packetRaw, packetModels
 
 -- Walk complete UTF-8 characters where available. Rainmeter's ordinary Lua
 -- bridge uses system ANSI; UTF-16-script callers use UTF-8. Keep both as data.
@@ -46,7 +46,7 @@ local function clean(value)
     for _, unit in ipairs(units) do
         local text, code = unit[1], unit[2]
         -- Neutralize option expansion, protocol separators, controls and common
-        -- Unicode line/direction controls before Text or ToolTipText assignment.
+        -- Unicode line/direction controls before Text assignment.
         if code < 32 or (code >= 127 and code <= 159) or code == 35 or code == 37
             or code == 91 or code == 93 or code == 124 or code == 8206 or code == 8207
             or (code >= 8232 and code <= 8238) or (code >= 8294 and code <= 8297) then text = ' ' end
@@ -86,27 +86,22 @@ local function measured(skin, name, method)
 end
 
 function Names.Format(skin, letter, mode)
-    if type(letter) ~= 'string' or not letter:match('^[A-Z]$') then return '', 'Drive unavailable.' end
+    if type(letter) ~= 'string' or not letter:match('^[A-Z]$') then return '' end
     if not modes[mode] then mode = 'volume' end
+    if mode == 'letters' then return '' end
     local kind = measured(skin, 'MeasureIOType' .. letter, 'GetValue')
     local present = type(kind) == 'number' and kind >= 3 and kind <= 7 and kind % 1 == 0
-    if mode == 'letters' then return '', present and 'Drive letter only.' or 'Drive unavailable.' end
     local label = present and clean(measured(skin, 'MeasureIOName' .. letter, 'GetStringValue')) or ''
-    local volumeStatus = label ~= '' and ('Volume label: ' .. label .. '.') or 'No label / unavailable.'
-    if mode == 'volume' then return label ~= '' and label or 'No label / unavailable', volumeStatus end
+    if mode == 'volume' then return label ~= '' and label or 'No label / unavailable' end
     local raw = measured(skin, 'MeasureIOModelQuery', 'GetStringValue')
     if packetModels == nil or raw ~= packetRaw then
-        packetModels, packetStatus = Names.Parse(raw)
+        packetModels = Names.Parse(raw)
         packetRaw = raw
     end
-    local models, status = packetModels, packetStatus
-    local model = present and models[letter] or nil
-    local modelStatus = model and ('Windows device model/name: ' .. model .. '.') or 'Model unavailable.'
-    if status == 'invalid' then modelStatus = modelStatus .. ' Invalid inventory response.' end
-    modelStatus = modelStatus .. ' Cached on demand; refresh drives to update. Virtual/network volumes may not identify underlying hardware.'
-    if mode == 'model' then return model or 'Model unavailable', modelStatus end
-    if label ~= '' and model then return label .. ' / ' .. model, volumeStatus .. ' ' .. modelStatus end
-    return label ~= '' and label or model or 'No label / unavailable; Model unavailable', volumeStatus .. ' ' .. modelStatus
+    local model = present and packetModels[letter] or nil
+    if mode == 'model' then return model or 'Model unavailable' end
+    if label ~= '' and model then return label .. ' / ' .. model end
+    return label ~= '' and label or model or 'No label / unavailable; Model unavailable'
 end
 
 function Names.Query(skin, mode)

@@ -20,7 +20,6 @@ local function option(suffix, key, content)
 end
 
 local function text(suffix, content) option(suffix, 'Text', Core.safe(content)) end
-local function tooltip(suffix, content) option(suffix, 'ToolTipText', Core.safe(content)) end
 local function color(suffix, key) option(suffix, 'FontColor', variable(key, '175,175,175')) end
 
 function Initialize()
@@ -49,28 +48,19 @@ function Update()
     local view = Connection.describe(Core, adapter, wifi, config)
     text('Adapter', view.adapter)
     text('Description', view.description)
-    -- Keep the longest operational state readable; the tooltip retains link type.
+    -- Keep the longest operational state readable; its link type is dropped to fit.
     text('Status', view.status:gsub('^.+ / Lower layer down$', 'Lower layer down'))
     color('Status', view.statusColor)
-    tooltip('Adapter', 'Selected traffic adapter: ' .. adapter.selector .. '. ' .. view.adapter .. ' / ' .. view.description .. '. Click for Network Settings.')
-    tooltip('Description', view.description)
-    tooltip('Status', view.status .. '. This is adapter operational status, not Internet reachability.')
     text('Internet', view.internet)
     color('Internet', view.internetColor)
     text('IP', view.ip)
     text('Gateway', view.gateway)
-    tooltip('IP', 'Selected adapter local address: ' .. view.ip)
-    tooltip('Gateway', 'Selected adapter gateway: ' .. view.gateway)
     text('Rx', view.receiveLink)
     text('Tx', view.transmitLink)
     text('WiFi', view.wifiName)
     text('Signal', view.signal)
     color('Signal', view.signalColor)
-    tooltip('WiFi', view.wifiTooltip)
-    tooltip('Signal', view.signalTooltip)
-    tooltip('SignalBar', view.signalTooltip)
     text('Radio', view.radio)
-    tooltip('Radio', view.wifiTooltip)
     local width, height = SELF:GetNumberOption('SignalWidth', 188), SELF:GetNumberOption('SignalHeight', 3)
     option('SignalBar', 'Shape2', view.signalPercent ~= nil
         and ('Rectangle 0,0,' .. string.format('%.3f', width * view.signalPercent / 100) .. ',' .. tostring(height)

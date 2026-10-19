@@ -32,11 +32,9 @@ SolidColor=0,0,0,1
 Group=ChronometerData
 X=(#ContentX#+#ContentWidth#-64*#Scale#)
 W=(Ceil(45*#Scale#))
-ToolTipText=Start, pause, or resume this timer. Again restarts a completed timer.
 
 [ChronometerReset]
 X=(#ContentX#+#ContentWidth#-18*#Scale#)
 W=(36*#Scale#)
 Text=Reset
 FontColor=#AccentColor2#
-ToolTipText=Stop this timer and restore its configured duration.

@@ -1,9 +1,9 @@
 -- Original paging-file reader bridge. Two setup-time launches, then one
 -- resident Windows API host; display/settings updates never launch a poller.
-local model, state, interval, deadline, session, cached, reason, previous, measures
+local model, state, interval, deadline, session, cached, previous, measures
 local lastSequence, lastEpoch, lastLease, lastWire, launched
 local bootstrap, host = 'MeasureRAMPageBootstrap', 'MeasureRAMPageHost'
-local targets = {'MeterRAMPageLabel', 'MeterRAMPageGiB', 'MeterRAMPageMiB', 'MeterRAMPageBar'}
+local targets = {'MeterRAMPageGiB', 'MeterRAMPageMiB', 'MeterRAMPageBar'}
 
 local function measure(name)
     if not measures[name] then measures[name] = SKIN:GetMeasure(name) end
@@ -20,10 +20,8 @@ local function set(name, option, value)
 end
 
 function Display(immediate)
-    local frame, detail = cached, reason
-    if frame and frame.epoch and not model.Fresh(frame.epoch, os.time(), interval) then
-        frame, detail = nil, 'The paging-file sample is stale. Refresh Memory Meter if readings do not resume.'
-    end
+    local frame = cached
+    if frame and frame.epoch and not model.Fresh(frame.epoch, os.time(), interval) then frame = nil end
     local dirty = false
     local useMB = tonumber(SKIN:GetVariable('RAMUseMiB')) == 1
     local decimals = tonumber(SKIN:GetVariable('RAMDecimals')) or 1
@@ -35,15 +33,8 @@ function Display(immediate)
     local showBar = tonumber(SKIN:GetVariable('RAMShowPageBar')) == 1 and ratio ~= nil
     dirty = set('MeterRAMPageBar', 'Hidden', showBar and '0' or '1') or dirty
     for _, entry in ipairs({{'MeterRAMPageGiB', false}, {'MeterRAMPageMiB', true}}) do
-        local formatted = model.Format(frame, entry[2], decimals)
-        local tip = detail or formatted.tip
-        dirty = set(entry[1], 'Text', formatted.text) or dirty
-        dirty = set(entry[1], 'ToolTipText', tip) or dirty
+        dirty = set(entry[1], 'Text', model.Format(frame, entry[2], decimals).text) or dirty
         dirty = set(entry[1], 'Hidden', entry[2] == useMB and '0' or '1') or dirty
-        if entry[2] == useMB then
-            dirty = set('MeterRAMPageLabel', 'ToolTipText', tip) or dirty
-            dirty = set('MeterRAMPageBar', 'ToolTipText', tip) or dirty
-        end
     end
     if dirty and immediate ~= false then
         for _, name in ipairs(targets) do SKIN:Bang('!UpdateMeter', name) end
@@ -73,8 +64,8 @@ local function stopProcesses()
     end
 end
 
-local function fail(detail)
-    state, cached, reason = 'failed', nil, detail .. ' Refresh Memory Meter to retry.'
+local function fail()
+    state, cached = 'failed', nil
     stopProcesses()
     cleanup()
     Display()
@@ -105,7 +96,7 @@ end
 
 function Initialize()
     model = dofile(SKIN:GetVariable('@') .. 'Modules\\RAM\\PageFileModel.lua')
-    state, session, cached, reason, previous, measures = 'idle', nil, {status = 'STARTING'}, nil, {}, {}
+    state, session, cached, previous, measures = 'idle', nil, {status = 'STARTING'}, {}, {}
     lastSequence, lastEpoch, lastLease, lastWire = -1, 0, -1, nil
     launched = {}
     interval = tonumber(SKIN:GetVariable('MetricsInterval')) or 1000
@@ -124,18 +115,16 @@ local function readFrame(now)
     local file = io.open(session.path, 'rb')
     if not file then
         cached = now < deadline and {status = 'STARTING'} or nil
-        reason = now >= deadline and 'The paging-file reader has not published a sample.' or nil
         return
     end
     local wire = file:read(513)
     file:close()
-    local frame, issue = model.Parse(wire, session.token, now, interval, lastSequence, lastEpoch)
+    local frame = model.Parse(wire, session.token, now, interval, lastSequence, lastEpoch)
     if not frame or (frame.sequence == lastSequence and lastWire and wire ~= lastWire) then
         cached = nil
-        reason = issue == 'stale' and 'The paging-file sample is stale.' or 'The paging-file sample is invalid or out of sequence.'
         return
     end
-    cached, reason, lastSequence, lastEpoch, lastWire = frame, nil, frame.sequence, frame.epoch, wire
+    cached, lastSequence, lastEpoch, lastWire = frame, frame.sequence, frame.epoch, wire
 end
 
 function Update()
@@ -150,17 +139,17 @@ function Update()
                 if root then roots[#roots + 1] = root end
             end
             session = model.ParseSession(output(bootstrap), roots)
-            if not session then fail('The paging-file session response was invalid.'); return 0 end
-            if not heartbeat(now) then fail('The paging-file session lease could not be written.'); return 0 end
+            if not session then fail(); return 0 end
+            if not heartbeat(now) then fail(); return 0 end
             state, deadline = 'running', now + 20
             launch(host, "[ParallaxRamPageFile]::Run('" .. session.token .. "'," .. interval .. ')')
         elseif current >= 100 or now >= deadline then
-            fail('The paging-file reader could not start.'); return 0
+            fail(); return 0
         end
     elseif state == 'running' then
         local current = status(host)
-        if current == 1 or current >= 100 then fail('The paging-file reader stopped.'); return 0 end
-        if not heartbeat(now) then fail('The paging-file session lease was lost.'); return 0 end
+        if current == 1 or current >= 100 then fail(); return 0 end
+        if not heartbeat(now) then fail(); return 0 end
         readFrame(now)
     end
     if state ~= 'stopped' then Display(false) end

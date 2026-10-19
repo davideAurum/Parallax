@@ -1,7 +1,7 @@
 -- Original Network settings controller. File values are literal INI data, never code.
 -- No telemetry, periodic polling, or writes until a persistent control is clicked.
 local Core, userFile, resourceRoot, loadError, pendingInput
-local MAX_FILE_BYTES, MAX_TOOLTIP_BYTES = 262144, 1024
+local MAX_FILE_BYTES = 262144
 local INPUT_MEASURE = 'MeasureNetworkSettingsInput'
 local numberRules = {
     Columns = {minimum = 1, maximum = 2, decimals = 0},
@@ -21,33 +21,17 @@ local keyLookup = {}
 for key in pairs(keys) do keyLookup[key:lower()] = key end
 local order = {'NetworkInterface', 'NetworkUnits', 'Columns', 'PanelHeight', 'NetworkInCeilingMbps',
     'NetworkOutCeilingMbps', 'NetworkWiFiEnabled', 'NetworkWiFiInterface'}
-local help = {
-    NetworkInterface = 'Saved selector; adapter availability is not queried here. Click to edit Network.inc, save, then Apply.',
-    NetworkUnits = 'Click the value or either arrow to toggle decimal bits/s and decimal bytes/s. Refreshes Network only.',
-    Columns = 'Click the value to enter 1 or 2 columns. Arrows move one column without wrapping.',
-    PanelHeight = 'Click the value to enter a minimum height from 0.0001 to 1000000000 logical px, with up to 4 decimals. Arrows move 1 px without wrapping. The combined panel grows to fit its content. Custom formulas remain available through the file editor.',
-    NetworkInCeilingMbps = 'Click the value to enter 0.0001 to 1000000000 Mbit/s, with up to 4 decimals. Arrows choose neighboring graph ceilings: 10, 25, 50, 100, 250, 500, 1000 Mbit/s without wrapping. This is not link speed.',
-    NetworkOutCeilingMbps = 'Click the value to enter 0.0001 to 1000000000 Mbit/s, with up to 4 decimals. Arrows choose neighboring graph ceilings: 10, 25, 50, 100, 250, 500, 1000 Mbit/s without wrapping. This is not link speed.',
-    NetworkWiFiEnabled = 'Click to toggle Wi-Fi queries in this module. This does not change the Windows radio.',
-    NetworkWiFiInterface = 'Click the value to enter a whole WLAN index from 0 to 63. Arrows move one index without wrapping. It is separate from the Network adapter selector. The native provider may fall back to index 0 if the requested adapter does not exist.'
-}
 
 local function trim(value) return tostring(value or ''):match('^%s*(.-)%s*$') end
-local function safe(value, limit)
+local function safe(value)
     local text = Core and Core.safe(value) or tostring(value or ''):gsub('[%c#%[%]]', ' ')
     text = text:gsub('"', "'")
-    if limit and #text > limit then
-        local last = limit - 3
-        while last > 0 and text:byte(last + 1) >= 128 and text:byte(last + 1) < 192 do last = last - 1 end
-        text = text:sub(1, last) .. '...'
-    end
     return text
 end
-local function option(meter, key, value) SKIN:Bang('!SetOption', meter, key, safe(value, key == 'ToolTipText' and MAX_TOOLTIP_BYTES or nil)) end
+local function option(meter, key, value) SKIN:Bang('!SetOption', meter, key, safe(value)) end
 local function redraw() SKIN:Bang('!UpdateMeter', '*'); SKIN:Bang('!Redraw') end
-local function status(caption, detail, errorState)
+local function status(caption, errorState)
     option('MeterNetworkSettingsStatus', 'Text', caption)
-    option('MeterNetworkSettingsStatus', 'ToolTipText', detail or caption)
     option('MeterNetworkSettingsStatus', 'FontColor', SKIN:GetVariable(errorState and 'WarningColor' or 'TextColor', '220,220,220'))
 end
 local function utf8(code)
@@ -134,7 +118,7 @@ local function typedNumber(key, raw)
 end
 local function inputBlocked()
     if not pendingInput then return false end
-    status('Finish the open number editor.', 'Press Enter to apply or Esc to cancel before changing another setting.', false)
+    status('Finish the open number editor.', false)
     redraw(); return true
 end
 local function display(key, raw)
@@ -174,35 +158,22 @@ local function render(values, errorText, caption)
         local raw = values and values[key]
         local label, valid = display(key, raw)
         if not valid then invalid = invalid + 1 end
-        local meter = 'MeterNetworkSettings' .. keys[key] .. 'Value'
-        option(meter, 'Text', label)
-        local detail = help[key]
-        if numberRules[key] and not typedNumber(key, raw) then
-            detail = 'Click the value or label to open Network.inc. This saved value cannot seed the numeric editor; it remains unchanged until you edit the file. '
-                .. detail:gsub('Click the value to enter', 'Numeric entry supports')
-        end
-        detail = detail .. ' Saved ' .. key .. ' = ' .. (raw == nil and '(missing)' or raw)
-        if not valid then detail = detail .. '. Invalid or missing saved value; it is preserved until you change it.' end
-        option(meter, 'ToolTipText', detail)
-        if numberRules[key] then
-            option('MeterNetworkSettings' .. keys[key] .. 'Frame', 'ToolTipText', detail)
-            option('MeterNetworkSettings' .. keys[key] .. 'Label', 'ToolTipText', detail)
-        end
+        option('MeterNetworkSettings' .. keys[key] .. 'Value', 'Text', label)
     end
-    if errorText then status('Cannot read Network.inc.', errorText, true)
-    elseif invalid > 0 then status('Check invalid or missing values.', 'Existing values are preserved. Click a control to replace that choice, or edit the file and Apply.', true)
-    else status(caption or 'Changes save immediately. File edits need Apply.', nil, false) end
+    if errorText then status('Cannot read Network.inc.', true)
+    elseif invalid > 0 then status('Check invalid or missing values.', true)
+    else status(caption or 'Changes save immediately. File edits need Apply.', false) end
 end
 local function refreshView(caption)
     local values, err = readSaved(); render(values, err, caption); redraw(); return values
 end
 local function change(key, target, nextValue, expected)
     if inputBlocked() then return false end
-    if not keys[key] or not configs[target] then status('Invalid settings action.', nil, true); redraw(); return false end
+    if not keys[key] or not configs[target] then status('Invalid settings action.', true); redraw(); return false end
     local values, err = readSaved()
     if not values then render(nil, err); redraw(); return false end
     if expected and values[key] ~= expected.raw then
-        render(values); status('Saved value changed; edit again.', 'The pending number was discarded because this saved setting changed while the editor was open.', true)
+        render(values); status('Saved value changed; edit again.', true)
         redraw(); return false
     end
     local chosen = nextValue(values[key])
@@ -212,7 +183,7 @@ local function change(key, target, nextValue, expected)
     end
     local _, valid = display(key, chosen)
     if not valid or (numberRules[key] and not typedNumber(key, chosen)) then
-        status('Invalid settings action.', 'The requested value was not saved.', true); redraw(); return false
+        status('Invalid settings action.', true); redraw(); return false
     end
     -- One allowlisted key only. Rainmeter preserves other keys, comments and sections.
     SKIN:Bang('!WriteKeyValue', 'Variables', key, chosen, userFile)
@@ -242,13 +213,13 @@ function CycleUnits(direction)
     return ToggleUnits()
 end
 function ToggleWidth(panel)
-    if panel ~= 'Network' then status('Invalid settings action.', nil, true); redraw(); return false end
+    if panel ~= 'Network' then status('Invalid settings action.', true); redraw(); return false end
     return AdjustNumber('Columns', 1)
 end
 function ToggleWiFi() return change('NetworkWiFiEnabled', 'Network', function(raw) return raw == '1' and '0' or '1' end) end
 function CycleWiFiIndex() return AdjustNumber('NetworkWiFiInterface', 1) end
 function CycleCeiling(direction)
-    if direction ~= 'In' and direction ~= 'Out' then status('Invalid settings action.', nil, true); redraw(); return false end
+    if direction ~= 'In' and direction ~= 'Out' then status('Invalid settings action.', true); redraw(); return false end
     return AdjustNumber('Network' .. direction .. 'CeilingMbps', 1)
 end
 function AdjustNumber(key, direction)
@@ -260,7 +231,7 @@ function AdjustNumber(key, direction)
     local current = rule.presets and Core.ceiling(values[key]) or typedNumber(key, values[key])
     if rule.presets and current then current = current / 1000000 end
     if current == nil then
-        render(values); status('Enter a number or edit the file.', 'This saved value has no supported arrow starting point. It remains unchanged.', true)
+        render(values); status('Enter a number or edit the file.', true)
         redraw(); return false
     end
     local chosen
@@ -279,13 +250,13 @@ function BeginNumberInput(key)
     if not values then render(nil, err); redraw(); return false end
     local number = typedNumber(key, values[key])
     if not number then
-        render(values); status('Edit this custom value in Network.inc.', 'The saved value cannot seed the numeric editor. Save your file edit, then Apply saved file.', false)
+        render(values); status('Edit this custom value in Network.inc.', false)
         redraw(); OpenFile(); return false
     end
     local meter = SKIN:GetMeter('MeterNetworkSettings' .. keys[key] .. 'Frame')
     local measure = SKIN:GetMeasure(INPUT_MEASURE)
     if not meter or not measure then
-        status('Number editor unavailable.', 'The bundled numeric input measure or field anchor is missing. Edit Network.inc instead.', true)
+        status('Number editor unavailable.', true)
         redraw(); return false
     end
     local initial = canonical(number, rule.decimals)
@@ -293,7 +264,7 @@ function BeginNumberInput(key)
     scale = Core.finite(scale) and math.max(0.75, math.min(2, scale)) or 1
     local x, y, width, height = SKIN:GetX() + meter:GetX(), SKIN:GetY() + meter:GetY(), meter:GetW(), meter:GetH()
     for _, value in ipairs({x, y, width, height}) do
-        if not Core.finite(value) then status('Number editor unavailable.', 'The field position is unavailable.', true); redraw(); return false end
+        if not Core.finite(value) then status('Number editor unavailable.', true); redraw(); return false end
     end
     -- Every argument is a fixed path, fixed range, or canonical number. Raw saved
     -- formulas and typed output never enter an executable command or bang string.
@@ -301,7 +272,7 @@ function BeginNumberInput(key)
         canonical(rule.minimum, rule.decimals), canonical(rule.maximum, rule.decimals), rule.decimals,
         initial, math.floor(x), math.floor(y), math.max(24, math.floor(width)), math.max(12, math.floor(height)), scale)
     pendingInput = {key = key, raw = values[key]}
-    status('Enter to apply. Esc to cancel.', nil, false)
+    status('Enter to apply. Esc to cancel.', false)
     redraw()
     SKIN:Bang('!SetOption', INPUT_MEASURE, 'Parameter', args)
     SKIN:Bang('!UpdateMeasure', INPUT_MEASURE)
@@ -320,14 +291,14 @@ function FinishNumberInput()
     local raw = output:match('^PARALLAX_INPUT_V1|ok|([+-]?%d+%.?%d*)$')
     local number = typedNumber(pending.key, raw)
     if not number then
-        status('Number was not applied.', 'The editor returned an invalid, out-of-range or over-precision result. Click the value to try again.', true)
+        status('Number was not applied.', true)
         redraw(); return false
     end
     return change(pending.key, 'Network', function() return canonical(number, numberRules[pending.key].decimals) end, pending)
 end
 function OpenFile()
     if inputBlocked() then return false end
-    if not userFile or userFile:find('[%c"]') or resourceRoot == '' then status('Cannot open Network.inc.', nil, true); redraw(); return end
+    if not userFile or userFile:find('[%c"]') or resourceRoot == '' then status('Cannot open Network.inc.', true); redraw(); return end
     -- Lua's non-bang launch accepts one quoted command. Only this fixed resource path is used.
     SKIN:Bang('"notepad.exe" "' .. userFile .. '"')
 end
@@ -338,7 +309,7 @@ function ApplyFile()
     SKIN:Bang('!Refresh')
 end
 function OpenPanel(panel)
-    if not configs[panel] then status('Invalid navigation target.', nil, true); redraw(); return end
+    if not configs[panel] then status('Invalid navigation target.', true); redraw(); return end
     SKIN:Bang('!ActivateConfig', configs[panel], 'Network.ini')
 end
 function Close() pendingInput = nil; SKIN:Bang('!DeactivateConfig') end

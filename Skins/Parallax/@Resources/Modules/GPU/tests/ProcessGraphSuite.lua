@@ -151,7 +151,7 @@ function Suite.run(path)
                 local kind, rank = target:match('^MeterGPUProcess(%a+)([1-5])$')
                 assert(rank and (kind == 'Name' or kind == 'Value' or kind == 'Memory'),
                     'unexpected meter write: ' .. target)
-                assert(args[2] == 'Text' or args[2] == 'ToolTipText', 'unexpected option write: ' .. tostring(args[2]))
+                assert(args[2] == 'Text', 'unexpected option write (tooltips were removed): ' .. tostring(args[2]))
                 f.options[target] = f.options[target] or {}
                 f.options[target][args[2]] = args[3]
             elseif command == '!EnableMeasure' or command == '!DisableMeasure' or command == '!UpdateMeasure' then
@@ -197,7 +197,6 @@ function Suite.run(path)
             return meter and meter[option]
         end
         function f:text(kind, rank) return self:option(kind, rank, 'Text') end
-        function f:tip(kind, rank) return self:option(kind, rank, 'ToolTipText') end
         -- Calls other than the row-visibility bangs, which are re-sent every update.
         function f:work()
             local list = {}
@@ -238,11 +237,6 @@ function Suite.run(path)
         eq(f:text('Name', 1), 'No active GPU process data', 'empty ranking label')
         eq(f:text('Value', 1), '--', 'empty ranking percentage')
         eq(f:text('Memory', 1), '--', 'empty ranking memory')
-        local tip = f:tip('Name', 1)
-        contains(tip, 'No ranked GPU process-engine observation')
-        contains(tip, 'cannot be distinguished')
-        eq(f:tip('Value', 1), tip, 'percentage tooltip explains the empty ranking')
-        eq(f:tip('Memory', 1), tip, 'memory tooltip explains the empty ranking')
         shown(f, 1)
         eq(f.request, request or '?', 'only recently ranked PIDs stay requested for names')
     end
@@ -256,19 +250,11 @@ function Suite.run(path)
             {name = instance(55, '3D', '0x00000000_0x00000002'), value = 5}
         })
         local pids = {'11', '22', '33', '44', '55'}
-        local engines = {'3D', 'Copy', 'VideoDecode', 'Compute', '3D'}
         local percentages = {'75.0%', '30.0%', '25.2%', '10.0%', '5.0%'}
         for rank = 1, 5 do
             eq(f.reads[rank], rank, 'read order')
             eq(f:text('Name', rank), 'PID ' .. pids[rank])
             eq(f:text('Value', rank), percentages[rank])
-            local tip = f:tip('Name', rank)
-            contains(tip, 'Busiest engine for this process: ' .. engines[rank] .. ' at ' .. percentages[rank] .. '.')
-            contains(tip, 'across all exposed GPUs, not a sum')
-            contains(tip, 'Current Windows name lookup for PID ' .. pids[rank] .. ' is unavailable')
-            contains(tip, 'sample age is not exposed')
-            lacks(tip, 'Also observed here', 'single-engine row lists no other engines')
-            eq(f:tip('Value', rank), tip, 'percentage shares the row tooltip')
         end
         shown(f, 5)
         eq(#f.reads, 5, 'bounded reads')
@@ -283,10 +269,7 @@ function Suite.run(path)
         local f = fixture(rows, {memoryValues = {[memoryKey(rows[1].name)] = 100 * 1000000,
             [memoryKey(otherAdapter)] = 900 * 1000000, [memoryKey(rows[3].name)] = 50 * 1000000}})
         eq(f:text('Name', 1), 'PID 11'); eq(f:text('Value', 1), '75.0%', 'busiest engine, not 75 + 30 + 0.05')
-        contains(f:tip('Name', 1), 'Busiest engine for this process: 3D at 75.0%.')
-        contains(f:tip('Name', 1), 'Also observed here: Copy 30.0%, Compute <0.1%.')
         eq(f:text('Name', 2), 'PID 33'); eq(f:text('Value', 2), '25.2%')
-        lacks(f:tip('Name', 2), 'Also observed here')
         eq(f:text('Name', 3), 'PID 55'); eq(f:text('Value', 3), '<0.1%')
         shown(f, 3)
         eq(f.request, '11,33,55', 'one sorted request entry per PID')
@@ -304,9 +287,7 @@ function Suite.run(path)
             {name = instance(11, 'Copy'), value = 20}}
         f:update()
         eq(f:text('Name', 1), 'PID 33'); eq(f:text('Value', 1), '60.0%'); eq(f:text('Memory', 1), '50 MB')
-        lacks(f:tip('Name', 1), 'Also observed here')
         eq(f:text('Name', 2), 'PID 11'); eq(f:text('Value', 2), '40.0%'); eq(f:text('Memory', 2), '100 MB')
-        contains(f:tip('Name', 2), 'Also observed here: Copy 20.0%.')
         shown(f, 2); eq(f.request, '11,33,55', 'recently ranked 55 keeps a spare request slot')
         eq(f.memory[3].enabled, false, 'vacated row releases its memory lookup')
         eq(f.memory[3].name, noMemory)
@@ -317,7 +298,6 @@ function Suite.run(path)
         eq(f:text('Value', 1), '100.0%')
         eq(f:text('Value', 2), '0.1%')
         eq(f:text('Value', 3), '<0.1%')
-        contains(f:tip('Name', 3), 'Busiest engine for this process: 3D at <0.1%.')
         eq(f.request, '1,2,3')
     end)
     test('name requests are bounded sorted unique positive uint32 PIDs from valid active ranks', function()
@@ -326,7 +306,7 @@ function Suite.run(path)
             {name = instance(4294967295), value = 10}, {name = instance(77), value = 0}})
         eq(f.value, 0); eq(f.request, '2,11,4294967295')
         eq(f:text('Name', 1), 'PID 11', 'zero-padded PID is canonical and grouped')
-        contains(f:tip('Name', 1), 'Also observed here: 3D 15.0%.')
+        eq(f:text('Value', 1), '25.0%', 'grouped PID keeps its busiest engine')
         eq(f:text('Name', 3), 'PID 4294967295'); shown(f, 3)
         local invalid = {'0', '4294967296', '-1', '1e3', '1.5', string.rep('9', 17)}
         for _, pid in ipairs(invalid) do
@@ -346,9 +326,6 @@ function Suite.run(path)
             {names = packet({{11, 'example.exe'}, {22, 'example.exe'}})})
         eq(f:text('Name', 1), 'example.exe'); eq(f:text('Name', 2), 'example.exe', 'same name never merges PIDs')
         eq(f:text('Value', 1), '75.0%'); eq(f:text('Value', 2), '30.0%')
-        contains(f:tip('Name', 1), 'Current Windows name lookup for PID 11: example.exe.')
-        contains(f:tip('Name', 1), 'Also observed here: Copy 25.0%.')
-        contains(f:tip('Name', 2), 'Current Windows name lookup for PID 22: example.exe.')
         shown(f, 2)
         eq(f.request, '11,22'); eq(f.nameReads, 1)
         f:clear(); f:update(); eq(#f:work(), 0, 'unchanged names dispatch no work')
@@ -365,7 +342,6 @@ function Suite.run(path)
         for _, unavailable in ipairs({packet(), '', 'GPU_NAMES|1|991|22,' .. hex('old.exe')}) do
             f.names = unavailable; f:update()
             eq(f:text('Name', 1), 'PID 22'); eq(f:text('Value', 1), '30.0%')
-            contains(f:tip('Name', 1), 'name lookup for PID 22 is unavailable')
         end
         f = fixture({{name = instance(11), value = 75}}, {missingNames = true})
         eq(f:text('Name', 1), 'PID 11'); eq(f.nameReads, 0)
@@ -417,9 +393,7 @@ function Suite.run(path)
         for _, valid in ipairs({string.rep('a', 128), string.rep(string.char(195, 169), 64), 'name#[!Refresh]".exe'}) do
             f.names = packet({{11, valid}}); f:update()
             ok(f:text('Name', 1) ~= 'PID 11', 'valid basename accepted')
-            for _, text in ipairs({f:text('Name', 1), f:tip('Name', 1), f:tip('Value', 1)}) do
-                ok(not text:find(unsafe), 'display metacharacters removed')
-            end
+            ok(not f:text('Name', 1):find(unsafe), 'display metacharacters removed')
             eq(f:text('Value', 1), '25.0%')
         end
         eq(f:text('Name', 1), "name(!Refresh)'.exe", 'metacharacters are neutralized in place')
@@ -449,15 +423,16 @@ function Suite.run(path)
         end
         local f = fixture({{name = 'pid_8_luid_0_phys_0_eng_0_engtype_', value = 20}})
         eq(f:text('Name', 1), 'PID 8', 'missing engine label retains valid raw identity')
-        contains(f:tip('Name', 1), 'Busiest engine for this process: unknown engine at 20.0%.')
         eq(f:text('Memory', 1), '--', 'non-hex adapter LUID cannot bind memory')
     end)
     test('provider display text is sanitized and cannot dispatch actions or reach memory binding', function()
         local f = fixture({{name = instance(1, '3D[#danger#]"\n[!Execute cmd]'), value = 25}})
         eq(f:text('Name', 1), 'PID 1')
-        contains(f:tip('Name', 1), "Busiest engine for this process: 3D(danger)' (!Execute cmd) at 25.0%.")
-        for _, text in ipairs({f:text('Name', 1), f:tip('Name', 1), f:tip('Value', 1), f:tip('Memory', 1)}) do
-            ok(not text:find(unsafe), 'display metacharacters removed')
+        for _, kind in ipairs({'Name', 'Value', 'Memory'}) do
+            ok(not f:text(kind, 1):find(unsafe), 'display metacharacters removed')
+        end
+        for _, call in ipairs(f.calls) do
+            for _, arg in ipairs(call.args) do lacks(arg, 'Execute', 'engine text is never written') end
         end
         eq(f:text('Value', 1), '25.0%')
         eq(f.memory[1].name, 'pid_1_luid_0x00000000_0x00000001_phys_0', 'engine text never reaches the memory Name')
@@ -484,8 +459,8 @@ function Suite.run(path)
         eq(#f.reads, 5, 'one read per existing rank per update')
         for rank = 1, 5 do eq(f.lookups[rank], 1, 'cached measure reference') end
         f:clear(); f.rows[1].value = 25; f:update()
-        eq(f:written(), 'MeterGPUProcessName1:ToolTipText,MeterGPUProcessValue1:Text,MeterGPUProcessValue1:ToolTipText')
-        eq(#f:work(), 3, 'no memory rebinding, group update or redraw')
+        eq(f:written(), 'MeterGPUProcessValue1:Text')
+        eq(#f:work(), 1, 'no memory rebinding, group update or redraw')
         eq(f:text('Value', 1), '25.0%')
     end)
     test('reinitialization discards references, memory bindings and rendering cache', function()
@@ -498,7 +473,6 @@ function Suite.run(path)
         f.rows[1] = {name = instance(22, 'Copy'), value = 10}
         f.env.Initialize(); f:update()
         eq(f:text('Name', 1), 'PID 22'); eq(f:text('Value', 1), '10.0%')
-        contains(f:tip('Name', 1), 'Busiest engine for this process: Copy at 10.0%.')
     end)
     test('late available measures are acquired without resetting other ranks', function()
         local f = fixture({false})
@@ -525,11 +499,6 @@ function Suite.run(path)
             eq(f.memory[rank].name, key); eq(f.memory[rank].returnedName, key)
             eq(f.memory[rank].enabled, true); eq(f.memory[rank].updates, 1)
             eq(f:text('Memory', rank), labels[rank])
-            local tip = f:tip('Memory', rank)
-            contains(tip, 'Windows GPU Process Memory Local Usage for ' .. key .. ':')
-            contains(tip, string.format('Reported local memory: %.0f bytes.', bytes[rank]))
-            contains(tip, 'not to one engine'); contains(tip, 'Cross-process shared allocations')
-            contains(tip, 'Shared RAM system-memory row'); contains(tip, 'sample age is not exposed')
         end
         eq(f.memory[3].name, 'pid_22_luid_0x00000000_0x00000001_phys_1', 'physical adapter index is bound')
         eq(f.request, '11,12,22,33,44', 'memory does not change name request PID set')
@@ -545,7 +514,6 @@ function Suite.run(path)
         for _, case in ipairs(cases) do
             f.memoryValues[memoryKey(row)] = case[1]; f:update()
             eq(f:text('Memory', 1), case[2])
-            contains(f:tip('Memory', 1), string.format('Reported local memory: %.0f bytes.', case[1]))
         end
     end)
     test('row replacement forces refreshed binding and never borrows prior PID adapter bytes', function()
@@ -563,7 +531,6 @@ function Suite.run(path)
         f.frozenMemory[1] = true; f.rows[1] = {name = first, value = 40}; f:update()
         eq(f.memory[1].returnedName, memoryKey(otherGpu), 'simulate failed stale plugin cache')
         eq(f:text('Memory', 1), '--'); eq(f:text('Value', 1), '40.0%'); eq(f:text('Name', 1), 'PID 11')
-        contains(f:tip('Memory', 1), 'exact requested instance')
         f.frozenMemory[1] = false; f:update(); eq(f:text('Memory', 1), '100 MB')
     end)
     test('zero missing malformed and unsupported byte readings never claim measured zero', function()
@@ -574,7 +541,6 @@ function Suite.run(path)
         for _, value in ipairs({0, -1, 1.5, 9007199254740992, '123', 0/0, math.huge, -math.huge}) do
             f.memoryValues[memoryKey(row)] = value; f:update()
             eq(f:text('Memory', 1), '--'); eq(f:text('Value', 1), '25.0%')
-            contains(f:tip('Memory', 1), 'cannot be distinguished')
         end
         f.memoryValues[memoryKey(row)] = 1; f:update(); eq(f:text('Memory', 1), '1 B')
     end)
@@ -595,7 +561,6 @@ function Suite.run(path)
             if case[2] then
                 eq(f:text('Name', 1), 'PID 11', 'valid engine identity keeps its row')
                 eq(f:text('Value', 1), '25.0%'); eq(f:text('Memory', 1), '--')
-                contains(f:tip('Memory', 1), 'No exact active PID / adapter / physical GPU identity')
             else
                 noData(f, '11')
             end
@@ -613,11 +578,9 @@ function Suite.run(path)
             [memoryKey(second)] = 2 * 1048576}})
         f.readFailures[1] = true; f:update()
         eq(f:text('Memory', 1), '--'); eq(f:text('Value', 1), '25.0%'); eq(f.request, '11')
-        contains(f:tip('Memory', 1), 'exact requested instance')
         f.readFailures[1] = false; f:update(); eq(f:text('Memory', 1), '1 MB')
         f.updateFailures[1] = true; f.rows[1] = {name = second, value = 30}; f:update()
         eq(f:text('Memory', 1), '--'); eq(f:text('Name', 1), 'PID 22'); eq(f:text('Value', 1), '30.0%')
-        contains(f:tip('Memory', 1), 'could not be rebound')
         f.updateFailures[1] = false; f:update(); eq(f:text('Memory', 1), '2 MB')
         eq(f.memory[1].updates, 2, 'failed forced update is retried, not recorded as bound')
         f = fixture({})

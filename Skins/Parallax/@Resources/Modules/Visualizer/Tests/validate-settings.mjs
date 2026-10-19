@@ -158,7 +158,7 @@ for (const [name, key, values, friendly] of expected) {
     const action = `[!CommandMeasure MeasureVisualizerSettings "${callback}"]`;
     assert.equal(meter.LeftMouseUpAction, action);
     allowedActions.add(action); controlTargets++;
-    assert.ok(meter.ToolTipText); assert.equal(meter.UpdateDivider, '-1');
+    assert.equal(meter.ToolTipText, undefined); assert.equal(meter.UpdateDivider, '-1');
     if (role !== 'Row') {
       assert.equal(meter.FontColor, ['Previous', 'Next'].includes(role) ? '#AccentColor#' : '#TextColor#');
       assert.equal(meter.FontFace, '#FontFace#'); assert.equal(meter.ClipString, '1');

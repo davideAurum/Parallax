@@ -112,17 +112,13 @@ function Suite.run(productionPath)
         return f
     end
 
-    local function formatted(f, letter, mode, expected, tipPart)
-        local display, tooltip = names.Format(f.skin, letter, mode)
+    local function formatted(f, letter, mode, expected)
+        local display, extra = names.Format(f.skin, letter, mode)
         equal(display, expected, 'display without drive letter')
-        equal(type(tooltip), 'string', 'tooltip type')
+        equal(extra, nil, 'Format returns display text only')
         check(not display:find('[%c#%%%[%]]'), 'display contains expression delimiters or controls')
-        check(not tooltip:find('[%c#%%%[%]]'), 'tooltip contains expression delimiters or controls')
-        if tipPart then
-            check(tooltip:find(tipPart, 1, true), 'tooltip must contain ' .. tipPart)
-        end
         equal(#f.calls, 0, 'formatting must only read cached data')
-        return display, tooltip
+        return display
     end
 
     test('empty input and explicit unavailability return an empty unavailable map', function()
@@ -273,13 +269,9 @@ function Suite.run(productionPath)
         local f = fixture()
         for _, letter in ipairs({ '', 'c', 'C:', 'CC', ' C', 'C ', 'C,D',
             'C][!Quit]', '#C#', 'C\n', {}, false, 1, math.huge }) do
-            local display, tooltip = names.Format(f.skin, letter, 'both')
-            equal(display, '')
-            equal(tooltip, 'Drive unavailable.')
+            equal(names.Format(f.skin, letter, 'both'), '')
         end
-        local display, tooltip = names.Format(f.skin, nil, 'both')
-        equal(display, '')
-        equal(tooltip, 'Drive unavailable.')
+        equal(names.Format(f.skin, nil, 'both'), '')
         equal(#f.calls, 0)
     end)
 
@@ -287,12 +279,12 @@ function Suite.run(productionPath)
         for _, label in ipairs({ '', ' \t\r\n ', false, 42 }) do
             local f = fixture({ labels = { C = label } })
             formatted(f, 'C', 'volume', noLabel)
-            formatted(f, 'C', 'both', 'Synthetic Storage', noLabel)
+            formatted(f, 'C', 'both', 'Synthetic Storage')
         end
         local f = fixture()
         f.labels.C = nil
         formatted(f, 'C', 'volume', noLabel)
-        formatted(f, 'C', 'both', 'Synthetic Storage', noLabel)
+        formatted(f, 'C', 'both', 'Synthetic Storage')
     end)
 
     test('missing unavailable and invalid model packets retain only a known volume', function()
@@ -301,26 +293,25 @@ function Suite.run(productionPath)
             'bad packet', false }) do
             local f = fixture({ raw = raw })
             formatted(f, 'C', 'model', noModel)
-            formatted(f, 'C', 'both', 'Archive', noModel)
+            formatted(f, 'C', 'both', 'Archive')
         end
         local f = fixture()
         f.raw = nil
         formatted(f, 'C', 'model', noModel)
-        formatted(f, 'C', 'both', 'Archive', noModel)
+        formatted(f, 'C', 'both', 'Archive')
     end)
 
     test('neither available name exposes both missing parts explicitly', function()
         local f = fixture({ labels = { C = '' }, raw = header .. 'UNAVAILABLE' })
-        local _, tooltip = formatted(f, 'C', 'both', noLabel .. '; ' .. noModel, noLabel)
-        check(tooltip:find(noModel, 1, true), 'tooltip must identify missing model')
+        formatted(f, 'C', 'both', noLabel .. '; ' .. noModel)
     end)
 
     test('failed cached measure reads preserve available parts without querying', function()
         local f = fixture()
         f.failures.label = true
-        formatted(f, 'C', 'both', 'Synthetic Storage', noLabel)
+        formatted(f, 'C', 'both', 'Synthetic Storage')
         f.failures.label, f.failures.query = nil, true
-        formatted(f, 'C', 'both', 'Archive', noModel)
+        formatted(f, 'C', 'both', 'Archive')
         f.failures.query, f.failures.type = nil, true
         formatted(f, 'C', 'both', noLabel .. '; ' .. noModel)
     end)
@@ -339,12 +330,11 @@ function Suite.run(productionPath)
         for _, bytes in ipairs({ {195, 169}, {228, 184, 173}, {240, 159, 146, 190} }) do
             local character = string.char(unpack(bytes))
             local f = fixture({ labels = { C = string.rep(character, 520) } })
-            local display, tooltip = names.Format(f.skin, 'C', 'volume')
+            local display = names.Format(f.skin, 'C', 'volume')
             equal(type(display), 'string')
             check(#display > 0 and #display <= 512, 'label must fit the 512-byte limit')
             equal(#display % #character, 0, 'truncation split a UTF-8 character')
             equal(display, string.rep(character, #display / #character), 'truncation changed complete characters')
-            equal(type(tooltip), 'string')
             equal(#f.calls, 0)
         end
     end)
@@ -367,7 +357,7 @@ function Suite.run(productionPath)
         f.types.C = 4
         formatted(f, 'C', 'both', 'New Label / Replacement Model')
         f.raw = header .. 'UNAVAILABLE'
-        formatted(f, 'C', 'both', 'New Label', noModel)
+        formatted(f, 'C', 'both', 'New Label')
     end)
 
     test('only exact model and both query modes dispatch the fixed Run command', function()

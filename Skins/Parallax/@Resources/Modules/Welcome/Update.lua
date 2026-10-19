@@ -57,12 +57,10 @@ function CompareVersions(a, b)
     return 0
 end
 
--- The status line is short enough to sit beside Install and Notes; the tooltip
--- carries the full explanation, including helper errors that may be long.
-local function show(text, isError, tip)
+-- The status line is short enough to sit beside Install and Notes.
+local function show(text, isError)
     local showOffer = state == 'available'
     SKIN:Bang('!SetOption', 'MeterUpdateStatus', 'Text', text)
-    SKIN:Bang('!SetOption', 'MeterUpdateStatus', 'ToolTipText', tip or text)
     SKIN:Bang('!SetOption', 'MeterUpdateStatus', 'FontColor', SKIN:GetVariable(isError and 'DangerColor' or 'MutedColor'))
     SKIN:Bang(showOffer and '!ShowMeter' or '!HideMeter', 'MeterUpdateInstall')
     SKIN:Bang((showOffer and offer and offer.notes) and '!ShowMeter' or '!HideMeter', 'MeterUpdateNotes')
@@ -125,27 +123,22 @@ function FeedReady()
     local measure = SKIN:GetMeasure('MeasureUpdateFeed')
     local text = measure and measure:GetStringValue() or ''
     SKIN:Bang('!DisableMeasure', 'MeasureUpdateFeed')
-    local item, reason = ParseFeed(text)
+    local item = ParseFeed(text)
     if not item then
         state = 'idle'
-        show('Update check failed.', true, reason)
+        show('Update check failed.', true)
         return false
     end
     local order = CompareVersions(installed, item.version)
     if order == nil then
         state = 'idle'
-        show('Update check failed.', true, 'The installed version (' .. installed .. ') cannot be compared with ' .. item.version .. '.')
+        show('Update check failed.', true)
     elseif order < 0 then
         state, offer = 'available', item
-        show('Parallax ' .. item.version .. ' is available.', false,
-            'You have ' .. installed .. '. Install downloads ' .. item.version .. ', verifies it and opens Rainmeter\'s Skin Installer.')
-    elseif order == 0 then
-        state = 'current'
-        show('Parallax ' .. installed .. ' is up to date.', false)
+        show('Parallax ' .. item.version .. ' is available.', false)
     else
         state = 'current'
-        show('Parallax ' .. installed .. ' is up to date.', false,
-            'The installed ' .. installed .. ' is newer than the latest release, ' .. item.version .. '.')
+        show('Parallax ' .. installed .. ' is up to date.', false)
     end
     return true
 end
@@ -155,9 +148,9 @@ function FeedError(kind)
     SKIN:Bang('!DisableMeasure', 'MeasureUpdateFeed')
     state = 'idle'
     if kind == 'connect' then
-        show('Could not reach the update server.', true, 'Check the connection and try again. Nothing was downloaded.')
+        show('Could not reach the update server.', true)
     else
-        show('Update check failed.', true, 'No Parallax release information was found at the update address.')
+        show('Update check failed.', true)
     end
     return false
 end
@@ -183,16 +176,14 @@ function InstallDone()
     if state ~= 'downloading' then return false end
     local measure = SKIN:GetMeasure('MeasureUpdateInstall')
     local output = (measure and measure:GetStringValue() or ''):gsub('[\r\n]+$', '')
-    local result, detail = output:match('PARALLAX_UPDATE_V1|(%a+)|([^\r\n]*)')
+    local result = output:match('PARALLAX_UPDATE_V1|(%a+)|')
     if result == 'ok' then
         state = 'handed'
-        show('Confirm in Skin Installer to finish.', false,
-            'The verified ' .. offer.version .. ' package is open in Rainmeter\'s Skin Installer. Nothing changes until you choose Install there; your settings are kept.')
+        show('Confirm in Skin Installer to finish.', false)
         return true
     end
     state = 'available'
-    show('Download failed. Nothing was installed.', true,
-        detail ~= nil and detail ~= '' and detail or 'The download did not finish. Try again.')
+    show('Download failed. Nothing was installed.', true)
     return false
 end
 

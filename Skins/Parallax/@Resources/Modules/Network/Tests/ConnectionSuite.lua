@@ -109,7 +109,6 @@ function Suite.run(Core, Connection, fixtures)
     test('invalid Wi-Fi configuration has a visible repair state', function()
         local d = describe(nil, nil, Connection.configureWifi('1', '-2'))
         equal(d.wifiName, 'Check Wi-Fi settings'); equal(d.signalPercent, nil)
-        contains(d.wifiTooltip, '0 to 63')
     end)
     test('malformed configuration objects fail closed', function()
         for _, c in ipairs({{enabled = true, index = -1}, {enabled = true, index = 64}, {enabled = '1', index = 0}}) do
@@ -120,7 +119,6 @@ function Suite.run(Core, Connection, fixtures)
         for _, ssid in ipairs({'', ' ', '-1', '0'}) do
             local d = describe(nil, wifi({ssid = ssid}))
             equal(d.wifiName, 'Wi-Fi unavailable'); equal(d.signalPercent, nil)
-            contains(d.wifiTooltip, 'Location')
         end
     end)
     test('pending native SSIDs never present connection quality as current', function()
@@ -154,26 +152,20 @@ function Suite.run(Core, Connection, fixtures)
             equal(d.signalPercent, fixture[1]); equal(d.signalColor, fixture[2])
         end
     end)
-    test('Wi-Fi link rates stay bits per second without a second multiplier', function()
+    test('recognized PHY reports the Wi-Fi standard as radio', function()
         local d = describe()
-        contains(d.wifiTooltip, 'RX: 1.2 Gbit/s'); contains(d.wifiTooltip, 'TX: 600.0 Mbit/s')
         equal(d.radio, 'Radio: 802.11ax')
-        contains(d.wifiTooltip, 'channel and frequency band are not exposed')
     end)
-    test('Wi-Fi source disclosure never implies selected adapter matching', function()
+    test('a separate WLAN source still reports beside an Ethernet adapter', function()
         local d = describe(adapter({type = 6}), nil, Connection.configureWifi('1', '3'))
         equal(d.wifiName, 'Wi-Fi: Synthetic WLAN')
-        contains(d.wifiTooltip, 'WLAN index 3'); contains(d.wifiTooltip, 'separate from the selected adapter')
-        contains(d.wifiTooltip, 'may fall back to 0')
     end)
-    test('all displayed external strings and tooltips are sanitized', function()
+    test('all displayed external strings are sanitized', function()
         local d = describe(adapter({alias = 'NIC #x# [!Quit]', description = 'Model\n[!Quit]', ip = '192.0.2.2#x#', gateway = '192.0.2.1[evil]'}),
             wifi({ssid = 'SSID #CURRENTCONFIG# [!Quit]\nline'}))
         for key, value in pairs(d) do
             if type(value) == 'string' then truth(not value:find('[%c#%[%]]'), key .. ' contains executable delimiters') end
         end
-        local invalid = describe(nil, nil, {enabled = false, index = 0, error = '#bad#[!Quit]\n'})
-        truth(not invalid.wifiTooltip:find('[%c#%[%]]'))
     end)
     test('missing source tables remain explicitly unavailable', function()
         local d = Connection.describe(Core, {}, {}, Connection.configureWifi('1', '0'))
@@ -282,6 +274,7 @@ function Suite.run(Core, Connection, fixtures)
         for _, call in ipairs(mock.calls) do
             equal(call.bang, '!SetOption')
             truth(meterNames[call.args[1]], 'polling mutated a native measure')
+            truth(call.args[2] ~= 'ToolTipText', 'polling set a tooltip on ' .. call.args[1])
         end
         equal(mock:count('!WriteKeyValue'), 0); equal(mock:count('!Refresh'), 0)
         mock.calls = {}; mock:tick(); equal(#mock.calls, 0, 'unchanged display should not rewrite cached options')
@@ -294,7 +287,7 @@ function Suite.run(Core, Connection, fixtures)
         equal(mock.latest['MeterConnectionSignal:Text'], '0%')
         contains(mock.latest['MeterConnectionSignalBar:Shape2'], 'Rectangle 0,0,0.000,3')
         for key, value in pairs(mock.latest) do
-            if key:match(':Text$') or key:match(':ToolTipText$') then truth(not value:find('[%c#%[%]]'), 'unsanitized display ' .. key) end
+            if key:match(':Text$') then truth(not value:find('[%c#%[%]]'), 'unsanitized display ' .. key) end
         end
         mock.missing.MeasureConnectionWiFiSSID = true
         equal(mock:tick(), 0)
@@ -303,7 +296,7 @@ function Suite.run(Core, Connection, fixtures)
         mock.adapter.status = -2
         mock:tick()
         equal(mock.latest['MeterConnectionStatus:Text'], 'Lower layer down')
-        contains(mock.latest['MeterConnectionStatus:ToolTipText'], 'Ethernet / Lower layer down')
+        equal(mock.latest['MeterConnectionStatus:ToolTipText'], nil)
     end)
     test('signal fill follows scaled shared thickness without fabricating unknown quality', function()
         local mock = controller()
@@ -332,7 +325,6 @@ function Suite.run(Core, Connection, fixtures)
         mock:tick()
         equal(mock.latest['MeterConnectionWidth:Text'], nil)
         equal(mock:count('!WriteKeyValue'), 0); equal(mock:count('!Refresh'), 0)
-        contains(mock.latest['MeterConnectionAdapter:ToolTipText'], 'Click for Network Settings.')
     end)
     report[#report + 1] = string.format('SUMMARY: %d passed, %d failed', passed, failed)
     return table.concat(report, '\n') .. '\n'

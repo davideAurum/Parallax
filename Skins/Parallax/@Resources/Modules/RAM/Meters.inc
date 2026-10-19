@@ -76,7 +76,6 @@ Hidden=1
 UpdateDivider=-1
 MouseActionCursor=1
 LeftMouseUpAction=[!ActivateConfig "Parallax\RAM\Settings" "Settings.ini"]
-ToolTipText=Open the RAM Settings utility. Changes apply and save immediately.
 
 [MeterRAMPercent]
 Meter=String
@@ -92,7 +91,6 @@ Hidden=0
 NumOfDecimals=#RAMPercentDecimals#
 AutoScale=0
 Text=%1%
-ToolTipText=Used physical RAM divided by the native total physical RAM range.
 
 [MeterRAMBar]
 Meter=Bar
@@ -107,7 +105,6 @@ BarOrientation=Horizontal
 BarColor=#RAMColor#
 SolidColor=#TrackColor#
 Hidden=(1-#RAMShowBar#)
-ToolTipText=Used physical RAM / OS-usable total. Used: [MeasureRAMUsed:0] bytes; total: [MeasureRAMTotal:0] bytes.
 
 [MeterRAMPageBar]
 Meter=Bar
@@ -123,14 +120,12 @@ BarColor=#RAMColor#
 SolidColor=#TrackColor#
 ; The controller shows this only when enabled and current allocation is known.
 Hidden=1
-ToolTipText=Paging-file space in use / current allocated capacity. Waiting for Windows paging-file enumeration.
 
 [MeterRAMUsedLabel]
 Meter=String
 MeterStyle=StyleLabel | StyleRAMRowLabel
 Y=(#Inset#+(#RAMInfoHeight#+34)*#Scale#)
 Text=RAM:
-ToolTipText=Used physical RAM / OS-usable total. Available: [MeasureRAMAvailable:0] bytes; used: [MeasureRAMUsed:0] bytes; total: [MeasureRAMTotal:0] bytes.
 
 [MeterRAMUsedGiB]
 Meter=String
@@ -157,7 +152,6 @@ Meter=String
 MeterStyle=StyleLabel | StyleRAMRowLabel
 Y=(#Inset#+(#RAMInfoHeight#+66+Max(0,#DataBarThickness#-6))*#Scale#)
 Text=PAGE:
-ToolTipText=Paging-file space in use / current allocated capacity, excluding physical RAM. Waiting for Windows paging-file enumeration.
 
 [MeterRAMPageGiB]
 Meter=String
@@ -183,7 +177,6 @@ Text=History
 Group=RAMLayout
 DynamicVariables=1
 Hidden=(1-#RAMShowHistory#)
-ToolTipText=Used physical RAM, newest at right. History starts over on refresh and fills one sample per update. Uncollected history is not a measurement.
 UpdateDivider=-1
 
 [MeterRAMHistoryRange]
@@ -220,7 +213,6 @@ AntiAlias=1
 DynamicVariables=1
 Hidden=(1-#RAMShowHistory#)
 UpdateDivider=1
-ToolTipText=Native physical RAM history with a fixed 0-100% range. Each horizontal pixel holds one update; width, suite scale and MetricsInterval change the nominal time span. Refresh clears history.
 
 ; Native Line starts with a zero-filled ring buffer. Cover its uncollected
 ; left side; do not portray those zeros as observed memory usage. Until full,
@@ -234,7 +226,6 @@ Hidden=(1-#RAMShowHistory#)
 Group=RAMLayout
 DynamicVariables=1
 UpdateDivider=1
-ToolTipText=This blank area has no collected samples yet. History fills from the right and restarts on refresh.
 
 ; Overlay guides after the startup cover so blank history still has a grid.
 [MeterRAMHistoryFrame]

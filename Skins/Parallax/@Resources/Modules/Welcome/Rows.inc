@@ -70,7 +70,6 @@ MeterStyle=StyleWelcomeName
 Y=(#Inset#+105*#Scale#)
 Text=Chronometer
 LeftMouseUpAction=[!CommandMeasure MeasureWelcome "Toggle('Chronometer')"]
-ToolTipText=Load or unload Chronometer.
 
 [MeterWelcomeDescription1]
 Meter=String
@@ -97,7 +96,6 @@ MeterStyle=StyleWelcomeName
 Y=(#Inset#+129*#Scale#)
 Text=CPU
 LeftMouseUpAction=[!CommandMeasure MeasureWelcome "Toggle('CPU')"]
-ToolTipText=Load or unload CPU.
 
 [MeterWelcomeDescription2]
 Meter=String
@@ -124,7 +122,6 @@ MeterStyle=StyleWelcomeName
 Y=(#Inset#+153*#Scale#)
 Text=RAM
 LeftMouseUpAction=[!CommandMeasure MeasureWelcome "Toggle('RAM')"]
-ToolTipText=Load or unload RAM.
 
 [MeterWelcomeDescription3]
 Meter=String
@@ -151,7 +148,6 @@ MeterStyle=StyleWelcomeName
 Y=(#Inset#+177*#Scale#)
 Text=GPU
 LeftMouseUpAction=[!CommandMeasure MeasureWelcome "Toggle('GPU')"]
-ToolTipText=Load or unload GPU.
 
 [MeterWelcomeDescription4]
 Meter=String
@@ -178,7 +174,6 @@ MeterStyle=StyleWelcomeName
 Y=(#Inset#+201*#Scale#)
 Text=IO
 LeftMouseUpAction=[!CommandMeasure MeasureWelcome "Toggle('IO')"]
-ToolTipText=Load or unload IO.
 
 [MeterWelcomeDescription5]
 Meter=String
@@ -205,7 +200,6 @@ MeterStyle=StyleWelcomeName
 Y=(#Inset#+225*#Scale#)
 Text=Network
 LeftMouseUpAction=[!CommandMeasure MeasureWelcome "Toggle('Network')"]
-ToolTipText=Load or unload Network.
 
 [MeterWelcomeDescription6]
 Meter=String
@@ -232,7 +226,6 @@ MeterStyle=StyleWelcomeName
 Y=(#Inset#+249*#Scale#)
 Text=Media
 LeftMouseUpAction=[!CommandMeasure MeasureWelcome "Toggle('Media')"]
-ToolTipText=Load or unload Media. Playback needs WebNowPlaying.
 
 [MeterWelcomeDescription7]
 Meter=String
@@ -259,7 +252,6 @@ MeterStyle=StyleWelcomeName
 Y=(#Inset#+273*#Scale#)
 Text=Visualizer
 LeftMouseUpAction=[!CommandMeasure MeasureWelcome "Toggle('Visualizer')"]
-ToolTipText=Load or unload Visualizer.
 
 [MeterWelcomeDescription8]
 Meter=String
@@ -286,7 +278,6 @@ MeterStyle=StyleWelcomeName
 Y=(#Inset#+309*#Scale#)
 Text=Global Settings
 LeftMouseUpAction=[!CommandMeasure MeasureWelcome "Toggle('Settings')"]
-ToolTipText=Load or unload Global Settings.
 
 [MeterWelcomeDescription9]
 Meter=String

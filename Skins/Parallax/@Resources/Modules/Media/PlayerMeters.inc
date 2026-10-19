@@ -27,7 +27,6 @@ Y=(#MediaCoverY#+(#MediaCoverSize#-18*#Scale#)/2)
 W=(#MediaCoverSize#-6*#Scale#)
 StringAlign=Center
 Text=N/A
-ToolTipText=No artwork available.
 Hidden=1
 
 ; The opaque rounded Shape masks child images; it paints no rectangle itself.
@@ -90,7 +89,6 @@ Shape=Path LucideMusicPath | Fill Color 0,0,0,0 | Stroke Color #MutedColor# | St
 Shape2=Ellipse (6*#MediaLucideScale#),(18*#MediaLucideScale#),(3*#MediaLucideScale#),(3*#MediaLucideScale#) | Fill Color 0,0,0,0 | Stroke Color #MutedColor# | StrokeWidth (2*#MediaLucideScale#)
 Shape3=Ellipse (18*#MediaLucideScale#),(16*#MediaLucideScale#),(3*#MediaLucideScale#),(3*#MediaLucideScale#) | Fill Color 0,0,0,0 | Stroke Color #MutedColor# | StrokeWidth (2*#MediaLucideScale#)
 LucideMusicPath=(9*#MediaLucideScale#),(18*#MediaLucideScale#) | LineTo (9*#MediaLucideScale#),(5*#MediaLucideScale#) | LineTo (21*#MediaLucideScale#),(3*#MediaLucideScale#) | LineTo (21*#MediaLucideScale#),(16*#MediaLucideScale#)
-ToolTipText=Song. Hover here for the detected playback source.
 
 [MeterArtistIcon]
 Meter=Shape
@@ -204,7 +202,6 @@ OnUpdateAction=[!CommandMeasure MeasureMediaUI "LayoutTransport('MeterTiming')"]
 Meter=String
 MeterStyle=MediaTimingStyle
 Text=-- / --
-ToolTipText=Playback time is unavailable from the player.
 Group=MediaDynamic
 OnUpdateAction=[!CommandMeasure MeasureMediaUI "LayoutTransport('MeterTimingUnavailable')"]
 

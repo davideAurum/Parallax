@@ -24,7 +24,6 @@ Text=Process
 Group=RAMLayout
 DynamicVariables=1
 UpdateDivider=-1
-ToolTipText=Five largest private working sets, highest first. Processes with the same name are combined. Shared pages, kernel memory and cache are excluded; rows do not add up to total used RAM.
 
 [MeterRAMProcessesMemoryHeader]
 Meter=String
@@ -37,7 +36,6 @@ Text=RAM
 Group=RAMLayout
 DynamicVariables=1
 UpdateDivider=-1
-ToolTipText=Private physical memory currently resident for each process group, in the selected GB or MB units.
 
 [MeterRAMProcessesHeaderRule]
 Meter=Shape
@@ -59,7 +57,6 @@ ClipString=2
 Group=RAMLayout | RAMProcesses
 DynamicVariables=1
 UpdateDivider=-1
-ToolTipText=Windows process counters have not supplied a ranked sample yet.
 
 [MeterRAMProcessName1]
 Meter=String

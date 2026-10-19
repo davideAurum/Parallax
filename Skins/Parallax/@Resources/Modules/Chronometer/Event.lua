@@ -15,27 +15,20 @@ local function paint(immediate)
     local active = event and event.enabled
     local remaining = active and Core.remaining(event, os.time()) or 0
     local label, value, color = 'No event set', 'Add in settings', 'AccentColor2'
-    local detail = 'Add an event in Chronometer settings.'
     if invalid then
         label, value, color = 'Event unavailable', 'Open settings to repair', 'WarningColor'
-        detail = 'The saved event could not be read. Open Event Countdown in Chronometer settings to repair it.'
     elseif active then
         local name = Core.displayName(event.name)
         label = remaining > 0 and ('Countdown to ' .. name .. ':') or ('Event reached: ' .. name)
         value = Core.format(remaining)
-        local date = os.date('%Y-%m-%d %H:%M', event.deadline)
-        detail = label .. '\n' .. value .. '\nTarget: ' .. date .. ' (local time).'
     end
     if editorError then
         label, color = 'Event editor unavailable', 'WarningColor'
         if not active then value = 'Open settings to retry' end
-        detail = detail .. '\nCould not open the event editor. Try again from Chronometer settings.'
     end
     option('MeterEventName', 'Text', label)
-    option('MeterEventName', 'ToolTipText', detail)
     option('MeterEventName', 'FontColor', SKIN:GetVariable((invalid or editorError) and 'WarningColor' or 'TextColor'))
     option('MeterEventCountdown', 'Text', value)
-    option('MeterEventCountdown', 'ToolTipText', detail)
     option('MeterEventCountdown', 'FontColor', SKIN:GetVariable(color))
     -- Periodic updates already receive Rainmeter's end-of-cycle meter update
     -- and redraw. Editor callbacks still request an immediate visual update.

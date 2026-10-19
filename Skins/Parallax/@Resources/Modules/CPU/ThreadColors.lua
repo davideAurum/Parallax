@@ -91,13 +91,9 @@ local function render()
     for index = 1, state.count do
         local color = state.colors[index]
         local text = hex(color)
-        local tip = 'Thread ' .. index .. ': ' .. text .. '. Click the hex code or swatch to enter an RGB hex color. This same color draws its utilization bar and graph trace.'
         set('MeterThreadColorLabel' .. index, 'Text', 'Thread ' .. index)
-        set('MeterThreadColorLabel' .. index, 'ToolTipText', tip)
         set('MeterThreadColorValue' .. index, 'Text', text)
-        set('MeterThreadColorValue' .. index, 'ToolTipText', tip)
         set('MeterThreadColorSwatch' .. index, 'Shape', 'Rectangle (0.5*#Scale#),(0.5*#Scale#),(21*#Scale#),(19*#Scale#),(2*#Scale#) | Fill Color ' .. color .. ' | Stroke Color #BorderColor# | StrokeWidth #Scale#')
-        set('MeterThreadColorSwatch' .. index, 'ToolTipText', tip)
     end
     SKIN:Bang('!UpdateMeterGroup', 'CPUThreadColorsUI')
     SKIN:Bang('!Redraw')

@@ -32,9 +32,6 @@ end
 local function option(meter, value)
     SKIN:Bang('!SetOption', meter, 'Text', tostring(value))
 end
-local function tooltip(meter, value)
-    SKIN:Bang('!SetOption', meter, 'ToolTipText', tostring(value))
-end
 local function numberVariable(key, fallback)
     local value = SKIN:GetVariable(key, tostring(fallback))
     return tonumber(value) or SKIN:ParseFormula(value)
@@ -124,21 +121,14 @@ function Render()
     SKIN:Bang('!SetVariable', 'WindowHeight', tostring(heightPx + numberVariable('Gap', 0)))
     local listName = plain(SKIN:GetVariable('ChronometerList' .. selectedList .. 'Name'), 'List ' .. selectedList)
     option('MeterListName', string.format('%d / 3  %s', selectedList, listName))
-    local listTip = listName .. '\nUse the arrows to select the previous or next timer list.'
-    tooltip('MeterListName', listTip)
-    tooltip('MeterListLabel', listTip)
     for row = 1, 4 do
         local name = plain(SKIN:GetVariable('ChronometerList' .. selectedList .. 'Timer' .. row .. 'Label'), 'Timer ' .. row)
         local duration = durationText(integer(current(timerKey(row)), 1, maximum))
         option('MeterTimerLabel' .. row, name)
         option('MeterTimerSeconds' .. row, duration)
-        local timerTip = name .. ': ' .. duration .. '\nEnter whole seconds from 1 to 604800. Arrows adjust by ' .. stepNames[stepIndex] .. '. Changing duration resets this timer.'
-        tooltip('MeterTimerLabel' .. row, timerTip)
-        tooltip('MeterTimerSeconds' .. row, timerTip)
     end
     option('MeterStepValue', stepNames[stepIndex])
     option('MeterStatus', status)
-    tooltip('MeterStatus', status)
     -- Include panel bounds, section rules and hidden hit targets in the reflow.
     SKIN:Bang('!UpdateMeter', '*')
     SKIN:Bang('!Redraw')

@@ -121,8 +121,8 @@ function Suite.run(path)
                 assert(#args == 3 and type(args[3]) == 'string', 'scalar option required')
                 if meterNames[args[1]] then
                     local isBar = args[1]:find('Bar$') ~= nil
-                    assert(args[2] == 'ToolTipText' or (isBar and args[2] == 'Shape2')
-                        or (not isBar and args[2] == 'Text'), 'unexpected meter option')
+                    assert((isBar and args[2] == 'Shape2') or (not isBar and args[2] == 'Text'),
+                        'unexpected meter option (tooltips were removed)')
                     if args[2] ~= 'Shape2' then assert(not args[3]:find('[#%[%]"%c]'), 'unsafe display data') end
                     f.meters[args[1]] = f.meters[args[1]] or {}
                     f.meters[args[1]][args[2]] = args[3]
@@ -228,7 +228,6 @@ function Suite.run(path)
         function f:live(overrides) self:start(); self:sample(overrides); self:update() end
         function f:clear() self.calls = {} end
         function f:text(meter) return self.meters[meter] and self.meters[meter].Text end
-        function f:tip(meter) return self.meters[meter] and self.meters[meter].ToolTipText end
         function f:bar(meter)
             meter = meter or 'MeterGPUVRAMBar'
             local shape = assert(self.meters[meter], 'missing bar ' .. meter).Shape2
@@ -266,8 +265,7 @@ function Suite.run(path)
         contains(f.parameters[bootstrap], "CreateSession('" .. luid .. "',2000)")
         for _ = 1, 4 do f:update() end; eq(f.launches[bootstrap], 1)
         f:live(); eq(f.launches[driver], 1); eq(f.leaseWrites, 1); eq(f.files[leasePath], token .. '|1000|0|?')
-        eq(f.meter.Text, '42 °C'); contains(f.meter.ToolTipText, adapter); contains(f.meter.ToolTipText, 'NVIDIA driver')
-        contains(f.meter.ToolTipText, 'hottest measured area')
+        eq(f.meter.Text, '42 °C')
         f:clear(); for _ = 1, 4 do f:update() end
         eq(#f.calls, 0, 'deduplicated unchanged view'); eq(f.leaseWrites, 1); eq(f.reads[info], 1)
         eq(f.launches[bootstrap], 1); eq(f.launches[driver], 1)
@@ -285,7 +283,7 @@ function Suite.run(path)
     test('pending or missing metadata has a deadline, then runs names only and never launches from stale output', function()
         for _, status in ipairs({-1, 0, 2, 101, 102, 103}) do
             local f = fixture({infoStatus = status}); eq(f.meter.Text, 'Checking...'); eq(f.reads[info], nil)
-            f.now = 1014; f:update(); eq(f.meter.Text, 'Unavailable'); contains(f.meter.ToolTipText, 'GPU identity is unavailable.')
+            f.now = 1014; f:update(); eq(f.meter.Text, 'Unavailable')
             eq(f.launches[bootstrap], 1); contains(f.parameters[bootstrap], "CreateSession('" .. namesOnlyLuid .. "',2000)")
             f.statuses[info] = 1; f.now = 2000; f:update(); eq(f.launches[bootstrap], 1); eq(f.reads[info], nil, 'late metadata is never read')
         end
@@ -323,7 +321,6 @@ function Suite.run(path)
             (metadata:gsub(luid, namesOnlyLuid)), string.rep('x', 12001)}
         for _, output in ipairs(cases) do
             local f = fixture({metadata = output}); eq(f.meter.Text, 'Unavailable')
-            contains(f.meter.ToolTipText, 'No unambiguous discrete GPU identity is available. Refresh GPU to retry.')
             eq(f.launches[bootstrap], 1); contains(f.parameters[bootstrap], "CreateSession('" .. namesOnlyLuid .. "',2000)")
             f:update(); eq(f.launches[bootstrap], 1)
         end
@@ -379,10 +376,9 @@ function Suite.run(path)
     test('a missing optional GPU name preserves a valid identity-checked temperature', function()
         local f = fixture(); f:live({[9] = '?'})
         eq(f.meter.Text, '42 °C')
-        contains(f.meter.ToolTipText, 'Selected GPU: GPU Temperature from the NVIDIA driver.')
         eq(f.launches[driver], 1)
         f:sample({[4] = '2'}); f:update()
-        contains(f.meter.ToolTipText, adapter .. ': GPU Temperature from the NVIDIA driver.')
+        eq(f.meter.Text, '42 °C')
         f:sample({[4] = '3', [8] = 'FFFFFFFFFFFFFFFF', [9] = '?'}); f:update()
         eq(f.meter.Text, 'Unavailable', 'name fallback cannot bypass exact GPU identity')
     end)
@@ -489,19 +485,14 @@ function Suite.run(path)
         for index, name in ipairs(loadMeters) do eq(f:text(name), tostring(index * 25) .. '%') end
         for index, name in ipairs(loadBars) do
             local endpoint, stroke, y = f:bar(name); eq(endpoint, index * 25 / 100 * engineWidth, name); eq(stroke, 6); eq(y, 3)
-            contains(f.meters[name].Shape2, 'Stroke Color #GPUColor#'); contains(f:tip(name), 'activity')
+            contains(f.meters[name].Shape2, 'Stroke Color #GPUColor#')
         end
-        contains(f:tip('MeterGPUVRAMValue'), adapter)
-        contains(f:tip('MeterGPUVRAMValue'), 'decimal units')
-        eq(f:tip('MeterGPUVRAMBar'), f:tip('MeterGPUVRAMValue'), 'bar and value share one explanation')
-        contains(f:tip('MeterGPUSharedValue'), adapter)
         contains(f.meters.MeterGPUVRAMBar.Shape2, 'StrokeStartCap Flat | StrokeEndCap Flat')
         contains(f.meters.MeterGPUVRAMBar.Shape2, 'Stroke Color #GPUColor#')
     end)
     test('headline activity follows the Core domain and is the numeric return value', function()
         local f = fixture(); f:start(); f:sample()
         local n = f:update(); eq(n, 25); eq(f:text('MeterActivityValue'), '25%')
-        contains(f:tip('MeterActivityValue'), adapter); contains(f:tip('MeterActivityValue'), 'History graph')
         f:sample({[4] = '2', [18] = '0'}); n = f:update(); eq(n, 0); eq(f:text('MeterActivityValue'), '0%', 'measured zero keeps its unit')
         f:sample({[4] = '3', [18] = '100'}); n = f:update(); eq(n, 100); eq(f:text('MeterActivityValue'), '100%')
         eq(f:bar('MeterGPULoadBar'), engineWidth, 'full Core activity fills the engine track')
@@ -690,10 +681,8 @@ function Suite.run(path)
             eq(f:text('MeterPowerValue'), selection[1] and '77.7 W' or '55.3 W')
             eq(f:text('MeterClockValue'), selection[2] and '1234.5 MHz' or '1607.5 MHz')
             eq((f.reads.MeasureGPURegistryNames or 0) > 0, true)
-            if selection[1] then contains(f:tip('MeterPowerValue'), 'sample age unknown')
-            else eq(f.reads.MeasureGPUPowerValue, nil) end
-            if selection[2] then contains(f:tip('MeterClockValue'), 'sample age unknown')
-            else eq(f.reads.MeasureGPUClockValue, nil) end
+            if not selection[1] then eq(f.reads.MeasureGPUPowerValue, nil) end
+            if not selection[2] then eq(f.reads.MeasureGPUClockValue, nil) end
         end
         local options = manualOptions(true, false); options.vars.GPUEnableSensors = '0'
         local f = fixture(options); f:live()
@@ -781,7 +770,6 @@ function Suite.run(path)
         options.exports = {MeasureGPUPowerValueRaw = '0', MeasureGPUPowerValue = '0.0 W',
             MeasureGPURegistryNames = ' sensor3 | LABEL3 | Value3 | ValueRAW3 '}
         local f = fixture(options); f:live(); eq(f:text('MeterPowerValue'), '0.0 W')
-        contains(f:tip('MeterPowerValue'), 'registry snapshot')
     end)
     test('selected manual exports remain usable and refresh after direct driver failure without relaunch', function()
         local f = fixture(manualOptions(true, true)); f:live()
@@ -844,21 +832,20 @@ function Suite.run(path)
         local map = '7,' .. hex('game.exe') .. ';42,' .. hex('tool.exe')
         for _, output in ipairs({'NONE', (metadata:gsub('OK|', 'AMBIGUOUS|', 1))}) do
             local f = fixture({metadata = output, pids = '7,42'})
-            eq(f.meter.Text, 'Unavailable'); local reason = f.meter.ToolTipText
-            eq(reason, 'No unambiguous discrete GPU identity is available. Refresh GPU to retry.')
+            eq(f.meter.Text, 'Unavailable')
             f:start(sessionOutput({[5] = namesOnlyLuid}))
             eq(f.launches[driver], 1); contains(f.parameters[driver], "','" .. namesOnlyLuid .. "',2000)")
             eq(f.files[leasePath], token .. '|1000|1|7,42')
-            f:update(); eq(f.meter.ToolTipText, reason, 'no Checking state before the first reply')
+            f:update(); eq(f.meter.Text, 'Unavailable', 'no Checking state before the first reply')
             -- GPU readings in a names-only reply (here a plausible 42 C) are never shown.
             f:sample({[8] = namesOnlyLuid, [9] = '?', [27] = map}); f:update()
-            eq(f.names, 'GPU_NAMES|1|1000|' .. map); f:allUnavailable(); eq(f.meter.ToolTipText, reason)
+            eq(f.names, 'GPU_NAMES|1|1000|' .. map); f:allUnavailable()
             f.now = 1001; f:sample({[8] = namesOnlyLuid, [9] = '?', [27] = map}); f:update()
             eq(f.names, 'GPU_NAMES|1|1001|' .. map); eq(f.launches[driver], 1)
             f:sample({[27] = map}); f:update(); eq(f.names, '', 'a reply for a real adapter LUID is rejected')
-            eq(f.meter.ToolTipText, reason)
+            eq(f.meter.Text, 'Unavailable')
             f.statuses[driver] = 1; f:update(); eq(f.names, '')
-            eq(f.meter.ToolTipText, reason, 'a stopped host keeps the metadata reason'); f:ownedClean()
+            eq(f.meter.Text, 'Unavailable', 'a stopped host stays unavailable'); f:ownedClean()
         end
         local f = fixture({metadata = 'NONE'}); f:start()
         eq(f.launches[driver], nil, 'a session must echo the names-only LUID'); eq(f.meter.Text, 'Unavailable')

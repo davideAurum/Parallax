@@ -4,13 +4,9 @@ local M = {}
 local MAX_ROWS, MAX_NAME_BYTES, MAX_INTEGER = 5, 1024, 9007199254740991
 local forbidden = {['#']=true, ['[']=true, [']']=true, ['%']=true,
     ['"']=true, ["'"]=true, ['!']=true, ['\\']=true}
-local metricTip = 'Private working set is resident process memory excluding shared pages. '
-    ..'Processes with the same counter name are combined. These rankings do not account for all physical RAM in use.'
-local freshnessTip = 'UsageMonitor samples the Process category about once per second and exposes no separate freshness signal. '
-    ..'Missing rankings can mean no active samples or unavailable counters; they are not measured zero.'
 
 -- Rainmeter uses Lua 5.1. Validate UTF-8 and remove option/measure expansion syntax
--- before sending external process names to literal Text or ToolTipText options.
+-- before sending external process names to literal Text options.
 local function literalName(raw)
     if type(raw) ~= 'string' or #raw == 0 or #raw > MAX_NAME_BYTES then return nil end
     local out, i = {}, 1
@@ -53,7 +49,7 @@ function M.Format(samples, useMB, decimals)
     if decimals ~= decimals or decimals == math.huge or decimals == -math.huge then decimals = 1 end
     decimals = math.max(0, math.min(2, math.floor(decimals)))
     local numberFormat = '%.'..decimals..'f'
-    local result = {rows={}, state='', tip=''}
+    local result = {rows={}, state=''}
     if type(samples) == 'table' then
         -- Preserve the provider's descending rank order; never sum or re-rank
         -- separately read measures, which do not expose a common sample timestamp.
@@ -69,20 +65,13 @@ function M.Format(samples, useMB, decimals)
                     if text == string.format(numberFormat,0) then
                         text = '<'..string.format(numberFormat,10^(-decimals))
                     end
-                    text = text..' '..unit
-                    result.rows[#result.rows+1] = {
-                        name=name, text=text,
-                        tip=name..': '..text..' private working set ('
-                            ..string.format('%.0f',sample.bytes)..(sample.bytes == 1 and ' byte). ' or ' bytes). ')..metricTip
-                    }
+                    result.rows[#result.rows+1] = {name=name, text=text..' '..unit}
                 end
             end
         end
     end
+    -- Missing ranks can mean no samples or unavailable counters, not measured zero.
     if #result.rows == 0 then result.state = 'No process data' end
-    result.tip = metricTip..' '..freshnessTip..' '
-        ..#result.rows..' of '..MAX_ROWS..' ranked entries are available. '
-        ..'Decimal units: 1 '..unit..' = '..string.format('%.0f',divisor)..' bytes.'
     return result
 end
 

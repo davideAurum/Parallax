@@ -1363,7 +1363,6 @@ class SkinContractTests(unittest.TestCase):
         for part,direction in [('Label',1),('Decrease',-1),('Frame',1),('Value',1),('Increase',1)]:
             self.assertEqual(sections[f'MeterVisualizerDrawer{part}']['LeftMouseUpAction'],
                              f'''[!CommandMeasure MeasureMediaSettings "StepChoice('VisualizerDrawer',{direction})"]''')
-            self.assertTrue(sections[f'MeterVisualizerDrawer{part}'].get('ToolTipText'),part)
         for meter,key in [('Width','Columns'),('QueueRows','QueueRowLimit'),('QueuePoll','QueuePollSeconds')]:
             for part in ('Label','Frame','Value'):
                 self.assertEqual(sections[f'Meter{meter}{part}']['LeftMouseUpAction'],
@@ -1540,8 +1539,7 @@ class SkinContractTests(unittest.TestCase):
                     if style['Meter'] == 'String':
                         self.assertIn(style.get('ClipString'), ['1', '2'], section_name)
                         self.assertIn('FontFace', style, section_name)
-                        if any('Mouse' in k and k.endswith('Action') for k in style):
-                            self.assertTrue(style.get('ToolTipText'), section_name)
+                    self.assertNotIn('ToolTipText', style, section_name)
                     checked += 1
         self.assertGreater(checked, 2400)
 
@@ -2125,7 +2123,6 @@ class SkinContractTests(unittest.TestCase):
                             toggle,sheet,panel,gear=box('MeterVisualizerToggle'),box('MeterVisualizerSheet'),box('MeterPanel'),box('MeterMediaOptions')
                             inset=val('#Inset#')
                             self.assertEqual(toggle_style['LeftMouseUpAction'],'[!CommandMeasure MeasureMediaOptions "ToggleVisualizer()"]')
-                            self.assertTrue(toggle_style.get('ToolTipText'))
                             # The chevron and its round stroke stay on the toggle's canvas.
                             x,y,w,h=(val(toggle_style[key]) for key in ('X','Y','W','H'))
                             self.assertEqual(toggle,Bounds(x,y,x+w,y+h))

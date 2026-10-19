@@ -96,7 +96,7 @@ function Suite.run(productionPath)
             if command == '!SetOption' then
                 assert(select('#', ...) == 3, 'display update must not add a config argument')
                 assert(type(args[1]) == 'string', 'meter name must be a string')
-                local textOption = args[2] == 'Text' or args[2] == 'ToolTipText'
+                local textOption = args[2] == 'Text'
                 local drivePart = args[1]:match('^MeterIOSettingsDrive[A-Z]$')
                     or args[1]:match('^MeterIOSettingsDrive[A-Z]Label$')
                 local quotaPart = args[1] == 'MeterIOSettingsQuotaLabel'
@@ -219,7 +219,6 @@ function Suite.run(productionPath)
         end
         function f:reload() return fixture(self.persisted, self.types, nil, { labels = self.labels, modelOutput = self.modelOutput }) end
         function f:text(meter) return (self.options[meter] or {}).Text end
-        function f:tip(meter) return (self.options[meter] or {}).ToolTipText end
         if initialize ~= false then
             env.Initialize()
             env.Update()
@@ -293,17 +292,6 @@ function Suite.run(productionPath)
             end
             if visible then
                 equal(f:text(meter), chosen and 'On' or 'Off', 'drive choice ' .. letter)
-                local tip = f:tip(meter)
-                check(type(tip) == 'string', 'drive tooltip missing: ' .. letter)
-                tip = tip:lower()
-                local unselected = tip:find('unselected', 1, true) or tip:find('not selected', 1, true)
-                if chosen then
-                    check(tip:find('selected', 1, true) and not unselected, 'selected tooltip: ' .. letter)
-                else
-                    check(unselected, 'unselected tooltip: ' .. letter)
-                end
-                check(tip:find(detected and 'detected' or 'unavailable', 1, true),
-                    'inventory tooltip: ' .. letter)
             end
         end
         local summary = f:text('MeterIOSettingsDriveValue')
@@ -399,7 +387,6 @@ function Suite.run(productionPath)
                     equal(f.persisted.IODiskQuota, quota, 'drive recovery rewrote quota')
                     if target == 'Z' then
                         equal(numericOption(f, 'MeterIOSettingsDriveZ', 'Hidden'), 0, 'selected offline drive must remain visible')
-                        check(f:tip('MeterIOSettingsDriveZ'):lower():find('unavailable', 1, true), 'offline recovery must be honest')
                     end
                     local reopened = f:reload()
                     quotaLayout(reopened, false)
@@ -447,7 +434,6 @@ function Suite.run(productionPath)
         local f = fixture()
         idle(f)
         equal(f.options.MeterIOSettingsLimitValue.Text, '524.288', 'cap display must convert to decimal MB/s with editor precision')
-        check(f.options.MeterIOSettingsLimitValue.ToolTipText:find('524.288 MB/s', 1, true), 'tooltip must retain the precise cap conversion')
         equal(f.persisted.IODiskMaxMiBs, '500', 'display conversion must preserve the stored cap')
         grid(f, 'C')
         equal(f:text('MeterIOSettingsGraphValue'), 'Combined')
@@ -509,7 +495,7 @@ function Suite.run(productionPath)
             equal(f.modelQueries[1].target, 'MeasureIOModelQuery')
             equal(f.modelQueries[1].action, 'Run')
             equal(f:text('MeterIOSettingsDriveCLabel'), case[2])
-            check(f:tip('MeterIOSettingsDriveDLabel'):find('External SSD', 1, true), 'drive metadata tooltip missing')
+            check(f:text('MeterIOSettingsDriveDLabel'):find('External SSD', 1, true), 'drive metadata missing')
             f:clear()
             f.modelOutput = 'IO_MODELS_V1\nOK\nC|Updated SSD'
             equal(f.env.NamesReady(), true)
@@ -531,11 +517,9 @@ function Suite.run(productionPath)
         local model = fixture({ IODriveNames = 'model' }, nil, nil,
             { modelOutput = 'IO_MODELS_V1\nUNAVAILABLE' })
         equal(model:text('MeterIOSettingsDriveCLabel'), 'C: Model unavailable')
-        check(model:tip('MeterIOSettingsDriveCLabel'):find('Model unavailable', 1, true), 'unknown model tooltip missing')
         local both = fixture({ IODriveNames = 'both', IODiskDrives = 'Z' }, { Z = 1 }, nil,
             { labels = { Z = 'Old volume label' }, modelOutput = 'IO_MODELS_V1\nOK\nZ|Old device model' })
         equal(both:text('MeterIOSettingsDriveZLabel'), 'Z: No label / unavailable; Model unavailable')
-        check(not both:tip('MeterIOSettingsDriveZLabel'):find('Old device model', 1, true), 'offline drive kept a cached model')
         equal(numericOption(both, 'MeterIOSettingsDriveZ', 'Hidden'), 0, 'selected unavailable drive should stay visible')
         equal(#both.writes, 0)
     end)
@@ -548,10 +532,7 @@ function Suite.run(productionPath)
         f.env.NamesReady()
         check(f:text('MeterIOSettingsDriveCLabel'):find('Projects', 1, true), 'safe label text was lost')
         for _, meter in ipairs({ 'MeterIOSettingsDriveC', 'MeterIOSettingsDriveCLabel' }) do
-            for _, key in ipairs({ 'Text', 'ToolTipText' }) do
-                local value = f.options[meter][key]
-                check(not value:find('[%c#%%%[%]|]'), 'metadata expansion delimiters in ' .. meter .. '.' .. key)
-            end
+            check(not f:text(meter):find('[%c#%%%[%]|]'), 'metadata expansion delimiters in ' .. meter .. '.Text')
         end
         idle(f)
         equal(f.persisted.IODriveNames, 'both')
@@ -903,7 +884,6 @@ function Suite.run(productionPath)
                 equal(f.env.CycleLimit(step), false)
                 equal(f.options.MeterIOSettingsLimitDecrease.LeftMouseUpAction, '')
                 equal(f.options.MeterIOSettingsLimitIncrease.LeftMouseUpAction, '')
-                check(f:tip('MeterIOSettingsLimitValue'):find('Edit file', 1, true), 'invalid cap must retain the file route')
                 idle(f)
             end
         end
@@ -1000,7 +980,7 @@ function Suite.run(productionPath)
             local f = fixture({ IODiskMaxMiBs = raw })
             equal(f.env.BeginLimitInput(), false)
             equal(f.persisted.IODiskMaxMiBs, raw)
-            check(f:tip('MeterIOSettingsLimitValue'):find('Edit file', 1, true), 'unrepresentable cap must retain the file route')
+            check(f:text('MeterIOSettingsNotice'):find('Edit file', 1, true), 'unrepresentable cap must retain the file route')
             check(f:text('MeterIOSettingsLimitValue') ~= '0.0', 'positive legacy cap was shown as zero')
             idle(f)
         end
@@ -1112,7 +1092,7 @@ function Suite.run(productionPath)
         idle(f)
         for meter, options in pairs(f.options) do
             for key, value in pairs(options) do
-                if key == 'Text' or key == 'ToolTipText' then
+                if key == 'Text' then
                     check(not value:find('[%c#%[%]]'), meter .. '.' .. key .. ' has expression delimiters')
                 end
             end

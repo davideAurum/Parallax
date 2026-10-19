@@ -4,11 +4,6 @@
 Measure=PhysicalMemory
 UpdateDivider=1
 
-[MeasureRAMAvailable]
-Measure=PhysicalMemory
-InvertMeasure=1
-UpdateDivider=1
-
 [MeasureRAMTotal]
 Measure=PhysicalMemory
 Total=1

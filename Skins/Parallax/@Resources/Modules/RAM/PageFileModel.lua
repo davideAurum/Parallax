@@ -99,13 +99,13 @@ end
 function M.Format(frame, useMB, decimals)
     local status = frame and frame.status or 'UNAVAILABLE'
     if status == 'NONE' then
-        return {text = 'No paging file', tip = 'Windows reports no installed paging files. Physical RAM and system commit accounting are separate.'}
+        return {text = 'No paging file'}
     elseif status == 'STARTING' then
-        return {text = 'Checking...', tip = 'Waiting for the Windows paging-file usage and allocated-capacity reading.'}
+        return {text = 'Checking...'}
     elseif status == 'UNSUPPORTED' then
-        return {text = 'Unsupported', tip = 'Windows paging-file enumeration is not supported in this environment.'}
+        return {text = 'Unsupported'}
     elseif status ~= 'OK' then
-        return {text = 'Unavailable', tip = 'Windows paging-file usage and allocated capacity could not be read.'}
+        return {text = 'Unavailable'}
     end
     decimals = tonumber(decimals) or 1
     if decimals ~= decimals or decimals == math.huge or decimals == -math.huge then decimals = 1 end
@@ -113,11 +113,7 @@ function M.Format(frame, useMB, decimals)
     local mb = useMB == true or tonumber(useMB) == 1
     local divisor, unit = mb and 1000000 or 1000000000, mb and 'MB' or 'GB'
     local format = '%.' .. decimals .. 'f/%.' .. decimals .. 'f %s'
-    return {
-        text = string.format(format, frame.used / divisor, frame.total / divisor, unit),
-        tip = string.format('Paging-file space in use / current allocated capacity across %d paging file%s. Used: %.0f bytes; allocated: %.0f bytes. Excludes physical RAM and system commit accounting. Allocated capacity can grow automatically.',
-            frame.count, frame.count == 1 and '' or 's', frame.used, frame.total)
-    }
+    return {text = string.format(format, frame.used / divisor, frame.total / divisor, unit)}
 end
 
 return M

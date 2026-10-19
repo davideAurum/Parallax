@@ -2373,14 +2373,15 @@ Meter=String
 MeterStyle=StyleLabel
 X=#ContentX#
 Y=(#Inset#+30*#Scale#)
-W=#CPUCoreColumnWidth#
+; The header row has no bar, so the label may run up to the Zap icon at +15.
+; At width 180 that is 47 px, holding "Thread" at the 10 pt header maximum (43.2 px).
+W=(#CPUCoreColumnWidth#+15*#Scale#)
 H=(16*#Scale#)
 FontColor=#HeaderTextColor#
 FontSize=(#HeaderFontSize#*#Scale#)
 Text=Thread
 Hidden=1
 Group=CPUTableFrame|CPUUI
-ToolTipText=Windows hardware-thread numbers. The adjacent bar shows frequency-adjusted Processor Utility and caps turbo values at 100%.
 
 [MeterTableVoltageHeader]
 Meter=Image
@@ -2394,7 +2395,6 @@ Greyscale=1
 ImageTint=#WarningColor#,255
 Hidden=1
 Group=CPUTableFrame|CPUUI
-ToolTipText=High-voltage Zap symbol: Core VID requested voltage in volts, shared by paired threads. VID is not a measured supply voltage.
 
 [MeterTableTemperatureHeader]
 Meter=Image
@@ -2408,11 +2408,10 @@ Greyscale=1
 ImageTint=#CPUColor#,255
 Hidden=1
 Group=CPUTableFrame|CPUUI
-ToolTipText=Flame symbol: Per-core temperature in degrees Celsius, shared by paired threads. A dash means unavailable.
 
 [MeterTableUsageHeader]
 Meter=Image
-X=(#ContentX#+#CPUCoreColumnWidth#+100*#Scale#)
+X=(#ContentX#+#CPUCoreColumnWidth#+104*#Scale#)
 Y=(#Inset#+31*#Scale#)
 W=(14*#Scale#)
 H=(14*#Scale#)
@@ -2422,7 +2421,6 @@ Greyscale=1
 ImageTint=#HeaderTextColor#,255
 Group=CPUTableFrame|CPUUI
 Hidden=1
-ToolTipText=Gauge symbol: frequency-adjusted logical-processor Utility. Numeric values may exceed 100% under turbo; bars cap at 100%.
 
 [MeterTableHeaderRule]
 Meter=Shape

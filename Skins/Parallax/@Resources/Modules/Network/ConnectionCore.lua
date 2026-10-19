@@ -1,5 +1,5 @@
 -- Original Parallax connection presentation. No I/O, telemetry polling, or state writes.
--- Native SysInfo and installed WiFiStatus link-rate values are already bits per second.
+-- Native SysInfo link rates are already bits per second; WiFiStatus rates only prove a connection.
 local M = {}
 
 local function trim(value)
@@ -30,8 +30,7 @@ function M.describe(Core, adapter, wifi, config)
     local result = {
         adapter = 'Adapter unavailable', description = '--', status = 'Adapter unavailable',
         internet = 'Unknown', ip = '--', gateway = '--', receiveLink = '--', transmitLink = '--',
-        wifiName = 'Wi-Fi unavailable', signal = '--', radio = 'Radio unavailable',
-        wifiTooltip = '', signalTooltip = '', signalPercent = nil,
+        wifiName = 'Wi-Fi unavailable', signal = '--', radio = 'Radio unavailable', signalPercent = nil,
         statusColor = 'WarningColor', internetColor = 'MutedColor', signalColor = 'MutedColor'
     }
     local function positive(value)
@@ -83,18 +82,11 @@ function M.describe(Core, adapter, wifi, config)
 
     local configIndexValid = Core.finite(config.index) and config.index >= 0 and config.index <= 63
         and config.index == math.floor(config.index)
-    local sourceIndex = configIndexValid and config.index or 0
-    local source = 'Wi-Fi source: WLAN index ' .. sourceIndex .. ', separate from the selected adapter. '
-        .. 'Native WiFiStatus cannot verify this index or match it to Net; an unavailable index may fall back to 0. '
-    result.signalTooltip = 'Windows Wi-Fi signal quality from 0 to 100%; not network throughput. '
-        .. 'A confirmed connection can have a valid 0% signal. Each Wi-Fi field is queried separately.'
 
     if config.error or not configIndexValid or type(config.enabled) ~= 'boolean' then
         result.wifiName = 'Check Wi-Fi settings'
-        result.wifiTooltip = tostring(config.error or 'Wi-Fi configuration is invalid.') .. ' Wi-Fi querying is disabled.'
     elseif not config.enabled then
         result.wifiName = 'Wi-Fi off in module'
-        result.wifiTooltip = 'Wi-Fi querying is disabled in this module. ' .. source
     else
         local ssid, phy = trim(wifi.ssid), trim(wifi.phy)
         local pending = ssid:lower():match('%(authorizing%.%.%.%)$') or ssid:lower():match('%(connecting%.%.%.%)$')
@@ -102,29 +94,20 @@ function M.describe(Core, adapter, wifi, config)
         local connectionKnown = provided(ssid) and (usablePhy or positive(wifi.receiveRate) or positive(wifi.transmitRate))
         if provided(ssid) and pending then
             result.wifiName, result.signal, result.radio = 'Wi-Fi: ' .. ssid, 'Pending', 'Radio: Pending'
-            result.wifiTooltip = source .. 'Native connection state: ' .. ssid .. '. Signal is withheld while connecting.'
         elseif connectionKnown then
             result.wifiName = 'Wi-Fi: ' .. ssid
             result.radio = usablePhy and 'Radio: ' .. phy or 'Radio unavailable'
-            result.wifiTooltip = source .. 'SSID: ' .. ssid .. '. Wi-Fi link RX: ' .. link(wifi.receiveRate)
-                .. '; TX: ' .. link(wifi.transmitRate) .. '. Link rates are not measured throughput. '
-                .. 'PHY identifies the Wi-Fi standard; channel and frequency band are not exposed.'
             if Core.finite(wifi.quality) and wifi.quality >= 0 and wifi.quality <= 100 then
                 result.signalPercent = wifi.quality
                 result.signal = string.format('%.0f%%', wifi.quality)
                 result.signalColor = wifi.quality <= 25 and 'DangerColor' or wifi.quality <= 50 and 'WarningColor' or 'GoodColor'
             else
                 result.signal = 'Unavailable'
-                result.signalTooltip = result.signalTooltip .. ' The current quality value is unavailable.'
             end
-        else
-            result.wifiTooltip = source .. 'Current Wi-Fi data is unavailable. Native error values cannot distinguish '
-                .. 'no adapter, disconnected Wi-Fi, radio off, or denied Windows Location access. '
-                .. 'Check Wi-Fi and Settings / Privacy & security / Location. Reload Wi-Fi skins after adapter or service changes.'
         end
     end
 
-    -- Adapter names, addresses, SSIDs, and tooltips are data, never Rainmeter action text.
+    -- Adapter names, addresses, and SSIDs are data, never Rainmeter action text.
     for key, value in pairs(result) do
         if type(value) == 'string' then result[key] = Core.safe(value) end
     end

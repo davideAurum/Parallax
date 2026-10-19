@@ -33,7 +33,6 @@ function Display()
     if not settled then return end
     local result = model.Format(data, SKIN:GetVariable('RAMUseMiB'), SKIN:GetVariable('RAMDecimals'))
     SKIN:Bang('!SetOption', 'MeterRAMInfoSummary', 'Text', result.Summary.text)
-    SKIN:Bang('!SetOption', 'MeterRAMInfoSummary', 'ToolTipText', result.Summary.tip)
     SKIN:Bang('!UpdateMeter', 'MeterRAMInfoSummary')
     layout()
     -- Font metrics can settle after the first draw. Recheck the cached view

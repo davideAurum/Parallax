@@ -72,19 +72,14 @@ end
 
 function Update() return 'Queue' end
 
+-- An unreadable or unsaved preference leaves the queue display unchanged.
 local function setExpanded(requested)
     local before = readExpanded()
-    if not before then
-        SKIN:Bang('!SetOption', 'MeterQueueStatus', 'ToolTipText', 'Cannot read Media settings. Check file access.')
-        return false
-    end
+    if not before then return false end
     local value = requested or (before == '1' and '0' or '1')
     if before == value then return false end
     SKIN:Bang('!WriteKeyValue', 'Variables', 'QueueExpanded', value, settingsPath)
-    if readExpanded() ~= value then
-        SKIN:Bang('!SetOption', 'MeterQueueStatus', 'ToolTipText', 'Could not save the queue display preference.')
-        return false
-    end
+    if readExpanded() ~= value then return false end
     -- Keep an already-open settings panel in sync with a footer toggle.
     SKIN:Bang('!Refresh', 'Parallax\\Media\\Settings')
     SKIN:Bang('!Refresh')
@@ -182,25 +177,20 @@ local function placeAnchor(expected, live)
     return true
 end
 
-local function drawerFailed(message)
-    SKIN:Bang('!SetOption', 'MeterVisualizerToggle', 'ToolTipText', message)
-    SKIN:Bang('!UpdateMeter', 'MeterVisualizerToggle')
-    return false
-end
-
 -- The tab: collapsed <-> open, from what is on screen. Hidden is chosen only in
--- Media settings (the tab does not show then).
+-- Media settings (the tab does not show then). An unreadable or unsaved
+-- preference, or no usable lift, leaves the drawer as it is.
 function ToggleVisualizer()
     if not hosted() then return false end
-    if not readDrawer() then return drawerFailed('Cannot read Media settings. Check file access.') end
+    if not readDrawer() then return false end
     local value = loadedOpen() and '1' or '2'
     local lift = 0
     if value == '2' then
         lift = openLift()
-        if not lift then return drawerFailed('Cannot place the spectrum drawer above Media.') end
+        if not lift then return false end
     end
     SKIN:Bang('!WriteKeyValue', 'Variables', 'VisualizerDrawer', value, settingsPath)
-    if readDrawer() ~= value then return drawerFailed('Could not save the spectrum drawer preference.') end
+    if readDrawer() ~= value then return false end
     placeAnchor(lift, false)
     -- Keep an already-open settings panel in sync with the tab.
     SKIN:Bang('!Refresh', 'Parallax\\Media\\Settings')

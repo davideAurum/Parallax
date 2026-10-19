@@ -51,7 +51,6 @@ StringAlign=RightCenter
 Padding=0,0,0,0
 Text=X
 LeftMouseUpAction=[!DeactivateConfig]
-ToolTipText=Close RAM Settings. Saved choices stay active and the RAM meter keeps running.
 Group=RAMSettingsUI
 
 [MeterRAMSettingsDisplay]
@@ -82,14 +81,12 @@ MeterStyle=StyleUtilitySettingsLabel | StyleRAMSettingsLabel
 Y=(#Inset#+102*#Scale#)
 Text=Memory units
 LeftMouseUpAction=[!CommandMeasure MeasureRAMSettings "Cycle('RAMUseMiB')"]
-ToolTipText=Switch between decimal GB (1,000,000,000 bytes) and MB (1,000,000 bytes) for module sizes, process memory, RAM and PAGE readouts. Applies and saves immediately.
 
 [MeterRAMSettingsUnitsFrame]
 Meter=Shape
 MeterStyle=StyleSettingsStepperFrame | StyleRAMSettingsStepperFrame
 Y=(#Inset#+100*#Scale#)
 LeftMouseUpAction=[!CommandMeasure MeasureRAMSettings "Cycle('RAMUseMiB')"]
-ToolTipText=Switch between decimal GB and MB. The arrows select the previous or next unit.
 
 [MeterRAMSettingsUnits]
 Meter=String
@@ -97,7 +94,6 @@ MeterStyle=StyleSettingsStepperValue | StyleRAMSettingsStepperValue
 Y=(#Inset#+101*#Scale#)
 Text=GB
 LeftMouseUpAction=[!CommandMeasure MeasureRAMSettings "Cycle('RAMUseMiB')"]
-ToolTipText=Switch between decimal GB (1,000,000,000 bytes) and MB (1,000,000 bytes) for module sizes, process memory, RAM and PAGE readouts. Applies and saves immediately.
 
 [MeterRAMSettingsUnitsPrev]
 Meter=String
@@ -105,7 +101,6 @@ MeterStyle=StyleSettingsStepperButton | StyleRAMSettingsStepperPrev
 Y=(#Inset#+101*#Scale#)
 Text=<
 LeftMouseUpAction=[!CommandMeasure MeasureRAMSettings "Cycle('RAMUseMiB',-1)"]
-ToolTipText=Previous memory unit. GB and MB wrap around.
 
 [MeterRAMSettingsUnitsNext]
 Meter=String
@@ -113,7 +108,6 @@ MeterStyle=StyleSettingsStepperButton | StyleRAMSettingsStepperNext
 Y=(#Inset#+101*#Scale#)
 Text=>
 LeftMouseUpAction=[!CommandMeasure MeasureRAMSettings "Cycle('RAMUseMiB',1)"]
-ToolTipText=Next memory unit. GB and MB wrap around.
 
 [MeterRAMSettingsDecimalsLabel]
 Meter=String
@@ -121,14 +115,12 @@ MeterStyle=StyleUtilitySettingsLabel | StyleRAMSettingsLabel
 Y=(#Inset#+130*#Scale#)
 Text=Memory decimals
 LeftMouseUpAction=[!CommandMeasure MeasureRAMSettings "Edit('RAMDecimals')"]
-ToolTipText=Use the arrows to change memory precision by one. Click the value to type 0 to 2; Enter applies and Esc cancels.
 
 [MeterRAMSettingsDecimalsFrame]
 Meter=Shape
 MeterStyle=StyleSettingsStepperFrame | StyleRAMSettingsStepperFrame
 Y=(#Inset#+128*#Scale#)
 LeftMouseUpAction=[!CommandMeasure MeasureRAMSettings "Edit('RAMDecimals')"]
-ToolTipText=Type memory precision from 0 to 2 as a whole number. Enter applies; Esc cancels.
 
 [MeterRAMSettingsDecimals]
 Meter=String
@@ -136,7 +128,6 @@ MeterStyle=StyleSettingsStepperValue | StyleRAMSettingsStepperValue
 Y=(#Inset#+129*#Scale#)
 Text=1
 LeftMouseUpAction=[!CommandMeasure MeasureRAMSettings "Edit('RAMDecimals')"]
-ToolTipText=Type memory precision from 0 to 2 as a whole number. Enter applies; Esc cancels.
 
 [MeterRAMSettingsDecimalsPrev]
 Meter=String
@@ -144,7 +135,6 @@ MeterStyle=StyleSettingsStepperButton | StyleRAMSettingsStepperPrev
 Y=(#Inset#+129*#Scale#)
 Text=<
 LeftMouseUpAction=[!CommandMeasure MeasureRAMSettings "Adjust('RAMDecimals',-1)"]
-ToolTipText=Decrease memory precision by one, stopping at 0.
 
 [MeterRAMSettingsDecimalsNext]
 Meter=String
@@ -152,7 +142,6 @@ MeterStyle=StyleSettingsStepperButton | StyleRAMSettingsStepperNext
 Y=(#Inset#+129*#Scale#)
 Text=>
 LeftMouseUpAction=[!CommandMeasure MeasureRAMSettings "Adjust('RAMDecimals',1)"]
-ToolTipText=Increase memory precision by one, stopping at 2.
 
 [MeterRAMSettingsPercentDecimalsLabel]
 Meter=String
@@ -160,14 +149,12 @@ MeterStyle=StyleUtilitySettingsLabel | StyleRAMSettingsLabel
 Y=(#Inset#+158*#Scale#)
 Text=Percent decimals
 LeftMouseUpAction=[!CommandMeasure MeasureRAMSettings "Edit('RAMPercentDecimals')"]
-ToolTipText=Use the arrows to change header percentage precision by one. Click the value to type 0 to 2; Enter applies and Esc cancels.
 
 [MeterRAMSettingsPercentDecimalsFrame]
 Meter=Shape
 MeterStyle=StyleSettingsStepperFrame | StyleRAMSettingsStepperFrame
 Y=(#Inset#+156*#Scale#)
 LeftMouseUpAction=[!CommandMeasure MeasureRAMSettings "Edit('RAMPercentDecimals')"]
-ToolTipText=Type header percentage precision from 0 to 2 as a whole number. Enter applies; Esc cancels.
 
 [MeterRAMSettingsPercentDecimals]
 Meter=String
@@ -175,7 +162,6 @@ MeterStyle=StyleSettingsStepperValue | StyleRAMSettingsStepperValue
 Y=(#Inset#+157*#Scale#)
 Text=0
 LeftMouseUpAction=[!CommandMeasure MeasureRAMSettings "Edit('RAMPercentDecimals')"]
-ToolTipText=Type header percentage precision from 0 to 2 as a whole number. Enter applies; Esc cancels.
 
 [MeterRAMSettingsPercentDecimalsPrev]
 Meter=String
@@ -183,7 +169,6 @@ MeterStyle=StyleSettingsStepperButton | StyleRAMSettingsStepperPrev
 Y=(#Inset#+157*#Scale#)
 Text=<
 LeftMouseUpAction=[!CommandMeasure MeasureRAMSettings "Adjust('RAMPercentDecimals',-1)"]
-ToolTipText=Decrease header percentage precision by one, stopping at 0.
 
 [MeterRAMSettingsPercentDecimalsNext]
 Meter=String
@@ -191,7 +176,6 @@ MeterStyle=StyleSettingsStepperButton | StyleRAMSettingsStepperNext
 Y=(#Inset#+157*#Scale#)
 Text=>
 LeftMouseUpAction=[!CommandMeasure MeasureRAMSettings "Adjust('RAMPercentDecimals',1)"]
-ToolTipText=Increase header percentage precision by one, stopping at 2.
 
 [MeterRAMSettingsBarLabel]
 Meter=String
@@ -199,7 +183,6 @@ MeterStyle=StyleUtilitySettingsLabel | StyleRAMSettingsLabel
 Y=(#Inset#+216*#Scale#)
 Text=RAM bar
 LeftMouseUpAction=[!CommandMeasure MeasureRAMSettings "Cycle('RAMShowBar')"]
-ToolTipText=Show or hide the physical RAM usage bar. Keeps the panel size.
 
 [MeterRAMSettingsBar]
 Meter=String
@@ -207,7 +190,6 @@ MeterStyle=StyleUtilitySettingsValue | StyleRAMSettingsValue
 Y=(#Inset#+214*#Scale#)
 Text=On
 LeftMouseUpAction=[!CommandMeasure MeasureRAMSettings "Cycle('RAMShowBar')"]
-ToolTipText=Show or hide the physical RAM usage bar. Keeps the panel size.
 
 [MeterRAMSettingsPageBarLabel]
 Meter=String
@@ -215,7 +197,6 @@ MeterStyle=StyleUtilitySettingsLabel | StyleRAMSettingsLabel
 Y=(#Inset#+244*#Scale#)
 Text=PAGE bar
 LeftMouseUpAction=[!CommandMeasure MeasureRAMSettings "Cycle('RAMShowPageBar')"]
-ToolTipText=Show or hide the paging-file usage bar. Keeps the panel size.
 
 [MeterRAMSettingsPageBar]
 Meter=String
@@ -223,7 +204,6 @@ MeterStyle=StyleUtilitySettingsValue | StyleRAMSettingsValue
 Y=(#Inset#+242*#Scale#)
 Text=On
 LeftMouseUpAction=[!CommandMeasure MeasureRAMSettings "Cycle('RAMShowPageBar')"]
-ToolTipText=Show or hide the paging-file usage bar. Keeps the panel size.
 
 [MeterRAMSettingsHistoryLabel]
 Meter=String
@@ -231,7 +211,6 @@ MeterStyle=StyleUtilitySettingsLabel | StyleRAMSettingsLabel
 Y=(#Inset#+272*#Scale#)
 Text=Usage history
 LeftMouseUpAction=[!CommandMeasure MeasureRAMSettings "Cycle('RAMShowHistory')"]
-ToolTipText=Show or hide history without clearing collected samples. Sampling continues.
 
 [MeterRAMSettingsHistory]
 Meter=String
@@ -239,7 +218,6 @@ MeterStyle=StyleUtilitySettingsValue | StyleRAMSettingsValue
 Y=(#Inset#+270*#Scale#)
 Text=On
 LeftMouseUpAction=[!CommandMeasure MeasureRAMSettings "Cycle('RAMShowHistory')"]
-ToolTipText=Show or hide history without clearing collected samples. Sampling continues.
 
 [MeterRAMSettingsHint]
 Meter=String

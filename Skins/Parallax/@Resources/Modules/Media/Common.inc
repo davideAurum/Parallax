@@ -53,7 +53,6 @@ Shape=Rectangle 0,0,#MediaVisualizerTabWidth#,#MediaVisualizerToggleHeight# | Fi
 Shape2=Path MediaVisualizerChevron | Fill Color 0,0,0,0 | Stroke Color #HeaderTextColor# | StrokeWidth (2*#MediaVisualizerGlyphScale#) | StrokeStartCap Round | StrokeEndCap Round | StrokeLineJoin Round
 MediaVisualizerChevron=(#MediaVisualizerGlyphX#+6*#MediaVisualizerGlyphScale#),(#MediaVisualizerGlyphY#+(15-6*#MediaVisualizerOpen#)*#MediaVisualizerGlyphScale#) | LineTo (#MediaVisualizerGlyphX#+12*#MediaVisualizerGlyphScale#),(#MediaVisualizerGlyphY#+(9+6*#MediaVisualizerOpen#)*#MediaVisualizerGlyphScale#) | LineTo (#MediaVisualizerGlyphX#+18*#MediaVisualizerGlyphScale#),(#MediaVisualizerGlyphY#+(15-6*#MediaVisualizerOpen#)*#MediaVisualizerGlyphScale#)
 MouseActionCursor=1
-ToolTipText=Show or hide the audio spectrum above Media. While shown, Rainmeter's AudioLevel plugin captures the Windows output device - all mixed audio, not only this player - as 24 bands from 40 Hz to 16 kHz on a relative dB scale; hiding it stops the capture. Height, colors, sensitivity and quality follow Audio settings (right-click Media). This display choice is remembered.
 LeftMouseUpAction=[!CommandMeasure MeasureMediaOptions "ToggleVisualizer()"]
 
 ; Tab contents, printed on the sheet: defined before MeterPanel so the panel
@@ -102,7 +101,6 @@ Hidden=(1-#MediaQueueDrawer#)
 StringAlign=LeftCenter
 MeasureName=MeasureMediaOptions
 Text=%1
-ToolTipText=Expand or collapse the Spotify queue below Media. This display choice is remembered.
 MouseActionCursor=1
 LeftMouseUpAction=[!CommandMeasure MeasureMediaOptions "ToggleQueue()"]
 
@@ -137,7 +135,6 @@ Y=(#MediaCoverY#+(#MediaCoverSize#-18*#Scale#)/2)
 W=(#MediaCoverSize#-6*#Scale#)
 StringAlign=Center
 Text=N/A
-ToolTipText=No artwork available.
 Hidden=(1-#MediaWide#)
 UpdateDivider=-1
 
@@ -177,7 +174,6 @@ W=(#MediaQueueWidth#-66*#Scale#)
 StringAlign=LeftCenter
 FontColor=#MediaColor#
 Text=%1
-ToolTipText=Expand or collapse the Spotify queue. Use the gear for queue display and connection settings. The Spotify account queue may differ from WebNowPlaying's player.
 MouseActionCursor=1
 LeftMouseUpAction=[!CommandMeasure MeasureMediaOptions "ToggleQueue()"]
 

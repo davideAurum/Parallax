@@ -543,7 +543,7 @@ function Suite.run(sourcePath, scratchPath, optionsSourcePath)
                 check(args[1]==nil or args[1]=='Parallax\\Media\\Settings', 'only self and open settings refresh')
                 refreshes=refreshes+1
             else
-                equal(bang, '!SetOption'); equal(args[1], 'MeterQueueStatus'); equal(args[2], 'ToolTipText')
+                check(false, 'unexpected bang ' .. tostring(bang))
             end
         end
         local env = setmetatable({SKIN=skin, io={open=function(path, mode)

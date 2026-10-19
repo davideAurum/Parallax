@@ -44,7 +44,7 @@ function Suite.run(productionPath)
 
     local targets = {}
     for _, name in ipairs({
-        'MeterIOTotal', 'MeterIOCapacityHeading', 'MeterIOBounds', 'MeterIOPanel', 'MeterIOEmpty',
+        'MeterIOTotal', 'MeterIOBounds', 'MeterIOPanel', 'MeterIOEmpty',
         'MeterIODiskGraph', 'MeterIODiskGraphTrack',
         'MeterIOGraphPositive', 'MeterIOGraphZero', 'MeterIOGraphNegative'
     }) do targets[name] = true end
@@ -61,7 +61,7 @@ function Suite.run(productionPath)
             IODiskUnits = 'bytes', IODiskDrives = 'C', IOGraphMode = 'combined', IODriveNames = 'letters',
             ['@'] = 'fixture-resources\\',
             Inset = '4', Gap = '8', ContentX = '10', PanelHeight = '157', DataBarThickness = '6',
-            IODiskMaxMiBs = '500', CapacityInterval = '30000',
+            IODiskMaxMiBs = '500',
             ContentWidth = '208', Scale = '1', DiskReadColor = '10,20,30', DiskWriteColor = '40,50,60'
         }
         local values = {
@@ -120,7 +120,7 @@ function Suite.run(productionPath)
             else
                 assert(targets[target], 'unexpected controller target: ' .. tostring(target))
                 if command == '!SetOption' then
-                    assert(key == 'Text' or key == 'ToolTipText' or key == 'FontColor' or key == 'X' or key == 'Y' or key == 'W' or key == 'H'
+                    assert(key == 'Text' or key == 'FontColor' or key == 'X' or key == 'Y' or key == 'W' or key == 'H'
                         or (target == 'MeterIODiskGraphTrack' and key == 'Shape3')
                         or (target == 'MeterIODiskGraph' and (key:match('^Shape%d*$') or key:match('^IOHistoryPath%d+$'))),
                         'unexpected option mutation: ' .. tostring(key))
@@ -207,7 +207,6 @@ function Suite.run(productionPath)
             return traces
         end
         function state:text(meter) return (self.options[meter] or {}).Text end
-        function state:tip(meter) return (self.options[meter] or {}).ToolTipText end
         state:tick()
         return state
     end
@@ -248,29 +247,22 @@ function Suite.run(productionPath)
         equal(f:text('MeterIOCapacityC'), '26.8/107.4 GB')
         equal(f.options.MeterIOCapacityC.FontColor, '210,220,230')
         equal(f.shown.MeterIOUsedC, true)
-        equal(f:tip('MeterIOUsedC'), '75.0% used')
         equal(f:text('MeterIOTotal'), '75%')
-        equal(f:tip('MeterIOTotal'), 'Selected C:; 75.0% used, weighted by total capacity.')
-        contains(f:tip('MeterIOCapacityC'), '(free / total)')
-        contains(f:tip('MeterIOCapacityC'), '26.8 GB / 107.4 GB')
         local decimal = fixture(nil, { MeasureIOFreeC = 1000000000, MeasureIOTotalC = 2000000000 })
         equal(decimal:text('MeterIOCapacityC'), '1.0/2.0 GB')
         local different = fixture(nil, { MeasureIOFreeC = 26.8e9, MeasureIOTotalC = 1.1e12 })
         equal(different:text('MeterIOCapacityC'), '26.8 GB/1.1 TB', 'different units must remain explicit')
-        contains(different:tip('MeterIOCapacityC'), '26.8 GB / 1.1 TB')
     end)
 
     test('a full drive has valid zero free space rather than an unavailable state', function()
         local f = fixture(nil, { MeasureIOFreeC = 0 })
         equal(f:text('MeterIOCapacityC'), '0.0 B/107.4 GB')
-        equal(f:tip('MeterIOUsedC'), '100.0% used')
         equal(f:text('MeterIOTotal'), '100%')
         equal(f.shown.MeterIOUsedC, true)
     end)
 
     test('a completely free drive remains valid at zero used percentage', function()
         local f = fixture(nil, { MeasureIOFreeC = 100 * GiB })
-        equal(f:tip('MeterIOUsedC'), '0.0% used')
         equal(f:text('MeterIOTotal'), '0%')
         equal(f.shown.MeterIOUsedC, true)
     end)
@@ -325,18 +317,12 @@ function Suite.run(productionPath)
         equal(f.shown.MeterIODiskGraph, true)
         equal(#f:traces(), 2)
         equal(f:traces()[1].color, '10,20,30')
-        contains(f:tip('MeterIODiskGraph'), 'Displayed range: 0-1.20586 MB/s')
-        contains(f:tip('MeterIODiskGraph'), 'cap 524.288 MB/s')
-        contains(f:tip('MeterIODiskReadC'), 'sample freshness is unknown')
-        contains(f:tip('MeterIODiskWriteC'), 'idle, missing counter, unavailable provider, or initial sample')
         equal(f:text('MeterIOCapacityC'), '26.8/107.4 GB')
         equal(f:traces()[2].points[1].y, 60, 'a current zero write plots at baseline')
         f.values.MeasureIODiskReadC, f.values.MeasureIODiskWriteC = 1000, 1000000
         f:tick()
         equal(f:text('MeterIODiskReadC'), '1KB/s')
         equal(f:text('MeterIODiskWriteC'), '1MB/s')
-        contains(f:tip('MeterIODiskReadC'), '1.0 KB/s')
-        contains(f:tip('MeterIODiskWriteC'), '1.0 MB/s')
     end)
 
     test('bits use decimal rate units while capacity stays in decimal bytes', function()
@@ -344,7 +330,6 @@ function Suite.run(productionPath)
             { MeasureIODiskReadC = 125000, MeasureIODiskWriteC = 125 })
         equal(f:text('MeterIODiskReadC'), '1Mbit/s')
         equal(f:text('MeterIODiskWriteC'), '1kbit/s')
-        contains(f:tip('MeterIODiskReadC'), '1.0 Mbit/s')
         equal(f:text('MeterIOCapacityC'), '26.8/107.4 GB')
     end)
 
@@ -367,7 +352,6 @@ function Suite.run(productionPath)
         equal(f.shown.MeterIODiskGraph, true)
         equal(f:traces()[1].points[2].y, 60)
         equal(f:traces()[2].points[2].y, 60)
-        contains(f:tip('MeterIODiskGraph'), 'zero can mean idle or unavailable')
     end)
 
     test('returning to zero draws the baseline and ages earlier positive observations out', function()
@@ -389,7 +373,6 @@ function Suite.run(productionPath)
             equal(trace.points[1].y, 60)
             equal(trace.points[60].y, 60)
         end
-        contains(f:tip('MeterIODiskGraphTrack'), 'unchanged reports may be stale')
     end)
 
     test('invalid graph ceilings hide history without hiding valid rate text', function()
@@ -397,7 +380,6 @@ function Suite.run(productionPath)
             local f = fixture({ IODiskMaxMiBs = limit }, { MeasureIODiskReadC = 1024 })
             equal(f:text('MeterIODiskReadC'), '1KB/s')
             equal(f.shown.MeterIODiskGraph, false)
-            contains(f:tip('MeterIODiskGraphTrack'), 'Check graph limit')
             equal(#f:traces(), 0)
         end
     end)
@@ -405,13 +387,6 @@ function Suite.run(productionPath)
     test('unsupported display units are visible rather than silently reinterpreted', function()
         local f = fixture({ IODiskUnits = 'invalid' }, { MeasureIODiskReadC = 1024 })
         equal(f:text('MeterIODiskReadC'), 'Check IO units')
-    end)
-
-    test('capacity cadence tooltip rounds upward and respects the five-second minimum', function()
-        local slow = fixture({ CapacityInterval = '30500' })
-        contains(slow:tip('MeterIOCapacityHeading'), 'every 31 seconds')
-        local fast = fixture({ CapacityInterval = '1000' })
-        contains(fast:tip('MeterIOCapacityHeading'), 'every 5 seconds')
     end)
 
     test('unchanged readings still scroll while non-history options remain cached', function()
@@ -432,8 +407,6 @@ function Suite.run(productionPath)
         equal(#traces[1].points, 1)
         equal(traces[1].points[1].x, 206)
         equal(traces[1].radius, 1)
-        contains(f:tip('MeterIODiskGraph'), '60 nominal one-second slots, newest at right')
-        contains(f:tip('MeterIODiskGraph'), 'Provider sample freshness is unknown')
         f:tick()
         traces = f:traces()
         equal(#traces, 2)
@@ -444,7 +417,6 @@ function Suite.run(productionPath)
 
     test('history retains at most sixty observations and autoscale forgets an expired peak', function()
         local f = fixture(nil, { MeasureIODiskReadC = 8 * 1048576 })
-        contains(f:tip('MeterIODiskGraph'), 'Displayed range: 0-9.6469 MB/s')
         f.values.MeasureIODiskReadC = 1048576
         for _ = 1, 60 do f:tick() end
         local traces = f:traces()
@@ -452,7 +424,7 @@ function Suite.run(productionPath)
         equal(#traces[1].points, 60)
         equal(traces[1].points[1].x, 2)
         equal(traces[1].points[60].x, 206)
-        contains(f:tip('MeterIODiskGraph'), 'Displayed range: 0-1.20586 MB/s')
+        equal(traces[1].points[60].y, 9.565, 'autoscale must follow only the retained peak')
         for _, point in ipairs(traces[1].points) do
             equal(point.y, traces[1].points[1].y, 'old peak survived the sixty-slot window')
         end
@@ -500,7 +472,6 @@ function Suite.run(productionPath)
         truth(traces[1].points[1].y > traces[1].points[2].y,
             'the interpolated segment must use both observed values')
         contains(traces[1].shape, 'Path IOHistoryPath')
-        contains(f:tip('MeterIODiskGraph'), 'straight-line interpolation across missed intervals')
         f:tick(-5)
         equal(#f:traces(), 2)
         equal(#f:traces()[1].points, 1)
@@ -513,14 +484,11 @@ function Suite.run(productionPath)
 
     test('autoscale minimum and hard ceiling remain explicit and bound positive traces', function()
         local low = fixture(nil, { MeasureIODiskReadC = 1 })
-        contains(low:tip('MeterIODiskGraph'), 'Displayed range: 0-0.065536 MB/s')
+        equal(low:traces()[1].points[1].y, 59.999, 'the 65,536 B/s autoscale minimum bounds tiny rates')
         local capped = fixture({ IODiskMaxMiBs = '10' }, { MeasureIODiskReadC = 100 * 1048576 })
-        contains(capped:tip('MeterIODiskGraph'), 'Displayed range: 0-10.4858 MB/s; autoscaled, cap 10.4858 MB/s')
         equal(capped:traces()[1].points[1].y, 2)
         equal(capped:text('MeterIODiskReadC'), '104.9MB/s', 'graph cap must not alter the reported rate')
-        contains(capped:tip('MeterIODiskReadC'), '104.9 MB/s')
         local smallCap = fixture({ IODiskMaxMiBs = '0.001' }, { MeasureIODiskReadC = 1048576 })
-        contains(smallCap:tip('MeterIODiskGraph'), 'Displayed range: 0-0.00104858 MB/s')
         equal(smallCap:traces()[1].points[1].y, 2)
     end)
 
@@ -601,7 +569,6 @@ function Suite.run(productionPath)
             equal(f.shown.MeterIODriveC, true)
             equal(f.shown.MeterIODriveD, false)
             truth(not f.groups.IORatesD)
-            contains(f:tip('MeterIOTotal'), 'Invalid drive selection; using C:')
         end
     end)
 
@@ -691,10 +658,6 @@ function Suite.run(productionPath)
             MeasureIOTotalC = 100e9, MeasureIOFreeC = 25e9,
             MeasureIOTypeD = 4, MeasureIOTotalD = 300e9, MeasureIOFreeD = 225e9 })
         equal(f:text('MeterIOTotal'), '38%')
-        contains(f:tip('MeterIOTotal'), '37.5% used, weighted by total capacity')
-        contains(f:tip('MeterIOTotal'), 'Selected C:, D:')
-        equal(f:tip('MeterIOUsedC'), '75.0% used')
-        equal(f:tip('MeterIOUsedD'), '25.0% used')
         f.values.MeasureIOTotalD = 0
         f:tick()
         equal(f:text('MeterIOTotal'), '--')
@@ -710,8 +673,6 @@ function Suite.run(productionPath)
         equal(f:text('MeterIODiskReadC'), '1MB/s')
         equal(f:text('MeterIODiskReadD'), '3MB/s')
         truth(not f.groups.IORatesE)
-        contains(f:tip('MeterIODiskGraph'), 'Combined selected drives: C:, D:')
-        contains(f:tip('MeterIODiskGraph'), 'Displayed range: 0-6.9 MB/s')
         equal(f:traces()[1].points[1].y, 26.377)
         f.values.MeasureIODiskReadD = nil
         f:tick()
@@ -764,14 +725,13 @@ function Suite.run(productionPath)
         equal(f.shown.MeterIODriveC, false)
         equal(f.shown.MeterIODriveD, true)
         equal(f:text('MeterIOTotal'), '50%')
-        contains(f:tip('MeterIODiskGraph'), 'C: only')
-        contains(f:tip('MeterIODiskGraph'), 'Displayed range: 0-2.3 MB/s')
+        equal(f:traces()[1].points[1].y, 34.783, 'C: only must graph C: rather than the selected D: rates')
         f:tick()
         f.vars.IOGraphMode = 'combined'
         f:tick()
         equal(f.groups.IORatesC, false)
         equal(#f:traces()[1].points, 1)
-        contains(f:tip('MeterIODiskGraph'), 'Displayed range: 0-46 MB/s')
+        equal(f:traces()[1].points[1].y, 22.174, 'combined mode must graph the selected D: rates')
         f.vars.IODiskDrives, f.vars.IOGraphMode = 'none', 'c'
         f:tick()
         equal(f.shown.MeterIOEmpty, true)
@@ -799,7 +759,6 @@ function Suite.run(productionPath)
         truth(not traces[1].shape:find('StrokeDashes', 1, true))
         contains(traces[2].shape, 'StrokeDashes 4,3')
         contains(traces[4].shape, 'StrokeDashes 4,3')
-        contains(f:tip('MeterIODiskGraph'), 'Displayed range: 0-4.6 MB/s')
         equal(f.shown.MeterIOLegendC, true)
         equal(tonumber(f.options.MeterIOLegendC.Y), 143)
         equal(tonumber(f.options.MeterIODiskGraph.Y), 161)
@@ -840,10 +799,6 @@ function Suite.run(productionPath)
         equal(f.shown.MeterIOLegendC, false)
         equal(tonumber(f.options.MeterIODiskGraph.Y), 143)
         equal(tonumber(f.vars.PanelHeightPx), 207)
-        contains(f:tip('MeterIODiskGraph'), 'Split + / -; combined selected drives: C:, D:')
-        contains(f:tip('MeterIODiskGraph'), 'Displayed range: -4.6 to +4.6 MB/s')
-        contains(f:tip('MeterIODiskGraph'), 'Read is positive above zero; write is negative below zero')
-        contains(f:tip('MeterIODiskGraph'), 'Signs are a display convention; physical transfer rates remain nonnegative')
         f.values.MeasureIODiskWriteD = 1e6
         f:tick()
         traces = f:traces()
@@ -875,9 +830,6 @@ function Suite.run(productionPath)
         contains(traces[1].shape, 'Path IOHistoryPath')
         equal(f:text('MeterIODiskReadC'), '--')
         equal(f:text('MeterIODiskWriteC'), '--')
-        contains(f:tip('MeterIODiskGraph'), 'Current unavailable or nonpositive readings plot as zero')
-        contains(f:tip('MeterIODiskGraph'), 'straight-line interpolation across missed intervals')
-        contains(f:tip('MeterIODiskGraph'), 'Provider sample freshness is unknown')
         f.values.MeasureIODiskReadC, f.values.MeasureIODiskWriteC = math.huge, 0
         for _ = 1, 60 do f:tick() end
         for _, trace in ipairs(f:traces()) do
@@ -886,7 +838,6 @@ function Suite.run(productionPath)
             equal(trace.points[60].x, 206)
             for _, point in ipairs(trace.points) do equal(point.y, 31, 'expired peaks must leave the zero baseline') end
         end
-        contains(f:tip('MeterIODiskGraph'), 'Displayed range: -0.065536 to +0.065536 MB/s')
         f:tick(-5)
         equal(#f:traces()[1].points, 1, 'clock rollback must reset split history')
         equal(f:traces()[1].points[1].y, 31)
@@ -899,7 +850,6 @@ function Suite.run(productionPath)
                 Inset = tostring(4 * scale), ContentX = tostring(10 * scale), IODiskMaxMiBs = '10' },
                 { MeasureIODiskReadC = 100 * 1048576, MeasureIODiskWriteC = 200 * 1048576 })
             local inset, graphY = math.max(2, 2 * scale), tonumber(f.options.MeterIODiskGraph.Y)
-            contains(f:tip('MeterIODiskGraph'), 'Displayed range: -10.4858 to +10.4858 MB/s; symmetric autoscale, cap 10.4858 MB/s per direction')
             equal(f:text('MeterIODiskReadC'), '104.9MB/s', 'the split cap must not clip rate text')
             equal(f:traces()[1].points[1].y, inset)
             equal(f:traces()[2].points[1].y, height - inset)
@@ -938,7 +888,6 @@ function Suite.run(productionPath)
         end
         local small = fixture({ IOGraphMode = 'split', IODiskMaxMiBs = '0.001' },
             { MeasureIODiskReadC = 1e6, MeasureIODiskWriteC = 1e6 })
-        contains(small:tip('MeterIODiskGraph'), 'Displayed range: -0.00104858 to +0.00104858 MB/s')
         equal(small:traces()[1].points[1].y, 2)
         equal(small:traces()[2].points[1].y, 60)
         small.vars.IODiskMaxMiBs = 'invalid'
@@ -946,7 +895,6 @@ function Suite.run(productionPath)
         equal(#small:traces(), 0)
         equal(small.shown.MeterIODiskGraph, false)
         equal(small:text('MeterIODiskReadC'), '1MB/s')
-        contains(small:tip('MeterIODiskGraph'), 'Check graph limit. Traces hidden.')
     end)
 
     test('split mode transitions reset history while metadata reflow preserves observations and empty scope stays blank', function()
@@ -990,7 +938,6 @@ function Suite.run(productionPath)
         equal(tonumber(f.options.MeterIODiskGraph.Y), 93)
         equal(tonumber(f.vars.PanelHeightPx), 157)
         equal(f.groups.IORatesC, false)
-        contains(f:tip('MeterIODiskGraph'), 'combined selected drives: none')
         f:tick(10)
         equal(#f:traces(), 0)
         f.vars.IODiskDrives = 'C'
@@ -1003,7 +950,6 @@ function Suite.run(productionPath)
     test('unsupported graph modes fall back to combined without a preference write', function()
         local f = fixture({ IOGraphMode = '[!Quit]' }, { MeasureIODiskReadC = 1e6 })
         equal(f.vars.IOGraphMode, '[!Quit]')
-        contains(f:tip('MeterIODiskGraph'), 'Combined selected drives: C:')
         equal(f.shown.MeterIOLegendC, false)
     end)
 
@@ -1070,8 +1016,6 @@ function Suite.run(productionPath)
             MeasureIOTotalD = 1e9, MeasureIOFreeD = 5e8, MeasureIODiskReadC = 1e6 })
         equal(f:text('MeterIODriveC'), 'C: System')
         equal(f:text('MeterIODriveD'), 'D: Archive')
-        contains(f:tip('MeterIODriveC'), 'C: ')
-        contains(f:tip('MeterIODriveC'), 'System')
         equal(tonumber(f.options.MeterIODriveC.W), 208)
         equal(tonumber(f.options.MeterIOCapacityC.W), 88)
         equal(tonumber(f.options.MeterIODriveC.Y), 46)
@@ -1089,7 +1033,6 @@ function Suite.run(productionPath)
         f.values.MeasureIONameC = longName
         f:tick()
         contains(f:text('MeterIODriveC'), 'Archive long name')
-        contains(f:tip('MeterIODriveC'), 'Archive long name')
         equal(tonumber(f.options.MeterIODriveC.W), 208)
         equal(#f:traces()[1].points, 2)
         f.vars.IODriveNames = 'letters'
@@ -1124,10 +1067,7 @@ function Suite.run(productionPath)
         f.values.MeasureIOModelQuery = 'IO_MODELS_V1\nOK\nC|Example device model'
         equal(f:namesReady(), 0)
         equal(f:text('MeterIODriveC'), 'C: Example device model')
-        contains(f:tip('MeterIODriveC'), 'C: ')
-        contains(f:tip('MeterIODriveC'), 'Example device model')
         equal(f:text('MeterIOLegendC'), 'C:')
-        contains(f:tip('MeterIOLegendC'), 'Example device model')
         equal(f.queryRuns, 1)
         equal(#f:traces()[1].points, 1)
         for key, value in pairs(f.options.MeterIODiskGraph) do equal(value, graphOptions[key], 'metadata changed the graph') end

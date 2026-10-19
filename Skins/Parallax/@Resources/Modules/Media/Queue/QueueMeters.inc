@@ -38,7 +38,6 @@ MeasureName=MeasureQueueStatus
 Y=(#Inset#+26*#Scale#)
 H=(18*#Scale#)
 Text=%1
-ToolTipText=Only a validated, unexpired Spotify snapshot can show queue rows. Sign in once, then use Start or Stop. This queue can differ from the player selected by WebNowPlaying.
 
 [MeterQueueRow1]
 Meter=String
@@ -82,7 +81,6 @@ X=(#ContentX#+(#ContentWidth#-12*#Scale#)/6)
 Y=(#Inset#+140*#Scale#)
 W=((#ContentWidth#-12*#Scale#)/3)
 Text=Sign in
-ToolTipText=Open the helper's setup console and sign in through Spotify in your browser. Only your public Client ID is needed; no client secret.
 LeftMouseUpAction=["powershell.exe" "-NoLogo" "-NoProfile" "-ExecutionPolicy" "Bypass" "-NoExit" "-File" "#@#Modules\Media\Queue\QueueProvider.ps1" "-Command" "Connect" "-PollSeconds" "#QueuePollSeconds#"]
 
 [MeterQueueStart]
@@ -92,7 +90,6 @@ X=(#ContentX#+#ContentWidth#/2)
 Y=(#Inset#+140*#Scale#)
 W=((#ContentWidth#-12*#Scale#)/3)
 Text=Start
-ToolTipText=Start one background queue helper using your saved Spotify authorization. It refreshes at most every 30 seconds and honors server wait times.
 LeftMouseUpAction=[!CommandMeasure MeasureQueueControl "Run('Start')"]
 
 [MeterQueueStop]
@@ -102,5 +99,4 @@ X=(#ContentX#+#ContentWidth#-(#ContentWidth#-12*#Scale#)/6)
 Y=(#Inset#+140*#Scale#)
 W=((#ContentWidth#-12*#Scale#)/3)
 Text=Stop
-ToolTipText=Stop the optional queue helper and clear displayed rows. Saved authorization stays available until Disconnect in the context menu.
 LeftMouseUpAction=[!CommandMeasure MeasureQueueControl "Run('Stop')"]

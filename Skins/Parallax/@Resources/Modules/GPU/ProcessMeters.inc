@@ -57,7 +57,6 @@ H=(16*#Scale#)
 FontColor=#HeaderTextColor#
 FontSize=(#HeaderFontSize#*#Scale#)
 Text=Process
-ToolTipText=Highest GPU usage first, from Windows GPU Engine counters across all exposed GPUs. A process using more than one engine is shown once, at its busiest engine's percentage -- matching how Task Manager reports per-process GPU%, not a sum of engines.
 
 ; Lucide "gpu" icon (the same glyph as this module's own title icon, at
 ; header-icon size), adapted to native Shapes rather than a bitmap.
@@ -76,7 +75,6 @@ GPUProcessHeaderIconStroke=Fill Color 0,0,0,0 | Stroke Color #HeaderTextColor# |
 GPUProcessCardBoard=(2*14*#Scale#/24),(17*14*#Scale#/24) | LineTo (20*14*#Scale#/24),(17*14*#Scale#/24) | ArcTo (22*14*#Scale#/24),(15*14*#Scale#/24),(2*14*#Scale#/24),(2*14*#Scale#/24),0,1,0 | LineTo (22*14*#Scale#/24),(7*14*#Scale#/24) | ArcTo (20*14*#Scale#/24),(5*14*#Scale#/24),(2*14*#Scale#/24),(2*14*#Scale#/24),0,1,0 | LineTo (2*14*#Scale#/24),(5*14*#Scale#/24)
 GPUProcessCardConnector=(7*14*#Scale#/24),(17*14*#Scale#/24) | LineTo (7*14*#Scale#/24),(20*14*#Scale#/24) | ArcTo (8*14*#Scale#/24),(21*14*#Scale#/24),(1*14*#Scale#/24),(1*14*#Scale#/24),0,1,0 | LineTo (13*14*#Scale#/24),(21*14*#Scale#/24) | ArcTo (14*14*#Scale#/24),(20*14*#Scale#/24),(1*14*#Scale#/24),(1*14*#Scale#/24),0,1,0 | LineTo (14*14*#Scale#/24),(17*14*#Scale#/24)
 UpdateDivider=-1
-ToolTipText=VRAM. Windows dedicated GPU memory attributed to this process on its adapter -- not summed across a process's multiple engine rows, and separate from the Shared system-memory reading above.
 
 ; Lucide gauge icon, adapted to native Shapes from the exact path data in
 ; @Resources/Modules/CPU/Icons/gauge.svg (this module reuses the same glyph
@@ -96,7 +94,6 @@ GPUProcessHeaderIconStroke2=Fill Color 0,0,0,0 | Stroke Color #HeaderTextColor# 
 ; must be 0,0,1 -- 0,1,1 draws the arc as a bowl below the needle, clipped.
 GPUProcessGaugeArc=(3.34*14*#Scale#/24),(19*14*#Scale#/24) | ArcTo (20.66*14*#Scale#/24),(19*14*#Scale#/24),(10*14*#Scale#/24),(10*14*#Scale#/24),0,0,1
 UpdateDivider=-1
-ToolTipText=GPU %. Busiest ranked engine per process, from the top 5 process-engine instances across all exposed GPUs. Not a whole-adapter or whole-process total; a process may use additional engines outside this ranked list.
 
 [MeterGPUProcessHeaderRule]
 Meter=Shape

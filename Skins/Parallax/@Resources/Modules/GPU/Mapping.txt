@@ -6,8 +6,8 @@ The inset beneath the header identifies Windows' preferred high-performance
 discrete graphics adapter. A one-time query at skin load/refresh reads the
 Windows DXCore hardware and integrated flags, excluding integrated and
 software graphics. It does not guess from a vendor name or memory size.
-Hover the name for its full text. An external GPU may be preferred over an
-internal discrete GPU; this is not necessarily the display-driving adapter.
+An external GPU may be preferred over an internal discrete GPU; this is not
+necessarily the display-driving adapter.
 
 The original AdapterInfo.cs.txt source is compiled by Windows PowerShell
 once per refresh. No plugin download or dependency installation is needed.
@@ -24,14 +24,15 @@ reads physical memory capacity and type. No vendor API is downloaded.
 Otherwise, the line uses DXCore's dedicated video memory capacity and shows
 the memory type as Unknown. This is not current usage or shared system RAM.
 An unavailable capacity displays Unknown; the skin never guesses a memory
-type from the GPU name. Hover the line for its full text and source details.
+type from the GPU name. The line does not say which of the two capacity
+sources was used, and it does not show the exact byte count.
 
-Immediately after the memory type, @ introduces the base graphics clock in
-MHz, followed by the boost clock in parentheses. The installed driver must
-supply these for that same matched adapter. They are reference clocks, not
-the current operating clock. A missing base or boost value displays --;
-the tooltip explains each unavailable field. This combined detail wraps
-within a fixed two-line area at narrow widths; hover for the complete text.
+Immediately after the memory type, @ introduces the base-boost graphics
+clocks in whole MHz, such as 1607-1734 MHz. The installed driver must supply
+these for that same matched adapter. They are reference clocks, not the
+current operating clock. If only one is available it displays as base or
+boost; if neither is, the clocks display -- MHz. The details are one line
+and are clipped at narrow widths.
 The Clock reading below is the current graphics clock by default; an explicit
 HWiNFO override can supply a separately selected clock measurement.
 The name and combined details refresh together, without polling or saved device
@@ -41,11 +42,11 @@ GPU MEMORY AND DRIVER ACTIVITY
 
 VRAM shows occupied / physical total memory and an occupancy bar. Occupied
 means physical memory minus currently available framebuffer, including memory
-outside the allocatable framebuffer. Hover for the free and allocatable amounts.
+outside the allocatable framebuffer. Free and allocatable amounts are not shown.
 These readings use the installed NVIDIA driver for the detected discrete card.
-Shared RAM separately shows Windows-reported GPU residency in system RAM;
-its tooltip includes committed bytes. It is not a maximum memory allowance,
-and committed and resident are different accounting values that need not match.
+Shared RAM separately shows Windows-reported GPU residency in system RAM, not
+committed bytes. It is not a maximum memory allowance, and committed and
+resident are different accounting values that need not match.
 Memory amounts use decimal MB/GB units (1 GB = 1,000,000,000 bytes).
 
 GPU, Memory ctrl., Video and Bus are separate driver activity percentages.
@@ -66,15 +67,15 @@ PROCESS ACTIVITY SCOPE
 
 The five process bars show ranked process-engine activity across exposed
 GPU adapters. Each row has a percentage and a bar scaled from 0 to 100%.
-The process identity and engine identify each observation; hover a row for
-the full details. Different engine contributions are not added together.
+The process identity and engine identify each observation. Different engine
+contributions are not added together.
 One process can occupy several rows for different engines or adapters.
 An empty or unavailable observation leaves its bar empty and its value --.
 
 The activity percentage is one process's reported contribution to one GPU
 engine, selected as the highest exposed instance across all adapters. The
 PID and engine type identify that observation. It is not an adapter total
-or Task Manager's GPU total. Hover the value for the complete counter name.
+or Task Manager's GPU total.
 
 -- / Idle / unavailable means there is no ranked nonzero observation.
 Startup, no activity and an unsupported / missing counter look the same.
@@ -148,8 +149,8 @@ This skin installs nothing and needs no external HWiNFO plugin or Shared Memory.
 
 3. Choose the registry hive holding your exports (Current user or Local
    machine). Click Power override or Clock override to read the exported list.
-   Use Previous/Next to browse, and hover a candidate for its complete
-   identity and value. Select the correct GPU and measurement yourself;
+   Use Previous/Next to browse; each candidate shows its index, label and
+   value. Select the correct GPU and measurement yourself;
    the list does not guess which reading you intended. Clear removes only
    that row's mapping. Rescan reads the list again after HWiNFO changes.
 
@@ -166,9 +167,8 @@ or copy another computer's mappings. Save advanced edits, reopen settings,
 then Refresh GPU. Sensor names with active Rainmeter syntax are not accepted
 by the picker; ordinary HWiNFO ordinal markers such as [#0] are supported.
 
-Values retain the unit provided in ValueN. Hover a value to see its full
-sensor and element identity. There is no assumed Celsius, watt or MHz
-conversion. A raw numeric zero is valid when the identity, registry
+Values retain the unit provided in ValueN. There is no assumed Celsius,
+watt or MHz conversion. A raw numeric zero is valid when the identity, registry
 membership and formatted value are present.
 
 For a selected HWiNFO source, Off means optional reads are disabled.

@@ -69,13 +69,15 @@ for ($i = 0; $i -lt $expectedIncludes.Count; $i++) {
 foreach ($key in $entry.Variables.Keys | Where-Object { $_ -like 'RAM*' -and $_ -ne 'RAMInfoHeight' }) {
     Assert-RAM ($user.Variables.ContainsKey($key)) "Module option $key has no preserved default."
 }
-foreach ($name in 'MeasureRAMUsed', 'MeasureRAMAvailable', 'MeasureRAMTotal') {
+foreach ($name in 'MeasureRAMUsed', 'MeasureRAMTotal') {
     Assert-RAM ($measures[$name].Measure -eq 'PhysicalMemory') "$name must use native PhysicalMemory."
     Assert-RAM ($measures[$name].UpdateDivider -eq '1') "$name does not sample at MetricsInterval."
     Assert-RAM (-not $measures[$name].ContainsKey('MaxValue')) "$name must retain its native normalization."
 }
-Assert-RAM ($measures.MeasureRAMAvailable.InvertMeasure -eq '1') 'Available must invert native physical memory.'
 Assert-RAM ($measures.MeasureRAMTotal.Total -eq '1') 'Total must request native physical memory total.'
+# Each tooltip creates a native window at load; the suite no longer uses them.
+$tooltipSections = @(foreach ($layer in $entry, $settingsEntry, $measures, $meters, $menu) { $layer.Keys | Where-Object { $layer[$_].ContainsKey('ToolTipText') } })
+Assert-RAM ($tooltipSections.Count -eq 0) "RAM sections must not declare tooltips: $($tooltipSections -join ', ')"
 foreach ($name in 'MeasureRAMPageUsed', 'MeasureRAMPageTotal') {
     Assert-RAM (-not $measures.ContainsKey($name)) 'PAGE must not retain native commit-accounting measures.'
 }
@@ -149,6 +151,8 @@ $pageDisplay = [regex]::Match($pageScript,'(?s)function Display\([^)]*\)(.*?)\nl
 $pageProviderDisplay = $pageDisplay.Replace("SKIN:Bang('!UpdateMeasure', 'MeasureRAMPageRatio')", '')
 Assert-RAM ($pageDisplay.Length -gt 0 -and $pageProviderDisplay -notmatch 'io\.|launch\(|!CommandMeasure|!UpdateMeasure') 'PAGE Display may update its cached ratio without provider or session IO.'
 Assert-RAM ($pageScript -notmatch 'MeasureRAMHistory|!UpdateMeterGroup') 'PAGE rendering must not force physical-memory history.'
+$tooltipScripts = @('Display.lua', 'Info.lua', 'PageFile.lua', 'Process.lua', 'Settings.lua' | Where-Object { (Get-Content -LiteralPath (Join-Path $PSScriptRoot $_) -Raw) -match 'ToolTipText' })
+Assert-RAM ($tooltipScripts.Count -eq 0) "RAM controllers must not assign tooltips: $($tooltipScripts -join ', ')"
 foreach ($pair in @(@('Units','RAMUseMiB'), @('Decimals','RAMDecimals'), @('PercentDecimals','RAMPercentDecimals'), @('Bar','RAMShowBar'), @('PageBar','RAMShowPageBar'), @('History','RAMShowHistory'))) {
     Assert-RAM (-not $menu.ContainsKey('MeterRAMSettings'+$pair[0]+'Row')) 'Settings must not retain full-row shaded hit targets.'
     foreach ($suffix in '', 'Label') {
@@ -157,7 +161,6 @@ foreach ($pair in @(@('Units','RAMUseMiB'), @('Decimals','RAMDecimals'), @('Perc
         $stepper = $pair[0] -in 'Units','Decimals','PercentDecimals'
         $method = if ($numeric) { 'Edit' } else { 'Cycle' }
         Assert-RAM ($menu[$name].LeftMouseUpAction -eq ('[!CommandMeasure MeasureRAMSettings "{0}(''{1}'')"]' -f $method,$pair[1])) "$name must operate the corresponding setting."
-        Assert-RAM ($menu[$name].ToolTipText.Length -gt 10) "$name requires a descriptive tooltip."
         $role = if ($suffix) { $suffix } else { 'Value' }
         $styles = ($menu[$name].MeterStyle.Split('|') | ForEach-Object { $_.Trim() }) -join '|'
         $expectedStyle = if ($stepper -and -not $suffix) { 'StyleSettingsStepperValue|StyleRAMSettingsStepperValue' } else { 'StyleUtilitySettings'+$role+'|StyleRAMSettings'+$role }
@@ -297,7 +300,6 @@ foreach ($kind in 'Used','Page') {
         } else {
             Assert-RAM (-not $meter.ContainsKey('MeasureName') -and -not $meter.ContainsKey('MeasureName2') -and -not $meter.ContainsKey('Scale')) 'PAGE must use cached actual bytes, not native commit or extra scaling.'
             Assert-RAM ($meter.Text -eq 'Checking...') 'PAGE must not begin with fabricated paging-file usage.'
-            Assert-RAM ($meter.ToolTipText -match 'Paging-file space in use / current allocated capacity' -and $meter.ToolTipText -match 'excluding physical RAM') 'PAGE tooltip must describe actual paging-file usage and allocated capacity.'
         }
         foreach ($mode in 0, 1) {
             $variables.RAMUseMiB = [string]$mode

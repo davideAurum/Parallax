@@ -1,5 +1,12 @@
 # Tooltip audit and trim — 2026-09-19
 
+> **Superseded 2026-10-18:** all tooltips were removed from Parallax: static
+> `ToolTipText`, Lua `!SetOption` assignments and helper-dialog tooltips. The
+> owner found them unhelpful, and a 2026-10-11 isolated measurement put each
+> tooltip-bearing meter at about 40 ms of skin load. `tools/Test-Parallax.ps1`
+> now rejects any tooltip. This record and `tools/Benchmark-Tooltips.ps1` stay
+> as reference for a future tooltip plan.
+
 A suite-wide sweep of every `ToolTipText` declaration, an A/B benchmark of what
 tooltips actually cost at runtime, and a redundancy trim. This follows the
 2026-09-13 tooltip work recorded in [PERFORMANCE.md](PERFORMANCE.md); that pass

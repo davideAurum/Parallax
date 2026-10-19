@@ -8,7 +8,10 @@ This is a native smoke check, not a screenshot, accuracy, or performance test.
 [CmdletBinding()]
 param(
     [string]$RainmeterPath = (Join-Path $env:ProgramFiles 'Rainmeter\Rainmeter.exe'),
-    [ValidateRange(10,60)][int]$TimeoutSeconds = 60,
+    # Fails when no case advances for this long. One instance serializes all
+    # copies on Rainmeter's main thread, so total time scales with host load.
+    [ValidateRange(10,600)][int]$TimeoutSeconds = 60,
+    [ValidateRange(60,3600)][int]$MaxSeconds = 600,
     [switch]$FixtureOnly,
     [switch]$PrepareOnly
 )
@@ -231,6 +234,7 @@ foreach ($spec in $caseSpecs) {
                 Copy-Item -LiteralPath $font.FullName -Destination $destination
             }
             $resultPath = Join-Path $runRoot ($caseName + '.txt')
+            $progressPath = Join-Path $runRoot ($caseName + '.progress')
             $harnessPath = Join-Path $caseRoot 'NativeSmoke.lua'
             Write-RunText $harnessPath $harnessSource
             $modelTestsPath = Join-Path $caseRoot 'InfoModelTests.lua'
@@ -301,7 +305,7 @@ foreach ($spec in $caseSpecs) {
             if ($FixtureOnly -and $copiedMeasures -match '(?im)^Plugin=(RunCommand|UsageMonitor)\s*$') { throw 'Focused fixtures must contain no inventory/PAGE helper or process category worker.' }
             if ($entry -match '!CommandMeasure MeasureRAMPage(?:View "Start\(\)"|Bootstrap|Host)') { throw 'Copied entry must not start a PAGE helper.' }
             Write-RunText (Join-Path $caseRoot '@Resources\Modules\RAM\Measures.inc') $copiedMeasures
-            $entry += "`n[MeasureRAMNativeSmoke]`nMeasure=Script`nScriptFile=$harnessPath`nResultPath=$resultPath`nExpectedWidth=$columnWidth`nExpectedColumns=$columns`nExpectedScale=$scale`nExpectedDataBarThickness=$barThickness`nExpectedGroups=$($spec.Groups)`nExpectedProcesses=$expectedProcesses`nProcessMode=$processMode`nMeterNames=$($meterNames -join '|')`nHoverAction=$($hoverActions['MouseOverAction'])`nLeaveAction=$($hoverActions['MouseLeaveAction'])`nInfoMode=$infoMode`nInfoFixture=$infoFixture`nModelTestsPath=$modelTestsPath`nProcessModelTestsPath=$processModelTestsPath`nSettingsConfig=$caseName\RAM\Settings`nUpdateDivider=1`n"
+            $entry += "`n[MeasureRAMNativeSmoke]`nMeasure=Script`nScriptFile=$harnessPath`nResultPath=$resultPath`nProgressPath=$progressPath`nExpectedWidth=$columnWidth`nExpectedColumns=$columns`nExpectedScale=$scale`nExpectedDataBarThickness=$barThickness`nExpectedGroups=$($spec.Groups)`nExpectedProcesses=$expectedProcesses`nProcessMode=$processMode`nMeterNames=$($meterNames -join '|')`nHoverAction=$($hoverActions['MouseOverAction'])`nLeaveAction=$($hoverActions['MouseLeaveAction'])`nInfoMode=$infoMode`nInfoFixture=$infoFixture`nModelTestsPath=$modelTestsPath`nProcessModelTestsPath=$processModelTestsPath`nSettingsConfig=$caseName\RAM\Settings`nUpdateDivider=1`n"
             $entry += "PageFixture=$pageFixture`nPageToken=$pageToken`nPageNow=$pageNow`nPageModelTestsPath=$pageModelTestsPath`n"
             $entry += $fontProbeSource
             Write-RunText (Join-Path $caseRoot 'RAM\RAM.ini') $entry
@@ -320,7 +324,7 @@ foreach ($spec in $caseSpecs) {
             Write-RunText (Join-Path $caseRoot 'RAM\Settings\Settings.ini') $settingsEntry
             $ini += "`n[$caseName\RAM]`nActive=1`nWindowX=-20000`nWindowY=-20000`nKeepOnScreen=0`nDraggable=0`nClickThrough=1`nAlphaValue=0`n"
             $ini += "`n[$caseName\RAM\Settings]`nActive=0`nWindowX=-20000`nWindowY=-20000`nKeepOnScreen=0`nDraggable=0`nClickThrough=1`nAlphaValue=0`n"
-            $cases.Add([pscustomobject]@{ Case=$caseName; ColumnWidth=$columnWidth; Columns=$columns; Scale=$scale; Typography=$typography; BorderThickness=$border; DataBarThickness=$barThickness; UseMiB=$useMiB; HardwareMode=$infoMode; ProcessMode=$processMode; PageMode='Fixture'; ExpectedProcesses=$expectedProcesses; Result=$resultPath })
+            $cases.Add([pscustomobject]@{ Case=$caseName; ColumnWidth=$columnWidth; Columns=$columns; Scale=$scale; Typography=$typography; BorderThickness=$border; DataBarThickness=$barThickness; UseMiB=$useMiB; HardwareMode=$infoMode; ProcessMode=$processMode; PageMode='Fixture'; ExpectedProcesses=$expectedProcesses; Result=$resultPath; Progress=$progressPath })
         }
 foreach ($directory in 'Layouts','Plugins','Addons') {
     $path = Join-Path $runRoot $directory
@@ -343,19 +347,38 @@ try {
     # An existing, absolute INI and SkinPath select a separate instance. Never
     # dispatch command-line bangs, which might target the user's instance.
     $process = Start-Process -FilePath $RainmeterPath -ArgumentList ('"{0}"' -f $iniPath) -WorkingDirectory $runRoot -WindowStyle Hidden -PassThru
-    $deadline = [DateTime]::UtcNow.AddSeconds($TimeoutSeconds)
-    while ([DateTime]::UtcNow -lt $deadline) {
+    $launched = [DateTime]::UtcNow
+    $lastAdvance = $launched
+    $logPath = Join-Path $runRoot 'Rainmeter.log'
+    $ticks = @{}
+    $signature = ''
+    while ($true) {
         $missing = @($cases | Where-Object { -not (Test-Path -LiteralPath $_.Result -PathType Leaf) })
         if ($missing.Count -eq 0) { break }
         $process.Refresh()
         if ($process.HasExited) { throw "Isolated Rainmeter exited before all reports. Inspect $runRoot" }
+        # Progress is any per-case tick or new log line (skin loads, Settings
+        # open/close). A torn read keeps the previous tick.
+        foreach ($case in $cases) {
+            $tick = 0
+            try { $text = [IO.File]::ReadAllText($case.Progress) } catch { $text = '' }
+            if ([int]::TryParse($text, [ref]$tick) -and $tick -gt 0) { $ticks[$case.Case] = $tick }
+        }
+        $logLength = if (Test-Path -LiteralPath $logPath) { (Get-Item -LiteralPath $logPath).Length } else { 0 }
+        $current = "$($missing.Count)|$logLength|" + (($cases | ForEach-Object { $ticks[$_.Case] }) -join ',')
+        $now = [DateTime]::UtcNow
+        if ($current -ne $signature) { $signature = $current; $lastAdvance = $now }
+        $stalled = ($now - $lastAdvance).TotalSeconds -ge $TimeoutSeconds
+        if ($stalled -or ($now - $launched).TotalSeconds -ge $MaxSeconds) {
+            $state = ($missing | ForEach-Object { '{0} at tick {1}' -f $_.Case, $(if ($ticks.ContainsKey($_.Case)) { $ticks[$_.Case] } else { 'none' }) }) -join ', '
+            $reason = if ($stalled) { "stalled: no case advanced for $TimeoutSeconds s" } else { "exceeded $MaxSeconds s while still advancing" }
+            throw ("Native RAM smoke {0} ({1:N0} s after launch; reports are written at tick 20); missing {2}. Inspect {3}" -f $reason, ($now - $launched).TotalSeconds, $state, $runRoot)
+        }
         Start-Sleep -Milliseconds 250
     }
-    $missing = @($cases | Where-Object { -not (Test-Path -LiteralPath $_.Result -PathType Leaf) })
-    if ($missing.Count) { throw "Native RAM smoke timed out; missing $($missing.Case -join ', '). Inspect $runRoot" }
+    $elapsed = ([DateTime]::UtcNow - $launched).TotalSeconds
     $reports = @($cases | ForEach-Object { Get-Content -LiteralPath $_.Result -Raw })
     $reports | Write-Output
-    $logPath = Join-Path $runRoot 'Rainmeter.log'
     $errors = @()
     if (Test-Path -LiteralPath $logPath) { $errors = @(Get-Content -LiteralPath $logPath | Where-Object { $_ -match '^ERRO' }) }
     $failures = @($reports | Where-Object { $_ -notmatch '^PASS:' })
@@ -363,6 +386,7 @@ try {
         CompletedUtc=[DateTime]::UtcNow.ToString('o'); Cases=$cases.Count; FailedCases=$failures.Count
         RainmeterVersion=(Get-Item -LiteralPath $RainmeterPath).VersionInfo.FileVersion
         ProcessId=$process.Id; LogErrors=$errors; Distributable=$false
+        SecondsToReports=[math]::Round($elapsed, 1); StallSeconds=$TimeoutSeconds; MaxSeconds=$MaxSeconds
         FixtureOnly=[bool]$FixtureOnly
         HardwareQueries=$(if ($FixtureOnly) { 0 } else { 1 }); HardwareLiveReport=$(if ($FixtureOnly) { $null } else { $reports[0] })
         ProcessProviderCases=$(if ($FixtureOnly) { 0 } else { 1 })

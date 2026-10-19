@@ -13,8 +13,7 @@ return function(model, check)
     end
     local function summary(data,units,decimals)
         local result = model.Format(data,units or 0,decimals)
-        check(type(result.Summary.text)=='string' and type(result.Summary.tip)=='string' and #result.Summary.tip>0,
-            'Summary must include literal text and explanatory tooltip')
+        check(type(result.Summary.text)=='string', 'Summary must include literal text')
         check(type(result.groups)=='table', 'Missing grouped summary data')
         return result
     end
@@ -51,10 +50,7 @@ return function(model, check)
     local result = summary(duplicate,0,1)
     check(#result.groups==1 and result.groups[1].count==4,'Identical records must group')
     check(result.Summary.text=='SK Hynix 8.6 GB DDR4 SDRAM @ 1333.3 MHz nominal x 4 modules','Incorrect nominal DDR4 summary')
-    contains(result.Summary.tip,'2666 MT/s','Tooltip lost queried rate')
-    contains(result.Summary.tip,'not a measured live clock','Clock inference not explained')
-    contains(result.Summary.tip,'published DDR4 module naming scheme','Part-family provenance missing')
-    excludes(result.Summary.tip,'HMA','Part numbers must never appear in the model protocol or output')
+    excludes(result.Summary.text,'HMA','Part numbers must never appear in the model protocol or output')
     contains(summary(duplicate,1,0).Summary.text,'8590 MB')
     contains(summary(duplicate,1,1).Summary.text,'8589.9 MB')
     contains(summary(duplicate,0,2).Summary.text,'8.59 GB')
@@ -68,8 +64,6 @@ return function(model, check)
 
     local alias = summary(parsed(row(8589934592,26,2666,'Hynix')..';'..row(8589934592,26,2666,' sk hynix inc. ',1)),0,1)
     check(#alias.groups==1 and alias.groups[1].count==2,'Explicit manufacturer aliases should group')
-    contains(alias.Summary.tip,'Firmware manufacturer label(s): Hynix')
-    contains(alias.Summary.tip,'Manufacturer for 1 record(s) identified','Mixed manufacturer provenance lost')
     local mixed = summary(parsed(table.concat({sample,
         row(17179869184,26,2666,'SK Hynix'),row(8589934592,24,2666,'SK Hynix'),
         row(8589934592,26,3200,'SK Hynix'),row(8589934592,26,2666,'Samsung')},';')),0,1)
@@ -80,8 +74,6 @@ return function(model, check)
     for _,group in ipairs(mixed.groups) do contains(group.text,'x 1 module'); excludes(group.text,'x 1 modules') end
     local nearSizes = summary(parsed(row(8589934592,26,2666,'Acme')..';'..row(8589934593,26,2666,'Acme')),0,0)
     check(#nearSizes.groups==2,'Rounded displayed capacity merged different exact capacities')
-    contains(nearSizes.Summary.tip,'8589934592 bytes')
-    contains(nearSizes.Summary.tip,'8589934593 bytes')
     local nearRates = summary(parsed(row(8589934592,26,2666,'Acme')..';'..row(8589934592,26,2667,'Acme')),0,1)
     check(#nearRates.groups==2,'Nominal bin formatting merged distinct raw rates')
 
@@ -91,8 +83,6 @@ return function(model, check)
     contains(unknowns.Summary.text,'Unknown manufacturer')
     contains(unknowns.Summary.text,'capacity unknown Unknown type @ rate unknown')
     excludes(unknowns.Summary.text,'SK Hynix','Opaque code alone must not identify manufacturer')
-    contains(unknowns.Summary.tip,'0000AD010000')
-    contains(unknowns.Summary.tip,'0000CE010000')
     contains(unknowns.Summary.text,'x 2 modules')
     for _,name in ipairs({'0','123','0xAD','N/A','To Be Filled By O.E.M.','Undefined',' undefined '}) do
         contains(summary(parsed(row(1,26,2666,name)),0,1).Summary.text,'Unknown manufacturer',
@@ -133,7 +123,6 @@ return function(model, check)
     local sanitized = summary(parsed(row(1,26,2666,attack)),0,1)
     for _,bad in ipairs({'#','[',']','%','"',"'","!",'\\','\r','\t',string.char(0),string.char(127)}) do
         excludes(sanitized.Summary.text,bad,'Unsafe manufacturer content reached Text')
-        excludes(sanitized.Summary.tip,bad,'Unsafe manufacturer content reached ToolTipText')
     end
     local _,injectedLines=sanitized.Summary.text:gsub('\n','')
     check(injectedLines==0,'Manufacturer introduced extra summary lines')

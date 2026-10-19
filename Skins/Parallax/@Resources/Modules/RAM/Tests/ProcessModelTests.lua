@@ -1,23 +1,18 @@
 -- Test-only synthetic process rankings. Never loaded by production skins.
 return function(model, check)
-    local function contains(value, needle, message)
-        check(value:find(needle,1,true) ~= nil, message or ('Missing '..needle))
-    end
     local function excludes(value, needle, message)
         check(value:find(needle,1,true) == nil, message or ('Unexpected '..needle))
     end
     local function sample(name, bytes) return {name=name,bytes=bytes} end
     local function formatted(samples, units, decimals)
         local result = model.Format(samples,units,decimals)
-        check(type(result.rows)=='table' and type(result.state)=='string' and type(result.tip)=='string',
-            'Invalid process-model contract')
+        check(type(result.rows)=='table' and type(result.state)=='string', 'Invalid process-model contract')
         check(#result.rows<=5,'More than five ranks displayed')
         return result
     end
     for _, input in ipairs({false,1,'invalid',{}}) do
         local result = formatted(input)
         check(#result.rows==0 and result.state=='No process data','Empty inventory must be explicit')
-        contains(result.tip,'not measured zero')
     end
     check(formatted(nil).state=='No process data','Nil input must be unavailable')
     local five = {
@@ -28,12 +23,6 @@ return function(model, check)
     check(#result.rows==5 and result.state=='','Complete ranking should display five rows')
     check(result.rows[1].name=='Browser' and result.rows[1].text=='2.5 GB','Incorrect first rank')
     check(result.rows[2].name=='Editor' and result.rows[2].text=='1.2 GB','Incorrect second rank')
-    contains(result.rows[1].tip,'2500000000 bytes')
-    contains(result.tip,'same counter name are combined')
-    contains(result.tip,'resident process memory excluding shared pages')
-    contains(result.tip,'no separate freshness signal')
-    contains(result.tip,'1 GB = 1000000000 bytes')
-    contains(result.tip,'5 of 5 ranked entries')
     check(formatted(five,1,1).rows[2].text=='1234.6 MB','MB conversion must be decimal')
     check(formatted(five,'1','2').rows[2].text=='1234.57 MB','Numeric preference strings rejected')
     check(formatted(five,0,0).rows[2].text=='1 GB','Zero-decimal setting ignored')
@@ -51,7 +40,6 @@ return function(model, check)
     check(formatted(small,0,0).rows[1].text=='<1 GB','Small positive GB reading displayed as zero')
     check(formatted(small,0,1).rows[1].text=='<0.1 GB','Small positive one-decimal reading displayed as zero')
     check(formatted(small,1,2).rows[1].text=='<0.01 MB','Small positive MB reading displayed as zero')
-    contains(formatted(small).rows[1].tip,'1 byte)')
     local invalidBytes = {0,-1,0/0,math.huge,-math.huge,9007199254740992,1.5,'1000',false,{}}
     for _,bytes in ipairs(invalidBytes) do
         check(#formatted({sample('Invalid',bytes)}).rows==0,'Invalid byte count accepted')
@@ -66,7 +54,6 @@ return function(model, check)
     check(#partial.rows==3 and partial.state=='','Valid partial rankings should remain visible')
     check(partial.rows[1].name=='Second' and partial.rows[2].name=='Fourth','Provider order changed')
     check(partial.rows[3].name=='Fifth','Sixth input rank leaked into the top five')
-    contains(partial.tip,'3 of 5 ranked entries')
     local sparse = formatted({[2]=sample('Only',1000000)})
     check(#sparse.rows==1 and sparse.rows[1].name=='Only','Missing early ranks hid later ranks')
     for _, name in ipairs({'','  ','_Total','Idle','IDLE',' \t\r\n ',string.rep('x',1025),false,3,{}}) do
@@ -81,7 +68,6 @@ return function(model, check)
     check(safe.name=='A B Measure 1 x y Bang path end','Process name was not made literal')
     for _,token in ipairs({'#','[',']','%','"',"'",'!','\\','\r','\n','\t'}) do
         excludes(safe.name,token,'Unsafe name token remained')
-        excludes(safe.tip,token,'Unsafe tooltip token remained')
     end
     local unicode = 'Editeur '..string.char(195,169)..' '..string.char(230,181,139,232,175,149)
     check(formatted({sample(unicode,1000000)}).rows[1].name==unicode,'Legitimate Unicode name corrupted')

@@ -80,11 +80,11 @@ local function manufacturer(raw)
     local opaque = clean:match('^%d+$') or (#clean >= 4 and #clean%2 == 0 and clean:match('^%x+$'))
         or clean:match('^0[xX]%x+$')
     if placeholders[lower] or opaque then
-        return {text='Unknown manufacturer', identity='unknown:'..raw, literal=clean, unknown=true}
+        return {text='Unknown manufacturer', identity='unknown:'..raw}
     end
     -- Only explicit aliases are renamed; never search for a vendor substring.
     local name = aliases[lower] or clean
-    return {text=name, identity='name:'..name, literal=clean, unknown=false}
+    return {text=name, identity='name:'..name}
 end
 
 function M.Parse(raw)
@@ -111,32 +111,20 @@ function M.Parse(raw)
     return result
 end
 
-local function field(text, tip) return {text=text, tip=tip} end
-
 local function clock(kind, rate)
-    local raw = string.format('%.0f',rate)
-    if rate == 0 or rate == 65535 or rate == 4294967295 then
-        return 'rate unknown', 'Configured transfer rate is unavailable or unresolved (firmware value '..raw..').'
-    end
+    if rate == 0 or rate == 65535 or rate == 4294967295 then return 'rate unknown' end
     if kind == 26 then
         for _, bin in ipairs(ddr4Bins) do
-            if math.abs(rate-bin) <= 1 then
-                return string.format('%.1f MHz nominal',bin/2),
-                    'Nominal clock inferred from a standard DDR4 speed bin within 1 MT/s of the firmware-reported '
-                    ..raw..' MT/s; not a measured live clock. Integer firmware data does not supply fractional clock precision.'
-            end
+            if math.abs(rate-bin) <= 1 then return string.format('%.1f MHz nominal',bin/2) end
         end
     end
-    if doubleRate[kind] then
-        return string.format('~%.0f MHz derived',rate/2),
-            'Approximate DDR I/O clock derived from firmware-reported '..raw..' MT/s divided by two; not a measured live clock.'
-    end
-    return raw..' MT/s', 'Configured transfer rate reported by firmware: '..raw..' MT/s; not a measured live clock.'
+    if doubleRate[kind] then return string.format('~%.0f MHz derived',rate/2) end
+    return string.format('%.0f MT/s',rate)
 end
 
 function M.Format(data, useMiB, decimals)
     if type(data) ~= 'table' or type(data.devices) ~= 'table' or #data.devices == 0 then
-        return {Summary=field('Unavailable', 'Windows memory inventory is unavailable. Refresh the skin to retry. Live physical RAM readings below are independent.'), groups={}}
+        return {Summary={text='Unavailable'}, groups={}}
     end
     -- Keep the legacy preference flag, while using decimal capacity units.
     local unit, divisor = 'GB', 1000000000
@@ -152,12 +140,10 @@ function M.Format(data, useMiB, decimals)
         local group = indexed[key]
         if not group then
             group = {manufacturer=maker.text, identity=maker.identity, capacity=device.capacity,
-                type=device.type, rate=device.rate, count=0, labels={}, inferred=0, unknown=maker.unknown}
+                type=device.type, rate=device.rate, count=0}
             indexed[key], groups[#groups+1] = group, group
         end
         group.count = group.count+1
-        if device.makerSource == 1 then group.inferred=group.inferred+1
-        else group.labels[maker.literal] = true end
     end
     table.sort(groups, function(a,b)
         if a.identity ~= b.identity then return a.identity < b.identity end
@@ -165,30 +151,15 @@ function M.Format(data, useMiB, decimals)
         if a.type ~= b.type then return a.type < b.type end
         return a.rate < b.rate
     end)
-    local texts, tips = {}, {}
+    local texts = {}
     for _, group in ipairs(groups) do
         local capacity = group.capacity > 0 and string.format('%.'..decimals..'f %s',group.capacity/divisor,unit) or 'capacity unknown'
         local kind = types[group.type] or 'Unknown type'
-        local speed, speedTip = clock(group.type,group.rate)
-        group.text = group.manufacturer..' '..capacity..' '..kind..' @ '..speed
+        group.text = group.manufacturer..' '..capacity..' '..kind..' @ '..clock(group.type,group.rate)
             ..' x '..group.count..(group.count == 1 and ' module' or ' modules')
-        local labels = {}
-        for label in pairs(group.labels) do labels[#labels+1] = label ~= '' and label or '(empty)' end
-        table.sort(labels)
-        local makerTip = #labels > 0 and ('Firmware manufacturer label(s): '..table.concat(labels, ', ')..'. ') or ''
-        if group.inferred > 0 then
-            makerTip = makerTip..'Manufacturer for '..group.inferred..' record(s) identified from the firmware-reported part number using SK Hynix published DDR4 module naming scheme. '
-        end
-        if group.unknown then makerTip=makerTip..'The manufacturer label could not be resolved. ' end
-        group.tip = group.text..'\n'..makerTip
-            ..(group.capacity > 0 and ('Each record reports '..string.format('%.0f',group.capacity)..' bytes. ') or 'Per-record capacity is unknown. ')
-            ..'SMBIOS memory type code: '..group.type..'. '..speedTip
-        texts[#texts+1], tips[#tips+1] = group.text, group.tip
+        texts[#texts+1] = group.text
     end
-    tips[#tips+1] = 'Groups use manufacturer, exact per-record capacity, memory type and raw configured rate. '
-        ..'Counts reflect Windows memory-device records; soldered devices may be included. '
-        ..'This inventory does not establish free upgrade slots or memory channel mode.'
-    return {Summary=field(table.concat(texts,'\n'),table.concat(tips,'\n\n')), groups=groups}
+    return {Summary={text=table.concat(texts,'\n')}, groups=groups}
 end
 
 return M

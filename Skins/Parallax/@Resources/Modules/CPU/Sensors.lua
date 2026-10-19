@@ -27,14 +27,9 @@ end
 local function set(meter, option, value)
     value = safe(value)
     local key = meter .. ':' .. option
-    local previous = state.previous[key]
-    if previous ~= value then
+    if state.previous[key] ~= value then
         state.previous[key] = value
-        -- Avoid creating a native tooltip control merely to assign its initial
-        -- empty state. A previously populated tooltip still needs clearing.
-        if option ~= 'ToolTipText' or value ~= '' or previous ~= nil then
-            SKIN:Bang('!SetOption', meter, option, value)
-        end
+        SKIN:Bang('!SetOption', meter, option, value)
     end
 end
 
@@ -91,24 +86,18 @@ end
 local function readBinding(kind, core)
     local binding
     if core ~= nil then binding = state.coreBindings[kind][core] else binding = state.bindings[kind] end
-    if not binding then
-        return nil, core ~= nil and ('No exported ' .. kind:lower() .. ' for HWiNFO core ' .. core .. '. Enable its Gadget reporting and scan again.')
-            or (kind == 'Clock' and state.clockDetail) or (kind == 'Fan' and state.fanDetail)
-            or (kind == 'MotherboardFan' and state.motherboardFanDetail) or state.detail
-            or 'No matching exported sensor. Enable Gadget reporting in HWiNFO and reconnect.'
-    end
+    if not binding then return nil end
     local list = text(binding.hive == 'HKEY_CURRENT_USER' and 'MeasureCPUSensorNamesUser' or 'MeasureCPUSensorNamesMachine')
     local names = {}
     for key in list:gmatch('[^|]+') do names[key] = true end
     for _, field in ipairs(fields) do
-        if not names[registryNames[field] .. binding.index] then
-            return nil, 'An export was removed. Reconnect HWiNFO sensors.'
-        end
+        if not names[registryNames[field] .. binding.index] then return nil end
     end
     local prefix = core ~= nil and ('MeasureCPUSensorCore' .. kind) or ('MeasureCPUSensor' .. kind)
     local suffix = core ~= nil and tostring(core + 1) or ''
+    -- A changed identity means the old index now holds a different reading.
     if text(prefix .. 'Sensor' .. suffix, true) ~= binding.sensor or text(prefix .. 'Label' .. suffix, true) ~= binding.label then
-        return nil, 'Sensor identity changed. Reconnect instead of using a different reading at the old index.'
+        return nil
     end
     local formatted = text(prefix .. 'Formatted' .. suffix)
     -- Rainmeter's Lua bridge can return the degree sign in the Windows ANSI
@@ -124,31 +113,24 @@ local function readBinding(kind, core)
     else
         unit = display:match('^[+-]?%d[%d%.,%s]*(RPM)%s*$')
     end
-    if unit ~= binding.unit then return nil, 'Missing or changed sensor units. Reconnect HWiNFO sensors.' end
+    if unit ~= binding.unit then return nil end
     local rawText = text(prefix .. 'Raw' .. suffix)
     if rawText:match('^[+-]?%d+,%d+$') then rawText = rawText:gsub(',', '.') end
     local value = tonumber(rawText)
-    if not finite(value) then return nil, 'Invalid numeric sensor reading.' end
+    if not finite(value) then return nil end
     if kind == 'Temperature' then
         if unit == 'F' then value = (value - 32) * 5 / 9 end
-        if value < -80 or value > 200 then return nil, 'Temperature reading outside the supported range.' end
+        if value < -80 or value > 200 then return nil end
     elseif kind == 'Voltage' then
         if unit == 'mV' then value = value / 1000 end
-        if value < 0 or value > 5 then return nil, 'Voltage reading outside the supported range.' end
+        if value < 0 or value > 5 then return nil end
     elseif kind == 'Clock' then
         if unit == 'GHz' then value = value * 1000 end
-        if value < 100 or value > 10000 then return nil, 'Clock reading outside the supported range.' end
+        if value < 100 or value > 10000 then return nil end
     else
-        if value < 0 or value > 100000 then return nil, 'Fan reading outside the supported range.' end
+        if value < 0 or value > 100000 then return nil end
     end
-    return value, binding.sensor .. ' / ' .. binding.label .. '. '
-        .. (core ~= nil and ('HWiNFO physical core ' .. core .. '; ') or 'CPU-wide summary; ')
-        .. (kind == 'Temperature' and 'degrees Celsius.'
-            or kind == 'Clock' and 'current clock in MHz; HWiNFO provider aggregation, not a per-core or per-thread measurement.'
-            or kind == 'Fan' and 'CPU fan speed in RPM.'
-            or kind == 'MotherboardFan' and 'motherboard fan speed in RPM.'
-            or (binding.kind == 'VID' and 'requested VID, not measured supply voltage.' or 'measured CPU supply voltage in volts.'))
-        .. ' HWiNFO registry export; sample age is not exposed.'
+    return value
 end
 
 local function formatClock(value)
@@ -171,51 +153,38 @@ end
 local function readNativeClock()
     local measure = SKIN:GetMeasure('MeasureCPUNativeClock')
     local value = measure and measure:GetValue()
-    if finite(value) and value >= 100 and value <= 10000 then
-        return value, 'Windows Processor Information aggregate clock: Processor Frequency multiplied by Processor Performance. This is not a per-core or per-thread reading.'
-    end
-    return nil, 'Windows Processor Information counters are unavailable.'
+    if finite(value) and value >= 100 and value <= 10000 then return value end
+    return nil
 end
 
 local function render()
-    local temperature, voltage, clock, fan, motherboardFan, tempDetail, voltDetail, clockDetail, fanDetail, motherboardFanDetail
-    local nativeClock, nativeClockDetail = readNativeClock()
+    local clock, fan, motherboardFan
+    local nativeClock = readNativeClock()
     local status
     if not state.enabled then
         status = 'HWiNFO sensors: off'
-        tempDetail, voltDetail, clockDetail, fanDetail, motherboardFanDetail = 'Enable HWiNFO sensors in CPU Settings.', 'Enable HWiNFO sensors in CPU Settings.', 'Enable HWiNFO sensors in CPU Settings.', 'Enable HWiNFO sensors in CPU Settings.', 'Enable HWiNFO sensors in CPU Settings.'
     elseif state.pending or state.prime then
         status = 'HWiNFO: connecting...'
-        tempDetail, voltDetail, clockDetail, fanDetail, motherboardFanDetail = 'Waiting for sensor discovery and a native registry read.', 'Waiting for sensor discovery and a native registry read.', 'Waiting for sensor discovery and a native registry read.', 'Waiting for sensor discovery and a native registry read.', 'Waiting for sensor discovery and a native registry read.'
     elseif SKIN:GetMeasure('MeasureCPUHWiNFORunning'):GetValue() ~= 1 then
+        -- Old registry values are suppressed while HWiNFO64 is not running.
         status = 'HWiNFO: not running'
-        tempDetail, voltDetail, clockDetail, fanDetail, motherboardFanDetail = 'HWiNFO64 is not running. Old registry values are suppressed.', 'HWiNFO64 is not running. Old registry values are suppressed.', 'HWiNFO64 is not running. Old registry values are suppressed.', 'HWiNFO64 is not running. Old registry values are suppressed.', 'HWiNFO64 is not running. Old registry values are suppressed.'
     else
-        temperature, tempDetail = readBinding('Temperature')
-        voltage, voltDetail = readBinding('Voltage')
-        clock, clockDetail = readBinding('Clock')
-        fan, fanDetail = readBinding('Fan')
-        motherboardFan, motherboardFanDetail = readBinding('MotherboardFan')
-        local summary = {}
-        if temperature then
-            local label = state.bindings.Temperature.label:match('^%s*(.-)%s*$')
-            summary[#summary + 1] = (label == 'Core Temperatures' and 'Avg ' or 'CPU ') .. formatTemperature(temperature)
-        end
-        if voltage then summary[#summary + 1] = (state.bindings.Voltage.kind == 'VID' and 'VID ' or 'Vcore ') .. formatVoltage(voltage) end
-        if clock then summary[#summary + 1] = 'Clock ' .. formatClock(clock) end
-        status = #summary > 0 and table.concat(summary, ' | ') or 'HWiNFO: Gadget exports unavailable'
+        -- The footer reports provider status only; readings live in their rows.
+        clock = readBinding('Clock')
+        fan = readBinding('Fan')
+        motherboardFan = readBinding('MotherboardFan')
     end
     local coreReady = state.enabled and not state.pending and not state.prime
         and SKIN:GetMeasure('MeasureCPUHWiNFORunning'):GetValue() == 1
     local coreReadings, readings = 0, {}
     for core = 0, 63 do
-        local t, v, td, vd
+        local t, v
         if coreReady then
-            t, td = readBinding('Temperature', core)
-            v, vd = readBinding('Voltage', core)
+            t = readBinding('Temperature', core)
+            v = readBinding('Voltage', core)
         end
         if core <= 31 and (t or v) then coreReadings = coreReadings + 1 end
-        readings[core] = {temperature=t, voltage=v, temperatureDetail=td, voltageDetail=vd}
+        readings[core] = {temperature=t, voltage=v}
     end
     -- Requested paired presentation: threads 1/2 share Core 0, 3/4 share
     -- Core 1, etc. This is an explicit display mapping, not a topology probe.
@@ -224,50 +193,37 @@ local function render()
         local thread = state.firstThread + slot - 1
         local core = math.floor((thread - 1) / 2)
         local reading = thread <= 64 and readings[core] or {}
-        local pairing = ' Paired thread rows ' .. (core * 2 + 1) .. '/' .. (core * 2 + 2)
-            .. ' share HWiNFO Core ' .. core .. ' (two threads per core).'
         set('MeterCoreTemperature' .. slot, 'Text', reading.temperature and formatTemperature(reading.temperature) or '-')
         set('MeterCoreVoltage' .. slot, 'Text', reading.voltage and formatVoltage(reading.voltage) or '-')
-        if slot <= state.activeSlots and thread <= 64 then
-            set('MeterCoreTemperature' .. slot, 'ToolTipText', (reading.temperatureDetail or tempDetail or 'This physical core has no exported temperature.') .. pairing)
-            set('MeterCoreVoltage' .. slot, 'ToolTipText', (reading.voltageDetail or voltDetail or 'This physical core has no exported VID.') .. pairing)
+    end
+    if coreReady then
+        if #state.coreIds == 0 then
+            status = (clock or fan or motherboardFan) and 'HWiNFO: no per-core exports' or 'HWiNFO: Gadget exports unavailable'
+        elseif coreReadings == 0 then
+            status = 'HWiNFO: core readings unavailable'
         else
-            set('MeterCoreTemperature' .. slot, 'ToolTipText', '')
-            set('MeterCoreVoltage' .. slot, 'ToolTipText', '')
+            status = 'HWiNFO: connected, ' .. coreReadings .. (coreReadings == 1 and ' core' or ' cores')
         end
     end
-    if coreReady and #state.coreIds == 0 then status = 'No per-core exports | ' .. status
-    elseif coreReady and coreReadings == 0 then status = 'Core readings unavailable | ' .. status end
-    set('MeterTableVoltageHeader', 'ToolTipText', 'Lightning symbol: HWiNFO core VID in volts, requested voltage rather than measured Vcore. Values use V with no space and repeat on paired thread rows.')
-    set('MeterTableTemperatureHeader', 'ToolTipText', 'Thermometer symbol: HWiNFO DTS core temperature in degrees Celsius. Values use degrees Celsius with no space and repeat on paired thread rows.')
-    local displayClock, displayClockDetail = clock or nativeClock
-    if clock then displayClockDetail = clockDetail
-    elseif nativeClock then displayClockDetail = nativeClockDetail
-    else displayClockDetail = ((clockDetail or '') .. ' ' .. (nativeClockDetail or '')):match('^%s*(.-)%s*$') end
+    -- The HWiNFO Core Clocks export takes precedence over the Windows aggregate.
+    local displayClock = clock or nativeClock
     set('MeterCurrentClockValue', 'Text', displayClock and formatClock(displayClock) or 'Unavailable')
-    set('MeterCurrentClockValue', 'ToolTipText', displayClockDetail or 'No native Windows clock is available. Core Clocks can also be exported through HWiNFO Gadget reporting.')
     set('MeterCurrentFanValue', 'Text', fan and formatFan(fan) or 'Unavailable')
-    set('MeterCurrentFanValue', 'ToolTipText', fanDetail or 'Export the CPU fan reading through HWiNFO Gadget reporting, then reconnect.')
     set('MeterMotherboardFanValue', 'Text', motherboardFan and formatFan(motherboardFan) or 'Unavailable')
-    set('MeterMotherboardFanValue', 'ToolTipText', motherboardFanDetail or 'Export the Mainboard or Motherboard fan reading through HWiNFO Gadget reporting, then reconnect.')
     set('MeterSensors', 'Text', status)
-    set('MeterSensors', 'ToolTipText', (tempDetail or '') .. ' ' .. (voltDetail or '') .. ' ' .. (clockDetail or '') .. ' ' .. (fanDetail or '') .. ' ' .. (motherboardFanDetail or ''))
     redraw()
 end
 
 function Initialize()
-    state = {bindings={}, coreBindings={Temperature={}, Voltage={}}, coreIds={}, previous={}, enabled=enabled(), prime=false, requestId=0, firstThread=1, activeSlots=0,
+    state = {bindings={}, coreBindings={Temperature={}, Voltage={}}, coreIds={}, previous={}, enabled=enabled(), prime=false, requestId=0, firstThread=1,
         providerRunning=nil,
         temperatureDecimals=decimalOption('CPUTemperatureDecimals', 0, 1), voltageDecimals=decimalOption('CPUVoltageDecimals', 3, 3)}
 end
 
-function SetThreadPage(first, activeSlots)
+function SetThreadPage(first)
     first = tonumber(first)
     if not state or not finite(first) or first ~= math.floor(first) or first < 1 or first > 64 then return end
-    activeSlots = activeSlots == nil and (65 - first) or tonumber(activeSlots)
-    if not finite(activeSlots) or activeSlots ~= math.floor(activeSlots) or activeSlots < 0 or activeSlots > 64 then return end
     state.firstThread = first
-    state.activeSlots = math.min(activeSlots, 65 - first)
     render()
 end
 
@@ -331,13 +287,8 @@ function ApplyDiscovery()
     state.pending = false
     -- A settings selection made during discovery supersedes its old arguments.
     if state.reconnectQueued then Reconnect(); return end
-    state.detail = nil
-    state.clockDetail = nil
-    state.fanDetail = nil
-    state.motherboardFanDetail = nil
     if not state.enabled then state.prime = false; render(); return end
     if status ~= 1 or not output:match('^HWINFOV1[\r\n]') or request ~= state.requestId then
-        state.detail = 'Sensor discovery failed. Open CPU Settings and reconnect.'
         state.prime = false
         render()
         return
@@ -347,13 +298,7 @@ function ApplyDiscovery()
     for line in output:gmatch('[^\r\n]+') do
         local parts = {}
         for part in (line .. '|'):gmatch('(.-)|') do parts[#parts + 1] = part end
-        if parts[1] == 'STATUS' then
-            state.detail = parts[2]
-            local statusDetail = (parts[2] or ''):lower()
-            if statusDetail:find('core clock', 1, true) then state.clockDetail = parts[2]
-            elseif statusDetail:find('motherboard fan speed', 1, true) then state.motherboardFanDetail = parts[2]
-            elseif statusDetail:find('fan speed', 1, true) then state.fanDetail = parts[2] end
-        elseif parts[1] == 'CORE' and coreRecords < 128 then
+        if parts[1] == 'CORE' and coreRecords < 128 then
             coreRecords = coreRecords + 1
             local kind = parts[2] == 'TEMP' and 'Temperature' or parts[2] == 'VOLT' and 'Voltage'
             local core = parts[3] and parts[3]:match('^%d+$') and tonumber(parts[3])
@@ -469,7 +414,6 @@ function Update()
     if state.pending and os.time() >= state.deadline then
         state.pending = false
         state.prime = false
-        state.detail = 'Sensor discovery timed out. Open CPU Settings and reconnect.'
         if state.reconnectQueued then Reconnect() end
     end
     render()

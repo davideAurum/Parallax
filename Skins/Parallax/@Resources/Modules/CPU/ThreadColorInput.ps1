@@ -46,7 +46,6 @@ $ErrorActionPreference = 'Stop'
 $response = 'PARALLAX_CPU_COLOR_V1|cancel|'
 $form = $null
 $inputFont = $null
-$tip = $null
 try {
     if ($Cancel) {
         $response = Get-ParallaxCpuColorResponse -Cancelled
@@ -106,7 +105,6 @@ try {
         $box.AccessibleName = 'CPU thread color'
         $box.AccessibleDescription = 'Enter applies a hex color. Escape cancels.'
         $form.Controls.Add($box)
-        $tip = New-Object Windows.Forms.ToolTip
 
         $form.add_Shown({
             $form.Tag.Active = $true
@@ -130,14 +128,12 @@ try {
                 }
                 else {
                     $form.BackColor = [Drawing.Color]::FromArgb(230, 90, 90)
-                    $tip.Show($submitted.Error, $box, 0, $box.Height + 3, 3500)
                     $box.AccessibleDescription = $submitted.Error + ' Escape cancels.'
                 }
             }
         })
         $box.add_TextChanged({
             $form.BackColor = [Drawing.Color]::FromArgb(137, 190, 250)
-            $tip.Hide($box)
         })
         $null = $form.ShowDialog()
         $response = [string]$form.Tag.Response
@@ -148,7 +144,6 @@ catch {
     $response = 'PARALLAX_CPU_COLOR_V1|cancel|'
 }
 finally {
-    if ($null -ne $tip) { $tip.Dispose() }
     if ($null -ne $form) { $form.Dispose() }
     if ($null -ne $inputFont) { $inputFont.Dispose() }
 }

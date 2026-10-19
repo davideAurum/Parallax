@@ -209,7 +209,7 @@ local function observeProcessMemory()
             check(memory and name and label and value,'Missing native memory bank or row meter at slot '..slot)
             local wanted=memory:GetOption('Name','')
             local returned,bytes=memory:GetStringValue(),memory:GetValue()
-            local text,tip=label:GetOption('Text',''),label:GetOption('ToolTipText','')
+            local text=label:GetOption('Text','')
             local nameText,valueText=name:GetOption('Text',''),value:GetOption('Text','')
             -- Rainmeter reports zero width and height for a hidden meter, so
             -- this is the runtime !ShowMeterGroup / !HideMeterGroup state.
@@ -221,7 +221,6 @@ local function observeProcessMemory()
             evidence[#evidence+1]=prefix..'NameText='..nameText
             evidence[#evidence+1]=prefix..'ValueText='..valueText
             evidence[#evidence+1]=prefix..'MemoryText='..text
-            evidence[#evidence+1]=prefix..'MemoryTip='..tip
             for _,option in ipairs({'Alias','Category','Counter','Index','RawValue','PIDToName','Rollup','Percent','Disabled'}) do
                 evidence[#evidence+1]=prefix..option..'Option='..memory:GetOption(option,'')
             end
@@ -251,11 +250,9 @@ local function observeProcessMemory()
                         local capped=adapter~=nil and high~=nil and (high..low):upper()==adapter.luid and bytes>adapter.capacity
                         if capped then
                             check(text=='--','Dedicated bytes above the selected adapter capacity are presented as measured at row '..slot)
-                            check(tip:find(row.identity,1,true)~=nil and tip:find(string.format('%.0f bytes',bytes),1,true)~=nil and tip:find('withheld',1,true)~=nil,'Withheld VRAM tooltip omits its identity, raw byte reading or reason at row '..slot)
                             missing=missing+1
                         else
                             check(text==formatBytes(bytes),'Native VRAM text does not match its exact requested instance and positive raw bytes at row '..slot)
-                            check(tip:find(row.identity,1,true)~=nil and tip:find(string.format('%.0f bytes',bytes),1,true)~=nil,'VRAM tooltip omits its exact identity or raw byte reading at row '..slot)
                             positive=positive+1
                         end
                     else
@@ -363,7 +360,6 @@ function Update()
     local meter=SKIN:GetMeter('MeterTemperatureValue')
     if meter then
         temperature[#temperature+1]='MeterTemperatureValue='..meter:GetOption('Text','')
-        temperature[#temperature+1]='ToolTipText='..meter:GetOption('ToolTipText','')
     end
     write([=[$runRoot\temperature-observed.txt]=],table.concat(temperature,'\n'))
     local metrics={}
@@ -746,7 +742,7 @@ try {
     if ($namesVisible) {Write-Output 'PASS: live Windows process-name packet reached native process labels.'}
     else {Write-Output 'OBSERVED: no resolvable live ranked name during the bounded wait; PID/idle fallback retained. Synthetic name handling passed the native Lua suite.'}
     Write-Output (Get-Content -LiteralPath (Join-Path $runRoot 'process-memory-audit.txt') -Raw)
-    if ($memoryVisible) {Write-Output 'PASS: positive native per-process dedicated bytes reached exact PID / LUID / physical-GPU rows; labels, raw values and tooltip identities agree.'}
+    if ($memoryVisible) {Write-Output 'PASS: positive native per-process dedicated bytes reached exact PID / LUID / physical-GPU rows; labels and raw values agree.'}
     else {Write-Output 'OBSERVED: no usable positive ranked dedicated-memory reading during the bounded wait; zero, missing and idle readings remained --. Native Lua fixtures cover unavailable and replacement identities.'}
     $hosts=@([GpuSmokeProcessTree]::Children([uint32]$process.Id))
     if ($hosts.Count -ne 1) {throw 'Expected exactly one owned persistent temperature host.'}

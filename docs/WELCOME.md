@@ -67,7 +67,7 @@ If the settings file cannot be read, every check clears and the status line read
 
 ## Checking for updates
 
-**Check for updates** sits at the right end of the Load all row. The bottom line shows the installed version from `@Resources/Version.inc`. A click makes one WebParser request for the release feed. If a newer version is published, the line reads `Parallax <v> is available.`, and **Install** and **Notes** appear beside it. Install downloads and verifies the package, then opens Rainmeter's Skin Installer, which asks for confirmation before changing anything. The status line keeps short text; its tooltip carries the full reason for any failure. The mechanism, feed format, release procedure and state table are in [UPDATES.md](UPDATES.md).
+**Check for updates** sits at the right end of the Load all row. The bottom line shows the installed version from `@Resources/Version.inc`. A click makes one WebParser request for the release feed. If a newer version is published, the line reads `Parallax <v> is available.`, and **Install** and **Notes** appear beside it. Install downloads and verifies the package, then opens Rainmeter's Skin Installer, which asks for confirmation before changing anything. The status line keeps short text and has no tooltip, so the detailed reason for a failure is not shown. The mechanism, feed format, release procedure and state table are in [UPDATES.md](UPDATES.md).
 
 The update controls run in their own script measure (`MeasureUpdate`), so the loader's controller and its bang allowlist test are unchanged. `MeasureUpdateFeed` stays disabled until a click and is disabled again when the request finishes, so neither a skin load nor a refresh contacts the network.
 

@@ -14,9 +14,9 @@ function Display(immediate)
     local result = model.Format(samples, SKIN:GetVariable('RAMUseMiB'), SKIN:GetVariable('RAMDecimals'))
     if #result.rows == 0 and os.time() < waitUntil then result.state = 'Waiting for process data...' end
     -- Avoid unchanged meter updates while preserving periodic provider reads.
-    local parts = {result.state, result.tip}
+    local parts = {result.state}
     for _, row in ipairs(result.rows) do
-        parts[#parts+1], parts[#parts+2], parts[#parts+3] = row.name, row.text, row.tip
+        parts[#parts+1], parts[#parts+2] = row.name, row.text
     end
     local signature = table.concat(parts, '\0')
     if signature == lastDisplay then return end
@@ -27,18 +27,13 @@ function Display(immediate)
             local meter = 'MeterRAMProcess'..kind..rank
             SKIN:Bang(row and '!ShowMeter' or '!HideMeter', meter)
             SKIN:Bang('!SetOption', meter, 'Text', row and (kind == 'Name' and row.name or row.text) or '')
-            SKIN:Bang('!SetOption', meter, 'ToolTipText', row and row.tip or '')
         end
     end
     SKIN:Bang(#result.rows == 0 and '!ShowMeter' or '!HideMeter', 'MeterRAMProcessesState')
     SKIN:Bang('!SetOption', 'MeterRAMProcessesState', 'Text', result.state)
-    SKIN:Bang('!SetOption', 'MeterRAMProcessesState', 'ToolTipText', result.tip)
-    SKIN:Bang('!SetOption', 'MeterRAMProcessesHeader', 'ToolTipText',
-        'Five largest private working sets, highest first. '..result.tip)
     -- The table meters use UpdateDivider=-1, so changed options appear only
     -- after an explicit update. The periodic skin cycle redraws afterwards;
     -- out-of-cycle Settings calls must redraw themselves.
-    SKIN:Bang('!UpdateMeter', 'MeterRAMProcessesHeader')
     SKIN:Bang('!UpdateMeterGroup', 'RAMProcesses')
     if immediate ~= false then SKIN:Bang('!Redraw') end
 end

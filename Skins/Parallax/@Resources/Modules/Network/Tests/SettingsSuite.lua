@@ -59,7 +59,7 @@ function Suite.run(Core, fixtures)
                 if args[1] == 'MeasureNetworkSettingsInput' then equal(args[2], 'Parameter')
                 else
                     truth(meterNames[args[1]], 'unknown target meter: ' .. tostring(args[1]))
-                    truth(args[2] == 'Text' or args[2] == 'ToolTipText' or args[2] == 'FontColor', 'unexpected meter mutation')
+                    truth(args[2] == 'Text' or args[2] == 'FontColor', 'unexpected meter mutation')
                 end
                 mock.latest[args[1] .. ':' .. args[2]] = args[3]
             elseif bang == '!WriteKeyValue' then
@@ -147,13 +147,8 @@ function Suite.run(Core, fixtures)
         equal(mock:text('Adapter'), "NIC  CURRENTCONFIG   !Quit  'quoted'")
         equal(mock.data, data); equal(mock:count('!ActivateConfig'), 0); equal(mock:count('!WriteKeyValue'), 0)
         for key, value in pairs(mock.latest) do
-            if key:match(':Text$') or key:match(':ToolTipText$') then truth(not value:find('[%c#%[%]"]'), 'unsafe display ' .. key) end
+            if key:match(':Text$') then truth(not value:find('[%c#%[%]"]'), 'unsafe display ' .. key) end
         end
-    end)
-    test('tooltips are bounded without retaining executable delimiters', function()
-        local mock = controller(replace(initial, 'NetworkInterface', string.rep('\195\169', 700) .. '#x#[!Quit]'))
-        mock.env.Update(); local text=mock.latest['MeterNetworkSettingsAdapterValue:ToolTipText']
-        truth(#text <= 1024); equal(text:sub(-3), '...'); truth(not text:find('[%c#%[%]"]'))
     end)
     test('invalid saved choices are visible and never repaired on load', function()
         local replacements = {NetworkInterface='0',NetworkUnits='octets',Columns='3',PanelHeight='0',NetworkInCeilingMbps='-1',
@@ -167,17 +162,8 @@ function Suite.run(Core, fixtures)
         local data=replace(replace(initial,'NetworkInCeilingMbps','1e2'),'PanelHeight','(200+1)')
         local mock=controller(data); mock.env.Update()
         equal(mock:text('InCeiling'),'1e2'); equal(mock:text('Height'),'Custom'); equal(mock.data,data)
-        contains(mock.latest['MeterNetworkSettingsHeightValue:ToolTipText'],'(200+1)')
         truth(not mock.latest['MeterNetworkSettingsStatus:Text']:find('invalid',1,true))
         equal(mock:count('!WriteKeyValue'),0)
-    end)
-    test('value tooltips retain click instructions, units and WLAN scope', function()
-        local mock=controller(); mock.env.Update()
-        for _, suffix in ipairs({'Adapter','Units','Width','Height','InCeiling','OutCeiling','WiFiEnabled','WiFiIndex'}) do
-            contains(mock.latest['MeterNetworkSettings' .. suffix .. 'Value:ToolTipText'],'Click')
-        end
-        contains(mock.latest['MeterNetworkSettingsUnitsValue:ToolTipText'],'decimal bytes/s')
-        contains(mock.latest['MeterNetworkSettingsWiFiIndexValue:ToolTipText'],'separate from the Network adapter')
     end)
     test('missing keys stay explicit until the user chooses that setting', function()
         local data=initial:gsub('NetworkUnits=bits\r\n',''); local mock=controller(data); mock.env.Update()
@@ -188,7 +174,7 @@ function Suite.run(Core, fixtures)
         for _, tail in ipairs({'[Variables]\nNetworkUnits=bytes\n',''}) do
             local data = tail ~= '' and initial .. tail or initial:gsub('NetworkUnits=bits','NetworkUnits=bits\nnetworkunits=bytes')
             local mock=controller(data); mock.env.Update(); mock.env.ToggleUnits()
-            equal(mock:count('!WriteKeyValue'),0); contains(mock.latest['MeterNetworkSettingsStatus:ToolTipText'],'Duplicate')
+            equal(mock:count('!WriteKeyValue'),0); contains(mock.latest['MeterNetworkSettingsStatus:Text'],'Cannot read')
         end
     end)
     test('missing file or Variables section prevents writes and refreshes', function()
@@ -259,7 +245,7 @@ function Suite.run(Core, fixtures)
     test('unverified write errors do not refresh a monitor or report success', function()
         local mock=controller(); mock.failWrite=true; mock.env.ToggleUnits()
         equal(mock:count('!WriteKeyValue'),1); equal(mock:count('!Refresh'),0); equal(mock.data,initial)
-        contains(mock.latest['MeterNetworkSettingsStatus:ToolTipText'],'Could not verify')
+        contains(mock.latest['MeterNetworkSettingsStatus:Text'],'Cannot read')
     end)
     test('read failure after a write leaves an explicit verification error', function()
         local mock=controller(); mock.disappearAfterWrite=true; mock.env.ToggleUnits()
@@ -361,9 +347,7 @@ function Suite.run(Core, fixtures)
             equal(mock.latest['MeasureNetworkSettingsInput:Parameter'],nil); equal(mock:count('!CommandMeasure'),0)
             equal(mock.calls[#mock.calls].bang,'"notepad.exe" "' .. filePath .. '"')
             equal(mock.data,before); equal(mock:count('!WriteKeyValue'),0); equal(mock:count('!Refresh'),0)
-            for _, suffix in ipairs({'Value','Frame','Label'}) do
-                contains(mock.latest['MeterNetworkSettingsHeight' .. suffix .. ':ToolTipText'],'open Network.inc')
-            end
+            contains(mock.latest['MeterNetworkSettingsStatus:Text'],'Edit this custom value')
             mock.output='PARALLAX_INPUT_V1|ok|300'; equal(mock.env.FinishNumberInput(),false)
         end
     end)

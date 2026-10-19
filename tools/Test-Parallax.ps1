@@ -196,7 +196,8 @@ foreach ($path in @($cache.Keys)) {
         }
     }
 }
-foreach ($script in Get-ChildItem -LiteralPath $SkinRoot -Recurse -File -Include *.lua, *.ps1) {
+# Filter on Extension rather than -Include: with -LiteralPath, Windows PowerShell 5.1 also returns non-matching files (e.g. .py).
+foreach ($script in Get-ChildItem -LiteralPath $SkinRoot -Recurse -File | Where-Object { $_.Extension -in '.lua', '.ps1' }) {
     if ($script.FullName -match '\\(?:tests|QA)\\') { continue }
     $pattern = if ($script.Extension -ieq '.ps1') { 'Windows\.Forms\.ToolTip\b' } else { $tooltipOption }
     $lineNumber = 0

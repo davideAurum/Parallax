@@ -69,8 +69,10 @@ local function plot_inset(scale)
     return math.max(padding,math.ceil(b/2+r-frame-(r-b/2-frame-(padding-b))*math.sqrt(0.5)))
 end
 -- The open drawer's plot and lift: the standalone Visualizer's plot height for
--- the Audio settings Height preset, plus the queue sheet's spacing mirrored
--- (the plot inset at the far edge, 4px section gap), whole pixels. Also
+-- the Audio settings Height preset, its 19px output row above and 19px
+-- frequency-label row below, plus the
+-- queue sheet's spacing mirrored (the plot inset at the far edge, 4px section
+-- gap), whole pixels. Also
 -- returns the inset and the spectrum's bar height (plot interior less the
 -- baseline gap), which places the drawer's grid lines.
 local function drawer_lift(scale)
@@ -80,7 +82,7 @@ local function drawer_lift(scale)
     local shift=math.max(0,tonumber(SKIN:GetVariable('BorderThickness'))-2)
     local plot=math.max(math.floor((preset-66-shift)*scale+0.5),math.ceil(54*scale)+baseline+2)
     local inset=plot_inset(scale)
-    return math.ceil(inset+plot+4*scale),plot,inset,plot-2-baseline
+    return math.ceil(inset+19*scale+plot+19*scale+4*scale),plot,inset,plot-2-baseline
 end
 -- Independent model of the drawer layout. It mirrors media_body_geometry and
 -- media_drawer_geometry in test_skin_contract.py from the same primitives,
@@ -140,8 +142,8 @@ local function media_geometry(expanded, rows)
     local inset_plot=plot_inset(scale)
     return {scale=scale,wide=wide,inset=inset,padding=padding,offset=offset,bar=bar,progress=progress,body=body,
         lift=lift,top=inset+lift,open=open,spectrum_tab=shown and hosted(),spectrum_x=tab_x,spectrum_w=tab_right-tab_x,
-        spectrum_toggle_y=open and -4*scale or 0,spectrum_plot_inset=inset_plot,spectrum_plot_x=(wide and 96*scale or 0)+inset_plot,
-        spectrum_plot_width=panel_width-padding-(wide and 96*scale or 0)-2*inset_plot,
+        spectrum_toggle_y=open and -4*scale or 0,spectrum_plot_inset=inset_plot,spectrum_plot_x=(wide and 96*scale or 0)+inset_plot+40*scale,
+        spectrum_plot_width=panel_width-padding-(wide and 96*scale or 0)-2*inset_plot-40*scale,
         cover=cover,cover_x=cover_x,cover_y=cover_y,content_x=content_x,content_right=panel_width-padding,
         surface_x=wide and 96*scale or 0,transport_x=transport_x,transport_size=size,transport_pad=pad,
         transport_box=size+2*pad,transport_step=size+button_gap,tab_y=progress+bar+padding,
@@ -154,7 +156,7 @@ local function dimensions(expanded, rows)
     local columns=is_settings() and 2 or SELF:GetNumberOption('ExpectedColumns')
     local gap=2*math.floor(tonumber(SKIN:GetVariable('Gutter'))*scale/2+0.5)
     local expected_w=columns*(math.floor(width*scale+0.5)+gap)
-    local expected_h=is_settings() and math.floor((expanded and 582 or 526)*scale+0.5)+gap or media_geometry(expanded,rows).window
+    local expected_h=is_settings() and math.floor((expanded and 786 or 730)*scale+0.5)+gap or media_geometry(expanded,rows).window
     local detail=''
     if is_settings() and SKIN:GetH()~=expected_h then
         local bounds,panel=SKIN:GetMeter('MeterBounds'),SKIN:GetMeter('MeterPanel')
@@ -193,7 +195,7 @@ local function header_row(state)
     check(SKIN:GetMeter('MeterPlayerName')==nil,'The removed player-name row is back')
     check(SKIN:GetMeasure('MeasureMediaHeader'):GetStringValue()==expected,'Header value '..SKIN:GetMeasure('MeasureMediaHeader'):GetStringValue()..' expected '..expected)
     check(title:GetOption('MeasureName')=='MeasureMediaHeader' and title:GetOption('Text')=='%1','Title does not bind the header measure as data')
-    check(title:GetOption('ToolTipText','')=='','Title must not set a tooltip')
+    check(title:GetOption('ToolTipText','')=='','Title must not repeat its visible text in a tooltip')
     check(title:GetOption('ClipString')=='1' and title:GetOption('UpdateDivider')=='1','Title must clip and follow every header update')
     check(title:GetOption('FontColor')==SKIN:GetVariable('TitleTextColor'),'Title ignores title color')
     local size=tonumber(title:GetOption('FontSize')) or SKIN:ParseFormula(title:GetOption('FontSize'))
@@ -483,12 +485,19 @@ local function settings_bounds(expanded)
         check(SKIN:GetMeter('MeterVisualizerDrawer'..part):GetX()==SKIN:GetMeter('MeterWidth'..part):GetX(),'Spectrum drawer stepper left column differs: '..part)
     end
     local shift=expanded and 0 or 56
-    for name,y in pairs({MeterSamplingHeading=246,MeterQueuePollValue=273,MeterStatus=300,
-        MeterSourceLabel=330,MeterSourceStart=367,MeterQueueHeading=414,MeterSignIn=451,MeterLinksHeading=526}) do
+    -- The shared Spectrum steppers (Visualizer\SettingsShared.inc) follow the
+    -- queue rows; every later section sits 204 lower than before them.
+    for name,y in pairs({MeterVisualizerSettingsAppearance=246,MeterVisualizerSettingsHeightRow=272,
+        MeterVisualizerSettingsBaselineRow=384,MeterVisualizerSettingsQualityRow=272,MeterVisualizerSettingsAnimation=334,
+        MeterVisualizerSettingsDecayRow=416,
+        MeterSamplingHeading=450,MeterQueuePollValue=477,MeterStatus=504,
+        MeterSourceLabel=534,MeterSourceStart=571,MeterQueueHeading=618,MeterSignIn=655,MeterLinksHeading=730}) do
         local meter=SKIN:GetMeter(name)
         check(meter:GetW()>0 and meter:GetH()>0,'Recovery/sampling control hidden: '..name)
         check(math.abs(meter:GetY(true)-(inset+(y-shift)*scale))<=1,'Dependent settings did not reflow: '..name)
     end
+    check(SKIN:GetMeasure('MeasureVisualizerSettings')~=nil,'Spectrum controller missing from Media settings')
+    check(SKIN:GetMeter('MeterVisualizerSettingsAppearance'):GetOption('Text')=='Spectrum','Spectrum heading text changed')
     check(SKIN:GetMeter('MeterClose'):GetOption('LeftMouseUpAction')=='[!DeactivateConfig]','Close action changed')
     check(SKIN:GetMeter('MeterOpenQueue'):GetOption('LeftMouseUpAction')=='[!ActivateConfig "Parallax\\Media\\Queue" "Queue.ini"]','Queue navigation changed')
     check(SKIN:GetMeter('MeterPlayerSetup'):GetOption('LeftMouseUpAction')=='[!ActivateConfig "Parallax\\Media" "Setup.ini"]','Setup navigation changed')
@@ -907,7 +916,7 @@ artwork_bounds=function(expanded)
         check(SKIN:GetMeter('MeterCover'):GetOption('Container')=='MeterCoverMask','Artwork does not use the rounded mask')
         check(SKIN:GetMeter('MeterCoverMask'):GetOption('Group',''):find('MediaTrack',1,true)==nil,'Mask can be hidden by track state')
         check((SKIN:GetMeter('MeterCoverLabel'):GetW()>0)==missing and text('MeterCoverLabel')=='N/A','N/A label must show only when artwork is missing')
-        check(SKIN:GetMeter('MeterCoverLabel'):GetOption('ToolTipText','')=='','Missing artwork label must not set a tooltip')
+        check(SKIN:GetMeter('MeterCoverLabel'):GetOption('ToolTipText','')=='','Parallax has no tooltips')
         check(SKIN:GetMeter('MeterCover'):GetOption('PreserveAspectRatio')=='2','Artwork crop behavior changed')
         check(SKIN:GetMeter('MeterConnection')==nil,'Removed playback status remains visible')
         for _,name in ipairs({'MeterTrackTitle','MeterArtist','MeterAlbum','MeterTiming','MeterPrevious','MeterPlayPause','MeterNext','MeterProgress'}) do names[#names+1]=name end
@@ -1391,21 +1400,39 @@ local function drawer_stage()
     for _,name in ipairs({'MeasureVisualizerAudio','MeasureVisualizerState','MeasureVisualizerBand23','MeasureVisualizerColor','MeasureVisualizerColorApply'}) do
         check((SKIN:GetMeasure(name)~=nil)==open,name..(open and ' missing from the open drawer' or ' loaded while the drawer is closed'))
     end
-    for _,name in ipairs({'MeterVisualizerPlot','MeterVisualizerUnavailable','MeterVisualizerSpectrumMask','MeterVisualizerFill'}) do
+    local axis_labels={'MeterVisualizerDbMax','MeterVisualizerDbMid','MeterVisualizerDbMin','MeterVisualizerLow','MeterVisualizerHigh',
+        'MeterVisualizerOutputIcon','MeterVisualizerDeviceName','MeterVisualizerVolume','MeterVisualizerDeviceHit'}
+    for _,name in ipairs({'MeterVisualizerPlot','MeterVisualizerUnavailable','MeterVisualizerSpectrumMask','MeterVisualizerFill',unpack(axis_labels)}) do
         check((SKIN:GetMeter(name)~=nil)==open,name..(open and ' missing from the open drawer' or ' loaded while the drawer is closed'))
     end
     spectrum_tab(g,width,height)
     if open then
         check(SKIN:GetMeasure('MeasureVisualizerAudio'):GetOption('Port')=='Output','Drawer does not capture the output device')
-        -- The plot hangs 4px above the player; the far padding takes the slack.
+        -- The plot and its 19px frequency row hang 4px above the player; the
+        -- far padding takes the slack.
         local meter=SKIN:GetMeter('MeterVisualizerPlot')
-        local x,y=g.inset+g.spectrum_plot_x,g.top-4*scale-plot
+        local x,y=g.inset+g.spectrum_plot_x,g.top-4*scale-19*scale-plot
         check(math.abs(meter:GetX(true)-x)<=1 and math.abs(meter:GetY(true)-y)<=1,
             string.format('Spectrum plot origin %g,%g expected %g,%g',meter:GetX(true),meter:GetY(true),x,y))
         check(math.abs(meter:GetW()-g.spectrum_plot_width)<=1 and math.abs(meter:GetH()-plot)<=1,
             string.format('Spectrum plot %gx%g expected %gx%d',meter:GetW(),meter:GetH(),g.spectrum_plot_width,plot))
-        check(meter:GetY(true)>=g.inset+g.spectrum_plot_inset-1,'Spectrum plot crosses the drawer padding')
+        check(meter:GetY(true)>=g.inset+g.spectrum_plot_inset+19*scale-1,'Spectrum plot crosses the output row')
         inside('MeterVisualizerPlot',width,height)
+        -- Axis labels: dB scale in the 40px gutter, range row under the plot.
+        local plot_x,plot_y=meter:GetX(true),meter:GetY(true)
+        for _,name in ipairs(axis_labels) do inside(name,width,height) end
+        local low,high=SKIN:GetMeter('MeterVisualizerLow'),SKIN:GetMeter('MeterVisualizerHigh')
+        check(math.abs(low:GetX(true)-plot_x)<=1 and math.abs(low:GetY(true)-(plot_y+plot+scale))<=1,
+            string.format('40 Hz label at %g,%g expected %g,%g',low:GetX(true),low:GetY(true),plot_x,plot_y+plot+scale))
+        -- Right-aligned String meters report their anchor (right edge) as X.
+        check(math.abs(high:GetX(true)-(plot_x+meter:GetW()))<=1,'16 kHz label does not end at the plot edge')
+        check(math.abs(low:GetY(true)+low:GetH()-(g.top-4*scale))<=1,'Frequency row does not end 4px above the player')
+        check(math.abs(SKIN:GetMeter('MeterVisualizerDbMax'):GetX(true)-(plot_x-4*scale))<=1,'0 dB label does not end 4px left of the plot')
+        -- Output row: an 18px box ending 1px above the plot, out to its right edge.
+        local hit=SKIN:GetMeter('MeterVisualizerDeviceHit')
+        check(math.abs(hit:GetY(true)+hit:GetH()-(plot_y-scale))<=1 and math.abs(hit:GetX(true)+hit:GetW()-(plot_x+meter:GetW()))<=1,
+            string.format('Output row %g,%g %gx%g does not sit on the plot',hit:GetX(true),hit:GetY(true),hit:GetW(),hit:GetH()))
+        check(SKIN:GetMeasure('MeasureVisualizerVolume')~=nil,'Open drawer has no Win7Audio volume measure')
         -- Grid lines on pixel centres: Floor(k/4 of the bar height)+1.5.
         for k=1,3 do
             local expression=meter:GetOption('Shape'..(k+1)):match('^Line 1,(%b()),')

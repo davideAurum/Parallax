@@ -27,8 +27,14 @@ HEIGHT_PRESETS = (126, 146, 186)
 # Measures the open spectrum drawer adds through Visualizer\Capture.inc.
 CAPTURE_CHILDREN = (('MeasureVisualizerDevice', 'MeasureVisualizerFormat', 'MeasureVisualizerRMS') +
                     tuple(f'MeasureVisualizerBand{index}' for index in range(24)))
+# AudioLevel children the open drawer adds through Visualizer\Audio.inc for its
+# output row: the device name (once a second) and the load-only device list.
+OUTPUT_ROW_CHILDREN = ('MeasureVisualizerDeviceName', 'MeasureVisualizerDeviceList')
 DRAWER_METERS = ('MeterVisualizerSheet', 'MeterVisualizerToggle')
-OPEN_DRAWER_METERS = ('MeterVisualizerPlot', 'MeterVisualizerUnavailable',
+OPEN_DRAWER_METERS = ('MeterVisualizerOutputIcon', 'MeterVisualizerDeviceName', 'MeterVisualizerVolume',
+                      'MeterVisualizerDeviceHit', 'MeterVisualizerPlot', 'MeterVisualizerUnavailable',
+                      'MeterVisualizerDbMax', 'MeterVisualizerDbMid', 'MeterVisualizerDbMin',
+                      'MeterVisualizerLow', 'MeterVisualizerHigh',
                       'MeterVisualizerSpectrumMask', 'MeterVisualizerFill')
 
 
@@ -392,8 +398,10 @@ def media_visualizer_plot_inset(scale, corner=6, border=1):
 
 
 def media_visualizer_lift(scale, preset=146, border=1, corner=6):
-    """MediaVisualizerOpenLift: plot inset + plot + section gap, whole px."""
-    return math.ceil(media_visualizer_plot_inset(scale,corner,border)+visualizer_plot_height(scale,preset,border)+4*scale)
+    """MediaVisualizerOpenLift: plot inset + the 19S output row + plot + the
+    19S frequency-label row (each an 18S label box and 1S clearance, as in the
+    standalone) + section gap, whole px."""
+    return math.ceil(media_visualizer_plot_inset(scale,corner,border)+19*scale+visualizer_plot_height(scale,preset,border)+19*scale+4*scale)
 
 
 def media_body_geometry(width, scale, columns, bar_thickness=6, drawer=1):
@@ -1270,6 +1278,12 @@ class SkinContractTests(unittest.TestCase):
             ('MeasureMediaQueueControl','Plugin'):'RunCommand',
             ('MeasureMediaQueueControl','Program'):powershell,
             ('MeasureMediaQueueControl','Parameter'):'-NoLogo -NoProfile -NonInteractive -WindowStyle Hidden -ExecutionPolicy Bypass -File "QueueProvider.ps1" -Command "Stop" -Quiet',
+            # The shared Spectrum steppers' own dormant numeric-input host
+            # (Modules\Visualizer\SettingsShared.inc), run only on a click.
+            ('MeasureVisualizerSettingsInput','Plugin'):'RunCommand',
+            ('MeasureVisualizerSettingsInput','Program'):powershell,
+            ('MeasureVisualizerSettingsInput','Parameter'):'-NoProfile -NonInteractive',
+            ('MeasureVisualizerSettingsInput','FinishAction'):'[!UpdateMeasure MeasureVisualizerSettingsInput][!CommandMeasure MeasureVisualizerSettings "CommitInput()"]',
         })
         for name in CONFIGS:
             sections, variables, _, _ = read_config(name, columns=2)
@@ -1344,8 +1358,9 @@ class SkinContractTests(unittest.TestCase):
         sections, variables, visited, expand = read_config('Settings/Settings.ini')
         self.assertEqual(variables['PanelHeight'],'162')
         self.assertEqual(sections['Variables']['MediaSettingsQueueDetailsVisible'],'0')
-        # The Spectrum drawer row added 28 to both heights (554/498 before).
-        self.assertEqual(numeric(expand('#SettingsPanelHeight#')),526)
+        # The Spectrum drawer row added 28 to both heights (554/498 before);
+        # the shared Spectrum steppers then added 204 (582/526 before).
+        self.assertEqual(numeric(expand('#SettingsPanelHeight#')),730)
         self.assertEqual(sections['Variables']['VisualizerDrawer'],'1')
         self.assertEqual(sections['Rainmeter']['ContextAction2'],'["#CONFIGEDITOR#" "#@#User\\Media.inc"]')
         self.assertIn('SettingsMeters.inc',[path.name for path in visited])
@@ -1363,6 +1378,7 @@ class SkinContractTests(unittest.TestCase):
         for part,direction in [('Label',1),('Decrease',-1),('Frame',1),('Value',1),('Increase',1)]:
             self.assertEqual(sections[f'MeterVisualizerDrawer{part}']['LeftMouseUpAction'],
                              f'''[!CommandMeasure MeasureMediaSettings "StepChoice('VisualizerDrawer',{direction})"]''')
+            self.assertNotIn('ToolTipText',sections[f'MeterVisualizerDrawer{part}'],part)
         for meter,key in [('Width','Columns'),('QueueRows','QueueRowLimit'),('QueuePoll','QueuePollSeconds')]:
             for part in ('Label','Frame','Value'):
                 self.assertEqual(sections[f'Meter{meter}{part}']['LeftMouseUpAction'],
@@ -1372,7 +1388,8 @@ class SkinContractTests(unittest.TestCase):
                                  f'''[!CommandMeasure MeasureMediaSettings "StepNumber('{key}',{direction})"]''')
         plugins=[(name,s) for name,s in sections.items() if s.get('Plugin')]
         self.assertEqual([name for name,s in plugins],
-                         ['MeasureMediaSettingsInput','MeasureMediaSourceControl','MeasureMediaQueueControl'])
+                         ['MeasureMediaSettingsInput','MeasureMediaSourceControl','MeasureMediaQueueControl',
+                          'MeasureVisualizerSettingsInput'])
         input_measure=plugins[0][1]
         for key,value in {'Plugin':'RunCommand','State':'Hide','OutputType':'UTF8','Timeout':'300000','UpdateDivider':'-1'}.items():
             self.assertEqual(input_measure[key],value)
@@ -1389,11 +1406,19 @@ class SkinContractTests(unittest.TestCase):
             self.assertIn(f'-File "{script}" -Command "Stop" -Quiet',control['Parameter'])
             self.assertIn('-NonInteractive -WindowStyle Hidden',control['Parameter'])
         self.assertEqual([s['ScriptFile'] for s in sections.values() if 'ScriptFile' in s],
-                         ['#@#Modules\\Media\\Settings.lua'])
+                         ['#@#Modules\\Media\\Settings.lua','#@#Modules\\Visualizer\\Settings.lua'])
+        # The Spectrum section is Audio settings' own shared include, reading
+        # the Visualizer's choices (not Media's PanelHeight) for its Height.
+        self.assertIn('SettingsShared.inc',[path.name for path in visited])
+        self.assertIn('HeightPresets/146.inc',[path.relative_to(RESOURCES/'Modules'/'Visualizer').as_posix()
+                                               for path in visited if 'Visualizer' in path.parts])
+        self.assertEqual(expand('#VisualizerSettingsHeight#'),'146')
+        self.assertEqual(expand(sections['MeasureVisualizerSettingsHeightValue']['String']),'146 px')
         # Settings.lua rebuilds the same heights at runtime and owns the cycle.
         # Static text checks only; MediaSettingsSuite.luatest runs the script.
         controller=(RESOURCES/'Modules'/'Media'/'Settings.lua').read_text(encoding='ascii')
-        self.assertIn('local settingsHeight = 582 - collapsedHeight',controller)
+        self.assertIn('local settingsHeight = 786 - collapsedHeight',controller)
+        self.assertIn("SKIN:Bang('!SetVariable', 'VisualizerSettingsTop', 172 - collapsedHeight)",controller)
         self.assertIn("VisualizerDrawer = { '0', '1', '2' }",controller)
         self.assertIn("drawerNames = { ['0'] = 'Hidden', ['1'] = 'Collapsed', ['2'] = 'Expanded' }",controller)
         self.assertIn("SKIN:Bang('!CommandMeasure', 'MeasureMediaOptions', 'ApplyVisualizerPreference()', 'Parallax\\\\Media')",controller)
@@ -1410,7 +1435,7 @@ class SkinContractTests(unittest.TestCase):
                             box=lambda name:meter_bounds(resolve_style(sections,name),val)
                             panel=Bounds(val('#Inset#'),val('#Inset#'),val('#WindowWidth#')-val('#Inset#'),val('#WindowHeight#')-val('#Inset#'))
                             shift=0 if expanded else 56
-                            self.assertEqual(val('#WindowHeight#'),math.floor((582-shift)*scale+0.5)+val('#Gap#'))
+                            self.assertEqual(val('#WindowHeight#'),math.floor((786-shift)*scale+0.5)+val('#Gap#'))
                             self.assertEqual(variables['Columns'],str(columns))
                             self.assertEqual(variables['PanelHeight'],'162')
                             for name,section in sections.items():
@@ -1418,7 +1443,7 @@ class SkinContractTests(unittest.TestCase):
                             # The Spectrum drawer row takes Queue section's old slot;
                             # every later row moved down by exactly 28.
                             for stem,y in [('Width',100),('VisualizerDrawer',128),('QueueExpanded',156),('QueueRows',184),
-                                           ('QueueDetails',212),('QueuePoll',272)]:
+                                           ('QueueDetails',212),('QueuePoll',476)]:
                                 label,value='Meter'+stem+'Label','Meter'+stem+'Value'
                                 numeric_field=stem in ('Width','QueueRows','QueuePoll')
                                 # Number fields and the categorical Spectrum drawer
@@ -1475,9 +1500,34 @@ class SkinContractTests(unittest.TestCase):
                                     self.assertEqual(resolve_style(sections,value)['FontColor'],'#TextColor#')
                                     self.assertEqual(resolve_style(sections,'Meter'+stem+'Decrease')['FontColor'],'#AccentColor#')
                                 else: self.assertEqual(resolve_style(sections,value)['SolidColor'],'#GraphBackgroundColor#')
-                            for name,y in [('MeterSamplingHeading',246),('MeterStatus',300),('MeterSourceLabel',330),
-                                           ('MeterQueueHeading',414),('MeterLinksHeading',526)]:
+                            for name,y in [('MeterSamplingHeading',450),('MeterStatus',504),('MeterSourceLabel',534),
+                                           ('MeterQueueHeading',618),('MeterLinksHeading',730)]:
                                 self.assertAlmostEqual(box(name).top,val('#Inset#')+(y-shift)*scale)
+                            # Spectrum: Audio settings' steppers on its two-column
+                            # grid, on Media's 28px pitch below the queue rows.
+                            # Headings at 246 (Animation 334), rules 21 below.
+                            for name,y in [('MeterVisualizerSettingsAppearance',246),('MeterVisualizerSettingsPerformance',246),
+                                           ('MeterVisualizerSettingsAnimation',334)]:
+                                self.assertAlmostEqual(val(resolve_style(sections,name)['Y']),val('#Inset#')+(y-shift)*scale,msg=name)
+                                self.assertAlmostEqual(val(resolve_style(sections,name+'Rule')['Y']),val('#Inset#')+(y+21-shift)*scale,msg=name)
+                            self.assertEqual(expand(sections['MeterVisualizerSettingsAppearance']['Text']),'Spectrum')
+                            left_x,right_x=val('#ContentX#'),val('#VisualizerSettingsRightX#')
+                            spectrum_rows=[('Height',left_x,272),('Spacing',left_x,300),('Color',left_x,328),('Radius',left_x,356),
+                                           ('Baseline',left_x,384),('Quality',right_x,272),('Cadence',right_x,300),
+                                           ('Sensitivity',right_x,360),('Attack',right_x,388),('Decay',right_x,416)]
+                            self.assertNotIn('MeterVisualizerSettingsWidthRow',sections)
+                            for stem,x,y in spectrum_rows:
+                                frame,label=box(f'MeterVisualizerSettings{stem}Row'),box(f'MeterVisualizerSettings{stem}Label')
+                                previous,nxt=box(f'MeterVisualizerSettings{stem}Previous'),box(f'MeterVisualizerSettings{stem}Next')
+                                self.assertAlmostEqual(frame.top,val('#Inset#')+(y-shift)*scale,msg=stem)
+                                self.assertAlmostEqual(label.left,x,msg=stem)
+                                self.assertTrue(label.before(previous) and previous.before(frame) and frame.before(nxt),stem)
+                                self.assertLessEqual(nxt.right,x+val('#VisualizerSettingsColumnWidth#')+EPSILON,stem)
+                                self.assertEqual(resolve_style(sections,f'MeterVisualizerSettings{stem}Row')['Group'],'MediaSettingsData')
+                                action=resolve_style(sections,f'MeterVisualizerSettings{stem}Previous')['LeftMouseUpAction']
+                                self.assertEqual(action,f'''[!CommandMeasure MeasureVisualizerSettings "Step('{stem}',-1)"]''')
+                            # The section ends 14px above Queue sampling, as Display does.
+                            self.assertAlmostEqual(box('MeterSamplingHeading').top-box('MeterVisualizerSettingsDecayRow').bottom,14*scale)
                             for name in ('MeterVisualizerDrawerLabel','MeterVisualizerDrawerDecrease','MeterVisualizerDrawerFrame',
                                          'MeterVisualizerDrawerValue','MeterVisualizerDrawerIncrease',
                                          'MeterQueueExpandedLabel','MeterQueueExpandedValue','MeterSourceStart','MeterSourceStop',
@@ -1512,7 +1562,7 @@ class SkinContractTests(unittest.TestCase):
                     self.assertEqual(window.height,
                                      media_drawer_geometry(column_width,scale,columns,expanded,rows)[3])
                 else:
-                    expected_height = math.floor(((582 if expanded else 526) if name == 'Settings/Settings.ini' else 162)*scale+0.5)
+                    expected_height = math.floor(((786 if expanded else 730) if name == 'Settings/Settings.ini' else 162)*scale+0.5)
                     self.assertEqual(window.height, expected_height+val('#Gap#'))
                 self.assertEqual(val('#UnitWidth#'), math.floor(column_width * scale + 0.5))
                 self.assertEqual(val('#Gap#') % 2, 0)
@@ -1539,7 +1589,8 @@ class SkinContractTests(unittest.TestCase):
                     if style['Meter'] == 'String':
                         self.assertIn(style.get('ClipString'), ['1', '2'], section_name)
                         self.assertIn('FontFace', style, section_name)
-                    self.assertNotIn('ToolTipText', style, section_name)
+                    # No tooltips anywhere (user direction, 2026-10-11).
+                    self.assertFalse([k for k in style if k.startswith('ToolTip')], section_name)
                     checked += 1
         self.assertGreater(checked, 2400)
 
@@ -2065,12 +2116,14 @@ class SkinContractTests(unittest.TestCase):
                                     self.assertAlmostEqual(after.right,before.right,msg=name)
                                     self.assertAlmostEqual(after.top,before.top+lift,msg=name)
                                     self.assertAlmostEqual(after.bottom,before.bottom+lift,msg=name)
-                            # Mirrored queue spacing: the plot hangs MediaSectionGap
-                            # above the player, and the Ceil slack lands in the far pad.
+                            # Mirrored queue spacing: the plot and its 19S frequency
+                            # row hang MediaSectionGap above the player, and the Ceil
+                            # slack lands in the far pad.
                             plot,sheet,panel=box('MeterVisualizerPlot'),box('MeterVisualizerSheet'),box('MeterPanel')
+                            row=19*scale
                             self.assertEqual(val('#MediaVisualizerPlotHeight#'),visualizer_plot_height(scale))
-                            self.assertAlmostEqual(val('#MediaVisualizerPlotY#')+val('#MediaVisualizerPlotHeight#')+gap,val('#MediaTop#'))
-                            self.assertAlmostEqual(plot.bottom+gap,val('#MediaTop#'))
+                            self.assertAlmostEqual(val('#MediaVisualizerPlotY#')+val('#MediaVisualizerPlotHeight#')+row+gap,val('#MediaTop#'))
+                            self.assertAlmostEqual(plot.bottom+row+gap,val('#MediaTop#'))
                             self.assertAlmostEqual(plot.height,val('#MediaVisualizerPlotHeight#'))
                             self.assertAlmostEqual(sheet.top,inset)
                             self.assertAlmostEqual(sheet.left,val('#MediaSurfaceX#'))
@@ -2079,11 +2132,23 @@ class SkinContractTests(unittest.TestCase):
                             # queue sheet's padding (larger radii: see the corner test).
                             plot_inset=val('#MediaVisualizerPlotInset#')
                             self.assertEqual(plot_inset,pad)
-                            self.assertAlmostEqual(plot.left-sheet.left,plot_inset)
+                            self.assertAlmostEqual(plot.left-sheet.left,plot_inset+40*scale)
                             self.assertAlmostEqual(sheet.right-plot.right,plot_inset)
-                            self.assertGreaterEqual(plot.top-sheet.top,plot_inset-EPSILON)
-                            self.assertLess(plot.top-sheet.top,plot_inset+1)
+                            self.assertGreaterEqual(plot.top-sheet.top,plot_inset+row-EPSILON)
+                            self.assertLess(plot.top-sheet.top,plot_inset+row+1)
                             self.assertTrue(plot.inside(sheet))
+                            # Axis labels stay inside the sheet's padding and clear
+                            # of the open toggle band and the panel.
+                            toggle=box('MeterVisualizerToggle')
+                            for name in ('MeterVisualizerDbMax','MeterVisualizerDbMid','MeterVisualizerDbMin',
+                                         'MeterVisualizerLow','MeterVisualizerHigh','MeterVisualizerOutputIcon',
+                                         'MeterVisualizerDeviceName','MeterVisualizerVolume','MeterVisualizerDeviceHit'):
+                                label=box(name)
+                                self.assertGreaterEqual(label.left,sheet.left+plot_inset-EPSILON,name)
+                                self.assertLessEqual(label.right,sheet.right-plot_inset+EPSILON,name)
+                                self.assertGreaterEqual(label.top,sheet.top+plot_inset-EPSILON,name)
+                                self.assertLessEqual(label.bottom,toggle.top+EPSILON,name)
+                                self.assertLess(label.bottom,panel.top,name)
                             # The sheet's square lower edge tucks behind the panel,
                             # past the panel's own top corner curve.
                             self.assertGreaterEqual(sheet.bottom,panel.top+val('(#CornerRadius#*#Scale#)')-EPSILON)
@@ -2094,9 +2159,8 @@ class SkinContractTests(unittest.TestCase):
                                 self.assertTrue(box(name).inside(plot),name)
                             self.assertGreater(list(sections).index('MeterVisualizerSpectrumMask'),
                                                list(sections).index('MeterVisualizerPlot'))
-                            # Toggle: the clear band between the plot and the panel.
-                            toggle=box('MeterVisualizerToggle')
-                            self.assertAlmostEqual(toggle.top,plot.bottom)
+                            # Toggle: the clear band between the frequency row and the panel.
+                            self.assertAlmostEqual(toggle.top,plot.bottom+row)
                             self.assertAlmostEqual(toggle.bottom,panel.top)
                             # Every drawer meter stays inside the window, off the gutter.
                             window=Bounds(0,0,val('#WindowWidth#'),val('#WindowHeight#'))
@@ -2123,6 +2187,7 @@ class SkinContractTests(unittest.TestCase):
                             toggle,sheet,panel,gear=box('MeterVisualizerToggle'),box('MeterVisualizerSheet'),box('MeterPanel'),box('MeterMediaOptions')
                             inset=val('#Inset#')
                             self.assertEqual(toggle_style['LeftMouseUpAction'],'[!CommandMeasure MeasureMediaOptions "ToggleVisualizer()"]')
+                            self.assertNotIn('ToolTipText',toggle_style)
                             # The chevron and its round stroke stay on the toggle's canvas.
                             x,y,w,h=(val(toggle_style[key]) for key in ('X','Y','W','H'))
                             self.assertEqual(toggle,Bounds(x,y,x+w,y+h))
@@ -2187,6 +2252,10 @@ class SkinContractTests(unittest.TestCase):
         # entrypoint, User file or other include - may set it.
         definitions=[]
         for path in sorted(list(ROOT.rglob('*.inc'))+list(ROOT.rglob('*.ini'))):
+            # Module test runners leave isolated Rainmeter instances (UTF-16
+            # Rainmeter.ini included) in gitignored .runtime folders.
+            if '.runtime' in path.parts:
+                continue
             for raw in source_lines(path):
                 key,_,value=raw.strip().partition('=')
                 if key.strip()=='MediaVisualizerOpen':
@@ -2263,17 +2332,43 @@ class SkinContractTests(unittest.TestCase):
                         inset=val('#MediaVisualizerPlotInset#')
                         self.assertEqual(inset,media_visualizer_plot_inset(scale,corner,border))
                         self.assertGreaterEqual(inset,padding)
-                        # The plot hangs from the inset on both sides; the lift follows it.
-                        self.assertEqual(val('#MediaVisualizerPlotX#'),val('#MediaSurfaceX#')+inset)
+                        # The plot hangs from the inset on both sides, past the
+                        # 40S dB gutter on the left; the lift follows it and
+                        # the 19S frequency row under it.
+                        axis=40*scale
+                        self.assertEqual(val('#MediaVisualizerPlotX#'),val('#MediaSurfaceX#')+inset+axis)
                         self.assertEqual(val('#MediaVisualizerPlotWidth#'),
-                                         val('#MediaQueueDrawerRight#')-val('#MediaSurfaceX#')-2*inset)
+                                         val('#MediaQueueDrawerRight#')-val('#MediaSurfaceX#')-2*inset-axis)
                         self.assertEqual(val('#MediaVisualizerOpenLift#'),
-                                         math.ceil(inset+val('#MediaVisualizerPlotHeight#')+val('#MediaSectionGap#')))
+                                         math.ceil(inset+19*scale+val('#MediaVisualizerPlotHeight#')+19*scale+val('#MediaSectionGap#')))
                         self.assertEqual(val('#MediaVisualizerLift#'),media_visualizer_lift(scale,146,border,corner))
-                        self.assertAlmostEqual(plot.left-sheet.left,inset)
+                        self.assertAlmostEqual(plot.left-sheet.left,inset+axis)
                         self.assertAlmostEqual(sheet.right-plot.right,inset)
-                        self.assertGreaterEqual(plot.top-sheet.top,inset-EPSILON)
-                        self.assertAlmostEqual(plot.bottom+val('#MediaSectionGap#'),val('#MediaTop#'))
+                        self.assertGreaterEqual(plot.top-sheet.top,inset+19*scale-EPSILON)
+                        self.assertAlmostEqual(plot.bottom+19*scale+val('#MediaSectionGap#'),val('#MediaTop#'))
+                        # Output row: from the inset to the plot's right edge,
+                        # its 18S box ending 1S above the plot frame.
+                        hit=box('MeterVisualizerDeviceHit')
+                        self.assertAlmostEqual(hit.left,sheet.left+inset)
+                        self.assertAlmostEqual(hit.right,plot.right)
+                        self.assertAlmostEqual(hit.bottom,plot.top-scale)
+                        self.assertGreaterEqual(hit.top,sheet.top+inset-EPSILON)
+                        for name in ('MeterVisualizerOutputIcon','MeterVisualizerDeviceName','MeterVisualizerVolume'):
+                            self.assertTrue(box(name).inside(hit),name)
+                        self.assertLessEqual(box('MeterVisualizerDeviceName').right,box('MeterVisualizerVolume').left+EPSILON)
+                        # Axis labels: the dB boxes fill the gutter from the
+                        # inset; the frequency row ends on the toggle band's
+                        # top, so neither touches the sheet edge or the chevron.
+                        for name in ('MeterVisualizerDbMax','MeterVisualizerDbMid','MeterVisualizerDbMin'):
+                            label=box(name)
+                            self.assertAlmostEqual(label.left,sheet.left+inset,msg=name)
+                            self.assertAlmostEqual(label.right,plot.left-4*scale,msg=name)
+                        low,high=box('MeterVisualizerLow'),box('MeterVisualizerHigh')
+                        self.assertAlmostEqual(low.left,plot.left)
+                        self.assertAlmostEqual(high.right,plot.right)
+                        for label in (low,high):
+                            self.assertAlmostEqual(label.top,plot.bottom+scale)
+                            self.assertAlmostEqual(label.bottom,val('#MediaVisualizerToggleY#'))
                         # Sheet: inner stroke edge from the drawn path.
                         sheet_style=resolve_style(sections,'MeterVisualizerSheet')
                         stroke=val(modifier(sheet_style['Shape'],'StrokeWidth'))
@@ -2408,7 +2503,8 @@ class SkinContractTests(unittest.TestCase):
                     self.assertFalse([name for name in sections if name.startswith('MeasureVisualizer')])
                     for name in OPEN_DRAWER_METERS:
                         self.assertNotIn(name,sections)
-                    self.assertFalse({'Capture.inc','Spectrum.inc','Color.lua','SpectrumPaths.lua'}&{path.name for path in visited})
+                    self.assertFalse({'Capture.inc','Audio.inc','Spectrum.inc','Color.lua','SpectrumPaths.lua'}&{path.name for path in visited})
+                    self.assertFalse([name for name,section in sections.items() if section.get('Plugin')=='Win7AudioPlugin'])
         for columns in COLUMNS:
             with self.subTest(config='Media.ini',drawer=2,columns=columns):
                 sections,variables,visited,expand=read_config('Media.ini',drawer=2,columns=columns)
@@ -2421,16 +2517,26 @@ class SkinContractTests(unittest.TestCase):
                                   'FreqMax':'16000','FFTOverlap':'0'}.items():
                     self.assertEqual(parent[key],value)
                 self.assertEqual(expand('#VisualizerDeviceID#'),'')
-                self.assertEqual(sorted(set(capture)-{'MeasureVisualizerAudio'}),sorted(CAPTURE_CHILDREN))
-                self.assertEqual(len(capture),1+len(CAPTURE_CHILDREN))
-                for name in CAPTURE_CHILDREN:
+                self.assertEqual(sorted(set(capture)-{'MeasureVisualizerAudio'}),sorted(CAPTURE_CHILDREN+OUTPUT_ROW_CHILDREN))
+                self.assertEqual(len(capture),1+len(CAPTURE_CHILDREN)+len(OUTPUT_ROW_CHILDREN))
+                for name in CAPTURE_CHILDREN+OUTPUT_ROW_CHILDREN:
                     self.assertEqual(sections[name]['Parent'],'MeasureVisualizerAudio')
+                # The output row: device name once a second, list on load only,
+                # Win7Audio volume about every 250 ms on Media's 50 ms tick.
+                self.assertEqual(val(sections['MeasureVisualizerDeviceName']['UpdateDivider']),20)
+                self.assertEqual(sections['MeasureVisualizerDeviceList']['UpdateDivider'],'-1')
+                self.assertEqual(val(sections['MeasureVisualizerVolume']['UpdateDivider']),5)
+                for key in ('LeftMouseUpAction','MouseScrollDownAction','MouseScrollUpAction'):
+                    action=sections['MeterVisualizerDeviceHit'][key]
+                    self.assertRegex(action,r'^\[!CommandMeasure MeasureVisualizerVolume "Toggle(Next|Previous)"\]')
+                    self.assertIn('[!WriteKeyValue Variables VisualizerDeviceID "" "#@#User\\Visualizer.inc"]',action)
+                    self.assertTrue(action.endswith('[!CommandMeasure MeasureMediaOptions "RefreshVisualizerDrawer()"]'),action)
                 for index in range(24):
                     self.assertEqual(sections[f'MeasureVisualizerBand{index}']['BandIdx'],str(index))
                 self.assertEqual(sections['MeasureVisualizerState']['Measure'],'Calc')
                 # Every capture measure runs on Media's 50 ms tick at the
                 # Visualizer's default 50 ms cadence.
-                for name in capture+['MeasureVisualizerState']:
+                for name in [name for name in capture if name not in OUTPUT_ROW_CHILDREN]+['MeasureVisualizerState']:
                     self.assertEqual(sections[name]['UpdateDivider'],'#VisualizerCaptureDivider#',name)
                 self.assertEqual(val('#VisualizerCaptureDivider#'),1)
                 apply=sections['MeasureVisualizerColorApply']
@@ -2446,7 +2552,9 @@ class SkinContractTests(unittest.TestCase):
                 self.assertEqual(sections['MeasureVisualizerSpectrumPaths']['UpdateDivider'],'-1')
                 # The other plugins are unchanged: the player and the inert hosts.
                 plugins={section['Plugin'] for section in sections.values() if 'Plugin' in section}
-                self.assertEqual(plugins,{'AudioLevel','WebNowPlaying','RunCommand'})
+                self.assertEqual(plugins,{'AudioLevel','Win7AudioPlugin','WebNowPlaying','RunCommand'})
+                self.assertEqual([name for name,section in sections.items() if section.get('Plugin')=='Win7AudioPlugin'],
+                                 ['MeasureVisualizerVolume'])
                 self.assertEqual([name for name,section in sections.items() if section.get('Plugin')=='RunCommand'],list(RESUME_HOSTS))
                 for name in capture+['MeasureVisualizerState','MeasureVisualizerColorApply']:
                     for key,value in sections[name].items():
@@ -2476,7 +2584,7 @@ class SkinContractTests(unittest.TestCase):
         # Media.ini captures the Audio settings Height preset by include NAME;
         # the lift follows Options.inc's plot height for it.
         self.assertEqual({preset:media_visualizer_lift(1,preset) for preset in HEIGHT_PRESETS},
-                         {126:72,146:92,186:132})  # 92 and 132 measured natively at Scale 1.
+                         {126:110,146:130,186:170})
         for preset in HEIGHT_PRESETS:
             for scale in SCALES:
                 for surface in (1,4):
@@ -2498,7 +2606,7 @@ class SkinContractTests(unittest.TestCase):
                             self.assertEqual(plot,val('#VisualizerPlotHeightPx#'))
                             # The default CornerRadius keeps the plot at the padding.
                             self.assertEqual(val('#MediaVisualizerPlotInset#'),val('#MediaDrawerPadding#'))
-                            self.assertEqual(lift,math.ceil(val('#MediaVisualizerPlotInset#')+plot+val('#MediaSectionGap#')))
+                            self.assertEqual(lift,math.ceil(val('#MediaVisualizerPlotInset#')+val('#MediaVisualizerDeviceRow#')+plot+val('#MediaVisualizerAxisRow#')+val('#MediaSectionGap#')))
                             self.assertEqual(lift,media_visualizer_lift(scale,preset,surface))
                             self.assertTrue(float(lift).is_integer())
                             self.assertEqual(heights[2]-heights[1],lift)

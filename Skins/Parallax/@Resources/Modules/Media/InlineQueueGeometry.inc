@@ -35,14 +35,23 @@ MediaVisualizerOpen=0
 ; Modules\Visualizer\HeightPresets\.
 VisualizerPanelHeight=#VisualizerPresetHeight#
 MediaVisualizerPlotHeight=#VisualizerPlotHeightPx#
-; How far the open window grows upward: the plot plus the queue sheet's own
-; spacing, mirrored - its inset (#MediaDrawerPadding# unless a large corner
-; radius needs more; see MediaVisualizerPlotInset) at the far edge,
-; #MediaSectionGap# between the plot and the player. Whole pixels, because this value is also
+; Axes, as the standalone Visualizer draws them (View.inc): a dB scale in a
+; 40S gutter left of the plot and a 40 Hz / 16 kHz row under it - one pixel of
+; clearance then an 18S label box.
+MediaVisualizerAxisWidth=(40*#Scale#)
+MediaVisualizerAxisRow=(19*#Scale#)
+; Output row above the plot, as in the standalone: speaker icon, device name
+; and the Windows output volume in an 18S box, then 1S to the plot frame.
+MediaVisualizerDeviceRow=(19*#Scale#)
+; How far the open window grows upward: the output row, the plot and its
+; frequency row plus the queue sheet's own spacing, mirrored - its inset (#MediaDrawerPadding# unless
+; a large corner radius needs more; see MediaVisualizerPlotInset) at the far
+; edge, #MediaSectionGap# between the frequency row and the player. Whole
+; pixels, because this value is also
 ; the config's AnchorY while the drawer is open (MediaOptions.lua): Rainmeter
 ; keeps the anchor point at the saved WindowY, so the panel holds its screen
 ; position while the window grows above it.
-MediaVisualizerOpenLift=(Ceil(#MediaVisualizerPlotInset#+#MediaVisualizerPlotHeight#+#MediaSectionGap#))
+MediaVisualizerOpenLift=(Ceil(#MediaVisualizerPlotInset#+#MediaVisualizerDeviceRow#+#MediaVisualizerPlotHeight#+#MediaVisualizerAxisRow#+#MediaSectionGap#))
 MediaVisualizerLift=(#MediaVisualizerOpen#*#MediaVisualizerOpenLift#)
 ; Vertical origin of the whole player: the window's top inset plus the lift.
 ; Every player position below is measured from it. Parked queue meters stay at
@@ -280,11 +289,19 @@ MediaVisualizerSheetRadius=(#MediaVisualizerOpen#*#CornerRadius#*#Scale#+(1-#Med
 ;   inset >= B/2 + R - (2S+0.5) - (R - B/2 - (2S+0.5) - (Padding-B)) / sqrt(2),
 ; which stays at the padding up to CornerRadius 10 at scale 1 (border 1).
 MediaVisualizerPlotInset=(Max(#MediaDrawerPadding#,Ceil(#BorderThickness#*#Scale#/2+#CornerRadius#*#Scale#-(2*#Scale#+0.5)-(#CornerRadius#*#Scale#-#BorderThickness#*#Scale#/2-(2*#Scale#+0.5)-(#MediaDrawerPadding#-#BorderThickness#*#Scale#))*0.70710678)))
-; The plot hangs from its near edge, mirroring MediaQueueTop below the panel;
-; the lift's Ceil slack lands in the far padding.
-MediaVisualizerPlotX=(#MediaSurfaceX#+#MediaVisualizerPlotInset#)
-MediaVisualizerPlotWidth=(#MediaQueueDrawerRight#-#MediaSurfaceX#-2*#MediaVisualizerPlotInset#)
-MediaVisualizerPlotY=(#MediaTop#-#MediaSectionGap#-#MediaVisualizerPlotHeight#)
+; The plot hangs from its near edge (above the frequency row), mirroring
+; MediaQueueTop below the panel; the lift's Ceil slack lands in the far
+; padding. The dB gutter sits inside the left inset, so the inset still sets
+; the clearance from the sheet's rounded corners (the 0 dB label's box starts
+; at the inset; its text is far from the corner curve).
+MediaVisualizerPlotX=(#MediaSurfaceX#+#MediaVisualizerPlotInset#+#MediaVisualizerAxisWidth#)
+MediaVisualizerPlotWidth=(#MediaQueueDrawerRight#-#MediaSurfaceX#-2*#MediaVisualizerPlotInset#-#MediaVisualizerAxisWidth#)
+MediaVisualizerPlotY=(#MediaTop#-#MediaSectionGap#-#MediaVisualizerAxisRow#-#MediaVisualizerPlotHeight#)
+; The output row spans the sheet's padded width, from the dB gutter's left edge
+; to the plot's right edge, directly above the plot.
+MediaVisualizerRowX=(#MediaSurfaceX#+#MediaVisualizerPlotInset#)
+MediaVisualizerRowWidth=(#MediaQueueDrawerRight#-#MediaSurfaceX#-2*#MediaVisualizerPlotInset#)
+MediaVisualizerRowY=(#MediaVisualizerPlotY#-#MediaVisualizerDeviceRow#)
 ; Bottom of the timing text: the last thing inside the panel once the queue is
 ; hidden, since the transport row now straddles the panel's lower border.
 MediaTimingTextBottom=(#MediaProgressY#+#DataBarThicknessPx#+20*#Scale#)

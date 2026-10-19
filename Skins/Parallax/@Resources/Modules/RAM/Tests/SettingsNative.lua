@@ -56,6 +56,7 @@ function Opened()
         windowBounds = {w=expectedW, h=expectedH}
         for name in SELF:GetOption('MeterNames'):gmatch('[^|]+') do
             local item = meter(name)
+            if name:find('^MeterRAM') then check(item:GetOption('ToolTipText') == '', name .. ' must not carry a tooltip') end
             check(number(item:GetOption('Hidden', '0')) == 0, 'Utility control still hidden: ' .. name)
             local x,y,w,h = item:GetX(true), item:GetY(true), item:GetW(), item:GetH()
             local align = item:GetOption('StringAlign'):lower()

@@ -50,14 +50,14 @@ foreach ($file in Get-ChildItem -LiteralPath $moduleRoot -Recurse -File) {
 # from the module loop above.
 $visualizerRoot = Join-Path $resourcesRoot 'Modules\Visualizer'
 $sourceMap['@Resources\User\Visualizer.inc'] = Join-Path $resourcesRoot 'User\Visualizer.inc'
-foreach ($relative in @('Fallbacks.inc','Options.inc')) { $sourceMap[('@Resources\Modules\Visualizer\'+$relative)] = Join-Path $visualizerRoot $relative }
+foreach ($relative in @('Fallbacks.inc','Options.inc','SettingsShared.inc','Settings.lua')) { $sourceMap[('@Resources\Modules\Visualizer\'+$relative)] = Join-Path $visualizerRoot $relative }
 foreach ($preset in Get-ChildItem -LiteralPath (Join-Path $visualizerRoot 'HeightPresets') -Filter '*.inc') { $sourceMap[('@Resources\Modules\Visualizer\HeightPresets\'+$preset.Name)] = $preset.FullName }
 # Only the open drawer (VisualizerDrawer=2) includes the shared AudioLevel
-# capture, spectrum meters and palette and path scripts, and only the drawer
+# capture, output-row measures (Audio.inc), spectrum meters and palette and path scripts, and only the drawer
 # mode opens it. Every other case leaves them uncopied, so a stray open state
 # fails loudly on a missing include instead of capturing audio.
 if ($VisualizerDrawerFocused) {
-    foreach ($relative in @('Capture.inc','Spectrum.inc','Color.lua','SpectrumPaths.lua')) { $sourceMap[('@Resources\Modules\Visualizer\'+$relative)] = Join-Path $visualizerRoot $relative }
+    foreach ($relative in @('Capture.inc','Audio.inc','Spectrum.inc','Color.lua','SpectrumPaths.lua')) { $sourceMap[('@Resources\Modules\Visualizer\'+$relative)] = Join-Path $visualizerRoot $relative }
 }
 foreach ($font in Get-ChildItem -LiteralPath (Join-Path $resourcesRoot 'Fonts') -Filter '*.ttf') { $sourceMap[('@Resources\Fonts\'+$font.Name)] = $font.FullName }
 $sourceHashes = @{}
@@ -175,7 +175,7 @@ function Install-RunCommandFixtures([string]$CaseRoot) {
     # Lifecycle.inc's resume hosts are inert, but are replaced too so the
     # fixture guard below can keep rejecting every Plugin= line.
     $names=@('MeasureMediaSourceControl','MeasureMediaQueueControl','MeasureQueueProviderControl',
-        'MeasureMediaSourceResume','MeasureMediaQueueResume')
+        'MeasureMediaSourceResume','MeasureMediaQueueResume','MeasureVisualizerSettingsInput')
     foreach ($entryPath in Get-ChildItem -LiteralPath $CaseRoot -Recurse -File | Where-Object { $_.Extension -in @('.ini','.inc') }) {
         $entry=[IO.File]::ReadAllText($entryPath.FullName)
         $changed=$false
@@ -496,6 +496,12 @@ foreach ($fixture in Get-ChildItem -LiteralPath $skinRoot -Recurse -File | Where
         # The open drawer's shared capture may use only Rainmeter's bundled
         # AudioLevel (display only); any other plugin line still fails closed.
         $fixtureText=[regex]::Replace($fixtureText,'(?m)^[ \t]*Plugin[ \t]*=[ \t]*AudioLevel[ \t]*\r?$','')
+    }
+    if ($VisualizerDrawerFocused -and $fixture.FullName.EndsWith('\@Resources\Modules\Visualizer\Audio.inc',[StringComparison]::OrdinalIgnoreCase)) {
+        # The open drawer's output row: AudioLevel device name/list children
+        # and bundled Win7Audio, read for display only. No case clicks the
+        # row, so the real Windows default output is never switched.
+        $fixtureText=[regex]::Replace($fixtureText,'(?m)^[ \t]*Plugin[ \t]*=[ \t]*(AudioLevel|Win7AudioPlugin)[ \t]*\r?$','')
     }
     if ($fixtureText -match '(?m)^\s*Plugin\s*=' -or $fixtureText -match '(?im)^\s*ScriptFile=.*SourceReader\.lua') {
         throw 'A native UI fixture still contains a real provider or source reader.'
@@ -898,7 +904,7 @@ try {
                 $entry=@{}; foreach ($pair in $_.Trim().Split(' ')) { $parts=$pair.Split('='); if ($parts.Count -eq 2) { $entry[$parts[0]]=$parts[1] } }; $entry })
             $measured=@{Gutter=Get-CopiedSetting $case.Root 'Gutter';PanelPadding=Get-CopiedSetting $case.Root 'PanelPadding';DataBarThickness=Get-CopiedSetting $case.Root 'DataBarThickness';BorderThickness=Get-CopiedSetting $case.Root 'BorderThickness'}
             $literal=$measured.Gutter -eq 8 -and $measured.PanelPadding -eq 6 -and $measured.DataBarThickness -eq 6 -and $null -ne $measured.BorderThickness -and $measured.BorderThickness -le 2
-            $openHeight=if ($case.Kind -eq 'DrawerPlayerTall') { 318 } else { 278 }
+            $openHeight=if ($case.Kind -eq 'DrawerPlayerTall') { 356 } else { 316 }
             $heights=@($stages | ForEach-Object { [int]$_['h'] })
             $problems=@()
             if ($stages.Count -ne 3) { $problems+="recorded $($stages.Count) drawer stages, expected 3" }

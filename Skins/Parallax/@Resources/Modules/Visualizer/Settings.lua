@@ -13,6 +13,7 @@ local fields = {
     Attack = { key='VisualizerAttack', values={0,50,100,200,2000}, minimum=0, maximum=2000 },
     Decay = { key='VisualizerDecay', values={0,100,250,500,1000,5000}, minimum=0, maximum=5000 }
 }
+for name, field in pairs(fields) do field.name = name end
 local pending
 local input = 'MeasureVisualizerSettingsInput'
 
@@ -26,7 +27,12 @@ local function number(text)
     if finite(value) then return value end
 end
 
+-- Height reads through VisualizerSettingsHeight: Media settings also loads
+-- Media's own PanelHeight, so it names the Visualizer's preset separately.
 local function current(field)
+    if field.key == 'PanelHeight' then
+        return number(SKIN:ReplaceVariables(SKIN:GetVariable('VisualizerSettingsHeight', '#PanelHeight#')))
+    end
     return number(SKIN:GetVariable(field.key, ''))
 end
 
@@ -51,7 +57,15 @@ local function save(field, value)
     if field.key ~= 'Columns' then
         SKIN:Bang('!CommandMeasure', 'MeasureMediaOptions', 'RefreshVisualizerDrawer()', 'Parallax\\Media')
     end
-    SKIN:Bang('!Refresh')
+    -- Show the saved value in place. Reloading this window instead cost about
+    -- 2 s per click in Audio settings and 3.4 s in Media settings, which hosts
+    -- the same rows. Height displays through VisualizerSettingsHeight, so the
+    -- host's own PanelHeight is never changed.
+    SKIN:Bang('!SetVariable', field.key == 'PanelHeight' and 'VisualizerSettingsHeight' or field.key, canonical)
+    local display = 'MeasureVisualizerSettings' .. field.name .. 'Value'
+    if SKIN:GetMeasure(display) then SKIN:Bang('!UpdateMeasure', display) end
+    SKIN:Bang('!UpdateMeter', 'MeterVisualizerSettings' .. field.name .. 'Value')
+    SKIN:Bang('!Redraw')
     return true
 end
 

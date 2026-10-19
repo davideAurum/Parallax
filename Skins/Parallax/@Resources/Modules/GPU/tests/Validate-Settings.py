@@ -20,6 +20,8 @@ assert sections['Variables']['GPUClockSource'] == '0'
 assert sections['MeasureGPUSettings']['UpdateDivider'] == '-1'
 assert 'OnRefreshAction' not in sections['Rainmeter'], 'opening must not launch discovery'
 meters = {name: api['effective'](name) for name, opts in sections.items() if 'Meter' in opts}
+assert not [(name, key) for name, opts in sections.items() for key in opts if key.lower().startswith('tooltip')], 'tooltips were removed 2026-10-11'
+assert 'tooltip' not in (Path(__file__).resolve().parents[1] / 'Settings.lua').read_text(encoding='utf-8').lower()
 steppers = {'Columns': 56, 'PowerSource': 56, 'ClockSource': 56, 'Hive': 112}
 assert len(meters) == 61
 assert sections['MeasureGPUSettingsInput']['StartInFolder'] == '#@#Scripts\\'

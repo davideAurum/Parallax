@@ -7,6 +7,7 @@ VisualizerPanelHeight=#PanelHeight#
 ; Runtime-only provider evidence. Never written to the user's settings.
 VisualizerVolumeAvailable=0
 VisualizerVolumeDivider=(Max(1,Round(250/#VisualizerEffectiveInterval#)))
+VisualizerDeviceNameDivider=(Max(1,Round(1000/#VisualizerEffectiveInterval#)))
 VisualizerPlotTop=(43+#VisualizerTopShift#)
 VisualizerPlotHeight=(#VisualizerPlotHeightPx#/#Scale#)
 PanelHeightPx=(Round((66+#VisualizerTopShift#)*#Scale#)+#VisualizerPlotHeightPx#)

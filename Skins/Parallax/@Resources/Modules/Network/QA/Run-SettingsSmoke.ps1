@@ -176,7 +176,7 @@ try {
         [IO.File]::WriteAllText((Join-Path $PSScriptRoot 'SettingsQaPending.json'),(@{Sequence=$qaCase.Sequence;ProcessId=$PID}|ConvertTo-Json),[Text.UTF8Encoding]::new($false))
         Start-Sleep -Seconds 10
     }
-    $box.Text=[string]$qaCase.Text; $tip.Active=$false
+    $box.Text=[string]$qaCase.Text
     $onKeyDown=$box.GetType().GetMethod('OnKeyDown',[Reflection.BindingFlags]'Instance,NonPublic')
     $keyCode=if ($qaCase.Action -eq 'escape') {[Windows.Forms.Keys]::Escape} else {[Windows.Forms.Keys]::Enter}
     $keyEvent=New-Object Windows.Forms.KeyEventArgs($keyCode)

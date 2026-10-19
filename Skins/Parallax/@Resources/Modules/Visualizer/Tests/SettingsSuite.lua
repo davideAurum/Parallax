@@ -36,6 +36,9 @@ return function(modulePath)
         local calls, output = {}, ''
         local skin = {}
         function skin:GetVariable(name, fallback) return vars[name] or fallback end
+        function skin:ReplaceVariables(text)
+            return (text:gsub('#([%w_]+)#', function(name) return vars[name] or ('#' .. name .. '#') end))
+        end
         function skin:GetX() return -100 end
         function skin:GetY() return 40 end
         function skin:GetMeter(name)
@@ -44,7 +47,13 @@ return function(modulePath)
                 GetW=function() return 42 end, GetH=function() return 15 end}
         end
         function skin:GetMeasure(name)
-            eq(name,'MeasureVisualizerSettingsInput')
+            if name ~= 'MeasureVisualizerSettingsInput' then
+                -- String displays exist for Width, Height, Spacing, Color, Quality, Cadence.
+                local display = name:match('^MeasureVisualizerSettings(%w+)Value$')
+                assert(display, name)
+                local strings = {Width=true,Height=true,Spacing=true,Color=true,Quality=true,Cadence=true}
+                return strings[display] and {} or nil
+            end
             return {GetStringValue=function() return output end}
         end
         function skin:Bang(...)
@@ -56,8 +65,21 @@ return function(modulePath)
                 assert(args[4]:match('^%d+$'))
                 vars[args[3]] = args[4]
             elseif args[1] == '!Refresh' then
-                -- Never Parallax\Media: each Media load also resumes its providers.
-                assert(args[2] == nil or args[2] == 'Parallax\\Visualizer')
+                -- Only the standalone: never Parallax\Media (each Media load also
+                -- resumes its providers), and never this window, which shows the
+                -- saved value in place.
+                eq(args[2],'Parallax\\Visualizer')
+            elseif args[1] == '!SetVariable' then
+                -- Display only: the saved key, or Height's display variable.
+                assert((allowed[args[2]] and args[2] ~= 'PanelHeight') or args[2] == 'VisualizerSettingsHeight', args[2])
+                assert(args[3]:match('^%d+$'))
+                vars[args[2]] = args[3]
+            elseif args[1] == '!UpdateMeter' then
+                assert(args[2]:match('^MeterVisualizerSettings%w+Value$'), args[2])
+            elseif args[1] == '!Redraw' then
+                eq(#args,1)
+            elseif args[1] == '!UpdateMeasure' and args[2] ~= 'MeasureVisualizerSettingsInput' then
+                assert(args[2]:match('^MeasureVisualizerSettings%w+Value$'), args[2])
             elseif args[1] == '!CommandMeasure' and args[2] == 'MeasureMediaOptions' then
                 -- Media's spectrum drawer reloads itself only while it is open.
                 eq(#args,4); eq(args[3],'RefreshVisualizerDrawer()'); eq(args[4],'Parallax\\Media')
@@ -76,18 +98,29 @@ return function(modulePath)
         eq(#calls,0); eq(env.Update(),0); eq(#calls,0)
         return env, vars, calls, function(value) output=value end
     end
-    -- Every key except the standalone's Columns also asks Media's drawer to follow,
-    -- between the Visualizer refresh and the settings skin's own refresh.
+    -- Every key except the standalone's Columns also asks Media's drawer to follow.
+    -- The settings window then shows the value in place: set the display
+    -- variable, update its String display (if any) and value meter, redraw.
+    local names = {Columns='Width',PanelHeight='Height',VisualizerBandGap='Spacing',VisualizerColorMode='Color',
+        VisualizerBarRadius='Radius',VisualizerBaselineGap='Baseline',VisualizerQuality='Quality',
+        VisualizerUpdateOverride='Cadence',VisualizerSensitivity='Sensitivity',VisualizerAttack='Attack',VisualizerDecay='Decay'}
+    local strings = {Width=true,Height=true,Spacing=true,Color=true,Quality=true,Cadence=true}
     local function saved(calls, key, value)
         local drawer = key ~= 'Columns'
-        eq(#calls,drawer and 4 or 3); eq(calls[1][1],'!WriteKeyValue'); eq(calls[1][3],key)
+        local name = names[key]
+        local n = drawer and 3 or 2
+        eq(#calls,n+1+(strings[name] and 1 or 0)+2); eq(calls[1][1],'!WriteKeyValue'); eq(calls[1][3],key)
         eq(calls[1][4],tostring(value)); eq(calls[2][1],'!Refresh')
         eq(calls[2][2],'Parallax\\Visualizer')
         if drawer then
             eq(calls[3][1],'!CommandMeasure'); eq(calls[3][2],'MeasureMediaOptions')
             eq(calls[3][3],'RefreshVisualizerDrawer()'); eq(calls[3][4],'Parallax\\Media')
         end
-        eq(calls[#calls][1],'!Refresh'); eq(calls[#calls][2],nil)
+        eq(calls[n+1][1],'!SetVariable'); eq(calls[n+1][2],key == 'PanelHeight' and 'VisualizerSettingsHeight' or key)
+        eq(calls[n+1][3],tostring(value))
+        if strings[name] then eq(calls[n+2][1],'!UpdateMeasure'); eq(calls[n+2][2],'MeasureVisualizerSettings'..name..'Value') end
+        eq(calls[#calls-1][1],'!UpdateMeter'); eq(calls[#calls-1][2],'MeterVisualizerSettings'..name..'Value')
+        eq(calls[#calls][1],'!Redraw')
     end
     for _, definition in ipairs(definitions) do
         local name,key,values,categorical = unpack(definition)
@@ -181,6 +214,14 @@ return function(modulePath)
         for i=#calls,1,-1 do calls[i]=nil end
         setOutput('PARALLAX_INPUT_V1|ok|+002'); eq(env.CommitInput(),true)
         saved(calls,'VisualizerBandGap',2); eq(vars.VisualizerBandGap,'2')
+    end)
+    -- Media settings hosts the same controller beside Media's own PanelHeight
+    -- (162); it names the Visualizer's preset through VisualizerSettingsHeight.
+    test('Height reads VisualizerSettingsHeight when the host defines it',function()
+        local env,vars,calls=fixture('PanelHeight',162)
+        vars.VisualizerSettingsHeight='186'
+        eq(env.Step('Height',1),false); eq(#calls,0)
+        eq(env.Step('Height',-1),true); saved(calls,'PanelHeight',146)
     end)
     test('Unknown field, invalid direction, stale result',function()
         local env,_,calls,setOutput=fixture()

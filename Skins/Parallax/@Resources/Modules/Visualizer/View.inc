@@ -106,9 +106,9 @@ W=#ContentWidth#
 H=(18*#Scale#)
 SolidColor=0,0,0,1
 MouseActionCursor=1
-LeftMouseUpAction=[!CommandMeasure MeasureVisualizerVolume "ToggleNext"][!WriteKeyValue Variables VisualizerDeviceID "" "#@#User\Visualizer.inc"][!Refresh]
-MouseScrollDownAction=[!CommandMeasure MeasureVisualizerVolume "ToggleNext"][!WriteKeyValue Variables VisualizerDeviceID "" "#@#User\Visualizer.inc"][!Refresh]
-MouseScrollUpAction=[!CommandMeasure MeasureVisualizerVolume "TogglePrevious"][!WriteKeyValue Variables VisualizerDeviceID "" "#@#User\Visualizer.inc"][!Refresh]
+LeftMouseUpAction=[!CommandMeasure MeasureVisualizerVolume "ToggleNext"][!WriteKeyValue Variables VisualizerDeviceID "" "#@#User\Visualizer.inc"][!CommandMeasure MeasureMediaOptions "RefreshVisualizerDrawer()" "Parallax\Media"][!Refresh]
+MouseScrollDownAction=[!CommandMeasure MeasureVisualizerVolume "ToggleNext"][!WriteKeyValue Variables VisualizerDeviceID "" "#@#User\Visualizer.inc"][!CommandMeasure MeasureMediaOptions "RefreshVisualizerDrawer()" "Parallax\Media"][!Refresh]
+MouseScrollUpAction=[!CommandMeasure MeasureVisualizerVolume "TogglePrevious"][!WriteKeyValue Variables VisualizerDeviceID "" "#@#User\Visualizer.inc"][!CommandMeasure MeasureMediaOptions "RefreshVisualizerDrawer()" "Parallax\Media"][!Refresh]
 DynamicVariables=1
 UpdateDivider=-1
 

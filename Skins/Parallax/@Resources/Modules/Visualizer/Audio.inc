@@ -1,6 +1,9 @@
-; Standalone-only measures: relative dB axis labels, the Windows default-output
-; volume / output-switch target, and device naming/discovery. The capture parent,
-; state and bands live in Capture.inc; the palette script lives in Spectrum.inc.
+; Output-row measures shared by the standalone Visualizer and Media's open
+; spectrum drawer: relative dB axis labels, the Windows default-output volume /
+; output-switch target, and device naming/discovery. The capture parent, state
+; and bands live in Capture.inc; the palette script lives in Spectrum.inc. The
+; host sets VisualizerVolumeDivider, VisualizerDeviceNameDivider and
+; VisualizerVolumeAvailable=0 for its own skin cadence and a MeterVisualizerVolume.
 
 ; Axis values invert AudioLevel's normalized FFT/band sensitivity scale.
 ; This is a relative spectrum dB scale, not calibrated dBFS or sound pressure.
@@ -49,7 +52,7 @@ Measure=Plugin
 Plugin=AudioLevel
 Parent=MeasureVisualizerAudio
 Type=DeviceName
-UpdateDivider=(Max(1,Round(1000/#VisualizerEffectiveInterval#)))
+UpdateDivider=#VisualizerDeviceNameDivider#
 Substitute="":"No output device"
 
 ; Discovery only: no separate capture parent and no file/clipboard export.

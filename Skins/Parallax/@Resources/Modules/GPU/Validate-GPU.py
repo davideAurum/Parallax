@@ -373,6 +373,8 @@ assert samples["Formula"] == "Min(MeasureGPUGraphSamples+1,#ContentWidth#)"
 
 meters = {name: effective(name) for name, options in sections.items() if "Meter" in options}
 assert all("Meter" in options for name, options in sections.items() if name.startswith("Meter"))
+# 2026-10-11: tooltips were removed suite-wide; none may return unplanned.
+assert not [(name, key) for name, options in sections.items() for key in options if key.lower().startswith("tooltip")]
 SCALAR_FIELDS = ("Temperature", "Power", "Clock")
 ENGINE_FIELDS = ("GPULoad", "GPUControllerLoad", "GPUVideoLoad", "GPUBusLoad")
 ENGINE_LABELS = dict(zip(ENGINE_FIELDS, ("Core", "Memory", "Video", "Bus")))
@@ -450,6 +452,7 @@ for script in ("GPU.lua", "Temperature.lua", "ProcessGraph.lua"):
     for literal in set(re.findall(r"['\"](Meter[A-Za-z0-9]*)['\"]", script_text)):
         assert any(name.startswith(literal) for name in meters), (script, literal)
     assert not re.search(r"GetMeasure\(\s*['\"]MeasureGPUActivity['\"]", script_text), script
+    assert "tooltip" not in script_text.lower(), script
     if script == "Temperature.lua":
         assert "'GPUEngineBarWidth'" in script_text and "'ContentWidth'" in script_text and "'DataBarThicknessPx'" in script_text
         for name in ("MeterActivityValue", "MeterGPUVRAMValue", "MeterGPUVRAMBar", "MeterGPUSharedValue",

@@ -112,7 +112,7 @@ local function renderLayout()
     if layoutExpanded == expanded then return end
     layoutExpanded = expanded
     local collapsedHeight = (1 - expanded) * 56
-    local settingsHeight = 582 - collapsedHeight
+    local settingsHeight = 786 - collapsedHeight
     -- Rainmeter expands nested variable references at load, so rebuild both
     -- physical heights instead of retaining the initial collapsed expression.
     local heightPx = SKIN:ParseFormula(SKIN:ReplaceVariables('(Round(' .. settingsHeight .. '*#Scale#))'))
@@ -120,6 +120,8 @@ local function renderLayout()
     SKIN:Bang('!SetVariable', 'MediaSettingsQueueDetailsVisible', expanded)
     SKIN:Bang('!SetVariable', 'MediaSettingsQueueCollapsedHeight', collapsedHeight)
     SKIN:Bang('!SetVariable', 'SettingsPanelHeight', settingsHeight)
+    -- The shared Spectrum steppers sit below the queue rows.
+    SKIN:Bang('!SetVariable', 'VisualizerSettingsTop', 172 - collapsedHeight)
     SKIN:Bang('!SetVariable', 'PanelHeightPx', heightPx)
     SKIN:Bang('!SetVariable', 'WindowHeight', heightPx + gap)
 end

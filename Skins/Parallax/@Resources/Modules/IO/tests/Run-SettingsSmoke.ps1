@@ -266,8 +266,8 @@ $popupNameFixture
             local letter = string.char(code)
             local kind = SKIN:GetMeasure('MeasureIOType'..letter):GetValue()
             if kind >= 3 and kind <= 7 then
-                local name, detail = names.Format(SKIN, letter, 'both')
-                file:write(letter..'| '..name..' | '..detail..'\n')
+                local name = names.Format(SKIN, letter, 'both')
+                file:write(letter..'| '..name..'\n')
             end
         end
         file:close()

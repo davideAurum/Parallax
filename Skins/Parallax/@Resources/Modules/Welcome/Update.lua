@@ -84,7 +84,11 @@ function Check()
     if state == 'checking' or state == 'downloading' then return false end
     state, offer = 'checking', nil
     SKIN:Bang('!EnableMeasure', 'MeasureUpdateFeed')
+    -- Welcome never runs a skin update cycle (Update=-1), so the WebParser has to
+    -- be driven here: its first update starts the first download, and its
+    -- Update command starts every later one.
     SKIN:Bang('!CommandMeasure', 'MeasureUpdateFeed', 'Update')
+    SKIN:Bang('!UpdateMeasure', 'MeasureUpdateFeed')
     show('Checking for updates...', false)
     return true
 end

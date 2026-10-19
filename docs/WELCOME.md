@@ -90,6 +90,12 @@ A native capture through `tools\Preview-Parallax.ps1 -Modules Welcome` rendered 
 
 Not established by these checks: visual quality at other scales and column widths, mixed-DPI behavior, upgrade behavior over an existing installation, Skin Installer's post-install load of this config, and behavior when a listed config is missing from the installation.
 
+### Update check stalls at "Checking for updates...", fixed 2026-10-19
+
+Reported on 0.1.0-alpha.3: **Check for updates** took a very long time. The panel runs no skin update cycle (`Update=-1`), and a WebParser downloads only on its first measure update and then every `UpdateRate` updates. `Check()` enabled `MeasureUpdateFeed` and sent its `Update` command, but nothing updated the measure, so the request waited for an unrelated redraw of the skin. `Check()` now also sends `!UpdateMeasure MeasureUpdateFeed`, which starts the first download; the `Update` command still starts every later one.
+
+The smoke below did not catch this because it switches Welcome to `Update=500` to drive its harness. A scratch timing harness (not checked in) ran the shipped `Update=-1` panel against the real GitHub feed in an isolated Rainmeter 4.5.26 instance: before the fix, no result within 90 s; after it, `up to date` in about 1 s, and with the installed version set to alpha.2, `0.1.0-alpha.3 is available.` on the first click and again on a second click 1.5 s later. `Run-UpdateSmoke.ps1` still passes (newer, equal and unreachable feeds). Not checked: the Install step against the real release and the live panel.
+
 ### Update check, 2026-09-23
 
 `Skins\Parallax\@Resources\Modules\Welcome\tests\Run-UpdateSmoke.ps1 -ExerciseInstall` stages the sources, replaces the feed address with local `file://` manifests, and runs the real `MeasureUpdateFeed` / `MeasureUpdate` / `MeasureUpdateInstall` chain in an isolated Rainmeter 4.5.26.3894 instance on Windows 11 26200:

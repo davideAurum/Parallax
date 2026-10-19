@@ -3,8 +3,10 @@
 Run from the repository root after shared styles and RAM edits are stable:
 
 ```powershell
-& 'Skins/Parallax/@Resources/Modules/RAM/Tests/Test-RAMNative.ps1' -TimeoutSeconds 60
+& 'Skins/Parallax/@Resources/Modules/RAM/Tests/Test-RAMNative.ps1'
 ```
+
+`-TimeoutSeconds` (default 60) is a stall budget, not a total deadline. The run fails only when no case tick (`RAMNativeNN.progress`), report or `Rainmeter.log` line changes for that long. `-MaxSeconds` (default 600) caps the whole run. One instance serializes every copy, so wall time grows with host load: about 25 s idle, longer under concurrent tests. A failure names each missing case's last tick; reports are written at tick 20.
 
 The script uses an existing Rainmeter executable. `-RainmeterPath` may select a different existing installation. `-PrepareOnly` creates the snapshots without launching anything.
 
@@ -30,7 +32,7 @@ The test checks native skin/meter bounds, transparent gutters, PhysicalMemory ra
 
 Evidence remains under a unique `Tests/.runtime/ram-native-*` directory. This entire Tests subtree is excluded by the existing staging policy. Do not distribute its instrumented skins or runtime logs. Failed runs are retained for inspection; the test performs no recursive deletion.
 
-Bounds, clipping options and natural font heights do not prove complete visual readability or horizontal text fit. Action execution does not prove physical pointer-event delivery. The real query may correctly settle to Unavailable where Windows denies inventory access; its state is recorded separately in `summary.json`. Settings reopen persistence is tested; full RAM unload/reload persistence, firmware accuracy, full-history rendering, performance, mixed Windows DPI and release readiness remain outside this smoke check. The coordinator performs actual window capture and visual inspection separately. A longer harness deadline accommodates many utility activations under concurrent test load and is not a performance result.
+Bounds, clipping options and natural font heights do not prove complete visual readability or horizontal text fit. Action execution does not prove physical pointer-event delivery. The real query may correctly settle to Unavailable where Windows denies inventory access; its state is recorded separately in `summary.json`. Settings reopen persistence is tested; full RAM unload/reload persistence, firmware accuracy, full-history rendering, performance, mixed Windows DPI and release readiness remain outside this smoke check. The coordinator performs actual window capture and visual inspection separately. The progress-based deadline accommodates many utility activations under concurrent test load. Neither it nor `SecondsToReports` is a performance result.
 
 Rainmeter Lua APIs follow the [official Lua scripting documentation](https://github.com/rainmeter/rainmeter-docs/blob/master/source/manual/lua-scripting/index.html).
 

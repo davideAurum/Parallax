@@ -810,7 +810,14 @@ local function step()
         checkSettingsController()
         checkProcesses()
         if SELF:GetOption('InfoMode') == 'Fixture' then checkHardware() end
-        if SELF:GetOption('InfoMode') == 'Timeout' then equalOption(meter('MeterRAMInfoSummary'),'Text','Checking...') end
+        if SELF:GetOption('InfoMode') == 'Timeout' then
+            -- Info.lua stops waiting 15 s after load. A slow host can reach
+            -- tick 3 after that, when its unavailable fallback is correct.
+            local summary = meter('MeterRAMInfoSummary'):GetOption('Text')
+            local fallback = SKIN:ReplaceVariables(infoModel.Format(nil, SKIN:GetVariable('RAMUseMiB'), SKIN:GetVariable('RAMDecimals')).Summary.text)
+            check(summary == 'Checking...' or (os.time() > loadedAt+10 and summary == fallback),
+                'Pending inventory left its checking state early: '..summary)
+        end
         beforeUnits = tonumber(SKIN:GetVariable('RAMUseMiB'))
         check(utilityOpenings == 0, 'Settings utility unexpectedly active before clicking the gear')
         check(SKIN:GetMeter('MeterRAMSettingsTitle') == nil, 'Settings still overlays the live RAM skin')

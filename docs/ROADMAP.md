@@ -35,6 +35,14 @@ Goal: an installed copy upgrades itself through the Welcome panel without losing
 - [ ] Try the updater on a portable Rainmeter install (Skin Installer located through `#PROGRAMPATH#`).
 - [ ] Withdraw a release: mark alpha.2's predecessor Latest again, then confirm the check stops offering alpha.2.
 
+**Progress 2026-10-19 (no item complete yet).** alpha.3 to alpha.6 were published, all marked Latest. The maintainer's own install went alpha.2 → alpha.4 → alpha.5 → alpha.6 through real Skin Installer runs, and the last one ran start to finish from the Welcome panel (Check for updates, Install, confirm). Each new version loaded. Settings preservation was not checked value by value, so the second item stays open. Three upgrade bugs turned up and were fixed:
+
+- Check for updates stalled because the WebParser was never started (alpha.4; [WELCOME.md](WELCOME.md)).
+- Leftover Media provider workers blocked Skin Installer's folder move (alpha.5; [UPDATES.md](UPDATES.md#upgrading-past-running-media-helpers)).
+- Install reported "Download failed" under a Rainmeter started from PowerShell 7 (alpha.6; [UPDATES.md](UPDATES.md#rainmeter-started-from-powershell-7)).
+
+Clean install of the published alpha.6 package (SHA-256 `a10e925b…122a7`): its 211 skin files were extracted into an isolated Rainmeter 4.5.28 profile on Windows 11 26H2, with Welcome and all nine components active. All ten configs loaded. Check for updates read the live feed and reported `Parallax 0.1.0-alpha.6 is up to date.` After `!Quit`, no helper process from that profile was left running. The only log errors were Media's, because the WebNowPlaying plugin was deliberately not installed in that profile: 14 plugin-load errors, then the cover image failing to open `0.png` on every update (193 lines in ~30 s). Not covered: a real Skin Installer run into a clean profile (it always targets the live one), and the Notes, cancel, `IO.ini`, portable and withdraw items above.
+
 ### Stage 2: Alpha hardening (`0.1.0-alpha.N`)
 
 Goal: close the known gaps the module docs list as unverified, one alpha at a time. Publish small alphas as items land.

@@ -62,6 +62,7 @@ The addresses baked into an installed copy are the ones it checks forever, until
 # 3. Publish: package, checksum and feed in one release, marked Latest.
 gh release create v0.2.0 dist\Parallax_0.2.0.rmskin dist\Parallax_0.2.0.rmskin.sha256 dist\parallax-update.json --title "Parallax 0.2.0" --notes-file <notes.md> --latest
 # 4. Only now commit and push README.md: the packager rewrote its download badge to the new asset.
+#    In the same commit, clear the shipped entries from docs\UNRELEASED.md and update its "Latest release" line.
 git commit -m "Point the README download at v0.2.0" README.md; git push
 ```
 

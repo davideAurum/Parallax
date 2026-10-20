@@ -8,6 +8,8 @@ Parallax ships as public alphas first, then betas, then a 1.0 release. Every pub
 0.1.0-alpha  <  0.1.0-alpha.2  <  …  <  0.2.0-beta.1  <  …  <  1.0.0-rc.1  <  1.0.0
 ```
 
+What is on `main` but not yet released, plus the short list of open items, is in [UNRELEASED.md](UNRELEASED.md).
+
 Publish every one of them as a normal GitHub release marked **Latest**, not **Pre-release**. The update check reads only the Latest release; the version string already says alpha or beta. A stage is finished when every exit item is checked. Record the evidence in the relevant doc; an honest "unverified" is allowed only where a stage says so.
 
 ### Stage 0: Go public (now)

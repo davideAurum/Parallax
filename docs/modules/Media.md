@@ -564,9 +564,12 @@ or retain video metadata.
 | No positive capability signal | Control muted and inactive. |
 
 The WNP connection flag alone cannot distinguish a missing/failed plugin from
-an inactive connection. Opening the player without the plugin may log Rainmeter
-plugin errors; choose Setup to unload it. The UI does not pretend to diagnose
-that ambiguity. WNP also exposes no reliable heartbeat timestamp here, so a
+an inactive connection. Opening the player without the plugin logs one
+`Plugin: Unable to load` error per WNP measure at load (14), then nothing
+further; choose Setup to unload it. A failed plugin measure reports the number
+0, so `MeasureCover` substitutes an exact `0` to empty and `MeterCover` opens no
+file (an anchored regex: real cover paths containing `0` pass unchanged). The UI
+does not pretend to diagnose that ambiguity. WNP also exposes no reliable heartbeat timestamp here, so a
 stalled provider retaining old data cannot be detected as stale. Native position
 may be estimated by WNP, and transport commands have no success acknowledgement
 in this interface. The skin never claims a command succeeded on click.
@@ -945,6 +948,31 @@ Sources: [quota modes](https://developer.spotify.com/documentation/web-api/conce
 [rate limits](https://developer.spotify.com/documentation/web-api/concepts/rate-limits).
 
 ## Validation report
+
+### Cover without the WNP plugin (2026-10-20)
+
+The alpha.6 clean-install check ([ROADMAP](../ROADMAP.md) Stage 1) found
+`ImageName: Unable to open: ...\Parallax\Media\0.png` on every update when the
+plugin is absent: the failed `MeasureCover` reads as 0 and the hidden
+`MeterCover` (hidden meters still update) opened it relative to the skin folder.
+Changed `WebNowPlaying.inc` (`MeasureCover`: `RegExpSubstitute=1`,
+`Substitute="^0$":""`) and `PlayerMeters.inc` (`MeterCover`:
+`UpdateDivider=#MediaLegacyDivider#`, the measure's own cadence). The divider
+means the image meter now reads the cover once a second instead of every 50 ms
+tick, which more than covers the substitute's cost; no dynamic options added.
+
+- Isolated Rainmeter 4.5.28 profile, temp copy of the whole `Skins\Parallax`
+  tree with `Plugin=WebNowPlaying` rewritten to an absent plugin name (the real
+  DLL sits in `Program Files\Rainmeter\Plugins`, so this never loads a second
+  WNP copy). Before: 227 `0.png` errors in 15 s. After: 30 s run, 25 log lines,
+  only the 14 one-time `Plugin: Unable to load` errors, no `ImageName` errors.
+- Isolated probe of the same substitute: `C:\Temp\WebNowPlaying\cover_0_10.png`
+  is returned unchanged; a measure valued 0 returns empty.
+- `test_skin_contract.py`: 28 tests OK. `Test-Parallax.ps1 -RequireAllModules`:
+  23 configs, 99 files, 0 errors, 0 warnings.
+- Unverified: a live WNP cover after the divider change (the art still follows
+  `MeasureCover`, which already updated at that cadence), and a real Skin
+  Installer install with its plugin step skipped.
 
 ### Provider owner lease and upgrade pre-check (2026-10-19)
 

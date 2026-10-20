@@ -43,10 +43,15 @@ PlayerType=Album
 Substitute="":"Album unavailable"
 UpdateDivider=#MediaLegacyDivider#
 
+; A plugin that fails to load reports the number 0, which MeterCover would
+; otherwise open as Media\0.png (one log error per update). Anchored so a real
+; path containing 0 is never touched; empty means no image, not a missing file.
 [MeasureCover]
 Measure=Plugin
 Plugin=WebNowPlaying
 PlayerType=Cover
+RegExpSubstitute=1
+Substitute="^0$":""
 UpdateDivider=#MediaLegacyDivider#
 
 ; State: 1=Playing, 2=Paused, 0=Stopped. Read directly by Media.lua (the

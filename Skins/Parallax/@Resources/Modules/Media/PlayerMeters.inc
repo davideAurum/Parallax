@@ -41,6 +41,8 @@ H=#MediaCoverSize#
 Shape=Rectangle 0,0,#MediaCoverSize#,#MediaCoverSize#,#MediaCoverRadius# | Fill Color 255,255,255,255 | StrokeWidth 0
 UpdateDivider=-1
 
+; Hidden meters still update, so this reads MeasureCover only at its own
+; cadence rather than every animation tick.
 [MeterCover]
 Meter=Image
 Group=MediaTrack
@@ -52,6 +54,7 @@ W=#MediaCoverSize#
 H=#MediaCoverSize#
 PreserveAspectRatio=2
 Hidden=1
+UpdateDivider=#MediaLegacyDivider#
 
 [MeterCoverFrame]
 Meter=Shape

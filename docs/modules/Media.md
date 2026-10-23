@@ -68,7 +68,7 @@ user-selected Lucide metadata and playback icons are attributed below.
 | Fonts and icons — bundled | Private IBM Plex Sans fonts ([license](../../Skins/Parallax/@Resources/Licenses/IBM-Plex-OFL.txt)); native Shape adaptations of Lucide artwork ([provenance and licenses](../../Skins/Parallax/@Resources/Modules/Media/Icons/Lucide/README.md)). | No download, system font installation or SVG-rendering plugin required. |
 | Typed numeric settings — bundled | Rainmeter's bundled RunCommand plugin, Windows PowerShell/.NET WinForms and the shared `Scripts/SettingsInput.ps1` overlay. | An explicit numeric-field click starts one temporary editor. Fixed numeric/cancel output is revalidated before saving; invalid, cancelled, unrequested or hidden-field results do not save. No polling or provider starts. |
 | Playback metadata and controls — optional, plugin bundled | [WebNowPlaying](https://wnp.keifufu.dev/rainmeter/getting-started) plugin 2.0.7.0 (MIT License, keifufu and Trevor Hamilton), bundled in the Parallax `.rmskin` from `packaging/Plugins/WebNowPlaying` and installed by Skin Installer unless a newer version is present ([license](../../Skins/Parallax/@Resources/Licenses/WebNowPlaying-LICENSE.txt), [provenance](../../packaging/Plugins/WebNowPlaying/README.md)); a supported player. Browser playback additionally requires the separately installed WebNowPlaying browser extension; desktop adapters are also separate. A development copy of the skin without the package needs a manual plugin install (2.x+). | Sampled on the skin update; `MediaInterval` does not throttle WNP internally. Inactive connections show no active media; unsupported controls remain disabled. Setup unloads the optional plugin. |
-| Spotify source identification — optional | Bundled `SourceProvider.ps1` and the shared `ProviderOwner.psm1` owner lease, Rainmeter's bundled RunCommand plugin, Windows PowerShell 5.1, built-in .NET and Windows media-session APIs. No Spotify authentication or network request. | Explicit Start uses a dormant `State=Hide` RunCommand control and enables one persistent observer targeting a 2-second collection cadence, with load-time recovery through `MediaLifecycle.lua`/`Lifecycle.inc`. Stop uses the same hidden event-only path. Observations expire after 6 seconds. Missing or inconclusive evidence leaves generic Windows playback identified as `Unknown`. |
+| Spotify source identification — optional | Bundled `SourceProvider.ps1` and the shared `ProviderOwner.psm1` owner lease, Rainmeter's bundled RunCommand plugin, Windows PowerShell 5.1, built-in .NET and Windows media-session APIs. No Spotify authentication or network request. | Explicit Start uses a dormant `State=Hide` RunCommand control and enables one persistent observer targeting a 2-second collection cadence, with load-time recovery through `MediaLifecycle.lua`/`Lifecycle.inc`. Stop uses the same hidden event-only path. Between collections the observer waits on its owner Rainmeter and a stop event, not a poll, and rewrites its snapshot only on change, plus a heartbeat about every 4 seconds. Observations expire after 6 seconds. Missing or inconclusive evidence leaves generic Windows playback identified as `Unknown`. |
 | Spotify queue — optional | Bundled `QueueProvider.ps1`, `QueueCore.psm1`, `QueueAuth.psm1` and the shared `ProviderOwner.psm1` owner lease; Rainmeter's bundled RunCommand plugin; Windows PowerShell 5.1/.NET; network access; Spotify Developer app public Client ID and user-authorized PKCE sign-in. The [queue setup guide](../../Skins/Parallax/@Resources/Modules/Media/Queue/README.md) records Development Mode prerequisites, including owner Premium and user allowlisting. No client secret. | Start, Stop, Restart and Disconnect use dormant `State=Hide` RunCommand controls with a fixed allowlist and do not overlap. One opt-in worker requests every 30 seconds by default, configurable to 30–150 seconds, subject to backoff/quota pauses. Sign in deliberately retains a visible setup console/browser flow. Passive views read local snapshots on their update. Missing, stopped, expired or failed data produces explicit status and suppresses rows. |
 
 Both provider helpers require an explicit initial Start (or successful queue sign-in).
@@ -79,7 +79,8 @@ preview profiles never restore providers. There is no startup task or service.
 A worker started from Rainmeter exits with that Rainmeter process (see
 [Provider lifetime](#provider-lifetime-and-upgrades)), and every worker runs with
 its LocalAppData data root as working directory, never the skin folder.
-Their 100ms/1-second internal waits are stop/scheduling checks, not
+Source makes one wait per 2-second cycle, on its owner process and a stop
+event; Queue's 1-second internal waits are stop/scheduling checks. Neither is
 extra collection or API polling. Keep this inventory and its provider/license
 references aligned with shipped components and cadence changes; developer test
 tools and unimplemented features are not runtime requirements.
@@ -630,12 +631,15 @@ gives each worker an owner lease:
   controlling `powershell.exe` (one CIM read each, only on that enabling command)
   and, when one is `Rainmeter.exe`, pass `-OwnerLease <pid>:<start ticks UTC>` to
   the worker. A parent that started after its child is a recycled ID and ends
-  the walk.
+  the walk. Both providers walk only after finding no running worker, so the
+  usual Resume on a Media refresh makes no CIM query (Source since 2026-10-22).
 - The worker opens that process, requires the same start time, and keeps the
-  handle so the ID cannot be recycled while it watches. Its existing idle waits
-  (Source 100 ms, Queue 1 second) become `WaitForExit` on the owner, so it
-  leaves within one wait of Rainmeter exiting, including a crash or kill (a
-  queue request already in flight finishes first). It
+  handle so the ID cannot be recycled while it watches. Queue's 1-second idle
+  wait is `WaitForExit` on the owner. Since 2026-10-22 Source waits on the
+  owner's process handle and its stop event together (see
+  [Source setup and behavior](#source-setup-and-behavior)), so it leaves as
+  soon as Rainmeter exits. Queue leaves within one wait, after any request
+  already in flight. Both cases include a crash or kill. It
   exits without writing a `stopped` snapshot or touching `enabled.intent`, so
   the next Rainmeter's normal Media load resumes it as before. A lease naming a
   process that is gone or replaced makes the worker exit at once.
@@ -704,8 +708,54 @@ and worker ownership, up to twenty seconds total, and does not kill unrelated
 processes. This is conservative correlation, not a
 guarantee against a provider retaining obsolete metadata.
 
+Between collections the worker waits instead of polling (since 2026-10-22):
+
+- **One wait per cycle.** It waits for the rest of each 2-second cycle on two
+  handles: a named auto-reset stop event
+  (`Local\Parallax.Media.Source.<hash>.Stop`, named like the mutexes) and,
+  with a lease, the owner Rainmeter's process handle.
+- **Stop.** Stop sets the event right after writing its stop request, so a
+  waiting worker exits in tens of milliseconds. The request file remains the
+  durable signal and is re-checked after every wake; a stray event from
+  another process only resumes the wait.
+- **Owner exit** still ends the worker at once, without a `stopped` snapshot.
+- **Fallbacks.** Without the event (name unavailable), Stop is seen at the
+  end of the cycle, within 2 seconds. An owner handle that cannot be waited on
+  keeps the old 100 ms owner wait.
+- **Change-only writes.** A changed observation (state or any record) is
+  written at once, and every run writes its first observation. An unchanged
+  `ready` one is rewritten as a heartbeat once the published one has less
+  than 3 seconds of its 6-second validity left. With the 2-second cycle that
+  is about every 4 seconds, at least about a second before the reader would
+  call it stale; the old every-cycle writes left about 3 seconds.
+- **Late heartbeats.** A heartbeat delayed beyond that margin, for example by
+  a stalled Windows call, shows the reader's honest stale state, so the
+  header reads `Unknown` and never old data. Setting
+  `$script:SourceHeartbeatLeadSeconds` to 4 restores every-cycle writes.
+- **Unavailable observations** carry no expiry and are not rewritten while
+  unchanged.
+- **The adapter** to the Windows media-session APIs is built once per worker,
+  not every cycle.
+- **Resume and the lease.** Resume and Start compute the owner lease only after
+  finding no running worker. A Resume that finds the worker running also skips
+  storage initialization (its ACL rewrites).
+
 The current-user-only directory `%LOCALAPPDATA%\Parallax\Media\Source\` holds
 `source.snapshot` and a stop request. Atomic replacement prevents partial reads.
+
+- **Root validation.** Each worker validates its storage path once.
+- **Junction check before every write.** Before each write, and again right
+  before the swap, it rechecks with .NET calls that neither the directory nor
+  any ancestor up to the drive root is a junction, symbolic link or file, and
+  that the target is an ordinary file. Reading the stop request is a plain
+  existence check; any entry with that name counts as Stop.
+- **Snapshot permissions.** The directory carries a protected user-only ACL,
+  set at the start of every command. A snapshot gets an explicit private ACL
+  when first created, and replacement keeps it.
+- **Snapshot durability.** The snapshot is not forced to disk. After a power
+  loss a torn file reads as unavailable and an old one as stale.
+- **Stop request and enabled intent** keep a forced flush and an explicit
+  private ACL on every write.
 No app IDs, tokens or credentials enter the snapshot; title/artist data remain
 local runtime data and must never be distributed. The strict ASCII
 `PARALLAX_SOURCE_V1` envelope carries state, observation/expiry timestamps and
@@ -948,6 +998,94 @@ Sources: [quota modes](https://developer.spotify.com/documentation/web-api/conce
 [rate limits](https://developer.spotify.com/documentation/web-api/concepts/rate-limits).
 
 ## Validation report
+
+### Source observer waits instead of polling (2026-10-22)
+
+Performance package A2 (findings MEDIA-02, XMOD-01, XMOD-08 for Source, and
+MEDIA-08; see [PERFORMANCE-REVIEW.md](../PERFORMANCE-REVIEW.md#t3-the-media-source-helper-polls-instead-of-waiting-high)).
+Branch `perf/A2-media-source`, one commit per fix. Only `Source/SourceProvider.ps1`
+and its tests changed. `SourceReader.lua`, the snapshot protocol,
+`ProviderOwner.psm1`, Queue and every skin file are untouched, so no pixels can
+change. The behaviour is described in [Source setup and behavior](#source-setup-and-behavior).
+The WebNowPlaying replacement question is answered separately in
+[MEDIA-SOURCE-EVALUATION.md](../MEDIA-SOURCE-EVALUATION.md).
+
+What changed:
+
+1. The root is validated once, and the junction guard uses .NET calls before
+   every write. The stop check is a plain existence check.
+2. One `WaitAny` per cycle on the owner process and a named stop event. Stop
+   sets the event.
+3. The WinRT adapter is built once per worker.
+4. No ACL calls on routine snapshot replacements, and the destination path is
+   resolved once per write.
+5. Change-only snapshot writes with a heartbeat at under 3 s of validity
+   left, and no forced flush for the snapshot.
+6. The owner lease is walked only after the worker probe.
+7. A Resume beside a running worker skips storage initialization.
+
+Checks:
+
+- **`Source/tests/Test-SourceProvider.ps1`: 248 synthetic assertions pass**
+  (182 before). New coverage:
+  - a junction swapped into an already validated root is refused by snapshot,
+    stop and intent writes;
+  - a directory stop marker ends the worker;
+  - against a peer runspace driving the real `Invoke-SourceRun`, Stop 300 ms
+    into a wait ends the worker in 41 ms, two stray events leave the cycle at
+    2,015 ms, and a stand-in owner process exiting ends a leased worker in
+    16 ms;
+  - adapter reuse, and one failed build that is not cached;
+  - ACL call counts: 1 for the first snapshot, 0 for replacements, and
+    unchanged for the vetoes;
+  - the payload key and the publish decision at 4, 3.01, 2.99 and -1 seconds
+    left, and with the clock moved back;
+  - a worker on a simulated clock writing exactly
+    `ready@1000 ready@1004 ready@1006 stopped@0` over five cycles (six writes
+    before);
+  - no lease walk and no storage initialization beside a running worker.
+- **Mutation checks.** Each of seven mutations, applied to a scratch copy,
+  fails the suite: dropping the event signal (Stop took 1,728 ms), treating a
+  stray wake as a cycle end, skipping the per-write guard, always publishing,
+  dropping the heartbeat, walking the lease before the probe, and removing the
+  early Resume probe.
+- **`Source/tests/Test-SourceReader.ps1`: 133 assertions in 13 isolated
+  Rainmeter scenarios pass.** The reader itself is unchanged.
+- **`Source/tests/Test-SourceNative.ps1`** now makes two read-only
+  observations: `ready`, one session, 214 ms then 7 ms, `AdapterReused: true`.
+- **`tests/Test-ProviderLease.ps1`: 12/12.** Both isolated workers exited
+  184 ms after their Rainmeter quit.
+- **`tools/Test-Parallax.ps1 -RequireAllModules -WarningsAsErrors`:** 23
+  configs, 99 files, 0 errors, 0 warnings.
+- **Real worker, end to end** (scratch scripts, not committed). A lease-less
+  worker ran on a temp root, sampled every 0.2 s through the real
+  `SourceReader.parse` under OBS's LuaJIT, then Stop ran from a second
+  process.
+  - **Four of five 16-20 s runs:** every sample was `ready`, heartbeats came
+    4.01-4.08 s apart, and at least 1.21-1.88 s of validity remained.
+  - **One run:** one heartbeat came about 2.6 s late, giving 5 stale samples
+    (about 1 s, honest `Unknown`). The machine was shared with parallel build
+    agents; 45 timed native collections afterwards showed no stall (median
+    11 ms, max 354 ms on the first). The cause was not determined.
+  - **The old provider in the same check** wrote every 2.0 s with at least
+    3.31 s left.
+  - **Stop from a second process:** the worker exited 52-80 ms after the stop
+    request was written (124 ms for the old provider).
+- **CPU, in-process profiles under the same shared load** (not benchmarks):
+  - the old stop check cost 5.8 ms per call, ten times a second;
+  - a collection now costs about 20-25 ms of CPU per 2 s cycle, the floor
+    that remains;
+  - a snapshot write costs about 10 ms;
+  - in 20 s windows the old worker used 11.2% of a core and the new one
+    2.1-2.5%, including first-run compilation.
+
+Not verified:
+- The isolated benchmark and the live trace (step 3 measures them).
+- File-system operation counts (Procmon or ETW).
+- How often Windows media-session calls stall on a normal desktop.
+- The fallbacks: no stop event, and an owner handle that cannot be waited on.
+  They are exercised only synthetically.
+- The live Rainmeter, which was not touched.
 
 ### Cover without the WNP plugin (2026-10-20)
 

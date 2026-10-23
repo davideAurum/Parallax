@@ -2604,6 +2604,27 @@ class SkinContractTests(unittest.TestCase):
                 for name in [name for name in capture if name not in OUTPUT_ROW_CHILDREN]+['MeasureVisualizerState']:
                     self.assertEqual(sections[name]['UpdateDivider'],'#VisualizerCaptureDivider#',name)
                 self.assertEqual(val('#VisualizerCaptureDivider#'),1)
+                # The mask is out of periodic updates until there is signal: the
+                # non-signal state actions park it at -1, the signal action
+                # restores the capture cadence and forces one update
+                # (MEDIA-04, VIS-02). Media's divider is a formula with spaces,
+                # so the bang argument must be quoted.
+                mask=sections['MeterVisualizerSpectrumMask']
+                self.assertEqual(mask['UpdateDivider'],'-1')
+                state=sections['MeasureVisualizerState']
+                for suffix in ('','2','4'):
+                    self.assertTrue(state['IfTrueAction'+suffix].startswith('[!SetOption MeterVisualizerSpectrumMask UpdateDivider -1]'))
+                self.assertTrue(state['IfTrueAction3'].startswith(
+                    '[!SetOption MeterVisualizerSpectrumMask UpdateDivider "#VisualizerCaptureDivider#"]'
+                    '[!UpdateMeter MeterVisualizerSpectrumMask][!ShowMeterGroup VisualizerSpectrum]'))
+                # Rainmeter inlines the variable text (pre-expanded), spaces and all.
+                inlined=variables['VisualizerCaptureDivider']
+                for _ in range(20):
+                    inlined=TOKEN.sub(lambda match: variables.get(match[1],match[0]),inlined)
+                self.assertNotIn('#',inlined)
+                self.assertIn(' ',inlined)
+                self.assertNotIn('"',inlined)
+                self.assertEqual(numeric(inlined),1)
                 apply=sections['MeasureVisualizerColorApply']
                 self.assertEqual({key:apply.get(key) for key in ('Measure','Formula','UpdateDivider','OnUpdateAction')},
                                  {'Measure':'Calc','Formula':'1','UpdateDivider':'-1',

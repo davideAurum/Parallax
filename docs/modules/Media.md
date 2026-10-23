@@ -1014,6 +1014,15 @@ its own commit so it can be measured alone.
   reports in 53 s: 24 Media windows repainting at 20 Hz starve the isolated
   instance (an observation, not a benchmark). Captures shared with the
   baseline run are pixel-identical outside the animated icon.
+- **MEDIA-04, the open drawer's hidden mask.** In silence the drawer hid its
+  bars but the mask stayed due on every tick, re-reading its 24 paths and
+  keeping the window at 20 repaints a second. The shared `Capture.inc` state
+  actions now park it at `UpdateDivider=-1` in every non-signal state and
+  restore the capture cadence (with one forced update) on signal; see
+  [Visualizer paint on change](Visualizer.md#paint-on-change-2026-10-22).
+  With the drawer open, paused and quiet, the scratch native harness counted
+  repaints on 8 of 40 ticks (the 250 ms volume readout, addressed next)
+  instead of 40 of 40; with signal the mask updates every tick as before.
 
 ### Cover without the WNP plugin (2026-10-20)
 

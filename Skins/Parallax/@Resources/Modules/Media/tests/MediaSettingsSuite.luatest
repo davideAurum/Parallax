@@ -1412,6 +1412,7 @@ local function drawer_stage()
         check((SKIN:GetMeter(name)~=nil)==open,name..(open and ' missing from the open drawer' or ' loaded while the drawer is closed'))
     end
     spectrum_tab(g,width,height)
+    local mask_note=''
     if open then
         check(SKIN:GetMeasure('MeasureVisualizerAudio'):GetOption('Port')=='Output','Drawer does not capture the output device')
         -- The plot and its 19px frequency row hang 4px above the player; the
@@ -1439,6 +1440,14 @@ local function drawer_stage()
         check(math.abs(hit:GetY(true)+hit:GetH()-(plot_y-scale))<=1 and math.abs(hit:GetX(true)+hit:GetW()-(plot_x+meter:GetW()))<=1,
             string.format('Output row %g,%g %gx%g does not sit on the plot',hit:GetX(true),hit:GetY(true),hit:GetW(),hit:GetH()))
         check(SKIN:GetMeasure('MeasureVisualizerVolume')~=nil,'Open drawer has no Win7Audio volume measure')
+        -- The hidden mask stays out of periodic updates, so a quiet drawer
+        -- repaints nothing on its own (MEDIA-04, VIS-02). This observer runs
+        -- after MeasureVisualizerState in the same tick.
+        local capture_state=SKIN:GetMeasure('MeasureVisualizerState'):GetValue()
+        local mask_divider=formula(SKIN:GetMeter('MeterVisualizerSpectrumMask'):GetOption('UpdateDivider'))
+        check(mask_divider==(capture_state==2 and formula('#VisualizerCaptureDivider#') or -1),
+            string.format('Mask divider %s in capture state %s',tostring(mask_divider),tostring(capture_state)))
+        mask_note=string.format(' capture=%d mask=%d',capture_state,mask_divider)
         -- Grid lines on pixel centres: Floor(k/4 of the bar height)+1.5.
         for k=1,3 do
             local expression=meter:GetOption('Shape'..(k+1)):match('^Line 1,(%b()),')
@@ -1452,7 +1461,7 @@ local function drawer_stage()
     local anchor_x,anchor_y,marker=config_anchor()
     local custom=kind=='DrawerPlayerAnchored'
     local entry=string.format('stage=%d w=%d h=%d x=%d y=%d panel=%d anchorx=%s anchory=%s marker=%s audio=%d lift=%d',stage,SKIN:GetW(),SKIN:GetH(),
-        SKIN:GetX(),SKIN:GetY(),SKIN:GetY()+panel:GetY(true),anchor_x or 'absent',anchor_y or 'absent',marker or 'absent',open and 1 or 0,lift)
+        SKIN:GetX(),SKIN:GetY(),SKIN:GetY()+panel:GetY(true),anchor_x or 'absent',anchor_y or 'absent',marker or 'absent',open and 1 or 0,lift)..mask_note
     local history,lines=drawer_history()
     if custom then
         -- Never the drawer's: no write and no ownership record at any stage.

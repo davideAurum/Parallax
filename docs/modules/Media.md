@@ -721,7 +721,10 @@ Between collections the worker waits instead of polling (since 2026-10-22):
 - **Owner exit** still ends the worker at once, without a `stopped` snapshot.
 - **Fallbacks.** Without the event (name unavailable), Stop is seen at the
   end of the cycle, within 2 seconds. An owner handle that cannot be waited on
-  keeps the old 100 ms owner wait.
+  keeps the old 100 ms owner wait. The worker clears the event after every
+  wake, before it re-checks the request file, so a manual-reset event that
+  another process created under that name and left signaled cannot make the
+  wait spin.
 - **Change-only writes.** A changed observation (state or any record) is
   written at once, and every run writes its first observation.
 - **While Spotify plays, every cycle.** An unchanged `ready` observation that
@@ -1110,6 +1113,11 @@ behaviour-preserving brief, so the fixes below were added as new commits:
 - **Snapshot flush, split out.** The first version also stopped forcing
   snapshot writes to disk in the same commit. That part was undone and then
   re-applied as a commit of its own, so it can be measured alone.
+- **A squatted stop event cannot spin the wait.** The worker clears the stop
+  event after each wake. With a signaled manual-reset event pre-created under
+  its name, a 300 ms cycle now makes 2 waits (457 without the reset, a busy
+  spin), and Stop still ends the worker in 33 ms. The suite passes 340
+  assertions.
   - `Test-SourceProvider.ps1` now passes 334 assertions. It checks the rule's
     decisions, and that a worker on a simulated clock writes every cycle while
     Spotify plays (`ready@1000` through `ready@1008`) and keeps the sparse

@@ -242,7 +242,7 @@ Assert-Throws { Write-SourceAtomicFile $dirStopRoot 'stop.request' "stop`n" } 'S
 # so the worker below runs the real Invoke-SourceRun on this thread.
 $waitRoot=Initialize-SourceStorage (Join-Path ([IO.Path]::GetTempPath()) ('Parallax-SourceProvider-wait-'+[Guid]::NewGuid().ToString('N')))
 function Start-SourceTestPeer {
-    param([int[]]$StrayAtMs,[int]$StopAtMs)
+    param([int[]]$StrayAtMs,[int]$StopAtMs,[string]$Root=$waitRoot)
     $ready=New-Object Threading.ManualResetEvent($false)
     $peer=[PowerShell]::Create()
     $null=$peer.AddScript({
@@ -259,7 +259,7 @@ function Start-SourceTestPeer {
         $stopAt=[Diagnostics.Stopwatch]::GetTimestamp()
         Stop-SourceObserver $Root
         $stopAt
-    }).AddArgument($sourcePath).AddArgument($waitRoot).AddArgument($StrayAtMs).AddArgument($StopAtMs).AddArgument($ready)
+    }).AddArgument($sourcePath).AddArgument($Root).AddArgument($StrayAtMs).AddArgument($StopAtMs).AddArgument($ready)
     $result=$peer.BeginInvoke()
     if (-not $ready.WaitOne(30000)) { throw 'Synthetic Stop peer did not load.' }
     $ready.Dispose()
@@ -325,6 +325,29 @@ $fallbackClock=[Diagnostics.Stopwatch]::StartNew()
 Assert-Test ((Wait-SourceSignal $waiter 150) -eq 'timeout' -and $fallbackClock.ElapsedMilliseconds -ge 140) 'Handle-less wait did not wait out its time.'
 $waiter=New-SourceWaiter ([pscustomobject]@{Name='not a process'}) $null
 Assert-Test ($waiter.PollOwner -and (Wait-SourceSignal $waiter 150) -eq 'owner') 'Unwaitable owner did not fall back to the bounded owner wait.'
+# A manual-reset event squatted under the stop event's name and left signaled
+# must not make the wait spin: the worker clears it after each wake. A real
+# Stop still wakes the worker at once.
+$squatRoot=Initialize-SourceStorage (Join-Path ([IO.Path]::GetTempPath()) ('Parallax-SourceProvider-squat-'+[Guid]::NewGuid().ToString('N')))
+$squatter=New-Object Threading.EventWaitHandle($true,[Threading.EventResetMode]::ManualReset,((Get-SourceMutexName $squatRoot)+'.Stop'))
+$savedWait=(Get-Item Function:\Wait-SourceSignal).ScriptBlock
+$squatState=[pscustomobject]@{Waits=0; Calls=0}
+function Wait-SourceSignal { param($Waiter,[int]$Milliseconds) $squatState.Waits++; & $savedWait $Waiter $Milliseconds }
+try {
+    $squatCollector={ $squatState.Calls++; if ($squatState.Calls -eq 2) { [IO.File]::WriteAllText((Join-Path $squatRoot 'stop.request'),"stop`n") }; New-SourceSnapshot 'unavailable' }.GetNewClosure()
+    Assert-Test (Invoke-SourceRun $squatRoot $squatCollector -CycleMilliseconds 300) 'Worker beside a squatted stop event did not exit cleanly.'
+    Assert-Test ($squatState.Calls -eq 2 -and $squatState.Waits -le 3) "A squatted, signaled stop event made the worker wait $($squatState.Waits) times in one 300 ms cycle."
+    $script:SourceTestTimings+=('Waits in one cycle beside a squatted, signaled stop event: {0}' -f $squatState.Waits)
+    [IO.File]::Delete((Join-Path $squatRoot 'stop.request'))
+    $null=$squatter.Set(); $squatState.Waits=0; $waitState.Calls=0
+    $peer=Start-SourceTestPeer @() 300 $squatRoot
+    Assert-Test (Invoke-SourceRun $squatRoot $waitCollector) 'Worker beside a squatted stop event did not exit on Stop.'
+    $returnedAt=[Diagnostics.Stopwatch]::GetTimestamp()
+    $stopLatency=($returnedAt-(Complete-SourceTestPeer $peer))*$toMs
+    Assert-Test ($stopLatency -ge 0 -and $stopLatency -lt 1000 -and $waitState.Calls -eq 1) "Stop beside a squatted stop event took $([Math]::Round($stopLatency)) ms."
+    Assert-Test ($squatState.Waits -le 3) "Stop beside a squatted stop event took $($squatState.Waits) waits."
+    $script:SourceTestTimings+=('Stop to exit beside a squatted stop event: {0:N0} ms' -f $stopLatency)
+} finally { Set-Item Function:\Wait-SourceSignal $savedWait; $squatter.Dispose() }
 
 # ACLs: the private directory's ACL is set by Initialize-SourceStorage. A
 # snapshot gets an explicit private ACL only when first created; File.Replace

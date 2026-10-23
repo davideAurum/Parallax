@@ -186,8 +186,15 @@ function Wait-SourceSignal {
     catch { return 'owner' }
     if ($index -eq [Threading.WaitHandle]::WaitTimeout) { return 'timeout' }
     if ($index -eq $Waiter.OwnerIndex) { return 'owner' }
+    # The stop event fired. Clear it before the caller re-checks the stop
+    # marker. For the intended auto-reset event the wait already did; a
+    # manual-reset event squatted under this name and left signaled would
+    # otherwise end every wait at once and spin a core. Clearing before the
+    # re-check cannot lose a Stop, which writes its marker before the event.
+    try { $null = $Waiter.Handles[$index].Reset() } catch { }
     return 'wake'
 }
+
 function Enter-SourceMutex {
     param([Threading.Mutex]$Mutex, [int]$Milliseconds = 0)
     try { return $Mutex.WaitOne($Milliseconds) }

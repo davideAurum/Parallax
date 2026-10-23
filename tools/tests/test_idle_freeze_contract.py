@@ -40,6 +40,7 @@ JOIN = 'PARALLAXIDLEJOIN'
 # set is applied on top of IdlePauseMinutes=5 (the hook) and checked
 # separately. Every utility entrypoint is listed once it carries the hook.
 CONSUMERS = OrderedDict([
+    ('Chronometer/Chronometer.ini', [{}]),
 ])
 
 # Every utility entrypoint, wired or not yet (all ten once C2 is complete).

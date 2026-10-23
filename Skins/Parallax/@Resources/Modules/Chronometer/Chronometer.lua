@@ -119,6 +119,17 @@ function Update()
     return 0
 end
 
+-- Idle stand-down (Global Settings Idle pause; @Resources\Idle\StandDown.lua):
+-- this measure is paused with the skin, but deadlines are wall-clock, so a
+-- timer that ran out meanwhile is marked done and saved on resume, before the
+-- hook's forced update paints it. Nothing else changes while paused.
+function IdleLeave()
+    if state and Core.tick(state, os.time()) then
+        dirty = true
+        save()
+    end
+end
+
 function Toggle(row)
     if type(row) ~= 'number' or row < 1 or row > Core.ROWS or row ~= math.floor(row) then return end
     if Core.toggle(state, (state.selected - 1) * Core.ROWS + row, os.time()) then

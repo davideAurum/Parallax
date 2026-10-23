@@ -63,6 +63,7 @@ function Register-Skin([string]$Key, [string]$Config, [string]$File, [double]$Ti
     $script:skins[$Key] = [pscustomobject]@{ Key = $Key; Config = $Config; File = $File; Tick = $Tick; Extra = $Extra
         Relative = ($Config.Substring('Parallax\'.Length) + '\' + $File).Replace('\', '/') }
 }
+Register-Skin 'Chronometer' 'Parallax\Chronometer' 'Chronometer.ini' 1.0
 
 Add-Type -AssemblyName System.Drawing
 if (-not ('ParallaxStandDownNative' -as [type])) {
@@ -291,7 +292,7 @@ function New-StandDownRun($Entry, [string]$LayoutName) {
     Set-Key $idleIni 'ParallaxIdleTestHeartbeatTicks' '4'
     $lists = & python (Join-Path $toolsRoot 'tests\test_idle_freeze_contract.py') --list $Entry.Relative "$root\meters.txt" "$root\measures.txt" 'IdlePauseMinutes=5' 2>&1
     if ($LASTEXITCODE -ne 0) { throw "Static list failed: $lists" }
-    Write-Output "     $lists"
+    Write-Host "     $lists"
     $entryPath = Join-Path $target ($Entry.Config.Substring('Parallax\'.Length) + '\' + $Entry.File)
     $default = '1'
     $entryText = [IO.File]::ReadAllText($entryPath)

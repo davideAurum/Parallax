@@ -118,14 +118,37 @@ function suite.run(sourcePath)
             end
             return found
         end
+        -- The transport meters use UpdateDivider=-1, and Rainmeter 4.5 applies a
+        -- !SetOption to such a meter only when it is forced to update. So every
+        -- meter whose options changed is forced exactly once, after its last
+        -- option, and no other meter or group is: periodic samples included,
+        -- or a play/pause from another app keeps the old art until hover.
         function instance.assertRefresh(immediate)
-            local expected = immediate and 1 or 0
-            check(instance.count('!UpdateMeterGroup', 'MediaDynamic') == expected,
-                immediate and 'Interactive UI change must update MediaDynamic exactly once'
-                    or 'Periodic UI change must defer meter updates to the normal skin cycle')
-            check(instance.count('!Redraw') == expected,
+            local lastSet, forced, lastForce = {}, {}, 0
+            for index, call in ipairs(calls) do
+                if call[1] == '!SetOption' then lastSet[call[2]] = index end
+            end
+            for index, call in ipairs(calls) do
+                if call[1] == '!UpdateMeter' then
+                    forced[call[2]] = (forced[call[2]] or 0) + 1
+                    check(lastSet[call[2]] ~= nil, 'An unchanged meter was forced: ' .. tostring(call[2]))
+                    check(index > (lastSet[call[2]] or math.huge), 'A meter must be forced after its options are set')
+                    lastForce = index
+                end
+            end
+            for meter in pairs(lastSet) do
+                check(forced[meter] == 1, 'A changed UpdateDivider=-1 meter must be forced exactly once: ' .. meter)
+            end
+            check(instance.count('!UpdateMeterGroup', 'MediaDynamic') == 0,
+                'A MediaDynamic group update would also force unchanged meters')
+            check(instance.count('!Redraw') == (immediate and 1 or 0),
                 immediate and 'Interactive UI change must redraw exactly once'
-                    or 'Periodic UI change must defer to Rainmeter end-of-cycle redraw')
+                    or 'Periodic UI change must leave the repaint to the provider tick\'s own skin cycle')
+            if immediate then
+                for index, call in ipairs(calls) do
+                    if call[1] == '!Redraw' then check(index > lastForce, 'Interactive redraw must follow the forced updates') end
+                end
+            end
             check(instance.count('!CommandMeasure') == 0, 'Update must not send playback commands')
         end
         return instance
@@ -167,6 +190,51 @@ function suite.run(sourcePath)
         f.assertRefresh()
         f.reset()
         check(f.env.Update() == 'Paused' and #f.calls() == 0, 'Paused repeat caused redundant bangs')
+    end)
+
+    scenario('external play/pause and capability changes force only the changed transport meters', function()
+        -- Another app or a media key pauses playback: only the provider sample
+        -- changes, at the provider cadence, with no hover and no click here.
+        local f = fixture()
+        f.env.Update()
+        f.reset()
+        f.values.MeasureState.value = 2
+        check(f.env.Update() == 'Paused' and f.symbol() == 'pause', 'External pause must select the Pause art')
+        check(f.count('!UpdateMeter', 'MeterPlayPause') == 1,
+            'External pause must force the UpdateDivider=-1 play/pause meter, or its art stays stale until hover')
+        check(f.count('!UpdateMeter') == 1, 'External pause must force only the play/pause meter')
+        check(f.count('!UpdateMeterGroup') == 0, 'External pause must not force a meter group')
+        f.assertRefresh()
+        f.reset()
+        check(f.env.Update() == 'Paused' and #f.calls() == 0, 'A repeated paused sample must issue no bang')
+        f.values.MeasureState.value = 1
+        check(f.env.Update() == 'Playing' and f.symbol() == 'play', 'External resume must restore the Play art')
+        check(f.count('!UpdateMeter', 'MeterPlayPause') == 1 and f.count('!UpdateMeter') == 1,
+            'External resume must force only the play/pause meter')
+        f.assertRefresh()
+        -- The player drops Next support: only Next's stroke and cursor change.
+        f.reset()
+        f.values.MeasureCanNext.value = 0
+        check(f.env.Update() == 'Playing', 'A capability change must not change playback state')
+        check(f.strokeColor('MeterNext') == '111,112,113' and f.option('MeterNext', 'MouseActionCursor') == '0',
+            'Unsupported Next must turn muted and inactive')
+        check(f.count('!UpdateMeter', 'MeterNext') == 1 and f.count('!UpdateMeter') == 1,
+            'A capability change must force only the meter it changes')
+        f.assertRefresh()
+        -- The provider disconnects: Previous and Play/Pause turn muted; Next
+        -- already is, so it is not forced again.
+        f.reset()
+        f.values.MeasureConnection.value = 0
+        check(f.env.Update() == 'WNP disconnected', 'Disconnect status incorrect')
+        check(f.count('!UpdateMeter', 'MeterPrevious') == 1 and f.count('!UpdateMeter', 'MeterPlayPause') == 1
+            and f.count('!UpdateMeter', 'MeterNext') == 0, 'Disconnect must force exactly the two meters it changes')
+        f.assertRefresh()
+        -- Reconnect while paused: every control and the art follow the sample.
+        f.reset()
+        f.values.MeasureConnection.value, f.values.MeasureCanNext.value, f.values.MeasureState.value = 1, 1, 2
+        check(f.env.Update() == 'Paused' and f.symbol() == 'pause', 'Reconnect while paused must show Pause')
+        check(f.count('!UpdateMeter') == 3, 'Reconnect must force each transport meter once')
+        f.assertRefresh()
     end)
 
     scenario('disconnected hides stale content and gates controls', function()

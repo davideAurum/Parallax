@@ -1,6 +1,6 @@
 -- Original Parallax UI adapter. No file I/O, subprocesses, timers, or network.
 -- Metadata stays bound to measures; it never becomes a bang or Lua command.
-local measures, applied, playPauseHovered, transportHovered, activeTiming
+local measures, applied, pending, playPauseHovered, transportHovered, activeTiming
 local emptyShape = 'Rectangle 0,0,1,1 | Fill Color 0,0,0,0 | StrokeWidth 0'
 local playPauseShapes = {
     play = { 'Path LucideTransportPlayPath | Extend LucideTransportStroke', emptyShape, emptyShape },
@@ -28,7 +28,7 @@ local commands = {
     Next = { measure = 'MeasureCanNext', meter = 'MeterNext', nudge = '+#MediaTransportGlyphNudge#' }
 }
 function Initialize()
-    measures, applied, playPauseHovered = {}, {}, false
+    measures, applied, pending, playPauseHovered = {}, {}, {}, false
     transportHovered, activeTiming = {}, nil
     local names = { 'MeasureConnection', 'MeasureTitle', 'MeasureCover', 'MeasureState',
         'MeasurePosition', 'MeasureDuration', 'MeasureCanPrevious', 'MeasureCanPlayPause', 'MeasureCanNext' }
@@ -58,8 +58,16 @@ local function change(key, value, bang, ...)
     return true
 end
 
+-- The transport meters use UpdateDivider=-1, and Rainmeter 4.5 applies a
+-- !SetOption to such a meter only when the meter is forced to update, so each
+-- meter given a new option is queued, once and in order, for one forced update.
 local function option(meter, key, value)
-    return change(meter .. ':' .. key, value, '!SetOption', meter, key, value)
+    if not change(meter .. ':' .. key, value, '!SetOption', meter, key, value) then return false end
+    if not pending[meter] then
+        pending[meter] = true
+        pending[#pending + 1] = meter
+    end
+    return true
 end
 
 local function group(name, visible)
@@ -111,13 +119,20 @@ function Update(immediate)
         -- Background occupies Shape..Shape3, so the art starts at Shape4.
         changed = option('MeterPlayPause', 'Shape' .. (index + 3), shape) or changed
     end
+    -- Force exactly the meters whose options changed, periodic samples
+    -- included: a play/pause from another app or a media key arrives only
+    -- through this sample, and unforced its art stayed stale until hover.
+    -- Show/hide needs no force. An unchanged sample issues no bang.
+    for _, name in ipairs(pending) do SKIN:Bang('!UpdateMeter', name) end
+    pending = {}
     -- Static metadata Shapes need their options rebuilt after hide/show changes.
     -- UpdateDivider=-1 keeps this work confined to track availability transitions.
     if trackChanged and immediate == true then SKIN:Bang('!UpdateMeterGroup', 'MediaTrack') end
-    if changed and immediate == true then
-        SKIN:Bang('!UpdateMeterGroup', 'MediaDynamic')
-        SKIN:Bang('!Redraw')
-    end
+    -- A periodic sample leaves the repaint to this provider tick's own skin
+    -- cycle: the measure-bound player meters share this measure's divider, so
+    -- the window repaints at the end of the same cycle (test_skin_contract.py
+    -- guards that). Hover runs outside the cycle and repaints here.
+    if changed and immediate == true then SKIN:Bang('!Redraw') end
     if not online then return 'WNP disconnected' end
     if not track then return 'WNP idle' end
     if state == 1 then return 'Playing' end

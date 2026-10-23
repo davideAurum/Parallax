@@ -814,7 +814,10 @@ Play, changes to Play Off on hover, and clicking toggles to pause. While paused
 it shows Pause, changes to the supplied Step Forward artwork on hover, and
 clicking toggles to play. Leaving the button restores its current-state icon;
 clicking does not fabricate a playback state. Stopped, unknown and disconnected
-states retain the existing Play fallback and capability checks. Previous and
+states retain the existing Play fallback and capability checks. A change made
+outside Media, such as a pause in another app or from a media key, or a player
+gaining or losing a control, reaches the buttons at the provider cadence
+(about a second) without hovering them. Previous and
 Next fill their glyph interior when hovered and retain their existing track
 commands. The circular face carries `AccentColor`, so an accent glyph would be
 invisible on it; enabled glyphs are drawn in `BackgroundColor` instead, which is
@@ -1304,6 +1307,65 @@ its own commit so it can be measured alone.
   fails Rainmeter's formulas: Media then keeps a static icon but also falls
   back to Rainmeter's default 1-second tick, which would slow an open
   spectrum drawer, until a Media settings click writes a valid value.
+
+### Transport repaints on external play/pause (2026-10-22)
+
+Phase B package B5 (`perf/B5-media-transport`). This bug predates phase A; it
+was found during it. The three transport buttons use `UpdateDivider=-1`, and
+Rainmeter 4.5 applies a `!SetOption` to such a meter only when the meter is
+forced to update. `Media.lua` forced them only from hover
+(`!UpdateMeterGroup MediaDynamic`). So a change that reached Media only
+through the provider sample kept the old drawing until the pointer crossed a
+button: a pause in another app or from a media key, a resume, a player
+dropping Next, a connect or a disconnect. The title already read "Media
+Player: paused" while the centre button still showed Play.
+
+- **Fix.** `Media.lua` queues each transport meter whose options change and
+  forces exactly those meters, once each, after their options, on every path.
+- **No extra repaint.** A periodic sample issues no `!Redraw`. The
+  measure-bound player meters (title, artist, album, progress, timing, cover)
+  share `MeasureMediaUI`'s divider, so they are due on the same tick and the
+  skin cycle repaints right after. A new contract test keeps them aligned for
+  every drawer state and title animation.
+- **Hover** still repaints itself, but now forces only the meter it changed
+  instead of the five-meter `MediaDynamic` group.
+- **Paint on change is kept.** An unchanged sample still issues no bang, so
+  nothing repaints when nothing changes. A transition costs one forced update
+  per changed button.
+
+Checked:
+
+- **`tests/MediaSuite.luatest`.** Every refresh assertion now requires each
+  meter with a changed option to be forced exactly once, after the option, and
+  no group update. A new scenario drives provider-only pause, resume, loss of
+  Next support, disconnect and reconnect, which force 1, 1, 1, 2 and 3 meters.
+  Against the base adapter (`191a1cd`) it fails with "External pause must force
+  the UpdateDivider=-1 play/pause meter, or its art stays stale until hover".
+  With the fix, 582 assertions in 20 scenarios pass natively (`Test-Media.ps1`)
+  and under OBS's LuaJIT.
+- **New `tests/Test-MediaTransport.ps1`.** It loads the real Media.ini in an
+  isolated Rainmeter, with built-in fixture measures at the production
+  dividers. It changes only the fixture's play state or Next support, waits
+  two provider cycles and captures. Then it forces the transport and captures
+  the ground truth.
+
+  | Transport row (120×44 px) | Base adapter | Fixed |
+  | --- | ---: | ---: |
+  | External pause vs forced Pause | 194 px differ | 0 |
+  | External pause vs the earlier Play frame | 0 (stale) | 194 |
+  | External resume vs forced Play | 194 | 0 |
+  | Next unsupported vs forced muted Next | 248 | 0 |
+
+  The fixed adapter also passes with Title animation Off (1-second tick).
+  Window 456×186.
+- `Test-MediaSettings.ps1 -IdentityIconsFocused` and `-QueueTogglePlayersOnly`
+  pass. `test_skin_contract.py` passes 31 tests, and
+  `tools/Test-Parallax.ps1 -RequireAllModules -WarningsAsErrors` reports 0
+  errors and 0 warnings.
+
+Not verified: a real WebNowPlaying player (isolated profiles have no WNP), and
+CPU cost. No benchmark was run; by design the fix adds work only on a
+transition.
 
 ### Cover without the WNP plugin (2026-10-20)
 

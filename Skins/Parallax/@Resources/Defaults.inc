@@ -52,3 +52,17 @@ NetworkInColor=240,225,40
 NetworkOutColor=100,230,90
 MediaColor=137,190,250
 ClockColor=137,190,250
+; Idle stand-down hook (@Resources\Idle\Hook.inc). Neutral unless Idle pause
+; is on: then Hook5/10/30.inc sets the delayed coordinator join, and each
+; utility entrypoint, after its includes, places its "Paused (idle)" line,
+; names its module controllers and derives the hook's divider from
+; ParallaxIdleHookMs (about one run a minute).
+ParallaxIdleJoinAction=
+ParallaxIdleHookMs=60000
+ParallaxIdleHookDivider=60
+ParallaxIdleControllers=
+ParallaxPausedX=0
+ParallaxPausedY=0
+ParallaxPausedW=1
+ParallaxPausedH=1
+ParallaxPausedAlign=Right

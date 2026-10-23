@@ -219,11 +219,27 @@ Y=(#Inset#+270*#Scale#)
 Text=On
 LeftMouseUpAction=[!CommandMeasure MeasureRAMSettings "Cycle('RAMShowHistory')"]
 
+; The table's UsageMonitor ranks load only while it shows, so this toggle
+; refreshes Memory Meter (Settings.lua); the other toggles apply live.
+[MeterRAMSettingsProcessesLabel]
+Meter=String
+MeterStyle=StyleUtilitySettingsLabel | StyleRAMSettingsLabel
+Y=(#Inset#+300*#Scale#)
+Text=Top processes
+LeftMouseUpAction=[!CommandMeasure MeasureRAMSettings "Cycle('RAMShowProcesses')"]
+
+[MeterRAMSettingsProcesses]
+Meter=String
+MeterStyle=StyleUtilitySettingsValue | StyleRAMSettingsValue
+Y=(#Inset#+298*#Scale#)
+Text=On
+LeftMouseUpAction=[!CommandMeasure MeasureRAMSettings "Cycle('RAMShowProcesses')"]
+
 [MeterRAMSettingsHint]
 Meter=String
 MeterStyle=StyleLabel
 X=#ContentX#
-Y=(#Inset#+298*#Scale#)
+Y=(#Inset#+326*#Scale#)
 W=#ContentWidth#
 H=(18*#Scale#)
 FontSize=(#FontSize#*#Scale#)
@@ -234,7 +250,7 @@ Group=RAMSettingsUI
 Meter=String
 MeterStyle=StyleLabel
 X=#ContentX#
-Y=(#Inset#+318*#Scale#)
+Y=(#Inset#+346*#Scale#)
 W=#ContentWidth#
 H=(18*#Scale#)
 FontSize=(#FontSize#*#Scale#)

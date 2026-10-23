@@ -43,7 +43,7 @@ Supported CPU variables:
 | `CPUCoresPerPage` | Advanced manual page size 1–64, used only when CPUAutoRows=0; fallback 8. |
 | `CPUPage` | Saved manual page, clamped to available pages. Paging controls appear only when needed. |
 | `CPUCoreLimit` | 0 uses detected count; positive values can only reduce it. |
-| `CPUShowInfo`, `CPUShowCores`, `CPUShowProcesses`, `CPUShowHistory` | Individual section visibility: 0 hides, 1 shows. Processor Info controls the processor panel, Clock and both fan rows together. |
+| `CPUShowInfo`, `CPUShowCores`, `CPUShowProcesses`, `CPUShowHistory` | Individual section visibility: 0 hides, 1 shows. Processor Info controls the processor panel, Clock and both fan rows together. `CPUShowProcesses` also chooses, at load, whether the process slots' UsageMonitor measures exist, so changing it in CPU Settings refreshes CPU Meter (restarting its history), like a rate change; the others apply without a refresh. |
 | `CPUShowFan`, `CPUShowMotherboardFan` | Independently show or collapse the CPU and motherboard fan rows while Processor Info is visible. |
 | `CPUProcessCount` | 1–10 ranked process names; fallback 5. |
 | `CPUHistorySource` | 0 draws total busy time (% Processor Time); 1 overlays independent logical-thread busy-time traces on the same axes. Changing it starts a fresh history. |
@@ -71,7 +71,7 @@ Total and per-thread load use Rainmeter's bundled UsageMonitor against Windows `
 
 The process list uses UsageMonitor with Alias=CPU, so process values are time-based percentages of total CPU. Rollup=1 groups same-name instances; entries are not PID-specific. A ranked index with zero activity returns an empty name, which is not displayed as a named zero reading. Empty rankings show Waiting or No active process data. Its API supplies no independent freshness/error signal, so empty/stale counters cannot reliably be distinguished from inactivity. Process percentages and the total now share a time basis, but the rows still need not add up to the total: the list shows only the top entries, the Process and Processor Information categories run on separate one-second UsageMonitor timers, and each process is normalized by the Process `_Total` instance, which includes Idle. When a process with accumulated CPU time exits, the Process `_Total` change collapses for one collection and the remaining rows inflate for about a second; a replica of UsageMonitor's calculation showed a steady 8.4% process reading 68.0%. That plugin behavior has not yet been observed in the live skin. [UsageMonitor](https://docs.rainmeter.net/manual/plugins/usagemonitor/)
 
-UsageMonitor's Process category worker collects independently at about 1 Hz. Hiding the list disables its display measures, but does not claim to stop that shared worker. Unload the CPU skin, and any other skins using that category, to remove its collection cost. No repeated subprocess polling, external plugin installation or binary download is required. Steady-state overhead has not been measured.
+UsageMonitor's Process category worker collects independently at about 1 Hz, process-wide, while any loaded measure in any skin names the category; a `Disabled=1` measure still keeps it registered. Since 2026-10-23 the ten process slots load only while the list is shown: `Measures.inc` includes `ProcessMeasures<CPUShowProcesses>.inc`, and `ProcessMeasures0.inc` is comment-only. With the list hidden CPU Meter therefore keeps no Process reader alive; Memory Meter's own process measures still do while it is loaded, which is expected sharing (one reader serves both). See [UsageMonitor registration by include](#usagemonitor-registration-by-include-2026-10-23). No repeated subprocess polling, external plugin installation or binary download is required. Steady-state overhead has not been measured.
 
 The 60-sample graph has 59 intervals between full-buffer endpoints, about 59 seconds at the default 1-second CPU refresh. The selected refresh rate changes that span. Scheduling delays and suspend/resume can stretch this; the graph is a sample sequence rather than a timestamped axis. A known-invalid total reading clears the total trace; a known-invalid per-thread reading clears only that trace. The per-thread renderer retains every selected observation and draws at most one point per horizontal pixel for each overlaid trace. Each trace is rendered as its own colored path so overlapping threads remain distinguishable; default colors repeat after twelve threads until edited. Native counters can otherwise retain stale values without an error flag, so freshness cannot be guaranteed.
 
@@ -113,7 +113,8 @@ Maintenance convention: when a dependency changes, update this table, the setup 
 - `CPU/Settings/Settings.ini`: separate event-driven settings config.
 - `CPU/Colors/Colors.ini`, `Modules/CPU/ThreadColors.lua`, `ThreadColorInput.ps1` and `ThreadColorMeters.inc`: CPU-only bounded hex/swatch editor and immediate color bridge for logical threads 1–64.
 - `Modules/CPU/CPU.lua`: adaptive section layout, core binding, process presentation, individually colored history paths and preference application. Its periodic `Update()` only sets options, and only changed ones; event handlers repaint.
-- `Modules/CPU/Measures.inc`: 129 % Processor Time UsageMonitor measures (one total, 64 page-relative table slots and 64 absolute graph slots), two metadata measures, 10 process-ranking UsageMonitor measures, an event-only apply measure and one controller.
+- `Modules/CPU/Measures.inc`: 129 % Processor Time UsageMonitor measures (one total, 64 page-relative table slots and 64 absolute graph slots), two metadata measures, the process-slot include, an event-only apply measure and one controller.
+- `Modules/CPU/ProcessMeasures1.inc` / `ProcessMeasures0.inc`: the 10 process-ranking UsageMonitor measures, or a comment-only stub while `CPUShowProcesses=0` (since 2026-10-23).
 - `Modules/CPU/SensorMeasures.inc`, `Sensors.lua`, `DiscoverSensors.ps1`: three native aggregate-clock measures plus 26 optional sensor/discovery/event measures, including four identity-checked fields each for CPU-wide Core Clocks, CPU fan RPM and motherboard fan RPM, validated native-read presentation, and one-shot read-only discovery.
 - `Modules/CPU/CoreMeters.inc`: 64 bounded thread slots with usage, paired voltage/temperature, and table borders. Unbound slots stay at `UpdateDivider=-1`.
 - `Modules/CPU/CoreSensorMeasures.inc`: 512 initially disabled native Registry fields; only discovered sensor fields become active. The former separate CoreSensorMeters include is removed.
@@ -195,6 +196,30 @@ Not verified:
 - Rainmeter's own Lua runtime.
 - Long runs.
 - Manual paging and other non-default layouts, which were checked only in the offline suite.
+
+## UsageMonitor registration by include (2026-10-23)
+
+Phase B package B2 of the [performance review](../PERFORMANCE-REVIEW.md), theme T4 (findings CPU-05, ENGINE-04, XMOD-07), branch `perf/B2-usagemonitor`.
+
+**Why.** UsageMonitor 1.0.1 (Rainmeter 4.5.28) gives each counter category one process-wide reader that reads the whole category every 1000 ms. A measure registers its category in the plugin's `Reload`, which Rainmeter runs at load even for a `Disabled=1` measure, and only unloading the measure (or changing its `Category`) unregisters it. Hiding the process list only disabled the ten slots, so the Process reader kept running for CPU Meter.
+
+**What changed.**
+
+- The ten `MeasureCPUProcess` slots moved from `Measures.inc` to `ProcessMeasures1.inc`. `Measures.inc` includes `ProcessMeasures<CPUShowProcesses>.inc` at the same place (before the controller), and `ProcessMeasures0.inc` is comment-only. `CPU.ini` sets `CPUShowProcesses=1` before the user include, so an older `CPU.inc` keeps the list.
+- CPU Settings now refreshes CPU Meter when the list is toggled, as it does for the two rates, so the include follows the choice. That restarts CPU history, which a live toggle did not; Process count and every other setting still apply without a refresh.
+- `CPU.lua` checks at load whether the slots exist. If the list is shown without them (only possible when the variable changes without the refresh), it binds nothing, so no bang names an absent measure, and the state line reads `Refresh CPU Meter to load processes`.
+
+**Expected effect.** None at the default (`CPUShowProcesses=1`): the same ten measures load in the same order. With the list hidden, CPU Meter no longer registers the Process category. The Process reader stops only if no other loaded measure names it; Memory Meter's process ranks do while Memory Meter is loaded with `RAMShowProcesses=1` (see [RAM](RAM.md#top-processes)). Measured gains are left to step 3; the verifier's estimate for CPU alone is small, because the reader is shared.
+
+| Check | Result |
+| --- | --- |
+| `tools/Test-Parallax.ps1 -RequireAllModules -WarningsAsErrors` | 23 configs, 107 files, 0 errors, 0 warnings. |
+| `tests/validate_cpu.py` | Pass (12 files, 684 measures). It now asserts that `Measures.inc` holds no process slot, that the shipped variant loads exactly the ten `Alias=CPU` slots from `ProcessMeasures1.inc`, that the stub is comment-only, and that `CPU.ini` sets the fallback before the user include. |
+| Offline Lua suites (OBS LuaJIT) | Controller 24 of 24, sensors 66 of 66, settings 43 of 43. The new controller test (no slot is named without the include; a shown list asks for a refresh) fails against the previous `CPU.lua` with `!EnableMeasure on unknown measure MeasureCPUProcess1`. The new settings test checks that the list toggle refreshes only CPU Meter, while History and Process count still apply live. |
+| `tools/Preview-Parallax.ps1 -Modules CPU`, base `perf/B1-helpers` vs branch, width 220 / scale 1 / 15 s | Both 228x558 with the same layout; 6104 differing pixels, all in live readings (total, clock and fans, thread rows, process rows and the graph). |
+| Same, with `CPUShowProcesses=0` | 228x448, no log error, process section absent. |
+
+**Not verified.** That the Process reader actually stops is shown from the plugin source and from the static check that no Process-category measure loads; it was not observed in a running instance, because CPU Meter still loads UsageMonitor for its Processor Information measures. CPU cost is left to step 3.
 
 ## Tooltips removed (2026-10-18)
 

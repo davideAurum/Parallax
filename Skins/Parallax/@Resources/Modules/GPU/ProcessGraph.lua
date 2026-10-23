@@ -7,6 +7,11 @@
 -- https://devblogs.microsoft.com/directx/gpus-in-the-task-manager/), never a
 -- sum of engines. Windows names decorate, but never merge, raw identities.
 local measures, previous, memoryBindings, recentPIDs
+-- The VRAM column's measures and meters load only with
+-- ProcessMemoryMeasures1.inc / ProcessMemoryMeters1.inc, which raise
+-- GPUProcessMemoryColumn to 1 (GPUShowProcessMemory=1). Without them nothing
+-- here names a memory measure or meter, so no bang targets a missing section.
+local memoryColumn
 -- The last name packet and its decoded PID map (empty when it was invalid).
 local namesPacket, namesDecoded
 local sources = {'MeasureGPUActivity', 'MeasureGPUProcess2',
@@ -144,6 +149,7 @@ local function memoryIdentity(raw)
 end
 
 local function memoryObservation(slot, raw)
+    if not memoryColumn then return nil end
     local key = 'MeasureGPUProcessMemory' .. slot
     local identity = memoryIdentity(raw)
     if not identity then
@@ -157,7 +163,11 @@ local function memoryObservation(slot, raw)
         return '--'
     end
     -- GPU Process Memory Local Usage: this PID's VRAM on this adapter across
-    -- all of its engines, not only the one ranked here.
+    -- all of its engines, not only the one ranked here. Bind only a lookup
+    -- that exists: bangs to a missing section would log an error on every
+    -- rebind. (A binding, and so the clearing branch above, needs one too.)
+    if not measures[key] then measures[key] = SKIN:GetMeasure(key) end
+    if not measures[key] then return '--' end
     local ready = pcall(function()
         if memoryBindings[slot] ~= identity then
             SKIN:Bang('!SetOption', key, 'Name', identity)
@@ -170,7 +180,6 @@ local function memoryObservation(slot, raw)
     end)
     if not ready then return '--' end
     local readable, returnedName, bytes = pcall(function()
-        if not measures[key] then measures[key] = SKIN:GetMeasure(key) end
         local source = measures[key]
         return source and source:GetStringValue() or '', source and source:GetValue() or nil
     end)
@@ -205,6 +214,8 @@ end
 function Initialize()
     visible = {}
     measures, previous, memoryBindings, recentPIDs = {}, {}, {}, {}
+    -- Only an explicit 0 from GPU.ini turns the column off.
+    memoryColumn = SKIN:GetVariable('GPUProcessMemoryColumn', '1') ~= '0'
     namesPacket, namesDecoded = nil, nil
 end
 
@@ -238,7 +249,7 @@ function Update()
             local memoryLabel = memoryObservation(slot, group.raw)
             set(nameMeter, 'Text', display(label))
             set(valueMeter, 'Text', display(percentage))
-            set(memoryMeter, 'Text', memoryLabel)
+            if memoryColumn then set(memoryMeter, 'Text', memoryLabel) end
             showRow(slot, true)
         elseif slot == 1 then
             -- Keep the first row visible to explain an empty ranking instead
@@ -246,7 +257,7 @@ function Update()
             memoryObservation(slot, nil)
             set(nameMeter, 'Text', 'No active GPU process data')
             set(valueMeter, 'Text', '--')
-            set(memoryMeter, 'Text', '--')
+            if memoryColumn then set(memoryMeter, 'Text', '--') end
             showRow(1, true)
         else
             memoryObservation(slot, nil)

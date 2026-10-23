@@ -15,6 +15,11 @@ RAMPercentDecimals=0
 RAMShowBar=1
 RAMShowPageBar=1
 RAMShowHistory=1
+; Top-process table: 1 shows it. 0 loads none of its UsageMonitor ranks, so
+; Memory Meter no longer keeps Windows' Process counters being read, and the
+; table's place reads "Processes off". RAM Settings refreshes Memory Meter
+; to apply it; refresh after editing here.
+RAMShowProcesses=1
 ; RGB only: opaque cover for not-yet-collected history, not a telemetry value.
 RAMHistoryEmptyColor=25,25,25
 ; Shared colors, FontFace, FontSize, Scale, and MetricsInterval can be

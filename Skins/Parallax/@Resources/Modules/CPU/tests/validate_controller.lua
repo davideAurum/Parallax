@@ -73,13 +73,17 @@ local function iniOption(sections, section, key, depth)
     return found
 end
 
-local function loadSkin(cpuPath)
+-- processMeasures=false loads the CPUShowProcesses=0 variant: Measures.inc
+-- then includes the comment-only ProcessMeasures0.inc, so no
+-- MeasureCPUProcess section exists.
+local function loadSkin(cpuPath, processMeasures)
     local moduleDir = cpuPath:gsub('[^/\\]+$', '')
     local resources = moduleDir:gsub('[Mm]odules[/\\]CPU[/\\]$', '')
     local skinRoot = resources:gsub('@Resources[/\\]$', '')
     local sections, order = {}, {}
     for _, path in ipairs({resources .. 'Styles.inc', skinRoot .. 'CPU/CPU.ini',
-            moduleDir .. 'CoreMeters.inc', moduleDir .. 'ProcessMeters.inc', moduleDir .. 'Measures.inc'}) do
+            moduleDir .. 'CoreMeters.inc', moduleDir .. 'ProcessMeters.inc', moduleDir .. 'Measures.inc',
+            moduleDir .. (processMeasures == false and 'ProcessMeasures0.inc' or 'ProcessMeasures1.inc')}) do
         readIni(path, sections, order)
     end
     local userSections, userOrder = {}, {}
@@ -94,7 +98,7 @@ end
 
 local function newMock(cpuPath, options)
     options = options or {}
-    local sections, order, userVariables = loadSkin(cpuPath)
+    local sections, order, userVariables = loadSkin(cpuPath, options.processMeasures)
     local context = {meters={}, meterList={}, measures={}, measureList={}, groups={},
         variables={}, now=5000, tick=0, threads=options.threads or 12, info=options.info or 'OK|6|12',
         infoStatus=options.infoStatus or 1, processes=options.processes,
@@ -146,7 +150,8 @@ local function newMock(cpuPath, options)
             context.measureList[#context.measureList + 1] = measure
         end
     end
-    assert(context.meters.MeterHistory and context.measures.MeasureCPU1 and context.measures.MeasureCPUProcess1,
+    assert(context.meters.MeterHistory and context.measures.MeasureCPU1
+        and (context.measures.MeasureCPUProcess1 ~= nil) == (options.processMeasures ~= false),
         'CPU INI sources did not parse')
 
     local function sectionOption(item, key)
@@ -282,6 +287,9 @@ local function newMock(cpuPath, options)
         return value
     end
     function skin:GetMeasure(name)
+        -- Rainmeter returns nil for a section that does not exist; only the
+        -- process slots may be absent (the CPUShowProcesses=0 include).
+        if options.processMeasures == false and tostring(name):match('^MeasureCPUProcess%d+$') then return nil end
         local measure = assert(context.measures[name], 'Unknown mocked measure: ' .. tostring(name))
         return {GetValue=function() return measure.value end, GetStringValue=function() return measure.string end}
     end
@@ -455,6 +463,27 @@ function suite.Run(cpuPath)
         context:run(1)
         equal(context:text('MeterProcessName1'), 'gamma.exe')
         assert(context:visible('MeterProcessName1') and not context:visible('MeterProcessesState'), 'row restored')
+    end)
+    -- CPUShowProcesses=0 loads ProcessMeasures0.inc: no MeasureCPUProcess
+    -- section exists, so no UsageMonitor Process slot keeps that category's
+    -- reader alive. Nothing may name the absent slots; a list shown without
+    -- them (a variable changed without the refresh) asks for one.
+    test('without the process include no slot is named and a shown list asks for a refresh', function()
+        local hidden = newMock(cpuPath, {processMeasures=false, variables={CPUShowProcesses='0'}})
+        hidden:run(4)
+        assert(not hidden:visible('MeterProcessesState'), 'hidden list shows no state')
+        for slot = 1, 10 do assert(not hidden:visible('MeterProcessName' .. slot), 'hidden row ' .. slot) end
+        hidden:event('ApplySetting', 'CPUShowProcesses', 1)
+        hidden:run(3)
+        assert(hidden:visible('MeterProcessesState'), 'shown list explains itself')
+        equal(hidden:text('MeterProcessesState'), 'Refresh CPU Meter to load processes')
+        for slot = 1, 10 do assert(not hidden:visible('MeterProcessName' .. slot), 'no row without a slot ' .. slot) end
+        hidden:event('ApplySetting', 'CPUProcessCount', 3)
+        hidden:run(2)
+        equal(hidden:text('MeterProcessesState'), 'Refresh CPU Meter to load processes')
+        local loaded = newMock(cpuPath)
+        loaded:run(4)
+        equal(loaded:text('MeterProcessName1'), 'alpha.exe', 'the shipped include still ranks processes')
     end)
     test('per-thread history draws one coloured trace per logical processor', function()
         local context = newMock(cpuPath)

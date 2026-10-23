@@ -45,11 +45,11 @@ function Opened()
         check(scale == SELF:GetNumberOption('ExpectedScale'), 'Utility lost module scale')
         check(width == SELF:GetNumberOption('ExpectedWidth'), 'Utility lost module width')
         check(tonumber(SKIN:GetVariable('Columns')) == 2, 'Utility inherited live meter columns')
-        check(tonumber(SKIN:GetVariable('PanelHeight')) == 340, 'Utility inherited live meter height')
+        check(tonumber(SKIN:GetVariable('PanelHeight')) == 368, 'Utility inherited live meter height')
         local round = function(value) return math.floor(value + 0.5) end
         local gap = 2 * round(tonumber(SKIN:GetVariable('Gutter')) * scale / 2)
         local expectedW = 2 * (round(width * scale) + gap)
-        local expectedH = round(340 * scale) + gap
+        local expectedH = round(368 * scale) + gap
         local inset = gap / 2
         check(SKIN:GetW() == expectedW and SKIN:GetH() == expectedH,
             'Settings native dimensions do not match independent layout')
@@ -89,7 +89,7 @@ function Opened()
             check(rule:GetOption('MeterStyle'):gsub('%s+','') == 'StyleRule|StyleRAMSettingsUI', 'Utility semantic section must use a divider rule')
             check(math.abs(rule:GetY(true)-(inset+section[3]*scale)) <= 1.01, 'Utility divider has the wrong position')
         end
-        for _, control in ipairs({{'Units',100}, {'Decimals',128}, {'PercentDecimals',156}, {'Bar',214}, {'PageBar',242}, {'History',270}}) do
+        for _, control in ipairs({{'Units',100}, {'Decimals',128}, {'PercentDecimals',156}, {'Bar',214}, {'PageBar',242}, {'History',270}, {'Processes',298}}) do
             check(SKIN:GetMeter('MeterRAMSettings'..control[1]..'Row') == nil, 'Utility still uses a shaded full-row hit target')
             local label = meter('MeterRAMSettings'..control[1]..'Label')
             local value = meter('MeterRAMSettings'..control[1])
@@ -197,9 +197,10 @@ function Verify(name, key, expected, text)
         check(tonumber(('\n' .. saved):match('\n'..key..'=([^\r\n]+)')) == expected, 'Utility did not save ' .. key)
         if key == 'RAMShowBar' or key == 'RAMShowPageBar' or key == 'RAMShowHistory' then
             -- RAM has no dependent settings rows: these toggles control only
-            -- the monitor's visuals. All six settings remain useful/accessible.
+            -- the monitor's visuals. All seven settings remain useful/accessible.
+            -- (Top processes is not clicked here: it refreshes Memory Meter.)
             check(SKIN:GetW() == windowBounds.w and SKIN:GetH() == windowBounds.h, 'Visibility toggle resized the fixed RAM settings utility')
-            for _, control in ipairs({{'Units','RAMUseMiB'}, {'Decimals','RAMDecimals'}, {'PercentDecimals','RAMPercentDecimals'}, {'Bar','RAMShowBar'}, {'PageBar','RAMShowPageBar'}, {'History','RAMShowHistory'}}) do
+            for _, control in ipairs({{'Units','RAMUseMiB'}, {'Decimals','RAMDecimals'}, {'PercentDecimals','RAMPercentDecimals'}, {'Bar','RAMShowBar'}, {'PageBar','RAMShowPageBar'}, {'History','RAMShowHistory'}, {'Processes','RAMShowProcesses'}}) do
                 local current = tonumber(SKIN:GetVariable(control[2]))
                 local label = meter('MeterRAMSettings'..control[1]..'Label')
                 local field = meter('MeterRAMSettings'..control[1])
@@ -222,7 +223,7 @@ function Verify(name, key, expected, text)
                 end
                 local expectedText = tostring(current)
                 if control[2] == 'RAMUseMiB' then expectedText = current == 1 and 'MB' or 'GB'
-                elseif control[2] == 'RAMShowBar' or control[2] == 'RAMShowPageBar' or control[2] == 'RAMShowHistory' then expectedText = current == 1 and 'On' or 'Off' end
+                elseif control[2] == 'RAMShowBar' or control[2] == 'RAMShowPageBar' or control[2] == 'RAMShowHistory' or control[2] == 'RAMShowProcesses' then expectedText = current == 1 and 'On' or 'Off' end
                 check(field:GetOption('Text') == expectedText, 'Visibility toggle lost a displayed settings value')
                 check(tonumber(('\n'..saved):match('\n'..control[2]..'=([^\r\n]+)')) == current, 'Visibility toggle lost a saved settings value')
             end

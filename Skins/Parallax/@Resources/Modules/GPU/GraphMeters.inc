@@ -4,12 +4,14 @@
 ; Temperature.lua through MeasureGPUUtilizationHistory: one point per driver
 ; sample (every Max(1000,MetricsInterval,SensorInterval) ms, 2 s by default),
 ; so the Line meter is UpdateDivider=-1 and forced by the controller. Height
-; follows the shared #GraphHeight# variable; the panel grows to fit.
+; follows the shared #GraphHeight# variable; the panel grows to fit. The
+; block sits #GPUProcessBlock# (110 px with the process table, 0 without it)
+; below the Shared row's 276 px slot.
 
 [MeterGPUHistoryLabel]
 Meter=String
 MeterStyle=StyleHeader
-Y=(#Inset#+(386+#GPUBarExtra#)*#Scale#)
+Y=(#Inset#+(276+#GPUProcessBlock#+#GPUBarExtra#)*#Scale#)
 W=(#ContentWidth#-60*#Scale#)
 H=(18*#Scale#)
 Text=History
@@ -19,7 +21,7 @@ UpdateDivider=-1
 Meter=String
 MeterStyle=StyleLabel
 X=(#ContentX#+#ContentWidth#)
-Y=(#Inset#+(386+#GPUBarExtra#)*#Scale#)
+Y=(#Inset#+(276+#GPUProcessBlock#+#GPUBarExtra#)*#Scale#)
 W=(58*#Scale#)
 H=(18*#Scale#)
 StringAlign=Right
@@ -30,7 +32,7 @@ UpdateDivider=-1
 Meter=Line
 MeasureName=MeasureGPUUtilizationHistory
 X=#ContentX#
-Y=(#Inset#+(406+#GPUBarExtra#)*#Scale#)
+Y=(#Inset#+(296+#GPUProcessBlock#+#GPUBarExtra#)*#Scale#)
 W=#ContentWidth#
 H=(#GraphHeight#*#Scale#)
 LineCount=1
@@ -52,7 +54,7 @@ UpdateDivider=-1
 [MeterGPUGraphUncollected]
 Meter=Shape
 X=#ContentX#
-Y=(#Inset#+(406+#GPUBarExtra#)*#Scale#)
+Y=(#Inset#+(296+#GPUProcessBlock#+#GPUBarExtra#)*#Scale#)
 Shape=Rectangle 0,0,(Min(#ContentWidth#,Max(0,(#ContentWidth#-[MeasureGPUGraphSamples]+2*#Scale#)*([MeasureGPUGraphSamples]<#ContentWidth#)))),(#GraphHeight#*#Scale#) | Fill Color #GraphBackgroundColor#,255 | StrokeWidth 0
 ; DynamicVariables is required while the graph fills: without it
 ; [MeasureGPUGraphSamples] is read once at load (0 samples), leaving this cover
@@ -67,5 +69,5 @@ UpdateDivider=1
 [MeterGPUGraphFrame]
 Meter=Shape
 MeterStyle=StyleGraph
-Y=(#Inset#+(406+#GPUBarExtra#)*#Scale#)
+Y=(#Inset#+(296+#GPUProcessBlock#+#GPUBarExtra#)*#Scale#)
 Shape=Rectangle 0.5,0.5,(#ContentWidth#-1),(#GraphHeight#*#Scale#-1),(2*#Scale#) | Fill Color 0,0,0,0 | Stroke Color #BorderColor# | StrokeWidth 1

@@ -10,6 +10,7 @@ local fields = { 'Temperature', 'Power', 'Clock' }
 local fitHeight = '462'
 local defaults = {
     Columns = '1', PanelHeight = fitHeight, GPUEnableSensors = '0',
+    GPUShowProcesses = '1', GPUShowProcessMemory = '1',
     GPUPowerSource = '0', GPUClockSource = '0',
     GPURegHKey = 'HKEY_CURRENT_USER', GPURegKey = 'SOFTWARE\\HWiNFO64\\VSB'
 }
@@ -117,6 +118,8 @@ local function render()
     set('MeterSettingsColumnsValue', 'Text', v.Columns == '1' and '1' or v.Columns == '2' and '2' or 'Custom')
     set('MeterSettingsHeightValue', 'Text', v.PanelHeight .. ' px / Fit')
     set('MeterSettingsSensorsValue', 'Text', v.GPUEnableSensors == '1' and 'On' or v.GPUEnableSensors == '0' and 'Off' or 'Custom')
+    set('MeterSettingsProcessesValue', 'Text', v.GPUShowProcesses == '1' and 'On' or v.GPUShowProcesses == '0' and 'Off' or 'Custom')
+    set('MeterSettingsProcessMemoryValue', 'Text', v.GPUShowProcessMemory == '1' and 'On' or v.GPUShowProcessMemory == '0' and 'Off' or 'Custom')
     for _, field in ipairs({'Power', 'Clock'}) do
         local source = v['GPU' .. field .. 'Source']
         set('MeterSettings' .. field .. 'SourceValue', 'Text', source == '0' and 'Driver' or source == '1' and 'HWiNFO' or 'Custom')
@@ -177,7 +180,9 @@ local function valid(key, value)
     if not defaults[key] or type(value) ~= 'string' then return false end
     if key == 'Columns' then return value == '1' or value == '2' end
     if key == 'PanelHeight' then return value == fitHeight end
-    if key == 'GPUEnableSensors' then return value == '0' or value == '1' end
+    if key == 'GPUEnableSensors' or key == 'GPUShowProcesses' or key == 'GPUShowProcessMemory' then
+        return value == '0' or value == '1'
+    end
     if key == 'GPUPowerSource' or key == 'GPUClockSource' then return value == '0' or value == '1' end
     if key == 'GPURegHKey' then return value == 'HKEY_CURRENT_USER' or value == 'HKEY_LOCAL_MACHINE' end
     if key == 'GPURegKey' then return false end
@@ -230,6 +235,22 @@ function Update() render(); return 0 end
 function ToggleSensors()
     if not refreshValues() then return false end
     return save({GPUEnableSensors = state.values.GPUEnableSensors == '1' and '0' or '1'})
+end
+
+-- The process table and its VRAM column are loaded or left out by include
+-- when GPU refreshes, so a hidden table costs no UsageMonitor category reader.
+-- The VRAM row is a detail of the table: it collapses while the table is off,
+-- and this window reloads to reflow after the table changes.
+function ToggleProcesses()
+    if not refreshValues() then return false end
+    local saved = save({GPUShowProcesses = state.values.GPUShowProcesses == '1' and '0' or '1'})
+    if saved then SKIN:Bang('!Refresh') end
+    return saved
+end
+
+function ToggleProcessMemory()
+    if not refreshValues() then return false end
+    return save({GPUShowProcessMemory = state.values.GPUShowProcessMemory == '1' and '0' or '1'})
 end
 
 local function cycled(current, choices, direction)

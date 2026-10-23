@@ -268,6 +268,22 @@ def validate():
     usage_monitor = [name for name, values in sections.items() if values.get("Plugin") == "UsageMonitor"]
     assert len(usage_monitor) == 1 + 64 + 64 + 10 + 2, len(usage_monitor)
     assert not [name for name in usage_monitor if "DynamicVariables" in sections[name]]
+    # B2 / CPU-05: the ten Process-category slots load only with the list.
+    # Measures.inc names ProcessMeasures<CPUShowProcesses>.inc; the 0 variant is
+    # comment-only, because a loaded UsageMonitor measure keeps its category's
+    # reader running even while Disabled. CPU.ini supplies the fallback.
+    module = ROOT / "@Resources/Modules/CPU"
+    assert variables["CPUShowProcesses"] == "1"
+    assert (module / "ProcessMeasures1.inc") in visited and (module / "ProcessMeasures0.inc") not in visited
+    assert "[MeasureCPUProcess" not in (module / "Measures.inc").read_text(encoding="utf-8-sig")
+    stub = [line.strip() for line in (module / "ProcessMeasures0.inc").read_text(encoding="utf-8-sig").splitlines()]
+    assert stub and all(not line or line.startswith(";") for line in stub)
+    process_slots = [name for name in usage_monitor if name.startswith("MeasureCPUProcess")]
+    assert process_slots == [f"MeasureCPUProcess{index}" for index in range(1, 11)], process_slots
+    for name in process_slots:
+        assert sections[name]["Alias"] == "CPU" and sections[name]["Disabled"] == "1", name
+    entry_text = ENTRY.read_text(encoding="utf-8-sig")
+    assert entry_text.index("CPUShowProcesses=1") < entry_text.index("@Include3=#@#User\\CPU.inc")
     total_utility = sections["MeasureCPUTotal"]
     assert total_utility["Measure"] == "Plugin" and total_utility["Plugin"] == "UsageMonitor"
     assert total_utility["Category"] == "Processor Information"

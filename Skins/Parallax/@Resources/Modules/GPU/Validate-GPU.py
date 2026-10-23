@@ -10,6 +10,7 @@ The packaging allowlist excludes this development-only .py file.
 import ast
 import math
 import re
+import subprocess
 import sys
 from pathlib import Path
 
@@ -17,6 +18,13 @@ from pathlib import Path
 ROOT = Path(__file__).resolve().parents[3]
 sections = {}
 loaded = set()
+# --processes/--memory override the saved GPUShowProcesses/GPUShowProcessMemory
+# when choosing the include variants, as a changed User\GPU.inc would. A plain
+# run checks the shipped values, then the other variants in subprocesses.
+OVERRIDES = {}
+for flag, key in (("--processes", "GPUShowProcesses"), ("--memory", "GPUShowProcessMemory")):
+    if flag in sys.argv[1:]:
+        OVERRIDES[key] = sys.argv[sys.argv.index(flag) + 1]
 # Layouts meet exactly at 4 px gutters and shared row edges; absorb float noise
 # from products such as 50*0.76 + 4*0.76 versus 54*0.76 without hiding real overlap.
 EPS = 1e-6
@@ -54,7 +62,7 @@ def load(path):
         assert key not in local_keys, f"Duplicate option: {key}"
         local_keys.add(key)
         if key.startswith("@Include"):
-            variables = dict(sections.get("Variables", {}), **{"@": str(ROOT / "@Resources") + "/"})
+            variables = dict(sections.get("Variables", {}), **OVERRIDES, **{"@": str(ROOT / "@Resources") + "/"})
             load(Path(expand(value, variables).replace("\\", "/")))
         else:
             sections[current][key] = value
@@ -312,9 +320,48 @@ def meter_box(name, options, n):
 
 GPU_DIR = ROOT / "@Resources" / "Modules" / "GPU"
 load(ROOT / "GPU" / "GPU.ini")
-for include in ("Measures.inc", "ProcessMeasures.inc", "ProcessMeters.inc", "TemperatureMeasures.inc",
-                "DriverMeters.inc", "GraphMeters.inc"):
+for include in ("Measures.inc", "TemperatureMeasures.inc", "DriverMeters.inc", "GraphMeters.inc"):
     assert (GPU_DIR / include).resolve() in loaded, include
+# The process table and its VRAM column are include variants chosen by the
+# saved GPUShowProcesses / GPUShowProcessMemory text. Only a "1" variant raises
+# its layout flag, so the geometry follows what actually loaded.
+SHOW_PROCESSES = OVERRIDES.get("GPUShowProcesses", sections["Variables"]["GPUShowProcesses"])
+SHOW_MEMORY = OVERRIDES.get("GPUShowProcessMemory", sections["Variables"]["GPUShowProcessMemory"])
+TABLE = SHOW_PROCESSES == "1"
+MEMORY = TABLE and SHOW_MEMORY == "1"
+assert sections["Variables"]["GPUProcessTable"] == ("1" if TABLE else "0")
+assert sections["Variables"]["GPUProcessMemoryColumn"] == ("1" if MEMORY else "0")
+VARIANT_FILES = {
+    "ProcessMeasures1.inc": TABLE, "ProcessMeters1.inc": TABLE,
+    "ProcessMeasures0.inc": SHOW_PROCESSES == "0", "ProcessMeters0.inc": SHOW_PROCESSES == "0",
+    "ProcessMemoryMeasures1.inc": MEMORY, "ProcessMemoryMeters1.inc": MEMORY,
+    "ProcessMemoryMeasures0.inc": TABLE and SHOW_MEMORY == "0", "ProcessMemoryMeters0.inc": TABLE and SHOW_MEMORY == "0",
+}
+for include, expected in VARIANT_FILES.items():
+    assert ((GPU_DIR / include).resolve() in loaded) == expected, (include, SHOW_PROCESSES, SHOW_MEMORY)
+assert not (GPU_DIR / "ProcessMeasures.inc").exists() and not (GPU_DIR / "ProcessMeters.inc").exists()
+# Both stubs are comment-only: no section, so no measure, meter or variable.
+for stub in ("ProcessMeasures0.inc", "ProcessMeters0.inc", "ProcessMemoryMeasures0.inc", "ProcessMemoryMeters0.inc"):
+    lines = [line.strip() for line in (GPU_DIR / stub).read_text(encoding="utf-8-sig").splitlines()]
+    assert lines and all(not line or line.startswith(";") for line in lines), stub
+# UsageMonitor reads a whole counter category, process-wide, while any loaded
+# measure names it, even a Disabled one; only leaving the measure out stops it.
+usage_monitor = {name: opts for name, opts in sections.items() if opts.get("Plugin") == "UsageMonitor"}
+expected_monitor = ({"MeasureGPUActivity", *(f"MeasureGPUProcess{i}" for i in range(2, 6))} if TABLE else set()) | (
+    {f"MeasureGPUProcessMemory{i}" for i in range(1, 6)} if MEMORY else set())
+assert set(usage_monitor) == expected_monitor, sorted(usage_monitor)
+# B2 step 3 (ENGINE-05 / XMOD-07): DynamicVariables on a UsageMonitor measure
+# re-reads its options, and so calls the plugin's Reload (re-registering its
+# category), on every update, disabled or not. ProcessGraph.lua's !SetOption
+# Name already forces the one re-read a rebinding needs, so none may have it,
+# and no controller may turn it on at runtime.
+assert not [name for name in usage_monitor if "DynamicVariables" in sections[name]], "UsageMonitor with DynamicVariables"
+assert "DynamicVariables" not in (GPU_DIR / "ProcessGraph.lua").read_text(encoding="utf-8")
+for name in usage_monitor:
+    assert (GPU_DIR / ("ProcessMemoryMeasures1.inc" if "Memory" in name else "ProcessMeasures1.inc")).read_text(
+        encoding="utf-8-sig").count(f"[{name}]") == 1, name
+assert "Plugin=UsageMonitor" not in (GPU_DIR / "Measures.inc").read_text(encoding="utf-8-sig")
+assert ("MeasureGPUProcessController" in sections) == TABLE
 assert set(sections["Rainmeter"]["Group"].split("|")) == {"Parallax", "ParallaxGPU"}
 assert sections["Rainmeter"]["DynamicWindowSize"] == "0"
 assert sections["Rainmeter"]["OnRefreshAction"] == '[!CommandMeasure MeasureGPUInfo "Run"]'
@@ -352,24 +399,23 @@ assert sections["MeasureGPUTemperatureController"]["Measure"] == "Script"
 assert sections["MeasureGPUTemperatureController"]["ScriptFile"] == "#@#Modules\\GPU\\Temperature.lua"
 assert sections["MeasureGPUView"]["Measure"] == "Script"
 assert sections["MeasureGPUView"]["ScriptFile"] == "#@#Modules\\GPU\\GPU.lua"
-assert sections["MeasureGPUProcessController"]["Measure"] == "Script"
-assert sections["MeasureGPUProcessController"]["ScriptFile"] == "#@#Modules\\GPU\\ProcessGraph.lua"
+if TABLE:
+    assert sections["MeasureGPUProcessController"]["Measure"] == "Script"
+    assert sections["MeasureGPUProcessController"]["ScriptFile"] == "#@#Modules\\GPU\\ProcessGraph.lua"
 info = sections["MeasureGPUInfo"]
 assert info["Plugin"] == "RunCommand" and info["State"] == "Hide" and info["Timeout"] == "12000"
 assert info["FinishAction"] == "[!UpdateMeasure MeasureGPUInfo][!UpdateMeasure MeasureGPUView]"
-counter = sections["MeasureGPUActivity"]
-assert {key: counter[key] for key in ("Alias", "Index", "PIDToName", "Rollup", "Percent", "RawValue")} == {
-    "Alias": "GPU", "Index": "1", "PIDToName": "0", "Rollup": "0", "Percent": "0", "RawValue": "0"}
-for index in range(2, 6):
-    rank = sections[f"MeasureGPUProcess{index}"]
+for index in range(1, 6) if TABLE else ():
+    rank = sections["MeasureGPUActivity" if index == 1 else f"MeasureGPUProcess{index}"]
     assert {key: rank[key] for key in ("Plugin", "Alias", "Index", "PIDToName", "Rollup", "Percent", "RawValue")} == {
         "Plugin": "UsageMonitor", "Alias": "GPU", "Index": str(index), "PIDToName": "0", "Rollup": "0", "Percent": "0", "RawValue": "0"}, index
-for index in range(1, 6):
+for index in range(1, 6) if MEMORY else ():
     memory = sections[f"MeasureGPUProcessMemory{index}"]
     assert memory["Plugin"] == "UsageMonitor" and "Alias" not in memory, index
     assert memory["Category"] == "GPU Process Memory" and memory["Counter"] == "Local Usage", index
     assert memory["Index"] == "0" and memory["RawValue"] == "1" and memory["Disabled"] == "1", index
     assert memory["Name"] == "__ParallaxNoGPUProcess__", index
+    assert memory["PIDToName"] == "0", index
 # The History trace is the controller's busy percentage, wrapped in an explicit
 # 0-100 range directly after the controller in TemperatureMeasures.inc.
 # Measures.inc no longer owns it. Since 2026-10-22 Temperature.lua pushes one
@@ -412,14 +458,22 @@ EXPECTED_METERS = {
     "MeterGPUHistoryLabel", "MeterGPUHistoryRange", "MeterGPUUtilizationGraph", "MeterGPUGraphUncollected", "MeterGPUGraphFrame",
 }
 assert len(EXPECTED_METERS) == 61
+MEMORY_METERS = {"MeterGPUProcessMemoryHeader", *(f"MeterGPUProcessMemory{i}" for i in range(1, 6))}
+TABLE_METERS = {name for name in EXPECTED_METERS if name.startswith("MeterGPUProcess")}
+assert len(MEMORY_METERS) == 6 and len(TABLE_METERS) == 20 and MEMORY_METERS < TABLE_METERS
+if not TABLE:
+    EXPECTED_METERS -= TABLE_METERS
+elif not MEMORY:
+    EXPECTED_METERS -= MEMORY_METERS
 assert set(meters) == EXPECTED_METERS, sorted(set(meters) ^ EXPECTED_METERS)
-assert len(meters) == 61, "title row, adapter inset, three scalar rows, Engine table, VRAM/Shared, process table and History"
+assert len(meters) == (61 if MEMORY else 55 if TABLE else 41), "title row, adapter inset, three scalar rows, Engine table, VRAM/Shared, process table and History"
 REMOVED_METERS = {"MeterVRAMValue", "MeterActivityLabel", "MeterActivityScope", "MeterRule", "MeterSensorStatus",
                   "MeterGPUVRAMUsage", "MeterGPUSharedMemory", "MeterGPUMemoryHeader", "MeterGPUUtilizationHeader",
                   "MeterGPUGraphHeading", "MeterGPUGraphRule", *(f"MeterGPUProcessBar{i}" for i in range(1, 6))}
 assert REMOVED_METERS.isdisjoint(meters)
-for style in ("GPUStyleEngineLabel", "GPUStyleEngineValue", "GPUStyleEngineBar",
-              "GPUStyleProcessName", "GPUStyleProcessMemory", "GPUStyleProcessValue"):
+styles = ("GPUStyleEngineLabel", "GPUStyleEngineValue", "GPUStyleEngineBar") + (
+    ("GPUStyleProcessName", "GPUStyleProcessValue") if TABLE else ()) + (("GPUStyleProcessMemory",) if MEMORY else ())
+for style in styles:
     assert style in sections and "Meter" not in sections[style], style
 # GPU.lua writes the adapter inset (GPUReadout); Temperature.lua writes every
 # driver-fed headline, scalar, memory and engine meter (GPUDriverReadout).
@@ -429,8 +483,8 @@ for name in ("MeterActivityValue", "MeterTemperatureValue", "MeterPowerValue", "
              "MeterGPUVRAMValue", "MeterGPUVRAMBar", "MeterGPUSharedValue",
              *(f"Meter{field}{part}" for field in ENGINE_FIELDS for part in ("Value", "Bar"))):
     assert "GPUDriverReadout" in meters[name]["Group"].split("|"), name
-for i in range(1, 6):
-    for part in PROCESS_PARTS:
+for i in range(1, 6) if TABLE else ():
+    for part in PROCESS_PARTS if MEMORY else ("Name", "Value"):
         cell = meters[f"MeterGPUProcess{part}{i}"]
         assert cell["Group"] == f"GPUProcessGraph|GPUProcessRow{i}", (part, i)
         assert cell["Text"] == "--" and cell["H"] == "(16*#Scale#)", (part, i)
@@ -446,9 +500,10 @@ for field in ENGINE_FIELDS:
     assert meters[f"Meter{field}Label"]["Text"] == ENGINE_LABELS[field], field
     assert meters[f"Meter{field}Value"]["Text"] == "--", field
     assert "GPUStyleEngineBar" in meters[f"Meter{field}Bar"]["MeterStyle"].split("|"), field
-for name in ("MeterGPUEngineHeader", "MeterGPUProcessHeading"):
+for name in ("MeterGPUEngineHeader", "MeterGPUProcessHeading") if TABLE else ("MeterGPUEngineHeader",):
     assert meters[name]["FontSize"] == "(#HeaderFontSize#*#Scale#)" and meters[name]["FontColor"] == "#HeaderTextColor#", name
-assert meters["MeterGPUEngineHeader"]["Text"] == "Engine" and meters["MeterGPUProcessHeading"]["Text"] == "Process"
+assert meters["MeterGPUEngineHeader"]["Text"] == "Engine"
+assert not TABLE or meters["MeterGPUProcessHeading"]["Text"] == "Process"
 assert meters["MeterGPUVRAMLabel"]["Text"] == "VRAM:" and meters["MeterGPUSharedLabel"]["Text"] == "Shared:"
 assert meters["MeterGPUHistoryLabel"]["Text"] == "History" and meters["MeterGPUHistoryRange"]["Text"] == "0 - 100%"
 graph = meters["MeterGPUUtilizationGraph"]
@@ -464,14 +519,18 @@ assert "StyleGraph" in meters["MeterGPUGraphFrame"]["MeterStyle"].split("|")
 assert meters["MeterOptions"]["Hidden"] == "1"
 for name in ("MeterIcon", "MeterOptions", "MeterAdapterPanel", "MeterGPUEngineUsageHeader",
              "MeterGPUProcessMemoryHeader", "MeterGPUProcessUtilHeader", "MeterGPUGraphFrame", "MeterGPUGraphUncollected"):
-    assert meters[name]["Meter"] == "Shape", name
+    if name in meters:
+        assert meters[name]["Meter"] == "Shape", name
 # Lua names only current meters: every quoted Meter... literal, or the prefix a
 # script concatenates a field or slot onto, must start a meter that exists.
 for script in ("GPU.lua", "Temperature.lua", "ProcessGraph.lua"):
     raw = (GPU_DIR / script).read_bytes()
     script_text = raw.decode("utf-16") if raw.startswith((b"\xff\xfe", b"\xfe\xff")) else raw.decode("utf-8")
     for literal in set(re.findall(r"['\"](Meter[A-Za-z0-9]*)['\"]", script_text)):
-        assert any(name.startswith(literal) for name in meters), (script, literal)
+        # ProcessGraph.lua only runs with its table, and writes VRAM cells only
+        # while GPUProcessMemoryColumn is 1; every other script always.
+        optional = script == "ProcessGraph.lua" and (not TABLE or (not MEMORY and literal.startswith("MeterGPUProcessMemory")))
+        assert any(name.startswith(literal) for name in meters) or optional, (script, literal)
     assert not re.search(r"GetMeasure\(\s*['\"]MeasureGPUActivity['\"]", script_text), script
     assert "tooltip" not in script_text.lower(), script
     if script == "Temperature.lua":
@@ -488,8 +547,61 @@ for script in ("GPU.lua", "Temperature.lua", "ProcessGraph.lua"):
     else:
         assert "'MeterAdapterName'" in script_text and "'MeterAdapterDetails'" in script_text
 for key in ("GPUBarExtra", "GPUNaturalHeight", "PanelHeightPx", "GPUEngineLabelWidth", "GPUEngineValueWidth",
-            "GPUEngineBarX", "GPUEngineBarWidth", "GPUProcessValueWidth", "GPUProcessMemoryWidth"):
+            "GPUEngineBarX", "GPUEngineBarWidth", "GPUProcessValueWidth", "GPUProcessMemoryWidth",
+            "GPUProcessNameWidth", "GPUProcessBlock", "GPUProcessTable", "GPUProcessMemoryColumn",
+            "GPUShowProcesses", "GPUShowProcessMemory"):
     assert key in sections["Variables"], key
+
+
+def check_process_table(case, n, box, meters, scale, extra, content_x, content_w, content_right, inset):
+    """The process table's geometry, with or without its VRAM column."""
+    top = lambda name: box[name][1]
+    bottom = lambda name: box[name][1] + box[name][3]
+    left = lambda name: box[name][0]
+    right = lambda name: box[name][0] + box[name][2]
+    assert bottom("MeterGPUSharedLabel") <= EPS + top("MeterGPUProcessHeading"), case
+    heading = meters["MeterGPUProcessHeading"]
+    memory_w, process_value_w = n("#GPUProcessMemoryWidth#"), n("#GPUProcessValueWidth#")
+    process_value_center = content_right - process_value_w / 2
+    memory_center = content_right - process_value_w - 4 * scale - memory_w / 2
+    assert math.isclose(box["MeterGPUProcessHeading"][3], 16 * scale)
+    assert math.isclose(top("MeterGPUProcessHeading"), inset + (276 + extra) * scale), case
+    assert math.isclose(left("MeterGPUProcessHeading"), content_x)
+    assert right("MeterGPUProcessHeading") <= EPS + left("MeterGPUProcessMemoryHeader" if MEMORY else "MeterGPUProcessUtilHeader"), case
+    glyphs = (("MeterGPUProcessMemoryHeader", memory_center),) if MEMORY else ()
+    for name, center in glyphs + (("MeterGPUProcessUtilHeader", process_value_center),):
+        glyph = meters[name]
+        assert math.isclose(n(glyph["W"]), 14 * scale) and math.isclose(n(glyph["H"]), 14 * scale), name
+        assert math.isclose(left(name) + n(glyph["W"]) / 2, center), (name, case)
+        assert top(name) + EPS >= top("MeterGPUProcessHeading") and bottom(name) <= EPS + top("MeterGPUProcessHeaderRule"), (name, case)
+        for x, y, w, h in icon_bounds(glyph, n, "#Scale#"):
+            assert min(x, y) + EPS >= 0 and x + w <= EPS + n(glyph["W"]) and y + h <= EPS + n(glyph["H"]), (name, case)
+    assert not MEMORY or right("MeterGPUProcessMemoryHeader") <= EPS + left("MeterGPUProcessUtilHeader"), case
+    assert bottom("MeterGPUProcessHeading") <= EPS + top("MeterGPUProcessHeaderRule"), case
+    previous_bottom = bottom("MeterGPUProcessHeaderRule")
+    for i in range(1, 6):
+        name, memory, value = (f"MeterGPUProcess{part}{i}" for part in PROCESS_PARTS)
+        cells = (name, memory, value) if MEMORY else (name, value)
+        assert meters[name].get("StringAlign", "Left") == "Left", name
+        assert all(meters[cell]["StringAlign"] == "Center" for cell in cells[1:]), i
+        assert all(math.isclose(top(name), top(cell)) for cell in cells), i
+        assert all(math.isclose(box[cell][3], 16 * scale) for cell in cells), i
+        assert top(name) + EPS >= previous_bottom, (i, case)
+        assert math.isclose(top(name), top("MeterGPUProcessName1") + 16 * scale * (i - 1)), (i, case)
+        assert math.isclose(top(name), inset + (296 + 16 * (i - 1) + extra) * scale), (i, case)
+        assert math.isclose(left(name), content_x), i
+        assert math.isclose(box[value][2], process_value_w) and math.isclose(left(value) + process_value_w / 2, process_value_center), i
+        assert math.isclose(right(value), content_right), i
+        if MEMORY:
+            assert math.isclose(box[memory][2], memory_w) and math.isclose(left(memory) + memory_w / 2, memory_center), i
+            assert right(name) + 4 * scale <= EPS + left(memory), (i, case)
+            assert right(memory) + 4 * scale <= EPS + left(value), (i, case)
+        else:
+            assert math.isclose(right(name) + 4 * scale, left(value)), (i, case)
+        previous_bottom = bottom(name)
+    assert previous_bottom <= EPS + top("MeterGPUProcessFooterRule"), case
+    assert math.isclose(left("MeterGPUProcessFooterRule"), content_x) and math.isclose(box["MeterGPUProcessFooterRule"][2], content_w)
+    assert math.isclose(n(meters["MeterGPUProcessFooterRule"]["Y"]), inset + (378 + extra) * scale), case
 
 
 def check_case(column_width, scale, columns, title_size, bar_thickness, saved_height, overrides=None):
@@ -517,7 +629,8 @@ def check_case(column_width, scale, columns, title_size, bar_thickness, saved_he
     panel_bottom = inset + panel_h
     extra = max(0, bar_thickness - 6)
     saved = n("#PanelHeight#")
-    natural = 414 + n("#GraphHeight#") + extra
+    block = 110 if TABLE else 0
+    natural = 304 + block + n("#GraphHeight#") + extra
     thickness_px = max(1, math.floor(bar_thickness * scale + .5))
     # Derived variables: the old 650 Fit value counts as Fit; smaller saved
     # heights yield to the natural height and larger ones are honored.
@@ -526,7 +639,11 @@ def check_case(column_width, scale, columns, title_size, bar_thickness, saved_he
     assert panel_h + 2 * inset == height
     assert n("#GPUBarExtra#") == extra, case
     assert n("#GPUNaturalHeight#") == natural, case
-    assert panel_h == math.floor(max(0 if saved == 650 else saved, natural) * scale + .5), case
+    # 462 (the Fit with the table) also counts as Fit without it, so hiding the
+    # table shortens a fitted panel; with the table it is unchanged.
+    fit = saved == 650 or (saved == 462 and not TABLE)
+    assert n("#GPUProcessBlock#") == block, case
+    assert panel_h == math.floor(max(0 if fit else saved, natural) * scale + .5), case
     assert n("#DataBarThicknessPx#") == thickness_px, case
     assert math.isclose(n("#GPUEngineLabelWidth#"), 52 * scale)
     assert math.isclose(n("#GPUEngineValueWidth#"), 42 * scale)
@@ -534,7 +651,9 @@ def check_case(column_width, scale, columns, title_size, bar_thickness, saved_he
     assert math.isclose(n("#GPUEngineBarWidth#"), content_w - 102 * scale)
     assert math.isclose(n("#GPUProcessValueWidth#"), 46 * scale)
     assert math.isclose(n("#GPUProcessMemoryWidth#"), 58 * scale)
-    assert n("#GPUEngineBarWidth#") > 0 and n(meters["MeterGPUProcessName1"]["W"]) > 0, case
+    name_w = content_w - 46 * scale - 4 * scale - ((58 + 4) * scale if MEMORY else 0)
+    assert math.isclose(n("#GPUProcessNameWidth#"), name_w), case
+    assert n("#GPUEngineBarWidth#") > 0 and name_w > 0, case
     # Every meter stays inside the window; every string stays inside the
     # painted panel and clips rather than growing the window.
     for name, (x, y, w, h) in box.items():
@@ -608,7 +727,7 @@ def check_case(column_width, scale, columns, title_size, bar_thickness, saved_he
     for x, y, w, h in icon_bounds(header_icon, n, "#Scale#"):
         assert min(x, y) + EPS >= 0 and x + w <= EPS + n(header_icon["W"]) and y + h <= EPS + n(header_icon["H"]), ("MeterGPUEngineUsageHeader", case)
     assert bottom("MeterGPUEngineHeader") <= EPS + top("MeterGPUEngineHeaderRule"), case
-    for name in ("MeterGPUEngineHeaderRule", "MeterGPUProcessHeaderRule"):
+    for name in ("MeterGPUEngineHeaderRule", "MeterGPUProcessHeaderRule") if TABLE else ("MeterGPUEngineHeaderRule",):
         rule = meters[name]
         assert math.isclose(left(name), content_x) and math.isclose(n(rule["W"]), content_w), name
         assert math.isclose(n(rule["H"]), n("#TableHeaderBorderThickness#*#Scale#")), name
@@ -653,49 +772,18 @@ def check_case(column_width, scale, columns, title_size, bar_thickness, saved_he
     assert math.isclose(top("MeterGPUSharedLabel"), inset + (250 + extra) * scale), case
     # Process table: heading with both column glyphs, header rule, five
     # 16 px rows of name / VRAM / GPU % and a closing divider; the three
-    # columns never overlap and the glyphs center on their columns.
-    assert bottom("MeterGPUSharedLabel") <= EPS + top("MeterGPUProcessHeading"), case
-    heading = meters["MeterGPUProcessHeading"]
-    memory_w, process_value_w = n("#GPUProcessMemoryWidth#"), n("#GPUProcessValueWidth#")
-    process_value_center = content_right - process_value_w / 2
-    memory_center = content_right - process_value_w - 4 * scale - memory_w / 2
-    assert math.isclose(box["MeterGPUProcessHeading"][3], 16 * scale)
-    assert math.isclose(top("MeterGPUProcessHeading"), inset + (276 + extra) * scale), case
-    assert math.isclose(left("MeterGPUProcessHeading"), content_x)
-    assert right("MeterGPUProcessHeading") <= EPS + left("MeterGPUProcessMemoryHeader"), case
-    for name, center in (("MeterGPUProcessMemoryHeader", memory_center), ("MeterGPUProcessUtilHeader", process_value_center)):
-        glyph = meters[name]
-        assert math.isclose(n(glyph["W"]), 14 * scale) and math.isclose(n(glyph["H"]), 14 * scale), name
-        assert math.isclose(left(name) + n(glyph["W"]) / 2, center), (name, case)
-        assert top(name) + EPS >= top("MeterGPUProcessHeading") and bottom(name) <= EPS + top("MeterGPUProcessHeaderRule"), (name, case)
-        for x, y, w, h in icon_bounds(glyph, n, "#Scale#"):
-            assert min(x, y) + EPS >= 0 and x + w <= EPS + n(glyph["W"]) and y + h <= EPS + n(glyph["H"]), (name, case)
-    assert right("MeterGPUProcessMemoryHeader") <= EPS + left("MeterGPUProcessUtilHeader"), case
-    assert bottom("MeterGPUProcessHeading") <= EPS + top("MeterGPUProcessHeaderRule"), case
-    previous_bottom = bottom("MeterGPUProcessHeaderRule")
-    for i in range(1, 6):
-        name, memory, value = (f"MeterGPUProcess{part}{i}" for part in PROCESS_PARTS)
-        assert meters[name].get("StringAlign", "Left") == "Left", name
-        assert meters[memory]["StringAlign"] == "Center" and meters[value]["StringAlign"] == "Center", i
-        assert math.isclose(top(name), top(memory)) and math.isclose(top(name), top(value)), i
-        assert all(math.isclose(box[cell][3], 16 * scale) for cell in (name, memory, value)), i
-        assert top(name) + EPS >= previous_bottom, (i, case)
-        assert math.isclose(top(name), top("MeterGPUProcessName1") + 16 * scale * (i - 1)), (i, case)
-        assert math.isclose(top(name), inset + (296 + 16 * (i - 1) + extra) * scale), (i, case)
-        assert math.isclose(left(name), content_x), i
-        assert math.isclose(box[memory][2], memory_w) and math.isclose(left(memory) + memory_w / 2, memory_center), i
-        assert math.isclose(box[value][2], process_value_w) and math.isclose(left(value) + process_value_w / 2, process_value_center), i
-        assert math.isclose(right(value), content_right), i
-        assert right(name) + 4 * scale <= EPS + left(memory), (i, case)
-        assert right(memory) + 4 * scale <= EPS + left(value), (i, case)
-        previous_bottom = bottom(name)
-    assert previous_bottom <= EPS + top("MeterGPUProcessFooterRule"), case
-    assert math.isclose(left("MeterGPUProcessFooterRule"), content_x) and math.isclose(box["MeterGPUProcessFooterRule"][2], content_w)
-    assert math.isclose(n(meters["MeterGPUProcessFooterRule"]["Y"]), inset + (378 + extra) * scale), case
+    # columns never overlap and the glyphs center on their columns. Without
+    # the VRAM column the name column runs up to the GPU % column's gutter.
+    if TABLE:
+        check_process_table(case, n, box, meters, scale, extra, content_x, content_w, content_right, inset)
     # History: header and fixed range on one row, the graph at least 20 px
     # below them with its startup cover and frame on the same canvas, and
-    # 8 px of panel left under the graph at the natural height.
-    assert bottom("MeterGPUProcessFooterRule") <= EPS + top("MeterGPUHistoryLabel"), case
+    # 8 px of panel left under the graph at the natural height. Without the
+    # process table the block takes the table's place below the Shared row.
+    if TABLE:
+        assert bottom("MeterGPUProcessFooterRule") <= EPS + top("MeterGPUHistoryLabel"), case
+    else:
+        assert bottom("MeterGPUSharedLabel") + 8 * scale <= EPS + top("MeterGPUHistoryLabel"), case
     label, span = meters["MeterGPUHistoryLabel"], meters["MeterGPUHistoryRange"]
     assert label.get("StringAlign", "Left") == "Left" and span["StringAlign"] == "Right"
     assert math.isclose(top("MeterGPUHistoryLabel"), top("MeterGPUHistoryRange")), case
@@ -706,7 +794,8 @@ def check_case(column_width, scale, columns, title_size, bar_thickness, saved_he
     assert top("MeterGPUUtilizationGraph") + EPS >= bottom("MeterGPUHistoryLabel"), case
     assert math.isclose(left("MeterGPUUtilizationGraph"), content_x) and math.isclose(box["MeterGPUUtilizationGraph"][2], content_w)
     assert math.isclose(box["MeterGPUUtilizationGraph"][3], n("#GraphHeight#*#Scale#"))
-    assert math.isclose(top("MeterGPUUtilizationGraph"), inset + (406 + extra) * scale), case
+    assert math.isclose(top("MeterGPUHistoryLabel"), inset + (276 + block + extra) * scale), case
+    assert math.isclose(top("MeterGPUUtilizationGraph"), inset + (296 + block + extra) * scale), case
     for name in ("MeterGPUGraphUncollected", "MeterGPUGraphFrame"):
         assert all(math.isclose(a, b) for a, b in zip(box[name], box["MeterGPUUtilizationGraph"])), (name, case)
     fx, fy, fw, fh = rectangle_bounds(meters["MeterGPUGraphFrame"]["Shape"], n)
@@ -720,8 +809,9 @@ def check_case(column_width, scale, columns, title_size, bar_thickness, saved_he
     order = ("MeterAdapterPanel", "MeterTemperatureLabel", "MeterPowerLabel", "MeterClockLabel",
              "MeterGPUEngineHeader", "MeterGPUEngineHeaderRule", *(f"Meter{field}Label" for field in ENGINE_FIELDS),
              "MeterGPUEngineFooterRule", "MeterGPUVRAMLabel", "MeterGPUVRAMBar", "MeterGPUSharedLabel",
-             "MeterGPUProcessHeading", "MeterGPUProcessHeaderRule", *(f"MeterGPUProcessName{i}" for i in range(1, 6)),
-             "MeterGPUProcessFooterRule", "MeterGPUHistoryLabel", "MeterGPUUtilizationGraph")
+             *(("MeterGPUProcessHeading", "MeterGPUProcessHeaderRule", *(f"MeterGPUProcessName{i}" for i in range(1, 6)),
+                "MeterGPUProcessFooterRule") if TABLE else ()),
+             "MeterGPUHistoryLabel", "MeterGPUUtilizationGraph")
     for before, after in zip(order, order[1:]):
         assert bottom(before) <= EPS + top(after) + 1e-9, (before, after, case)
     return f"width={column_width} scale={scale:g} title={title_size} bars={bar_thickness} saved_height={saved:g}: {width:g} x {height:g}, Engine table, memory rows, process columns and History inside bounds"
@@ -735,7 +825,7 @@ cases = [(column_width, scale, columns, title_size, bar_thickness, None) for col
 # (natural) and a larger custom minimum (honored).
 cases += [(column_width, scale, columns, 12, bar_thickness, saved_height)
           for column_width in (180, 220) for scale in (.75, 1, 2)
-          for columns in (1, 2) for bar_thickness in (6, 12) for saved_height in (330, 650, 750)]
+          for columns in (1, 2) for bar_thickness in (6, 12) for saved_height in (330, 462, 650, 750)]
 for column_width, scale, columns, title_size, bar_thickness, saved_height in cases:
     summary = check_case(column_width, scale, columns, title_size, bar_thickness, saved_height)
     if column_width in (180, 220) and scale in (.75, 1, 2) and columns == 1 and title_size == 12 and bar_thickness in (6, 12):
@@ -763,6 +853,15 @@ for metrics, sensors in ((1000, 2000), (1500, 2000), (500, 2000), (3000, 2000)):
         assert divider * metrics + EPS >= sensors, name
         assert divider + EPS >= 1 and divider.is_integer(), name
 
-print(f"PASS: {len(loaded)} includes/configs; {len(meters)} explicit meters; {len(cases)} geometry cases; 4 sensor cadences.")
+variant = f"GPUShowProcesses={SHOW_PROCESSES} GPUShowProcessMemory={SHOW_MEMORY}"
+print(f"PASS ({variant}): {len(loaded)} includes/configs; {len(meters)} explicit meters; {len(usage_monitor)} UsageMonitor measures; {len(cases)} geometry cases; 4 sensor cadences.")
 print("\n".join(rows))
+if __name__ == "__main__" and not OVERRIDES:
+    # The other include variants, each in a fresh interpreter (module state).
+    for processes, memory in (("1", "0"), ("0", "1"), ("0", "0")):
+        result = subprocess.run([sys.executable, __file__, "--processes", processes, "--memory", memory]
+                                + [arg for arg in sys.argv[1:] if arg == "--all-scales"],
+                                capture_output=True, text=True)
+        assert result.returncode == 0, result.stdout + result.stderr
+        print(result.stdout.splitlines()[0])
 print("This offline check does not execute Lua or verify rendering, HWiNFO integration or performance.")

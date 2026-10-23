@@ -43,7 +43,40 @@ local function notify()
     return true
 end
 
+-- Idle stand-down (Global Settings Idle pause; @Resources\Idle\StandDown.lua
+-- sends IdleStandby(level, reason) here). The single writer of
+-- StandbyState.inc: saves VisualizerStandby and reloads this skin once into
+-- Standalone<level>.inc. Returns true when the state changed and reads back.
+local standbyRefreshed = false
+local IDLE_MINUTES = { ['5'] = true, ['10'] = true, ['30'] = true }
+local function statePath() return SKIN:GetVariable('@') .. 'Modules\\Visualizer\\StandbyState.inc' end
+local function savedStandby()
+    if not Link then return nil end
+    local values, found = Link.readSection(statePath(), 65536, 'Variables', { visualizerstandby = true })
+    if not values or not found then return nil end
+    return values.visualizerstandby or '0'
+end
+
+function IdleStandby(level, reason)
+    level = tonumber(level) == 1 and '1' or '0'
+    local saved = savedStandby()
+    if not saved or saved == level then return false end
+    SKIN:Bang('!WriteKeyValue', 'Variables', 'VisualizerStandby', level, statePath())
+    if savedStandby() ~= level then return false end
+    if not standbyRefreshed then
+        standbyRefreshed = true
+        SKIN:Bang('!Refresh')
+    end
+    return true
+end
+
 function Announce()
+    -- A load built in standby while Idle pause is Off (or a hand-edited value,
+    -- so no hook loads) has nothing to bring it back: return to live.
+    if SKIN:GetVariable('VisualizerStandby', '0') == '1' then
+        local minutes = (SKIN:GetVariable('IdlePauseMinutes', '0') or ''):match('^%s*(.-)%s*$')
+        if not IDLE_MINUTES[minutes] then IdleStandby(0, 'fail-live') end
+    end
     return notify()
 end
 

@@ -211,12 +211,16 @@ public static class ParallaxStandDownAudio {
 '@
 }
 function Get-ActiveSessions($Process) { @([ParallaxStandDownAudio]::SessionStates([uint32]$Process.Id) | Where-Object { $_ -eq 1 }).Count }
-# Media.ini stands down by reloading: one refresh into standby (provider tick,
-# drawer parked, no render session) and one refresh back (50 ms, live capture).
-$mediaExtra = {
-    param($Run, $Process)
-    $pattern = 'Parallax\\Media\\Media\.ini: Refreshing skin'
-    foreach ($step in @(@{ Idle = '10'; Hidden = '0'; Tick = '1000'; Sessions = 0; Label = 'standby' }, @{ Idle = '0'; Hidden = '1'; Tick = '50'; Sessions = 1; Label = 'back to live' })) {
+# A refresh-standby skin (Media.ini, the standalone Visualizer) stands down by
+# reloading: one refresh into standby (slow tick, no capture, so no render
+# session for the instance) and one refresh back (fast tick, live capture);
+# a Rainmeter restart while in standby with input recent loads once in
+# standby and refreshes once back to live. Live: regexes the state file must
+# match when live; Standby: the one it matches when stood down.
+function Test-RefreshStandby($Run, $Process, [string]$Label, [string]$Pattern, [string]$StateFile, [string[]]$Live, [string]$Standby,
+        [string]$TickName, [string]$SlowTick, [string]$FastTick) {
+    $pattern = $Pattern
+    foreach ($step in @(@{ Idle = '10'; Hidden = '0'; Tick = $SlowTick; Sessions = 0; Label = 'standby' }, @{ Idle = '0'; Hidden = '1'; Tick = $FastTick; Sessions = 1; Label = 'back to live' })) {
         $before = Get-RefreshCount $Run.Root $pattern
         $written = Send $Run "idle $($step.Idle)"
         $seen = Wait-Hidden $Run $step.Hidden $written 20000
@@ -224,48 +228,57 @@ $mediaExtra = {
         $after = Get-RefreshCount $Run.Root $pattern
         $tick = @(Read-Probe $Run.Probe | Where-Object { $_.Kind -eq 'F' -and $_.Clock -ge $written } | Select-Object -Last 1)
         $sessions = Get-ActiveSessions $Process
-        Write-Output ("     Media {0}: line {1} after {2:N2} s; refreshes {3} -> {4}; MediaTickInterval {5}; active render sessions {6}" -f $step.Label,
+        Write-Output ("     {7} {0}: line {1} after {2:N2} s; refreshes {3} -> {4}; {8} {5}; active render sessions {6}" -f $step.Label,
             $(if ($step.Hidden -eq '0') { 'shown' } else { 'hidden' }), $(if ($seen) { $seen.Clock - $written } else { [double]::NaN }), $before, $after,
-            $(if ($tick.Count) { $tick[0].Rest[1] } else { '?' }), $sessions)
-        Check ($null -ne $seen -and $after -eq $before + 1) "Media $($step.Label): exactly one refresh"
-        Check ($tick.Count -eq 1 -and $tick[0].Rest[1] -eq $step.Tick) "Media $($step.Label): MediaTickInterval $($step.Tick)"
-        if ($step.Sessions -eq 0) { Check ($sessions -eq 0) "Media $($step.Label): the drawer is parked with no render session" }
-        else { Check ($sessions -ge 1) "Media $($step.Label): the live capture's render session is back" }
+            $(if ($tick.Count) { $tick[0].Rest[1] } else { '?' }), $sessions, $Label, $TickName)
+        Check ($null -ne $seen -and $after -eq $before + 1) "$Label $($step.Label): exactly one refresh"
+        Check ($tick.Count -eq 1 -and $tick[0].Rest[1] -eq $step.Tick) "$Label $($step.Label): $TickName $($step.Tick)"
+        if ($step.Sessions -eq 0) { Check ($sessions -eq 0) "$Label $($step.Label): no capture and no render session" }
+        else { Check ($sessions -ge 1) "$Label $($step.Label): the live capture's render session is back" }
     }
-    $statePath = Join-Path $Run.Target '@Resources\Modules\Media\CaptureState.inc'
+    $statePath = Join-Path $Run.Target $StateFile
     $state = [IO.File]::ReadAllText($statePath)
-    Check ($state -match '(?m)^MediaStandby=0' -and $state -match '(?m)^MediaDrawerCapture=0') 'Media: CaptureState.inc is back to live (standby 0, capture 0)'
+    Check (@($Live | Where-Object { $state -notmatch $_ }).Count -eq 0) "${Label}: the state file is back to live"
     # Rainmeter restarts while Media is in standby and input is recent: the
     # standby load syncs with paused 0 and reloads once, back to live.
     $written = Send $Run 'idle 10'
     $null = Wait-Hidden $Run '0' $written 20000
     Start-Sleep -Seconds 2
-    Check ([IO.File]::ReadAllText($statePath) -match '(?m)^MediaStandby=1') 'Media: standby saved before the restart'
+    Check ([IO.File]::ReadAllText($statePath) -match $Standby) "${Label}: standby saved before the restart"
     try { $null = Send $Run 'quit' } catch { }
-    Check ($Process.WaitForExit(20000)) 'Media: the instance quit while in standby'
+    Check ($Process.WaitForExit(20000)) "${Label}: the instance quit while in standby"
     [IO.File]::WriteAllText("$($Run.Root)\idle.txt", '0', $encoding)
     foreach ($stale in @("$($Run.Root)\cmd.txt", "$($Run.Root)\driver.log")) { if (Test-Path -LiteralPath $stale) { Remove-Item -LiteralPath $stale } }
     $Run.Sequence = 0
     $restarted = Start-Run $Run.Root
     try {
         $clock = [Diagnostics.Stopwatch]::StartNew()
-        $live = -1
+        $liveAt = -1
         while ($clock.ElapsedMilliseconds -lt 45000) {
             $text = try { [IO.File]::ReadAllText($statePath) } catch { '' }
-            if ($text -match '(?m)^MediaStandby=0' -and $text -match '(?m)^MediaDrawerCapture=0') { $live = $clock.ElapsedMilliseconds; break }
+            if (@($Live | Where-Object { $text -notmatch $_ }).Count -eq 0) { $liveAt = $clock.ElapsedMilliseconds; break }
             Start-Sleep -Milliseconds 200
         }
         Start-Sleep -Seconds 3
         $refreshes = Get-RefreshCount $Run.Root $pattern
         $sessions = Get-ActiveSessions $restarted
-        Write-Output ("     Media restart in standby with input recent: live after {0} ms; Media.ini loads/refreshes in the new log {1}; active render sessions {2}" -f $live, $refreshes, $sessions)
-        Check ($live -ge 0) 'Media: restart in standby with input recent returns to live'
-        Check ($refreshes -eq 2) 'Media: one load in standby plus exactly one refresh back'
-        Check ($sessions -ge 1) 'Media: live capture after the restart'
+        Write-Output ("     {3} restart in standby with input recent: live after {0} ms; loads/refreshes in the new log {1}; active render sessions {2}" -f $liveAt, $refreshes, $sessions, $Label)
+        Check ($liveAt -ge 0) "${Label}: restart in standby with input recent returns to live"
+        Check ($refreshes -eq 2) "${Label}: one load in standby plus exactly one refresh back"
+        Check ($sessions -ge 1) "${Label}: live capture after the restart"
     } finally {
         try { $null = Send $Run 'quit' } catch { }
         if (-not $restarted.WaitForExit(15000)) { Stop-Run $restarted }
     }
+}
+
+$mediaExtra = {
+    param($Run, $Process)
+    Test-RefreshStandby $Run $Process 'Media' 'Parallax\\Media\\Media\.ini: Refreshing skin' '@Resources\Modules\Media\CaptureState.inc' @('(?m)^MediaStandby=0', '(?m)^MediaDrawerCapture=0') '(?m)^MediaStandby=1' 'MediaTickInterval' '1000' '50'
+}
+$visualizerExtra = {
+    param($Run, $Process)
+    Test-RefreshStandby $Run $Process 'Visualizer' 'Parallax\\Visualizer\\Visualizer\.ini: Refreshing skin' '@Resources\Modules\Visualizer\StandbyState.inc' @('(?m)^VisualizerStandby=0') '(?m)^VisualizerStandby=1' 'VisualizerTickMs' '1000' '50'
 }
 
 Register-Skin 'Chronometer' 'Parallax\Chronometer' 'Chronometer.ini' 1.0
@@ -298,6 +311,7 @@ Register-Skin 'Network' 'Parallax\Network' 'Network.ini' 1.0 {
 Register-Skin 'Media' 'Parallax\Media' 'Media.ini' 3.0 $mediaExtra '' $mediaPrepare 'MediaTickInterval'
 Register-Skin 'Setup' 'Parallax\Media' 'Setup.ini' 1.0 $null '' $mediaPrepare -StaticValues
 Register-Skin 'Queue' 'Parallax\Media\Queue' 'Queue.ini' 1.0 $null '' $mediaPrepare -StaticValues
+Register-Skin 'Visualizer' 'Parallax\Visualizer' 'Visualizer.ini' 3.0 $visualizerExtra '' $null 'VisualizerTickMs'
 
 Add-Type -AssemblyName System.Drawing
 if (-not ('ParallaxStandDownNative' -as [type])) {

@@ -40,6 +40,7 @@ function Suite.Run(companionPath, linkPath)
             [settings .. 'Rainmeter.ini'] = settingsText,
             [resources .. 'User\\Media.inc'] = '[Variables]\r\nVisualizerDrawer=' .. (options.drawer or '2') .. '\r\n',
             [resources .. 'Idle\\Link.lua'] = not options.noLink and '-- link' or nil,
+            [resources .. 'Modules\\Visualizer\\StandbyState.inc'] = '[Variables]\r\nVisualizerStandby=' .. (options.saved or '0') .. '\r\n',
         }
         local state = { bangs = {}, loads = 0 }
         local skin = {}
@@ -49,7 +50,16 @@ function Suite.Run(companionPath, linkPath)
             if value == nil then return default end
             return value
         end
-        function skin:Bang(...) state.bangs[#state.bangs + 1] = table.concat({ ... }, ' ') end
+        for key, value in pairs(options.variables or {}) do variables[key] = value end
+        local statePath = resources .. 'Modules\\Visualizer\\StandbyState.inc'
+        function skin:Bang(...)
+            local args = { ... }
+            state.bangs[#state.bangs + 1] = table.concat(args, ' ')
+            -- !WriteKeyValue of the standby state file rewrites it (read-only if asked).
+            if args[1] == '!WriteKeyValue' and args[5] == statePath and not options.readOnly then
+                files[statePath] = '[Variables]\r\nVisualizerStandby=' .. args[4] .. '\r\n'
+            end
+        end
         local fakeIo = { open = function(path, mode)
             assert(mode == 'rb', 'Read-only')
             local text = files[path]
@@ -86,6 +96,37 @@ function Suite.Run(companionPath, linkPath)
                 equal(state.env.Announce(), true, 'Announced')
                 expectSilent(state, 'Drawer ' .. drawer .. (utf8 and ' (UTF-8 settings)' or ' (UTF-16LE settings)'))
             end
+        end
+    end)
+
+    scenario('IdleStandby: one write of its own state file and one reload', function()
+        local state = fixture({ media = 0, own = 1 })
+        equal(state.env.IdleStandby(1, 'standby'), true, 'Standby applied')
+        equal(#state.bangs, 2, 'A write and a reload')
+        equal(state.bangs[1], '!WriteKeyValue Variables VisualizerStandby 1 ' .. resources .. 'Modules\\Visualizer\\StandbyState.inc', 'The state write')
+        equal(state.bangs[2], '!Refresh', 'One reload of this skin')
+        equal(state.env.IdleStandby(1, 'standby'), false, 'Already in standby: nothing')
+        equal(state.env.IdleStandby(0, 'standby'), true, 'Back to live before the reload came')
+        equal(#state.bangs, 3, 'Written again, but only one reload per load')
+        local readOnly = fixture({ media = 0, own = 1, readOnly = true })
+        equal(readOnly.env.IdleStandby(1, 'standby'), false, 'A write that does not read back is a failure')
+        equal(#readOnly.bangs, 1, 'No reload after a failed write')
+        local noLink = fixture({ media = 0, own = 1, noLink = true })
+        equal(noLink.env.IdleStandby(1, 'standby'), false, 'Without the shared reader nothing is written')
+        equal(#noLink.bangs, 0, 'Nothing sent')
+    end)
+
+    scenario('Announce returns a standby load to live when Idle pause is Off or Custom', function()
+        for _, minutes in ipairs({ '0', '7', '' }) do
+            local state = fixture({ media = 0, own = 1, saved = '1', variables = { VisualizerStandby = '1', IdlePauseMinutes = minutes } })
+            state.env.Announce()
+            equal(state.bangs[1], '!WriteKeyValue Variables VisualizerStandby 0 ' .. resources .. 'Modules\\Visualizer\\StandbyState.inc', 'Off (' .. minutes .. '): back to live')
+            equal(state.bangs[2], '!Refresh', 'Off (' .. minutes .. '): one reload')
+        end
+        for _, minutes in ipairs({ '5', '10', '30' }) do
+            local state = fixture({ media = 0, own = 1, saved = '1', variables = { VisualizerStandby = '1', IdlePauseMinutes = minutes } })
+            state.env.Announce()
+            equal(#state.bangs, 0, minutes .. ' min: left to the stand-down hook')
         end
     end)
 

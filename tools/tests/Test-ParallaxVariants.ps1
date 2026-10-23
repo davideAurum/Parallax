@@ -43,6 +43,9 @@ $variantSets = @(
     , @('IdlePauseMinutes=5')
     # Media stood down for the idle pause: provider tick, open drawer parked.
     , @('IdlePauseMinutes=5', 'MediaStandby=1', 'VisualizerDrawer=2', 'MediaDrawerCapture=1')
+    # The standalone Audio Visualizer stood down (Standalone1.inc, no capture).
+    , @('IdlePauseMinutes=5', 'VisualizerStandby=1')
+    , @('VisualizerStandby=1')
 )
 
 $assertions = 0

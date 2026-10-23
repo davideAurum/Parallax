@@ -52,6 +52,7 @@ CONSUMERS = OrderedDict([
                          {'MediaTitleAnimation': '0'}]),
     ('Media/Setup.ini', [{}]),
     ('Media/Queue/Queue.ini', [{}]),
+    ('Visualizer/Visualizer.ini', [{}, {'VisualizerStandby': '1'}]),
 ])
 
 # Every utility entrypoint, wired or not yet (all ten once C2 is complete).

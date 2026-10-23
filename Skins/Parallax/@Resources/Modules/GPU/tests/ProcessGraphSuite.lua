@@ -200,7 +200,7 @@ function Suite.run(path)
             return meter and meter[option]
         end
         function f:text(kind, rank) return self:option(kind, rank, 'Text') end
-        -- Calls other than the row-visibility bangs, which are re-sent every update.
+        -- Calls other than the row-visibility bangs (sent only on a change).
         function f:work()
             local list = {}
             for _, call in ipairs(self.calls) do
@@ -350,6 +350,27 @@ function Suite.run(path)
         eq(f:text('Name', 1), 'PID 11'); eq(f.nameReads, 0)
         f.missingNames = false; f.names = packet({{11, 'available.exe'}}); f:update()
         eq(f:text('Name', 1), 'available.exe'); eq(f.nameLookups, 2)
+    end)
+    test('row visibility bangs are sent only when a row appears or disappears', function()
+        local function visibility(f)
+            local list = {}
+            for _, call in ipairs(f.calls) do
+                if call.command == '!ShowMeterGroup' or call.command == '!HideMeterGroup' then
+                    list[#list + 1] = call.command:sub(2, 5) .. tostring(call.args[1]):sub(-1)
+                end
+            end
+            return table.concat(list, ',')
+        end
+        local f = fixture({{name = instance(11), value = 25}, {name = instance(22), value = 10}})
+        eq(visibility(f), 'Show1,Show2,Hide3,Hide4,Hide5', 'the first update sets every row'); shown(f, 2)
+        f:clear(); for _ = 1, 3 do f:update() end
+        eq(visibility(f), '', 'a steady ranking sends no visibility bang'); shown(f, 2)
+        f.rows[3] = {name = instance(33), value = 5}; f:clear(); f:update(); eq(visibility(f), 'Show3'); shown(f, 3)
+        f.rows[2], f.rows[3] = nil, nil; f:clear(); f:update(); eq(visibility(f), 'Hide2,Hide3'); shown(f, 1)
+        f.rows[1] = nil; f:clear(); f:update(); eq(visibility(f), '', 'the empty-ranking row stays shown'); shown(f, 1)
+        eq(f:text('Name', 1), 'No active GPU process data')
+        f.env.Initialize(); f:clear(); f:update()
+        eq(visibility(f), 'Show1,Hide2,Hide3,Hide4,Hide5', 'reinitialization sends every row again')
     end)
     test('an unchanged name packet is decoded once, still ages out, and a new packet decodes again', function()
         local f = fixture({{name = instance(11), value = 25}}, {names = packet({{11, 'valid.exe'}})})

@@ -117,6 +117,17 @@ local function set(meter, option, value)
     return false
 end
 
+-- Row visibility as last sent. Each Show/HideMeterGroup bang walks every
+-- meter for the group and makes Rainmeter check the window size (and so
+-- redraw), so it is sent only when a row actually appears or disappears.
+local visible
+local function showRow(slot, shown)
+    if visible[slot] ~= shown then
+        visible[slot] = shown
+        SKIN:Bang(shown and '!ShowMeterGroup' or '!HideMeterGroup', 'GPUProcessRow' .. slot)
+    end
+end
+
 -- A memory instance identifies a process on one physical adapter, without
 -- the GPU Engine suffix. Preserve its exact spelling for Name's case-sensitive
 -- lookup; only the validated ASCII prefix is ever supplied as an option.
@@ -192,6 +203,7 @@ local function rawObservation(rank)
 end
 
 function Initialize()
+    visible = {}
     measures, previous, memoryBindings, recentPIDs = {}, {}, {}, {}
     namesPacket, namesDecoded = nil, nil
 end
@@ -227,7 +239,7 @@ function Update()
             set(nameMeter, 'Text', display(label))
             set(valueMeter, 'Text', display(percentage))
             set(memoryMeter, 'Text', memoryLabel)
-            SKIN:Bang('!ShowMeterGroup', 'GPUProcessRow' .. slot)
+            showRow(slot, true)
         elseif slot == 1 then
             -- Keep the first row visible to explain an empty ranking instead
             -- of leaving the table blank.
@@ -235,10 +247,10 @@ function Update()
             set(nameMeter, 'Text', 'No active GPU process data')
             set(valueMeter, 'Text', '--')
             set(memoryMeter, 'Text', '--')
-            SKIN:Bang('!ShowMeterGroup', 'GPUProcessRow1')
+            showRow(1, true)
         else
             memoryObservation(slot, nil)
-            SKIN:Bang('!HideMeterGroup', 'GPUProcessRow' .. slot)
+            showRow(slot, false)
         end
     end
 

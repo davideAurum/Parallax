@@ -55,7 +55,7 @@ function Suite.run(path)
     local function fixture(options)
         options = options or {}
         local f = {now = 1000, calls = {}, meter = {}, meters = {}, parameters = {}, launches = {}, kills = {}, reads = {},
-            registryEnables = {}, registryUpdates = {}, initializing = false, history = {}, pushes = 0,
+            registryEnables = {}, registryUpdates = {}, initializing = false, history = {}, pushes = 0, idle = {}, inIdle = false,
             files = {[foreignPath] = 'preserve'}, removed = {}, leaseWrites = 0, vars = options.vars or {},
             statuses = {[info] = options.infoStatus or 1, [launcher] = options.bootstrapStatus or -1},
             outputs = {[info] = options.metadata or metadata, [launcher] = '', MeasureGPUProcessController = options.pids or '?'},
@@ -117,6 +117,11 @@ function Suite.run(path)
                 return {GetValue = function() return 0 end,
                     GetStringValue = function() f.reads[name] = (f.reads[name] or 0) + 1; return f.exports[name] end}
             end
+            if name == 'MeasureGPUGraphSamples' then
+                assert(f.inIdle, 'the History point count is read only by the idle resume')
+                return {GetOption = function(_, key, default)
+                    assert(key == 'Formula', 'only the point count formula is read'); return 'Min(MeasureGPUGraphSamples+1,200)' end}
+            end
             if name == 'MeasureGPUProcessController' then
                 return {GetStringValue = function() f.reads[name] = (f.reads[name] or 0) + 1; return f.outputs[name] end}
             end
@@ -137,6 +142,9 @@ function Suite.run(path)
                     if args[2] ~= 'Shape2' then assert(not args[3]:find('[#%[%]"%c]'), 'unsafe display data') end
                     f.meters[args[1]] = f.meters[args[1]] or {}
                     f.meters[args[1]][args[2]] = args[3]
+                elseif args[1] == 'MeasureGPUGraphSamples' or args[1] == 'MeterGPUGraphUncollected' then
+                    assert(f.inIdle, 'History cover and count options change only on an idle resume')
+                    f.idle[#f.idle + 1] = '!SetOption ' .. table.concat(args, ' ')
                 elseif args[1] == 'MeasureGPUUtilizationHistory' then
                     assert(args[2] == 'Formula' and args[3]:match('^%d+$') and tonumber(args[3]) <= 100,
                         'a History point is a literal 0-100 percentage')
@@ -186,7 +194,13 @@ function Suite.run(path)
                     f.history[#f.history + 1] = tonumber(f.historyFormula)
                 elseif args[1] == 'MeasureGPUGraphSamples' then
                     local previous = f.calls[#f.calls - 1]
-                    assert(previous and previous[1] == '!UpdateMeasure' and previous[2] == 'MeasureGPUUtilizationHistory', 'the point count follows the point')
+                    if f.inIdle then
+                        assert(previous and previous[1] == '!SetOption' and previous[2] == args[1] and previous[3] == 'Formula' and previous[4] == '0',
+                            'an idle resume forces the count right after resetting it')
+                        f.idle[#f.idle + 1] = '!UpdateMeasure ' .. args[1]
+                    else
+                        assert(previous and previous[1] == '!UpdateMeasure' and previous[2] == 'MeasureGPUUtilizationHistory', 'the point count follows the point')
+                    end
                 else
                     assert(args[1] == launcher, 'unexpected forced update')
                     if f.statusOnRefresh and f.statusOnRefresh[args[1]] ~= nil then
@@ -199,6 +213,9 @@ function Suite.run(path)
                 local previous = f.calls[#f.calls - 1]
                 assert(previous and previous[1] == '!UpdateMeasure' and previous[2] == 'MeasureGPUGraphSamples', 'the graph pushes after its point and count')
                 f.pushes = f.pushes + 1
+            elseif command == '!ShowMeter' then
+                assert(f.inIdle and #args == 1 and args[1] == 'MeterGPUGraphUncollected', 'only the History cover is shown, on an idle resume')
+                f.idle[#f.idle + 1] = '!ShowMeter ' .. args[1]
             elseif command == '!UpdateMeterGroup' or command == '!Redraw' then
                 -- Every GPUDriverReadout meter keeps UpdateDivider=1, so the normal
                 -- end-of-cycle redraw paints changes; Update must not force an
@@ -275,6 +292,7 @@ function Suite.run(path)
         -- more, and the controller sees only that, after its liveness grace.
         function f:hostStops() self.files[dataPath] = nil; self.now = self.now + 31 end
         function f:live(overrides) self:start(); self:sample(overrides); self:update() end
+        function f:idleCall(name) self.inIdle = true; local result = self.env[name](); self.inIdle = false; return result end
         function f:clear() self.calls = {} end
         function f:text(meter) return self.meters[meter] and self.meters[meter].Text end
         function f:bar(meter)
@@ -610,6 +628,38 @@ function Suite.run(path)
         end
         f.now = f.now + 100000; f:update(); eq(f.launches[launcher], 4); eq(f.meter.Text, 'Unavailable')
         eq(f.launches[driver], 1, 'no retried launcher reported a session')
+    end)
+    test('idle stand-down stops the host without a failure and resumes one fresh session', function()
+        local f = fixture(); f:live(); eq(f.meter.Text, '42 °C')
+        eq(f:idleCall('IdleEnter'), nil); eq(f.removed[leasePath], 1, 'the lease is removed: the host exits')
+        eq(f.kills[launcher], nil, 'a completed launcher is not killed')
+        eq(f.env.StandDown(), false, 'a second stand-down does nothing')
+        f.now = f.now + 3600; f:update(); eq(f.launches[launcher], 1, 'no launch or retry while standing down')
+        f.idle = {}; f:idleCall('IdleLeave')
+        eq(table.concat(f.idle, '\n'), table.concat({'!SetOption MeasureGPUGraphSamples Formula 0', '!UpdateMeasure MeasureGPUGraphSamples',
+            '!SetOption MeasureGPUGraphSamples Formula Min(MeasureGPUGraphSamples+1,200)',
+            '!SetOption MeterGPUGraphUncollected DynamicVariables 1', '!ShowMeter MeterGPUGraphUncollected'}, '\n'), 'History restarts with its cover')
+        f.idle = {}; f:idleCall('ReapplyDividers'); eq(f.idle[1], '!SetOption MeterGPUGraphUncollected UpdateDivider 1')
+        f:update(); eq(f.launches[launcher], 2, 'the resume update launches one fresh session'); eq(f.meter.Text, 'Checking...', 'never the pre-pause reading')
+        local plotted = #f.history
+        f:start(); eq(f.launches[driver], 2); f:sample({[4] = '1'}); f:update(); eq(f.meter.Text, '42 °C', 'a fresh sample follows')
+        eq(#f.history, plotted + 1, 'the History graph advances again with the first new sample')
+        f:hostStops(); f:update(); f.now = f.now + 9; f:update(); eq(f.launches[launcher], 2)
+        f.now = f.now + 1; f:update(); eq(f.launches[launcher], 3, 'no retry was consumed: the next failure retries after 10 s')
+        -- A launch in progress is killed once.
+        f = fixture(); f:update(); eq(f.launches[launcher], 1)
+        f:idleCall('IdleEnter'); eq(f.kills[launcher], 1, 'a running launcher is killed at stand-down')
+        f:idleCall('IdleLeave'); f:update(); eq(f.launches[launcher], 2, 'and relaunched on resume')
+        -- Metadata still pending: a fresh 14 s deadline after the pause.
+        f = fixture({infoStatus = 0}); f:update(); eq(f.launches[launcher], nil)
+        f:idleCall('IdleEnter'); f.now = f.now + 600; f:idleCall('IdleLeave')
+        f:update(); eq(f.launches[launcher], nil, 'the metadata wait restarts instead of timing out at once')
+        f.now = f.now + 14; f:update(); eq(f.launches[launcher], 1, 'then names-only after its own 14 s')
+        -- A failed state keeps its schedule; Stop after a stand-down is terminal.
+        f = fixture(); f:live(); f:hostStops(); f:update(); eq(f.env.StandDown(), false, 'a failed state does not stand down')
+        f.now = f.now + 10; f:update(); eq(f.launches[launcher], 2, 'its retry stays on schedule')
+        f = fixture(); f:live(); f:idleCall('IdleEnter'); f.env.Stop(); eq(f.env.StandUp(), false)
+        f.now = f.now + 100; f:update(); eq(f.launches[launcher], 1, 'Stop after a stand-down is terminal')
     end)
     test('a retried session recovers, a long healthy session resets the count, and Stop cancels a retry', function()
         -- Reproduced owner symptom (RAM, same design here): the host's lease

@@ -236,10 +236,38 @@ function Update()
     elseif state == 'failed' and retryAt and now >= retryAt then
         retryAt = nil
         begin(now)
+    elseif state == 'resume' then
+        begin(now)
     end
-    if state ~= 'stopped' then Display(false) end
+    if state ~= 'stopped' and state ~= 'standby' then Display(false) end
     return 0
 end
+
+-- Idle stand-down (Global Settings Idle pause; @Resources\Idle\StandDown.lua
+-- calls IdleEnter before pausing this measure and IdleLeave after unpausing
+-- it). StandDown ends the session without counting a failure: removing the
+-- lease stops a running host within one sampling interval, and a launch
+-- still in progress is killed. Not Stop(), which is terminal for this load.
+-- A failed state keeps its retry schedule (or stays Unavailable after the
+-- last retry), so a host that keeps failing is not relaunched per pause.
+function StandDown()
+    if state ~= 'launching' and state ~= 'running' then return false end
+    stopProcesses()
+    cleanup()
+    state, cached, retryAt = 'standby', nil, nil
+    return true
+end
+
+-- Arms a fresh session for the next update (the stand-down's forced resume
+-- update): PAGE shows Starting until the new host's first sample.
+function StandUp()
+    if state ~= 'standby' then return false end
+    state, cached = 'resume', {status = 'STARTING'}
+    return true
+end
+
+function IdleEnter() StandDown() end
+function IdleLeave() StandUp() end
 
 -- Close only: removing the lease stops the detached host. RunCommand's own
 -- unload terminates any setup command still running; a Kill sent here first

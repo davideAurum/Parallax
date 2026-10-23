@@ -34,7 +34,13 @@ local colorTargets = {
     TableHeaderBorderColor='MeterTableHeaderBorderColorValue'
 }
 -- Every meter whose Text Update() sets; forced after an in-place change.
-local displayMeters = { 'MeterGeometry', 'MeterCadence', 'MeterRefreshValue' }
+local displayMeters = { 'MeterGeometry', 'MeterCadence', 'MeterRefreshValue', 'MeterIdlePauseValue' }
+-- Idle pause (owner decision 2): Off or 5, 10, 30 minutes without input. Any
+-- other saved value shows Custom and acts as Off; it is kept until a choice
+-- is made here.
+local idleChoices = { '0', '5', '10', '30' }
+local idleLabels = { ['0'] = 'Off', ['5'] = '5 min', ['10'] = '10 min', ['30'] = '30 min' }
+local idleOwed, idleToken = false, 0
 for _, range in pairs(ranges) do displayMeters[#displayMeters+1] = range.meter end
 for _, meter in pairs(colorTargets) do displayMeters[#displayMeters+1] = meter end
 local themes = {
@@ -97,6 +103,12 @@ function Initialize()
     -- must not match a token issued after it. Bounded so '%d' (a 32-bit long
     -- on Windows) never overflows; the CRT clock reads -1 after 24.8 days.
     refreshToken = math.floor(os.clock() * 1000) % 1000000000
+    idleOwed, idleToken = false, refreshToken
+end
+
+local function idleChoice(value)
+    value = tostring(value or ''):match('^%s*(.-)%s*$')
+    return idleLabels[value] and value or nil
 end
 
 local function showThemeMenu(open)
@@ -152,6 +164,8 @@ function Update()
     SKIN:Bang('!SetOption', 'MeterCadence', 'Text', string.format('Metrics %gs  Sensors %gs  Disk %gs  Spectrum ~%g FPS', number('MetricsInterval',1000)/1000, number('SensorInterval',2000)/1000, number('CapacityInterval',30000)/1000, math.floor(1000/math.max(1,number('VisualizerInterval',50)) + 0.5)))
     local profile = currentProfile()
     SKIN:Bang('!SetOption', 'MeterRefreshValue', 'Text', profile == 'balanced' and 'Balanced' or profile == 'economy' and 'Economy' or 'Custom')
+    local idle = idleChoice(variable('IdlePauseMinutes'))
+    SKIN:Bang('!SetOption', 'MeterIdlePauseValue', 'Text', idle and idleLabels[idle] or 'Custom')
     SKIN:Bang('!SetOption', 'MeterScaleInput', 'Text', string.format('%g%%', scale * 100))
     SKIN:Bang('!SetOption', 'MeterWidthInput', 'Text', string.format('%g px', number('ColumnWidth',220)))
     SKIN:Bang('!SetOption', 'MeterGapInput', 'Text', string.format('%g px', number('Gutter',8)))
@@ -189,8 +203,9 @@ end
 -- Reloads every loaded Parallax skin, this one included, so a pending
 -- debounced refresh is satisfied and its timer becomes stale.
 local function refreshAll()
-    refreshOwed = false
+    refreshOwed, idleOwed = false, false
     refreshToken = refreshToken + 1
+    idleToken = idleToken + 1
     SKIN:Bang('!RefreshGroup', 'Parallax')
 end
 
@@ -238,11 +253,64 @@ function FlushRefresh(token)
     return true
 end
 
+-- Idle pause apply scope, decided when the clicks stop (the same debounce):
+-- turning it on or off adds or removes the stand-down hook in every utility,
+-- so the whole Parallax group reloads; 5 <-> 10 <-> 30 only changes the
+-- coordinator's threshold, so only Parallax\Idle reloads (silent when it is
+-- not loaded). Back to the loaded value: nothing. This skin's own loaded value
+-- is what the loaded utilities use, since every whole-suite apply reloads it.
+local function applyIdlePause()
+    idleOwed = false
+    idleToken = idleToken + 1
+    local loaded = idleChoice(SKIN:GetVariable('IdlePauseMinutes')) or '0'
+    local wanted = idleChoice(variable('IdlePauseMinutes')) or '0'
+    if (loaded == '0') ~= (wanted == '0') then
+        refreshAll()
+    elseif loaded ~= wanted then
+        SKIN:Bang('!RefreshGroup', 'ParallaxIdleCoordinator')
+    end
+end
+
+function FlushIdlePause(token)
+    if not idleOwed or token ~= idleToken then return false end
+    if editingKey then return false end
+    if refreshOwed then refreshAll() else applyIdlePause() end
+    return true
+end
+
 -- OnCloseAction: unloading Settings destroys its pending timer, so apply a
 -- debounced change now rather than leave it saved but unapplied.
 function FlushPending()
-    if not refreshOwed then return false end
-    refreshAll()
+    if refreshOwed then
+        refreshAll()
+        return true
+    end
+    if idleOwed then
+        applyIdlePause()
+        return true
+    end
+    return false
+end
+
+-- The Idle pause row: wraps Off -> 5 -> 10 -> 30 -> Off. A Custom value steps
+-- to Off going forward and to 30 min going back, and is otherwise kept.
+function CycleIdlePause(direction)
+    if editingKey or (direction ~= -1 and direction ~= 1) then return false end
+    local current = idleChoice(variable('IdlePauseMinutes'))
+    local index
+    for position, value in ipairs(idleChoices) do if value == current then index = position end end
+    local nextValue
+    if index then
+        nextValue = idleChoices[(index - 1 + direction) % #idleChoices + 1]
+    else
+        nextValue = direction == 1 and idleChoices[1] or idleChoices[#idleChoices]
+    end
+    CloseThemeMenu()
+    if not write({ IdlePauseMinutes = nextValue }) then return false end
+    idleOwed = true
+    idleToken = idleToken + 1
+    SKIN:Bang(string.format('[!Delay %d][!CommandMeasure MeasureSettings "FlushIdlePause(%d)"]', refreshDelay, idleToken))
+    refreshDisplay()
     return true
 end
 

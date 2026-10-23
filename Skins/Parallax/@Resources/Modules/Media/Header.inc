@@ -8,6 +8,7 @@ MediaPlayerLucideScale=(#TitleIconSize#/24)
 ; needs the original cadence.
 [MeasureMediaHeader]
 Measure=Script
+Group=ParallaxIdlePause
 ScriptFile=#@#Modules\Media\MediaHeader.lua
 UpdateDivider=#MediaLegacyDivider#
 
@@ -40,6 +41,7 @@ LucideMonitorPlayPath=(15.033*#MediaHeaderLucideScale#),(9.44*#MediaHeaderLucide
 
 [MeterPlayerIcon]
 Meter=Shape
+Group=MediaPlayerIcons | ParallaxIdleFreeze
 MeterStyle=MediaHeaderIconStyle
 ; No DynamicVariables: each !SetOption already makes Rainmeter re-read this
 ; meter once, on its next update. MediaPulse.lua also writes the style's X and

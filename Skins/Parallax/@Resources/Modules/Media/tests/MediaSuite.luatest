@@ -668,6 +668,7 @@ function suite.run(sourcePath, optionsPath)
             for path, text in pairs(setup.files or {}) do state.files[path] = text end
             local variables = { ['@'] = resources, SETTINGSPATH = settingsPath, CURRENTCONFIG = 'Parallax\\Media',
                 MediaVisualizerHost = '1', MediaVisualizerOpen = setup.open or '1' }
+            for key, value in pairs(setup.variables or {}) do variables[key] = value end
             local mock = {}
             function mock:GetVariable(name, default)
                 local value = variables[name]
@@ -792,6 +793,71 @@ function suite.run(sourcePath, optionsPath)
             check(s.env.ApplyLease(nil, 1, 'standby') == true, 'Standby is a lease reason')
             check(s.value('MediaStandby') == '1' and s.value('MediaDrawerCapture') == '0', 'Only standby changes')
             check(s.writes('MediaLeaseRefreshAt') == 1 and s.selfRefreshes() == 1, 'Standby stamps and reloads')
+        end)
+
+        scenario('IdleStandby: standby and park in one coalesced reload, then back to live in one', function()
+            local enter = options({ variables = { VisualizerDrawer = '2', MediaDrawerCapture = '0' } })
+            check(enter.env.IdleStandby(1, 'standby') == true, 'Standby applied')
+            check(enter.value('MediaStandby') == '1' and enter.value('MediaDrawerCapture') == '1', 'Standby parks the live open drawer in the same write')
+            check(enter.writes('MediaLeaseRefreshAt') == 1 and enter.selfRefreshes() == 1, 'One stamp, one reload (no provider resume on it)')
+            check(enter.env.IdleStandby(1, 'standby') == false and enter.selfRefreshes() == 1, 'Repeated request: nothing more')
+            local leave = options({ variables = { VisualizerDrawer = '2', MediaDrawerCapture = '1' },
+                state = '[Variables]\r\nMediaDrawerCapture=1\r\nMediaStandby=1\r\nMediaLeaseRefreshAt=0\r\nMediaLeaseRefreshClock=0\r\n' })
+            check(leave.env.IdleStandby(0, 'standby') == true, 'Leave applied')
+            check(leave.value('MediaStandby') == '0' and leave.value('MediaDrawerCapture') == '0', 'Input clears standby and park together')
+            check(leave.selfRefreshes() == 1, 'One reload back')
+            local collapsed = options({ variables = { VisualizerDrawer = '1', MediaDrawerCapture = '0' } })
+            check(collapsed.env.IdleStandby(1, 'standby') == true and collapsed.value('MediaDrawerCapture') == '0', 'A collapsed drawer keeps its capture state')
+            local deferred = options({ variables = { VisualizerDrawer = '2', MediaDrawerCapture = '2' },
+                state = '[Variables]\r\nMediaDrawerCapture=2\r\nMediaStandby=0\r\nMediaLeaseRefreshAt=0\r\nMediaLeaseRefreshClock=0\r\n' })
+            check(deferred.env.IdleStandby(1, 'standby') == true and deferred.value('MediaDrawerCapture') == '2', 'A deferred drawer stays deferred')
+            local failLive = options({ variables = { VisualizerDrawer = '2', MediaDrawerCapture = '1' },
+                state = '[Variables]\r\nMediaDrawerCapture=1\r\nMediaStandby=1\r\nMediaLeaseRefreshAt=0\r\nMediaLeaseRefreshClock=0\r\n' })
+            check(failLive.env.IdleStandby(0, 'fail-live') == true and failLive.value('MediaStandby') == '0', 'Fail-live clears standby')
+            check(failLive.writes('MediaLeaseRefreshAt') == 1 and failLive.selfRefreshes() == 1, 'Fail-live stamps and reloads once')
+        end)
+
+        scenario('IdleStandby tells the stand-down hook whether this load\'s reload is posted', function()
+            local function pending(o)
+                for index = #o.bangs, 1, -1 do
+                    local call = o.bangs[index]
+                    if call[1] == '!SetVariable' and call[2] == 'ParallaxIdleStandbyPending' then return call[3] end
+                end
+                return nil
+            end
+            local enter = options({ variables = { VisualizerDrawer = '2', MediaDrawerCapture = '0' } })
+            enter.env.IdleStandby(1, 'standby')
+            check(pending(enter) == '1' and enter.selfRefreshes() == 1, 'A posted reload: pending 1')
+            enter.env.IdleStandby(1, 'standby')
+            check(pending(enter) == '1' and enter.selfRefreshes() == 1, 'Nothing new to write, the earlier reload is still pending: 1')
+            local same = options({ state = '[Variables]\r\nMediaDrawerCapture=0\r\nMediaStandby=0\r\nMediaLeaseRefreshAt=0\r\nMediaLeaseRefreshClock=0\r\n' })
+            check(same.env.IdleStandby(0, 'standby') == false and pending(same) == '0' and same.selfRefreshes() == 0, 'Nothing to change and no reload: 0')
+            local stuck = options({ variables = { VisualizerDrawer = '2', MediaDrawerCapture = '0' }, readOnly = { [statePath] = true } })
+            check(stuck.env.IdleStandby(1, 'standby') == false and pending(stuck) == '0' and stuck.selfRefreshes() == 0, 'A write that does not read back: no reload, 0')
+            local unreadable = options({ files = { [statePath] = false } })
+            check(unreadable.env.IdleStandby(1, 'standby') == false and pending(unreadable) == '0', 'An unreadable state file: 0')
+        end)
+
+        scenario('Load validation: a standby Media.ini load with Idle pause Off returns to live once', function()
+            local standby = '[Variables]\r\nMediaDrawerCapture=1\r\nMediaStandby=1\r\nMediaLeaseRefreshAt=0\r\nMediaLeaseRefreshClock=0\r\n'
+            for _, minutes in ipairs({ '0', '7', '' }) do
+                local o = options({ state = standby, variables = { CURRENTFILE = 'Media.ini', MediaStandby = '1', MediaDrawerCapture = '1',
+                    VisualizerDrawer = '2', IdlePauseMinutes = minutes } })
+                o.env.Update()
+                check(o.value('MediaStandby') == '0' and o.value('MediaDrawerCapture') == '0', 'Off (' .. minutes .. '): back to live with the capture')
+                check(o.selfRefreshes() == 1, 'Off (' .. minutes .. '): one reload')
+                o.env.Update()
+                check(o.selfRefreshes() == 1, 'Checked once per load')
+            end
+            for _, case in ipairs({ { 'Media.ini', '5' }, { 'Media.ini', '30' }, { 'Setup.ini', '0' }, { 'Queue.ini', '0' } }) do
+                local o = options({ state = standby, variables = { CURRENTFILE = case[1], MediaStandby = '1', MediaDrawerCapture = '1',
+                    VisualizerDrawer = '2', IdlePauseMinutes = case[2] } })
+                o.env.Update()
+                check(o.value('MediaStandby') == '1' and o.selfRefreshes() == 0, case[1] .. ' with Idle pause ' .. case[2] .. ': left to the hook')
+            end
+            local live = options({ variables = { CURRENTFILE = 'Media.ini', MediaStandby = '0', IdlePauseMinutes = '0' } })
+            live.env.Update()
+            check(#live.bangs == 0, 'A live load sends nothing')
         end)
 
         scenario('Drawer toggles start the capture live; collapse and hide ask the coordinator to re-check', function()

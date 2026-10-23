@@ -245,6 +245,23 @@ def validate():
     assert sections["Rainmeter"]["Update"] == "#CPUUpdateInterval#"
     assert 'MeasureCPUInfo "Run"' in sections["Rainmeter"]["OnRefreshAction"]
     assert 'MeasureCPUSensors "Reconnect()"' in sections["Rainmeter"]["OnRefreshAction"]
+    # Idle stand-down (Global Settings Idle pause): the delayed coordinator
+    # join ends OnRefreshAction; every Thread slot meter, live or idle, is in
+    # ParallaxIdleFreeze (CPU.lua re-applies their dividers on resume); every
+    # UsageMonitor and Registry measure is in ParallaxIdlePause. The shipped
+    # Off value (Hook0.inc) loads no hook section.
+    assert sections["Rainmeter"]["OnRefreshAction"].endswith("#ParallaxIdleJoinAction#")
+    assert variables["ParallaxIdleControllers"] == "MeasureCPUController|MeasureCPUSensors"
+    assert "MeasureParallaxStandDown" not in sections and "MeterParallaxPaused" not in sections
+    for slot in range(1, 65):
+        for prefix in ("MeterCoreLabel", "MeterCoreBar", "MeterCoreValue", "MeterCoreVoltage", "MeterCoreTemperature"):
+            meter = sections[prefix + str(slot)]
+            assert meter["UpdateDivider"] == "-1", (prefix, slot)
+            assert "ParallaxIdleFreeze" in meter["Group"].split("|"), (prefix, slot)
+    for name, values in sections.items():
+        periodic = values.get("UpdateDivider", "1").strip() != "-1"
+        if periodic and (values.get("Measure") == "Registry" or values.get("Plugin") == "UsageMonitor"):
+            assert "ParallaxIdlePause" in values.get("Group", "").split("|"), name
     assert number(variables["CPUUpdateInterval"]) == 1000
     assert number(variables["CPUSensorInterval"]) == 2000
     sensor_sources = [ROOT / "@Resources/Modules/CPU/SensorMeasures.inc",

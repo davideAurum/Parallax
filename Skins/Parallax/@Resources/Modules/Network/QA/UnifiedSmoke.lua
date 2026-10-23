@@ -194,7 +194,7 @@ local function providers()
         local measure=assert(SKIN:GetMeasure('MeasureConnectionWiFi'..suffix))
         assert(measure:GetNumberOption('UpdateDivider')==5 and measure:GetNumberOption('DynamicVariables')==1,'Wi-Fi cadence changed')
         assert(conn:GetNumberOption('WiFiDivider')==5,'Controller Wi-Fi divider differs from the Wi-Fi measures')
-        assert(measure:GetOption('Group')=='ConnectionWiFi','Wi-Fi group differs')
+        assert(measure:GetOption('Group')=='ConnectionWiFi|ParallaxIdlePause','Wi-Fi group differs')
         local index=measure:GetNumberOption('WiFiIntfID');assert(index>=0 and index<=63 and index==math.floor(index),'Unsafe Wi-Fi index')
         if disabled then assert(measure:GetNumberOption('Disabled')==1 and index==0,'Invalid/off Wi-Fi was queried') end
     end

@@ -98,6 +98,8 @@ UpdateDivider=-1
 ; One transparent hit target keeps icon and text on a single interactive row.
 ; Switching changes the Windows default output, clears a custom capture ID and
 ; refreshes because AudioLevel parent options cannot be changed dynamically.
+; Switch actions come from the variant (Standalone<n>.inc): none while the
+; Visualizer is stood down for the idle pause (no output measure then).
 [MeterVisualizerDeviceHit]
 Meter=Image
 X=#ContentX#
@@ -106,9 +108,9 @@ W=#ContentWidth#
 H=(18*#Scale#)
 SolidColor=0,0,0,1
 MouseActionCursor=1
-LeftMouseUpAction=[!CommandMeasure MeasureVisualizerVolume "ToggleNext"][!WriteKeyValue Variables VisualizerDeviceID "" "#@#User\Visualizer.inc"][!CommandMeasure MeasureMediaOptions "RefreshVisualizerDrawer()" "Parallax\Media"][!Refresh]
-MouseScrollDownAction=[!CommandMeasure MeasureVisualizerVolume "ToggleNext"][!WriteKeyValue Variables VisualizerDeviceID "" "#@#User\Visualizer.inc"][!CommandMeasure MeasureMediaOptions "RefreshVisualizerDrawer()" "Parallax\Media"][!Refresh]
-MouseScrollUpAction=[!CommandMeasure MeasureVisualizerVolume "TogglePrevious"][!WriteKeyValue Variables VisualizerDeviceID "" "#@#User\Visualizer.inc"][!CommandMeasure MeasureMediaOptions "RefreshVisualizerDrawer()" "Parallax\Media"][!Refresh]
+LeftMouseUpAction=#VisualizerDeviceNextAction#
+MouseScrollDownAction=#VisualizerDeviceNextAction#
+MouseScrollUpAction=#VisualizerDevicePreviousAction#
 DynamicVariables=1
 UpdateDivider=-1
 
@@ -137,8 +139,10 @@ X=(#VisualizerPlotX#+#VisualizerPlotWidth#/2)
 Y=(#Inset#+(#VisualizerPlotTop#+#VisualizerPlotHeight#/2)*#Scale#)
 W=(#VisualizerPlotWidth#-8*#Scale#)
 StringAlign=CenterCenter
-Text=Output unavailable
-FontColor=#WarningColor#
+; Live: "Output unavailable" until the capture reports (Standalone0.inc);
+; stood down for the idle pause: "Paused (idle)" (Standalone1.inc).
+Text=#VisualizerOverlayText#
+FontColor=#VisualizerOverlayColor#
 SolidColor=#GraphBackgroundColor#
 UpdateDivider=-1
 

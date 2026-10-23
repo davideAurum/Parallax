@@ -1,6 +1,7 @@
 ; All interface selectors use the same setting and are reread every second.
 [MeasureNetworkAlias]
 Measure=SysInfo
+Group=ParallaxIdlePause
 SysInfoType=ADAPTER_ALIAS
 SysInfoData=#NetworkInterface#
 UpdateDivider=1
@@ -8,6 +9,7 @@ DynamicVariables=1
 
 [MeasureNetworkDescription]
 Measure=SysInfo
+Group=ParallaxIdlePause
 SysInfoType=ADAPTER_DESCRIPTION
 SysInfoData=#NetworkInterface#
 UpdateDivider=1
@@ -15,6 +17,7 @@ DynamicVariables=1
 
 [MeasureNetworkGuid]
 Measure=SysInfo
+Group=ParallaxIdlePause
 SysInfoType=ADAPTER_GUID
 SysInfoData=#NetworkInterface#
 UpdateDivider=1
@@ -22,6 +25,7 @@ DynamicVariables=1
 
 [MeasureNetworkStatus]
 Measure=SysInfo
+Group=ParallaxIdlePause
 SysInfoType=ADAPTER_STATUS
 SysInfoData=#NetworkInterface#
 UpdateDivider=1
@@ -29,6 +33,7 @@ DynamicVariables=1
 
 [MeasureNetworkState]
 Measure=SysInfo
+Group=ParallaxIdlePause
 SysInfoType=ADAPTER_STATE
 SysInfoData=#NetworkInterface#
 UpdateDivider=1
@@ -36,6 +41,7 @@ DynamicVariables=1
 
 [MeasureNetworkIn]
 Measure=NetIn
+Group=ParallaxIdlePause
 Interface=#NetworkInterface#
 UseBits=1
 Cumulative=0
@@ -44,6 +50,7 @@ DynamicVariables=1
 
 [MeasureNetworkOut]
 Measure=NetOut
+Group=ParallaxIdlePause
 Interface=#NetworkInterface#
 UseBits=1
 Cumulative=0
@@ -53,6 +60,7 @@ DynamicVariables=1
 ; Defined after native measures so presentation sees this update's samples.
 [MeasureNetworkController]
 Measure=Script
+Group=ParallaxIdlePause
 ScriptFile=#@#Modules\Network\Network.lua
 CoreFile=#@#Modules\Network\Core.lua
 GraphWidth=#ContentWidth#

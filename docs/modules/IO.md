@@ -43,6 +43,7 @@ Keep this inventory current whenever a Disk Meter feature adds, removes or chang
 | Bundled Parallax includes and module Lua scripts | Required suite resources supply settings, layout, rendering and formatting. The settings controller runs on demand; ordinary controls need no external helper. | Missing includes/scripts are an incomplete installation; there is no standalone fallback. Module code adds no polling process, runtime history file, credentials or service. |
 | Bundled IBM Plex Sans, inherited through `FontFace` | Default typography; loaded from skin-local suite resources. No system-wide font installation. | A custom font must be available to Rainmeter. A missing font may be substituted; matching layout is not guaranteed. See the shared [font/license notice](../../Skins/Parallax/@Resources/Licenses/NOTICE.txt). |
 | Bundled Lucide hard-drive artwork and license | Native Shape paths render the user-selected title icon; the retained SVG records provenance. | No SVG renderer, icon font or runtime download. Preserve the bundled notices when distributing; see [icon provenance and license](../../Skins/Parallax/@Resources/Modules/IO/Icons/Lucide/README.md). |
+| `Parallax\Idle` input-idle coordinator (built-in SysInfo `IDLE_TIME`), through `@Resources/Idle/Hook.inc` and `StandDown.lua` | Optional bundled suite component, only while Global Settings **Idle pause** is 5, 10 or 30 minutes (default Off): after that long without keyboard or mouse input Disk Meter freezes (see [Idle pause](#idle-pause)). | Off loads a comment-only include. A missing coordinator, or one silent for 3 minutes, leaves or returns the skin live. UsageMonitor's LogicalDisk reader keeps running while paused. |
 | Windows Notepad | Optional, launched only by **Edit file** or the advanced-options context action. | If unavailable, manual-edit shortcuts fail; the built-in settings controls and monitor remain usable. |
 
 No optional third-party plugin, application or network service is currently needed for monitoring. Development checks use PowerShell, Python and an existing Rainmeter installation; these test tools and generated evidence are excluded from distribution. See [Telemetry contract](#telemetry-contract) and the shared [provider report](../PROVIDERS.md) for availability and freshness limits.
@@ -231,6 +232,16 @@ The following records concern earlier variants/layouts and are retained as histo
 | Native capacity `IO.ini`, title/header/body 12/10/10, final center 15 | `Parallax-io-settings-smoke-20260912T212912479Z-6f83f747` |
 
 Earlier one-time host checks established native capacity availability and valid `PhysicalDisk(_Total)` cooked counters. They do not validate the current C: selector. Current captures show the actual C: logical-volume provider running, without claiming a Performance Monitor comparison or benchmark.
+
+## Idle pause
+
+With Global Settings **Idle pause** on (5, 10 or 30 minutes; default Off), Disk Meter pauses after that long without keyboard or mouse input ([shared design](../ARCHITECTURE.md#idle-stand-down)).
+
+- **While paused:** the title and the headline total are hidden and **Paused (idle)** takes the title's place after the icon, ending before the gear slot (the gear still follows the hover; a hover-out never shows the frozen total). On resume both come back as they were, or as the last hover left them. Drive rows and the graph stay visible, frozen at the pause; the 183 periodic measures (inventory, capacity, rate banks and `MeasureIO`) are paused and every meter, the 208 drive-row meters included, sits at UpdateDivider -1.
+- **On the first input:** measures update before anything is shown; `IO.lua` `ReapplyDividers` sends each letter's row divider again from its own record (shown rows 1, hidden and absent rows -1), bypassing its cache. The history is not joined across the pause: `observe()` fills the paused seconds with empty slots, so the graph shows a gap (a five-minute pause scrolls the old points out of the 60-slot window).
+- **Still running while paused:** the skin's timer and mouse timer with nothing to update, the stand-down hook's check about once a minute, and UsageMonitor's process-wide LogicalDisk reader.
+
+Checks: `tests/ControllerSuite.lua` 46 tests, 51114 assertions offline (new idle case: 26 row dividers re-sent from the record, a 300 s gap plots only the new sample); `tests/Test-IOIdleRows.ps1` PASS (2968 checks; stages `Hook0.inc` now); `@Resources/Idle/tests/Test-IdleStandDown.ps1 -Skin IO` (isolated: paused 0.71 s after the idle signal with 222/222 meters at divider -1 and 183 paused measures constant; resumed with every divider equal to its snapshot; reload while paused re-entered; watchdog 7.5 s; clean logs at 220/1 and 180/0.75 with fonts 12/10/10).
 
 ## Runtime limits and later work
 

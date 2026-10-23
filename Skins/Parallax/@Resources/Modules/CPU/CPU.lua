@@ -744,6 +744,33 @@ function Update()
     return value
 end
 
+-- Idle stand-down (Global Settings Idle pause; @Resources\Idle\StandDown.lua).
+-- Every Thread slot meter is in ParallaxIdleFreeze with the other repainting
+-- meters: while paused all of them sit at UpdateDivider -1. On resume the hook
+-- deletes that key, which leaves every slot at the skin default (1), so
+-- ReapplyDividers sets all 64 slots from slotLive's record, bypassing the
+-- option cache and recording what it sent so later binds compare correctly.
+function ReapplyDividers()
+    if not state.ready then return end
+    state.slotLive = state.slotLive or {}
+    state.sent = state.sent or {}
+    for slot = 1, 64 do
+        local value = state.slotLive[slot] and '1' or '-1'
+        for _, prefix in ipairs(slotMeters) do
+            state.sent[prefix .. slot .. '\0UpdateDivider'] = value
+            SKIN:Bang('!SetOption', prefix .. slot, 'UpdateDivider', value)
+        end
+    end
+end
+
+-- The paused controller took no samples, so the History restarts on resume
+-- rather than drawing a trace across time that was never measured. The hook
+-- then forces the measures and this controller's update before any meter
+-- shows, so the header and Thread rows are current samples, never a 0 placeholder.
+function IdleLeave()
+    if state.ready then clearHistory() end
+end
+
 function Page(direction)
     if not state.ready or not state.showCores or state.count == 0 then return end
     local page = math.max(1, math.min(state.pages, state.page + (direction < 0 and -1 or 1)))

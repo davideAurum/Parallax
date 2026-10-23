@@ -364,7 +364,8 @@ assert "Plugin=UsageMonitor" not in (GPU_DIR / "Measures.inc").read_text(encodin
 assert ("MeasureGPUProcessController" in sections) == TABLE
 assert set(sections["Rainmeter"]["Group"].split("|")) == {"Parallax", "ParallaxGPU"}
 assert sections["Rainmeter"]["DynamicWindowSize"] == "0"
-assert sections["Rainmeter"]["OnRefreshAction"] == '[!CommandMeasure MeasureGPUInfo "Run"]'
+# #ParallaxIdleJoinAction# is empty unless Global Settings Idle pause is on.
+assert sections["Rainmeter"]["OnRefreshAction"] == '[!CommandMeasure MeasureGPUInfo "Run"]#ParallaxIdleJoinAction#'
 assert sections["Rainmeter"]["OnCloseAction"] == '[!CommandMeasure MeasureGPUTemperatureController "Stop()"]'
 # The gear replaces the title-row headline on hover, as in CPU Meter.
 assert "[!HideMeter MeterActivityValue][!ShowMeter MeterOptions]" in sections["Rainmeter"]["MouseOverAction"]
@@ -482,15 +483,16 @@ for style in styles:
 # GPU.lua writes the adapter inset (GPUReadout); Temperature.lua writes every
 # driver-fed headline, scalar, memory and engine meter (GPUDriverReadout).
 for name in ("MeterActivityValue", "MeterAdapterName", "MeterAdapterDetails", "MeterTemperatureValue"):
-    assert "GPUReadout" in meters[name]["Group"].split("|"), name
+    # Rainmeter trims each group name (the idle stand-down adds " | ParallaxIdleFreeze").
+    assert "GPUReadout" in {group.strip() for group in meters[name]["Group"].split("|")}, name
 for name in ("MeterActivityValue", "MeterTemperatureValue", "MeterPowerValue", "MeterClockValue",
              "MeterGPUVRAMValue", "MeterGPUVRAMBar", "MeterGPUSharedValue",
              *(f"Meter{field}{part}" for field in ENGINE_FIELDS for part in ("Value", "Bar"))):
-    assert "GPUDriverReadout" in meters[name]["Group"].split("|"), name
+    assert "GPUDriverReadout" in {group.strip() for group in meters[name]["Group"].split("|")}, name
 for i in range(1, 6) if TABLE else ():
     for part in PROCESS_PARTS if MEMORY else ("Name", "Value"):
         cell = meters[f"MeterGPUProcess{part}{i}"]
-        assert cell["Group"] == f"GPUProcessGraph|GPUProcessRow{i}", (part, i)
+        assert cell["Group"] == f"GPUProcessGraph|GPUProcessRow{i}|ParallaxIdleFreeze", (part, i)
         assert cell["Text"] == "--" and cell["H"] == "(16*#Scale#)", (part, i)
 assert meters["MeterTitle"]["Text"] == "GPU Meter"
 assert meters["MeterActivityValue"]["Text"] == "--" and meters["MeterActivityValue"]["FontColor"] == "#GPUColor#"

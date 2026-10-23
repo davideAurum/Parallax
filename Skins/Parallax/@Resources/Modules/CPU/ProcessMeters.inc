@@ -9,7 +9,7 @@ FontColor=#HeaderTextColor#
 FontSize=(#HeaderFontSize#*#Scale#)
 Text=Process
 Hidden=1
-Group=CPUProcessFrame|CPUUI
+Group=CPUProcessFrame|CPUUI|ParallaxIdleFreeze
 
 [MeterProcessUsageHeader]
 Meter=Image
@@ -23,7 +23,7 @@ ImageName=#@#Modules\CPU\Icons\gauge.png
 Greyscale=1
 ImageTint=#HeaderTextColor#,255
 Hidden=1
-Group=CPUProcessFrame|CPUUI
+Group=CPUProcessFrame|CPUUI|ParallaxIdleFreeze
 
 [MeterProcessHeaderRule]
 Meter=Shape
@@ -33,7 +33,7 @@ W=#ContentWidth#
 H=(#TableHeaderBorderThickness#*#Scale#)
 Shape=Line 0,(#TableHeaderBorderThickness#*#Scale#/2),#ContentWidth#,(#TableHeaderBorderThickness#*#Scale#/2) | Stroke Color #TableHeaderBorderColor# | StrokeWidth (#TableHeaderBorderThickness#*#Scale#)
 Hidden=1
-Group=CPUProcessFrame|CPUUI
+Group=CPUProcessFrame|CPUUI|ParallaxIdleFreeze
 
 [MeterProcessFooterRule]
 Meter=Shape
@@ -43,7 +43,7 @@ W=#ContentWidth#
 H=(#DividerThickness#*#Scale#)
 Shape=Line 0,(#DividerThickness#*#Scale#/2),#ContentWidth#,(#DividerThickness#*#Scale#/2) | Stroke Color #DividerColor# | StrokeWidth (#DividerThickness#*#Scale#)
 Hidden=1
-Group=CPUProcessFrame|CPUUI
+Group=CPUProcessFrame|CPUUI|ParallaxIdleFreeze
 
 [MeterProcessesState]
 Meter=String
@@ -53,7 +53,7 @@ H=(28*#Scale#)
 FontSize=(#FontSize#*#Scale#)
 Text=Waiting for process data...
 Hidden=1
-Group=CPUUI
+Group=CPUUI|ParallaxIdleFreeze
 
 [MeterProcessName1]
 Meter=String
@@ -61,14 +61,14 @@ MeterStyle=CPUStyleRowLabel
 W=(#ContentWidth#-#CPUProcessUsageWidth#-4*#Scale#)
 Y=(#Inset#+48*#Scale#)
 Text=
-Group=CPUProcess1|CPUUI
+Group=CPUProcess1|CPUUI|ParallaxIdleFreeze
 
 [MeterProcessValue1]
 Meter=String
 MeterStyle=CPUStyleRowValue
 Y=(#Inset#+48*#Scale#)
 Text=
-Group=CPUProcess1|CPUUI
+Group=CPUProcess1|CPUUI|ParallaxIdleFreeze
 
 [MeterProcessName2]
 Meter=String
@@ -76,14 +76,14 @@ MeterStyle=CPUStyleRowLabel
 W=(#ContentWidth#-#CPUProcessUsageWidth#-4*#Scale#)
 Y=(#Inset#+48*#Scale#)
 Text=
-Group=CPUProcess2|CPUUI
+Group=CPUProcess2|CPUUI|ParallaxIdleFreeze
 
 [MeterProcessValue2]
 Meter=String
 MeterStyle=CPUStyleRowValue
 Y=(#Inset#+48*#Scale#)
 Text=
-Group=CPUProcess2|CPUUI
+Group=CPUProcess2|CPUUI|ParallaxIdleFreeze
 
 [MeterProcessName3]
 Meter=String
@@ -91,14 +91,14 @@ MeterStyle=CPUStyleRowLabel
 W=(#ContentWidth#-#CPUProcessUsageWidth#-4*#Scale#)
 Y=(#Inset#+48*#Scale#)
 Text=
-Group=CPUProcess3|CPUUI
+Group=CPUProcess3|CPUUI|ParallaxIdleFreeze
 
 [MeterProcessValue3]
 Meter=String
 MeterStyle=CPUStyleRowValue
 Y=(#Inset#+48*#Scale#)
 Text=
-Group=CPUProcess3|CPUUI
+Group=CPUProcess3|CPUUI|ParallaxIdleFreeze
 
 [MeterProcessName4]
 Meter=String
@@ -106,14 +106,14 @@ MeterStyle=CPUStyleRowLabel
 W=(#ContentWidth#-#CPUProcessUsageWidth#-4*#Scale#)
 Y=(#Inset#+48*#Scale#)
 Text=
-Group=CPUProcess4|CPUUI
+Group=CPUProcess4|CPUUI|ParallaxIdleFreeze
 
 [MeterProcessValue4]
 Meter=String
 MeterStyle=CPUStyleRowValue
 Y=(#Inset#+48*#Scale#)
 Text=
-Group=CPUProcess4|CPUUI
+Group=CPUProcess4|CPUUI|ParallaxIdleFreeze
 
 [MeterProcessName5]
 Meter=String
@@ -121,14 +121,14 @@ MeterStyle=CPUStyleRowLabel
 W=(#ContentWidth#-#CPUProcessUsageWidth#-4*#Scale#)
 Y=(#Inset#+48*#Scale#)
 Text=
-Group=CPUProcess5|CPUUI
+Group=CPUProcess5|CPUUI|ParallaxIdleFreeze
 
 [MeterProcessValue5]
 Meter=String
 MeterStyle=CPUStyleRowValue
 Y=(#Inset#+48*#Scale#)
 Text=
-Group=CPUProcess5|CPUUI
+Group=CPUProcess5|CPUUI|ParallaxIdleFreeze
 
 [MeterProcessName6]
 Meter=String
@@ -136,14 +136,14 @@ MeterStyle=CPUStyleRowLabel
 W=(#ContentWidth#-#CPUProcessUsageWidth#-4*#Scale#)
 Y=(#Inset#+48*#Scale#)
 Text=
-Group=CPUProcess6|CPUUI
+Group=CPUProcess6|CPUUI|ParallaxIdleFreeze
 
 [MeterProcessValue6]
 Meter=String
 MeterStyle=CPUStyleRowValue
 Y=(#Inset#+48*#Scale#)
 Text=
-Group=CPUProcess6|CPUUI
+Group=CPUProcess6|CPUUI|ParallaxIdleFreeze
 
 [MeterProcessName7]
 Meter=String
@@ -151,14 +151,14 @@ MeterStyle=CPUStyleRowLabel
 W=(#ContentWidth#-#CPUProcessUsageWidth#-4*#Scale#)
 Y=(#Inset#+48*#Scale#)
 Text=
-Group=CPUProcess7|CPUUI
+Group=CPUProcess7|CPUUI|ParallaxIdleFreeze
 
 [MeterProcessValue7]
 Meter=String
 MeterStyle=CPUStyleRowValue
 Y=(#Inset#+48*#Scale#)
 Text=
-Group=CPUProcess7|CPUUI
+Group=CPUProcess7|CPUUI|ParallaxIdleFreeze
 
 [MeterProcessName8]
 Meter=String
@@ -166,14 +166,14 @@ MeterStyle=CPUStyleRowLabel
 W=(#ContentWidth#-#CPUProcessUsageWidth#-4*#Scale#)
 Y=(#Inset#+48*#Scale#)
 Text=
-Group=CPUProcess8|CPUUI
+Group=CPUProcess8|CPUUI|ParallaxIdleFreeze
 
 [MeterProcessValue8]
 Meter=String
 MeterStyle=CPUStyleRowValue
 Y=(#Inset#+48*#Scale#)
 Text=
-Group=CPUProcess8|CPUUI
+Group=CPUProcess8|CPUUI|ParallaxIdleFreeze
 
 [MeterProcessName9]
 Meter=String
@@ -181,14 +181,14 @@ MeterStyle=CPUStyleRowLabel
 W=(#ContentWidth#-#CPUProcessUsageWidth#-4*#Scale#)
 Y=(#Inset#+48*#Scale#)
 Text=
-Group=CPUProcess9|CPUUI
+Group=CPUProcess9|CPUUI|ParallaxIdleFreeze
 
 [MeterProcessValue9]
 Meter=String
 MeterStyle=CPUStyleRowValue
 Y=(#Inset#+48*#Scale#)
 Text=
-Group=CPUProcess9|CPUUI
+Group=CPUProcess9|CPUUI|ParallaxIdleFreeze
 
 [MeterProcessName10]
 Meter=String
@@ -196,11 +196,11 @@ MeterStyle=CPUStyleRowLabel
 W=(#ContentWidth#-#CPUProcessUsageWidth#-4*#Scale#)
 Y=(#Inset#+48*#Scale#)
 Text=
-Group=CPUProcess10|CPUUI
+Group=CPUProcess10|CPUUI|ParallaxIdleFreeze
 
 [MeterProcessValue10]
 Meter=String
 MeterStyle=CPUStyleRowValue
 Y=(#Inset#+48*#Scale#)
 Text=
-Group=CPUProcess10|CPUUI
+Group=CPUProcess10|CPUUI|ParallaxIdleFreeze

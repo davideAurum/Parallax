@@ -13,8 +13,10 @@ MediaTitleFrameTicks=(#MediaTitleAnimation#=0 ? 0 : (#MediaTitleAnimation#=10 ? 
 ; cadence itself. Chosen here, BEFORE MediaLegacyDivider
 ; derives from it, from values the entrypoint and User\Media.inc settle before
 ; this file (docs/PERFORMANCE-REVIEW.md XMOD-03: a later override of the tick
-; would be the wrong place to choose it).
-MediaTickInterval=((#MediaPlayerHost#*(#MediaTitleFrameTicks#>0)+#MediaVisualizerHost#*(#VisualizerDrawer#=2)*(#MediaDrawerCapture#=0))>0 ? #MediaAnimationInterval# : #MediaInterval#)
+; would be the wrong place to choose it). While Media is stood down for the
+; idle pause (MediaStandby=1, CaptureState.inc) the title icon does not
+; animate either, so the standby load ticks at the provider cadence.
+MediaTickInterval=((#MediaPlayerHost#*(#MediaTitleFrameTicks#>0)*(1-#MediaStandby#)+#MediaVisualizerHost#*(#VisualizerDrawer#=2)*(#MediaDrawerCapture#=0))>0 ? #MediaAnimationInterval# : #MediaInterval#)
 ; MediaLegacyDivider holds every measure that only ever needs the original
 ; #MediaInterval# cadence (WebNowPlaying polling, queue/options refresh) to it
 ; on the faster tick, so nothing polls more often than before the animation

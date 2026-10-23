@@ -8,7 +8,9 @@
 ; away), 2 deferred to a loaded Audio Visualizer. While VisualizerDrawer=2 it
 ; names the drawer variant, Modules\Media\DrawerCapture<n>.inc.
 MediaDrawerCapture=0
-; Reserved for the idle stand-down; 0 here.
+; 1 while Media is stood down for the Global Settings Idle pause
+; (@Resources\Idle\StandDown.lua; MediaOptions.IdleStandby): the provider
+; tick, capture parked, every repaint frozen. 0 here.
 MediaStandby=0
 ; os.time() and floor(os.clock()) when ApplyLease last reloaded Media for the
 ; capture lease; MediaLifecycle.lua skips the provider resume for that reload

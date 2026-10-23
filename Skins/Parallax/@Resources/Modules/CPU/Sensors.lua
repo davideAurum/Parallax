@@ -290,6 +290,16 @@ function Initialize()
         temperatureDecimals=decimalOption('CPUTemperatureDecimals', 0, 1), voltageDecimals=decimalOption('CPUVoltageDecimals', 3, 3)}
 end
 
+-- Idle stand-down (Global Settings Idle pause; @Resources\Idle\StandDown.lua).
+-- This measure does not run while paused, so a discovery still pending at the
+-- pause gets its full 12 s again on resume (its FinishAction may still come)
+-- instead of being abandoned at once. The HWiNFO export check keeps its
+-- wall-clock meaning (owner decision 6): if no exported value changed over the
+-- pause, the footer reads that the export is not updating at once.
+function IdleLeave()
+    if state and state.pending then state.deadline = os.time() + 12 end
+end
+
 function SetThreadPage(first)
     first = tonumber(first)
     if not state or not finite(first) or first ~= math.floor(first) or first < 1 or first > 64 then return end

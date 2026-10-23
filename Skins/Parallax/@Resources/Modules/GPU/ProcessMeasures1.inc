@@ -18,6 +18,7 @@ GPUProcessTable=1
 ; helper (Temperature.lua) instead.
 [MeasureGPUActivity]
 Measure=Plugin
+Group=ParallaxIdlePause
 Plugin=UsageMonitor
 Alias=GPU
 Index=1
@@ -28,6 +29,7 @@ RawValue=0
 
 [MeasureGPUProcess2]
 Measure=Plugin
+Group=ParallaxIdlePause
 Plugin=UsageMonitor
 Alias=GPU
 Index=2
@@ -38,6 +40,7 @@ RawValue=0
 
 [MeasureGPUProcess3]
 Measure=Plugin
+Group=ParallaxIdlePause
 Plugin=UsageMonitor
 Alias=GPU
 Index=3
@@ -48,6 +51,7 @@ RawValue=0
 
 [MeasureGPUProcess4]
 Measure=Plugin
+Group=ParallaxIdlePause
 Plugin=UsageMonitor
 Alias=GPU
 Index=4
@@ -58,6 +62,7 @@ RawValue=0
 
 [MeasureGPUProcess5]
 Measure=Plugin
+Group=ParallaxIdlePause
 Plugin=UsageMonitor
 Alias=GPU
 Index=5
@@ -73,4 +78,5 @@ RawValue=0
 
 [MeasureGPUProcessController]
 Measure=Script
+Group=ParallaxIdlePause
 ScriptFile=#@#Modules\GPU\ProcessGraph.lua

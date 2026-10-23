@@ -144,6 +144,25 @@ function Suite.run(Core, fixtures)
             truth(Core.step(model, sample, now + 2).valid)
         end
     end)
+    test('an idle pause (no step for minutes) shows sampling for two ticks and restarts history', function()
+        -- Global Settings Idle pause stops this controller; NetIn/NetOut then
+        -- report bytes accumulated over the whole pause on their first update.
+        -- The >3 s gap must discard those two transition samples, honestly.
+        for _, pause in ipairs({4, 300, 1800}) do
+            local model, sample = ready()
+            truth(#model.history > 0, 'history before the pause')
+            local first = Core.step(model, sample, 102 + pause)
+            equal(first.valid, false)
+            equal(first.state, 'Adapter up / sampling...')
+            equal(#model.history, 0, 'history restarts after a ' .. pause .. ' s pause')
+            local second = Core.step(model, sample, 103 + pause)
+            equal(second.valid, false)
+            equal(second.state, 'Adapter up / sampling...')
+            truth(Core.step(model, sample, 104 + pause).valid, 'valid again on the third tick after a ' .. pause .. ' s pause')
+        end
+        local model, sample = ready()
+        truth(Core.step(model, sample, 105).valid, 'a 3 s step is not a gap')
+    end)
     test('invalid numeric samples stay unavailable instead of measured zero', function()
         for _, invalid in ipairs({-1, math.huge, -math.huge, 0/0}) do
             local model = ready()

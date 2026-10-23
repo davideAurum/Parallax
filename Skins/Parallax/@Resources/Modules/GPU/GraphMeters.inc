@@ -53,6 +53,7 @@ UpdateDivider=-1
 ; 2 logical pixels to cover the antialiased startup transition.
 [MeterGPUGraphUncollected]
 Meter=Shape
+Group=ParallaxIdleFreeze
 X=#ContentX#
 Y=(#Inset#+(296+#GPUProcessBlock#+#GPUBarExtra#)*#Scale#)
 Shape=Rectangle 0,0,(Min(#ContentWidth#,Max(0,(#ContentWidth#-[MeasureGPUGraphSamples]+2*#Scale#)*([MeasureGPUGraphSamples]<#ContentWidth#)))),(#GraphHeight#*#Scale#) | Fill Color #GraphBackgroundColor#,255 | StrokeWidth 0

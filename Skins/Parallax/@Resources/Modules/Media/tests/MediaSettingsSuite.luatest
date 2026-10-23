@@ -215,7 +215,9 @@ local function header_row(state)
     local shown,hidden=playing and player or media,playing and media or player
     check(shown:GetW()>0 and hidden:GetW()==0 and hidden:GetH()==0,'Exactly one title icon must show for '..expected)
     for _,icon in ipairs({media,player}) do
-        check(icon:GetOption('Meter')=='Shape' and icon:GetOption('Group')=='MediaPlayerIcons','Title icon escaped its Shape group')
+        -- MeterPlayerIcon repaints while playing, so the idle stand-down also freezes it.
+        local group=icon==player and 'MediaPlayerIcons | ParallaxIdleFreeze' or 'MediaPlayerIcons'
+        check(icon:GetOption('Meter')=='Shape' and icon:GetOption('Group')==group,'Title icon escaped its Shape group')
         check(math.abs(icon:GetX(true)-content_x)<=1,'Title icon slot is not at ContentX')
     end
     -- MediaPulse.lua rewrites the player icon's X/Y as literals once per load;

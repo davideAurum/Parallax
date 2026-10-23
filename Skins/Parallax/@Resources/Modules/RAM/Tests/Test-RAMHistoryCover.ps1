@@ -56,7 +56,7 @@ function Set-Section([string]$Source, [string]$Name, [string]$Replacement) {
 }
 
 $null = New-Item -ItemType Directory -Path $runRoot -Force
-$relatives = @('RAM\RAM.ini', '@Resources\Defaults.inc', '@Resources\User\Settings.inc', '@Resources\User\RAM.inc', '@Resources\Geometry.inc', '@Resources\Styles.inc',
+$relatives = @('RAM\RAM.ini', '@Resources\Defaults.inc', '@Resources\Idle\Hook0.inc','@Resources\User\Settings.inc', '@Resources\User\RAM.inc', '@Resources\Geometry.inc', '@Resources\Styles.inc',
     '@Resources\Modules\RAM\Measures.inc', '@Resources\Modules\RAM\Meters.inc', '@Resources\Modules\RAM\InfoMeters.inc', '@Resources\Modules\RAM\ProcessMeters.inc',
     '@Resources\Modules\RAM\Info.lua', '@Resources\Modules\RAM\InfoModel.lua', '@Resources\Modules\RAM\Display.lua', '@Resources\Modules\RAM\Process.lua',
     '@Resources\Modules\RAM\ProcessModel.lua', '@Resources\Modules\RAM\PageFile.lua', '@Resources\Modules\RAM\PageFileModel.lua')

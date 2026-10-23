@@ -45,7 +45,7 @@ function Suite.Run(coordinatorPath, linkPath)
         local variables = {
             ['@'] = resources, ROOTCONFIG = 'Parallax', SETTINGSPATH = settingsPath, SKINSPATH = skins,
             ParallaxIdleTestFile = '', ParallaxIdleTestAwaySeconds = '', ParallaxIdleTestReevaluateTicks = '',
-            ParallaxIdleTestHeartbeatTicks = ''
+            ParallaxIdleTestHeartbeatTicks = '', ParallaxIdleTestPauseSeconds = '', IdlePauseMinutes = '0'
         }
         for key, value in pairs(options.variables or {}) do variables[key] = value end
         state.variables = variables
@@ -121,8 +121,8 @@ function Suite.Run(coordinatorPath, linkPath)
             '!UpdateMeasureGroup ParallaxIdleHook *'
         }
     end
-    local function expectBroadcast(state, away, message)
-        local expected = broadcastOf(away, '0', string.format('%d', state.now))
+    local function expectBroadcast(state, away, message, paused)
+        local expected = broadcastOf(away, paused or '0', string.format('%d', state.now))
         equal(#state.bangs, #expected, message .. ' (bang count)')
         for index, bang in ipairs(expected) do equal(state.bangs[index], bang, message .. ' (bang ' .. index .. ')') end
     end
@@ -361,6 +361,129 @@ function Suite.Run(coordinatorPath, linkPath)
         noPreferences.now = noPreferences.now + 2; noPreferences.env.Update()
         noPreferences.now = noPreferences.now + 2; noPreferences.env.Update()
         equal(noPreferences.count('!DeactivateConfig'), 0, 'An unreadable User\\Media.inc keeps the coordinator loaded')
+    end)
+
+    scenario('idle pause: paused after 5, 10 and 30 minutes, only while the setting is on', function()
+        for _, minutes in ipairs({ 5, 10, 30 }) do
+            local threshold = minutes * 60
+            local state = fixture({ idle = 0, variables = { IdlePauseMinutes = tostring(minutes) } })
+            state.load()
+            state.env.Start()
+            expectBroadcast(state, '0', minutes .. ' min: Start', '0')
+            state.reset()
+            state.idle = threshold - 1
+            state.now = state.now + 2
+            state.env.Update()
+            if threshold - 1 >= 300 then
+                -- Away already flipped at 300 s; nothing new just below the pause.
+                state.reset()
+                state.idle = threshold - 1
+                state.now = state.now + 2
+                state.env.Update()
+                equal(#state.bangs, 0, minutes .. ' min: one second short of the pause sends nothing new')
+            else
+                equal(#state.bangs, 0, minutes .. ' min: one second short of the pause sends nothing')
+            end
+            state.reset()
+            state.idle = threshold
+            state.now = state.now + 2
+            state.env.Update()
+            expectBroadcast(state, '1', minutes .. ' min: paused at ' .. threshold .. ' s', '1')
+            state.reset()
+            state.idle = threshold + 2
+            state.now = state.now + 2
+            state.env.Update()
+            equal(#state.bangs, 0, minutes .. ' min: still paused sends nothing')
+            state.idle = 0
+            state.now = state.now + 2
+            state.env.Update()
+            expectBroadcast(state, '0', minutes .. ' min: input clears away and paused in one broadcast', '0')
+            state.reset()
+            state.env.Sync()
+            expectBroadcast(state, '0', minutes .. ' min: Sync repeats both flags', '0')
+        end
+        -- Restart while idle: Start reports both flags at once.
+        local restart = fixture({ idle = 700, variables = { IdlePauseMinutes = '10' } })
+        restart.load()
+        restart.env.Start()
+        expectBroadcast(restart, '1', 'Start while idle past 10 min', '1')
+    end)
+
+    scenario('idle pause: away and paused flip together in one broadcast at 5 minutes', function()
+        local state = fixture({ idle = 0, variables = { IdlePauseMinutes = '5' } })
+        state.load()
+        state.env.Start()
+        state.reset()
+        state.idle = 299
+        state.now = state.now + 2
+        state.env.Update()
+        equal(#state.bangs, 0, 'Below 300 s neither flag is set')
+        state.idle = 300
+        state.now = state.now + 2
+        state.env.Update()
+        expectBroadcast(state, '1', 'Both flags in the same broadcast', '1')
+        equal(state.count('!UpdateMeasureGroup'), 1, 'One hook update for both flags')
+    end)
+
+    scenario('idle pause: invalid minutes act as Off; the test hook only shortens a setting that is on', function()
+        for _, bad in ipairs({ '0', '7', '15', '', 'abc', '5.0', '-5', '60' }) do
+            local state = fixture({ idle = 0, variables = { IdlePauseMinutes = bad, ParallaxIdleTestPauseSeconds = '4' } })
+            state.load()
+            state.env.Start()
+            state.reset()
+            state.idle = 4000
+            state.now = state.now + 2
+            state.env.Update()
+            expectBroadcast(state, '1', 'IdlePauseMinutes=' .. bad .. ' never pauses', '0')
+        end
+        local spaced = fixture({ idle = 600, variables = { IdlePauseMinutes = ' 10 ' } })
+        spaced.load()
+        spaced.env.Start()
+        expectBroadcast(spaced, '1', 'Surrounding spaces are ignored (10 min)', '1')
+        local shortened = fixture({ idle = 5, variables = { IdlePauseMinutes = '30', ParallaxIdleTestPauseSeconds = '4' } })
+        shortened.load()
+        shortened.env.Start()
+        expectBroadcast(shortened, '0', 'A 4 s pause hook is honoured while the setting is on', '1')
+        for _, bad in ipairs({ '0', '1801', 'x', '2.5' }) do
+            local other = fixture({ idle = 5, variables = { IdlePauseMinutes = '5', ParallaxIdleTestPauseSeconds = bad } })
+            other.load()
+            other.env.Start()
+            expectBroadcast(other, '0', 'Out-of-bounds pause hook ' .. bad .. ' keeps 5 minutes', '0')
+        end
+    end)
+
+    scenario('idle pause need: any utility config loaded while the setting is on', function()
+        local function pauseFixture(minutes, sections)
+            local files = {
+                [settingsFile] = rainmeterIni(sections, 'utf16'),
+                [mediaInc] = '[Variables]\r\nVisualizerDrawer=1\r\n',
+            }
+            local state = fixture({ idle = 0, files = files, variables = { IdlePauseMinutes = minutes } })
+            state.load()
+            state.env.Start()
+            state.env.RequestReevaluate()
+            state.reset()
+            state.now = state.now + 2; state.env.Update()
+            state.now = state.now + 2; state.env.Update()
+            return state.count('!DeactivateConfig') == 0
+        end
+        for _, config in ipairs({ 'Chronometer', 'CPU', 'GPU', 'RAM', 'IO', 'Network', 'Visualizer', 'Media\\Queue' }) do
+            equal(pauseFixture('5', { { 'Parallax\\Idle', 1 }, { 'Parallax\\' .. config, 1 } }), true, 'Pause on keeps the coordinator for ' .. config)
+            equal(pauseFixture('0', { { 'Parallax\\Idle', 1 }, { 'Parallax\\' .. config, 1 } }), false, 'Pause off does not keep it for ' .. config)
+        end
+        equal(pauseFixture('10', { { 'Parallax\\Idle', 1 }, { 'Parallax\\Media', 2 } }), true, 'Setup.ini (Active=2) counts as a utility')
+        equal(pauseFixture('30', { { 'Parallax\\Idle', 1 }, { 'Parallax\\Media', 1 } }), true, 'Media.ini with a collapsed drawer counts while the pause is on')
+        equal(pauseFixture('30', { { 'Parallax\\Idle', 1 }, { 'Parallax\\CPU', 0 }, { 'Parallax\\Settings', 1 }, { 'Parallax\\Welcome', 1 } }), false,
+            'Only Global Settings and Welcome loaded: not needed')
+        equal(pauseFixture('7', { { 'Parallax\\Idle', 1 }, { 'Parallax\\CPU', 1 } }), false, 'A Custom value is Off')
+        -- Unreadable Rainmeter.ini keeps it loaded, as before.
+        local unreadable = fixture({ idle = 0, files = { [settingsFile] = false }, variables = { IdlePauseMinutes = '5' } })
+        unreadable.load()
+        unreadable.env.Start()
+        unreadable.env.RequestReevaluate()
+        unreadable.now = unreadable.now + 2; unreadable.env.Update()
+        unreadable.now = unreadable.now + 2; unreadable.env.Update()
+        equal(unreadable.count('!DeactivateConfig'), 0, 'Unreadable Rainmeter.ini with the pause on keeps the coordinator')
     end)
 
     scenario('Closing broadcasts only after a real unload', function()

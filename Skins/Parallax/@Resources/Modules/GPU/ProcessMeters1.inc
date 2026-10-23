@@ -41,6 +41,7 @@ Text=--
 
 [MeterGPUProcessHeading]
 Meter=String
+Group=ParallaxIdleFreeze
 MeterStyle=StyleLabel
 Y=(#Inset#+(276+#GPUBarExtra#)*#Scale#)
 W=#GPUProcessNameWidth#
@@ -84,61 +85,61 @@ Shape=Line 0,(#TableHeaderBorderThickness#*#Scale#/2),#ContentWidth#,(#TableHead
 [MeterGPUProcessName1]
 Meter=String
 MeterStyle=GPUStyleProcessName
-Group=GPUProcessGraph|GPUProcessRow1
+Group=GPUProcessGraph|GPUProcessRow1|ParallaxIdleFreeze
 Y=(#Inset#+(296+#GPUBarExtra#)*#Scale#)
 
 [MeterGPUProcessValue1]
 Meter=String
 MeterStyle=GPUStyleProcessValue
-Group=GPUProcessGraph|GPUProcessRow1
+Group=GPUProcessGraph|GPUProcessRow1|ParallaxIdleFreeze
 Y=(#Inset#+(296+#GPUBarExtra#)*#Scale#)
 
 [MeterGPUProcessName2]
 Meter=String
 MeterStyle=GPUStyleProcessName
-Group=GPUProcessGraph|GPUProcessRow2
+Group=GPUProcessGraph|GPUProcessRow2|ParallaxIdleFreeze
 Y=(#Inset#+(312+#GPUBarExtra#)*#Scale#)
 
 [MeterGPUProcessValue2]
 Meter=String
 MeterStyle=GPUStyleProcessValue
-Group=GPUProcessGraph|GPUProcessRow2
+Group=GPUProcessGraph|GPUProcessRow2|ParallaxIdleFreeze
 Y=(#Inset#+(312+#GPUBarExtra#)*#Scale#)
 
 [MeterGPUProcessName3]
 Meter=String
 MeterStyle=GPUStyleProcessName
-Group=GPUProcessGraph|GPUProcessRow3
+Group=GPUProcessGraph|GPUProcessRow3|ParallaxIdleFreeze
 Y=(#Inset#+(328+#GPUBarExtra#)*#Scale#)
 
 [MeterGPUProcessValue3]
 Meter=String
 MeterStyle=GPUStyleProcessValue
-Group=GPUProcessGraph|GPUProcessRow3
+Group=GPUProcessGraph|GPUProcessRow3|ParallaxIdleFreeze
 Y=(#Inset#+(328+#GPUBarExtra#)*#Scale#)
 
 [MeterGPUProcessName4]
 Meter=String
 MeterStyle=GPUStyleProcessName
-Group=GPUProcessGraph|GPUProcessRow4
+Group=GPUProcessGraph|GPUProcessRow4|ParallaxIdleFreeze
 Y=(#Inset#+(344+#GPUBarExtra#)*#Scale#)
 
 [MeterGPUProcessValue4]
 Meter=String
 MeterStyle=GPUStyleProcessValue
-Group=GPUProcessGraph|GPUProcessRow4
+Group=GPUProcessGraph|GPUProcessRow4|ParallaxIdleFreeze
 Y=(#Inset#+(344+#GPUBarExtra#)*#Scale#)
 
 [MeterGPUProcessName5]
 Meter=String
 MeterStyle=GPUStyleProcessName
-Group=GPUProcessGraph|GPUProcessRow5
+Group=GPUProcessGraph|GPUProcessRow5|ParallaxIdleFreeze
 Y=(#Inset#+(360+#GPUBarExtra#)*#Scale#)
 
 [MeterGPUProcessValue5]
 Meter=String
 MeterStyle=GPUStyleProcessValue
-Group=GPUProcessGraph|GPUProcessRow5
+Group=GPUProcessGraph|GPUProcessRow5|ParallaxIdleFreeze
 Y=(#Inset#+(360+#GPUBarExtra#)*#Scale#)
 
 [MeterGPUProcessFooterRule]

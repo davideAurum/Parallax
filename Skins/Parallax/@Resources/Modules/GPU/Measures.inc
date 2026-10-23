@@ -26,6 +26,7 @@ IfTrueAction=[!SetOption MeterGPUGraphUncollected DynamicVariables 0][!SetOption
 ; canonical HWiNFO sources once at initialization, without formula evaluation.
 [MeasureGPURegistryNames]
 Measure=Registry
+Group=ParallaxIdlePause
 RegHKey=#GPURegHKey#
 RegKey=#GPURegKey#
 OutputType=ValueList
@@ -35,6 +36,7 @@ Disabled=1
 
 [MeasureGPUPowerSensor]
 Measure=Registry
+Group=ParallaxIdlePause
 RegHKey=#GPURegHKey#
 RegKey=#GPURegKey#
 RegValue=Sensor#GPUPowerIndex#
@@ -43,6 +45,7 @@ Disabled=1
 
 [MeasureGPUPowerLabel]
 Measure=Registry
+Group=ParallaxIdlePause
 RegHKey=#GPURegHKey#
 RegKey=#GPURegKey#
 RegValue=Label#GPUPowerIndex#
@@ -51,6 +54,7 @@ Disabled=1
 
 [MeasureGPUPowerValue]
 Measure=Registry
+Group=ParallaxIdlePause
 RegHKey=#GPURegHKey#
 RegKey=#GPURegKey#
 RegValue=Value#GPUPowerIndex#
@@ -59,6 +63,7 @@ Disabled=1
 
 [MeasureGPUPowerValueRaw]
 Measure=Registry
+Group=ParallaxIdlePause
 RegHKey=#GPURegHKey#
 RegKey=#GPURegKey#
 RegValue=ValueRaw#GPUPowerIndex#
@@ -67,6 +72,7 @@ Disabled=1
 
 [MeasureGPUClockSensor]
 Measure=Registry
+Group=ParallaxIdlePause
 RegHKey=#GPURegHKey#
 RegKey=#GPURegKey#
 RegValue=Sensor#GPUClockIndex#
@@ -75,6 +81,7 @@ Disabled=1
 
 [MeasureGPUClockLabel]
 Measure=Registry
+Group=ParallaxIdlePause
 RegHKey=#GPURegHKey#
 RegKey=#GPURegKey#
 RegValue=Label#GPUClockIndex#
@@ -83,6 +90,7 @@ Disabled=1
 
 [MeasureGPUClockValue]
 Measure=Registry
+Group=ParallaxIdlePause
 RegHKey=#GPURegHKey#
 RegKey=#GPURegKey#
 RegValue=Value#GPUClockIndex#
@@ -91,6 +99,7 @@ Disabled=1
 
 [MeasureGPUClockValueRaw]
 Measure=Registry
+Group=ParallaxIdlePause
 RegHKey=#GPURegHKey#
 RegKey=#GPURegKey#
 RegValue=ValueRaw#GPUClockIndex#
@@ -106,6 +115,7 @@ Disabled=1
 ; explicit override; the default driver path never reads them.
 [MeasureGPUExportProbe0]
 Measure=Registry
+Group=ParallaxIdlePause
 RegHKey=#GPURegHKey#
 RegKey=#GPURegKey#
 RegValue=ValueRaw0
@@ -114,6 +124,7 @@ Disabled=1
 
 [MeasureGPUExportProbe1]
 Measure=Registry
+Group=ParallaxIdlePause
 RegHKey=#GPURegHKey#
 RegKey=#GPURegKey#
 RegValue=ValueRaw1
@@ -122,6 +133,7 @@ Disabled=1
 
 [MeasureGPUExportProbe2]
 Measure=Registry
+Group=ParallaxIdlePause
 RegHKey=#GPURegHKey#
 RegKey=#GPURegKey#
 RegValue=ValueRaw2
@@ -130,6 +142,7 @@ Disabled=1
 
 [MeasureGPUExportProbe3]
 Measure=Registry
+Group=ParallaxIdlePause
 RegHKey=#GPURegHKey#
 RegKey=#GPURegKey#
 RegValue=ValueRaw3
@@ -138,6 +151,7 @@ Disabled=1
 
 [MeasureGPUExportProbe4]
 Measure=Registry
+Group=ParallaxIdlePause
 RegHKey=#GPURegHKey#
 RegKey=#GPURegKey#
 RegValue=ValueRaw4
@@ -146,6 +160,7 @@ Disabled=1
 
 [MeasureGPUExportProbe5]
 Measure=Registry
+Group=ParallaxIdlePause
 RegHKey=#GPURegHKey#
 RegKey=#GPURegKey#
 RegValue=ValueRaw5
@@ -154,6 +169,7 @@ Disabled=1
 
 [MeasureGPUExportProbe6]
 Measure=Registry
+Group=ParallaxIdlePause
 RegHKey=#GPURegHKey#
 RegKey=#GPURegKey#
 RegValue=ValueRaw6
@@ -162,6 +178,7 @@ Disabled=1
 
 [MeasureGPUExportProbe7]
 Measure=Registry
+Group=ParallaxIdlePause
 RegHKey=#GPURegHKey#
 RegKey=#GPURegKey#
 RegValue=ValueRaw7
@@ -186,4 +203,5 @@ FinishAction=[!UpdateMeasure MeasureGPUInfo][!UpdateMeasure MeasureGPUView]
 ; Keep the view last: it reads the current counter, metadata and registry measures.
 [MeasureGPUView]
 Measure=Script
+Group=ParallaxIdlePause
 ScriptFile=#@#Modules\GPU\GPU.lua

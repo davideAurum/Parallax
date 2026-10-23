@@ -26,6 +26,7 @@ UpdateDivider=-1
 ; failed numeric getters can retain a prior value, with no freshness signal.
 [MeasureVisualizerVolume]
 Measure=Plugin
+Group=ParallaxIdlePause
 Plugin=Win7AudioPlugin
 UpdateDivider=#VisualizerVolumeDivider#
 IfMatch=^(?:$|ERROR(?: - |$))
@@ -36,6 +37,7 @@ IfMatchMode=0
 ; A Calc binding keeps String %1 numeric instead of the plugin's device name.
 [MeasureVisualizerVolumeValue]
 Measure=Calc
+Group=ParallaxIdlePause
 Formula=MeasureVisualizerVolume
 MinValue=-1
 MaxValue=100
@@ -60,6 +62,7 @@ IfConditionMode=0
 ; device lookup.
 [MeasureVisualizerVolumeShown]
 Measure=Calc
+Group=ParallaxIdlePause
 Formula=(#VisualizerVolumeAvailable#=0 ? -2 : MeasureVisualizerVolumeValue)
 DynamicVariables=1
 UpdateDivider=#VisualizerVolumeDivider#
@@ -68,6 +71,7 @@ OnChangeAction=[!UpdateMeter MeterVisualizerVolume][!Redraw]
 ; AudioLevel returns its cached device name, so the change check is cheap.
 [MeasureVisualizerDeviceName]
 Measure=Plugin
+Group=ParallaxIdlePause
 Plugin=AudioLevel
 Parent=MeasureVisualizerAudio
 Type=DeviceName

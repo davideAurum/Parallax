@@ -7,6 +7,7 @@ Where things stand between releases: what is on `main` but not yet in a publishe
 ## On main, not in any release
 
 - **Media: no `0.png` log spam without WebNowPlaying** (`a18d1f9`). With the plugin missing, Media no longer tries to open `0.png` on every update; only the 14 one-time plugin-load errors remain. See [Media.md](modules/Media.md). Not urgent: the package bundles the plugin.
+- **Idle pause (performance phase C2, branch `perf/C2-idle-standdown`, not yet merged)**: a Global Settings row (Off / 5 / 10 / 30 min, default Off) that freezes every utility after that long without keyboard or mouse input and resumes on input; Media and the standalone Visualizer release their audio capture while paused. See [ARCHITECTURE.md](ARCHITECTURE.md#idle-stand-down) and [SETTINGS.md](SETTINGS.md#idle-pause).
 - Docs only: the PowerShell helper check in [UPDATES.md](UPDATES.md#rainmeter-started-from-powershell-7), and the alpha.6 clean-install record under Stage 1 in [ROADMAP.md](ROADMAP.md).
 
 ## Open: Stage 1 (prove the upgrade path)

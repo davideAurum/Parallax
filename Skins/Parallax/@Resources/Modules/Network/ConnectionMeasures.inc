@@ -4,6 +4,7 @@
 ; samples them on this bank's ticks so the section stays one 2 s snapshot.
 [MeasureConnectionType]
 Measure=SysInfo
+Group=ParallaxIdlePause
 SysInfoType=ADAPTER_TYPE
 SysInfoData=#NetworkInterface#
 UpdateDivider=2
@@ -12,11 +13,13 @@ DynamicVariables=1
 ; Native Internet status is PC-wide; SysInfoData cannot scope it to one adapter.
 [MeasureConnectionInternet]
 Measure=SysInfo
+Group=ParallaxIdlePause
 SysInfoType=INTERNET_CONNECTIVITY
 UpdateDivider=2
 
 [MeasureConnectionIP]
 Measure=SysInfo
+Group=ParallaxIdlePause
 SysInfoType=IP_ADDRESS
 SysInfoData=#NetworkInterface#
 UpdateDivider=2
@@ -24,6 +27,7 @@ DynamicVariables=1
 
 [MeasureConnectionGateway]
 Measure=SysInfo
+Group=ParallaxIdlePause
 SysInfoType=GATEWAY_ADDRESS
 SysInfoData=#NetworkInterface#
 UpdateDivider=2
@@ -31,6 +35,7 @@ DynamicVariables=1
 
 [MeasureConnectionRxLink]
 Measure=SysInfo
+Group=ParallaxIdlePause
 SysInfoType=ADAPTER_RECEIVE_SPEED
 SysInfoData=#NetworkInterface#
 UpdateDivider=2
@@ -38,6 +43,7 @@ DynamicVariables=1
 
 [MeasureConnectionTxLink]
 Measure=SysInfo
+Group=ParallaxIdlePause
 SysInfoType=ADAPTER_TRANSMIT_SPEED
 SysInfoData=#NetworkInterface#
 UpdateDivider=2
@@ -50,7 +56,7 @@ Measure=WiFiStatus
 WiFiInfoType=SSID
 WiFiIntfID=0
 Disabled=1
-Group=ConnectionWiFi
+Group=ConnectionWiFi|ParallaxIdlePause
 UpdateDivider=5
 DynamicVariables=1
 
@@ -59,7 +65,7 @@ Measure=WiFiStatus
 WiFiInfoType=Quality
 WiFiIntfID=0
 Disabled=1
-Group=ConnectionWiFi
+Group=ConnectionWiFi|ParallaxIdlePause
 UpdateDivider=5
 DynamicVariables=1
 
@@ -68,7 +74,7 @@ Measure=WiFiStatus
 WiFiInfoType=PHY
 WiFiIntfID=0
 Disabled=1
-Group=ConnectionWiFi
+Group=ConnectionWiFi|ParallaxIdlePause
 UpdateDivider=5
 DynamicVariables=1
 
@@ -78,7 +84,7 @@ Measure=WiFiStatus
 WiFiInfoType=RXRate
 WiFiIntfID=0
 Disabled=1
-Group=ConnectionWiFi
+Group=ConnectionWiFi|ParallaxIdlePause
 UpdateDivider=5
 DynamicVariables=1
 
@@ -87,12 +93,13 @@ Measure=WiFiStatus
 WiFiInfoType=TXRate
 WiFiIntfID=0
 Disabled=1
-Group=ConnectionWiFi
+Group=ConnectionWiFi|ParallaxIdlePause
 UpdateDivider=5
 DynamicVariables=1
 
 [MeasureConnectionController]
 Measure=Script
+Group=ParallaxIdlePause
 ScriptFile=#@#Modules\Network\Connection.lua
 CoreFile=#@#Modules\Network\Core.lua
 ConnectionCoreFile=#@#Modules\Network\ConnectionCore.lua

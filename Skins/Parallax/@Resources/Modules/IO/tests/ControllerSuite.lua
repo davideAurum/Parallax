@@ -251,6 +251,7 @@ function Suite.run(productionPath)
             return traces
         end
         function state:text(meter) return (self.options[meter] or {}).Text end
+        state.env = env
         state:tick()
         return state
     end
@@ -524,6 +525,32 @@ function Suite.run(productionPath)
         equal(#f:traces(), 2)
         equal(#f:traces()[1].points, 1)
         equal(f:traces()[1].points[1].x, 206)
+    end)
+
+    test('idle stand-down: a 300 s pause leaves a gap and every row divider is re-applied', function()
+        local f = fixture(nil, { MeasureIODiskReadC = 1048576 })
+        for _ = 1, 5 do f:tick() end
+        equal(#f:traces()[1].points, 6, 'six observed seconds before the pause')
+        local before = {}
+        for code = 65, 90 do before[string.char(code)] = f.rows[string.char(code)] end
+        -- The hook deletes the freeze key (rows would update at the default 1),
+        -- then ReapplyDividers sends every letter's own divider, cache bypassed.
+        f.calls = {}
+        f.env.ReapplyDividers()
+        equal(#f.calls, 26, 'one group option per letter')
+        for code = 65, 90 do
+            local letter = string.char(code)
+            equal(f.calls[code - 64][1], '!SetOptionGroup')
+            equal(f.calls[code - 64][2], 'IORow' .. letter)
+            equal(f.rows[letter], before[letter] or '-1', 'row ' .. letter .. ' divider after resume')
+        end
+        equal(f.rows.C, '1', 'the shown row samples again')
+        -- Five minutes paused: the first sample after resume follows a gap of
+        -- empty slots; nothing is joined across the pause.
+        f:tick(300)
+        local points = f:traces()[1].points
+        equal(#points, 1, 'only the new sample is plotted after the gap')
+        equal(points[1].x, 206, 'the new sample is the newest slot')
     end)
 
     test('autoscale minimum and hard ceiling remain explicit and bound positive traces', function()

@@ -151,6 +151,7 @@ UpdateDivider=-1
 ; that measure's own divider rather than every animation tick.
 [MeterHeading]
 Meter=String
+Group=ParallaxIdleFreeze
 MeterStyle=StyleTitle|StyleTitleRow
 X=(#ContentX#+#TitleIconSize#+#TitleIconGap#)
 Y=(#MediaHeaderY#+#TitleRowCenterY#-#Inset#)
@@ -171,6 +172,7 @@ Hidden=#MediaQueueHidden#
 
 [MeterQueueStatus]
 Meter=String
+Group=ParallaxIdleFreeze
 MeterStyle=StyleLabel|MediaSecondaryStyle
 MeasureName=MeasureQueueStatus
 Hidden=#MediaQueueHidden#
@@ -187,6 +189,7 @@ LeftMouseUpAction=[!CommandMeasure MeasureMediaOptions "ToggleQueue()"]
 ; the original #MediaInterval# cadence; see InlineQueueGeometry.inc.
 [MeasureMediaOptions]
 Measure=Script
+Group=ParallaxIdlePause
 ScriptFile=#@#Modules\Media\MediaOptions.lua
 UpdateDivider=#MediaLegacyDivider#
 
@@ -201,6 +204,7 @@ OnUpdateAction=[!CommandMeasure MeasureMediaOptions "CheckAnchor()"]
 
 [MeasureQueueStatus]
 Measure=Script
+Group=ParallaxIdlePause
 ScriptFile=#@#Modules\Media\Queue\QueueReader.lua
 ; Compact footer labels; the standalone queue keeps the full status wording.
 Substitute="Storage unavailable":"Storage error","Spotify unavailable":"Spotify error","Queue unavailable":"Queue error","App quota reached":"Quota reached","Provider stopped":"Stopped"

@@ -264,6 +264,29 @@ local function layout()
     SKIN:Bang('!UpdateMeter', '*')
 end
 
+-- UsageMonitor slots have no DynamicVariables, so they re-read options only
+-- when !SetOption flags them, and each re-read is a plugin Reload (even while
+-- disabled). Change a slot's instance or enabled state only when it differs
+-- from what was last applied. Every slot starts Disabled=1; table slots start
+-- at Name=0,0, the safe instance they return to while disabled.
+local function bindMeasure(measure, name, enabled)
+    state.measures = state.measures or {}
+    local applied = state.measures[measure]
+    if not applied then
+        applied = {name='0,0', enabled=false}
+        state.measures[measure] = applied
+    end
+    if name and applied.name ~= name then
+        set(measure, 'Name', name)
+        applied.name = name
+    end
+    if applied.enabled ~= enabled then
+        SKIN:Bang(enabled and '!EnableMeasure' or '!DisableMeasure', measure)
+        set(measure, 'Disabled', enabled and 0 or 1)
+        applied.enabled = enabled
+    end
+end
+
 local function bindCores()
     state.active = 0
     local enabled = state.showCores and state.count > 0
@@ -276,19 +299,15 @@ local function bindCores()
         local measure = 'MeasureCPU' .. slot
         local index = first + slot - 1
         SKIN:Bang('!HideMeterGroup', 'CPUCore' .. slot)
-        SKIN:Bang('!DisableMeasure', measure)
-        set(measure, 'Disabled', 1)
-        -- 0,0 is a valid safe instance while this page-relative slot is disabled.
-        set(measure, 'Name', '0,0')
         if enabled and slot <= state.rows and index <= state.count then
             state.active = state.active + 1
-            set(measure, 'Name', '0,' .. (index - 1))
-            set(measure, 'Disabled', 0)
-            SKIN:Bang('!EnableMeasure', measure)
+            bindMeasure(measure, '0,' .. (index - 1), true)
             set('MeterCoreLabel' .. slot, 'Text', tostring(index))
             set('MeterCoreValue' .. slot, 'NumOfDecimals', state.decimals)
             set('MeterCoreValue' .. slot, 'Text', '...')
             set('MeterCoreBar' .. slot, 'BarColor', state.threadColors[index] or defaultThreadColor(index))
+        else
+            bindMeasure(measure, '0,0', false)
         end
     end
     -- A changed UsageMonitor instance needs fresh samples. Discard its warmup.
@@ -327,8 +346,7 @@ local function bindProcesses()
     for slot = 1, 10 do
         local enabled = state.showProcesses and slot <= state.processCount
         local measure = 'MeasureCPUProcess' .. slot
-        SKIN:Bang(enabled and '!EnableMeasure' or '!DisableMeasure', measure)
-        set(measure, 'Disabled', enabled and 0 or 1)
+        bindMeasure(measure, nil, enabled)
         SKIN:Bang('!HideMeterGroup', 'CPUProcess' .. slot)
     end
     visible('MeterProcessesState', state.showProcesses)
@@ -496,8 +514,8 @@ local function bindHistoryMeasures()
     for index = 1, 64 do
         local measure = 'MeasureCPUHistory' .. index
         local active = enabled and index <= state.count
-        SKIN:Bang(active and '!EnableMeasure' or '!DisableMeasure', measure)
-        set(measure, 'Disabled', active and 0 or 1)
+        -- Absolute history slots keep their fixed Name; only Disabled changes.
+        bindMeasure(measure, nil, active)
     end
     -- Enabling a UsageMonitor instance requires fresh samples.
     state.historyWarmup = enabled and 2 or 0

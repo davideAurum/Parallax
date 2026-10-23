@@ -16,6 +16,10 @@ MinValue=0
 MaxValue=100
 UpdateDivider=1
 
+; Table slots carry no DynamicVariables. CPU.lua changes Name and Disabled with
+; !SetOption, which forces exactly one re-read (one UsageMonitor Reload) on the
+; next update. DynamicVariables would re-read all of them every tick, disabled
+; or not.
 [MeasureCPU1]
 Measure=Plugin
 Plugin=UsageMonitor
@@ -28,7 +32,6 @@ RawValue=0
 MinValue=0
 MaxValue=100
 Disabled=1
-DynamicVariables=1
 UpdateDivider=1
 
 [MeasureCPU2]
@@ -43,7 +46,6 @@ RawValue=0
 MinValue=0
 MaxValue=100
 Disabled=1
-DynamicVariables=1
 UpdateDivider=1
 
 [MeasureCPU3]
@@ -58,7 +60,6 @@ RawValue=0
 MinValue=0
 MaxValue=100
 Disabled=1
-DynamicVariables=1
 UpdateDivider=1
 
 [MeasureCPU4]
@@ -73,7 +74,6 @@ RawValue=0
 MinValue=0
 MaxValue=100
 Disabled=1
-DynamicVariables=1
 UpdateDivider=1
 
 [MeasureCPU5]
@@ -88,7 +88,6 @@ RawValue=0
 MinValue=0
 MaxValue=100
 Disabled=1
-DynamicVariables=1
 UpdateDivider=1
 
 [MeasureCPU6]
@@ -103,7 +102,6 @@ RawValue=0
 MinValue=0
 MaxValue=100
 Disabled=1
-DynamicVariables=1
 UpdateDivider=1
 
 [MeasureCPU7]
@@ -118,7 +116,6 @@ RawValue=0
 MinValue=0
 MaxValue=100
 Disabled=1
-DynamicVariables=1
 UpdateDivider=1
 
 [MeasureCPU8]
@@ -133,7 +130,6 @@ RawValue=0
 MinValue=0
 MaxValue=100
 Disabled=1
-DynamicVariables=1
 UpdateDivider=1
 
 [MeasureCPU9]
@@ -148,7 +144,6 @@ RawValue=0
 MinValue=0
 MaxValue=100
 Disabled=1
-DynamicVariables=1
 UpdateDivider=1
 
 [MeasureCPU10]
@@ -163,7 +158,6 @@ RawValue=0
 MinValue=0
 MaxValue=100
 Disabled=1
-DynamicVariables=1
 UpdateDivider=1
 
 [MeasureCPU11]
@@ -178,7 +172,6 @@ RawValue=0
 MinValue=0
 MaxValue=100
 Disabled=1
-DynamicVariables=1
 UpdateDivider=1
 
 [MeasureCPU12]
@@ -193,7 +186,6 @@ RawValue=0
 MinValue=0
 MaxValue=100
 Disabled=1
-DynamicVariables=1
 UpdateDivider=1
 
 [MeasureCPU13]
@@ -208,7 +200,6 @@ RawValue=0
 MinValue=0
 MaxValue=100
 Disabled=1
-DynamicVariables=1
 UpdateDivider=1
 
 [MeasureCPU14]
@@ -223,7 +214,6 @@ RawValue=0
 MinValue=0
 MaxValue=100
 Disabled=1
-DynamicVariables=1
 UpdateDivider=1
 
 [MeasureCPU15]
@@ -238,7 +228,6 @@ RawValue=0
 MinValue=0
 MaxValue=100
 Disabled=1
-DynamicVariables=1
 UpdateDivider=1
 
 [MeasureCPU16]
@@ -253,7 +242,6 @@ RawValue=0
 MinValue=0
 MaxValue=100
 Disabled=1
-DynamicVariables=1
 UpdateDivider=1
 
 [MeasureCPU17]
@@ -268,7 +256,6 @@ RawValue=0
 MinValue=0
 MaxValue=100
 Disabled=1
-DynamicVariables=1
 UpdateDivider=1
 
 [MeasureCPU18]
@@ -283,7 +270,6 @@ RawValue=0
 MinValue=0
 MaxValue=100
 Disabled=1
-DynamicVariables=1
 UpdateDivider=1
 
 [MeasureCPU19]
@@ -298,7 +284,6 @@ RawValue=0
 MinValue=0
 MaxValue=100
 Disabled=1
-DynamicVariables=1
 UpdateDivider=1
 
 [MeasureCPU20]
@@ -313,7 +298,6 @@ RawValue=0
 MinValue=0
 MaxValue=100
 Disabled=1
-DynamicVariables=1
 UpdateDivider=1
 
 [MeasureCPU21]
@@ -328,7 +312,6 @@ RawValue=0
 MinValue=0
 MaxValue=100
 Disabled=1
-DynamicVariables=1
 UpdateDivider=1
 
 [MeasureCPU22]
@@ -343,7 +326,6 @@ RawValue=0
 MinValue=0
 MaxValue=100
 Disabled=1
-DynamicVariables=1
 UpdateDivider=1
 
 [MeasureCPU23]
@@ -358,7 +340,6 @@ RawValue=0
 MinValue=0
 MaxValue=100
 Disabled=1
-DynamicVariables=1
 UpdateDivider=1
 
 [MeasureCPU24]
@@ -373,7 +354,6 @@ RawValue=0
 MinValue=0
 MaxValue=100
 Disabled=1
-DynamicVariables=1
 UpdateDivider=1
 
 [MeasureCPU25]
@@ -388,7 +368,6 @@ RawValue=0
 MinValue=0
 MaxValue=100
 Disabled=1
-DynamicVariables=1
 UpdateDivider=1
 
 [MeasureCPU26]
@@ -403,7 +382,6 @@ RawValue=0
 MinValue=0
 MaxValue=100
 Disabled=1
-DynamicVariables=1
 UpdateDivider=1
 
 [MeasureCPU27]
@@ -418,7 +396,6 @@ RawValue=0
 MinValue=0
 MaxValue=100
 Disabled=1
-DynamicVariables=1
 UpdateDivider=1
 
 [MeasureCPU28]
@@ -433,7 +410,6 @@ RawValue=0
 MinValue=0
 MaxValue=100
 Disabled=1
-DynamicVariables=1
 UpdateDivider=1
 
 [MeasureCPU29]
@@ -448,7 +424,6 @@ RawValue=0
 MinValue=0
 MaxValue=100
 Disabled=1
-DynamicVariables=1
 UpdateDivider=1
 
 [MeasureCPU30]
@@ -463,7 +438,6 @@ RawValue=0
 MinValue=0
 MaxValue=100
 Disabled=1
-DynamicVariables=1
 UpdateDivider=1
 
 [MeasureCPU31]
@@ -478,7 +452,6 @@ RawValue=0
 MinValue=0
 MaxValue=100
 Disabled=1
-DynamicVariables=1
 UpdateDivider=1
 
 [MeasureCPU32]
@@ -493,7 +466,6 @@ RawValue=0
 MinValue=0
 MaxValue=100
 Disabled=1
-DynamicVariables=1
 UpdateDivider=1
 
 [MeasureCPU33]
@@ -508,7 +480,6 @@ RawValue=0
 MinValue=0
 MaxValue=100
 Disabled=1
-DynamicVariables=1
 UpdateDivider=1
 
 [MeasureCPU34]
@@ -523,7 +494,6 @@ RawValue=0
 MinValue=0
 MaxValue=100
 Disabled=1
-DynamicVariables=1
 UpdateDivider=1
 
 [MeasureCPU35]
@@ -538,7 +508,6 @@ RawValue=0
 MinValue=0
 MaxValue=100
 Disabled=1
-DynamicVariables=1
 UpdateDivider=1
 
 [MeasureCPU36]
@@ -553,7 +522,6 @@ RawValue=0
 MinValue=0
 MaxValue=100
 Disabled=1
-DynamicVariables=1
 UpdateDivider=1
 
 [MeasureCPU37]
@@ -568,7 +536,6 @@ RawValue=0
 MinValue=0
 MaxValue=100
 Disabled=1
-DynamicVariables=1
 UpdateDivider=1
 
 [MeasureCPU38]
@@ -583,7 +550,6 @@ RawValue=0
 MinValue=0
 MaxValue=100
 Disabled=1
-DynamicVariables=1
 UpdateDivider=1
 
 [MeasureCPU39]
@@ -598,7 +564,6 @@ RawValue=0
 MinValue=0
 MaxValue=100
 Disabled=1
-DynamicVariables=1
 UpdateDivider=1
 
 [MeasureCPU40]
@@ -613,7 +578,6 @@ RawValue=0
 MinValue=0
 MaxValue=100
 Disabled=1
-DynamicVariables=1
 UpdateDivider=1
 
 [MeasureCPU41]
@@ -628,7 +592,6 @@ RawValue=0
 MinValue=0
 MaxValue=100
 Disabled=1
-DynamicVariables=1
 UpdateDivider=1
 
 [MeasureCPU42]
@@ -643,7 +606,6 @@ RawValue=0
 MinValue=0
 MaxValue=100
 Disabled=1
-DynamicVariables=1
 UpdateDivider=1
 
 [MeasureCPU43]
@@ -658,7 +620,6 @@ RawValue=0
 MinValue=0
 MaxValue=100
 Disabled=1
-DynamicVariables=1
 UpdateDivider=1
 
 [MeasureCPU44]
@@ -673,7 +634,6 @@ RawValue=0
 MinValue=0
 MaxValue=100
 Disabled=1
-DynamicVariables=1
 UpdateDivider=1
 
 [MeasureCPU45]
@@ -688,7 +648,6 @@ RawValue=0
 MinValue=0
 MaxValue=100
 Disabled=1
-DynamicVariables=1
 UpdateDivider=1
 
 [MeasureCPU46]
@@ -703,7 +662,6 @@ RawValue=0
 MinValue=0
 MaxValue=100
 Disabled=1
-DynamicVariables=1
 UpdateDivider=1
 
 [MeasureCPU47]
@@ -718,7 +676,6 @@ RawValue=0
 MinValue=0
 MaxValue=100
 Disabled=1
-DynamicVariables=1
 UpdateDivider=1
 
 [MeasureCPU48]
@@ -733,7 +690,6 @@ RawValue=0
 MinValue=0
 MaxValue=100
 Disabled=1
-DynamicVariables=1
 UpdateDivider=1
 
 [MeasureCPU49]
@@ -748,7 +704,6 @@ RawValue=0
 MinValue=0
 MaxValue=100
 Disabled=1
-DynamicVariables=1
 UpdateDivider=1
 
 [MeasureCPU50]
@@ -763,7 +718,6 @@ RawValue=0
 MinValue=0
 MaxValue=100
 Disabled=1
-DynamicVariables=1
 UpdateDivider=1
 
 [MeasureCPU51]
@@ -778,7 +732,6 @@ RawValue=0
 MinValue=0
 MaxValue=100
 Disabled=1
-DynamicVariables=1
 UpdateDivider=1
 
 [MeasureCPU52]
@@ -793,7 +746,6 @@ RawValue=0
 MinValue=0
 MaxValue=100
 Disabled=1
-DynamicVariables=1
 UpdateDivider=1
 
 [MeasureCPU53]
@@ -808,7 +760,6 @@ RawValue=0
 MinValue=0
 MaxValue=100
 Disabled=1
-DynamicVariables=1
 UpdateDivider=1
 
 [MeasureCPU54]
@@ -823,7 +774,6 @@ RawValue=0
 MinValue=0
 MaxValue=100
 Disabled=1
-DynamicVariables=1
 UpdateDivider=1
 
 [MeasureCPU55]
@@ -838,7 +788,6 @@ RawValue=0
 MinValue=0
 MaxValue=100
 Disabled=1
-DynamicVariables=1
 UpdateDivider=1
 
 [MeasureCPU56]
@@ -853,7 +802,6 @@ RawValue=0
 MinValue=0
 MaxValue=100
 Disabled=1
-DynamicVariables=1
 UpdateDivider=1
 
 [MeasureCPU57]
@@ -868,7 +816,6 @@ RawValue=0
 MinValue=0
 MaxValue=100
 Disabled=1
-DynamicVariables=1
 UpdateDivider=1
 
 [MeasureCPU58]
@@ -883,7 +830,6 @@ RawValue=0
 MinValue=0
 MaxValue=100
 Disabled=1
-DynamicVariables=1
 UpdateDivider=1
 
 [MeasureCPU59]
@@ -898,7 +844,6 @@ RawValue=0
 MinValue=0
 MaxValue=100
 Disabled=1
-DynamicVariables=1
 UpdateDivider=1
 
 [MeasureCPU60]
@@ -913,7 +858,6 @@ RawValue=0
 MinValue=0
 MaxValue=100
 Disabled=1
-DynamicVariables=1
 UpdateDivider=1
 
 [MeasureCPU61]
@@ -928,7 +872,6 @@ RawValue=0
 MinValue=0
 MaxValue=100
 Disabled=1
-DynamicVariables=1
 UpdateDivider=1
 
 [MeasureCPU62]
@@ -943,7 +886,6 @@ RawValue=0
 MinValue=0
 MaxValue=100
 Disabled=1
-DynamicVariables=1
 UpdateDivider=1
 
 [MeasureCPU63]
@@ -958,7 +900,6 @@ RawValue=0
 MinValue=0
 MaxValue=100
 Disabled=1
-DynamicVariables=1
 UpdateDivider=1
 
 [MeasureCPU64]
@@ -973,7 +914,6 @@ RawValue=0
 MinValue=0
 MaxValue=100
 Disabled=1
-DynamicVariables=1
 UpdateDivider=1
 
 ; Dedicated absolute logical-processor history measures. These stay disabled unless the visible graph source is Per thread; table measures remain page-relative.
@@ -1894,6 +1834,7 @@ UpdateDivider=1
 FinishAction=[!UpdateMeasure MeasureCPUInfo][!CommandMeasure MeasureCPUController "ApplyProcessorInfo()"]
 
 ; Built-in process ranking. Its Process worker collects independently at 1 Hz.
+; No DynamicVariables: CPU.lua enables and disables these slots on change only.
 [MeasureCPUProcess1]
 Measure=Plugin
 Plugin=UsageMonitor
@@ -1904,7 +1845,6 @@ Rollup=1
 MinValue=0
 MaxValue=100
 Disabled=1
-DynamicVariables=1
 UpdateDivider=1
 
 [MeasureCPUProcess2]
@@ -1917,7 +1857,6 @@ Rollup=1
 MinValue=0
 MaxValue=100
 Disabled=1
-DynamicVariables=1
 UpdateDivider=1
 
 [MeasureCPUProcess3]
@@ -1930,7 +1869,6 @@ Rollup=1
 MinValue=0
 MaxValue=100
 Disabled=1
-DynamicVariables=1
 UpdateDivider=1
 
 [MeasureCPUProcess4]
@@ -1943,7 +1881,6 @@ Rollup=1
 MinValue=0
 MaxValue=100
 Disabled=1
-DynamicVariables=1
 UpdateDivider=1
 
 [MeasureCPUProcess5]
@@ -1956,7 +1893,6 @@ Rollup=1
 MinValue=0
 MaxValue=100
 Disabled=1
-DynamicVariables=1
 UpdateDivider=1
 
 [MeasureCPUProcess6]
@@ -1969,7 +1905,6 @@ Rollup=1
 MinValue=0
 MaxValue=100
 Disabled=1
-DynamicVariables=1
 UpdateDivider=1
 
 [MeasureCPUProcess7]
@@ -1982,7 +1917,6 @@ Rollup=1
 MinValue=0
 MaxValue=100
 Disabled=1
-DynamicVariables=1
 UpdateDivider=1
 
 [MeasureCPUProcess8]
@@ -1995,7 +1929,6 @@ Rollup=1
 MinValue=0
 MaxValue=100
 Disabled=1
-DynamicVariables=1
 UpdateDivider=1
 
 [MeasureCPUProcess9]
@@ -2008,7 +1941,6 @@ Rollup=1
 MinValue=0
 MaxValue=100
 Disabled=1
-DynamicVariables=1
 UpdateDivider=1
 
 [MeasureCPUProcess10]
@@ -2021,7 +1953,6 @@ Rollup=1
 MinValue=0
 MaxValue=100
 Disabled=1
-DynamicVariables=1
 UpdateDivider=1
 
 ; Event-only bridge: a settings click updates this measure without resampling CPU.

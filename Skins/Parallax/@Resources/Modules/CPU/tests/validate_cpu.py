@@ -262,6 +262,12 @@ def validate():
                 assert all(ref.strip() in sections for ref in value.split("|")), (name, key)
     measures = [name for name, values in sections.items() if "Measure" in values]
     assert len(measures) == 108 + 9 * 64
+    # CPU-02 / ENGINE-05: a DynamicVariables UsageMonitor measure re-reads, and
+    # reloads the plugin, every tick even while disabled. !SetOption already
+    # forces the one re-read CPU.lua needs.
+    usage_monitor = [name for name, values in sections.items() if values.get("Plugin") == "UsageMonitor"]
+    assert len(usage_monitor) == 1 + 64 + 64 + 10 + 2, len(usage_monitor)
+    assert not [name for name in usage_monitor if "DynamicVariables" in sections[name]]
     total_utility = sections["MeasureCPUTotal"]
     assert total_utility["Measure"] == "Plugin" and total_utility["Plugin"] == "UsageMonitor"
     assert total_utility["Category"] == "Processor Information"
@@ -540,7 +546,9 @@ def validate():
     assert "set('MeterCoreLabel' .. slot, 'Text', tostring(index))" in script
     assert "SKIN:Bang('!CommandMeasure', 'MeasureCPUSensors', 'SetThreadPage(' .. first .. ')')" in script
     assert all("ToolTip" not in source for source in (script, sensor_script, setup_script, discovery_script))
-    assert "set(measure, 'Name', '0,' .. (index - 1))" in script
+    # Slots bind absolute instances, re-pointing a measure only when its Name changes.
+    assert "bindMeasure(measure, '0,' .. (index - 1), true)" in script
+    assert "if name and applied.name ~= name then" in script and "set(measure, 'Name', name)" in script
     assert "local function busyPercent(value)" in script and "value > 100.5" in script
     assert "return math.min(100, value)" in script and "graphUtility" not in script and "Processor Utility" not in script
     assert "local function updateThreadValues()" in script

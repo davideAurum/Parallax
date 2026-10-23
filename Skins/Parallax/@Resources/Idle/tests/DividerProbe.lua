@@ -7,6 +7,7 @@
 --   ProbeMeasures  file: one measure name per line (ParallaxIdlePause members)
 --   ProbeLog       file appended with one record per line:
 --     L|clock|load                         this load started
+--     A|clock|action                       #ParallaxIdleHoverAction# expanded
 --     Y|clock|sync                         first ParallaxIdleSync=1 of the load
 --     H|clock|0 or 1                       MeterParallaxPaused Hidden changed
 --     S|clock|tag|meter|divider            snapshot: each meter's effective
@@ -85,6 +86,9 @@ function Initialize()
     texts, lastText = {}, {}
     for name in SELF:GetOption('ProbeTexts', ''):gmatch('[^|]+') do texts[#texts + 1] = name end
     log('L|load')
+    -- What the skin's hover actions end with in this load (the hook's Hover()
+    -- call while Idle pause is on), as Rainmeter expanded it.
+    log('A|' .. SKIN:ReplaceVariables('#ParallaxIdleHoverAction#'):gsub('[|\r\n]', ' '))
     -- ProbeVariable (optional): a variable formula evaluated once per load,
     -- logged as F|clock|name|value (e.g. Media's MediaTickInterval).
     local name = SELF:GetOption('ProbeVariable', '')

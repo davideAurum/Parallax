@@ -170,8 +170,15 @@ function Test-HostCycle($Run, $Process, [string]$Label, [string]$Marker, [string
     Check ($null -ne $leave) "${Label}: resumed"
     $fresh = Wait-Until { @(Read-Probe $Run.Probe | Where-Object { $_.Kind -eq 'T' -and $_.Clock -ge $resumedAt -and $_.Rest[0] -eq $Meter -and $_.Rest[1] -match $FreshPattern }).Count -gt 0 } 30000
     $texts = @(Read-Probe $Run.Probe | Where-Object { $_.Kind -eq 'T' -and $_.Clock -ge $resumedAt -and $_.Rest[0] -eq $Meter })
-    Write-Output ("     {0}: after resume {1}: {2}" -f $Label, $Meter, (($texts | ForEach-Object { '{0:N1}s {1}' -f ($_.Clock - $resumedAt), $_.Rest[1] }) -join ' -> '))
-    Check ($texts.Count -ge 1 -and $texts[0].Rest[1] -match $StartingPattern) "${Label}: the first resumed reading is a starting state, not the frozen value"
+    # The probe logs a text only when it changes. When the host had not sampled
+    # yet before the pause (a skin reloaded or failed live just before), the
+    # meter already read the starting state and kept it through the resume.
+    $prior = @(Read-Probe $Run.Probe | Where-Object { $_.Kind -eq 'T' -and $_.Clock -lt $resumedAt -and $_.Rest[0] -eq $Meter } | Select-Object -Last 1)
+    Write-Output ("     {0}: after resume {1}: {2}{3}" -f $Label, $Meter, $(if ($prior.Count) { "(before: $($prior[0].Rest[1])) " } else { '' }),
+        (($texts | ForEach-Object { '{0:N1}s {1}' -f ($_.Clock - $resumedAt), $_.Rest[1] }) -join ' -> '))
+    $startingFirst = $texts.Count -ge 1 -and $texts[0].Rest[1] -match $StartingPattern
+    $startingThrough = $texts.Count -ge 1 -and $texts[0].Rest[1] -match $FreshPattern -and $prior.Count -and $prior[0].Rest[1] -match $StartingPattern
+    Check ($startingFirst -or $startingThrough) "${Label}: the first resumed reading is a starting state, not the frozen value"
     Check ($fresh -ge 0) "${Label}: a fresh reading follows within 30 s"
     $after = @(Get-RunHosts $Process $Marker | Where-Object { Get-Process -Id $_.Id -ErrorAction SilentlyContinue })
     Check ($after.Count -eq 1 -and @($after | Where-Object { $_.Id -in @($before | ForEach-Object Id) }).Count -eq 0) "${Label}: exactly one new host after the resume"
@@ -769,6 +776,13 @@ function Invoke-StandDown($Entry, [string]$LayoutName, [bool]$Full) {
         # value hidden and the gear shown; the next hover-out restores both.
         if ($Entry.Hover) {
             $pair = Get-HoverPair $Entry
+            if ($Entry.Hover -like 'swap:*') {
+                # The swap's MouseLeaveAction ends with #ParallaxIdleHoverAction#
+                # (test_idle_freeze_contract.py); this load expanded it to:
+                $action = @(Read-Probe $run.Probe | Where-Object { $_.Kind -eq 'A' } | Select-Object -Last 1)
+                $expanded = if ($action.Count) { $action[0].Rest[0] } else { '(none)' }
+                Check ($expanded -eq '[!CommandMeasure MeasureParallaxStandDown "Hover()"]') "$($Entry.Key): the hover actions' #ParallaxIdleHoverAction# expands to the hook's Hover() ($expanded)"
+            }
             $written = Send $run 'idle 10'
             $null = Wait-Hidden $run '0' $written 15000
             $steps = @(@{ Side = 'in'; Tag = 'hoverin'; Gear = '0'; Value = '1'; Text = 'hover-in while paused: gear shown, value hidden' },

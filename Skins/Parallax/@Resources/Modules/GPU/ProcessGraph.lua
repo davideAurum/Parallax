@@ -7,6 +7,8 @@
 -- https://devblogs.microsoft.com/directx/gpus-in-the-task-manager/), never a
 -- sum of engines. Windows names decorate, but never merge, raw identities.
 local measures, previous, memoryBindings, recentPIDs
+-- The last name packet and its decoded PID map (empty when it was invalid).
+local namesPacket, namesDecoded
 local sources = {'MeasureGPUActivity', 'MeasureGPUProcess2',
     'MeasureGPUProcess3', 'MeasureGPUProcess4', 'MeasureGPUProcess5'}
 local namesSource = 'MeasureGPUTemperatureController'
@@ -78,15 +80,20 @@ local function processNames()
     local now = os.time()
     if not finite(now) or epoch > now + 5 or now - epoch > math.max(8, 3 * interval / 1000 + 2) then return {} end
     if entries == '?' then return {} end
+    -- The packet only changes with a new helper sample (2 s by default), so
+    -- an identical packet maps to the same names; its age is checked above
+    -- every tick, the hex decoding is not repeated. The map is read-only.
+    if packet == namesPacket then return namesDecoded end
     local result, count = {}, 0
     for entry in (entries .. ';'):gmatch('(.-);') do
         count = count + 1
         local rawPid, nameHex = entry:match('^(%d+),(%x+)$')
         local pid = integer(rawPid, 4294967295)
         local name = nameHex and basename(nameHex)
-        if count > requestLimit or not pid or not name or result[pid] then return {} end
+        if count > requestLimit or not pid or not name or result[pid] then result = {}; break end
         result[pid] = name
     end
+    namesPacket, namesDecoded = packet, result
     return result
 end
 
@@ -108,6 +115,17 @@ local function set(meter, option, value)
         return true
     end
     return false
+end
+
+-- Row visibility as last sent. Each Show/HideMeterGroup bang walks every
+-- meter for the group and makes Rainmeter check the window size (and so
+-- redraw), so it is sent only when a row actually appears or disappears.
+local visible
+local function showRow(slot, shown)
+    if visible[slot] ~= shown then
+        visible[slot] = shown
+        SKIN:Bang(shown and '!ShowMeterGroup' or '!HideMeterGroup', 'GPUProcessRow' .. slot)
+    end
 end
 
 -- A memory instance identifies a process on one physical adapter, without
@@ -185,7 +203,9 @@ local function rawObservation(rank)
 end
 
 function Initialize()
+    visible = {}
     measures, previous, memoryBindings, recentPIDs = {}, {}, {}, {}
+    namesPacket, namesDecoded = nil, nil
 end
 
 function Update()
@@ -219,7 +239,7 @@ function Update()
             set(nameMeter, 'Text', display(label))
             set(valueMeter, 'Text', display(percentage))
             set(memoryMeter, 'Text', memoryLabel)
-            SKIN:Bang('!ShowMeterGroup', 'GPUProcessRow' .. slot)
+            showRow(slot, true)
         elseif slot == 1 then
             -- Keep the first row visible to explain an empty ranking instead
             -- of leaving the table blank.
@@ -227,10 +247,10 @@ function Update()
             set(nameMeter, 'Text', 'No active GPU process data')
             set(valueMeter, 'Text', '--')
             set(memoryMeter, 'Text', '--')
-            SKIN:Bang('!ShowMeterGroup', 'GPUProcessRow1')
+            showRow(1, true)
         else
             memoryObservation(slot, nil)
-            SKIN:Bang('!HideMeterGroup', 'GPUProcessRow' .. slot)
+            showRow(slot, false)
         end
     end
 

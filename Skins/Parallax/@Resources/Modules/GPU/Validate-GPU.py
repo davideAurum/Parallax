@@ -358,18 +358,25 @@ for index in range(1, 6):
     assert memory["Category"] == "GPU Process Memory" and memory["Counter"] == "Local Usage", index
     assert memory["Index"] == "0" and memory["RawValue"] == "1" and memory["Disabled"] == "1", index
     assert memory["Name"] == "__ParallaxNoGPUProcess__", index
-# The History trace is the controller's own busy percentage, wrapped in an
-# explicit 0-100 range directly after the controller in TemperatureMeasures.inc
-# so each update traces the sample just read. Measures.inc no longer owns it.
+# The History trace is the controller's busy percentage, wrapped in an explicit
+# 0-100 range directly after the controller in TemperatureMeasures.inc.
+# Measures.inc no longer owns it. Since 2026-10-22 Temperature.lua pushes one
+# point per new driver sample: it sets this Formula to a literal and forces the
+# Calc, the sample counter and the Line meter, all three UpdateDivider=-1 so the
+# 1 s skin cycle never plots a 2 s sample twice.
 measures_text = (GPU_DIR / "Measures.inc").read_text(encoding="utf-8-sig")
 temperature_text = (GPU_DIR / "TemperatureMeasures.inc").read_text(encoding="utf-8-sig")
 assert "[MeasureGPUUtilizationHistory]" not in measures_text
 assert temperature_text.index("[MeasureGPUUtilizationHistory]") > temperature_text.index("[MeasureGPUTemperatureController]")
 assert sections["MeasureGPUUtilizationHistory"] == {
-    "Measure": "Calc", "Formula": "MeasureGPUTemperatureController", "MinValue": "0", "MaxValue": "100", "UpdateDivider": "1"}
+    "Measure": "Calc", "Formula": "0", "MinValue": "0", "MaxValue": "100", "UpdateDivider": "-1"}
 samples = sections["MeasureGPUGraphSamples"]
-assert samples["Measure"] == "Calc" and samples["UpdateDivider"] == "1"
+assert samples["Measure"] == "Calc" and samples["UpdateDivider"] == "-1"
 assert samples["Formula"] == "Min(MeasureGPUGraphSamples+1,#ContentWidth#)"
+# A full graph retires the startup cover: hidden, and no further re-reads.
+assert samples["IfCondition"] == "MeasureGPUGraphSamples>=#ContentWidth#"
+assert samples["IfTrueAction"] == ("[!SetOption MeterGPUGraphUncollected DynamicVariables 0]"
+                                   "[!SetOption MeterGPUGraphUncollected UpdateDivider -1][!HideMeter MeterGPUGraphUncollected]")
 
 meters = {name: effective(name) for name, options in sections.items() if "Meter" in options}
 assert all("Meter" in options for name, options in sections.items() if name.startswith("Meter"))
@@ -435,7 +442,9 @@ assert meters["MeterGPUHistoryLabel"]["Text"] == "History" and meters["MeterGPUH
 graph = meters["MeterGPUUtilizationGraph"]
 assert graph["Meter"] == "Line" and graph["MeasureName"] == "MeasureGPUUtilizationHistory"
 assert graph["AutoScale"] == "0" and graph["LineCount"] == "1" and graph["GraphStart"] == "Right"
-assert graph["LineColor"] == "#GPUColor#" and graph["UpdateDivider"] == "1"
+assert graph["LineColor"] == "#GPUColor#" and graph["UpdateDivider"] == "-1"
+# Load-time options only: no per-update re-parse of the geometry chains.
+assert "DynamicVariables" not in graph, "the History Line meter must not re-read its options"
 uncollected = meters["MeterGPUGraphUncollected"]
 assert "[MeasureGPUGraphSamples]" in uncollected["Shape"], "the startup cover must follow the sample count"
 assert uncollected["DynamicVariables"] == "1" and uncollected["UpdateDivider"] == "1"
@@ -455,6 +464,9 @@ for script in ("GPU.lua", "Temperature.lua", "ProcessGraph.lua"):
     assert "tooltip" not in script_text.lower(), script
     if script == "Temperature.lua":
         assert "'GPUEngineBarWidth'" in script_text and "'ContentWidth'" in script_text and "'DataBarThicknessPx'" in script_text
+        # The controller forces every History point; nothing else updates them.
+        for forced in ("'MeasureGPUUtilizationHistory'", "'MeasureGPUGraphSamples'", "'MeterGPUUtilizationGraph'"):
+            assert forced in script_text, forced
         for name in ("MeterActivityValue", "MeterGPUVRAMValue", "MeterGPUVRAMBar", "MeterGPUSharedValue",
                      *(f"Meter{field}{part}" for field in ENGINE_FIELDS for part in ("Value", "Bar"))):
             assert f"'{name}'" in script_text, name

@@ -1,8 +1,10 @@
 ; GPU load history in Memory Meter's style: a History header with its fixed
 ; range at the right, then the graph. The trace is the driver's GPU busy time
 ; (the header value and the Engine table's Core row), supplied by
-; Temperature.lua through MeasureGPUUtilizationHistory. Height follows the
-; shared #GraphHeight# variable; the panel grows to fit.
+; Temperature.lua through MeasureGPUUtilizationHistory: one point per driver
+; sample (every Max(1000,MetricsInterval,SensorInterval) ms, 2 s by default),
+; so the Line meter is UpdateDivider=-1 and forced by the controller. Height
+; follows the shared #GraphHeight# variable; the panel grows to fit.
 
 [MeterGPUHistoryLabel]
 Meter=String
@@ -40,8 +42,9 @@ Scale=1
 GraphStart=Right
 GraphOrientation=Vertical
 AntiAlias=1
-DynamicVariables=1
-UpdateDivider=1
+; Every option above is fixed until a refresh (settings and colours apply by
+; refreshing), so no DynamicVariables: an update only pushes the next point.
+UpdateDivider=-1
 
 ; Native Line starts with a zero-filled ring buffer. Cover its uncollected
 ; left side; do not portray those zeros as observed GPU usage. Overlap by
@@ -51,8 +54,12 @@ Meter=Shape
 X=#ContentX#
 Y=(#Inset#+(406+#GPUBarExtra#)*#Scale#)
 Shape=Rectangle 0,0,(Min(#ContentWidth#,Max(0,(#ContentWidth#-[MeasureGPUGraphSamples]+2*#Scale#)*([MeasureGPUGraphSamples]<#ContentWidth#)))),(#GraphHeight#*#Scale#) | Fill Color #GraphBackgroundColor#,255 | StrokeWidth 0
-; DynamicVariables is required: without it [MeasureGPUGraphSamples] is read once
-; at load (0 samples), leaving this cover at full width over the whole graph.
+; DynamicVariables is required while the graph fills: without it
+; [MeasureGPUGraphSamples] is read once at load (0 samples), leaving this cover
+; at full width over the whole graph. When the count reaches the graph width,
+; MeasureGPUGraphSamples' IfTrueAction hides this meter and sets
+; DynamicVariables 0 and UpdateDivider -1, so it stops re-reading for the rest
+; of the load.
 DynamicVariables=1
 UpdateDivider=1
 

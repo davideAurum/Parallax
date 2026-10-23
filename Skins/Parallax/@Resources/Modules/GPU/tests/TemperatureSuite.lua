@@ -47,7 +47,7 @@ function Suite.run(path)
     local function fixture(options)
         options = options or {}
         local f = {now = 1000, calls = {}, meter = {}, meters = {}, parameters = {}, launches = {}, kills = {}, reads = {},
-            registryEnables = {}, registryUpdates = {}, initializing = false,
+            registryEnables = {}, registryUpdates = {}, initializing = false, history = {}, pushes = 0,
             files = {[foreignPath] = 'preserve'}, removed = {}, leaseWrites = 0, vars = options.vars or {},
             statuses = {[info] = options.infoStatus or 1, [bootstrap] = options.bootstrapStatus or -1, [driver] = options.driverStatus or -1},
             outputs = {[info] = options.metadata or metadata, [bootstrap] = '', [driver] = '', MeasureGPUProcessController = options.pids or '?'},
@@ -84,6 +84,7 @@ function Suite.run(path)
             return '(Max(1,Round(' .. f.vars.DataBarThickness .. '*' .. f.vars.Scale .. ')))'
         end
         function skin:ParseFormula(raw)
+            f.formulas = f.formulas + 1
             if raw == '((220-2*10))' then return 200 end
             if raw == '((' .. expandedWidth() .. '-102*' .. f.vars.Scale .. '))' then
                 local width = f.vars.ContentWidth == panelFormula and 200 or tonumber(f.vars.ContentWidth)
@@ -126,6 +127,10 @@ function Suite.run(path)
                     if args[2] ~= 'Shape2' then assert(not args[3]:find('[#%[%]"%c]'), 'unsafe display data') end
                     f.meters[args[1]] = f.meters[args[1]] or {}
                     f.meters[args[1]][args[2]] = args[3]
+                elseif args[1] == 'MeasureGPUUtilizationHistory' then
+                    assert(args[2] == 'Formula' and args[3]:match('^%d+$') and tonumber(args[3]) <= 100,
+                        'a History point is a literal 0-100 percentage')
+                    f.historyFormula = args[3]
                 else
                     assert((args[1] == bootstrap or args[1] == driver) and args[2] == 'Parameter', 'unexpected helper option')
                     assert(args[3]:find("ReadAllText('DriverTemperature.cs.txt')", 1, true), 'fixed source only')
@@ -160,6 +165,13 @@ function Suite.run(path)
                     assert(f.initializing and f.registryEnables[args[1]] == 1, 'registry update must follow initialization enable')
                     f.registryUpdates[args[1]] = (f.registryUpdates[args[1]] or 0) + 1
                     assert(f.registryUpdates[args[1]] == 1, 'registry update repeatedly forced')
+                elseif args[1] == 'MeasureGPUUtilizationHistory' then
+                    local previous = f.calls[#f.calls - 1]
+                    assert(previous and previous[1] == '!SetOption' and previous[2] == args[1], 'the History Calc is forced right after its point is set')
+                    f.history[#f.history + 1] = tonumber(f.historyFormula)
+                elseif args[1] == 'MeasureGPUGraphSamples' then
+                    local previous = f.calls[#f.calls - 1]
+                    assert(previous and previous[1] == '!UpdateMeasure' and previous[2] == 'MeasureGPUUtilizationHistory', 'the point count follows the point')
                 else
                     assert(args[1] == bootstrap or args[1] == driver, 'unexpected forced update')
                     if f.statusOnRefresh and f.statusOnRefresh[args[1]] ~= nil then
@@ -167,8 +179,16 @@ function Suite.run(path)
                         f.statusOnRefresh[args[1]] = nil
                     end
                 end
-            elseif command == '!UpdateMeterGroup' then assert(#args == 1 and args[1] == 'GPUDriverReadout')
-            elseif command == '!Redraw' then assert(#args == 0)
+            elseif command == '!UpdateMeter' then
+                assert(#args == 1 and args[1] == 'MeterGPUUtilizationGraph', 'only the History graph is forced')
+                local previous = f.calls[#f.calls - 1]
+                assert(previous and previous[1] == '!UpdateMeasure' and previous[2] == 'MeasureGPUGraphSamples', 'the graph pushes after its point and count')
+                f.pushes = f.pushes + 1
+            elseif command == '!UpdateMeterGroup' or command == '!Redraw' then
+                -- Every GPUDriverReadout meter keeps UpdateDivider=1, so the normal
+                -- end-of-cycle redraw paints changes; Update must not force an
+                -- extra mid-cycle frame.
+                error('Update forced a mid-cycle paint: ' .. command)
             else error('unexpected write/action ' .. tostring(command)) end
         end
         local fakeio = {}
@@ -209,7 +229,11 @@ function Suite.run(path)
                 f.removed[filename] = (f.removed[filename] or 0) + 1; f.files[filename] = nil; return true
             end
         }
-        local env = setmetatable({SKIN = skin, SELF = {}, io = fakeio, os = setmetatable(fakeos, {__index = function() return forbidden end}),
+        -- Counts hex-decoded bytes (string.char) so tests can tell when a
+        -- snapshot's names or adapter field were decoded again.
+        f.chars, f.formulas = 0, 0
+        local countedString = setmetatable({char = function(...) f.chars = f.chars + 1; return string.char(...) end}, {__index = string})
+        local env = setmetatable({SKIN = skin, SELF = {}, io = fakeio, string = countedString, os = setmetatable(fakeos, {__index = function() return forbidden end}),
             package = blocked, debug = blocked, require = forbidden, dofile = forbidden, loadfile = forbidden, loadstring = forbidden}, {__index = _G})
         env._G = env
         local chunk = assert(loadfile(path)); setfenv(chunk, env); chunk(); f.env = env
@@ -269,6 +293,105 @@ function Suite.run(path)
         f:clear(); for _ = 1, 4 do f:update() end
         eq(#f.calls, 0, 'deduplicated unchanged view'); eq(f.leaseWrites, 1); eq(f.reads[info], 1)
         eq(f.launches[bootstrap], 1); eq(f.launches[driver], 1)
+    end)
+    test('changed readings are written as options without a forced mid-cycle paint', function()
+        local f = fixture(); f:live(); f:clear()
+        for sequence = 2, 5 do
+            f.now = f.now + 2; f:sample({[4] = tostring(sequence), [23] = tostring(50000 + sequence * 1000)}); f:update()
+        end
+        local writes = 0
+        for _, call in ipairs(f.calls) do
+            eq(call[1] ~= '!Redraw' and call[1] ~= '!UpdateMeterGroup', true, 'no forced paint: ' .. tostring(call[1]))
+            if call[1] == '!SetOption' and call[2] == 'MeterPowerValue' then writes = writes + 1 end
+        end
+        eq(writes, 4, 'each changed power reading is written once'); eq(f:text('MeterPowerValue'), '55.0 W')
+    end)
+    test('an unchanged snapshot is not parsed, decoded or written again but still ages out', function()
+        local map = '7,' .. hex('game.exe')
+        local f = fixture({pids = '7'}); f:live({[27] = map})
+        local names, vram = f.names, f:text('MeterGPUVRAMValue')
+        contains(names, 'GPU_NAMES|1|1000|7,'); f:clear(); f.chars, f.formulas = 0, 0
+        for _ = 1, 3 do f:update() end
+        eq(#f.calls, 0, 'no option writes'); eq(f.chars, 0, 'no hex decoding'); eq(f.formulas, 0, 'no geometry parsing')
+        eq(f.names, names, 'names kept'); eq(f:text('MeterGPUVRAMValue'), vram); eq(f.meter.Text, '42 °C')
+        eq((f:update()), 25, 'Core load kept')
+        f:sample({[4] = '2'}); f:update(); eq(f.chars > 0, true, 'a new snapshot is decoded')
+        f.now = 1009; f:update(); f:allUnavailable(); eq(f.names, '', 'an unchanged snapshot still ages out')
+        local n = fixture({metadata = 'NONE', pids = '7'}); n:start(sessionOutput({[5] = namesOnlyLuid}))
+        n:sample({[8] = namesOnlyLuid, [9] = '?', [27] = map}); n:update(); contains(n.names, 'GPU_NAMES|1|1000|7,')
+        n:clear(); n.chars = 0; n:update(); n:update()
+        eq(#n.calls, 0, 'names only: no writes'); eq(n.chars, 0, 'names only: no decoding')
+        contains(n.names, 'GPU_NAMES|1|1000|7,'); n:allUnavailable()
+    end)
+    test('an unchanged snapshot is re-filtered at once when the name request changes', function()
+        local map = '7,' .. hex('game.exe')
+        local f = fixture({pids = '7'}); f:live({[27] = map}); contains(f.names, 'GPU_NAMES|1|1000|7,')
+        f.outputs.MeasureGPUProcessController = '8'; f.now = 1001; f:update()
+        eq(f.names, '', 'a PID dropped from the request loses its name at once')
+        f.outputs.MeasureGPUProcessController = '7'; f.now = 1002; f:update()
+        eq(f.names, '', 'a re-entered PID waits for a reply at or after its re-entry')
+        eq(f.meter.Text, '42 °C', 'readings stay valid throughout')
+    end)
+    test('bar geometry is resolved once per load, not on every bar write', function()
+        for _, case in ipairs({{vars = {}, width = 98, thickness = 6},
+            {vars = {ContentWidth = '(#PanelWidth#-2*#Padding#)', DataBarThickness = '12', Scale = '1.5'}, width = 47, thickness = 18}}) do
+            local f = fixture({vars = case.vars}); f:live(); local parsed = f.formulas
+            eq(parsed > 0, true, 'formula variables are resolved')
+            for sequence = 2, 4 do
+                f.now = f.now + 2
+                f:sample({[4] = tostring(sequence), [13] = tostring(6442450944 - sequence * 1000000000), [18] = tostring(10 * sequence)}); f:update()
+            end
+            eq(f.formulas, parsed, 'no geometry parse after the first')
+            eq(f:text('MeterGPUVRAMValue'), '6.1/8.6 GB'); eq(f:text('MeterGPULoadValue'), '40%')
+            local endpoint, stroke = f:bar('MeterGPULoadBar')
+            eq(stroke, case.thickness, 'cached thickness')
+            eq(endpoint, tonumber(string.format('%.3f', case.width * 0.4)), 'cached engine width')
+            endpoint = f:bar('MeterGPUVRAMBar')
+            eq(endpoint, tonumber(string.format('%.3f', 200 * 6147483648 / 8589934592)), 'cached content width')
+        end
+    end)
+    test('a snapshot shown unavailable in between is validated and shown again in full', function()
+        local f = fixture(); f:live(); local saved = f.files[dataPath]
+        f.files[dataPath] = nil; f:update(); eq(f.meter.Text, 'Checking...'); eq(f:text('MeterActivityValue'), '--')
+        f.files[dataPath] = saved; f:update()
+        eq(f.meter.Text, '42 °C'); eq(f:text('MeterActivityValue'), '25%'); eq(f:text('MeterGPUVRAMValue'), '2.1/8.6 GB')
+    end)
+    test('the History graph records exactly one point per new driver sample', function()
+        local starting = {[4] = '0', [6] = 'STARTING', [7] = '?', [9] = '?'}
+        for _, index in ipairs({10, 14, 17, 22, 24}) do starting[index] = 'STARTING' end
+        for _, index in ipairs({11, 12, 13, 15, 16, 18, 19, 20, 21, 23, 25}) do starting[index] = '?' end
+        local f = fixture(); eq(#f.history, 0, 'nothing while metadata is pending')
+        f:start(); f.now = 1005; f:update(); eq(#f.history, 0, 'nothing before the first sample')
+        f:sample(starting); f:update(); eq(f.meter.Text, 'Checking...'); eq(#f.history, 0, 'a starting snapshot has no reading to plot')
+        f:sample({[4] = '1', [18] = '30'}); f:update(); eq(table.concat(f.history, ','), '30')
+        for _ = 1, 3 do f:update() end
+        eq(#f.history, 1, 'an unchanged sample is not plotted again')
+        f.now = 1006; f:update(); eq(#f.history, 1, 'a tick without a new sample adds nothing')
+        f.now = 1007; f:sample({[4] = '2', [18] = '45'}); f:update(); eq(table.concat(f.history, ','), '30,45')
+        f:sample({[4] = '2', [18] = '99'}); f:update(); eq(#f.history, 2, 'a rewritten sequence is not a new sample')
+        f.now = 1009; f:sample({[4] = '3', [17] = 'UNSUPPORTED', [18] = '?', [19] = '?', [20] = '?', [21] = '?'}); f:update()
+        eq(table.concat(f.history, ','), '30,45,0', 'unsupported activity traces 0 at the sample cadence')
+        eq(f.pushes, #f.history, 'every point is pushed to the graph once')
+    end)
+    test('while the reading is unavailable the History traces 0 once per sampling interval', function()
+        local f = fixture({metadata = 'NONE'})
+        eq(table.concat(f.history, ','), '0', 'names-only mode traces 0')
+        f:update(); f.now = 1001; f:update(); eq(#f.history, 1, 'not again within the interval')
+        f.now = 1002; f:update(); eq(table.concat(f.history, ','), '0,0')
+        f = fixture(); f:live(); eq(table.concat(f.history, ','), '25')
+        f.now = 1009; f:update(); eq(table.concat(f.history, ','), '25,0', 'a stale reading traces 0')
+        f.now = 1010; f:update(); eq(#f.history, 2); f.now = 1011; f:update(); eq(table.concat(f.history, ','), '25,0,0')
+        f:sample({[4] = '2', [18] = '60'}); f:update(); eq(table.concat(f.history, ','), '25,0,0,60', 'a fresh sample resumes the trace')
+        f = fixture(); f:live(); f.now = 1002; f:sample({[4] = '2', [6] = 'DEVICE_CHANGED'}); f:update()
+        eq(table.concat(f.history, ','), '25,0', 'a changed device traces 0')
+        f = fixture(); f:live(); f.statuses[driver] = 1; f:update(); eq(#f.history, 1, 'not within the interval of the last point')
+        f.now = 1003; f:update(); eq(table.concat(f.history, ','), '25,0', 'a stopped host traces 0')
+        f.env.Stop(); f.now = 1010; f:update(); eq(#f.history, 2, 'nothing after Stop')
+        -- At a 5 s interval a sample stays fresh for 17 s, then 0 is traced every 5 s.
+        f = fixture({vars = {SensorInterval = '5000'}}); f:live(); f.now = 1017; f:update(); eq(#f.history, 1, 'still fresh')
+        f.now = 1018; f:update(); f.now = 1022; f:update()
+        eq(table.concat(f.history, ','), '25,0', 'the zero cadence follows the sampling interval')
+        f.now = 1023; f:update(); eq(table.concat(f.history, ','), '25,0,0')
     end)
     test('interval follows slower collection cadence and bounded integer limits', function()
         local cases = {{{MetricsInterval = '5000', SensorInterval = '2000'}, 5000},

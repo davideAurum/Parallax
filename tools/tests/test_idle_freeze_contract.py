@@ -43,6 +43,7 @@ CONSUMERS = OrderedDict([
     ('Chronometer/Chronometer.ini', [{}]),
     ('RAM/RAM.ini', [{}, {'RAMShowProcesses': '0'}]),
     ('GPU/GPU.ini', [{}, {'GPUShowProcesses': '0'}, {'GPUShowProcessMemory': '0'}]),
+    ('CPU/CPU.ini', [{}, {'CPUShowProcesses': '0'}]),
 ])
 
 # Every utility entrypoint, wired or not yet (all ten once C2 is complete).
@@ -66,8 +67,16 @@ RESTORED = {}
 # relative to @Resources/Modules. StandDown.lua is the mechanism itself.
 LUA_DIVIDER_OWNERS = {
     'RAM/Display.lua': 'MeasureRAMSettings ReapplyDividers: Used GB/MB by unit, history cover (Tests/DisplayIdleTests.lua)',
+    'CPU/CPU.lua': 'MeasureCPUController ReapplyDividers: all 64 Thread slots from slotLive (tests/validate_controller.lua idle case)',
     'GPU/Temperature.lua': 'its own ReapplyDividers: the restarted History cover (tests/TemperatureSuite.lua idle case)',
     'RAM/Process.lua':'its own measure MeasureRAMProcessView only (not a meter); paused with the skin and re-idled by its own Update',
+}
+
+# Meters whose divider a module's Lua sets at runtime (UpdateDivider=-1 in
+# the INI): they can repaint once bound, so they must be in the freeze group
+# even though their static divider is -1. Patterns match upper-case names.
+LUA_MANAGED_METERS = {
+    'CPU/CPU.ini': r'^METERCORE(LABEL|BAR|VALUE|VOLTAGE|TEMPERATURE)\d+$',
 }
 
 # Shipped runtime state files that must stay all zero (a release install
@@ -416,7 +425,12 @@ class Consumers(unittest.TestCase):
                 meters = config.meters()
                 self.assertEqual(meters[-1], 'METERPARALLAXPAUSED', f'{label}: the paused line draws last')
                 runtime = runtime_divider_targets(config)
+                managed = re.compile(LUA_MANAGED_METERS[relative]) if relative in LUA_MANAGED_METERS else None
+                if managed:
+                    self.assertTrue(any(managed.match(name) for name in meters), f'{label}: no meter matches the Lua-managed pattern')
                 for name in meters:
+                    if managed and managed.match(name):
+                        self.assertIn(FREEZE, config.groups(name), f'{label}: Lua-managed meter [{config.sections[name]["name"]}] is not in ParallaxIdleFreeze')
                     shown = config.sections[name]['name']
                     if name == 'METERPARALLAXPAUSED':
                         self.assertNotIn(FREEZE, config.groups(name))

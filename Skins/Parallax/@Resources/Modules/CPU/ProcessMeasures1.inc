@@ -5,6 +5,7 @@
 ; No DynamicVariables: CPU.lua enables and disables these slots on change only.
 [MeasureCPUProcess1]
 Measure=Plugin
+Group=ParallaxIdlePause
 Plugin=UsageMonitor
 Alias=CPU
 Index=1
@@ -17,6 +18,7 @@ UpdateDivider=1
 
 [MeasureCPUProcess2]
 Measure=Plugin
+Group=ParallaxIdlePause
 Plugin=UsageMonitor
 Alias=CPU
 Index=2
@@ -29,6 +31,7 @@ UpdateDivider=1
 
 [MeasureCPUProcess3]
 Measure=Plugin
+Group=ParallaxIdlePause
 Plugin=UsageMonitor
 Alias=CPU
 Index=3
@@ -41,6 +44,7 @@ UpdateDivider=1
 
 [MeasureCPUProcess4]
 Measure=Plugin
+Group=ParallaxIdlePause
 Plugin=UsageMonitor
 Alias=CPU
 Index=4
@@ -53,6 +57,7 @@ UpdateDivider=1
 
 [MeasureCPUProcess5]
 Measure=Plugin
+Group=ParallaxIdlePause
 Plugin=UsageMonitor
 Alias=CPU
 Index=5
@@ -65,6 +70,7 @@ UpdateDivider=1
 
 [MeasureCPUProcess6]
 Measure=Plugin
+Group=ParallaxIdlePause
 Plugin=UsageMonitor
 Alias=CPU
 Index=6
@@ -77,6 +83,7 @@ UpdateDivider=1
 
 [MeasureCPUProcess7]
 Measure=Plugin
+Group=ParallaxIdlePause
 Plugin=UsageMonitor
 Alias=CPU
 Index=7
@@ -89,6 +96,7 @@ UpdateDivider=1
 
 [MeasureCPUProcess8]
 Measure=Plugin
+Group=ParallaxIdlePause
 Plugin=UsageMonitor
 Alias=CPU
 Index=8
@@ -101,6 +109,7 @@ UpdateDivider=1
 
 [MeasureCPUProcess9]
 Measure=Plugin
+Group=ParallaxIdlePause
 Plugin=UsageMonitor
 Alias=CPU
 Index=9
@@ -113,6 +122,7 @@ UpdateDivider=1
 
 [MeasureCPUProcess10]
 Measure=Plugin
+Group=ParallaxIdlePause
 Plugin=UsageMonitor
 Alias=CPU
 Index=10

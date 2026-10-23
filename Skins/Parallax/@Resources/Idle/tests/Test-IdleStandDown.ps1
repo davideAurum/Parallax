@@ -119,6 +119,7 @@ Register-Skin 'GPU' 'Parallax\GPU' 'GPU.ini' 1.0 {
     # Unavailable, which this check then reports as its fresh state.
     Test-HostCycle $Run $Process 'GPU telemetry host' 'ParallaxGpuTemperature' 'MeterTemperatureValue' '^Checking' '(C|Unavailable|Unsupported)$'
 } 'MeterTemperatureValue|MeterActivityValue'
+Register-Skin 'CPU' 'Parallax\CPU' 'CPU.ini' 1.0
 
 Add-Type -AssemblyName System.Drawing
 if (-not ('ParallaxStandDownNative' -as [type])) {

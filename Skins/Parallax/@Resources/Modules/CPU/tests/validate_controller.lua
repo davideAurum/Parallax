@@ -866,6 +866,54 @@ function suite.Run(cpuPath)
         end
         equal(total:appliedOption('MeterHistory', 'HistoryPath1'), referencePath(history, 60, 208, 62, 1), 'total path')
     end)
+    test('idle stand-down freezes every slot and resumes with its dividers and a fresh History', function()
+        -- The hook's bangs (@Resources\Idle\StandDown.lua) are replayed here:
+        -- every ParallaxIdleFreeze meter to -1 with a forced update, then on
+        -- resume the key deleted, IdleLeave, ReapplyDividers, a forced update.
+        for _, threads in ipairs({12, 3}) do
+            local context = newMock(cpuPath, {threads=threads})
+            sensorStub(context)
+            context:run(4)
+            local frozen = context.groups.PARALLAXIDLEFREEZE or {}
+            local member = {}
+            for _, meter in ipairs(frozen) do member[meter.name] = true end
+            for slot = 1, 64 do
+                for _, prefix in ipairs(slotPrefixes) do assert(member[prefix .. slot], prefix .. slot .. ' is in ParallaxIdleFreeze') end
+            end
+            for _, meter in ipairs(context.meterList) do
+                if meter.divider >= 0 then assert(member[meter.name], meter.name .. ' repaints but is not in ParallaxIdleFreeze') end
+            end
+            context.phase = 'event'
+            for _, meter in ipairs(frozen) do context.bang('!SetOption', meter.name, 'UpdateDivider', '-1') end
+            context.bang('!UpdateMeterGroup', 'ParallaxIdleFreeze')
+            context.phase = 'idle'
+            for _, meter in ipairs(context.meterList) do equal(meter.divider, -1, meter.name .. ' divider while paused') end
+            -- Paused for ten minutes: no cycle runs, the readings move on.
+            context.tick, context.now = context.tick + 600, context.now + 600
+            context.phase = 'event'
+            for _, meter in ipairs(frozen) do context.bang('!SetOption', meter.name, 'UpdateDivider', '') end
+            context.phase = 'idle'
+            context:event('IdleLeave')
+            assert(not context:visible('MeterHistory'), 'History restarts: the old traces are cleared')
+            context:event('ReapplyDividers')
+            context.phase = 'event'
+            context.bang('!UpdateMeterGroup', 'ParallaxIdleFreeze')
+            context.phase = 'idle'
+            for slot = 1, 64 do
+                for _, prefix in ipairs(slotPrefixes) do
+                    equal(context.meters[prefix .. slot].divider, slot <= threads and 1 or -1, prefix .. slot .. ' divider after resume (' .. threads .. ' threads)')
+                end
+            end
+            context:run(1)
+            local total = context:text('MeterTotal')
+            equal(total, percent(context.measures.MeasureCPUTotal.value, 1), 'first header sample after resume')
+            assert(total ~= '0.0%' and total ~= '...', 'no placeholder or 0.0% first sample: ' .. total)
+            threadRows(context, 1, threads, 1)
+            -- A second resume without an intervening bind re-sends every divider (no cache).
+            context:event('ReapplyDividers')
+            equal(context:count(context.eventBangs, '!SetOption'), 64 * #slotPrefixes, 'every slot divider is re-sent')
+        end
+    end)
     test('controller never assigns tooltips', function()
         local context = newMock(cpuPath, {variables={CPUAutoRows='0', CPUCoresPerPage='4'}})
         context:run(4)

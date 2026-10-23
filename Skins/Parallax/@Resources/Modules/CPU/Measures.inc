@@ -5,6 +5,7 @@
 ; ~134% at all-core turbo on the i7-8700, overflowing the 0-100 bars and graph.
 [MeasureCPUTotal]
 Measure=Plugin
+Group=ParallaxIdlePause
 Plugin=UsageMonitor
 Category=Processor Information
 Counter=% Processor Time
@@ -22,6 +23,7 @@ UpdateDivider=1
 ; or not.
 [MeasureCPU1]
 Measure=Plugin
+Group=ParallaxIdlePause
 Plugin=UsageMonitor
 Category=Processor Information
 Counter=% Processor Time
@@ -36,6 +38,7 @@ UpdateDivider=1
 
 [MeasureCPU2]
 Measure=Plugin
+Group=ParallaxIdlePause
 Plugin=UsageMonitor
 Category=Processor Information
 Counter=% Processor Time
@@ -50,6 +53,7 @@ UpdateDivider=1
 
 [MeasureCPU3]
 Measure=Plugin
+Group=ParallaxIdlePause
 Plugin=UsageMonitor
 Category=Processor Information
 Counter=% Processor Time
@@ -64,6 +68,7 @@ UpdateDivider=1
 
 [MeasureCPU4]
 Measure=Plugin
+Group=ParallaxIdlePause
 Plugin=UsageMonitor
 Category=Processor Information
 Counter=% Processor Time
@@ -78,6 +83,7 @@ UpdateDivider=1
 
 [MeasureCPU5]
 Measure=Plugin
+Group=ParallaxIdlePause
 Plugin=UsageMonitor
 Category=Processor Information
 Counter=% Processor Time
@@ -92,6 +98,7 @@ UpdateDivider=1
 
 [MeasureCPU6]
 Measure=Plugin
+Group=ParallaxIdlePause
 Plugin=UsageMonitor
 Category=Processor Information
 Counter=% Processor Time
@@ -106,6 +113,7 @@ UpdateDivider=1
 
 [MeasureCPU7]
 Measure=Plugin
+Group=ParallaxIdlePause
 Plugin=UsageMonitor
 Category=Processor Information
 Counter=% Processor Time
@@ -120,6 +128,7 @@ UpdateDivider=1
 
 [MeasureCPU8]
 Measure=Plugin
+Group=ParallaxIdlePause
 Plugin=UsageMonitor
 Category=Processor Information
 Counter=% Processor Time
@@ -134,6 +143,7 @@ UpdateDivider=1
 
 [MeasureCPU9]
 Measure=Plugin
+Group=ParallaxIdlePause
 Plugin=UsageMonitor
 Category=Processor Information
 Counter=% Processor Time
@@ -148,6 +158,7 @@ UpdateDivider=1
 
 [MeasureCPU10]
 Measure=Plugin
+Group=ParallaxIdlePause
 Plugin=UsageMonitor
 Category=Processor Information
 Counter=% Processor Time
@@ -162,6 +173,7 @@ UpdateDivider=1
 
 [MeasureCPU11]
 Measure=Plugin
+Group=ParallaxIdlePause
 Plugin=UsageMonitor
 Category=Processor Information
 Counter=% Processor Time
@@ -176,6 +188,7 @@ UpdateDivider=1
 
 [MeasureCPU12]
 Measure=Plugin
+Group=ParallaxIdlePause
 Plugin=UsageMonitor
 Category=Processor Information
 Counter=% Processor Time
@@ -190,6 +203,7 @@ UpdateDivider=1
 
 [MeasureCPU13]
 Measure=Plugin
+Group=ParallaxIdlePause
 Plugin=UsageMonitor
 Category=Processor Information
 Counter=% Processor Time
@@ -204,6 +218,7 @@ UpdateDivider=1
 
 [MeasureCPU14]
 Measure=Plugin
+Group=ParallaxIdlePause
 Plugin=UsageMonitor
 Category=Processor Information
 Counter=% Processor Time
@@ -218,6 +233,7 @@ UpdateDivider=1
 
 [MeasureCPU15]
 Measure=Plugin
+Group=ParallaxIdlePause
 Plugin=UsageMonitor
 Category=Processor Information
 Counter=% Processor Time
@@ -232,6 +248,7 @@ UpdateDivider=1
 
 [MeasureCPU16]
 Measure=Plugin
+Group=ParallaxIdlePause
 Plugin=UsageMonitor
 Category=Processor Information
 Counter=% Processor Time
@@ -246,6 +263,7 @@ UpdateDivider=1
 
 [MeasureCPU17]
 Measure=Plugin
+Group=ParallaxIdlePause
 Plugin=UsageMonitor
 Category=Processor Information
 Counter=% Processor Time
@@ -260,6 +278,7 @@ UpdateDivider=1
 
 [MeasureCPU18]
 Measure=Plugin
+Group=ParallaxIdlePause
 Plugin=UsageMonitor
 Category=Processor Information
 Counter=% Processor Time
@@ -274,6 +293,7 @@ UpdateDivider=1
 
 [MeasureCPU19]
 Measure=Plugin
+Group=ParallaxIdlePause
 Plugin=UsageMonitor
 Category=Processor Information
 Counter=% Processor Time
@@ -288,6 +308,7 @@ UpdateDivider=1
 
 [MeasureCPU20]
 Measure=Plugin
+Group=ParallaxIdlePause
 Plugin=UsageMonitor
 Category=Processor Information
 Counter=% Processor Time
@@ -302,6 +323,7 @@ UpdateDivider=1
 
 [MeasureCPU21]
 Measure=Plugin
+Group=ParallaxIdlePause
 Plugin=UsageMonitor
 Category=Processor Information
 Counter=% Processor Time
@@ -316,6 +338,7 @@ UpdateDivider=1
 
 [MeasureCPU22]
 Measure=Plugin
+Group=ParallaxIdlePause
 Plugin=UsageMonitor
 Category=Processor Information
 Counter=% Processor Time
@@ -330,6 +353,7 @@ UpdateDivider=1
 
 [MeasureCPU23]
 Measure=Plugin
+Group=ParallaxIdlePause
 Plugin=UsageMonitor
 Category=Processor Information
 Counter=% Processor Time
@@ -344,6 +368,7 @@ UpdateDivider=1
 
 [MeasureCPU24]
 Measure=Plugin
+Group=ParallaxIdlePause
 Plugin=UsageMonitor
 Category=Processor Information
 Counter=% Processor Time
@@ -358,6 +383,7 @@ UpdateDivider=1
 
 [MeasureCPU25]
 Measure=Plugin
+Group=ParallaxIdlePause
 Plugin=UsageMonitor
 Category=Processor Information
 Counter=% Processor Time
@@ -372,6 +398,7 @@ UpdateDivider=1
 
 [MeasureCPU26]
 Measure=Plugin
+Group=ParallaxIdlePause
 Plugin=UsageMonitor
 Category=Processor Information
 Counter=% Processor Time
@@ -386,6 +413,7 @@ UpdateDivider=1
 
 [MeasureCPU27]
 Measure=Plugin
+Group=ParallaxIdlePause
 Plugin=UsageMonitor
 Category=Processor Information
 Counter=% Processor Time
@@ -400,6 +428,7 @@ UpdateDivider=1
 
 [MeasureCPU28]
 Measure=Plugin
+Group=ParallaxIdlePause
 Plugin=UsageMonitor
 Category=Processor Information
 Counter=% Processor Time
@@ -414,6 +443,7 @@ UpdateDivider=1
 
 [MeasureCPU29]
 Measure=Plugin
+Group=ParallaxIdlePause
 Plugin=UsageMonitor
 Category=Processor Information
 Counter=% Processor Time
@@ -428,6 +458,7 @@ UpdateDivider=1
 
 [MeasureCPU30]
 Measure=Plugin
+Group=ParallaxIdlePause
 Plugin=UsageMonitor
 Category=Processor Information
 Counter=% Processor Time
@@ -442,6 +473,7 @@ UpdateDivider=1
 
 [MeasureCPU31]
 Measure=Plugin
+Group=ParallaxIdlePause
 Plugin=UsageMonitor
 Category=Processor Information
 Counter=% Processor Time
@@ -456,6 +488,7 @@ UpdateDivider=1
 
 [MeasureCPU32]
 Measure=Plugin
+Group=ParallaxIdlePause
 Plugin=UsageMonitor
 Category=Processor Information
 Counter=% Processor Time
@@ -470,6 +503,7 @@ UpdateDivider=1
 
 [MeasureCPU33]
 Measure=Plugin
+Group=ParallaxIdlePause
 Plugin=UsageMonitor
 Category=Processor Information
 Counter=% Processor Time
@@ -484,6 +518,7 @@ UpdateDivider=1
 
 [MeasureCPU34]
 Measure=Plugin
+Group=ParallaxIdlePause
 Plugin=UsageMonitor
 Category=Processor Information
 Counter=% Processor Time
@@ -498,6 +533,7 @@ UpdateDivider=1
 
 [MeasureCPU35]
 Measure=Plugin
+Group=ParallaxIdlePause
 Plugin=UsageMonitor
 Category=Processor Information
 Counter=% Processor Time
@@ -512,6 +548,7 @@ UpdateDivider=1
 
 [MeasureCPU36]
 Measure=Plugin
+Group=ParallaxIdlePause
 Plugin=UsageMonitor
 Category=Processor Information
 Counter=% Processor Time
@@ -526,6 +563,7 @@ UpdateDivider=1
 
 [MeasureCPU37]
 Measure=Plugin
+Group=ParallaxIdlePause
 Plugin=UsageMonitor
 Category=Processor Information
 Counter=% Processor Time
@@ -540,6 +578,7 @@ UpdateDivider=1
 
 [MeasureCPU38]
 Measure=Plugin
+Group=ParallaxIdlePause
 Plugin=UsageMonitor
 Category=Processor Information
 Counter=% Processor Time
@@ -554,6 +593,7 @@ UpdateDivider=1
 
 [MeasureCPU39]
 Measure=Plugin
+Group=ParallaxIdlePause
 Plugin=UsageMonitor
 Category=Processor Information
 Counter=% Processor Time
@@ -568,6 +608,7 @@ UpdateDivider=1
 
 [MeasureCPU40]
 Measure=Plugin
+Group=ParallaxIdlePause
 Plugin=UsageMonitor
 Category=Processor Information
 Counter=% Processor Time
@@ -582,6 +623,7 @@ UpdateDivider=1
 
 [MeasureCPU41]
 Measure=Plugin
+Group=ParallaxIdlePause
 Plugin=UsageMonitor
 Category=Processor Information
 Counter=% Processor Time
@@ -596,6 +638,7 @@ UpdateDivider=1
 
 [MeasureCPU42]
 Measure=Plugin
+Group=ParallaxIdlePause
 Plugin=UsageMonitor
 Category=Processor Information
 Counter=% Processor Time
@@ -610,6 +653,7 @@ UpdateDivider=1
 
 [MeasureCPU43]
 Measure=Plugin
+Group=ParallaxIdlePause
 Plugin=UsageMonitor
 Category=Processor Information
 Counter=% Processor Time
@@ -624,6 +668,7 @@ UpdateDivider=1
 
 [MeasureCPU44]
 Measure=Plugin
+Group=ParallaxIdlePause
 Plugin=UsageMonitor
 Category=Processor Information
 Counter=% Processor Time
@@ -638,6 +683,7 @@ UpdateDivider=1
 
 [MeasureCPU45]
 Measure=Plugin
+Group=ParallaxIdlePause
 Plugin=UsageMonitor
 Category=Processor Information
 Counter=% Processor Time
@@ -652,6 +698,7 @@ UpdateDivider=1
 
 [MeasureCPU46]
 Measure=Plugin
+Group=ParallaxIdlePause
 Plugin=UsageMonitor
 Category=Processor Information
 Counter=% Processor Time
@@ -666,6 +713,7 @@ UpdateDivider=1
 
 [MeasureCPU47]
 Measure=Plugin
+Group=ParallaxIdlePause
 Plugin=UsageMonitor
 Category=Processor Information
 Counter=% Processor Time
@@ -680,6 +728,7 @@ UpdateDivider=1
 
 [MeasureCPU48]
 Measure=Plugin
+Group=ParallaxIdlePause
 Plugin=UsageMonitor
 Category=Processor Information
 Counter=% Processor Time
@@ -694,6 +743,7 @@ UpdateDivider=1
 
 [MeasureCPU49]
 Measure=Plugin
+Group=ParallaxIdlePause
 Plugin=UsageMonitor
 Category=Processor Information
 Counter=% Processor Time
@@ -708,6 +758,7 @@ UpdateDivider=1
 
 [MeasureCPU50]
 Measure=Plugin
+Group=ParallaxIdlePause
 Plugin=UsageMonitor
 Category=Processor Information
 Counter=% Processor Time
@@ -722,6 +773,7 @@ UpdateDivider=1
 
 [MeasureCPU51]
 Measure=Plugin
+Group=ParallaxIdlePause
 Plugin=UsageMonitor
 Category=Processor Information
 Counter=% Processor Time
@@ -736,6 +788,7 @@ UpdateDivider=1
 
 [MeasureCPU52]
 Measure=Plugin
+Group=ParallaxIdlePause
 Plugin=UsageMonitor
 Category=Processor Information
 Counter=% Processor Time
@@ -750,6 +803,7 @@ UpdateDivider=1
 
 [MeasureCPU53]
 Measure=Plugin
+Group=ParallaxIdlePause
 Plugin=UsageMonitor
 Category=Processor Information
 Counter=% Processor Time
@@ -764,6 +818,7 @@ UpdateDivider=1
 
 [MeasureCPU54]
 Measure=Plugin
+Group=ParallaxIdlePause
 Plugin=UsageMonitor
 Category=Processor Information
 Counter=% Processor Time
@@ -778,6 +833,7 @@ UpdateDivider=1
 
 [MeasureCPU55]
 Measure=Plugin
+Group=ParallaxIdlePause
 Plugin=UsageMonitor
 Category=Processor Information
 Counter=% Processor Time
@@ -792,6 +848,7 @@ UpdateDivider=1
 
 [MeasureCPU56]
 Measure=Plugin
+Group=ParallaxIdlePause
 Plugin=UsageMonitor
 Category=Processor Information
 Counter=% Processor Time
@@ -806,6 +863,7 @@ UpdateDivider=1
 
 [MeasureCPU57]
 Measure=Plugin
+Group=ParallaxIdlePause
 Plugin=UsageMonitor
 Category=Processor Information
 Counter=% Processor Time
@@ -820,6 +878,7 @@ UpdateDivider=1
 
 [MeasureCPU58]
 Measure=Plugin
+Group=ParallaxIdlePause
 Plugin=UsageMonitor
 Category=Processor Information
 Counter=% Processor Time
@@ -834,6 +893,7 @@ UpdateDivider=1
 
 [MeasureCPU59]
 Measure=Plugin
+Group=ParallaxIdlePause
 Plugin=UsageMonitor
 Category=Processor Information
 Counter=% Processor Time
@@ -848,6 +908,7 @@ UpdateDivider=1
 
 [MeasureCPU60]
 Measure=Plugin
+Group=ParallaxIdlePause
 Plugin=UsageMonitor
 Category=Processor Information
 Counter=% Processor Time
@@ -862,6 +923,7 @@ UpdateDivider=1
 
 [MeasureCPU61]
 Measure=Plugin
+Group=ParallaxIdlePause
 Plugin=UsageMonitor
 Category=Processor Information
 Counter=% Processor Time
@@ -876,6 +938,7 @@ UpdateDivider=1
 
 [MeasureCPU62]
 Measure=Plugin
+Group=ParallaxIdlePause
 Plugin=UsageMonitor
 Category=Processor Information
 Counter=% Processor Time
@@ -890,6 +953,7 @@ UpdateDivider=1
 
 [MeasureCPU63]
 Measure=Plugin
+Group=ParallaxIdlePause
 Plugin=UsageMonitor
 Category=Processor Information
 Counter=% Processor Time
@@ -904,6 +968,7 @@ UpdateDivider=1
 
 [MeasureCPU64]
 Measure=Plugin
+Group=ParallaxIdlePause
 Plugin=UsageMonitor
 Category=Processor Information
 Counter=% Processor Time
@@ -919,6 +984,7 @@ UpdateDivider=1
 ; Dedicated absolute logical-processor history measures. These stay disabled unless the visible graph source is Per thread; table measures remain page-relative.
 [MeasureCPUHistory1]
 Measure=Plugin
+Group=ParallaxIdlePause
 Plugin=UsageMonitor
 Category=Processor Information
 Counter=% Processor Time
@@ -933,6 +999,7 @@ UpdateDivider=1
 
 [MeasureCPUHistory2]
 Measure=Plugin
+Group=ParallaxIdlePause
 Plugin=UsageMonitor
 Category=Processor Information
 Counter=% Processor Time
@@ -947,6 +1014,7 @@ UpdateDivider=1
 
 [MeasureCPUHistory3]
 Measure=Plugin
+Group=ParallaxIdlePause
 Plugin=UsageMonitor
 Category=Processor Information
 Counter=% Processor Time
@@ -961,6 +1029,7 @@ UpdateDivider=1
 
 [MeasureCPUHistory4]
 Measure=Plugin
+Group=ParallaxIdlePause
 Plugin=UsageMonitor
 Category=Processor Information
 Counter=% Processor Time
@@ -975,6 +1044,7 @@ UpdateDivider=1
 
 [MeasureCPUHistory5]
 Measure=Plugin
+Group=ParallaxIdlePause
 Plugin=UsageMonitor
 Category=Processor Information
 Counter=% Processor Time
@@ -989,6 +1059,7 @@ UpdateDivider=1
 
 [MeasureCPUHistory6]
 Measure=Plugin
+Group=ParallaxIdlePause
 Plugin=UsageMonitor
 Category=Processor Information
 Counter=% Processor Time
@@ -1003,6 +1074,7 @@ UpdateDivider=1
 
 [MeasureCPUHistory7]
 Measure=Plugin
+Group=ParallaxIdlePause
 Plugin=UsageMonitor
 Category=Processor Information
 Counter=% Processor Time
@@ -1017,6 +1089,7 @@ UpdateDivider=1
 
 [MeasureCPUHistory8]
 Measure=Plugin
+Group=ParallaxIdlePause
 Plugin=UsageMonitor
 Category=Processor Information
 Counter=% Processor Time
@@ -1031,6 +1104,7 @@ UpdateDivider=1
 
 [MeasureCPUHistory9]
 Measure=Plugin
+Group=ParallaxIdlePause
 Plugin=UsageMonitor
 Category=Processor Information
 Counter=% Processor Time
@@ -1045,6 +1119,7 @@ UpdateDivider=1
 
 [MeasureCPUHistory10]
 Measure=Plugin
+Group=ParallaxIdlePause
 Plugin=UsageMonitor
 Category=Processor Information
 Counter=% Processor Time
@@ -1059,6 +1134,7 @@ UpdateDivider=1
 
 [MeasureCPUHistory11]
 Measure=Plugin
+Group=ParallaxIdlePause
 Plugin=UsageMonitor
 Category=Processor Information
 Counter=% Processor Time
@@ -1073,6 +1149,7 @@ UpdateDivider=1
 
 [MeasureCPUHistory12]
 Measure=Plugin
+Group=ParallaxIdlePause
 Plugin=UsageMonitor
 Category=Processor Information
 Counter=% Processor Time
@@ -1087,6 +1164,7 @@ UpdateDivider=1
 
 [MeasureCPUHistory13]
 Measure=Plugin
+Group=ParallaxIdlePause
 Plugin=UsageMonitor
 Category=Processor Information
 Counter=% Processor Time
@@ -1101,6 +1179,7 @@ UpdateDivider=1
 
 [MeasureCPUHistory14]
 Measure=Plugin
+Group=ParallaxIdlePause
 Plugin=UsageMonitor
 Category=Processor Information
 Counter=% Processor Time
@@ -1115,6 +1194,7 @@ UpdateDivider=1
 
 [MeasureCPUHistory15]
 Measure=Plugin
+Group=ParallaxIdlePause
 Plugin=UsageMonitor
 Category=Processor Information
 Counter=% Processor Time
@@ -1129,6 +1209,7 @@ UpdateDivider=1
 
 [MeasureCPUHistory16]
 Measure=Plugin
+Group=ParallaxIdlePause
 Plugin=UsageMonitor
 Category=Processor Information
 Counter=% Processor Time
@@ -1143,6 +1224,7 @@ UpdateDivider=1
 
 [MeasureCPUHistory17]
 Measure=Plugin
+Group=ParallaxIdlePause
 Plugin=UsageMonitor
 Category=Processor Information
 Counter=% Processor Time
@@ -1157,6 +1239,7 @@ UpdateDivider=1
 
 [MeasureCPUHistory18]
 Measure=Plugin
+Group=ParallaxIdlePause
 Plugin=UsageMonitor
 Category=Processor Information
 Counter=% Processor Time
@@ -1171,6 +1254,7 @@ UpdateDivider=1
 
 [MeasureCPUHistory19]
 Measure=Plugin
+Group=ParallaxIdlePause
 Plugin=UsageMonitor
 Category=Processor Information
 Counter=% Processor Time
@@ -1185,6 +1269,7 @@ UpdateDivider=1
 
 [MeasureCPUHistory20]
 Measure=Plugin
+Group=ParallaxIdlePause
 Plugin=UsageMonitor
 Category=Processor Information
 Counter=% Processor Time
@@ -1199,6 +1284,7 @@ UpdateDivider=1
 
 [MeasureCPUHistory21]
 Measure=Plugin
+Group=ParallaxIdlePause
 Plugin=UsageMonitor
 Category=Processor Information
 Counter=% Processor Time
@@ -1213,6 +1299,7 @@ UpdateDivider=1
 
 [MeasureCPUHistory22]
 Measure=Plugin
+Group=ParallaxIdlePause
 Plugin=UsageMonitor
 Category=Processor Information
 Counter=% Processor Time
@@ -1227,6 +1314,7 @@ UpdateDivider=1
 
 [MeasureCPUHistory23]
 Measure=Plugin
+Group=ParallaxIdlePause
 Plugin=UsageMonitor
 Category=Processor Information
 Counter=% Processor Time
@@ -1241,6 +1329,7 @@ UpdateDivider=1
 
 [MeasureCPUHistory24]
 Measure=Plugin
+Group=ParallaxIdlePause
 Plugin=UsageMonitor
 Category=Processor Information
 Counter=% Processor Time
@@ -1255,6 +1344,7 @@ UpdateDivider=1
 
 [MeasureCPUHistory25]
 Measure=Plugin
+Group=ParallaxIdlePause
 Plugin=UsageMonitor
 Category=Processor Information
 Counter=% Processor Time
@@ -1269,6 +1359,7 @@ UpdateDivider=1
 
 [MeasureCPUHistory26]
 Measure=Plugin
+Group=ParallaxIdlePause
 Plugin=UsageMonitor
 Category=Processor Information
 Counter=% Processor Time
@@ -1283,6 +1374,7 @@ UpdateDivider=1
 
 [MeasureCPUHistory27]
 Measure=Plugin
+Group=ParallaxIdlePause
 Plugin=UsageMonitor
 Category=Processor Information
 Counter=% Processor Time
@@ -1297,6 +1389,7 @@ UpdateDivider=1
 
 [MeasureCPUHistory28]
 Measure=Plugin
+Group=ParallaxIdlePause
 Plugin=UsageMonitor
 Category=Processor Information
 Counter=% Processor Time
@@ -1311,6 +1404,7 @@ UpdateDivider=1
 
 [MeasureCPUHistory29]
 Measure=Plugin
+Group=ParallaxIdlePause
 Plugin=UsageMonitor
 Category=Processor Information
 Counter=% Processor Time
@@ -1325,6 +1419,7 @@ UpdateDivider=1
 
 [MeasureCPUHistory30]
 Measure=Plugin
+Group=ParallaxIdlePause
 Plugin=UsageMonitor
 Category=Processor Information
 Counter=% Processor Time
@@ -1339,6 +1434,7 @@ UpdateDivider=1
 
 [MeasureCPUHistory31]
 Measure=Plugin
+Group=ParallaxIdlePause
 Plugin=UsageMonitor
 Category=Processor Information
 Counter=% Processor Time
@@ -1353,6 +1449,7 @@ UpdateDivider=1
 
 [MeasureCPUHistory32]
 Measure=Plugin
+Group=ParallaxIdlePause
 Plugin=UsageMonitor
 Category=Processor Information
 Counter=% Processor Time
@@ -1367,6 +1464,7 @@ UpdateDivider=1
 
 [MeasureCPUHistory33]
 Measure=Plugin
+Group=ParallaxIdlePause
 Plugin=UsageMonitor
 Category=Processor Information
 Counter=% Processor Time
@@ -1381,6 +1479,7 @@ UpdateDivider=1
 
 [MeasureCPUHistory34]
 Measure=Plugin
+Group=ParallaxIdlePause
 Plugin=UsageMonitor
 Category=Processor Information
 Counter=% Processor Time
@@ -1395,6 +1494,7 @@ UpdateDivider=1
 
 [MeasureCPUHistory35]
 Measure=Plugin
+Group=ParallaxIdlePause
 Plugin=UsageMonitor
 Category=Processor Information
 Counter=% Processor Time
@@ -1409,6 +1509,7 @@ UpdateDivider=1
 
 [MeasureCPUHistory36]
 Measure=Plugin
+Group=ParallaxIdlePause
 Plugin=UsageMonitor
 Category=Processor Information
 Counter=% Processor Time
@@ -1423,6 +1524,7 @@ UpdateDivider=1
 
 [MeasureCPUHistory37]
 Measure=Plugin
+Group=ParallaxIdlePause
 Plugin=UsageMonitor
 Category=Processor Information
 Counter=% Processor Time
@@ -1437,6 +1539,7 @@ UpdateDivider=1
 
 [MeasureCPUHistory38]
 Measure=Plugin
+Group=ParallaxIdlePause
 Plugin=UsageMonitor
 Category=Processor Information
 Counter=% Processor Time
@@ -1451,6 +1554,7 @@ UpdateDivider=1
 
 [MeasureCPUHistory39]
 Measure=Plugin
+Group=ParallaxIdlePause
 Plugin=UsageMonitor
 Category=Processor Information
 Counter=% Processor Time
@@ -1465,6 +1569,7 @@ UpdateDivider=1
 
 [MeasureCPUHistory40]
 Measure=Plugin
+Group=ParallaxIdlePause
 Plugin=UsageMonitor
 Category=Processor Information
 Counter=% Processor Time
@@ -1479,6 +1584,7 @@ UpdateDivider=1
 
 [MeasureCPUHistory41]
 Measure=Plugin
+Group=ParallaxIdlePause
 Plugin=UsageMonitor
 Category=Processor Information
 Counter=% Processor Time
@@ -1493,6 +1599,7 @@ UpdateDivider=1
 
 [MeasureCPUHistory42]
 Measure=Plugin
+Group=ParallaxIdlePause
 Plugin=UsageMonitor
 Category=Processor Information
 Counter=% Processor Time
@@ -1507,6 +1614,7 @@ UpdateDivider=1
 
 [MeasureCPUHistory43]
 Measure=Plugin
+Group=ParallaxIdlePause
 Plugin=UsageMonitor
 Category=Processor Information
 Counter=% Processor Time
@@ -1521,6 +1629,7 @@ UpdateDivider=1
 
 [MeasureCPUHistory44]
 Measure=Plugin
+Group=ParallaxIdlePause
 Plugin=UsageMonitor
 Category=Processor Information
 Counter=% Processor Time
@@ -1535,6 +1644,7 @@ UpdateDivider=1
 
 [MeasureCPUHistory45]
 Measure=Plugin
+Group=ParallaxIdlePause
 Plugin=UsageMonitor
 Category=Processor Information
 Counter=% Processor Time
@@ -1549,6 +1659,7 @@ UpdateDivider=1
 
 [MeasureCPUHistory46]
 Measure=Plugin
+Group=ParallaxIdlePause
 Plugin=UsageMonitor
 Category=Processor Information
 Counter=% Processor Time
@@ -1563,6 +1674,7 @@ UpdateDivider=1
 
 [MeasureCPUHistory47]
 Measure=Plugin
+Group=ParallaxIdlePause
 Plugin=UsageMonitor
 Category=Processor Information
 Counter=% Processor Time
@@ -1577,6 +1689,7 @@ UpdateDivider=1
 
 [MeasureCPUHistory48]
 Measure=Plugin
+Group=ParallaxIdlePause
 Plugin=UsageMonitor
 Category=Processor Information
 Counter=% Processor Time
@@ -1591,6 +1704,7 @@ UpdateDivider=1
 
 [MeasureCPUHistory49]
 Measure=Plugin
+Group=ParallaxIdlePause
 Plugin=UsageMonitor
 Category=Processor Information
 Counter=% Processor Time
@@ -1605,6 +1719,7 @@ UpdateDivider=1
 
 [MeasureCPUHistory50]
 Measure=Plugin
+Group=ParallaxIdlePause
 Plugin=UsageMonitor
 Category=Processor Information
 Counter=% Processor Time
@@ -1619,6 +1734,7 @@ UpdateDivider=1
 
 [MeasureCPUHistory51]
 Measure=Plugin
+Group=ParallaxIdlePause
 Plugin=UsageMonitor
 Category=Processor Information
 Counter=% Processor Time
@@ -1633,6 +1749,7 @@ UpdateDivider=1
 
 [MeasureCPUHistory52]
 Measure=Plugin
+Group=ParallaxIdlePause
 Plugin=UsageMonitor
 Category=Processor Information
 Counter=% Processor Time
@@ -1647,6 +1764,7 @@ UpdateDivider=1
 
 [MeasureCPUHistory53]
 Measure=Plugin
+Group=ParallaxIdlePause
 Plugin=UsageMonitor
 Category=Processor Information
 Counter=% Processor Time
@@ -1661,6 +1779,7 @@ UpdateDivider=1
 
 [MeasureCPUHistory54]
 Measure=Plugin
+Group=ParallaxIdlePause
 Plugin=UsageMonitor
 Category=Processor Information
 Counter=% Processor Time
@@ -1675,6 +1794,7 @@ UpdateDivider=1
 
 [MeasureCPUHistory55]
 Measure=Plugin
+Group=ParallaxIdlePause
 Plugin=UsageMonitor
 Category=Processor Information
 Counter=% Processor Time
@@ -1689,6 +1809,7 @@ UpdateDivider=1
 
 [MeasureCPUHistory56]
 Measure=Plugin
+Group=ParallaxIdlePause
 Plugin=UsageMonitor
 Category=Processor Information
 Counter=% Processor Time
@@ -1703,6 +1824,7 @@ UpdateDivider=1
 
 [MeasureCPUHistory57]
 Measure=Plugin
+Group=ParallaxIdlePause
 Plugin=UsageMonitor
 Category=Processor Information
 Counter=% Processor Time
@@ -1717,6 +1839,7 @@ UpdateDivider=1
 
 [MeasureCPUHistory58]
 Measure=Plugin
+Group=ParallaxIdlePause
 Plugin=UsageMonitor
 Category=Processor Information
 Counter=% Processor Time
@@ -1731,6 +1854,7 @@ UpdateDivider=1
 
 [MeasureCPUHistory59]
 Measure=Plugin
+Group=ParallaxIdlePause
 Plugin=UsageMonitor
 Category=Processor Information
 Counter=% Processor Time
@@ -1745,6 +1869,7 @@ UpdateDivider=1
 
 [MeasureCPUHistory60]
 Measure=Plugin
+Group=ParallaxIdlePause
 Plugin=UsageMonitor
 Category=Processor Information
 Counter=% Processor Time
@@ -1759,6 +1884,7 @@ UpdateDivider=1
 
 [MeasureCPUHistory61]
 Measure=Plugin
+Group=ParallaxIdlePause
 Plugin=UsageMonitor
 Category=Processor Information
 Counter=% Processor Time
@@ -1773,6 +1899,7 @@ UpdateDivider=1
 
 [MeasureCPUHistory62]
 Measure=Plugin
+Group=ParallaxIdlePause
 Plugin=UsageMonitor
 Category=Processor Information
 Counter=% Processor Time
@@ -1787,6 +1914,7 @@ UpdateDivider=1
 
 [MeasureCPUHistory63]
 Measure=Plugin
+Group=ParallaxIdlePause
 Plugin=UsageMonitor
 Category=Processor Information
 Counter=% Processor Time
@@ -1801,6 +1929,7 @@ UpdateDivider=1
 
 [MeasureCPUHistory64]
 Measure=Plugin
+Group=ParallaxIdlePause
 Plugin=UsageMonitor
 Category=Processor Information
 Counter=% Processor Time
@@ -1854,6 +1983,7 @@ OnUpdateAction=[!CommandMeasure MeasureCPUController "ApplyPreferences()"][!Comm
 
 [MeasureCPUController]
 Measure=Script
+Group=ParallaxIdlePause
 ScriptFile=#@#Modules\CPU\CPU.lua
 DetectedCount=%NUMBER_OF_PROCESSORS%
 UpdateDivider=1

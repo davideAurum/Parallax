@@ -19,12 +19,15 @@
 #      are dynamic and skipped; so is '*'.
 [CmdletBinding()]
 param(
-    [string]$SkinRoot = (Join-Path $PSScriptRoot '..\..\Skins\Parallax'),
+    [string]$SkinRoot = '',
     [switch]$SkipFixtures,
     [switch]$SkipValidator
 )
 Set-StrictMode -Version Latest
 $ErrorActionPreference = 'Stop'
+# Windows PowerShell 5.1 leaves $PSScriptRoot empty while it evaluates
+# parameter defaults, so the default skin root is resolved here.
+if (-not $SkinRoot) { $SkinRoot = Join-Path $PSScriptRoot '..\..\Skins\Parallax' }
 $toolsRoot = Split-Path -Parent $PSScriptRoot
 Import-Module (Join-Path $toolsRoot 'Parallax.Build.psm1') -Force
 $validator = Join-Path $toolsRoot 'Test-Parallax.ps1'

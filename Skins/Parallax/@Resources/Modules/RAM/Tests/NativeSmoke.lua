@@ -238,6 +238,70 @@ local function checkPageController()
         'Lease failure must clean its own session once')
 end
 
+local function checkProcessController()
+    -- Execute the production process table controller with a fake skin. Its
+    -- meters use UpdateDivider=-1: a changed ranking must set and force only
+    -- the rows whose name, value or visibility changed.
+    local variables = {['@']='fixture-resource\\', RAMUseMiB='0', RAMDecimals='1'}
+    local bytes = {4500000000, 3000000000, 1500000000, 750000000, 125000000}
+    local names = {'Browser', 'Renderer', 'Editor', 'Explorer', 'Service'}
+    local count, actions = 5, {}
+    local fakeSkin = {}
+    function fakeSkin:GetVariable(name) return variables[name] end
+    function fakeSkin:GetMeasure(name)
+        local rank = tonumber(name:match('^MeasureRAMProcess(%d)$'))
+        check(rank ~= nil, 'Process controller touched an unrelated measure: '..tostring(name))
+        return {GetStringValue=function() return rank <= count and names[rank] or '' end,
+            GetValue=function() return rank <= count and bytes[rank] or 0 end}
+    end
+    function fakeSkin:Bang(command, name, key, value)
+        check(command == '!Redraw' or name == 'MeterRAMProcessesState' or tostring(name):match('^MeterRAMProcess[NV]%a+%d$'),
+            'Process controller targeted an unrelated section: '..tostring(name))
+        check(command ~= '!UpdateMeterGroup', 'Process controller must not force the whole table')
+        actions[#actions+1] = {command, name, key, value}
+    end
+    local env = setmetatable({SKIN=fakeSkin}, {__index=_G})
+    env.dofile = function(value)
+        check(value == variables['@']..'Modules\\RAM\\ProcessModel.lua', 'Process controller loaded an unexpected script')
+        return processModel
+    end
+    local chunk = assert(loadfile(SKIN:GetVariable('@')..'Modules\\RAM\\Process.lua'))
+    setfenv(chunk, env); chunk(); env.Initialize()
+    local function run(call)
+        actions = {}
+        call()
+        local work = {set={}, update={}, show=0, redraw=0}
+        for _, action in ipairs(actions) do
+            if action[1] == '!SetOption' then work.set[#work.set+1] = action[2]..':'..action[3]
+            elseif action[1] == '!UpdateMeter' then work.update[#work.update+1] = action[2]
+            elseif action[1] == '!Redraw' then work.redraw = work.redraw+1
+            else work.show = work.show+1 end
+        end
+        return work
+    end
+    local first = run(env.Update)
+    check(#first.set == 11 and #first.update == 11 and first.show == 11 and first.redraw == 0,
+        'First process table must set, force and show or hide all eleven meters without an extra redraw')
+    local steady = run(env.Update)
+    check(#steady.set == 0 and #steady.update == 0 and steady.show == 0 and steady.redraw == 0, 'An unchanged ranking must do no meter work')
+    bytes[3] = 1600000000
+    local one = run(env.Update)
+    check(#one.set == 1 and one.set[1] == 'MeterRAMProcessValue3:Text' and #one.update == 1 and one.update[1] == 'MeterRAMProcessValue3'
+        and one.show == 0 and one.redraw == 0, 'One changed value must set and force only its own meter')
+    count = 4
+    local dropped = run(env.Update)
+    check(#dropped.set == 2 and #dropped.update == 2 and dropped.show == 2 and dropped.redraw == 0,
+        'A missing fifth rank must hide and clear only its two meters')
+    variables.RAMUseMiB = '1'
+    local units = run(function() env.Display() end)
+    check(#units.set == 4 and #units.update == 4 and units.show == 0 and units.redraw == 1,
+        'A units change must update only the four value meters, then redraw once')
+    count = 0
+    local empty = run(env.Update)
+    check(#empty.update == #empty.set and empty.show == 9 and empty.redraw == 0,
+        'An empty ranking must hide the rows and show the state without forcing unchanged meters')
+end
+
 local function checkSettingsController()
     -- Exercise the copied production settings controller with a fake skin.
     -- All bangs are captured; numeric input never opens a helper or popup.
@@ -831,6 +895,7 @@ local function step()
         dofile(SELF:GetOption('ProcessModelTestsPath'))(processModel, check)
         dofile(SELF:GetOption('PageModelTestsPath'))(pageModel, check)
         checkPageController()
+        checkProcessController()
         checkSettingsController()
         checkProcesses()
         if SELF:GetOption('InfoMode') == 'Fixture' then checkHardware() end

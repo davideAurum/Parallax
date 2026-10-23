@@ -125,11 +125,19 @@ Assert-RAM ($measures.MeasureRAMSettings.ScriptFile -eq '#@#Modules\RAM\Display.
 Assert-RAM ($measures.MeasureRAMSettings.Group -eq 'ParallaxRAMApply') 'Main RAM must expose its preference application group.'
 Assert-RAM ($meters.MeterRAMOptions.LeftMouseUpAction -eq '[!ActivateConfig "Parallax\RAM\Settings" "Settings.ini"]') 'Gear must open the dedicated settings config.'
 Assert-RAM ($entry.Rainmeter.ContextAction3 -eq $meters.MeterRAMOptions.LeftMouseUpAction) 'Context settings must open the same utility as the gear.'
-Assert-RAM (-not $meters.MeterRAMHistory.ContainsKey('Group')) 'History must not be forced through menu updates.'
+# Only the idle stand-down's freeze group (forced once at the pause and once
+# at the resume by @Resources\Idle\StandDown.lua); no RAM menu, action or
+# script updates that group, so menu updates still never force the plot.
+Assert-RAM ((-not $meters.MeterRAMHistory.ContainsKey('Group')) -or $meters.MeterRAMHistory.Group -ceq 'ParallaxIdleFreeze') 'History must not be forced through menu updates.'
+$ramSources = @(Get-ChildItem -LiteralPath (Join-Path $skinRoot '@Resources\Modules\RAM') -File | Where-Object { $_.Extension -in @('.lua', '.inc') }) + @(Get-Item -LiteralPath (Join-Path $skinRoot 'RAM\RAM.ini'))
+foreach ($source in $ramSources) {
+    Assert-RAM (-not ((Get-Content -LiteralPath $source.FullName -Raw) -match '(?i)UpdateMeterGroup[^\r\n]*ParallaxIdleFreeze')) "$($source.Name) must not update the idle freeze group."
+}
 Assert-RAM ($measures.MeasureRAMInfo.Plugin -eq 'RunCommand') 'Hardware information must use the bundled RunCommand provider.'
 Assert-RAM ($measures.MeasureRAMInfo.State -eq 'Hide') 'Hardware metadata query must stay hidden.'
 Assert-RAM ([int]$measures.MeasureRAMInfo.Timeout -gt 0 -and [int]$measures.MeasureRAMInfo.Timeout -le 15000) 'Hardware query must have a bounded timeout.'
-Assert-RAM ($entry.Rainmeter.OnRefreshAction -eq '[!CommandMeasure MeasureRAMInfo "Run"][!CommandMeasure MeasureRAMPageView "Start()"]') 'Refresh must query hardware once and start the paging-file lifecycle once.'
+# #ParallaxIdleJoinAction# is empty unless Global Settings Idle pause is on.
+Assert-RAM ($entry.Rainmeter.OnRefreshAction -ceq '[!CommandMeasure MeasureRAMInfo "Run"][!CommandMeasure MeasureRAMPageView "Start()"]#ParallaxIdleJoinAction#') 'Refresh must query hardware once and start the paging-file lifecycle once.'
 Assert-RAM ($entry.Rainmeter.OnCloseAction -eq '[!CommandMeasure MeasureRAMPageView "Stop()"]') 'RAM unload must stop its own paging-file helper and session.'
 Assert-RAM ($measures.MeasureRAMInfoView.Measure -eq 'Script') 'Missing hardware view controller.'
 Assert-RAM ($entry.Variables.RAMInfoHeight -eq '26' -and -not $user.Variables.ContainsKey('RAMInfoHeight')) 'Hardware summary height must be transient layout state with a compact fallback.'

@@ -101,20 +101,21 @@ def check_drive_bank():
         expected_providers.add(kind_name)
         assert kind["Measure"] == "FreeDiskSpace" and kind["Drive"] == letter + ":"
         assert kind["Type"] == "1" and kind["IgnoreRemovable"] == "0"
-        assert kind["Group"] == "IOInventory" and kind.get("Disabled", "0") == "0"
+        # The idle stand-down pauses every periodic IO measure (ParallaxIdlePause).
+        assert kind["Group"] == "IOInventory|ParallaxIdlePause" and kind.get("Disabled", "0") == "0"
         assert "CapacityInterval" in kind["UpdateDivider"]
         label_name = "MeasureIOName" + letter
         label = providers[label_name]
         expected_providers.add(label_name)
         assert label["Measure"] == "FreeDiskSpace" and label["Drive"] == letter + ":"
         assert label["Type"] == "0" and label["Label"] == "1" and label["IgnoreRemovable"] == "0"
-        assert label["Group"] == "IOInventory" and label.get("Disabled", "0") == "0"
+        assert label["Group"] == "IOInventory|ParallaxIdlePause" and label.get("Disabled", "0") == "0"
         assert "CapacityInterval" in label["UpdateDivider"]
         for field in ("Total", "Free", "Used"):
             name = "MeasureIO" + field + letter
             options = providers[name]
             expected_providers.add(name)
-            assert options["Group"] == "IOCapacity" + letter and options["Disabled"] == "1"
+            assert options["Group"] == "IOCapacity" + letter + "|ParallaxIdlePause" and options["Disabled"] == "1"
             if field == "Used":
                 assert options["Measure"] == "Calc"
                 assert set(re.findall(r"MeasureIO\w+", options["Formula"])) == {
@@ -132,7 +133,7 @@ def check_drive_bank():
             assert options["Measure"] == "Plugin" and options["Plugin"] == "UsageMonitor"
             assert options["Category"] == "LogicalDisk" and options["Name"] == letter + ":"
             assert options["Counter"] == "Disk " + direction + " Bytes/sec"
-            assert options["Group"] == "IORates" + letter and options["Disabled"] == "1"
+            assert options["Group"] == "IORates" + letter + "|ParallaxIdlePause" and options["Disabled"] == "1"
             assert all(options[key] == "0" for key in ("Rollup", "Percent", "RawValue"))
         for field in DRIVE_METERS:
             name = "MeterIO" + field + letter
@@ -140,7 +141,8 @@ def check_drive_bank():
             expected_meters.add(name)
             assert options["Hidden"] == "1" and options["Y"] == "0", (name, "hidden runtime row must start at Y=0")
             # Hidden rows ship idle; IO.lua switches the whole row through its group.
-            assert options["Group"] == "IORow" + letter and options["UpdateDivider"] == "-1", (name, "idle per-letter row group")
+            # The idle stand-down freezes every row meter (ParallaxIdleFreeze).
+            assert options["Group"] == "IORow" + letter + "|ParallaxIdleFreeze" and options["UpdateDivider"] == "-1", (name, "idle per-letter row group")
             if field == "Used":
                 assert options["Meter"] == "Bar" and options["MeasureName"] == "MeasureIOUsed" + letter
                 assert options["H"] == "#DataBarThicknessPx#", (name, "shared bar thickness")

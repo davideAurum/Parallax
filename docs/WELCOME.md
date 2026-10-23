@@ -43,7 +43,7 @@ One row per loadable component, each with a check box, a name and a one-line des
 
 Global Settings sits below a divider because it is a configuration surface rather than a desktop instrument, but it behaves like any other row.
 
-Companion configs are not listed. Each per-utility settings panel, `Parallax\CPU\Colors`, `Parallax\Media\Queue`, `Parallax\Media\Setup.ini`, `Parallax\Network\Connection` and `Parallax\ColorPicker` are opened from the utility that owns them.
+Companion configs are not listed. Each per-utility settings panel, `Parallax\CPU\Colors`, `Parallax\Media\Queue`, `Parallax\Media\Setup.ini`, `Parallax\Network\Connection` and `Parallax\ColorPicker` are opened from the utility that owns them. The hidden input-idle coordinator `Parallax\Idle` is not a row either: skins that need it load it and it unloads itself (see [ARCHITECTURE.md](ARCHITECTURE.md#input-idle-coordinator)); it appears in Manage Rainmeter, and **Unload all** leaves it to unload itself.
 
 ## Behavior
 

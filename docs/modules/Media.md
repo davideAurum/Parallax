@@ -627,6 +627,25 @@ Interactive Connect retains its existing bounded locking behavior: Stop can time
 out while consent is pending. This change does not add sign-in cancellation.
 Completed Stop/Disconnect prevents delayed recovery workers from collecting.
 
+**Reloads the capture lease causes (2026-10-23, MEDIA-08).** Media's own
+capture-lease reloads (parking or resuming the spectrum drawer's capture; see
+[Capture lease](#capture-lease)) would otherwise each start up to two
+PowerShell resume launchers for providers that are already running.
+`MediaOptions.ApplyLease` stamps `MediaLeaseRefreshAt` (`os.time()`) and
+`MediaLeaseRefreshClock` (`floor(os.clock())`) in the runtime file
+`Modules\Media\CaptureState.inc` before such a reload, and `ResumeProviders()`
+skips both launches only when all of these hold: the view is `Media.ini`; the
+stamp is 0-15 s old; and the `os.clock()` delta agrees with the wall-time
+delta within 2 s. In Rainmeter's Lua `os.clock()` is wall time since that
+Rainmeter process started (checked natively: about 2.5 s at skin load in each of
+two separate starts, advancing with wall time), so a stamp from an earlier
+process never matches and a restart always resumes. Setup, standalone Queue and
+every reload a user or another skin asks for resume exactly as before.
+`OnCloseAction` in Media.ini and Setup.ini writes `MediaLeaseRefreshAt=0`. After
+about 24.8 days of continuous Rainmeter uptime the C runtime's `clock()` stops
+counting (it returns -1); the stamp is then rejected and lease reloads simply
+resume providers as before.
+
 ### Provider lifetime and upgrades
 
 Until 0.1.0-alpha.4 each `-Command Run` worker was a detached `Start-Process`

@@ -1475,8 +1475,16 @@ class SkinContractTests(unittest.TestCase):
                         self.assertNotRegex(value.lower(), r'python|powershell|cmd\.exe|runcommand|spotify:|authorize')
             for section_name, key in allowed:
                 self.assertIn(key, sections[section_name])
-            self.assertFalse(any(key.startswith(('OnUpdate', 'OnClose'))
-                                 for key in config), 'No polling or close-time helper action')
+            self.assertFalse(any(key.startswith('OnUpdate') for key in config), 'No polling action')
+            # The only close-time action ends the capture lease stamp (MEDIA-08):
+            # one file write, no helper.
+            close = [key for key in config if key.startswith('OnClose')]
+            if name in ('Media.ini', 'Setup.ini'):
+                self.assertEqual(close, ['OnCloseAction'])
+                self.assertEqual(config['OnCloseAction'],
+                                 '[!WriteKeyValue Variables MediaLeaseRefreshAt 0 "#@#Modules\\Media\\CaptureState.inc"]')
+            else:
+                self.assertEqual(close, [], 'No close-time helper action')
             if name == 'Settings/Settings.ini':
                 self.assertNotIn('OnRefreshAction', config)
             else:
@@ -2180,6 +2188,53 @@ class SkinContractTests(unittest.TestCase):
                 self.assertEqual(dict(keys)['MediaVisualizerHost'],host)
                 self.assertLess(index['MediaVisualizerHost'],first_include)
                 self.assertEqual([key for key,_ in keys].count('MediaVisualizerHost'),1)
+
+    def test_capture_state_is_runtime_state_read_before_the_tick(self):
+        # docs/PERFORMANCE-REVIEW.md phase C1: Modules\Media\CaptureState.inc
+        # holds the drawer's capture lease. It ships at all zeros (a release
+        # install resets it), both views that include InlineQueueGeometry.inc
+        # read it just before that file, and both define the same defaults
+        # before any include so a missing or partial file means live capture.
+        keys=('MediaDrawerCapture','MediaStandby','MediaLeaseRefreshAt','MediaLeaseRefreshClock')
+        state=RESOURCES/'Modules'/'Media'/'CaptureState.inc'
+        section=None
+        shipped=[]
+        for raw in source_lines(state):
+            line=raw.strip()
+            if not line or line.startswith(';'): continue
+            if line.startswith('[') and line.endswith(']'): section=line[1:-1]; continue
+            self.assertEqual(section,'Variables','CaptureState.inc holds variables only')
+            shipped.append(tuple(line.split('=',1)))
+        self.assertEqual(shipped,[(key,'0') for key in keys],'The shipped capture state is all zeros')
+        close='[!WriteKeyValue Variables MediaLeaseRefreshAt 0 "#@#Modules\\Media\\CaptureState.inc"]'
+        for config in ('Media.ini','Setup.ini'):
+            with self.subTest(entrypoint=config):
+                sections,variables,visited,_=read_config(config,drawer=2)
+                names=[path.name for path in visited]
+                self.assertEqual(names.count('CaptureState.inc'),1)
+                self.assertEqual(names[names.index('CaptureState.inc')+1],'InlineQueueGeometry.inc')
+                self.assertEqual(names[names.index('CaptureState.inc')-1],'Options.inc')
+                for key in keys: self.assertEqual(variables[key],'0')
+                entries=[]
+                section=None
+                for raw in source_lines(ROOT/'Media'/config):
+                    line=raw.strip()
+                    if line.startswith('[') and line.endswith(']'): section=line[1:-1]
+                    elif section=='Variables' and '=' in line and not line.startswith(';'):
+                        entries.append(tuple(line.split('=',1)))
+                first_include=min(position for position,(key,_) in enumerate(entries) if key.lower().startswith('@include'))
+                for key in keys:
+                    self.assertEqual([value for name,value in entries if name==key],['0'],f'{config} defines {key}=0 once')
+                    self.assertLess([name for name,_ in entries].index(key),first_include,f'{key} precedes every include')
+                # OnCloseAction runs only on unload or exit (never on refresh)
+                # and ends any lease stamp, so a later ordinary load resumes
+                # the providers.
+                self.assertEqual(sections['Rainmeter']['OnCloseAction'],close)
+        for config in ('Queue/Queue.ini','Settings/Settings.ini'):
+            with self.subTest(entrypoint=config):
+                sections,_,visited,_=read_config(config)
+                self.assertNotIn('CaptureState.inc',[path.name for path in visited])
+                self.assertNotIn('OnCloseAction',sections['Rainmeter'])
 
     def test_closed_spectrum_drawer_preserves_the_pre_drawer_player(self):
         # Closed identity: hiding the drawer at either width, or collapsing it

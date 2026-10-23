@@ -334,7 +334,8 @@ function Suite.run(path)
         f.now = 1030; f:update(); eq(f.meter.Text, 'Unavailable'); eq(next(f.removed), nil, 'a late host may still resume')
         f.now = 1031; f:update(); eq(f.meter.Text, 'Unavailable'); f:ownedClean()
         eq(f.kills[launcher], nil, 'a completed launcher is never killed'); eq(f.launches[driver], 1, 'no relaunch')
-        f.now = 1100; f:update(); eq(f.launches[driver], 1); eq(f.launches[bootstrap], 1)
+        f.now = 1040; f:update(); eq(f.launches[launcher], 1, 'no retry before 10 s')
+        f.now = 1041; f:update(); eq(f.launches[launcher], 2, 'a retry after 10 s'); eq(f.meter.Text, 'Checking...')
         f = fixture(); f:live()
         f.now = 1025; f:update(); eq(f.meter.Text, 'Unavailable')
         f:sample({[4] = '2'}); f:update(); eq(f.meter.Text, '42 °C', 'a late host resumes within the grace')
@@ -588,10 +589,43 @@ function Suite.run(path)
         eq(f.meter.Text, 'Unavailable'); eq(f.kills[launcher], nil); f:ownedClean()
         f.failOpen = false; f:update(); eq(f.launches[driver], 1)
     end)
-    test('a stopped host cannot leave a plausible retained reading or restart loop', function()
+    test('a stopped host cannot leave a plausible retained reading or a restart loop', function()
         local f = fixture(); f:live(); f.files[tmpPath] = 'partial'
         f:hostStops(); f:update(); eq(f.meter.Text, 'Unavailable'); f:ownedClean()
-        f.now = f.now + 60; f:update(); eq(f.meter.Text, 'Unavailable'); eq(f.launches[driver], 1); eq(f.launches[launcher], 1)
+        -- Bounded recovery: retries after 10, 60 and 300 s (each launcher here
+        -- never reports), then nothing more until refresh.
+        local launches = 1
+        for _, delay in ipairs({10, 60, 300}) do
+            local failedAt = f.now
+            f.now = failedAt + delay - 1; f:update(); eq(f.launches[launcher], launches)
+            f.now = failedAt + delay; f:update(); launches = launches + 1; eq(f.launches[launcher], launches)
+            eq(f.meter.Text, 'Checking...', 'a retry shows Checking..., never the old reading')
+            f.now = f.now + 20; f:update(); eq(f.meter.Text, 'Unavailable'); eq(f.kills[launcher], launches - 1)
+        end
+        f.now = f.now + 100000; f:update(); eq(f.launches[launcher], 4); eq(f.meter.Text, 'Unavailable')
+        eq(f.launches[driver], 1, 'no retried launcher reported a session')
+    end)
+    test('a retried session recovers, a long healthy session resets the count, and Stop cancels a retry', function()
+        -- Reproduced owner symptom (RAM, same design here): the host's lease
+        -- lapsed while Rainmeter was suspended, and readings stayed Unavailable
+        -- with no host until refresh.
+        local f = fixture(); f:live()
+        f:hostStops(); f:update(); eq(f.meter.Text, 'Unavailable')
+        f.now = f.now + 10; f:update(); eq(f.launches[launcher], 2); eq(f.meter.Text, 'Checking...')
+        f:start(); eq(f.launches[driver], 2, 'the retry starts a new host session')
+        eq(f.files[leasePath], token .. '|' .. f.now .. '|0|?')
+        f:sample({[4] = '1'}); f:update(); eq(f.meter.Text, '42 °C', 'a retried session restarts its sequence')
+        local start = f.now
+        for second = 2, 600, 2 do f.now = start + second; f:sample({[4] = tostring(1 + second / 2)}); f:update() end
+        eq(f.meter.Text, '42 °C')
+        f:hostStops(); f:update(); f.now = f.now + 9; f:update(); eq(f.launches[launcher], 2)
+        f.now = f.now + 1; f:update(); eq(f.launches[launcher], 3, 'after 10 healthy minutes the first retry is again after 10 s')
+        f = fixture(); f:live(); f:hostStops(); f:update(); f.env.Stop()
+        f.now = f.now + 1000; f:update(); eq(f.launches[launcher], 1, 'Stop cancels a pending retry')
+        -- Names-only sessions recover the same way and stay names-only.
+        f = fixture({metadata = 'NONE'}); f:start(sessionOutput({[5] = namesOnlyLuid})); eq(f.launches[driver], 1)
+        f:hostStops(); f:update(); f.now = f.now + 10; f:update(); eq(f.launches[launcher], 2)
+        contains(f.parameters[launcher], "'',''" .. namesOnlyLuid .. "'',2000)"); eq(f.meter.Text, 'Unavailable')
     end)
     test('Stop removes owned lease/snapshot/temp files and never restarts helpers', function()
         -- Removing the lease is the detached host's stop request. Stop sends no

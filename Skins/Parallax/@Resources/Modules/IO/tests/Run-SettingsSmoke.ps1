@@ -51,7 +51,9 @@ if ($BaseStage) {
             Copy-Item -LiteralPath $sourceFile.FullName -Destination $targetFile -Force
         }
     }
-    foreach ($sharedFile in @('Defaults.inc','Geometry.inc','Styles.inc','UtilitySettingsNote.inc','User\Settings.inc','User\IO.inc','Scripts\SettingsInput.ps1')) {
+    # Idle\Hook0.inc: IO-Disk.ini's last include (Idle pause Off); an older base may predate it.
+    $null = New-Item -ItemType Directory -Path (Join-Path $snapshotSkin '@Resources\Idle') -Force
+    foreach ($sharedFile in @('Defaults.inc','Geometry.inc','Styles.inc','UtilitySettingsNote.inc','User\Settings.inc','User\IO.inc','Scripts\SettingsInput.ps1','Idle\Hook0.inc')) {
         Copy-Item -LiteralPath (Join-Path $projectRoot ('Skins\Parallax\@Resources\' + $sharedFile)) -Destination (Join-Path $snapshotSkin ('@Resources\' + $sharedFile)) -Force
     }
     $stage = [pscustomobject]@{ StageRoot=$snapshotRoot; SkinRoot=$snapshotSkin }

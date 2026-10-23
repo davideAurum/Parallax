@@ -327,7 +327,7 @@ local function run()
         assert(index >= 0 and index == math.floor(index), suffix .. ' unsafe WiFi index supplied')
         assert(native:GetNumberOption('UpdateDivider') == 5, suffix .. ' WiFi cadence is not five seconds')
         assert(native:GetNumberOption('DynamicVariables') == 1, suffix .. ' WiFi cannot apply validated index')
-        assert(native:GetOption('Group') == 'ConnectionWiFi', suffix .. ' WiFi group differs')
+        assert(native:GetOption('Group') == 'ConnectionWiFi|ParallaxIdlePause', suffix .. ' WiFi group differs')
     end
     if kind == 'invalid-adapter' then
         assert(meter('IP'):GetOption('Text') == '--', 'Invalid NIC exposes fallback IP')

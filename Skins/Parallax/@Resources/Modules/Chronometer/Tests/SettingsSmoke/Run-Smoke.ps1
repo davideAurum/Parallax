@@ -81,6 +81,10 @@ try {
                 foreach ($name in @('Defaults.inc', 'Geometry.inc', 'Styles.inc', 'UtilitySettingsNote.inc')) {
                     Copy-IntoRun (Join-Path $resourceRoot $name) (Join-Path $resources $name)
                 }
+                # Idle pause is Off in the staged settings: Chronometer.ini's last include is
+                # the comment-only Idle hook variant.
+                New-Item -ItemType Directory -Path (Join-Path $resources 'Idle') -Force | Out-Null
+                Copy-IntoRun (Join-Path $resourceRoot 'Idle\Hook0.inc') (Join-Path $resources 'Idle\Hook0.inc')
                 Copy-IntoRun (Join-Path $resourceRoot 'Scripts\SettingsInput.ps1') (Join-Path $resources 'Scripts\SettingsInput.ps1')
                 foreach ($source in Get-ChildItem -LiteralPath $moduleRoot -File) {
                     if ($source.Extension -in @('.lua', '.inc')) { Copy-IntoRun $source.FullName (Join-Path $scripts $source.Name) }

@@ -30,6 +30,10 @@ foreach ($name in @('Defaults.inc','Geometry.inc','Styles.inc','UtilitySettingsN
 foreach ($name in @('Settings.inc','GPU.inc')) {
     Copy-Item -LiteralPath (Join-Path $sourceSkin ('@Resources\User\'+$name)) -Destination (Join-Path $parallaxRoot '@Resources\User')
 }
+# Idle pause is Off in the staged settings: GPU.ini's last include is the
+# comment-only Idle hook variant.
+$null=New-Item -ItemType Directory -Path (Join-Path $parallaxRoot '@Resources\Idle')
+Copy-Item -LiteralPath (Join-Path $sourceSkin '@Resources\Idle\Hook0.inc') -Destination (Join-Path $parallaxRoot '@Resources\Idle')
 $null=New-Item -ItemType Directory -Path (Join-Path $parallaxRoot '@Resources\Scripts')
 Copy-Item -LiteralPath (Join-Path $sourceSkin '@Resources\Scripts\SettingsInput.ps1') -Destination (Join-Path $parallaxRoot '@Resources\Scripts')
 $utf8=[Text.UTF8Encoding]::new($false)

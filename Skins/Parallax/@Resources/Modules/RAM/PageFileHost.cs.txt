@@ -37,20 +37,9 @@ public static class ParallaxRamPageFile
         }
     }
 
-    // Allocates names only: Lua writes the initial lease before starting Run.
-    // No caller-supplied path is ever accepted by the resident provider.
-    public static string CreateSession(int intervalMs)
-    {
-        ValidateInterval(intervalMs);
-        for (int attempt = 0; attempt < 3; ++attempt)
-        {
-            Paths paths = new Paths(Guid.NewGuid().ToString("N"));
-            if (File.Exists(paths.Data) || File.Exists(paths.Lease) || File.Exists(paths.Temporary)) continue;
-            return "RAM_PAGE_SESSION|1|" + paths.Token + "|" + Hex(Encoding.UTF8.GetBytes(paths.Data));
-        }
-        throw new IOException("Unable to allocate a paging-file session.");
-    }
-
+    // The launcher mints the random token with [guid]::NewGuid() and writes
+    // the initial lease before starting Run. Run accepts no path: it validates
+    // the token and derives every session path itself.
     public static void Run(string token, int intervalMs)
     {
         Paths paths = new Paths(token);
@@ -297,13 +286,6 @@ public static class ParallaxRamPageFile
         try { File.Delete(path); }
         catch (IOException) { /* UI cleanup may retry after a reader releases its handle. */ }
         catch (UnauthorizedAccessException) { /* Forced kills also leave bounded cleanup to the UI. */ }
-    }
-
-    private static string Hex(byte[] bytes)
-    {
-        StringBuilder text = new StringBuilder(bytes.Length * 2);
-        foreach (byte value in bytes) text.Append(value.ToString("X2", CultureInfo.InvariantCulture));
-        return text.ToString();
     }
 
     private sealed class ParentGuard : IGuard, IDisposable

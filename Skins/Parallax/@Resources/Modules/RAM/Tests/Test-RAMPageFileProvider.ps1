@@ -245,31 +245,29 @@ public static class ParallaxRamPageFileTests
         checks = 0;
         string root = Path.GetFullPath(scratch).TrimEnd(Path.DirectorySeparatorChar) + Path.DirectorySeparatorChar;
         Check(Path.GetFullPath(Path.GetTempPath()).TrimEnd(Path.DirectorySeparatorChar) + Path.DirectorySeparatorChar == root, "Temp scope is isolated");
+        // The launcher mints the token ([guid]::NewGuid()) and writes the lease;
+        // the host keeps only token validation and its own path derivation.
+        Check(typeof(ParallaxRamPageFile).GetMethod("CreateSession") == null, "No session bootstrap entry point remains");
         int before = Directory.GetFiles(scratch).Length;
-        string session = ParallaxRamPageFile.CreateSession(1000);
-        string[] parts = session.Split('|');
-        Check(parts.Length == 4 && parts[0] == "RAM_PAGE_SESSION" && parts[1] == "1", "Bootstrap protocol");
-        Check(System.Text.RegularExpressions.Regex.IsMatch(parts[2], "^[0-9a-f]{32}$"), "Canonical token");
-        byte[] pathBytes = new byte[parts[3].Length / 2];
-        for (int i = 0; i < pathBytes.Length; ++i) pathBytes[i] = Byte.Parse(parts[3].Substring(i * 2, 2), NumberStyles.HexNumber, CultureInfo.InvariantCulture);
-        string dataPath = new UTF8Encoding(false, true).GetString(pathBytes);
-        Check(dataPath == Path.Combine(scratch, "Parallax-RAM-Page-" + parts[2] + ".dat"), "Token-derived UTF-8 path");
-        Check(Directory.GetFiles(scratch).Length == before, "Bootstrap writes no files");
-        Check(ParallaxRamPageFile.CreateSession(30000) != session, "Unique sessions");
+        string generated = Guid.NewGuid().ToString("N");
+        ParallaxRamPageFile.Paths derived = new ParallaxRamPageFile.Paths(generated);
+        string stem = Path.Combine(scratch, "Parallax-RAM-Page-" + generated);
+        Check(derived.Token == generated && derived.Data == stem + ".dat" && derived.Lease == stem + ".lease" && derived.Temporary == stem + ".tmp",
+            "Session paths derive from the token inside TEMP");
+        Check(Directory.GetFiles(scratch).Length == before, "Deriving session paths writes no files");
         string previousTemp = Environment.GetEnvironmentVariable("TEMP"), previousTmp = Environment.GetEnvironmentVariable("TMP");
         try
         {
             string unicodePath = Path.Combine(scratch, "\u00e9-\u4e2d");
             Environment.SetEnvironmentVariable("TEMP", unicodePath);
             Environment.SetEnvironmentVariable("TMP", unicodePath);
-            string[] unicodeParts = ParallaxRamPageFile.CreateSession(1000).Split('|');
-            string expectedPath = Path.Combine(unicodePath, "Parallax-RAM-Page-" + unicodeParts[2] + ".dat");
-            Check(unicodeParts[3] == BitConverter.ToString(Encoding.UTF8.GetBytes(expectedPath)).Replace("-", ""), "Unicode temporary path uses exact UTF-8 hex");
-            Check(!Directory.Exists(unicodePath), "Unicode bootstrap still writes nothing");
+            Check(new ParallaxRamPageFile.Paths(generated).Data == Path.Combine(unicodePath, "Parallax-RAM-Page-" + generated + ".dat"),
+                "A Unicode TEMP is used verbatim");
+            Check(!Directory.Exists(unicodePath), "Unicode path derivation writes nothing");
         }
         finally { Environment.SetEnvironmentVariable("TEMP", previousTemp); Environment.SetEnvironmentVariable("TMP", previousTmp); }
-        Throws(delegate { ParallaxRamPageFile.CreateSession(999); }, "Reject fast interval");
-        Throws(delegate { ParallaxRamPageFile.CreateSession(30001); }, "Reject slow interval");
+        Throws(delegate { ParallaxRamPageFile.Run(Token, 999); }, "Reject fast interval");
+        Throws(delegate { ParallaxRamPageFile.Run(Token, 30001); }, "Reject slow interval");
         foreach (string bad in new string[] { null, "", "../bad", Token + "x", Token.Substring(1), Token.ToUpperInvariant(), new String('z', 32) })
             Throws(delegate { ParallaxRamPageFile.Run(bad, 1000); }, "Reject malformed token");
         Throws(delegate { ParallaxRamPageFile.Run(Token, 0); }, "Run validates interval");

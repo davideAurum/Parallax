@@ -1,12 +1,12 @@
--- Original paging-file reader bridge. Two bounded setup-time launches start
+-- Original paging-file reader bridge. One bounded setup-time launch starts
 -- one resident Windows API host, detached from RunCommand; display/settings
 -- updates never launch a poller.
 local model, state, interval, deadline, session, cached, previous, measures
 local lastSequence, lastEpoch, lastLease, lastWire, launched
 -- aliveUntil: the detached host counts as running while its newest accepted
--- sample is current. confirmed: the launcher has reported a started host.
-local aliveUntil, confirmed
-local bootstrap, launcher = 'MeasureRAMPageBootstrap', 'MeasureRAMPageLauncher'
+-- sample is recent enough (see readFrame).
+local aliveUntil
+local launcher = 'MeasureRAMPageLauncher'
 local targets = {'MeterRAMPageGiB', 'MeterRAMPageMiB', 'MeterRAMPageBar'}
 
 local function measure(name)
@@ -67,7 +67,7 @@ local function cleanup()
 end
 
 local function stopProcesses()
-    for _, name in ipairs({bootstrap, launcher}) do
+    for _, name in ipairs({launcher}) do
         if launched[name] then
             -- RunCommand runs at 0 and starts at -1; the skin may also expose
             -- an unlaunched cached 0. Track launches and refresh before deciding.
@@ -96,35 +96,41 @@ end
 -- A PowerShell single-quoted literal.
 local function literal(text) return "'" .. (text:gsub("'", "''")) .. "'" end
 
--- Only fixed methods and validated hex/integer arguments enter these commands.
-local function bootstrapParameter()
-    return '-NoLogo -NoProfile -NonInteractive -Command "'
-        .. "[Console]::OutputEncoding=[Text.UTF8Encoding]::new($false); $ErrorActionPreference='Stop'; $ProgressPreference='SilentlyContinue'; try { "
-        .. "Add-Type -TypeDefinition ([IO.File]::ReadAllText('PageFileHost.cs.txt')); "
-        .. "[Console]::Write([ParallaxRamPageFile]::CreateSession(" .. interval .. ")) } catch { [Console]::Write('RAM_PAGE_FAILED') }\""
-end
-
--- The launcher is plain PowerShell (no compile). It starts the host hidden,
--- outside the skin folder, with the source's absolute path on its command
--- line; waits up to 10 s until the host has written its first frame (by then
--- it holds its Rainmeter ancestor handle) or has exited; then reports and
--- exits, ending RunCommand's polling thread for this command.
-local function launcherParameter(token)
+-- The only launch: plain PowerShell (no compile). It mints a random session
+-- with [guid]::NewGuid(), creating its lease exclusively so names never
+-- collide, and writes the first heartbeat. It starts the host hidden, outside
+-- the skin folder, with the source's absolute path on its command line, and
+-- waits up to 10 s until the host has written its first frame (by then it
+-- holds its Rainmeter ancestor handle) or has exited. It then renews the
+-- lease and prints the session, or removes the lease and reports failure, and
+-- exits, ending RunCommand's polling thread for this command. Only fixed text
+-- and a validated integer enter it; the host validates the token and derives
+-- every path itself, and this controller validates the returned path.
+local function launcherParameter()
     local hostScript = "$ErrorActionPreference='Stop'; $ProgressPreference='SilentlyContinue'; try { "
         .. "Add-Type -TypeDefinition ([IO.File]::ReadAllText('@S@')); "
-        .. "[ParallaxRamPageFile]::Run('" .. token .. "'," .. interval .. ') } catch { exit 1 }'
+        .. "[ParallaxRamPageFile]::Run('@T@'," .. interval .. ') } catch { exit 1 }'
     return '-NoLogo -NoProfile -NonInteractive -Command "'
-        .. "$ErrorActionPreference='Stop'; try { $q=[string][char]39; "
+        .. "$ErrorActionPreference='Stop'; $l=$null; try { $q=[string][char]39; "
         .. "$s=[IO.Path]::Combine([IO.Directory]::GetCurrentDirectory(),'PageFileHost.cs.txt'); "
-        .. '$h=' .. literal(hostScript) .. ".Replace('@S@',$s.Replace($q,$q+$q)); "
-        .. '$t=[IO.Path]::GetFullPath([IO.Path]::GetTempPath()); '
+        .. '$t=[IO.Path]::GetFullPath([IO.Path]::GetTempPath()); $k=$null; '
+        .. 'for ($i=0; $i -lt 3 -and -not $k; $i++) { '
+        .. "$g=[guid]::NewGuid().ToString('N'); $b=[IO.Path]::Combine($t,'Parallax-RAM-Page-'+$g); "
+        .. "if ([IO.File]::Exists($b+'.dat') -or [IO.File]::Exists($b+'.tmp')) { continue }; "
+        .. "try { $f=[IO.File]::Open($b+'.lease','CreateNew','Write','Read') } catch [IO.IOException] { continue }; "
+        .. "$l=$b+'.lease'; try { $e=[Text.Encoding]::ASCII.GetBytes($g+'|'+[DateTimeOffset]::UtcNow.ToUnixTimeSeconds()); $f.Write($e,0,$e.Length) } finally { $f.Dispose() }; "
+        .. '$k=$g }; '
+        .. "if (-not $k) { throw 'session' }; "
+        .. '$h=' .. literal(hostScript) .. ".Replace('@T@',$k).Replace('@S@',$s.Replace($q,$q+$q)); "
         .. "$p=Start-Process -FilePath ([IO.Path]::Combine($PSHOME,'powershell.exe')) "
         .. "-ArgumentList ('-NoLogo -NoProfile -NonInteractive -WindowStyle Hidden -Command '+[char]34+$h+[char]34) "
         .. '-WorkingDirectory $t -WindowStyle Hidden -PassThru; '
-        .. "$d=[IO.Path]::Combine($t,'Parallax-RAM-Page-" .. token .. ".dat'); $w=[Diagnostics.Stopwatch]::StartNew(); "
+        .. "$d=$b+'.dat'; $w=[Diagnostics.Stopwatch]::StartNew(); "
         .. 'while (-not $p.HasExited -and -not [IO.File]::Exists($d) -and $w.ElapsedMilliseconds -lt 10000) { Start-Sleep -Milliseconds 100 }; '
-        .. "if ($p.HasExited) { [Console]::Write('RAM_PAGE_FAILED') } else { [Console]::Write('RAM_PAGE_STARTED') } "
-        .. "} catch { [Console]::Write('RAM_PAGE_FAILED') }\""
+        .. "if ($p.HasExited) { throw 'host' }; "
+        .. "[IO.File]::WriteAllText($l,$k+'|'+[DateTimeOffset]::UtcNow.ToUnixTimeSeconds(),[Text.Encoding]::ASCII); "
+        .. "[Console]::Write('RAM_PAGE_SESSION|1|'+$k+'|'+[BitConverter]::ToString([Text.Encoding]::UTF8.GetBytes($d)).Replace('-','')) "
+        .. "} catch { if ($l) { try { [IO.File]::Delete($l) } catch {} }; [Console]::Write('RAM_PAGE_FAILED') }\""
 end
 
 local function heartbeat(now)
@@ -142,7 +148,7 @@ function Initialize()
     model = dofile(SKIN:GetVariable('@') .. 'Modules\\RAM\\PageFileModel.lua')
     state, session, cached, previous, measures = 'idle', nil, {status = 'STARTING'}, {}, {}
     lastSequence, lastEpoch, lastLease, lastWire = -1, 0, -1, nil
-    launched, aliveUntil, confirmed = {}, 0, false
+    launched, aliveUntil = {}, 0
     interval = tonumber(SKIN:GetVariable('MetricsInterval')) or 1000
     if interval ~= interval or interval == math.huge or interval == -math.huge then interval = 1000 end
     interval = math.max(1000, math.min(30000, math.floor(interval)))
@@ -150,8 +156,8 @@ end
 
 function Start()
     if state ~= 'idle' then return end
-    state, deadline = 'bootstrap', os.time() + 20
-    launch(bootstrap, bootstrapParameter())
+    state, deadline = 'launching', os.time() + 20
+    launch(launcher, launcherParameter())
     Display()
 end
 
@@ -178,36 +184,28 @@ end
 
 function Update()
     local now = os.time()
-    if state == 'bootstrap' then
-        local current = status(bootstrap)
+    if state == 'launching' then
+        -- The launcher reports once, with the session of a started host.
+        local current = status(launcher)
         if current == 1 then
-            launched[bootstrap] = nil
+            launched[launcher] = nil
             local roots = {}
             for _, key in ipairs({'TMP', 'TEMP'}) do
                 local root = os.getenv(key)
                 if root then roots[#roots + 1] = root end
             end
-            session = model.ParseSession(output(bootstrap), roots)
+            session = model.ParseSession(output(launcher), roots)
             if not session then fail(); return 0 end
             if not heartbeat(now) then fail(); return 0 end
-            state, deadline, confirmed = 'running', now + 20, false
+            state, deadline = 'running', now + 20
             aliveUntil = deadline
-            launch(launcher, launcherParameter(session.token))
         elseif current >= 100 or now >= deadline then
             fail(); return 0
         end
     elseif state == 'running' then
-        -- The launcher reports once. After that, the host's own samples are
-        -- the only evidence it is running: no current sample for the
-        -- freshness window ends the session, as a host exit did before.
-        if not confirmed then
-            local current = status(launcher)
-            if current == 1 then
-                launched[launcher] = nil
-                if output(launcher) ~= 'RAM_PAGE_STARTED' then fail(); return 0 end
-                confirmed = true
-            elseif current >= 100 then fail(); return 0 end
-        end
+        -- The host's own samples are the only evidence it is running; a host
+        -- silent past the grace in readFrame ends the session, as a host exit
+        -- did before.
         if not heartbeat(now) then fail(); return 0 end
         readFrame(now)
         if now > aliveUntil then fail(); return 0 end

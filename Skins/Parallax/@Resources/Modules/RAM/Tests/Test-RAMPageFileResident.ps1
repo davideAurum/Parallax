@@ -1,5 +1,6 @@
 #requires -Version 5.1
-# One end-to-end resident-host probe using the production bootstrap and Run.
+# One end-to-end resident-host probe using the production Run, with a session
+# token minted as the production launcher does ([guid]::NewGuid()).
 # It launches one hidden PowerShell host, observes native snapshots as data,
 # renews then removes the lease, and waits for the host to cleanly stop itself.
 # No live Rainmeter configuration, paging-file configuration or dependencies
@@ -105,23 +106,15 @@ function Read-Frame([string]$Path, [string]$Token) {
 try {
     $env:TEMP = $scratch
     $env:TMP = $scratch
-    Add-Type -TypeDefinition ([IO.File]::ReadAllText($sourcePath)) -Language CSharp
-    $session = [ParallaxRamPageFile]::CreateSession(1000).Split('|')
-    Check-Resident ($session.Length -eq 4 -and $session[0] -ceq 'RAM_PAGE_SESSION' -and $session[1] -ceq '1') 'Bootstrap protocol is invalid.'
-    $token = $session[2]
-    Check-Resident ($token -cmatch '^[0-9a-f]{32}$') 'Bootstrap token is invalid.'
-    Check-Resident ($session[3] -cmatch '^(?:[0-9A-F]{2})+$') 'Bootstrap path encoding is invalid.'
-    $pathBytes = [byte[]]::new($session[3].Length / 2)
-    for ($index = 0; $index -lt $pathBytes.Length; $index++) {
-        $pathBytes[$index] = [byte]::Parse($session[3].Substring(2 * $index, 2), [Globalization.NumberStyles]::HexNumber, [Globalization.CultureInfo]::InvariantCulture)
-    }
-    $dataPath = [Text.UTF8Encoding]::new($false, $true).GetString($pathBytes)
-    $expectedDataPath = Join-Path $scratch ('Parallax-RAM-Page-' + $token + '.dat')
-    Check-Resident ($dataPath -ceq $expectedDataPath) 'Bootstrap path escapes the owned scratch session.'
+    # The production launcher mints the token with [guid]::NewGuid(); the host
+    # derives every path from it inside TEMP.
+    $token = [Guid]::NewGuid().ToString('N')
+    Check-Resident ($token -cmatch '^[0-9a-f]{32}$') 'Session token is not canonical.'
+    $dataPath = Join-Path $scratch ('Parallax-RAM-Page-' + $token + '.dat')
     $leasePath = [IO.Path]::ChangeExtension($dataPath, '.lease')
     $temporaryPath = [IO.Path]::ChangeExtension($dataPath, '.tmp')
     $sessionPaths = @($dataPath, $leasePath, $temporaryPath)
-    foreach ($path in $sessionPaths) { Check-Resident (-not [IO.File]::Exists($path)) 'Bootstrap unexpectedly wrote a session file.' }
+    foreach ($path in $sessionPaths) { Check-Resident (-not [IO.File]::Exists($path)) 'A session file already exists.' }
     $initialEpoch = Get-Epoch
     $lastRenewedEpoch = $initialEpoch
     Write-Lease $leasePath $token $initialEpoch
@@ -213,5 +206,5 @@ finally {
     $result.assertions = $script:checks
     [IO.File]::WriteAllText($resultPath, ($result | ConvertTo-Json), [Text.Encoding]::UTF8)
 }
-Write-Output ('PASS: ' + $script:checks + ' end-to-end resident assertions; one hidden host, successive valid atomic native frames, five-second renewal beyond the initial lease, self-exit within one interval of lease removal (' + $result.secondsToStopAfterLeaseRemoval + ' s), and own-session cleanup. No sampled totals or paging-file names retained; Rainmeter unload is covered by Test-RAMPageLifecycle.ps1.')
+Write-Output ('PASS: ' + $script:checks + ' end-to-end resident assertions; one hidden host, successive valid atomic native frames, five-second renewal beyond the initial lease, self-exit within one interval of lease removal (' + $result.secondsToStopAfterLeaseRemoval + ' s), and own-session cleanup. No sampled totals or paging-file names retained; Rainmeter unload is covered by Test-HostLifecycle.ps1.')
 Write-Output ('Evidence: ' + $resultPath)

@@ -253,7 +253,7 @@ foreach ($spec in $caseSpecs) {
             $infoFixture = ''
             $copiedMeasures = $copiedSources['@Resources\Modules\RAM\Measures.inc']
             $pageFixture = $pageFixtures[($caseIndex-1)%6]
-            foreach ($helper in 'Bootstrap','Launcher') {
+            foreach ($helper in @('Launcher')) {
                 $pattern = '(?ms)^\[MeasureRAMPage' + $helper + '\]\r?\n.*?(?=^\[|\z)'
                 if ([regex]::Matches($copiedMeasures,$pattern).Count -ne 1) { throw "Expected one PAGE $helper section." }
                 $replacement = "[MeasureRAMPage$helper]`nMeasure=Calc`nFormula=0`nUpdateDivider=-1`n`n"
@@ -303,7 +303,7 @@ foreach ($spec in $caseSpecs) {
                 }
             }
             if ($FixtureOnly -and $copiedMeasures -match '(?im)^Plugin=(RunCommand|UsageMonitor)\s*$') { throw 'Focused fixtures must contain no inventory/PAGE helper or process category worker.' }
-            if ($entry -match '!CommandMeasure MeasureRAMPage(?:View "Start\(\)"|Bootstrap|Launcher)') { throw 'Copied entry must not start a PAGE helper.' }
+            if ($entry -match '!CommandMeasure MeasureRAMPage(?:View "Start\(\)"|Launcher)') { throw 'Copied entry must not start a PAGE helper.' }
             Write-RunText (Join-Path $caseRoot '@Resources\Modules\RAM\Measures.inc') $copiedMeasures
             $entry += "`n[MeasureRAMNativeSmoke]`nMeasure=Script`nScriptFile=$harnessPath`nResultPath=$resultPath`nProgressPath=$progressPath`nExpectedWidth=$columnWidth`nExpectedColumns=$columns`nExpectedScale=$scale`nExpectedDataBarThickness=$barThickness`nExpectedGroups=$($spec.Groups)`nExpectedProcesses=$expectedProcesses`nProcessMode=$processMode`nMeterNames=$($meterNames -join '|')`nHoverAction=$($hoverActions['MouseOverAction'])`nLeaveAction=$($hoverActions['MouseLeaveAction'])`nInfoMode=$infoMode`nInfoFixture=$infoFixture`nModelTestsPath=$modelTestsPath`nProcessModelTestsPath=$processModelTestsPath`nSettingsConfig=$caseName\RAM\Settings`nUpdateDivider=1`n"
             $entry += "PageFixture=$pageFixture`nPageToken=$pageToken`nPageNow=$pageNow`nPageModelTestsPath=$pageModelTestsPath`n"

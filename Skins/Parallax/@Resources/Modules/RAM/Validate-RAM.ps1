@@ -81,8 +81,8 @@ Assert-RAM ($tooltipSections.Count -eq 0) "RAM sections must not declare tooltip
 foreach ($name in 'MeasureRAMPageUsed', 'MeasureRAMPageTotal') {
     Assert-RAM (-not $measures.ContainsKey($name)) 'PAGE must not retain native commit-accounting measures.'
 }
-foreach ($name in 'MeasureRAMPageBootstrap', 'MeasureRAMPageLauncher') {
-    Assert-RAM ($measures[$name].Plugin -eq 'RunCommand' -and $measures[$name].State -eq 'Hide') 'PAGE setup and host launcher must use hidden bundled RunCommand.'
+foreach ($name in @('MeasureRAMPageLauncher')) {
+    Assert-RAM ($measures[$name].Plugin -eq 'RunCommand' -and $measures[$name].State -eq 'Hide') 'The PAGE host launcher must use hidden bundled RunCommand.'
     Assert-RAM ($measures[$name].UpdateDivider -eq '1' -and $measures[$name].Parameter -eq '') 'PAGE helpers must await the controller rather than execute polling commands.'
     Assert-RAM (-not $measures[$name].ContainsKey('FinishAction')) 'PAGE helper completion must not relaunch a polling process.'
     # A RunCommand child is polled by a 1 ms-timeout plugin thread for as long
@@ -90,9 +90,14 @@ foreach ($name in 'MeasureRAMPageBootstrap', 'MeasureRAMPageLauncher') {
     Assert-RAM ([int]$measures[$name].Timeout -gt 0 -and [int]$measures[$name].Timeout -le 15000) "$name must have a bounded timeout."
 }
 Assert-RAM (-not $measures.ContainsKey('MeasureRAMPageHost')) 'The resident PAGE host must run detached, not as a RunCommand child.'
+# One PowerShell launch and one compile per load: the launcher mints the
+# session itself, so no compiling bootstrap remains.
+Assert-RAM (-not $measures.ContainsKey('MeasureRAMPageBootstrap')) 'No separate PAGE session bootstrap may remain.'
 $launcherSource = Get-Content -LiteralPath (Join-Path $PSScriptRoot 'PageFile.lua') -Raw
 Assert-RAM ($launcherSource -match "Start-Process -FilePath \(\[IO\.Path\]::Combine\(\`$PSHOME,'powershell\.exe'\)\)" -and $launcherSource.Contains("-WindowStyle Hidden -Command '+[char]34+`$h+[char]34") -and $launcherSource.Contains('-WorkingDirectory $t -WindowStyle Hidden -PassThru')) 'The launcher must start the host hidden, outside the skin folder.'
-Assert-RAM ($launcherSource.Contains("-lt 10000") -and $launcherSource.Contains("RAM_PAGE_STARTED")) 'The launcher must wait a bounded time and report the started host.'
+Assert-RAM ($launcherSource.Contains("-lt 10000") -and $launcherSource.Contains("'RAM_PAGE_SESSION|1|'+`$k+'|'")) 'The launcher must wait a bounded time and report the started host session.'
+Assert-RAM ($launcherSource.Contains("[guid]::NewGuid().ToString('N')") -and $launcherSource.Contains("'CreateNew','Write','Read'") -and $launcherSource -notmatch 'CreateSession') 'The launcher must mint a GUID session with an exclusive lease.'
+Assert-RAM ([regex]::Matches($launcherSource, 'Add-Type').Count -eq 1 -and $launcherSource.Contains("Add-Type -TypeDefinition ([IO.File]::ReadAllText('@S@'))")) 'Only the detached host may compile PageFileHost.cs.txt.'
 Assert-RAM ($measures.MeasureRAMPageView.ScriptFile -eq '#@#Modules\RAM\PageFile.lua' -and $measures.MeasureRAMPageView.UpdateDivider -eq '1') 'Missing paging-file cache and lifecycle controller.'
 Assert-RAM ($meters.MeterRAMPercent.Percentual -eq '1') 'Percentage must use native normalization.'
 foreach ($name in 'MeterRAMPercent', 'MeterRAMBar', 'MeterRAMHistory') {

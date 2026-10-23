@@ -7,6 +7,16 @@
 [Variables]
 MediaVisualizerOverlayText=Capture paused
 MediaVisualizerOverlayColor=#MutedColor#
+; The capture lease joins the Parallax\Idle input-idle coordinator 100 ms
+; after each load (Media.ini appends this to OnRefreshAction): after
+; Rainmeter's startup walk and after this reload's own first update
+; (docs/ARCHITECTURE.md, input-idle coordinator). Until the coordinator
+; broadcasts, the idle state reads unsynced and nothing parks.
+ParallaxIdleJoinAction=[!Delay 100][!UpdateMeasureGroup ParallaxIdleJoin]
+ParallaxIdleAway=0
+ParallaxIdlePaused=0
+ParallaxIdleSync=0
+ParallaxIdleBeat=0
 
 ; The sensitivity ticks, from the Audio settings value as in the live drawer.
 [MeasureMediaDrawerDbMid]
@@ -19,12 +29,15 @@ Measure=Calc
 Formula=(-#VisualizerSensitivityDb#)
 UpdateDivider=-1
 
-; The capture lease (Modules\Media\CaptureLease.lua) owns this state; its
-; Unpark asks MediaOptions.ApplyLease to write 0 and reload.
+; The capture lease (Modules\Media\CaptureLease.lua) owns this state: it
+; resumes the capture on input, playback or this plot's click target, through
+; MediaOptions.ApplyLease, and fails live if the idle coordinator is missing
+; or silent. About once a second, plus each idle broadcast.
 [MeasureMediaCaptureLease]
 Measure=Script
 ScriptFile=#@#Modules\Media\CaptureLease.lua
-UpdateDivider=-1
+Group=ParallaxIdleHook | ParallaxIdleJoin
+UpdateDivider=#MediaLegacyDivider#
 
 [MeterVisualizerDeviceName]
 Meter=String

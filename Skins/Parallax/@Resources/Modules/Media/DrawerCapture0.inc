@@ -3,7 +3,19 @@
 ; the AudioLevel capture (with its silent render stream, which keeps the
 ; Windows audio engine running until the measure is unloaded) and Win7Audio.
 ; Its sections are the open drawer's live content before the 2026-10-23
-; split, unchanged and in the same order.
+; split, unchanged and in the same order, plus the capture lease.
+
+[Variables]
+; The capture lease joins the Parallax\Idle input-idle coordinator 100 ms
+; after each load (Media.ini appends this to OnRefreshAction): after
+; Rainmeter's startup walk and after this reload's own first update
+; (docs/ARCHITECTURE.md, input-idle coordinator). Until the coordinator
+; broadcasts, the idle state reads unsynced and nothing parks.
+ParallaxIdleJoinAction=[!Delay 100][!UpdateMeasureGroup ParallaxIdleJoin]
+ParallaxIdleAway=0
+ParallaxIdlePaused=0
+ParallaxIdleSync=0
+ParallaxIdleBeat=0
 
 [MediaVisualizerCaptureParentInclude]
 @Include22=#@#Modules\Visualizer\Capture.inc
@@ -20,6 +32,16 @@ Measure=Calc
 Formula=1
 UpdateDivider=-1
 OnUpdateAction=[!CommandMeasure MeasureVisualizerColor "Apply(false)"]
+
+; The capture lease (Modules\Media\CaptureLease.lua): parks this capture after
+; 2 minutes of silence while you are away and resumes it on input, playback
+; or a click, through MediaOptions.ApplyLease. About once a second (the
+; provider cadence), plus each idle broadcast and the delayed join.
+[MeasureMediaCaptureLease]
+Measure=Script
+ScriptFile=#@#Modules\Media\CaptureLease.lua
+Group=ParallaxIdleHook | ParallaxIdleJoin
+UpdateDivider=#MediaLegacyDivider#
 
 ; Both output-row texts are event-driven (UpdateDivider=-1): Audio.inc's
 ; measures update them and repaint when what they show changes, so they keep

@@ -1365,8 +1365,10 @@ class SkinContractTests(unittest.TestCase):
 
     def test_lifecycle_is_once_on_view_load_and_absent_from_settings(self):
         for config in ('Media.ini', 'Setup.ini', 'Queue/Queue.ini'):
-            sections, _, _, _ = read_config(config)
-            self.assertEqual(sections['Rainmeter']['OnRefreshAction'],
+            sections, _, _, expand = read_config(config)
+            # Media.ini also appends the capture lease's delayed idle join,
+            # empty unless the open drawer's lease is loaded.
+            self.assertEqual(expand(sections['Rainmeter']['OnRefreshAction']),
                              '[!CommandMeasure MeasureMediaLifecycle "ResumeProviders()"]')
             self.assertEqual(sections['MeasureMediaLifecycle']['UpdateDivider'], '-1')
             self.assert_inert_resume_hosts(sections)
@@ -1491,8 +1493,9 @@ class SkinContractTests(unittest.TestCase):
             if name == 'Settings/Settings.ini':
                 self.assertNotIn('OnRefreshAction', config)
             else:
+                join = '#ParallaxIdleJoinAction#' if name == 'Media.ini' else ''
                 self.assertEqual(config['OnRefreshAction'],
-                                 '[!CommandMeasure MeasureMediaLifecycle "ResumeProviders()"]')
+                                 '[!CommandMeasure MeasureMediaLifecycle "ResumeProviders()"]' + join)
             if name == 'Queue/Queue.ini':
                 for section_name, key in allowed:
                     self.assertIn(key, sections[section_name])
@@ -2499,6 +2502,42 @@ class SkinContractTests(unittest.TestCase):
                         with self.subTest(width=width,scale=scale,columns=columns,animation=animation):
                             self.assertEqual(states[1],states[0],'Paused drawer keeps the live geometry')
                             self.assertEqual(states[2],states[0],'Deferred drawer keeps the live geometry')
+
+    def test_capture_lease_is_wired_into_every_open_drawer_variant(self):
+        # The lease (Modules\Media\CaptureLease.lua) runs in every open-drawer
+        # variant at the provider cadence, hears the idle coordinator's hook
+        # broadcast and joins it 100 ms after each load, after Rainmeter's
+        # startup walk. A collapsed, hidden or Setup view has neither the lease
+        # nor the join.
+        join='[!Delay 100][!UpdateMeasureGroup ParallaxIdleJoin]'
+        resume='[!CommandMeasure MeasureMediaLifecycle "ResumeProviders()"]'
+        for drawer in DRAWER_STATES:
+            for capture in (0,1,2):
+                with self.subTest(drawer=drawer,capture=capture):
+                    sections,variables,_,expand=read_config('Media.ini',drawer=drawer,capture=capture)
+                    action=expand(sections['Rainmeter']['OnRefreshAction'])
+                    if drawer!=2:
+                        self.assertEqual(action,resume)
+                        self.assertNotIn('MeasureMediaCaptureLease',sections)
+                        continue
+                    self.assertEqual(action,resume+join,'Resume first, then the delayed join')
+                    lease=sections['MeasureMediaCaptureLease']
+                    self.assertEqual(lease['Measure'],'Script')
+                    self.assertEqual(lease['ScriptFile'],'#@#Modules\\Media\\CaptureLease.lua')
+                    self.assertEqual([group.strip() for group in lease['Group'].split('|')],['ParallaxIdleHook','ParallaxIdleJoin'])
+                    self.assertEqual(lease['UpdateDivider'],'#MediaLegacyDivider#')
+                    self.assertEqual(value_of(expand)('#MediaLegacyDivider#')*value_of(expand)('#MediaTickInterval#'),1000,
+                                     'About once a second')
+                    for key in ('ParallaxIdleAway','ParallaxIdlePaused','ParallaxIdleSync','ParallaxIdleBeat'):
+                        self.assertEqual(variables[key],'0',f'{key} starts unsynced at each load')
+                    names=list(sections)
+                    if capture==0:
+                        # After the capture state measure, so each pass reads this tick's state.
+                        self.assertGreater(names.index('MeasureMediaCaptureLease'),names.index('MeasureVisualizerState'))
+        for config in ('Setup.ini','Queue/Queue.ini'):
+            sections,_,_,expand=read_config(config,drawer=2)
+            self.assertEqual(expand(sections['Rainmeter']['OnRefreshAction']),resume)
+            self.assertNotIn('MeasureMediaCaptureLease',sections)
 
     def test_spectrum_tab_shares_the_gear_column_and_flips_its_chevron(self):
         for drawer in (1,2):

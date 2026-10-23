@@ -22,12 +22,23 @@ MediaVisualizerOverlayClip=2
 MediaVisualizerAxisTopText=
 MediaVisualizerAxisLowText=
 MediaVisualizerAxisHighText=
+; The capture lease joins the Parallax\Idle input-idle coordinator 100 ms
+; after each load (Media.ini appends this to OnRefreshAction): after
+; Rainmeter's startup walk and after this reload's own first update
+; (docs/ARCHITECTURE.md, input-idle coordinator). Until the coordinator
+; broadcasts, the idle state reads unsynced and nothing parks.
+ParallaxIdleJoinAction=[!Delay 100][!UpdateMeasureGroup ParallaxIdleJoin]
+ParallaxIdleAway=0
+ParallaxIdlePaused=0
+ParallaxIdleSync=0
+ParallaxIdleBeat=0
 
 ; The capture lease (Modules\Media\CaptureLease.lua) owns this state.
 [MeasureMediaCaptureLease]
 Measure=Script
 ScriptFile=#@#Modules\Media\CaptureLease.lua
-UpdateDivider=-1
+Group=ParallaxIdleHook | ParallaxIdleJoin
+UpdateDivider=#MediaLegacyDivider#
 
 [MeterVisualizerDeviceName]
 Meter=String

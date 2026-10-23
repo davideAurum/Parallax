@@ -16,10 +16,21 @@
 # build passed with -BaselineSkinRoot (b0f1aba); no AudioLevel parent in
 # variants 1 and 2; an active render session for the Rainmeter process in
 # variant 0 and none in variant 1 (IAudioSessionManager2); clean logs.
+#
+# Stage B (lease): CaptureLeaseSuite.luatest inside Rainmeter's own Lua, then
+# Media.ini with the real coordinator (tick 500 ms, away 5 s, heartbeat 2 s,
+# test idle file) and shortened lease hooks (quiet 3 s, stale 8 s). Going away
+# parks within a tick; input, the paused plot's click action and a
+# WebNowPlaying fixture reporting Playing each resume it; a coordinator that
+# stops beating fails live once its beat is 8 s old; unloading the coordinator
+# resumes at once and the next live load re-joins it. Each transition is one
+# Media refresh, the render session goes and comes back with the capture, and
+# the log stays clean. Steps slowed by Windows display re-detection (which
+# stalls Rainmeter's timers) are reported as late, not failed.
 [CmdletBinding()]
 param(
     [string]$RainmeterPath = (Join-Path $env:ProgramFiles 'Rainmeter\Rainmeter.exe'),
-    [ValidateSet('A')][string[]]$Stage = @('A'),
+    [ValidateSet('A', 'B')][string[]]$Stage = @('A', 'B'),
     # A Skins\Parallax tree of the build before the variant split (b0f1aba),
     # for the pixel-identity check of the live variant. Optional.
     [string]$BaselineSkinRoot = '',
@@ -38,6 +49,7 @@ if ($BaselineSkinRoot -and -not (Test-Path -LiteralPath (Join-Path $BaselineSkin
 $encoding = [Text.UTF8Encoding]::new($false)
 $invariant = [Globalization.CultureInfo]::InvariantCulture
 $failures = 0
+$late = 0
 $checks = 0
 function Check([bool]$Condition, [string]$Message) {
     $script:checks++
@@ -327,7 +339,7 @@ function Wait-Loaded($Process, [string[]]$Reports) {
     return [math]::Round($clock.Elapsed.TotalSeconds, 1)
 }
 function Find-Window($Windows, [string]$Config) {
-    @($Windows | Where-Object { $_.Title -eq $Config -or $_.Title -like "$Config *" -or $_.Title -like "*\$Config\Media.ini*" })
+    @($Windows | Where-Object { $_.Title -eq $Config -or $_.Title -like "$Config *" -or $_.Title -like "$Config\*.ini*" -or $_.Title -like "*\$Config\*.ini*" })
 }
 function Save-Capture($Window, [string]$Path) {
     $bitmap = [Drawing.Bitmap]::new($Window.Width, $Window.Height, [Drawing.Imaging.PixelFormat]::Format32bppArgb)
@@ -467,5 +479,237 @@ if ('A' -in $Stage) {
     }
 }
 
-Write-Output "$checks checks, $failures failures."
+# Stage B (lease): Media.ini live drawer plus the staged coordinator (tick
+# 500 ms, away 5 s, heartbeat 2 s, test idle file) and lease hooks (quiet 3 s,
+# stale 8 s). A driver skin in the same isolated instance carries out each
+# step this runner asks for: idle-file writes, the WebNowPlaying fixture
+# state, the paused plot's own click action, pausing the coordinator's script
+# (a coordinator that stops beating) and unloading the coordinator.
+$driverLua = @'
+-- Test driver: executes numbered commands from cmd.txt in this isolated
+-- instance and records each with os.clock() in driver.log.
+local seen, cmdPath, logPath, idlePath
+local function log(text)
+    local file = assert(io.open(logPath, 'ab'))
+    file:write(string.format('%.3f|%s\n', os.clock(), text))
+    file:close()
+end
+function Initialize()
+    seen = 0
+    cmdPath = SKIN:GetVariable('CommandFile')
+    logPath = SKIN:GetVariable('DriverLog')
+    idlePath = SKIN:GetVariable('IdleFile')
+end
+function Update()
+    local file = io.open(cmdPath, 'rb')
+    if not file then return 0 end
+    local text = file:read('*a') or ''
+    file:close()
+    local seq, command, argument = text:match('^(%d+) (%S+) ?(%S*)')
+    seq = tonumber(seq)
+    if not seq or seq <= seen then return 0 end
+    seen = seq
+    if command == 'idle' then
+        local idle = assert(io.open(idlePath, 'wb')); idle:write(argument); idle:close()
+    elseif command == 'wnp' then
+        SKIN:Bang('!SetVariable', 'FixtureState', argument, 'Parallax\\Media')
+    elseif command == 'click' then
+        SKIN:Bang('!CommandMeasure', 'MeasureMediaCaptureLease', "Unpark('click')", 'Parallax\\Media')
+    elseif command == 'hang' then
+        -- A coordinator that neither beats nor answers a sync request.
+        SKIN:Bang('!PauseMeasure', 'MeasureParallaxIdle', 'Parallax\\Idle')
+        SKIN:Bang('!PauseMeasure', 'MeasureParallaxIdleSyncRequest', 'Parallax\\Idle')
+    elseif command == 'unhang' then
+        SKIN:Bang('!UnpauseMeasure', 'MeasureParallaxIdleSyncRequest', 'Parallax\\Idle')
+        SKIN:Bang('!UnpauseMeasure', 'MeasureParallaxIdle', 'Parallax\\Idle')
+    elseif command == 'unload' then
+        SKIN:Bang('!DeactivateConfig', 'Parallax\\Idle')
+    elseif command == 'quit' then
+        log(seq .. '|quit')
+        SKIN:Bang('!Quit')
+        return 0
+    end
+    log(seq .. '|' .. command .. '|' .. argument)
+    return seq
+end
+'@
+
+function Get-CaptureState([string]$Path) {
+    # Share read and write: a plain ReadAllText denies writers while open, and
+    # Rainmeter's !WriteKeyValue then fails (seen in an earlier run).
+    try {
+        $stream = [IO.FileStream]::new($Path, [IO.FileMode]::Open, [IO.FileAccess]::Read, [IO.FileShare]::ReadWrite -bor [IO.FileShare]::Delete)
+        try { $text = [IO.StreamReader]::new($stream).ReadToEnd() } finally { $stream.Dispose() }
+    } catch { return $null }
+    $match = [regex]::Match($text, '(?m)^MediaDrawerCapture=(\d)')
+    if ($match.Success) { return $match.Groups[1].Value }
+    return $null
+}
+function Get-MediaRefreshes([string]$Root) {
+    $log = "$Root\Rainmeter.log"
+    if (-not (Test-Path -LiteralPath $log)) { return 0 }
+    try { @(Get-Content -LiteralPath $log | Where-Object { $_ -match 'Parallax\\Media\\Media\.ini: Refreshing skin' }).Count } catch { 0 }
+}
+# Windows display re-detection (monitors switching inputs or links) makes
+# Rainmeter re-lay out every window and can stall its timers for seconds;
+# Rainmeter logs each event. Reported beside a step so a latency miss can be
+# told apart from a lease fault.
+function Get-DisplayEvents([string]$Root) {
+    $log = "$Root\Rainmeter.log"
+    if (-not (Test-Path -LiteralPath $log)) { return 0 }
+    try { @(Get-Content -LiteralPath $log | Where-Object { $_ -match 'System: (Display settings|Work area) changed' }).Count } catch { 0 }
+}
+
+if ('B' -in $Stage) {
+    Write-Output '--- Stage B: CaptureLeaseSuite inside Rainmeter'
+    $root = New-Root
+    $suiteRoot = Join-Path $root 'Skins\LeaseSuite'
+    $null = New-Item -ItemType Directory -Path $suiteRoot
+    Copy-Item -LiteralPath (Join-Path $PSScriptRoot 'CaptureLeaseSuite.luatest') -Destination "$root\CaptureLeaseSuite.lua"
+    Copy-Item -LiteralPath (Join-Path $PSScriptRoot '..\CaptureLease.lua') -Destination "$root\CaptureLease.lua"
+    Copy-Item -LiteralPath (Join-Path $skinSource '@Resources\Idle\Link.lua') -Destination "$root\Link.lua"
+    Put $root "$root\Harness.lua" @"
+function Initialize() end
+function Update() return 0 end
+function Run()
+    local ok, report = pcall(function()
+        return dofile([=[$root\CaptureLeaseSuite.lua]=]).Run([=[$root\CaptureLease.lua]=], [=[$root\Link.lua]=])
+    end)
+    local file = assert(io.open([=[$root\suite.txt]=], 'wb'))
+    file:write(ok and report or ('FAIL: ' .. tostring(report)))
+    file:close()
+    SKIN:Bang('!Quit')
+end
+"@
+    Put $root "$suiteRoot\Suite.ini" "[Rainmeter]`r`nUpdate=-1`r`nOnRefreshAction=[!CommandMeasure MeasureHarness ""Run()""]`r`n`r`n[MeasureHarness]`r`nMeasure=Script`r`nScriptFile=$root\Harness.lua`r`n`r`n[MeterBounds]`r`nMeter=Image`r`nW=1`r`nH=1`r`nSolidColor=0,0,0,1`r`n"
+    Put $root "$root\Rainmeter.ini" "[Rainmeter]`nSkinPath=$root\Skins\`nDisableVersionCheck=1`nDisableAutoUpdate=1`nLogging=1`nLanguage=1033`nTrayIcon=0`n`n[LeaseSuite]`nActive=1`nWindowX=-20000`nWindowY=-20000`n"
+    Put $root "$root\Rainmeter.data" "[Rainmeter]`n"
+    $process = $null
+    try {
+        $process = Start-Run $root
+        Check ($process.WaitForExit(60000)) 'The suite run finished'
+        $report = if (Test-Path -LiteralPath "$root\suite.txt") { [IO.File]::ReadAllText("$root\suite.txt") } else { 'FAIL: no report' }
+        Write-Output ("     " + ($report -split "`n")[0])
+        Check ($report -match '^PASS:') 'CaptureLeaseSuite passes in Rainmeter''s Lua'
+        $issues = @(Get-LogIssues $root)
+        Check ($issues.Count -eq 0) 'Suite run logged no error or warning'
+    } finally { Stop-Run $process }
+
+    Write-Output '--- Stage B: park and resume'
+    $root = New-Root
+    $layout = [pscustomobject]@{ Name = 'w220-s1-c2'; Width = '220'; Scale = '1'; Columns = '2' }
+    $target = Copy-Skin $root $skinSource 'Parallax' $layout
+    $idleIni = Join-Path $target 'Idle\Idle.ini'
+    Set-Key $idleIni 'ParallaxIdleTick' '500'
+    Set-Key $idleIni 'ParallaxIdleTestAwaySeconds' '5'
+    Set-Key $idleIni 'ParallaxIdleTestHeartbeatTicks' '4'
+    Set-Key $idleIni 'ParallaxIdleTestFile' "$root\idle.txt"
+    $entry = Join-Path $target 'Media\Media.ini'
+    $text = [IO.File]::ReadAllText($entry)
+    $text = [regex]::Replace($text, '(?m)^\[Variables\]\r?$', "[Variables]`r`nMediaLeaseTestQuietSeconds=3`r`nMediaLeaseTestStaleSeconds=8")
+    [IO.File]::WriteAllText($entry, $text, $encoding)
+    Add-Probe $root $entry "$root\report.txt"
+    Put $root "$root\idle.txt" '0'
+    Put $root "$root\Driver.lua" $driverLua
+    Put $root "$target\ADriver\Driver.ini" "[Rainmeter]`r`nUpdate=100`r`n`r`n[Variables]`r`nCommandFile=$root\cmd.txt`r`nDriverLog=$root\driver.log`r`nIdleFile=$root\idle.txt`r`n`r`n[MeasureDriver]`r`nMeasure=Script`r`nScriptFile=$root\Driver.lua`r`n`r`n[MeterBounds]`r`nMeter=Image`r`nW=1`r`nH=1`r`nSolidColor=0,0,0,1`r`nUpdateDivider=-1`r`n"
+    Write-Settings $root @('Parallax\Media', 'Parallax\ADriver')
+    $statePath = Join-Path $target '@Resources\Modules\Media\CaptureState.inc'
+    $script:sequence = 0
+    function Send([string]$Command) {
+        $script:sequence++
+        [IO.File]::WriteAllText("$root\cmd.txt", "$($script:sequence) $Command", $encoding)
+        return [Diagnostics.Stopwatch]::StartNew()
+    }
+    function Wait-State([string]$Want, [int]$Milliseconds) {
+        $clock = [Diagnostics.Stopwatch]::StartNew()
+        while ($clock.ElapsedMilliseconds -lt $Milliseconds) {
+            if ((Get-CaptureState $statePath) -eq $Want) { return $clock.ElapsedMilliseconds }
+            Start-Sleep -Milliseconds 50
+        }
+        return -1
+    }
+    function Wait-Refreshes([int]$Count, [int]$Milliseconds) {
+        $clock = [Diagnostics.Stopwatch]::StartNew()
+        while ($clock.ElapsedMilliseconds -lt $Milliseconds) {
+            if ((Get-MediaRefreshes $root) -ge $Count) { return $true }
+            Start-Sleep -Milliseconds 100
+        }
+        return $false
+    }
+    function Get-Sessions { @([ParallaxLeaseNative]::SessionStates([uint32]$process.Id)) }
+    # One transition: the command, the state it must reach, the latency bound,
+    # exactly one Media refresh, and the capture's render session after it.
+    function Step([string]$Label, [string]$Command, [string]$Want, [int]$BoundMs) {
+        $before = Get-MediaRefreshes $root
+        $displayBefore = Get-DisplayEvents $root
+        $clock = if ($Command) { Send $Command } else { [Diagnostics.Stopwatch]::StartNew() }
+        $elapsed = Wait-State $Want ([math]::Max($BoundMs * 3, 15000))
+        $total = $clock.ElapsedMilliseconds
+        $refreshed = Wait-Refreshes ($before + 1) 10000
+        Start-Sleep -Milliseconds 2500
+        $after = Get-MediaRefreshes $root
+        $sessions = Get-Sessions
+        $active = @($sessions | Where-Object { $_ -eq 1 }).Count
+        $display = (Get-DisplayEvents $root) - $displayBefore
+        $note = if ($display) { "; $display Windows display re-detection events during this step" } else { '' }
+        Write-Output ("     {0}: state {1} after {2} ms; Media refreshes {3} -> {4}; active render sessions {5}{6}" -f $Label, $Want, $total, $before, $after, $active, $note)
+        if ($elapsed -ge 0 -and $total -gt $BoundMs -and $display -gt 0) {
+            # Reached, but while Windows display re-detection stalled Rainmeter.
+            $script:late++
+            Write-Output "LATE ${Label}: capture state $Want after $total ms (bound $BoundMs ms) during $display display re-detection events"
+        } else {
+            Check ($elapsed -ge 0 -and $total -le $BoundMs) "${Label}: capture state $Want within $BoundMs ms"
+        }
+        Check ($refreshed -and $after -eq $before + 1) "${Label}: exactly one Media refresh"
+        if ($Want -eq '1') { Check ($active -eq 0) "${Label}: no active render session while paused" }
+        else { Check ($active -ge 1) "${Label}: the live capture's render session is back" }
+    }
+    $process = $null
+    try {
+        $process = Start-Run $root
+        $null = Wait-Loaded $process @("$root\report.txt")
+        Check ((Get-CaptureState $statePath) -eq '0') 'Starts live'
+        Check ((@(Get-Sessions | Where-Object { $_ -eq 1 })).Count -ge 1) 'Live capture holds a render session'
+        $windows = @([ParallaxLeaseNative]::Of([uint32]$process.Id))
+        Check (@(Find-Window $windows 'Parallax\Idle').Count -eq 1) "The lease joined: the coordinator is loaded (windows: $(($windows | ForEach-Object Title) -join ' | '))"
+        # Quiet (3 s) has long passed since the load, so going away parks at
+        # the coordinator's next tick.
+        Step 'away (idle 10)' 'idle 10' '1' 1500
+        $window = @(Find-Window ([ParallaxLeaseNative]::Of([uint32]$process.Id)) 'Parallax\Media')
+        if ($window.Count -eq 1) {
+            $bitmap = Save-Capture $window[0] "$root\B-parked.png"; $bitmap.Dispose()
+            Write-Output "     capture: $root\B-parked.png"
+        }
+        Step 'input (idle 0)' 'idle 0' '0' 2000
+        Step 'away again' 'idle 10' '1' 6000
+        Step 'click on the paused plot' 'click' '0' 1500
+        # Still away: the live drawer parks again after its quiet time.
+        Step 'parks again while away' '' '1' 8000
+        Step 'WebNowPlaying reports Playing' 'wnp 1' '0' 3000
+        $null = Send 'wnp 2'
+        Step 'parks again after playback stops' '' '1' 9000
+        # A coordinator that stops beating: fail live once the beat is 8 s old.
+        Step 'coordinator stops beating' 'hang' '0' 11000
+        $null = Send 'idle 0'
+        Start-Sleep -Milliseconds 300
+        $null = Send 'unhang'
+        Start-Sleep -Seconds 3
+        Check ((Get-CaptureState $statePath) -eq '0') 'Stays live after the coordinator recovers with input'
+        $null = Send 'idle 10'
+        Step 'parks with the coordinator back' '' '1' 9000
+        # Unloading the coordinator: its OnCloseAction broadcasts away=0.
+        Step 'coordinator unloaded' 'unload' '0' 2500
+        Start-Sleep -Seconds 3
+        $windows = @([ParallaxLeaseNative]::Of([uint32]$process.Id))
+        Check (@(Find-Window $windows 'Parallax\Idle').Count -eq 1) "The live drawer re-joined: the coordinator is loaded again (windows: $(($windows | ForEach-Object Title) -join ' | '))"
+        $null = Send 'quit'
+        $null = $process.WaitForExit(10000)
+        $issues = @(Get-LogIssues $root)
+        $issues | Select-Object -First 8 | ForEach-Object { Write-Output "     log: $_" }
+        Check ($issues.Count -eq 0) 'Rainmeter logged no error or warning'
+    } finally { Stop-Run $process }
+    Write-Output "     evidence: $root"
+}
+
+Write-Output "$checks checks, $failures failures, $late late step(s) during Windows display re-detection."
 if ($failures) { throw 'Media capture-lease native checks failed.' }

@@ -111,6 +111,20 @@ $metricGap = @($trials | ForEach-Object { if ($_.Build -eq 'p-A') { [pscustomobj
 $metricGapAnalysis = Invoke-ParallaxPerfMatrixAnalysis -Builds $builds -Trials $metricGap -Metrics $metrics -AllFixes @('A', 'B')
 Assert-True ($metricGapAnalysis.Scenarios['suite'].Metrics['OtherCpuPct'].Class -eq 'incomplete: no trials for p-A') 'a metric a plus build did not report is not classified'
 Assert-True ($metricGapAnalysis.Scenarios['suite'].Metrics['TotalCpuPct'].Class -eq 'synergistic') 'the metrics it did report still are'
+# A minus build made with -IncludeDependents holds more than its plus partner:
+# g and m then measure different changes, so no interaction flag.
+$widened = @($builds | ForEach-Object { if ($_.Name -eq 'm-A') { [pscustomobject]@{ Name = 'm-A'; Role = 'minus'; UnitKey = 'A'; Fixes = @('A', 'B') } } else { $_ } })
+$mismatch = Invoke-ParallaxPerfMatrixAnalysis -Builds $widened -Trials $trials -Metrics $metrics -AllFixes @('A', 'B')
+$pairA = $mismatch.Scenarios['suite'].Metrics['TotalCpuPct'].Units | Where-Object Unit -eq 'A'
+$pairB = $mismatch.Scenarios['suite'].Metrics['TotalCpuPct'].Units | Where-Object Unit -eq 'B'
+Assert-True (-not $pairA.Comparable -and $null -eq $pairA.GMinusM -and $pairA.Interacts -eq 'not comparable: plus holds A; minus holds A, B') "a unit whose builds hold different fixes is not compared (got '$($pairA.Interacts)')"
+Assert-True ($pairB.Comparable -and $pairB.Interacts -match 'overlap|synergy|^$') 'its matching neighbour still is'
+$mismatchJson = $mismatch | ConvertTo-Json -Depth 12 | ConvertFrom-Json
+$jsonA = @($mismatchJson.Scenarios.suite.Metrics.TotalCpuPct.Units | Where-Object Unit -eq 'A')[0]
+Assert-True ((@($jsonA.PlusFixes) -join ',') -eq 'A' -and (@($jsonA.MinusFixes) -join ',') -eq 'A,B' -and $jsonA.Comparable -eq $false) 'analysis.json carries both fix lists'
+$mismatchMarkdown = ConvertTo-ParallaxPerfMatrixMarkdown -Analysis $mismatch -CostMetrics $metrics -UnitMetrics $metrics
+$rowA = @($mismatchMarkdown -split "`n" | Where-Object { $_ -like '| A |*' })
+Assert-True ($rowA.Count -eq 1 -and $rowA[0] -match '\| plus: A; minus: A, B \|' -and ([regex]::Matches($rowA[0], 'not comparable')).Count -eq 1 -and $rowA[0] -notmatch 'synergy|overlap') "the markdown shows both lists and one note (got: $rowA)"
 $single = Invoke-ParallaxPerfMatrixAnalysis -Builds $builds -Trials @($trials | Where-Object { $_.TotalCpuPct -eq [math]::Round($_.TotalCpuPct, 0) }) -Metrics $metrics -AllFixes @('A', 'B')
 Assert-True ($single.Scenarios['suite'].Metrics['TotalCpuPct'].Class -like 'undetermined: fewer than 2*') 'single trials cannot be classified'
 $overlap = @($builds) + @([pscustomobject]@{ Name = 'p-AB'; Role = 'plus'; UnitKey = 'A+B'; Fixes = @('A', 'B') })
@@ -211,6 +225,16 @@ try {
     Put-Text '..\b\t-p-A\stray.txt' 'dirty'
     Assert-Throws { & $matrix @common -MatrixId 'fx3' -MatrixDir (Join-Path $fixture 'm3') -DryRun } 't-p-A: working tree is not clean' 'a dirty build is refused'
     Remove-Item -LiteralPath (Join-Path $root 't-p-A\stray.txt') -Force
+    $recordPath = Get-ParallaxPerfBuildRecordPath (Join-Path $root 't-m-B')
+    $recordText = [IO.File]::ReadAllText($recordPath)
+    try {
+        $widenedRecord = $recordText | ConvertFrom-Json
+        $widenedRecord.Fixes = @('A', 'B')
+        [IO.File]::WriteAllText($recordPath, ($widenedRecord | ConvertTo-Json -Depth 8), [Text.UTF8Encoding]::new($false))
+        $warnings = @(& $matrix @common -MatrixId 'fx6' -MatrixDir (Join-Path $fixture 'm6') -DryRun 3>&1 | Where-Object { $_ -is [Management.Automation.WarningRecord] })
+        Assert-True (@($warnings | Where-Object { "$_" -match '^Unit B: t-p-B holds B but t-m-B holds A, B\.' }).Count -eq 1) "a dry run warns about a plus/minus pair with different fixes (got: $($warnings -join ' | '))"
+    }
+    finally { [IO.File]::WriteAllText($recordPath, $recordText, [Text.UTF8Encoding]::new($false)) }
 
     $null = & $matrix @common -MatrixId 'fx' -MatrixDir $folder
     $runs =@((Get-Content -LiteralPath (Join-Path $folder 'matrix-run.json') -Raw | ConvertFrom-Json).Runs)

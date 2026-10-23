@@ -195,7 +195,8 @@ Here s, the pooled trial spread, is the pooled sample standard deviation of ever
 
 **Unit flags.** A unit whose gₖ and mₖ differ by more than 2s is flagged as interacting:
 - "gains more inside all" means synergy;
-- "gains less inside all" means overlap.
+- "gains less inside all" means overlap;
+- "not comparable" means the unit's plus and minus builds hold different fixes, for example one made with `-IncludeRequired` or `-IncludeDependents`. Then gₖ and mₖ measure different changes, so no flag is given. `analysis.json` (`PlusFixes`, `MinusFixes`, `Comparable`) and `analysis.md` show both fix lists, and the matrix warns when it plans such a pair.
 
 **When it does not classify:**
 - **Missing builds or single trials:** the class reads `undetermined` when the baseline, the all build or every plus build is missing, or when no build has two or more trials.
@@ -234,7 +235,7 @@ Here s, the pooled trial spread, is the pooled sample standard deviation of ever
 | --- | --- |
 | `python -I tools/tests/test_merge_utf16.py` | Decoding and refusals, byte-exact merges with mixed endings and big-endian files, conflicts, BOM mismatch. Also cherry-pick and revert conflicts in a scratch repository, modify/delete refusal, non-UTF-16 refusal (15 tests) |
 | `powershell -File tools/tests/Test-PerfBuild.ps1` | Scratch-repository builds: plus with a UTF-16 merge, byte-exact result, scope drops, requires and dependents, revert with a UTF-16 merge, scope digest of tip vs. picks, `-Within`, `+` units, kept and removed failures, text conflict, empty pick, merge commits, `-Force`, path budget (49 assertions) |
-| `powershell -File tools/tests/Test-PerfMatrix.ps1` | Schedule rotation, statistics, all three classes on known data, coverage rules, no class while a plus build lacks trials, markdown. Also a full run loop with a stand-in benchmark (no Rainmeter): stage reuse, collection, resume, analysis, missing scenarios, a plus build whose benchmark wrote no rows, sub-matrices, refusals, including a dry run into a matrix that has run (102 assertions) |
+| `powershell -File tools/tests/Test-PerfMatrix.ps1` | Schedule rotation, statistics, all three classes on known data, coverage rules, no class while a plus build lacks trials, plus/minus pairs with different fixes, markdown. Also a full run loop with a stand-in benchmark (no Rainmeter): stage reuse, collection, resume, analysis, missing scenarios, a plus build whose benchmark wrote no rows, sub-matrices, the mismatched-pair warning, refusals, including a dry run into a matrix that has run (107 assertions) |
 | `powershell -File tools/tests/Test-RepaintRule.ps1` | 27 flagged and not-flagged Lua forms, UTF-16LE/BE and UTF-8 sources with mixed endings, and the validator end to end on a minimal skin (37 assertions) |
 
 ## Not verified

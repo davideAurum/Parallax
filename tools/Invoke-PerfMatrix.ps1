@@ -176,6 +176,14 @@ foreach ($role in 'plus', 'minus') {
     if (@($keys | Select-Object -Unique).Count -ne $keys.Count) { $problems.Add("Two $role builds measure the same unit.") }
 }
 if ($problems.Count) { throw ("Matrix refused:`n  " + ($problems -join "`n  ")) }
+# Plus and minus pair by unit; -IncludeRequired / -IncludeDependents can give
+# them different fixes, and the analysis then marks the unit not comparable.
+foreach ($plusBuild in @($builds | Where-Object Role -eq 'plus')) {
+    $partner = @($builds | Where-Object { $_.Role -eq 'minus' -and $_.UnitKey -eq $plusBuild.UnitKey }) | Select-Object -First 1
+    if ($partner -and ((@($plusBuild.Fixes | Sort-Object) -join ',') -cne (@($partner.Fixes | Sort-Object) -join ','))) {
+        Write-Warning ("Unit {0}: {1} holds {2} but {3} holds {4}. g and m measure different changes; the analysis marks the unit not comparable." -f $plusBuild.UnitKey, $plusBuild.Name, (@($plusBuild.Fixes) -join ', '), $partner.Name, (@($partner.Fixes) -join ', '))
+    }
+}
 
 # The manifest gives the all build's fixes and which unmeasured fixes may count as zero.
 if (-not $Manifest) {

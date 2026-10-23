@@ -190,13 +190,21 @@ function Invoke-ParallaxPerfMatrixAnalysis {
                 $g = if ($p -and $null -ne $baseCost -and $cost.ContainsKey($p.Name)) { $baseCost - $cost[$p.Name] } else { $null }
                 $mk = if ($m -and $null -ne $allCost -and $cost.ContainsKey($m.Name)) { $cost[$m.Name] - $allCost } else { $null }
                 if ($null -ne $g) { $sumG += $g; $gCount++ }
-                $difference = if ($null -ne $g -and $null -ne $mk) { $g - $mk } else { $null }
+                # g_k and m_k compare one change only when both builds hold the
+                # same fixes (-IncludeRequired / -IncludeDependents can widen one).
+                $plusFixes = @(if ($p) { $p.Fixes })
+                $minusFixes = @(if ($m) { $m.Fixes })
+                $comparable = -not ($p -and $m) -or ((@($plusFixes | Sort-Object) -join ',') -ceq (@($minusFixes | Sort-Object) -join ','))
+                $difference = if ($comparable -and $null -ne $g -and $null -ne $mk) { $g - $mk } else { $null }
                 $flag = ''
-                if ($null -ne $difference -and $null -ne $threshold -and [math]::Abs($difference) -gt $threshold) {
+                if (-not $comparable) {
+                    $flag = "not comparable: plus holds $($plusFixes -join ', '); minus holds $($minusFixes -join ', ')"
+                } elseif ($null -ne $difference -and $null -ne $threshold -and [math]::Abs($difference) -gt $threshold) {
                     $flag = if ($difference -lt 0) { 'gains more inside all (synergy)' } else { 'gains less inside all (overlap)' }
                 }
                 $units.Add([pscustomobject][ordered]@{
-                    Unit = $key; Fixes = @($(if ($p) { $p.Fixes } elseif ($m) { $m.Fixes } else { @() }))
+                    Unit = $key; Fixes = @($(if ($p) { $plusFixes } else { $minusFixes }))
+                    PlusFixes = $plusFixes; MinusFixes = $minusFixes; Comparable = [bool]$comparable
                     PlusBuild = $(if ($p) { $p.Name } else { $null }); MinusBuild = $(if ($m) { $m.Name } else { $null })
                     g = Round-Value $g; m = Round-Value $mk; GMinusM = Round-Value $difference; Interacts = $flag
                 })
@@ -292,12 +300,18 @@ function ConvertTo-ParallaxPerfMatrixMarkdown {
             for ($i = 0; $i -lt @($first.Units).Count; $i++) {
                 $unit = $first.Units[$i]
                 $flags = [Collections.Generic.List[string]]::new()
+                $fixCell = @($unit.Fixes) -join ', '
+                if (-not $unit.Comparable) {
+                    # One note for the unit, not one per metric.
+                    $flags.Add('**not comparable:** the plus and minus builds hold different fixes, so g and m measure different changes')
+                    $fixCell = "plus: $(@($unit.PlusFixes) -join ', '); minus: $(@($unit.MinusFixes) -join ', ')"
+                }
                 $cells = foreach ($metric in $UnitMetrics) {
                     $u = $data.Metrics[$metric].Units[$i]
-                    if ($u.Interacts) { $flags.Add("$(Get-ParallaxPerfMetricLabel $metric): $($u.Interacts)") }
+                    if ($u.Interacts -and $u.Comparable) { $flags.Add("$(Get-ParallaxPerfMetricLabel $metric): $($u.Interacts)") }
                     '{0} / {1}' -f (Format-ParallaxNumber $u.g), (Format-ParallaxNumber $u.m)
                 }
-                $lines.Add("| $($unit.Unit) | $(@($unit.Fixes) -join ', ') | " + ($cells -join ' | ') + " | $($flags -join '; ') |")
+                $lines.Add("| $($unit.Unit) | $fixCell | " + ($cells -join ' | ') + " | $($flags -join '; ') |")
             }
         }
     }

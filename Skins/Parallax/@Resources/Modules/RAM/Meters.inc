@@ -120,6 +120,8 @@ BarColor=#RAMColor#
 SolidColor=#TrackColor#
 ; The controller shows this only when enabled and current allocation is known.
 Hidden=1
+; Event-only: PageFile.lua force-updates it whenever its ratio or visibility changes.
+UpdateDivider=-1
 
 [MeterRAMUsedLabel]
 Meter=String
@@ -153,12 +155,15 @@ MeterStyle=StyleLabel | StyleRAMRowLabel
 Y=(#Inset#+(#RAMInfoHeight#+66+Max(0,#DataBarThickness#-6))*#Scale#)
 Text=PAGE:
 
+; PAGE text changes only through PageFile.lua, which force-updates the meters
+; whose options it changed; layout reflow updates the RAMLayout group.
 [MeterRAMPageGiB]
 Meter=String
 MeterStyle=StyleLabel | StyleRAMRowValue
 Y=(#Inset#+(#RAMInfoHeight#+66+Max(0,#DataBarThickness#-6))*#Scale#)
 Text=Checking...
 Hidden=#RAMUseMiB#
+UpdateDivider=-1
 
 [MeterRAMPageMiB]
 Meter=String
@@ -166,6 +171,7 @@ MeterStyle=StyleLabel | StyleRAMRowValue
 Y=(#Inset#+(#RAMInfoHeight#+66+Max(0,#DataBarThickness#-6))*#Scale#)
 Text=Checking...
 Hidden=(1-#RAMUseMiB#)
+UpdateDivider=-1
 
 [MeterRAMHistoryLabel]
 Meter=String
@@ -217,6 +223,8 @@ UpdateDivider=1
 ; Native Line starts with a zero-filled ring buffer. Cover its uncollected
 ; left side; do not portray those zeros as observed memory usage. Until full,
 ; overlap by 2 logical pixels to cover the antialiased startup transition.
+; When full, MeasureRAMHistorySamples hides this zero-width cover and sets its
+; UpdateDivider to -1; Display.lua then never re-shows it before a refresh.
 [MeterRAMHistoryUncollected]
 Meter=Shape
 X=#ContentX#

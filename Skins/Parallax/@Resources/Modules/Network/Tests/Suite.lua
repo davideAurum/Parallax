@@ -348,6 +348,60 @@ function Suite.run(Core, fixtures)
         equal(mock.calls[1].args[3], '1')
     end)
 
+    local function sectionBodies(path)
+        local result, current = {}, nil
+        for line in (read(path) .. '\n'):gmatch('([^\r\n]*)\r?\n') do
+            local name = line:match('^%[([^%]]+)%]$')
+            if name then current = name; result[name] = ''
+            elseif current then result[current] = result[current] .. line .. '\n' end
+        end
+        return result
+    end
+
+    test('graph and signal shapes rebuild only when a controller changes them', function()
+        -- Each controller !SetOption forces one re-read; DynamicVariables=1
+        -- would also rebuild the shapes on every unchanged update.
+        local traffic = sectionBodies(fixtures.moduleRoot .. '\\Meters.inc')
+        local connection = sectionBodies(fixtures.moduleRoot .. '\\ConnectionMeters.inc')
+        for _, pair in ipairs({{traffic, 'MeterNetworkInGraph'}, {traffic, 'MeterNetworkOutGraph'}, {connection, 'MeterConnectionSignalBar'}}) do
+            local body = pair[1][pair[2]]
+            truth(body and body:find('Meter=Shape', 1, true), pair[2] .. ' missing')
+            truth(not body:find('DynamicVariables', 1, true), pair[2] .. ' must not re-read every update')
+            truth(not body:find('UpdateDivider', 1, true), pair[2] .. ' must keep the default divider so !SetOption applies')
+        end
+    end)
+
+    test('static labels never update after load and no controller writes to them', function()
+        local traffic = sectionBodies(fixtures.moduleRoot .. '\\Meters.inc')
+        local connection = sectionBodies(fixtures.moduleRoot .. '\\ConnectionMeters.inc')
+        local idle = {}
+        for _, name in ipairs({'MeterNetworkTitle', 'MeterNetworkInLabel', 'MeterNetworkOutLabel'}) do
+            truth(traffic[name]:find('\nUpdateDivider=-1\n', 1, true) or traffic[name]:find('^UpdateDivider=-1\n'), name .. ' must idle')
+            idle[name] = true
+        end
+        truth(connection.StyleConnectionLabel:find('UpdateDivider=-1', 1, true), 'connection labels must idle')
+        local styled = 0
+        for name, body in pairs(connection) do
+            if body:find('StyleConnectionLabel', 1, true) then
+                truth(name:match('Label$') and body:find('Meter=String', 1, true), name .. ' is not a static label')
+                idle[name] = true; styled = styled + 1
+            end
+        end
+        equal(styled, 6, 'six static connection row labels')
+        -- No controller path may need these meters to apply a later !SetOption.
+        local mock = controller()
+        for _ = 1, 5 do mock:tick() end
+        mock.variables.NetworkInterface = 'Not found'; mock:tick()
+        for _, call in ipairs(mock.calls) do truth(not idle[call.args[1]], 'traffic controller wrote to static ' .. tostring(call.args[1])) end
+        for _, script in ipairs({'Network.lua', 'Connection.lua'}) do
+            local source = read(fixtures.moduleRoot .. '\\' .. script)
+            for name in pairs(idle) do
+                local suffix = name:gsub('^MeterNetwork', ''):gsub('^MeterConnection', '')
+                truth(not source:find("'" .. suffix .. "'", 1, true), script .. ' names static ' .. name)
+            end
+        end
+    end)
+
     report[#report + 1] = string.format('SUMMARY: %d passed, %d failed', passed, failed)
     return table.concat(report, '\n') .. '\n'
 end

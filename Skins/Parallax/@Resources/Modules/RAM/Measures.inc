@@ -49,9 +49,14 @@ UpdateDivider=-1
 
 ; Self reference starts at zero on load AND refresh; global Counter does not.
 ; Match the Line meter's update cadence. This is a sample count, not telemetry.
+; Once the plot holds ContentWidth samples the cover has zero width until the
+; next refresh. Retire it then: hide it and stop its per-tick Shape rebuild and
+; this count (UpdateDivider=-1 keeps the full count). Refresh restarts both.
 [MeasureRAMHistorySamples]
 Measure=Calc
 Formula=Min(MeasureRAMHistorySamples+1,#ContentWidth#)
+IfCondition=MeasureRAMHistorySamples >= #ContentWidth#
+IfTrueAction=[!HideMeter MeterRAMHistoryUncollected][!SetOption MeterRAMHistoryUncollected UpdateDivider -1][!SetOption MeasureRAMHistorySamples UpdateDivider -1]
 UpdateDivider=1
 
 ; Event-only display bridge. Settings updates this group without resampling.

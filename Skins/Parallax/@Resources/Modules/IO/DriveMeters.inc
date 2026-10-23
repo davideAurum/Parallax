@@ -1,4 +1,7 @@
 ; Fixed native meter bank, compacted by IO.lua. Hidden rows stay at Y=0.
+; Each letter's eight meters share Group=IORow<letter> and ship idle
+; (UpdateDivider=-1). IO.lua sets the group to 1 while the letter is shown
+; and back to -1 when it is hidden, forcing one group update each time.
 [MeterIODriveA]
 Meter=String
 MeterStyle=StyleIODriveName
@@ -6,6 +9,8 @@ Y=0
 W=#ContentWidth#
 Text=A:
 Hidden=1
+Group=IORowA
+UpdateDivider=-1
 
 [MeterIOCapacityA]
 Meter=String
@@ -16,12 +21,16 @@ W=((#ContentWidth#-8*#Scale#)*0.44)
 StringAlign=Right
 Text=Unavailable
 Hidden=1
+Group=IORowA
+UpdateDivider=-1
 
 [MeterIOUsedA]
 Meter=Bar
 MeterStyle=StyleIOBar
 MeasureName=MeasureIOUsedA
 Y=0
+Group=IORowA
+UpdateDivider=-1
 
 [MeterIODiskReadLabelA]
 Meter=Shape
@@ -33,7 +42,8 @@ H=(10*#Scale#)
 Shape=Line (1*#Scale#),(6*#Scale#),(4*#Scale#),(3*#Scale#) | Stroke Color #DiskReadColor# | StrokeWidth (Max(1,2*#Scale#))
 Shape2=Line (4*#Scale#),(3*#Scale#),(7*#Scale#),(6*#Scale#) | Stroke Color #DiskReadColor# | StrokeWidth (Max(1,2*#Scale#))
 Hidden=1
-UpdateDivider=1
+Group=IORowA
+UpdateDivider=-1
 
 [MeterIODiskWriteLabelA]
 Meter=Shape
@@ -45,7 +55,8 @@ H=(10*#Scale#)
 Shape=Line (1*#Scale#),(3*#Scale#),(4*#Scale#),(6*#Scale#) | Stroke Color #DiskWriteColor# | StrokeWidth (Max(1,2*#Scale#))
 Shape2=Line (4*#Scale#),(6*#Scale#),(7*#Scale#),(3*#Scale#) | Stroke Color #DiskWriteColor# | StrokeWidth (Max(1,2*#Scale#))
 Hidden=1
-UpdateDivider=1
+Group=IORowA
+UpdateDivider=-1
 
 [MeterIODiskReadA]
 Meter=String
@@ -55,6 +66,8 @@ Y=0
 W=((#ContentWidth#-8*#Scale#)*0.28-11*#Scale#)
 Text=--
 Hidden=1
+Group=IORowA
+UpdateDivider=-1
 
 [MeterIODiskWriteA]
 Meter=String
@@ -64,6 +77,8 @@ Y=0
 W=((#ContentWidth#-8*#Scale#)*0.28-11*#Scale#)
 Text=--
 Hidden=1
+Group=IORowA
+UpdateDivider=-1
 
 [MeterIOLegendA]
 Meter=String
@@ -74,6 +89,8 @@ W=(26*#Scale#)
 H=(18*#Scale#)
 Text=A:
 Hidden=1
+Group=IORowA
+UpdateDivider=-1
 
 [MeterIODriveB]
 Meter=String
@@ -82,6 +99,8 @@ Y=0
 W=#ContentWidth#
 Text=B:
 Hidden=1
+Group=IORowB
+UpdateDivider=-1
 
 [MeterIOCapacityB]
 Meter=String
@@ -92,12 +111,16 @@ W=((#ContentWidth#-8*#Scale#)*0.44)
 StringAlign=Right
 Text=Unavailable
 Hidden=1
+Group=IORowB
+UpdateDivider=-1
 
 [MeterIOUsedB]
 Meter=Bar
 MeterStyle=StyleIOBar
 MeasureName=MeasureIOUsedB
 Y=0
+Group=IORowB
+UpdateDivider=-1
 
 [MeterIODiskReadLabelB]
 Meter=Shape
@@ -109,7 +132,8 @@ H=(10*#Scale#)
 Shape=Line (1*#Scale#),(6*#Scale#),(4*#Scale#),(3*#Scale#) | Stroke Color #DiskReadColor# | StrokeWidth (Max(1,2*#Scale#))
 Shape2=Line (4*#Scale#),(3*#Scale#),(7*#Scale#),(6*#Scale#) | Stroke Color #DiskReadColor# | StrokeWidth (Max(1,2*#Scale#))
 Hidden=1
-UpdateDivider=1
+Group=IORowB
+UpdateDivider=-1
 
 [MeterIODiskWriteLabelB]
 Meter=Shape
@@ -121,7 +145,8 @@ H=(10*#Scale#)
 Shape=Line (1*#Scale#),(3*#Scale#),(4*#Scale#),(6*#Scale#) | Stroke Color #DiskWriteColor# | StrokeWidth (Max(1,2*#Scale#))
 Shape2=Line (4*#Scale#),(6*#Scale#),(7*#Scale#),(3*#Scale#) | Stroke Color #DiskWriteColor# | StrokeWidth (Max(1,2*#Scale#))
 Hidden=1
-UpdateDivider=1
+Group=IORowB
+UpdateDivider=-1
 
 [MeterIODiskReadB]
 Meter=String
@@ -131,6 +156,8 @@ Y=0
 W=((#ContentWidth#-8*#Scale#)*0.28-11*#Scale#)
 Text=--
 Hidden=1
+Group=IORowB
+UpdateDivider=-1
 
 [MeterIODiskWriteB]
 Meter=String
@@ -140,6 +167,8 @@ Y=0
 W=((#ContentWidth#-8*#Scale#)*0.28-11*#Scale#)
 Text=--
 Hidden=1
+Group=IORowB
+UpdateDivider=-1
 
 [MeterIOLegendB]
 Meter=String
@@ -150,6 +179,8 @@ W=(26*#Scale#)
 H=(18*#Scale#)
 Text=B:
 Hidden=1
+Group=IORowB
+UpdateDivider=-1
 
 [MeterIODriveC]
 Meter=String
@@ -158,6 +189,8 @@ Y=0
 W=#ContentWidth#
 Text=C:
 Hidden=1
+Group=IORowC
+UpdateDivider=-1
 
 [MeterIOCapacityC]
 Meter=String
@@ -168,12 +201,16 @@ W=((#ContentWidth#-8*#Scale#)*0.44)
 StringAlign=Right
 Text=Unavailable
 Hidden=1
+Group=IORowC
+UpdateDivider=-1
 
 [MeterIOUsedC]
 Meter=Bar
 MeterStyle=StyleIOBar
 MeasureName=MeasureIOUsedC
 Y=0
+Group=IORowC
+UpdateDivider=-1
 
 [MeterIODiskReadLabelC]
 Meter=Shape
@@ -185,7 +222,8 @@ H=(10*#Scale#)
 Shape=Line (1*#Scale#),(6*#Scale#),(4*#Scale#),(3*#Scale#) | Stroke Color #DiskReadColor# | StrokeWidth (Max(1,2*#Scale#))
 Shape2=Line (4*#Scale#),(3*#Scale#),(7*#Scale#),(6*#Scale#) | Stroke Color #DiskReadColor# | StrokeWidth (Max(1,2*#Scale#))
 Hidden=1
-UpdateDivider=1
+Group=IORowC
+UpdateDivider=-1
 
 [MeterIODiskWriteLabelC]
 Meter=Shape
@@ -197,7 +235,8 @@ H=(10*#Scale#)
 Shape=Line (1*#Scale#),(3*#Scale#),(4*#Scale#),(6*#Scale#) | Stroke Color #DiskWriteColor# | StrokeWidth (Max(1,2*#Scale#))
 Shape2=Line (4*#Scale#),(6*#Scale#),(7*#Scale#),(3*#Scale#) | Stroke Color #DiskWriteColor# | StrokeWidth (Max(1,2*#Scale#))
 Hidden=1
-UpdateDivider=1
+Group=IORowC
+UpdateDivider=-1
 
 [MeterIODiskReadC]
 Meter=String
@@ -207,6 +246,8 @@ Y=0
 W=((#ContentWidth#-8*#Scale#)*0.28-11*#Scale#)
 Text=--
 Hidden=1
+Group=IORowC
+UpdateDivider=-1
 
 [MeterIODiskWriteC]
 Meter=String
@@ -216,6 +257,8 @@ Y=0
 W=((#ContentWidth#-8*#Scale#)*0.28-11*#Scale#)
 Text=--
 Hidden=1
+Group=IORowC
+UpdateDivider=-1
 
 [MeterIOLegendC]
 Meter=String
@@ -226,6 +269,8 @@ W=(26*#Scale#)
 H=(18*#Scale#)
 Text=C:
 Hidden=1
+Group=IORowC
+UpdateDivider=-1
 
 [MeterIODriveD]
 Meter=String
@@ -234,6 +279,8 @@ Y=0
 W=#ContentWidth#
 Text=D:
 Hidden=1
+Group=IORowD
+UpdateDivider=-1
 
 [MeterIOCapacityD]
 Meter=String
@@ -244,12 +291,16 @@ W=((#ContentWidth#-8*#Scale#)*0.44)
 StringAlign=Right
 Text=Unavailable
 Hidden=1
+Group=IORowD
+UpdateDivider=-1
 
 [MeterIOUsedD]
 Meter=Bar
 MeterStyle=StyleIOBar
 MeasureName=MeasureIOUsedD
 Y=0
+Group=IORowD
+UpdateDivider=-1
 
 [MeterIODiskReadLabelD]
 Meter=Shape
@@ -261,7 +312,8 @@ H=(10*#Scale#)
 Shape=Line (1*#Scale#),(6*#Scale#),(4*#Scale#),(3*#Scale#) | Stroke Color #DiskReadColor# | StrokeWidth (Max(1,2*#Scale#))
 Shape2=Line (4*#Scale#),(3*#Scale#),(7*#Scale#),(6*#Scale#) | Stroke Color #DiskReadColor# | StrokeWidth (Max(1,2*#Scale#))
 Hidden=1
-UpdateDivider=1
+Group=IORowD
+UpdateDivider=-1
 
 [MeterIODiskWriteLabelD]
 Meter=Shape
@@ -273,7 +325,8 @@ H=(10*#Scale#)
 Shape=Line (1*#Scale#),(3*#Scale#),(4*#Scale#),(6*#Scale#) | Stroke Color #DiskWriteColor# | StrokeWidth (Max(1,2*#Scale#))
 Shape2=Line (4*#Scale#),(6*#Scale#),(7*#Scale#),(3*#Scale#) | Stroke Color #DiskWriteColor# | StrokeWidth (Max(1,2*#Scale#))
 Hidden=1
-UpdateDivider=1
+Group=IORowD
+UpdateDivider=-1
 
 [MeterIODiskReadD]
 Meter=String
@@ -283,6 +336,8 @@ Y=0
 W=((#ContentWidth#-8*#Scale#)*0.28-11*#Scale#)
 Text=--
 Hidden=1
+Group=IORowD
+UpdateDivider=-1
 
 [MeterIODiskWriteD]
 Meter=String
@@ -292,6 +347,8 @@ Y=0
 W=((#ContentWidth#-8*#Scale#)*0.28-11*#Scale#)
 Text=--
 Hidden=1
+Group=IORowD
+UpdateDivider=-1
 
 [MeterIOLegendD]
 Meter=String
@@ -302,6 +359,8 @@ W=(26*#Scale#)
 H=(18*#Scale#)
 Text=D:
 Hidden=1
+Group=IORowD
+UpdateDivider=-1
 
 [MeterIODriveE]
 Meter=String
@@ -310,6 +369,8 @@ Y=0
 W=#ContentWidth#
 Text=E:
 Hidden=1
+Group=IORowE
+UpdateDivider=-1
 
 [MeterIOCapacityE]
 Meter=String
@@ -320,12 +381,16 @@ W=((#ContentWidth#-8*#Scale#)*0.44)
 StringAlign=Right
 Text=Unavailable
 Hidden=1
+Group=IORowE
+UpdateDivider=-1
 
 [MeterIOUsedE]
 Meter=Bar
 MeterStyle=StyleIOBar
 MeasureName=MeasureIOUsedE
 Y=0
+Group=IORowE
+UpdateDivider=-1
 
 [MeterIODiskReadLabelE]
 Meter=Shape
@@ -337,7 +402,8 @@ H=(10*#Scale#)
 Shape=Line (1*#Scale#),(6*#Scale#),(4*#Scale#),(3*#Scale#) | Stroke Color #DiskReadColor# | StrokeWidth (Max(1,2*#Scale#))
 Shape2=Line (4*#Scale#),(3*#Scale#),(7*#Scale#),(6*#Scale#) | Stroke Color #DiskReadColor# | StrokeWidth (Max(1,2*#Scale#))
 Hidden=1
-UpdateDivider=1
+Group=IORowE
+UpdateDivider=-1
 
 [MeterIODiskWriteLabelE]
 Meter=Shape
@@ -349,7 +415,8 @@ H=(10*#Scale#)
 Shape=Line (1*#Scale#),(3*#Scale#),(4*#Scale#),(6*#Scale#) | Stroke Color #DiskWriteColor# | StrokeWidth (Max(1,2*#Scale#))
 Shape2=Line (4*#Scale#),(6*#Scale#),(7*#Scale#),(3*#Scale#) | Stroke Color #DiskWriteColor# | StrokeWidth (Max(1,2*#Scale#))
 Hidden=1
-UpdateDivider=1
+Group=IORowE
+UpdateDivider=-1
 
 [MeterIODiskReadE]
 Meter=String
@@ -359,6 +426,8 @@ Y=0
 W=((#ContentWidth#-8*#Scale#)*0.28-11*#Scale#)
 Text=--
 Hidden=1
+Group=IORowE
+UpdateDivider=-1
 
 [MeterIODiskWriteE]
 Meter=String
@@ -368,6 +437,8 @@ Y=0
 W=((#ContentWidth#-8*#Scale#)*0.28-11*#Scale#)
 Text=--
 Hidden=1
+Group=IORowE
+UpdateDivider=-1
 
 [MeterIOLegendE]
 Meter=String
@@ -378,6 +449,8 @@ W=(26*#Scale#)
 H=(18*#Scale#)
 Text=E:
 Hidden=1
+Group=IORowE
+UpdateDivider=-1
 
 [MeterIODriveF]
 Meter=String
@@ -386,6 +459,8 @@ Y=0
 W=#ContentWidth#
 Text=F:
 Hidden=1
+Group=IORowF
+UpdateDivider=-1
 
 [MeterIOCapacityF]
 Meter=String
@@ -396,12 +471,16 @@ W=((#ContentWidth#-8*#Scale#)*0.44)
 StringAlign=Right
 Text=Unavailable
 Hidden=1
+Group=IORowF
+UpdateDivider=-1
 
 [MeterIOUsedF]
 Meter=Bar
 MeterStyle=StyleIOBar
 MeasureName=MeasureIOUsedF
 Y=0
+Group=IORowF
+UpdateDivider=-1
 
 [MeterIODiskReadLabelF]
 Meter=Shape
@@ -413,7 +492,8 @@ H=(10*#Scale#)
 Shape=Line (1*#Scale#),(6*#Scale#),(4*#Scale#),(3*#Scale#) | Stroke Color #DiskReadColor# | StrokeWidth (Max(1,2*#Scale#))
 Shape2=Line (4*#Scale#),(3*#Scale#),(7*#Scale#),(6*#Scale#) | Stroke Color #DiskReadColor# | StrokeWidth (Max(1,2*#Scale#))
 Hidden=1
-UpdateDivider=1
+Group=IORowF
+UpdateDivider=-1
 
 [MeterIODiskWriteLabelF]
 Meter=Shape
@@ -425,7 +505,8 @@ H=(10*#Scale#)
 Shape=Line (1*#Scale#),(3*#Scale#),(4*#Scale#),(6*#Scale#) | Stroke Color #DiskWriteColor# | StrokeWidth (Max(1,2*#Scale#))
 Shape2=Line (4*#Scale#),(6*#Scale#),(7*#Scale#),(3*#Scale#) | Stroke Color #DiskWriteColor# | StrokeWidth (Max(1,2*#Scale#))
 Hidden=1
-UpdateDivider=1
+Group=IORowF
+UpdateDivider=-1
 
 [MeterIODiskReadF]
 Meter=String
@@ -435,6 +516,8 @@ Y=0
 W=((#ContentWidth#-8*#Scale#)*0.28-11*#Scale#)
 Text=--
 Hidden=1
+Group=IORowF
+UpdateDivider=-1
 
 [MeterIODiskWriteF]
 Meter=String
@@ -444,6 +527,8 @@ Y=0
 W=((#ContentWidth#-8*#Scale#)*0.28-11*#Scale#)
 Text=--
 Hidden=1
+Group=IORowF
+UpdateDivider=-1
 
 [MeterIOLegendF]
 Meter=String
@@ -454,6 +539,8 @@ W=(26*#Scale#)
 H=(18*#Scale#)
 Text=F:
 Hidden=1
+Group=IORowF
+UpdateDivider=-1
 
 [MeterIODriveG]
 Meter=String
@@ -462,6 +549,8 @@ Y=0
 W=#ContentWidth#
 Text=G:
 Hidden=1
+Group=IORowG
+UpdateDivider=-1
 
 [MeterIOCapacityG]
 Meter=String
@@ -472,12 +561,16 @@ W=((#ContentWidth#-8*#Scale#)*0.44)
 StringAlign=Right
 Text=Unavailable
 Hidden=1
+Group=IORowG
+UpdateDivider=-1
 
 [MeterIOUsedG]
 Meter=Bar
 MeterStyle=StyleIOBar
 MeasureName=MeasureIOUsedG
 Y=0
+Group=IORowG
+UpdateDivider=-1
 
 [MeterIODiskReadLabelG]
 Meter=Shape
@@ -489,7 +582,8 @@ H=(10*#Scale#)
 Shape=Line (1*#Scale#),(6*#Scale#),(4*#Scale#),(3*#Scale#) | Stroke Color #DiskReadColor# | StrokeWidth (Max(1,2*#Scale#))
 Shape2=Line (4*#Scale#),(3*#Scale#),(7*#Scale#),(6*#Scale#) | Stroke Color #DiskReadColor# | StrokeWidth (Max(1,2*#Scale#))
 Hidden=1
-UpdateDivider=1
+Group=IORowG
+UpdateDivider=-1
 
 [MeterIODiskWriteLabelG]
 Meter=Shape
@@ -501,7 +595,8 @@ H=(10*#Scale#)
 Shape=Line (1*#Scale#),(3*#Scale#),(4*#Scale#),(6*#Scale#) | Stroke Color #DiskWriteColor# | StrokeWidth (Max(1,2*#Scale#))
 Shape2=Line (4*#Scale#),(6*#Scale#),(7*#Scale#),(3*#Scale#) | Stroke Color #DiskWriteColor# | StrokeWidth (Max(1,2*#Scale#))
 Hidden=1
-UpdateDivider=1
+Group=IORowG
+UpdateDivider=-1
 
 [MeterIODiskReadG]
 Meter=String
@@ -511,6 +606,8 @@ Y=0
 W=((#ContentWidth#-8*#Scale#)*0.28-11*#Scale#)
 Text=--
 Hidden=1
+Group=IORowG
+UpdateDivider=-1
 
 [MeterIODiskWriteG]
 Meter=String
@@ -520,6 +617,8 @@ Y=0
 W=((#ContentWidth#-8*#Scale#)*0.28-11*#Scale#)
 Text=--
 Hidden=1
+Group=IORowG
+UpdateDivider=-1
 
 [MeterIOLegendG]
 Meter=String
@@ -530,6 +629,8 @@ W=(26*#Scale#)
 H=(18*#Scale#)
 Text=G:
 Hidden=1
+Group=IORowG
+UpdateDivider=-1
 
 [MeterIODriveH]
 Meter=String
@@ -538,6 +639,8 @@ Y=0
 W=#ContentWidth#
 Text=H:
 Hidden=1
+Group=IORowH
+UpdateDivider=-1
 
 [MeterIOCapacityH]
 Meter=String
@@ -548,12 +651,16 @@ W=((#ContentWidth#-8*#Scale#)*0.44)
 StringAlign=Right
 Text=Unavailable
 Hidden=1
+Group=IORowH
+UpdateDivider=-1
 
 [MeterIOUsedH]
 Meter=Bar
 MeterStyle=StyleIOBar
 MeasureName=MeasureIOUsedH
 Y=0
+Group=IORowH
+UpdateDivider=-1
 
 [MeterIODiskReadLabelH]
 Meter=Shape
@@ -565,7 +672,8 @@ H=(10*#Scale#)
 Shape=Line (1*#Scale#),(6*#Scale#),(4*#Scale#),(3*#Scale#) | Stroke Color #DiskReadColor# | StrokeWidth (Max(1,2*#Scale#))
 Shape2=Line (4*#Scale#),(3*#Scale#),(7*#Scale#),(6*#Scale#) | Stroke Color #DiskReadColor# | StrokeWidth (Max(1,2*#Scale#))
 Hidden=1
-UpdateDivider=1
+Group=IORowH
+UpdateDivider=-1
 
 [MeterIODiskWriteLabelH]
 Meter=Shape
@@ -577,7 +685,8 @@ H=(10*#Scale#)
 Shape=Line (1*#Scale#),(3*#Scale#),(4*#Scale#),(6*#Scale#) | Stroke Color #DiskWriteColor# | StrokeWidth (Max(1,2*#Scale#))
 Shape2=Line (4*#Scale#),(6*#Scale#),(7*#Scale#),(3*#Scale#) | Stroke Color #DiskWriteColor# | StrokeWidth (Max(1,2*#Scale#))
 Hidden=1
-UpdateDivider=1
+Group=IORowH
+UpdateDivider=-1
 
 [MeterIODiskReadH]
 Meter=String
@@ -587,6 +696,8 @@ Y=0
 W=((#ContentWidth#-8*#Scale#)*0.28-11*#Scale#)
 Text=--
 Hidden=1
+Group=IORowH
+UpdateDivider=-1
 
 [MeterIODiskWriteH]
 Meter=String
@@ -596,6 +707,8 @@ Y=0
 W=((#ContentWidth#-8*#Scale#)*0.28-11*#Scale#)
 Text=--
 Hidden=1
+Group=IORowH
+UpdateDivider=-1
 
 [MeterIOLegendH]
 Meter=String
@@ -606,6 +719,8 @@ W=(26*#Scale#)
 H=(18*#Scale#)
 Text=H:
 Hidden=1
+Group=IORowH
+UpdateDivider=-1
 
 [MeterIODriveI]
 Meter=String
@@ -614,6 +729,8 @@ Y=0
 W=#ContentWidth#
 Text=I:
 Hidden=1
+Group=IORowI
+UpdateDivider=-1
 
 [MeterIOCapacityI]
 Meter=String
@@ -624,12 +741,16 @@ W=((#ContentWidth#-8*#Scale#)*0.44)
 StringAlign=Right
 Text=Unavailable
 Hidden=1
+Group=IORowI
+UpdateDivider=-1
 
 [MeterIOUsedI]
 Meter=Bar
 MeterStyle=StyleIOBar
 MeasureName=MeasureIOUsedI
 Y=0
+Group=IORowI
+UpdateDivider=-1
 
 [MeterIODiskReadLabelI]
 Meter=Shape
@@ -641,7 +762,8 @@ H=(10*#Scale#)
 Shape=Line (1*#Scale#),(6*#Scale#),(4*#Scale#),(3*#Scale#) | Stroke Color #DiskReadColor# | StrokeWidth (Max(1,2*#Scale#))
 Shape2=Line (4*#Scale#),(3*#Scale#),(7*#Scale#),(6*#Scale#) | Stroke Color #DiskReadColor# | StrokeWidth (Max(1,2*#Scale#))
 Hidden=1
-UpdateDivider=1
+Group=IORowI
+UpdateDivider=-1
 
 [MeterIODiskWriteLabelI]
 Meter=Shape
@@ -653,7 +775,8 @@ H=(10*#Scale#)
 Shape=Line (1*#Scale#),(3*#Scale#),(4*#Scale#),(6*#Scale#) | Stroke Color #DiskWriteColor# | StrokeWidth (Max(1,2*#Scale#))
 Shape2=Line (4*#Scale#),(6*#Scale#),(7*#Scale#),(3*#Scale#) | Stroke Color #DiskWriteColor# | StrokeWidth (Max(1,2*#Scale#))
 Hidden=1
-UpdateDivider=1
+Group=IORowI
+UpdateDivider=-1
 
 [MeterIODiskReadI]
 Meter=String
@@ -663,6 +786,8 @@ Y=0
 W=((#ContentWidth#-8*#Scale#)*0.28-11*#Scale#)
 Text=--
 Hidden=1
+Group=IORowI
+UpdateDivider=-1
 
 [MeterIODiskWriteI]
 Meter=String
@@ -672,6 +797,8 @@ Y=0
 W=((#ContentWidth#-8*#Scale#)*0.28-11*#Scale#)
 Text=--
 Hidden=1
+Group=IORowI
+UpdateDivider=-1
 
 [MeterIOLegendI]
 Meter=String
@@ -682,6 +809,8 @@ W=(26*#Scale#)
 H=(18*#Scale#)
 Text=I:
 Hidden=1
+Group=IORowI
+UpdateDivider=-1
 
 [MeterIODriveJ]
 Meter=String
@@ -690,6 +819,8 @@ Y=0
 W=#ContentWidth#
 Text=J:
 Hidden=1
+Group=IORowJ
+UpdateDivider=-1
 
 [MeterIOCapacityJ]
 Meter=String
@@ -700,12 +831,16 @@ W=((#ContentWidth#-8*#Scale#)*0.44)
 StringAlign=Right
 Text=Unavailable
 Hidden=1
+Group=IORowJ
+UpdateDivider=-1
 
 [MeterIOUsedJ]
 Meter=Bar
 MeterStyle=StyleIOBar
 MeasureName=MeasureIOUsedJ
 Y=0
+Group=IORowJ
+UpdateDivider=-1
 
 [MeterIODiskReadLabelJ]
 Meter=Shape
@@ -717,7 +852,8 @@ H=(10*#Scale#)
 Shape=Line (1*#Scale#),(6*#Scale#),(4*#Scale#),(3*#Scale#) | Stroke Color #DiskReadColor# | StrokeWidth (Max(1,2*#Scale#))
 Shape2=Line (4*#Scale#),(3*#Scale#),(7*#Scale#),(6*#Scale#) | Stroke Color #DiskReadColor# | StrokeWidth (Max(1,2*#Scale#))
 Hidden=1
-UpdateDivider=1
+Group=IORowJ
+UpdateDivider=-1
 
 [MeterIODiskWriteLabelJ]
 Meter=Shape
@@ -729,7 +865,8 @@ H=(10*#Scale#)
 Shape=Line (1*#Scale#),(3*#Scale#),(4*#Scale#),(6*#Scale#) | Stroke Color #DiskWriteColor# | StrokeWidth (Max(1,2*#Scale#))
 Shape2=Line (4*#Scale#),(6*#Scale#),(7*#Scale#),(3*#Scale#) | Stroke Color #DiskWriteColor# | StrokeWidth (Max(1,2*#Scale#))
 Hidden=1
-UpdateDivider=1
+Group=IORowJ
+UpdateDivider=-1
 
 [MeterIODiskReadJ]
 Meter=String
@@ -739,6 +876,8 @@ Y=0
 W=((#ContentWidth#-8*#Scale#)*0.28-11*#Scale#)
 Text=--
 Hidden=1
+Group=IORowJ
+UpdateDivider=-1
 
 [MeterIODiskWriteJ]
 Meter=String
@@ -748,6 +887,8 @@ Y=0
 W=((#ContentWidth#-8*#Scale#)*0.28-11*#Scale#)
 Text=--
 Hidden=1
+Group=IORowJ
+UpdateDivider=-1
 
 [MeterIOLegendJ]
 Meter=String
@@ -758,6 +899,8 @@ W=(26*#Scale#)
 H=(18*#Scale#)
 Text=J:
 Hidden=1
+Group=IORowJ
+UpdateDivider=-1
 
 [MeterIODriveK]
 Meter=String
@@ -766,6 +909,8 @@ Y=0
 W=#ContentWidth#
 Text=K:
 Hidden=1
+Group=IORowK
+UpdateDivider=-1
 
 [MeterIOCapacityK]
 Meter=String
@@ -776,12 +921,16 @@ W=((#ContentWidth#-8*#Scale#)*0.44)
 StringAlign=Right
 Text=Unavailable
 Hidden=1
+Group=IORowK
+UpdateDivider=-1
 
 [MeterIOUsedK]
 Meter=Bar
 MeterStyle=StyleIOBar
 MeasureName=MeasureIOUsedK
 Y=0
+Group=IORowK
+UpdateDivider=-1
 
 [MeterIODiskReadLabelK]
 Meter=Shape
@@ -793,7 +942,8 @@ H=(10*#Scale#)
 Shape=Line (1*#Scale#),(6*#Scale#),(4*#Scale#),(3*#Scale#) | Stroke Color #DiskReadColor# | StrokeWidth (Max(1,2*#Scale#))
 Shape2=Line (4*#Scale#),(3*#Scale#),(7*#Scale#),(6*#Scale#) | Stroke Color #DiskReadColor# | StrokeWidth (Max(1,2*#Scale#))
 Hidden=1
-UpdateDivider=1
+Group=IORowK
+UpdateDivider=-1
 
 [MeterIODiskWriteLabelK]
 Meter=Shape
@@ -805,7 +955,8 @@ H=(10*#Scale#)
 Shape=Line (1*#Scale#),(3*#Scale#),(4*#Scale#),(6*#Scale#) | Stroke Color #DiskWriteColor# | StrokeWidth (Max(1,2*#Scale#))
 Shape2=Line (4*#Scale#),(6*#Scale#),(7*#Scale#),(3*#Scale#) | Stroke Color #DiskWriteColor# | StrokeWidth (Max(1,2*#Scale#))
 Hidden=1
-UpdateDivider=1
+Group=IORowK
+UpdateDivider=-1
 
 [MeterIODiskReadK]
 Meter=String
@@ -815,6 +966,8 @@ Y=0
 W=((#ContentWidth#-8*#Scale#)*0.28-11*#Scale#)
 Text=--
 Hidden=1
+Group=IORowK
+UpdateDivider=-1
 
 [MeterIODiskWriteK]
 Meter=String
@@ -824,6 +977,8 @@ Y=0
 W=((#ContentWidth#-8*#Scale#)*0.28-11*#Scale#)
 Text=--
 Hidden=1
+Group=IORowK
+UpdateDivider=-1
 
 [MeterIOLegendK]
 Meter=String
@@ -834,6 +989,8 @@ W=(26*#Scale#)
 H=(18*#Scale#)
 Text=K:
 Hidden=1
+Group=IORowK
+UpdateDivider=-1
 
 [MeterIODriveL]
 Meter=String
@@ -842,6 +999,8 @@ Y=0
 W=#ContentWidth#
 Text=L:
 Hidden=1
+Group=IORowL
+UpdateDivider=-1
 
 [MeterIOCapacityL]
 Meter=String
@@ -852,12 +1011,16 @@ W=((#ContentWidth#-8*#Scale#)*0.44)
 StringAlign=Right
 Text=Unavailable
 Hidden=1
+Group=IORowL
+UpdateDivider=-1
 
 [MeterIOUsedL]
 Meter=Bar
 MeterStyle=StyleIOBar
 MeasureName=MeasureIOUsedL
 Y=0
+Group=IORowL
+UpdateDivider=-1
 
 [MeterIODiskReadLabelL]
 Meter=Shape
@@ -869,7 +1032,8 @@ H=(10*#Scale#)
 Shape=Line (1*#Scale#),(6*#Scale#),(4*#Scale#),(3*#Scale#) | Stroke Color #DiskReadColor# | StrokeWidth (Max(1,2*#Scale#))
 Shape2=Line (4*#Scale#),(3*#Scale#),(7*#Scale#),(6*#Scale#) | Stroke Color #DiskReadColor# | StrokeWidth (Max(1,2*#Scale#))
 Hidden=1
-UpdateDivider=1
+Group=IORowL
+UpdateDivider=-1
 
 [MeterIODiskWriteLabelL]
 Meter=Shape
@@ -881,7 +1045,8 @@ H=(10*#Scale#)
 Shape=Line (1*#Scale#),(3*#Scale#),(4*#Scale#),(6*#Scale#) | Stroke Color #DiskWriteColor# | StrokeWidth (Max(1,2*#Scale#))
 Shape2=Line (4*#Scale#),(6*#Scale#),(7*#Scale#),(3*#Scale#) | Stroke Color #DiskWriteColor# | StrokeWidth (Max(1,2*#Scale#))
 Hidden=1
-UpdateDivider=1
+Group=IORowL
+UpdateDivider=-1
 
 [MeterIODiskReadL]
 Meter=String
@@ -891,6 +1056,8 @@ Y=0
 W=((#ContentWidth#-8*#Scale#)*0.28-11*#Scale#)
 Text=--
 Hidden=1
+Group=IORowL
+UpdateDivider=-1
 
 [MeterIODiskWriteL]
 Meter=String
@@ -900,6 +1067,8 @@ Y=0
 W=((#ContentWidth#-8*#Scale#)*0.28-11*#Scale#)
 Text=--
 Hidden=1
+Group=IORowL
+UpdateDivider=-1
 
 [MeterIOLegendL]
 Meter=String
@@ -910,6 +1079,8 @@ W=(26*#Scale#)
 H=(18*#Scale#)
 Text=L:
 Hidden=1
+Group=IORowL
+UpdateDivider=-1
 
 [MeterIODriveM]
 Meter=String
@@ -918,6 +1089,8 @@ Y=0
 W=#ContentWidth#
 Text=M:
 Hidden=1
+Group=IORowM
+UpdateDivider=-1
 
 [MeterIOCapacityM]
 Meter=String
@@ -928,12 +1101,16 @@ W=((#ContentWidth#-8*#Scale#)*0.44)
 StringAlign=Right
 Text=Unavailable
 Hidden=1
+Group=IORowM
+UpdateDivider=-1
 
 [MeterIOUsedM]
 Meter=Bar
 MeterStyle=StyleIOBar
 MeasureName=MeasureIOUsedM
 Y=0
+Group=IORowM
+UpdateDivider=-1
 
 [MeterIODiskReadLabelM]
 Meter=Shape
@@ -945,7 +1122,8 @@ H=(10*#Scale#)
 Shape=Line (1*#Scale#),(6*#Scale#),(4*#Scale#),(3*#Scale#) | Stroke Color #DiskReadColor# | StrokeWidth (Max(1,2*#Scale#))
 Shape2=Line (4*#Scale#),(3*#Scale#),(7*#Scale#),(6*#Scale#) | Stroke Color #DiskReadColor# | StrokeWidth (Max(1,2*#Scale#))
 Hidden=1
-UpdateDivider=1
+Group=IORowM
+UpdateDivider=-1
 
 [MeterIODiskWriteLabelM]
 Meter=Shape
@@ -957,7 +1135,8 @@ H=(10*#Scale#)
 Shape=Line (1*#Scale#),(3*#Scale#),(4*#Scale#),(6*#Scale#) | Stroke Color #DiskWriteColor# | StrokeWidth (Max(1,2*#Scale#))
 Shape2=Line (4*#Scale#),(6*#Scale#),(7*#Scale#),(3*#Scale#) | Stroke Color #DiskWriteColor# | StrokeWidth (Max(1,2*#Scale#))
 Hidden=1
-UpdateDivider=1
+Group=IORowM
+UpdateDivider=-1
 
 [MeterIODiskReadM]
 Meter=String
@@ -967,6 +1146,8 @@ Y=0
 W=((#ContentWidth#-8*#Scale#)*0.28-11*#Scale#)
 Text=--
 Hidden=1
+Group=IORowM
+UpdateDivider=-1
 
 [MeterIODiskWriteM]
 Meter=String
@@ -976,6 +1157,8 @@ Y=0
 W=((#ContentWidth#-8*#Scale#)*0.28-11*#Scale#)
 Text=--
 Hidden=1
+Group=IORowM
+UpdateDivider=-1
 
 [MeterIOLegendM]
 Meter=String
@@ -986,6 +1169,8 @@ W=(26*#Scale#)
 H=(18*#Scale#)
 Text=M:
 Hidden=1
+Group=IORowM
+UpdateDivider=-1
 
 [MeterIODriveN]
 Meter=String
@@ -994,6 +1179,8 @@ Y=0
 W=#ContentWidth#
 Text=N:
 Hidden=1
+Group=IORowN
+UpdateDivider=-1
 
 [MeterIOCapacityN]
 Meter=String
@@ -1004,12 +1191,16 @@ W=((#ContentWidth#-8*#Scale#)*0.44)
 StringAlign=Right
 Text=Unavailable
 Hidden=1
+Group=IORowN
+UpdateDivider=-1
 
 [MeterIOUsedN]
 Meter=Bar
 MeterStyle=StyleIOBar
 MeasureName=MeasureIOUsedN
 Y=0
+Group=IORowN
+UpdateDivider=-1
 
 [MeterIODiskReadLabelN]
 Meter=Shape
@@ -1021,7 +1212,8 @@ H=(10*#Scale#)
 Shape=Line (1*#Scale#),(6*#Scale#),(4*#Scale#),(3*#Scale#) | Stroke Color #DiskReadColor# | StrokeWidth (Max(1,2*#Scale#))
 Shape2=Line (4*#Scale#),(3*#Scale#),(7*#Scale#),(6*#Scale#) | Stroke Color #DiskReadColor# | StrokeWidth (Max(1,2*#Scale#))
 Hidden=1
-UpdateDivider=1
+Group=IORowN
+UpdateDivider=-1
 
 [MeterIODiskWriteLabelN]
 Meter=Shape
@@ -1033,7 +1225,8 @@ H=(10*#Scale#)
 Shape=Line (1*#Scale#),(3*#Scale#),(4*#Scale#),(6*#Scale#) | Stroke Color #DiskWriteColor# | StrokeWidth (Max(1,2*#Scale#))
 Shape2=Line (4*#Scale#),(6*#Scale#),(7*#Scale#),(3*#Scale#) | Stroke Color #DiskWriteColor# | StrokeWidth (Max(1,2*#Scale#))
 Hidden=1
-UpdateDivider=1
+Group=IORowN
+UpdateDivider=-1
 
 [MeterIODiskReadN]
 Meter=String
@@ -1043,6 +1236,8 @@ Y=0
 W=((#ContentWidth#-8*#Scale#)*0.28-11*#Scale#)
 Text=--
 Hidden=1
+Group=IORowN
+UpdateDivider=-1
 
 [MeterIODiskWriteN]
 Meter=String
@@ -1052,6 +1247,8 @@ Y=0
 W=((#ContentWidth#-8*#Scale#)*0.28-11*#Scale#)
 Text=--
 Hidden=1
+Group=IORowN
+UpdateDivider=-1
 
 [MeterIOLegendN]
 Meter=String
@@ -1062,6 +1259,8 @@ W=(26*#Scale#)
 H=(18*#Scale#)
 Text=N:
 Hidden=1
+Group=IORowN
+UpdateDivider=-1
 
 [MeterIODriveO]
 Meter=String
@@ -1070,6 +1269,8 @@ Y=0
 W=#ContentWidth#
 Text=O:
 Hidden=1
+Group=IORowO
+UpdateDivider=-1
 
 [MeterIOCapacityO]
 Meter=String
@@ -1080,12 +1281,16 @@ W=((#ContentWidth#-8*#Scale#)*0.44)
 StringAlign=Right
 Text=Unavailable
 Hidden=1
+Group=IORowO
+UpdateDivider=-1
 
 [MeterIOUsedO]
 Meter=Bar
 MeterStyle=StyleIOBar
 MeasureName=MeasureIOUsedO
 Y=0
+Group=IORowO
+UpdateDivider=-1
 
 [MeterIODiskReadLabelO]
 Meter=Shape
@@ -1097,7 +1302,8 @@ H=(10*#Scale#)
 Shape=Line (1*#Scale#),(6*#Scale#),(4*#Scale#),(3*#Scale#) | Stroke Color #DiskReadColor# | StrokeWidth (Max(1,2*#Scale#))
 Shape2=Line (4*#Scale#),(3*#Scale#),(7*#Scale#),(6*#Scale#) | Stroke Color #DiskReadColor# | StrokeWidth (Max(1,2*#Scale#))
 Hidden=1
-UpdateDivider=1
+Group=IORowO
+UpdateDivider=-1
 
 [MeterIODiskWriteLabelO]
 Meter=Shape
@@ -1109,7 +1315,8 @@ H=(10*#Scale#)
 Shape=Line (1*#Scale#),(3*#Scale#),(4*#Scale#),(6*#Scale#) | Stroke Color #DiskWriteColor# | StrokeWidth (Max(1,2*#Scale#))
 Shape2=Line (4*#Scale#),(6*#Scale#),(7*#Scale#),(3*#Scale#) | Stroke Color #DiskWriteColor# | StrokeWidth (Max(1,2*#Scale#))
 Hidden=1
-UpdateDivider=1
+Group=IORowO
+UpdateDivider=-1
 
 [MeterIODiskReadO]
 Meter=String
@@ -1119,6 +1326,8 @@ Y=0
 W=((#ContentWidth#-8*#Scale#)*0.28-11*#Scale#)
 Text=--
 Hidden=1
+Group=IORowO
+UpdateDivider=-1
 
 [MeterIODiskWriteO]
 Meter=String
@@ -1128,6 +1337,8 @@ Y=0
 W=((#ContentWidth#-8*#Scale#)*0.28-11*#Scale#)
 Text=--
 Hidden=1
+Group=IORowO
+UpdateDivider=-1
 
 [MeterIOLegendO]
 Meter=String
@@ -1138,6 +1349,8 @@ W=(26*#Scale#)
 H=(18*#Scale#)
 Text=O:
 Hidden=1
+Group=IORowO
+UpdateDivider=-1
 
 [MeterIODriveP]
 Meter=String
@@ -1146,6 +1359,8 @@ Y=0
 W=#ContentWidth#
 Text=P:
 Hidden=1
+Group=IORowP
+UpdateDivider=-1
 
 [MeterIOCapacityP]
 Meter=String
@@ -1156,12 +1371,16 @@ W=((#ContentWidth#-8*#Scale#)*0.44)
 StringAlign=Right
 Text=Unavailable
 Hidden=1
+Group=IORowP
+UpdateDivider=-1
 
 [MeterIOUsedP]
 Meter=Bar
 MeterStyle=StyleIOBar
 MeasureName=MeasureIOUsedP
 Y=0
+Group=IORowP
+UpdateDivider=-1
 
 [MeterIODiskReadLabelP]
 Meter=Shape
@@ -1173,7 +1392,8 @@ H=(10*#Scale#)
 Shape=Line (1*#Scale#),(6*#Scale#),(4*#Scale#),(3*#Scale#) | Stroke Color #DiskReadColor# | StrokeWidth (Max(1,2*#Scale#))
 Shape2=Line (4*#Scale#),(3*#Scale#),(7*#Scale#),(6*#Scale#) | Stroke Color #DiskReadColor# | StrokeWidth (Max(1,2*#Scale#))
 Hidden=1
-UpdateDivider=1
+Group=IORowP
+UpdateDivider=-1
 
 [MeterIODiskWriteLabelP]
 Meter=Shape
@@ -1185,7 +1405,8 @@ H=(10*#Scale#)
 Shape=Line (1*#Scale#),(3*#Scale#),(4*#Scale#),(6*#Scale#) | Stroke Color #DiskWriteColor# | StrokeWidth (Max(1,2*#Scale#))
 Shape2=Line (4*#Scale#),(6*#Scale#),(7*#Scale#),(3*#Scale#) | Stroke Color #DiskWriteColor# | StrokeWidth (Max(1,2*#Scale#))
 Hidden=1
-UpdateDivider=1
+Group=IORowP
+UpdateDivider=-1
 
 [MeterIODiskReadP]
 Meter=String
@@ -1195,6 +1416,8 @@ Y=0
 W=((#ContentWidth#-8*#Scale#)*0.28-11*#Scale#)
 Text=--
 Hidden=1
+Group=IORowP
+UpdateDivider=-1
 
 [MeterIODiskWriteP]
 Meter=String
@@ -1204,6 +1427,8 @@ Y=0
 W=((#ContentWidth#-8*#Scale#)*0.28-11*#Scale#)
 Text=--
 Hidden=1
+Group=IORowP
+UpdateDivider=-1
 
 [MeterIOLegendP]
 Meter=String
@@ -1214,6 +1439,8 @@ W=(26*#Scale#)
 H=(18*#Scale#)
 Text=P:
 Hidden=1
+Group=IORowP
+UpdateDivider=-1
 
 [MeterIODriveQ]
 Meter=String
@@ -1222,6 +1449,8 @@ Y=0
 W=#ContentWidth#
 Text=Q:
 Hidden=1
+Group=IORowQ
+UpdateDivider=-1
 
 [MeterIOCapacityQ]
 Meter=String
@@ -1232,12 +1461,16 @@ W=((#ContentWidth#-8*#Scale#)*0.44)
 StringAlign=Right
 Text=Unavailable
 Hidden=1
+Group=IORowQ
+UpdateDivider=-1
 
 [MeterIOUsedQ]
 Meter=Bar
 MeterStyle=StyleIOBar
 MeasureName=MeasureIOUsedQ
 Y=0
+Group=IORowQ
+UpdateDivider=-1
 
 [MeterIODiskReadLabelQ]
 Meter=Shape
@@ -1249,7 +1482,8 @@ H=(10*#Scale#)
 Shape=Line (1*#Scale#),(6*#Scale#),(4*#Scale#),(3*#Scale#) | Stroke Color #DiskReadColor# | StrokeWidth (Max(1,2*#Scale#))
 Shape2=Line (4*#Scale#),(3*#Scale#),(7*#Scale#),(6*#Scale#) | Stroke Color #DiskReadColor# | StrokeWidth (Max(1,2*#Scale#))
 Hidden=1
-UpdateDivider=1
+Group=IORowQ
+UpdateDivider=-1
 
 [MeterIODiskWriteLabelQ]
 Meter=Shape
@@ -1261,7 +1495,8 @@ H=(10*#Scale#)
 Shape=Line (1*#Scale#),(3*#Scale#),(4*#Scale#),(6*#Scale#) | Stroke Color #DiskWriteColor# | StrokeWidth (Max(1,2*#Scale#))
 Shape2=Line (4*#Scale#),(6*#Scale#),(7*#Scale#),(3*#Scale#) | Stroke Color #DiskWriteColor# | StrokeWidth (Max(1,2*#Scale#))
 Hidden=1
-UpdateDivider=1
+Group=IORowQ
+UpdateDivider=-1
 
 [MeterIODiskReadQ]
 Meter=String
@@ -1271,6 +1506,8 @@ Y=0
 W=((#ContentWidth#-8*#Scale#)*0.28-11*#Scale#)
 Text=--
 Hidden=1
+Group=IORowQ
+UpdateDivider=-1
 
 [MeterIODiskWriteQ]
 Meter=String
@@ -1280,6 +1517,8 @@ Y=0
 W=((#ContentWidth#-8*#Scale#)*0.28-11*#Scale#)
 Text=--
 Hidden=1
+Group=IORowQ
+UpdateDivider=-1
 
 [MeterIOLegendQ]
 Meter=String
@@ -1290,6 +1529,8 @@ W=(26*#Scale#)
 H=(18*#Scale#)
 Text=Q:
 Hidden=1
+Group=IORowQ
+UpdateDivider=-1
 
 [MeterIODriveR]
 Meter=String
@@ -1298,6 +1539,8 @@ Y=0
 W=#ContentWidth#
 Text=R:
 Hidden=1
+Group=IORowR
+UpdateDivider=-1
 
 [MeterIOCapacityR]
 Meter=String
@@ -1308,12 +1551,16 @@ W=((#ContentWidth#-8*#Scale#)*0.44)
 StringAlign=Right
 Text=Unavailable
 Hidden=1
+Group=IORowR
+UpdateDivider=-1
 
 [MeterIOUsedR]
 Meter=Bar
 MeterStyle=StyleIOBar
 MeasureName=MeasureIOUsedR
 Y=0
+Group=IORowR
+UpdateDivider=-1
 
 [MeterIODiskReadLabelR]
 Meter=Shape
@@ -1325,7 +1572,8 @@ H=(10*#Scale#)
 Shape=Line (1*#Scale#),(6*#Scale#),(4*#Scale#),(3*#Scale#) | Stroke Color #DiskReadColor# | StrokeWidth (Max(1,2*#Scale#))
 Shape2=Line (4*#Scale#),(3*#Scale#),(7*#Scale#),(6*#Scale#) | Stroke Color #DiskReadColor# | StrokeWidth (Max(1,2*#Scale#))
 Hidden=1
-UpdateDivider=1
+Group=IORowR
+UpdateDivider=-1
 
 [MeterIODiskWriteLabelR]
 Meter=Shape
@@ -1337,7 +1585,8 @@ H=(10*#Scale#)
 Shape=Line (1*#Scale#),(3*#Scale#),(4*#Scale#),(6*#Scale#) | Stroke Color #DiskWriteColor# | StrokeWidth (Max(1,2*#Scale#))
 Shape2=Line (4*#Scale#),(6*#Scale#),(7*#Scale#),(3*#Scale#) | Stroke Color #DiskWriteColor# | StrokeWidth (Max(1,2*#Scale#))
 Hidden=1
-UpdateDivider=1
+Group=IORowR
+UpdateDivider=-1
 
 [MeterIODiskReadR]
 Meter=String
@@ -1347,6 +1596,8 @@ Y=0
 W=((#ContentWidth#-8*#Scale#)*0.28-11*#Scale#)
 Text=--
 Hidden=1
+Group=IORowR
+UpdateDivider=-1
 
 [MeterIODiskWriteR]
 Meter=String
@@ -1356,6 +1607,8 @@ Y=0
 W=((#ContentWidth#-8*#Scale#)*0.28-11*#Scale#)
 Text=--
 Hidden=1
+Group=IORowR
+UpdateDivider=-1
 
 [MeterIOLegendR]
 Meter=String
@@ -1366,6 +1619,8 @@ W=(26*#Scale#)
 H=(18*#Scale#)
 Text=R:
 Hidden=1
+Group=IORowR
+UpdateDivider=-1
 
 [MeterIODriveS]
 Meter=String
@@ -1374,6 +1629,8 @@ Y=0
 W=#ContentWidth#
 Text=S:
 Hidden=1
+Group=IORowS
+UpdateDivider=-1
 
 [MeterIOCapacityS]
 Meter=String
@@ -1384,12 +1641,16 @@ W=((#ContentWidth#-8*#Scale#)*0.44)
 StringAlign=Right
 Text=Unavailable
 Hidden=1
+Group=IORowS
+UpdateDivider=-1
 
 [MeterIOUsedS]
 Meter=Bar
 MeterStyle=StyleIOBar
 MeasureName=MeasureIOUsedS
 Y=0
+Group=IORowS
+UpdateDivider=-1
 
 [MeterIODiskReadLabelS]
 Meter=Shape
@@ -1401,7 +1662,8 @@ H=(10*#Scale#)
 Shape=Line (1*#Scale#),(6*#Scale#),(4*#Scale#),(3*#Scale#) | Stroke Color #DiskReadColor# | StrokeWidth (Max(1,2*#Scale#))
 Shape2=Line (4*#Scale#),(3*#Scale#),(7*#Scale#),(6*#Scale#) | Stroke Color #DiskReadColor# | StrokeWidth (Max(1,2*#Scale#))
 Hidden=1
-UpdateDivider=1
+Group=IORowS
+UpdateDivider=-1
 
 [MeterIODiskWriteLabelS]
 Meter=Shape
@@ -1413,7 +1675,8 @@ H=(10*#Scale#)
 Shape=Line (1*#Scale#),(3*#Scale#),(4*#Scale#),(6*#Scale#) | Stroke Color #DiskWriteColor# | StrokeWidth (Max(1,2*#Scale#))
 Shape2=Line (4*#Scale#),(6*#Scale#),(7*#Scale#),(3*#Scale#) | Stroke Color #DiskWriteColor# | StrokeWidth (Max(1,2*#Scale#))
 Hidden=1
-UpdateDivider=1
+Group=IORowS
+UpdateDivider=-1
 
 [MeterIODiskReadS]
 Meter=String
@@ -1423,6 +1686,8 @@ Y=0
 W=((#ContentWidth#-8*#Scale#)*0.28-11*#Scale#)
 Text=--
 Hidden=1
+Group=IORowS
+UpdateDivider=-1
 
 [MeterIODiskWriteS]
 Meter=String
@@ -1432,6 +1697,8 @@ Y=0
 W=((#ContentWidth#-8*#Scale#)*0.28-11*#Scale#)
 Text=--
 Hidden=1
+Group=IORowS
+UpdateDivider=-1
 
 [MeterIOLegendS]
 Meter=String
@@ -1442,6 +1709,8 @@ W=(26*#Scale#)
 H=(18*#Scale#)
 Text=S:
 Hidden=1
+Group=IORowS
+UpdateDivider=-1
 
 [MeterIODriveT]
 Meter=String
@@ -1450,6 +1719,8 @@ Y=0
 W=#ContentWidth#
 Text=T:
 Hidden=1
+Group=IORowT
+UpdateDivider=-1
 
 [MeterIOCapacityT]
 Meter=String
@@ -1460,12 +1731,16 @@ W=((#ContentWidth#-8*#Scale#)*0.44)
 StringAlign=Right
 Text=Unavailable
 Hidden=1
+Group=IORowT
+UpdateDivider=-1
 
 [MeterIOUsedT]
 Meter=Bar
 MeterStyle=StyleIOBar
 MeasureName=MeasureIOUsedT
 Y=0
+Group=IORowT
+UpdateDivider=-1
 
 [MeterIODiskReadLabelT]
 Meter=Shape
@@ -1477,7 +1752,8 @@ H=(10*#Scale#)
 Shape=Line (1*#Scale#),(6*#Scale#),(4*#Scale#),(3*#Scale#) | Stroke Color #DiskReadColor# | StrokeWidth (Max(1,2*#Scale#))
 Shape2=Line (4*#Scale#),(3*#Scale#),(7*#Scale#),(6*#Scale#) | Stroke Color #DiskReadColor# | StrokeWidth (Max(1,2*#Scale#))
 Hidden=1
-UpdateDivider=1
+Group=IORowT
+UpdateDivider=-1
 
 [MeterIODiskWriteLabelT]
 Meter=Shape
@@ -1489,7 +1765,8 @@ H=(10*#Scale#)
 Shape=Line (1*#Scale#),(3*#Scale#),(4*#Scale#),(6*#Scale#) | Stroke Color #DiskWriteColor# | StrokeWidth (Max(1,2*#Scale#))
 Shape2=Line (4*#Scale#),(6*#Scale#),(7*#Scale#),(3*#Scale#) | Stroke Color #DiskWriteColor# | StrokeWidth (Max(1,2*#Scale#))
 Hidden=1
-UpdateDivider=1
+Group=IORowT
+UpdateDivider=-1
 
 [MeterIODiskReadT]
 Meter=String
@@ -1499,6 +1776,8 @@ Y=0
 W=((#ContentWidth#-8*#Scale#)*0.28-11*#Scale#)
 Text=--
 Hidden=1
+Group=IORowT
+UpdateDivider=-1
 
 [MeterIODiskWriteT]
 Meter=String
@@ -1508,6 +1787,8 @@ Y=0
 W=((#ContentWidth#-8*#Scale#)*0.28-11*#Scale#)
 Text=--
 Hidden=1
+Group=IORowT
+UpdateDivider=-1
 
 [MeterIOLegendT]
 Meter=String
@@ -1518,6 +1799,8 @@ W=(26*#Scale#)
 H=(18*#Scale#)
 Text=T:
 Hidden=1
+Group=IORowT
+UpdateDivider=-1
 
 [MeterIODriveU]
 Meter=String
@@ -1526,6 +1809,8 @@ Y=0
 W=#ContentWidth#
 Text=U:
 Hidden=1
+Group=IORowU
+UpdateDivider=-1
 
 [MeterIOCapacityU]
 Meter=String
@@ -1536,12 +1821,16 @@ W=((#ContentWidth#-8*#Scale#)*0.44)
 StringAlign=Right
 Text=Unavailable
 Hidden=1
+Group=IORowU
+UpdateDivider=-1
 
 [MeterIOUsedU]
 Meter=Bar
 MeterStyle=StyleIOBar
 MeasureName=MeasureIOUsedU
 Y=0
+Group=IORowU
+UpdateDivider=-1
 
 [MeterIODiskReadLabelU]
 Meter=Shape
@@ -1553,7 +1842,8 @@ H=(10*#Scale#)
 Shape=Line (1*#Scale#),(6*#Scale#),(4*#Scale#),(3*#Scale#) | Stroke Color #DiskReadColor# | StrokeWidth (Max(1,2*#Scale#))
 Shape2=Line (4*#Scale#),(3*#Scale#),(7*#Scale#),(6*#Scale#) | Stroke Color #DiskReadColor# | StrokeWidth (Max(1,2*#Scale#))
 Hidden=1
-UpdateDivider=1
+Group=IORowU
+UpdateDivider=-1
 
 [MeterIODiskWriteLabelU]
 Meter=Shape
@@ -1565,7 +1855,8 @@ H=(10*#Scale#)
 Shape=Line (1*#Scale#),(3*#Scale#),(4*#Scale#),(6*#Scale#) | Stroke Color #DiskWriteColor# | StrokeWidth (Max(1,2*#Scale#))
 Shape2=Line (4*#Scale#),(6*#Scale#),(7*#Scale#),(3*#Scale#) | Stroke Color #DiskWriteColor# | StrokeWidth (Max(1,2*#Scale#))
 Hidden=1
-UpdateDivider=1
+Group=IORowU
+UpdateDivider=-1
 
 [MeterIODiskReadU]
 Meter=String
@@ -1575,6 +1866,8 @@ Y=0
 W=((#ContentWidth#-8*#Scale#)*0.28-11*#Scale#)
 Text=--
 Hidden=1
+Group=IORowU
+UpdateDivider=-1
 
 [MeterIODiskWriteU]
 Meter=String
@@ -1584,6 +1877,8 @@ Y=0
 W=((#ContentWidth#-8*#Scale#)*0.28-11*#Scale#)
 Text=--
 Hidden=1
+Group=IORowU
+UpdateDivider=-1
 
 [MeterIOLegendU]
 Meter=String
@@ -1594,6 +1889,8 @@ W=(26*#Scale#)
 H=(18*#Scale#)
 Text=U:
 Hidden=1
+Group=IORowU
+UpdateDivider=-1
 
 [MeterIODriveV]
 Meter=String
@@ -1602,6 +1899,8 @@ Y=0
 W=#ContentWidth#
 Text=V:
 Hidden=1
+Group=IORowV
+UpdateDivider=-1
 
 [MeterIOCapacityV]
 Meter=String
@@ -1612,12 +1911,16 @@ W=((#ContentWidth#-8*#Scale#)*0.44)
 StringAlign=Right
 Text=Unavailable
 Hidden=1
+Group=IORowV
+UpdateDivider=-1
 
 [MeterIOUsedV]
 Meter=Bar
 MeterStyle=StyleIOBar
 MeasureName=MeasureIOUsedV
 Y=0
+Group=IORowV
+UpdateDivider=-1
 
 [MeterIODiskReadLabelV]
 Meter=Shape
@@ -1629,7 +1932,8 @@ H=(10*#Scale#)
 Shape=Line (1*#Scale#),(6*#Scale#),(4*#Scale#),(3*#Scale#) | Stroke Color #DiskReadColor# | StrokeWidth (Max(1,2*#Scale#))
 Shape2=Line (4*#Scale#),(3*#Scale#),(7*#Scale#),(6*#Scale#) | Stroke Color #DiskReadColor# | StrokeWidth (Max(1,2*#Scale#))
 Hidden=1
-UpdateDivider=1
+Group=IORowV
+UpdateDivider=-1
 
 [MeterIODiskWriteLabelV]
 Meter=Shape
@@ -1641,7 +1945,8 @@ H=(10*#Scale#)
 Shape=Line (1*#Scale#),(3*#Scale#),(4*#Scale#),(6*#Scale#) | Stroke Color #DiskWriteColor# | StrokeWidth (Max(1,2*#Scale#))
 Shape2=Line (4*#Scale#),(6*#Scale#),(7*#Scale#),(3*#Scale#) | Stroke Color #DiskWriteColor# | StrokeWidth (Max(1,2*#Scale#))
 Hidden=1
-UpdateDivider=1
+Group=IORowV
+UpdateDivider=-1
 
 [MeterIODiskReadV]
 Meter=String
@@ -1651,6 +1956,8 @@ Y=0
 W=((#ContentWidth#-8*#Scale#)*0.28-11*#Scale#)
 Text=--
 Hidden=1
+Group=IORowV
+UpdateDivider=-1
 
 [MeterIODiskWriteV]
 Meter=String
@@ -1660,6 +1967,8 @@ Y=0
 W=((#ContentWidth#-8*#Scale#)*0.28-11*#Scale#)
 Text=--
 Hidden=1
+Group=IORowV
+UpdateDivider=-1
 
 [MeterIOLegendV]
 Meter=String
@@ -1670,6 +1979,8 @@ W=(26*#Scale#)
 H=(18*#Scale#)
 Text=V:
 Hidden=1
+Group=IORowV
+UpdateDivider=-1
 
 [MeterIODriveW]
 Meter=String
@@ -1678,6 +1989,8 @@ Y=0
 W=#ContentWidth#
 Text=W:
 Hidden=1
+Group=IORowW
+UpdateDivider=-1
 
 [MeterIOCapacityW]
 Meter=String
@@ -1688,12 +2001,16 @@ W=((#ContentWidth#-8*#Scale#)*0.44)
 StringAlign=Right
 Text=Unavailable
 Hidden=1
+Group=IORowW
+UpdateDivider=-1
 
 [MeterIOUsedW]
 Meter=Bar
 MeterStyle=StyleIOBar
 MeasureName=MeasureIOUsedW
 Y=0
+Group=IORowW
+UpdateDivider=-1
 
 [MeterIODiskReadLabelW]
 Meter=Shape
@@ -1705,7 +2022,8 @@ H=(10*#Scale#)
 Shape=Line (1*#Scale#),(6*#Scale#),(4*#Scale#),(3*#Scale#) | Stroke Color #DiskReadColor# | StrokeWidth (Max(1,2*#Scale#))
 Shape2=Line (4*#Scale#),(3*#Scale#),(7*#Scale#),(6*#Scale#) | Stroke Color #DiskReadColor# | StrokeWidth (Max(1,2*#Scale#))
 Hidden=1
-UpdateDivider=1
+Group=IORowW
+UpdateDivider=-1
 
 [MeterIODiskWriteLabelW]
 Meter=Shape
@@ -1717,7 +2035,8 @@ H=(10*#Scale#)
 Shape=Line (1*#Scale#),(3*#Scale#),(4*#Scale#),(6*#Scale#) | Stroke Color #DiskWriteColor# | StrokeWidth (Max(1,2*#Scale#))
 Shape2=Line (4*#Scale#),(6*#Scale#),(7*#Scale#),(3*#Scale#) | Stroke Color #DiskWriteColor# | StrokeWidth (Max(1,2*#Scale#))
 Hidden=1
-UpdateDivider=1
+Group=IORowW
+UpdateDivider=-1
 
 [MeterIODiskReadW]
 Meter=String
@@ -1727,6 +2046,8 @@ Y=0
 W=((#ContentWidth#-8*#Scale#)*0.28-11*#Scale#)
 Text=--
 Hidden=1
+Group=IORowW
+UpdateDivider=-1
 
 [MeterIODiskWriteW]
 Meter=String
@@ -1736,6 +2057,8 @@ Y=0
 W=((#ContentWidth#-8*#Scale#)*0.28-11*#Scale#)
 Text=--
 Hidden=1
+Group=IORowW
+UpdateDivider=-1
 
 [MeterIOLegendW]
 Meter=String
@@ -1746,6 +2069,8 @@ W=(26*#Scale#)
 H=(18*#Scale#)
 Text=W:
 Hidden=1
+Group=IORowW
+UpdateDivider=-1
 
 [MeterIODriveX]
 Meter=String
@@ -1754,6 +2079,8 @@ Y=0
 W=#ContentWidth#
 Text=X:
 Hidden=1
+Group=IORowX
+UpdateDivider=-1
 
 [MeterIOCapacityX]
 Meter=String
@@ -1764,12 +2091,16 @@ W=((#ContentWidth#-8*#Scale#)*0.44)
 StringAlign=Right
 Text=Unavailable
 Hidden=1
+Group=IORowX
+UpdateDivider=-1
 
 [MeterIOUsedX]
 Meter=Bar
 MeterStyle=StyleIOBar
 MeasureName=MeasureIOUsedX
 Y=0
+Group=IORowX
+UpdateDivider=-1
 
 [MeterIODiskReadLabelX]
 Meter=Shape
@@ -1781,7 +2112,8 @@ H=(10*#Scale#)
 Shape=Line (1*#Scale#),(6*#Scale#),(4*#Scale#),(3*#Scale#) | Stroke Color #DiskReadColor# | StrokeWidth (Max(1,2*#Scale#))
 Shape2=Line (4*#Scale#),(3*#Scale#),(7*#Scale#),(6*#Scale#) | Stroke Color #DiskReadColor# | StrokeWidth (Max(1,2*#Scale#))
 Hidden=1
-UpdateDivider=1
+Group=IORowX
+UpdateDivider=-1
 
 [MeterIODiskWriteLabelX]
 Meter=Shape
@@ -1793,7 +2125,8 @@ H=(10*#Scale#)
 Shape=Line (1*#Scale#),(3*#Scale#),(4*#Scale#),(6*#Scale#) | Stroke Color #DiskWriteColor# | StrokeWidth (Max(1,2*#Scale#))
 Shape2=Line (4*#Scale#),(6*#Scale#),(7*#Scale#),(3*#Scale#) | Stroke Color #DiskWriteColor# | StrokeWidth (Max(1,2*#Scale#))
 Hidden=1
-UpdateDivider=1
+Group=IORowX
+UpdateDivider=-1
 
 [MeterIODiskReadX]
 Meter=String
@@ -1803,6 +2136,8 @@ Y=0
 W=((#ContentWidth#-8*#Scale#)*0.28-11*#Scale#)
 Text=--
 Hidden=1
+Group=IORowX
+UpdateDivider=-1
 
 [MeterIODiskWriteX]
 Meter=String
@@ -1812,6 +2147,8 @@ Y=0
 W=((#ContentWidth#-8*#Scale#)*0.28-11*#Scale#)
 Text=--
 Hidden=1
+Group=IORowX
+UpdateDivider=-1
 
 [MeterIOLegendX]
 Meter=String
@@ -1822,6 +2159,8 @@ W=(26*#Scale#)
 H=(18*#Scale#)
 Text=X:
 Hidden=1
+Group=IORowX
+UpdateDivider=-1
 
 [MeterIODriveY]
 Meter=String
@@ -1830,6 +2169,8 @@ Y=0
 W=#ContentWidth#
 Text=Y:
 Hidden=1
+Group=IORowY
+UpdateDivider=-1
 
 [MeterIOCapacityY]
 Meter=String
@@ -1840,12 +2181,16 @@ W=((#ContentWidth#-8*#Scale#)*0.44)
 StringAlign=Right
 Text=Unavailable
 Hidden=1
+Group=IORowY
+UpdateDivider=-1
 
 [MeterIOUsedY]
 Meter=Bar
 MeterStyle=StyleIOBar
 MeasureName=MeasureIOUsedY
 Y=0
+Group=IORowY
+UpdateDivider=-1
 
 [MeterIODiskReadLabelY]
 Meter=Shape
@@ -1857,7 +2202,8 @@ H=(10*#Scale#)
 Shape=Line (1*#Scale#),(6*#Scale#),(4*#Scale#),(3*#Scale#) | Stroke Color #DiskReadColor# | StrokeWidth (Max(1,2*#Scale#))
 Shape2=Line (4*#Scale#),(3*#Scale#),(7*#Scale#),(6*#Scale#) | Stroke Color #DiskReadColor# | StrokeWidth (Max(1,2*#Scale#))
 Hidden=1
-UpdateDivider=1
+Group=IORowY
+UpdateDivider=-1
 
 [MeterIODiskWriteLabelY]
 Meter=Shape
@@ -1869,7 +2215,8 @@ H=(10*#Scale#)
 Shape=Line (1*#Scale#),(3*#Scale#),(4*#Scale#),(6*#Scale#) | Stroke Color #DiskWriteColor# | StrokeWidth (Max(1,2*#Scale#))
 Shape2=Line (4*#Scale#),(6*#Scale#),(7*#Scale#),(3*#Scale#) | Stroke Color #DiskWriteColor# | StrokeWidth (Max(1,2*#Scale#))
 Hidden=1
-UpdateDivider=1
+Group=IORowY
+UpdateDivider=-1
 
 [MeterIODiskReadY]
 Meter=String
@@ -1879,6 +2226,8 @@ Y=0
 W=((#ContentWidth#-8*#Scale#)*0.28-11*#Scale#)
 Text=--
 Hidden=1
+Group=IORowY
+UpdateDivider=-1
 
 [MeterIODiskWriteY]
 Meter=String
@@ -1888,6 +2237,8 @@ Y=0
 W=((#ContentWidth#-8*#Scale#)*0.28-11*#Scale#)
 Text=--
 Hidden=1
+Group=IORowY
+UpdateDivider=-1
 
 [MeterIOLegendY]
 Meter=String
@@ -1898,6 +2249,8 @@ W=(26*#Scale#)
 H=(18*#Scale#)
 Text=Y:
 Hidden=1
+Group=IORowY
+UpdateDivider=-1
 
 [MeterIODriveZ]
 Meter=String
@@ -1906,6 +2259,8 @@ Y=0
 W=#ContentWidth#
 Text=Z:
 Hidden=1
+Group=IORowZ
+UpdateDivider=-1
 
 [MeterIOCapacityZ]
 Meter=String
@@ -1916,12 +2271,16 @@ W=((#ContentWidth#-8*#Scale#)*0.44)
 StringAlign=Right
 Text=Unavailable
 Hidden=1
+Group=IORowZ
+UpdateDivider=-1
 
 [MeterIOUsedZ]
 Meter=Bar
 MeterStyle=StyleIOBar
 MeasureName=MeasureIOUsedZ
 Y=0
+Group=IORowZ
+UpdateDivider=-1
 
 [MeterIODiskReadLabelZ]
 Meter=Shape
@@ -1933,7 +2292,8 @@ H=(10*#Scale#)
 Shape=Line (1*#Scale#),(6*#Scale#),(4*#Scale#),(3*#Scale#) | Stroke Color #DiskReadColor# | StrokeWidth (Max(1,2*#Scale#))
 Shape2=Line (4*#Scale#),(3*#Scale#),(7*#Scale#),(6*#Scale#) | Stroke Color #DiskReadColor# | StrokeWidth (Max(1,2*#Scale#))
 Hidden=1
-UpdateDivider=1
+Group=IORowZ
+UpdateDivider=-1
 
 [MeterIODiskWriteLabelZ]
 Meter=Shape
@@ -1945,7 +2305,8 @@ H=(10*#Scale#)
 Shape=Line (1*#Scale#),(3*#Scale#),(4*#Scale#),(6*#Scale#) | Stroke Color #DiskWriteColor# | StrokeWidth (Max(1,2*#Scale#))
 Shape2=Line (4*#Scale#),(6*#Scale#),(7*#Scale#),(3*#Scale#) | Stroke Color #DiskWriteColor# | StrokeWidth (Max(1,2*#Scale#))
 Hidden=1
-UpdateDivider=1
+Group=IORowZ
+UpdateDivider=-1
 
 [MeterIODiskReadZ]
 Meter=String
@@ -1955,6 +2316,8 @@ Y=0
 W=((#ContentWidth#-8*#Scale#)*0.28-11*#Scale#)
 Text=--
 Hidden=1
+Group=IORowZ
+UpdateDivider=-1
 
 [MeterIODiskWriteZ]
 Meter=String
@@ -1964,6 +2327,8 @@ Y=0
 W=((#ContentWidth#-8*#Scale#)*0.28-11*#Scale#)
 Text=--
 Hidden=1
+Group=IORowZ
+UpdateDivider=-1
 
 [MeterIOLegendZ]
 Meter=String
@@ -1974,3 +2339,5 @@ W=(26*#Scale#)
 H=(18*#Scale#)
 Text=Z:
 Hidden=1
+Group=IORowZ
+UpdateDivider=-1

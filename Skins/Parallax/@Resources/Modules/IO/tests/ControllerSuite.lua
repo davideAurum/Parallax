@@ -42,7 +42,9 @@ function Suite.run(productionPath)
         end
     end
 
-    local targets = {}
+    local targets, bankLetter = {}, {}
+    local bankPrefixes = {'MeterIODrive', 'MeterIOCapacity', 'MeterIOUsed',
+        'MeterIODiskRead', 'MeterIODiskWrite', 'MeterIODiskReadLabel', 'MeterIODiskWriteLabel', 'MeterIOLegend'}
     for _, name in ipairs({
         'MeterIOTotal', 'MeterIOBounds', 'MeterIOPanel', 'MeterIOEmpty',
         'MeterIODiskGraph', 'MeterIODiskGraphTrack',
@@ -50,9 +52,9 @@ function Suite.run(productionPath)
     }) do targets[name] = true end
     for code = 65, 90 do
         local letter = string.char(code)
-        for _, prefix in ipairs({'MeterIODrive', 'MeterIOCapacity', 'MeterIOUsed',
-            'MeterIODiskRead', 'MeterIODiskWrite', 'MeterIODiskReadLabel', 'MeterIODiskWriteLabel', 'MeterIOLegend'}) do
+        for _, prefix in ipairs(bankPrefixes) do
             targets[prefix .. letter] = true
+            bankLetter[prefix .. letter] = letter
         end
     end
 
@@ -74,14 +76,22 @@ function Suite.run(productionPath)
         end
         for key, value in pairs(overrides or {}) do vars[key] = value end
         for key, value in pairs(samples or {}) do values[key] = value end
+        -- Drive rows ship idle (UpdateDivider=-1). rows: the stored divider
+        -- after a letter's last !SetOptionGroup; effective: the divider a
+        -- forced group update has applied (an idle meter ignores !SetOption
+        -- until forced); pending: bank meter options set while idle and not
+        -- yet applied by a forced update; rowUpdates counts forced updates.
+        -- reads counts GetMeasure calls by name and parses ParseFormula calls.
         local state = { vars = vars, values = values, options = {}, shown = {}, calls = {}, now = 1000,
-            groups = {}, variableWrites = {}, queryRuns = 0 }
+            groups = {}, variableWrites = {}, queryRuns = 0, rows = {}, effective = {}, pending = {}, rowUpdates = {},
+            reads = {}, parses = 0 }
         local skin = {}
         function skin:GetVariable(key, default)
             if vars[key] == nil then return default end
             return vars[key]
         end
         function skin:GetMeasure(key)
+            state.reads[key] = (state.reads[key] or 0) + 1
             local letter = key:match('^MeasureIOTotal([A-Z])$') or key:match('^MeasureIOFree([A-Z])$')
             if letter then assert(state.groups['IOCapacity' .. letter], 'read from a disabled capacity bank') end
             letter = key:match('^MeasureIODiskRead([A-Z])$') or key:match('^MeasureIODiskWrite([A-Z])$')
@@ -94,6 +104,7 @@ function Suite.run(productionPath)
             return value:gsub('#([%w]+)#', function(key) return vars[key] or '' end)
         end
         function skin:ParseFormula(value)
+            state.parses = state.parses + 1
             if not value:match('^[%d%s%.%+%-%*/%(%)]+$') then return nil end
             local expression = assert(loadstring('return ' .. value))
             setfenv(expression, {})
@@ -117,6 +128,17 @@ function Suite.run(productionPath)
                 assert(target == 'PanelHeightPx', 'controller attempted to change a saved preference')
                 vars[target] = key
                 state.variableWrites[#state.variableWrites + 1] = {target, key}
+            elseif command == '!SetOptionGroup' then
+                local letter = target:match('^IORow([A-Z])$')
+                assert(letter and key == 'UpdateDivider' and (value == '1' or value == '-1'),
+                    'unexpected group option mutation: ' .. tostring(target) .. ' ' .. tostring(key))
+                state.rows[letter] = value
+            elseif command == '!UpdateMeterGroup' then
+                local letter = target:match('^IORow([A-Z])$')
+                assert(letter, 'unexpected forced meter group: ' .. tostring(target))
+                state.rowUpdates[letter] = (state.rowUpdates[letter] or 0) + 1
+                state.effective[letter] = state.rows[letter]
+                for _, prefix in ipairs(bankPrefixes) do state.pending[prefix .. letter] = nil end
             else
                 assert(targets[target], 'unexpected controller target: ' .. tostring(target))
                 if command == '!SetOption' then
@@ -126,6 +148,8 @@ function Suite.run(productionPath)
                         'unexpected option mutation: ' .. tostring(key))
                     state.options[target] = state.options[target] or {}
                     state.options[target][key] = value
+                    local letter = bankLetter[target]
+                    if letter and state.effective[letter] ~= '1' then state.pending[target] = true end
                 elseif command == '!ShowMeter' then
                     state.shown[target] = true
                 elseif command == '!HideMeter' then
@@ -139,6 +163,7 @@ function Suite.run(productionPath)
                         or target:match('^MeterIODiskRead[A-Z]$') or target:match('^MeterIODiskWrite[A-Z]$')
                         or target:match('^MeterIODiskReadLabel[A-Z]$') or target:match('^MeterIODiskWriteLabel[A-Z]$'),
                         'unexpected forced meter update')
+                    state.pending[target] = nil
                 else
                     error('unsupported bang in mock: ' .. tostring(command))
                 end
@@ -166,18 +191,37 @@ function Suite.run(productionPath)
         assert(type(env.Initialize) == 'function' and type(env.Update) == 'function',
             'controller entrypoints missing')
         env.Initialize()
+        -- After every controller entry: a row with any shown meter must be
+        -- updating with every option it was given applied (no stale idle
+        -- meter); a row with no shown meter must be stored idle.
+        function state:checkRows(result)
+            for code = 65, 90 do
+                local letter = string.char(code)
+                local shown = false
+                for _, prefix in ipairs(bankPrefixes) do
+                    if self.shown[prefix .. letter] then
+                        shown = true
+                        assert(not self.pending[prefix .. letter], 'shown ' .. prefix .. letter .. ' has options its idle row never applied')
+                    end
+                end
+                if shown then assert(self.effective[letter] == '1', 'shown row ' .. letter .. ' is not updating')
+                else assert(self.rows[letter] ~= '1', 'hidden row ' .. letter .. ' still updates every tick') end
+            end
+            return result
+        end
         function state:tick(seconds)
             self.now = self.now + (seconds == nil and 1 or seconds)
-            return env.Update()
+            return self:checkRows(env.Update())
         end
         function state:namesReady()
             assert(type(env.NamesReady) == 'function', 'model completion entrypoint missing')
-            return env.NamesReady()
+            return self:checkRows(env.NamesReady())
         end
-        function state:applyNamesMode() return env.ApplyNamesMode() end
-        function state:refreshNamesInventory() return env.RefreshNamesInventory() end
+        function state:applyNamesMode() return self:checkRows(env.ApplyNamesMode()) end
+        function state:refreshNamesInventory() return self:checkRows(env.RefreshNamesInventory()) end
         function state:refresh()
             self.options, self.shown, self.calls, self.groups, self.variableWrites = {}, {}, {}, {}, {}
+            self.rows, self.effective, self.pending, self.rowUpdates = {}, {}, {}, {}
             env.Initialize()
             return self:tick()
         end
@@ -560,6 +604,134 @@ function Suite.run(productionPath)
         for index = before + 1, #f.calls do
             truth(not f.calls[index][1]:find('MeasureGroup', 1, true), 'stable membership forced another bank update')
         end
+    end)
+
+    test('only shown drive rows update every tick and each divider change is forced once', function()
+        local function rowCalls(f, from)
+            local result = {}
+            for index = from + 1, #f.calls do
+                local call = f.calls[index]
+                if call[1] == '!SetOptionGroup' or call[1] == '!UpdateMeterGroup' then result[#result + 1] = call end
+            end
+            return result
+        end
+        local f = fixture(nil, { MeasureIOTypeD = 4, MeasureIOTotalD = 1e9, MeasureIOFreeD = 5e8 })
+        local calls = rowCalls(f, 0)
+        equal(#calls, 2, 'only the shown C row leaves its shipped idle divider')
+        equal(calls[1][1], '!SetOptionGroup'); equal(calls[1][2], 'IORowC'); equal(calls[1][4], '1')
+        equal(calls[2][1], '!UpdateMeterGroup'); equal(calls[2][2], 'IORowC')
+        -- The forced group update follows every position and visibility write for that row.
+        local forced
+        for index, call in ipairs(f.calls) do if call[1] == '!UpdateMeterGroup' then forced = index end end
+        for index, call in ipairs(f.calls) do
+            if call[2] == 'MeterIODriveC' and (call[3] == 'Y' or call[1] == '!ShowMeter') then
+                truth(index < forced, 'row C was forced before its position or visibility was set')
+            end
+        end
+        local before = #f.calls
+        f:tick(); f:tick()
+        equal(#rowCalls(f, before), 0, 'stable rows must not be forced again')
+        f.vars.IODiskDrives = 'D'
+        before = #f.calls
+        f:tick()
+        calls = rowCalls(f, before)
+        equal(#calls, 4)
+        equal(f.rows.C, '-1'); equal(f.effective.C, '-1'); equal(f.rowUpdates.C, 2)
+        equal(f.rows.D, '1'); equal(f.effective.D, '1'); equal(f.rowUpdates.D, 1)
+        equal(f.shown.MeterIODriveC, false); equal(tonumber(f.options.MeterIODriveC.Y), 0)
+        equal(f.shown.MeterIODriveD, true); equal(tonumber(f.options.MeterIODriveD.Y), 46)
+        f.vars.IODiskDrives = 'none'
+        f:tick()
+        for code = 65, 90 do truth(f.rows[string.char(code)] ~= '1', 'none must leave every row idle') end
+        local all = {}
+        for code = 65, 90 do all['MeasureIOType' .. string.char(code)] = 4 end
+        local every = fixture({ IODiskDrives = 'all', IOGraphMode = 'overlay' }, all)
+        for code = 65, 90 do
+            local letter = string.char(code)
+            equal(every.effective[letter], '1', 'every shown row updates')
+            equal(every.rowUpdates[letter], 1, 'one forced update per newly shown row')
+            equal(every.shown['MeterIOLegend' .. letter], true)
+        end
+        every.vars.IODiskDrives = 'C'
+        every:tick()
+        for code = 65, 90 do
+            local letter = string.char(code)
+            equal(every.effective[letter], letter == 'C' and '1' or '-1')
+        end
+    end)
+
+    test('slow selection, name and capacity work runs only on ticks whose inputs can change', function()
+        -- Inventory, label and capacity measures update on their first tick,
+        -- then every Max(5,Ceil(CapacityInterval/1000)) ticks; a forced update
+        -- restarts a measure's count. Rates and the graph stay per tick.
+        local function slowReads(f)
+            local count = 0
+            for key, n in pairs(f.reads) do
+                if key:match('^MeasureIOType') or key:match('^MeasureIOName') or key:match('^MeasureIOTotal')
+                    or key:match('^MeasureIOFree') then count = count + n end
+            end
+            return count
+        end
+        local function step(f)
+            f.reads = {}
+            f:tick()
+            return slowReads(f) > 0
+        end
+        local f = fixture({ CapacityInterval = '30000', IODriveNames = 'volume' }, {
+            MeasureIONameC = 'System', MeasureIOTypeD = 4, MeasureIOTotalD = 1e9, MeasureIOFreeD = 5e8,
+            MeasureIODiskReadC = 1e6 })
+        equal(f:text('MeterIOCapacityC'), '26.8/107.4 GB')
+        equal(f:text('MeterIODriveC'), 'C: System')
+        local slow = {}
+        for t = 1, 61 do
+            if t == 5 then f.values.MeasureIOFreeC = 50 * GiB end
+            if t == 31 then f.vars.IODiskDrives = 'C,D' end
+            if step(f) then slow[#slow + 1] = t end
+            truth((f.reads.MeasureIODiskReadC or 0) > 0, 'rates must still be read every tick')
+            if t == 29 then equal(f:text('MeterIOCapacityC'), '26.8/107.4 GB', 'capacity text follows its measure cadence') end
+            if t == 30 then equal(f:text('MeterIOCapacityC'), '53.7/107.4 GB') end
+            if t == 31 then equal(f.shown.MeterIODriveD, true, 'a selection variable change applies on the next tick') end
+        end
+        -- Ticks 0/30/60 follow load; 31 follows the selection change and starts
+        -- the D bank's count, so 61 follows that bank.
+        equal(table.concat(slow, ','), '30,31,60,61')
+        local before = #slow
+        for t = 62, 70 do if step(f) then slow[#slow + 1] = t end end
+        f:refreshNamesInventory()
+        for t = 71, 101 do if step(f) then slow[#slow + 1] = t end end
+        -- 71 reconciles the forced inventory update, whose count restarts so
+        -- that it next updates at 100; 90/91 continue the load and D phases.
+        equal(table.concat(slow, ',', before + 1), '71,90,91,100')
+        local fast = fixture({ CapacityInterval = '1000' })
+        local fastSlow = {}
+        for t = 1, 10 do if step(fast) then fastSlow[#fastSlow + 1] = t end end
+        equal(table.concat(fastSlow, ','), '5,10', 'short intervals keep the five-tick minimum')
+        local odd = fixture({ CapacityInterval = '45500' })
+        local oddSlow = {}
+        for t = 1, 46 do if step(odd) then oddSlow[#oddSlow + 1] = t end end
+        equal(table.concat(oddSlow, ','), '46', 'the divider rounds the interval up to whole seconds')
+        for _, bad in ipairs({'', 'not a number', '(1/0)'}) do
+            local every = fixture({ CapacityInterval = bad })
+            for _ = 1, 3 do truth(step(every), 'without a usable interval the slow state updates every tick') end
+        end
+    end)
+
+    test('parsed geometry formulas are reused until their text changes', function()
+        local plain = fixture(nil, { MeasureIODiskReadC = 1e6 })
+        local formula = fixture({ ContentWidth = '(216-8)', ContentX = '(4+6)', Scale = '(2/2)', Inset = '(8/2)' },
+            { MeasureIODiskReadC = 1e6 })
+        for _, key in ipairs({'MeterIODriveC', 'MeterIOCapacityC', 'MeterIODiskReadC', 'MeterIODiskGraph'}) do
+            for option, value in pairs(plain.options[key]) do
+                equal(formula.options[key][option], value, key .. ' ' .. option .. ' differs with formula geometry')
+            end
+        end
+        local parses = formula.parses
+        formula:tick(); formula:tick()
+        equal(formula.parses, parses, 'unchanged formula variables must not be parsed again')
+        formula.vars.ContentWidth = '(220-8)'
+        formula:tick()
+        truth(formula.parses > parses, 'changed formula text must be parsed again')
+        equal(tonumber(formula.options.MeterIODriveC.W), 212)
     end)
 
     test('malformed or noncanonical drive lists fall back to C without persisting a replacement', function()

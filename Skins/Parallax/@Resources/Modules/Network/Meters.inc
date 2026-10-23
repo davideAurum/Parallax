@@ -30,6 +30,8 @@ MeterStyle=StyleTitle | StyleTitleRow
 X=(#ContentX#+#TitleIconSize#+#TitleIconGap#)
 W=(#ContentWidth#-#TitleIconSize#-#TitleIconGap#-78*#Scale#)
 Text=Network
+; Static text: drawn from the refresh update, never changed afterwards.
+UpdateDivider=-1
 
 ; Native glyph layout needs room beyond visible ink, especially at Scale=0.75.
 ; Shared padding adds 6 px width / 2 px height: 44x18 and 28x18 totals.
@@ -77,6 +79,7 @@ FontSize=(#HeaderFontSize#*#Scale#)
 FontWeight=600
 FontColor=#HeaderTextColor#
 Text=IN
+UpdateDivider=-1
 
 [MeterNetworkInRate]
 Meter=String
@@ -117,8 +120,8 @@ W=#ContentWidth#
 H=(#NetworkGraphHeight#*#Scale#)
 Shape=Rectangle 0,0,#ContentWidth#,(#NetworkGraphHeight#*#Scale#) | Fill Color 0,0,0,0 | StrokeWidth 0
 Shape2=Path History | Stroke Color #NetworkInColor# | StrokeWidth #Scale# | Fill Color 0,0,0,0
+; Network.lua's !SetOption of History/Shape2 forces a one-shot re-read on change.
 History=1,1 | LineTo 1,1
-DynamicVariables=1
 AntiAlias=1
 
 [MeterNetworkOutLabel]
@@ -131,6 +134,7 @@ FontSize=(#HeaderFontSize#*#Scale#)
 FontWeight=600
 FontColor=#HeaderTextColor#
 Text=OUT
+UpdateDivider=-1
 
 [MeterNetworkOutRate]
 Meter=String
@@ -171,8 +175,8 @@ W=#ContentWidth#
 H=(#NetworkGraphHeight#*#Scale#)
 Shape=Rectangle 0,0,#ContentWidth#,(#NetworkGraphHeight#*#Scale#) | Fill Color 0,0,0,0 | StrokeWidth 0
 Shape2=Path History | Stroke Color #NetworkOutColor# | StrokeWidth #Scale# | Fill Color 0,0,0,0
+; Network.lua's !SetOption of History/Shape2 forces a one-shot re-read on change.
 History=1,1 | LineTo 1,1
-DynamicVariables=1
 AntiAlias=1
 
 [MeterNetworkFooter]

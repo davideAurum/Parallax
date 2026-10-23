@@ -39,6 +39,10 @@ $variantSets = @(
     , @('VisualizerDrawer=2', 'MediaDrawerCapture=0')
     , @('VisualizerDrawer=2', 'MediaDrawerCapture=1')
     , @('VisualizerDrawer=2', 'MediaDrawerCapture=2')
+    # Idle pause on (Hook5/10/30.inc load the stand-down hook in every utility).
+    , @('IdlePauseMinutes=5')
+    # Media stood down for the idle pause: provider tick, open drawer parked.
+    , @('IdlePauseMinutes=5', 'MediaStandby=1', 'VisualizerDrawer=2', 'MediaDrawerCapture=1')
 )
 
 $assertions = 0

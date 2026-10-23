@@ -46,6 +46,12 @@ CONSUMERS = OrderedDict([
     ('CPU/CPU.ini', [{}, {'CPUShowProcesses': '0'}]),
     ('IO/IO-Disk.ini', [{}]),
     ('Network/Network.ini', [{}]),
+    ('Media/Media.ini', [{}, {'VisualizerDrawer': '0'}, {'VisualizerDrawer': '2', 'MediaDrawerCapture': '0'},
+                         {'VisualizerDrawer': '2', 'MediaDrawerCapture': '1'}, {'VisualizerDrawer': '2', 'MediaDrawerCapture': '2'},
+                         {'MediaStandby': '1'}, {'MediaStandby': '1', 'VisualizerDrawer': '2', 'MediaDrawerCapture': '1'},
+                         {'MediaTitleAnimation': '0'}]),
+    ('Media/Setup.ini', [{}]),
+    ('Media/Queue/Queue.ini', [{}]),
 ])
 
 # Every utility entrypoint, wired or not yet (all ten once C2 is complete).
@@ -62,7 +68,10 @@ NEVER_PAUSED = {'MEASUREPARALLAXSTANDDOWN', 'MEASUREMEDIACAPTURELEASE', 'MEASURE
 # Static freeze members whose explicit divider differs from what deleting the
 # key restores, with the controller function that re-applies it on leave.
 # Keys are (entrypoint, METER NAME); values describe the owner.
-RESTORED = {}
+RESTORED = {
+    ('Media/Setup.ini', 'METERHEADING'): 'UpdateDivider=#MediaLegacyDivider#, which is 1 in Setup.ini (no player, no drawer: '
+                                         'MediaTickInterval is MediaInterval), the same as its default; the native probe compares it',
+}
 
 # Lua files that set a meter's UpdateDivider at runtime, with the controller
 # whose ReapplyDividers covers it (its module suite checks that). Paths are
@@ -70,6 +79,7 @@ RESTORED = {}
 LUA_DIVIDER_OWNERS = {
     'RAM/Display.lua': 'MeasureRAMSettings ReapplyDividers: Used GB/MB by unit, history cover (Tests/DisplayIdleTests.lua)',
     'CPU/CPU.lua': 'MeasureCPUController ReapplyDividers: all 64 Thread slots from slotLive (tests/validate_controller.lua idle case)',
+    'Media/MediaPulse.lua': 'MeterPlayerIcon: Media.ini leaves standby by reloading, so nothing is re-applied in place',
     'IO/IO.lua': 'MeasureIO ReapplyDividers: every IORow<letter> group from its row record (tests/ControllerSuite.lua idle case)',
     'GPU/Temperature.lua': 'its own ReapplyDividers: the restarted History cover (tests/TemperatureSuite.lua idle case)',
     'RAM/Process.lua':'its own measure MeasureRAMProcessView only (not a meter); paused with the skin and re-idled by its own Update',
@@ -80,6 +90,7 @@ LUA_DIVIDER_OWNERS = {
 # even though their static divider is -1. Patterns match upper-case names.
 LUA_MANAGED_METERS = {
     'CPU/CPU.ini': r'^METERCORE(LABEL|BAR|VALUE|VOLTAGE|TEMPERATURE)\d+$',
+    'Media/Media.ini': r'^METERPLAYERICON$',
     'IO/IO-Disk.ini': r'^METERIO(DRIVE|CAPACITY|USED|DISKREADLABEL|DISKWRITELABEL|DISKREAD|DISKWRITE|LEGEND)[A-Z]$',
 }
 

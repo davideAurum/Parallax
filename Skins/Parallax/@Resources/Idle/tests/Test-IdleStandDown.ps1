@@ -41,6 +41,9 @@ param(
 )
 Set-StrictMode -Version Latest
 $ErrorActionPreference = 'Stop'
+# powershell.exe -File passes 'A,B' as one string.
+$Skin = @($Skin | ForEach-Object { $_ -split ',' } | Where-Object { $_ })
+$Layout = @($Layout | ForEach-Object { $_ -split ',' } | Where-Object { $_ })
 $skinSource = [IO.Path]::GetFullPath((Join-Path $PSScriptRoot '..\..\..'))
 $repoRoot = [IO.Path]::GetFullPath((Join-Path $skinSource '..\..'))
 $toolsRoot = Join-Path $repoRoot 'tools'
@@ -54,14 +57,36 @@ function Check([bool]$Condition, [string]$Message) {
     $script:checks++
     if ($Condition) { Write-Output "ok   $Message" } else { $script:failures++; Write-Output "FAIL $Message" }
 }
+# A latency bound: a transition that happened but missed its bound while
+# Windows re-detected displays (Rainmeter logs each event; its timers stall
+# then) is reported LATE, not failed. A transition that never came fails.
+$late = 0
+function Check-Bound([bool]$Reached, [bool]$Within, [int]$DisplayEvents, [string]$Message) {
+    if ($Reached -and -not $Within -and $DisplayEvents -gt 0) {
+        $script:late++
+        Write-Output "LATE $Message ($DisplayEvents display re-detection events during the step)"
+        return
+    }
+    Check ($Reached -and $Within) $Message
+}
 
-# Utility entrypoints this harness can run. Tick: the skin's own update in
-# seconds (the paused line is observed by the probe on that tick). Extra: a
-# module check run after the shared steps (later commits add them).
+# Utility entrypoints this harness can run. Tick: the time the paused line may
+# take after the coordinator's tick, in seconds (one skin tick for in-place
+# skins; a reload for refresh-standby skins). Extra: a module check run after
+# the shared steps. Texts: meters whose Text the probe logs. Prepare: staging
+# changes for this skin (e.g. provider fixtures). Variable: a variable the
+# probe evaluates once per load.
 $skins = [ordered]@{}
-function Register-Skin([string]$Key, [string]$Config, [string]$File, [double]$Tick, [scriptblock]$Extra = $null, [string]$Texts = '') {
+function Register-Skin([string]$Key, [string]$Config, [string]$File, [double]$Tick, [scriptblock]$Extra = $null, [string]$Texts = '',
+        [scriptblock]$Prepare = $null, [string]$Variable = '', [switch]$StaticValues) {
     $script:skins[$Key] = [pscustomobject]@{ Key = $Key; Config = $Config; File = $File; Tick = $Tick; Extra = $Extra; Texts = $Texts
+        Prepare = $Prepare; Variable = $Variable; StaticValues = [bool]$StaticValues
         Relative = ($Config.Substring('Parallax\'.Length) + '\' + $File).Replace('\', '/') }
+}
+function Get-RefreshCount([string]$Root, [string]$Pattern) {
+    $log = "$Root\Rainmeter.log"
+    if (-not (Test-Path -LiteralPath $log)) { return 0 }
+    try { @(Get-Content -LiteralPath $log | Where-Object { $_ -match $Pattern }).Count } catch { 0 }
 }
 
 # Resident PowerShell hosts started by this run's instance (created after it
@@ -107,6 +132,142 @@ function Test-HostCycle($Run, $Process, [string]$Label, [string]$Marker, [string
     Check ($after.Count -eq 1 -and @($after | Where-Object { $_.Id -in @($before | ForEach-Object Id) }).Count -eq 0) "${Label}: exactly one new host after the resume"
 }
 
+# Media's providers become built-in fixtures (Test-MediaCaptureLease.ps1's
+# approach): no WebNowPlaying server, Source reader or provider launch, so
+# nothing reaches a player, a helper or the network. The drawer is open.
+$mediaPrepare = {
+    param($Root, $Target)
+    $media = Join-Path $Target '@Resources\Modules\Media'
+    $providerPath = Join-Path $media 'WebNowPlaying.inc'
+    $provider = [IO.File]::ReadAllText($providerPath)
+    $numeric = @{ MeasureConnection = '1'; MeasureState = '2'; MeasurePosition = '45'; MeasureDuration = '180'; MeasureProgress = '25'
+        MeasureCanPrevious = '1'; MeasureCanPlayPause = '1'; MeasureCanNext = '1' }
+    $strings = @{ MeasurePlayer = 'Synthetic player'; MeasureTitle = 'Synthetic title'; MeasureArtist = 'Synthetic artist'
+        MeasureSourceArtist = 'Synthetic artist'; MeasureAlbum = 'Synthetic album'; MeasureCover = ''; MeasureMediaSource = 'Spotify' }
+    $provider = [regex]::Replace($provider, '(?ms)^\[(Measure\w+)\]\r?\n(.*?)(?=^\[|\z)', {
+        param($match)
+        $name = $match.Groups[1].Value
+        $body = $match.Groups[2].Value
+        if ($body -notmatch '(?m)^Plugin=WebNowPlaying\r?$' -and $body -notmatch '(?m)^ScriptFile=.*SourceReader\.lua\r?$') { return $match.Value }
+        $keep = @([regex]::Matches($body, '(?m)^(UpdateDivider|MinValue|MaxValue|Group)=[^\r\n]*') | ForEach-Object { $_.Value })
+        if ($numeric.ContainsKey($name)) { return "[$name]`nMeasure=Calc`nFormula=$($numeric[$name])`n$($keep -join "`n")`n`n" }
+        return "[$name]`nMeasure=String`nString=$($strings[$name])`n$($keep -join "`n")`n`n"
+    })
+    [IO.File]::WriteAllText($providerPath, $provider, $encoding)
+    [IO.File]::WriteAllText((Join-Path $media 'ProviderControlFixture.lua'), "function Update() return 1 end`nfunction Run() end`n", $encoding)
+    foreach ($file in Get-ChildItem -LiteralPath $Target -Recurse -File | Where-Object { $_.Extension -in @('.ini', '.inc') }) {
+        $text = [IO.File]::ReadAllText($file.FullName)
+        $updated = $text
+        foreach ($resumeHost in @('MeasureMediaSourceResume', 'MeasureMediaQueueResume')) {
+            $updated = [regex]::Replace($updated, '(?ms)^\[' + $resumeHost + '\]\r?\n.*?(?=^\[|\z)', "[$resumeHost]`nMeasure=Script`nScriptFile=#@#Modules\Media\ProviderControlFixture.lua`nUpdateDivider=-1`n`n")
+        }
+        $reader = 'ScriptFile=#@#Modules\Media\Queue\QueueReader.lua'
+        $updated = $updated.Replace($reader, $reader + "`nQueueCachePath=$Root\no-queue.snapshot")
+        if ($updated -ne $text) { [IO.File]::WriteAllText($file.FullName, $updated, $encoding) }
+    }
+    $preferences = Join-Path $Target '@Resources\User\Media.inc'
+    Set-Key $preferences 'VisualizerDrawer' '2'
+    Set-Key $preferences 'QueueExpanded' '0'
+}
+if (-not ('ParallaxStandDownAudio' -as [type])) {
+    Add-Type -TypeDefinition @'
+using System;
+using System.Collections.Generic;
+using System.Runtime.InteropServices;
+public static class ParallaxStandDownAudio {
+    [ComImport, Guid("BCDE0395-E52F-467C-8E3D-C4579291692E")] private class MMDeviceEnumeratorCom { }
+    [ComImport, Guid("A95664D2-9614-4F35-A746-DE8DB63617E6"), InterfaceType(ComInterfaceType.InterfaceIsIUnknown)]
+    private interface IMMDeviceEnumerator { int EnumAudioEndpoints(int f, int m, out IntPtr d); int GetDefaultAudioEndpoint(int f, int r, out IMMDevice d); }
+    [ComImport, Guid("D666063F-1587-4E43-81F1-B948E807363F"), InterfaceType(ComInterfaceType.InterfaceIsIUnknown)]
+    private interface IMMDevice { int Activate(ref Guid iid, int ctx, IntPtr p, [MarshalAs(UnmanagedType.IUnknown)] out object o); }
+    [ComImport, Guid("77AA99A0-1BD6-484F-8BC7-2C654C9A9B6F"), InterfaceType(ComInterfaceType.InterfaceIsIUnknown)]
+    private interface IAudioSessionManager2 { int GetAudioSessionControl(IntPtr g, int f, out IntPtr c); int GetSimpleAudioVolume(IntPtr g, int f, out IntPtr v); int GetSessionEnumerator(out IAudioSessionEnumerator s); }
+    [ComImport, Guid("E2F5BB11-0570-40CA-ACDD-3AA01277DEE8"), InterfaceType(ComInterfaceType.InterfaceIsIUnknown)]
+    private interface IAudioSessionEnumerator { int GetCount(out int c); int GetSession(int i, out IAudioSessionControl2 s); }
+    [ComImport, Guid("BFB7FF88-7239-4FC9-8FA2-07C950BE9C6D"), InterfaceType(ComInterfaceType.InterfaceIsIUnknown)]
+    private interface IAudioSessionControl2 {
+        int GetState(out int s); int GetDisplayName(out IntPtr n); int SetDisplayName(IntPtr n, IntPtr c); int GetIconPath(out IntPtr p);
+        int SetIconPath(IntPtr p, IntPtr c); int GetGroupingParam(out Guid g); int SetGroupingParam(IntPtr g, IntPtr c);
+        int RegisterAudioSessionNotification(IntPtr c); int UnregisterAudioSessionNotification(IntPtr c);
+        int GetSessionIdentifier(out IntPtr i); int GetSessionInstanceIdentifier(out IntPtr i); int GetProcessId(out uint p); }
+    // Session states (0 inactive, 1 active, 2 expired) of one process on the
+    // default render endpoint. Read-only.
+    public static int[] SessionStates(uint pid) {
+        var states = new List<int>();
+        var enumerator = (IMMDeviceEnumerator)new MMDeviceEnumeratorCom();
+        IMMDevice device; Marshal.ThrowExceptionForHR(enumerator.GetDefaultAudioEndpoint(0, 1, out device));
+        var iid = typeof(IAudioSessionManager2).GUID; object face;
+        Marshal.ThrowExceptionForHR(device.Activate(ref iid, 23, IntPtr.Zero, out face));
+        IAudioSessionEnumerator sessions; Marshal.ThrowExceptionForHR(((IAudioSessionManager2)face).GetSessionEnumerator(out sessions));
+        int count; sessions.GetCount(out count);
+        for (int i = 0; i < count; i++) {
+            IAudioSessionControl2 session; sessions.GetSession(i, out session);
+            uint owner; session.GetProcessId(out owner);
+            if (owner == pid) { int state; session.GetState(out state); states.Add(state); }
+        }
+        return states.ToArray();
+    }
+}
+'@
+}
+function Get-ActiveSessions($Process) { @([ParallaxStandDownAudio]::SessionStates([uint32]$Process.Id) | Where-Object { $_ -eq 1 }).Count }
+# Media.ini stands down by reloading: one refresh into standby (provider tick,
+# drawer parked, no render session) and one refresh back (50 ms, live capture).
+$mediaExtra = {
+    param($Run, $Process)
+    $pattern = 'Parallax\\Media\\Media\.ini: Refreshing skin'
+    foreach ($step in @(@{ Idle = '10'; Hidden = '0'; Tick = '1000'; Sessions = 0; Label = 'standby' }, @{ Idle = '0'; Hidden = '1'; Tick = '50'; Sessions = 1; Label = 'back to live' })) {
+        $before = Get-RefreshCount $Run.Root $pattern
+        $written = Send $Run "idle $($step.Idle)"
+        $seen = Wait-Hidden $Run $step.Hidden $written 20000
+        Start-Sleep -Seconds 3
+        $after = Get-RefreshCount $Run.Root $pattern
+        $tick = @(Read-Probe $Run.Probe | Where-Object { $_.Kind -eq 'F' -and $_.Clock -ge $written } | Select-Object -Last 1)
+        $sessions = Get-ActiveSessions $Process
+        Write-Output ("     Media {0}: line {1} after {2:N2} s; refreshes {3} -> {4}; MediaTickInterval {5}; active render sessions {6}" -f $step.Label,
+            $(if ($step.Hidden -eq '0') { 'shown' } else { 'hidden' }), $(if ($seen) { $seen.Clock - $written } else { [double]::NaN }), $before, $after,
+            $(if ($tick.Count) { $tick[0].Rest[1] } else { '?' }), $sessions)
+        Check ($null -ne $seen -and $after -eq $before + 1) "Media $($step.Label): exactly one refresh"
+        Check ($tick.Count -eq 1 -and $tick[0].Rest[1] -eq $step.Tick) "Media $($step.Label): MediaTickInterval $($step.Tick)"
+        if ($step.Sessions -eq 0) { Check ($sessions -eq 0) "Media $($step.Label): the drawer is parked with no render session" }
+        else { Check ($sessions -ge 1) "Media $($step.Label): the live capture's render session is back" }
+    }
+    $statePath = Join-Path $Run.Target '@Resources\Modules\Media\CaptureState.inc'
+    $state = [IO.File]::ReadAllText($statePath)
+    Check ($state -match '(?m)^MediaStandby=0' -and $state -match '(?m)^MediaDrawerCapture=0') 'Media: CaptureState.inc is back to live (standby 0, capture 0)'
+    # Rainmeter restarts while Media is in standby and input is recent: the
+    # standby load syncs with paused 0 and reloads once, back to live.
+    $written = Send $Run 'idle 10'
+    $null = Wait-Hidden $Run '0' $written 20000
+    Start-Sleep -Seconds 2
+    Check ([IO.File]::ReadAllText($statePath) -match '(?m)^MediaStandby=1') 'Media: standby saved before the restart'
+    try { $null = Send $Run 'quit' } catch { }
+    Check ($Process.WaitForExit(20000)) 'Media: the instance quit while in standby'
+    [IO.File]::WriteAllText("$($Run.Root)\idle.txt", '0', $encoding)
+    foreach ($stale in @("$($Run.Root)\cmd.txt", "$($Run.Root)\driver.log")) { if (Test-Path -LiteralPath $stale) { Remove-Item -LiteralPath $stale } }
+    $Run.Sequence = 0
+    $restarted = Start-Run $Run.Root
+    try {
+        $clock = [Diagnostics.Stopwatch]::StartNew()
+        $live = -1
+        while ($clock.ElapsedMilliseconds -lt 45000) {
+            $text = try { [IO.File]::ReadAllText($statePath) } catch { '' }
+            if ($text -match '(?m)^MediaStandby=0' -and $text -match '(?m)^MediaDrawerCapture=0') { $live = $clock.ElapsedMilliseconds; break }
+            Start-Sleep -Milliseconds 200
+        }
+        Start-Sleep -Seconds 3
+        $refreshes = Get-RefreshCount $Run.Root $pattern
+        $sessions = Get-ActiveSessions $restarted
+        Write-Output ("     Media restart in standby with input recent: live after {0} ms; Media.ini loads/refreshes in the new log {1}; active render sessions {2}" -f $live, $refreshes, $sessions)
+        Check ($live -ge 0) 'Media: restart in standby with input recent returns to live'
+        Check ($refreshes -eq 2) 'Media: one load in standby plus exactly one refresh back'
+        Check ($sessions -ge 1) 'Media: live capture after the restart'
+    } finally {
+        try { $null = Send $Run 'quit' } catch { }
+        if (-not $restarted.WaitForExit(15000)) { Stop-Run $restarted }
+    }
+}
+
 Register-Skin 'Chronometer' 'Parallax\Chronometer' 'Chronometer.ini' 1.0
 Register-Skin 'RAM' 'Parallax\RAM' 'RAM.ini' 1.0 {
     param($Run, $Process)
@@ -134,6 +295,9 @@ Register-Skin 'Network' 'Parallax\Network' 'Network.ini' 1.0 {
     Check ($texts.Count -ge 2 -and $texts[0].Rest[1] -match 'sampling') 'Network: the first status after resume reads sampling..., not a pause-long delta'
     Check (@($texts | Where-Object { $_.Rest[1] -match '1 s samples' }).Count -ge 1) 'Network: valid 1 s samples follow within 6 s'
 } 'MeterNetworkStatus'
+Register-Skin 'Media' 'Parallax\Media' 'Media.ini' 3.0 $mediaExtra '' $mediaPrepare 'MediaTickInterval'
+Register-Skin 'Setup' 'Parallax\Media' 'Setup.ini' 1.0 $null '' $mediaPrepare -StaticValues
+Register-Skin 'Queue' 'Parallax\Media\Queue' 'Queue.ini' 1.0 $null '' $mediaPrepare -StaticValues
 
 Add-Type -AssemblyName System.Drawing
 if (-not ('ParallaxStandDownNative' -as [type])) {
@@ -360,16 +524,35 @@ function New-StandDownRun($Entry, [string]$LayoutName) {
     Set-Key $idleIni 'ParallaxIdleTestPauseSeconds' '4'
     Set-Key $idleIni 'ParallaxIdleTestAwaySeconds' '4'
     Set-Key $idleIni 'ParallaxIdleTestHeartbeatTicks' '4'
-    $lists = & python (Join-Path $toolsRoot 'tests\test_idle_freeze_contract.py') --list $Entry.Relative "$root\meters.txt" "$root\measures.txt" 'IdlePauseMinutes=5' 2>&1
-    if ($LASTEXITCODE -ne 0) { throw "Static list failed: $lists" }
-    Write-Host "     $lists"
+    if ($Entry.Prepare) { & $Entry.Prepare $root $target }
+    # Every meter and paused measure of each variant this run loads (Media: the
+    # open drawer live and parked), merged; a name a load lacks reads 'missing'.
+    $variantSets = [Collections.Generic.List[object]]::new()
+    if ($Entry.Key -eq 'Media') {
+        $variantSets.Add([string[]]@('VisualizerDrawer=2', 'MediaDrawerCapture=0'))
+        $variantSets.Add([string[]]@('VisualizerDrawer=2', 'MediaDrawerCapture=1', 'MediaStandby=1'))
+    } else {
+        $variantSets.Add([string[]]@())
+    }
+    $meterNames = [Collections.Generic.List[string]]::new(); $measureNames = [Collections.Generic.List[string]]::new()
+    $index = 0
+    foreach ($set in $variantSets) {
+        $index++
+        $lists = & python (Join-Path $toolsRoot 'tests\test_idle_freeze_contract.py') --list $Entry.Relative "$root\meters$index.txt" "$root\measures$index.txt" 'IdlePauseMinutes=5' @set 2>&1
+        if ($LASTEXITCODE -ne 0) { throw "Static list failed: $lists" }
+        Write-Host "     $lists $($set -join ' ')"
+        foreach ($name in [IO.File]::ReadAllLines("$root\meters$index.txt")) { if ($name -and -not $meterNames.Contains($name)) { $meterNames.Add($name) } }
+        foreach ($name in [IO.File]::ReadAllLines("$root\measures$index.txt")) { if ($name -and -not $measureNames.Contains($name)) { $measureNames.Add($name) } }
+    }
+    [IO.File]::WriteAllLines("$root\meters.txt", $meterNames)
+    [IO.File]::WriteAllLines("$root\measures.txt", $measureNames)
     $entryPath = Join-Path $target ($Entry.Config.Substring('Parallax\'.Length) + '\' + $Entry.File)
     $default = '1'
     $entryText = [IO.File]::ReadAllText($entryPath)
     $match = [regex]::Match($entryText, '(?m)^DefaultUpdateDivider=([^\r\n]*)')
     if ($match.Success) { $default = $match.Groups[1].Value }
     Copy-Item -LiteralPath (Join-Path $PSScriptRoot 'DividerProbe.lua') -Destination "$root\DividerProbe.lua"
-    $entryText = $entryText.TrimEnd() + "`r`n`r`n[MeasureParallaxDividerProbe]`r`nMeasure=Script`r`nScriptFile=$root\DividerProbe.lua`r`nUpdateDivider=1`r`nProbeMeters=$root\meters.txt`r`nProbeMeasures=$root\measures.txt`r`nProbeLog=$root\probe.log`r`nProbeDefault=$default`r`nProbeTexts=$($Entry.Texts)`r`n"
+    $entryText = $entryText.TrimEnd() + "`r`n`r`n[MeasureParallaxDividerProbe]`r`nMeasure=Script`r`nScriptFile=$root\DividerProbe.lua`r`nUpdateDivider=1`r`nProbeMeters=$root\meters.txt`r`nProbeMeasures=$root\measures.txt`r`nProbeLog=$root\probe.log`r`nProbeDefault=$default`r`nProbeTexts=$($Entry.Texts)`r`nProbeVariable=$($Entry.Variable)`r`n"
     [IO.File]::WriteAllText($entryPath, $entryText, $encoding)
     Put $root "$root\idle.txt" '0'
     Put $root "$root\Driver.lua" $driverLua
@@ -438,30 +621,33 @@ function Invoke-StandDown($Entry, [string]$LayoutName, [bool]$Full) {
         Check ($null -ne $baseline -and $baseline.Dividers.Count -gt 0) "$($Entry.Key): baseline snapshot of $(if ($baseline) { $baseline.Dividers.Count } else { 0 }) meters"
         Capture $run $process 'live'
 
+        $displayBefore = Get-DisplayEvents $run.Root
         $written = Send $run 'idle 10'
         $enter = Wait-Hidden $run '0' $written 15000
         $latency = if ($enter) { $enter.Clock - $written } else { [double]::NaN }
         Write-Output ("     enter: paused line shown {0:N3} s after the idle write (bound {1:N1} s)" -f $latency, $bound)
-        Check ($null -ne $enter -and $latency -le $bound) "$($Entry.Key): enter within a coordinator tick plus one skin tick"
+        Check-Bound ($null -ne $enter) ($latency -le $bound) ((Get-DisplayEvents $run.Root) - $displayBefore) "$($Entry.Key): enter within a coordinator tick plus one skin tick"
         if ($null -eq $enter) { return }
         $records = Read-Probe $run.Probe
         $snapshot = Get-Snapshot $records 'enter' $enter.Clock
-        $notFrozen = @($snapshot.Dividers.Keys | Where-Object { $snapshot.Dividers[$_] -ne '-1' })
+        $notFrozen = @($snapshot.Dividers.Keys | Where-Object { $snapshot.Dividers[$_] -ne '-1' -and $snapshot.Dividers[$_] -ne 'missing' })
         Check ($notFrozen.Count -eq 0) "$($Entry.Key): every meter resolves to UpdateDivider -1 while paused ($($snapshot.Dividers.Count) meters$(if ($notFrozen.Count) { '; not frozen: ' + (($notFrozen | Select-Object -First 8) -join ', ') }))"
         Start-Sleep -Milliseconds 3800
         if ($Full) {
             $window = @(Read-Probe $run.Probe | Where-Object { $_.Kind -eq 'V' -and $_.Clock -ge $enter.Clock + 0.5 -and $_.Clock -le $enter.Clock + 3.5 })
             $moved = @($window | Where-Object { [int]$_.Rest[2] -ne 0 })
             $digests = @($window | ForEach-Object { $_.Rest[1] } | Select-Object -Unique)
-            Check ($window.Count -ge 2 -and $moved.Count -eq 0 -and $digests.Count -eq 1) "$($Entry.Key): paused measure values stay constant for 3 s ($($window.Count) ticks, $($digests.Count) distinct digest)"
+            # Fewer than two probe ticks in 3 s means Rainmeter's timers stalled.
+            Check-Bound ($moved.Count -eq 0 -and $digests.Count -le 1) ($window.Count -ge 2) ((Get-DisplayEvents $run.Root) - $displayBefore) "$($Entry.Key): paused measure values stay constant for 3 s ($($window.Count) ticks, $($digests.Count) distinct digest)"
         }
         Capture $run $process 'paused'
 
+        $displayBefore = Get-DisplayEvents $run.Root
         $written = Send $run 'idle 0'
         $leave = Wait-Hidden $run '1' $written 15000
         $latency = if ($leave) { $leave.Clock - $written } else { [double]::NaN }
         Write-Output ("     leave: paused line hidden {0:N3} s after the idle write" -f $latency)
-        Check ($null -ne $leave -and $latency -le $bound) "$($Entry.Key): leave within a coordinator tick plus one skin tick"
+        Check-Bound ($null -ne $leave) ($latency -le $bound) ((Get-DisplayEvents $run.Root) - $displayBefore) "$($Entry.Key): leave within a coordinator tick plus one skin tick"
         if ($null -eq $leave) { return }
         $after = Get-Snapshot (Read-Probe $run.Probe) 'live' $leave.Clock
         $differ = @($baseline.Dividers.Keys | Where-Object { $after.Dividers[$_] -ne $baseline.Dividers[$_] })
@@ -470,7 +656,8 @@ function Invoke-StandDown($Entry, [string]$LayoutName, [bool]$Full) {
         Start-Sleep -Seconds 3
         $resumed = @(Read-Probe $run.Probe | Where-Object { $_.Kind -eq 'V' -and $_.Clock -ge $leave.Clock -and [int]$_.Rest[2] -gt 0 })
         Write-Output "     after leave: $($resumed.Count) ticks with changed measure values in 3 s"
-        Check ($resumed.Count -gt 0) "$($Entry.Key): measure values move again after leave"
+        if ($Entry.StaticValues) { Write-Output '     (this view has no changing value without a provider; not checked)' }
+        else { Check ($resumed.Count -gt 0) "$($Entry.Key): measure values move again after leave" }
         Capture $run $process 'resumed'
 
         # Restart while paused: the reload starts live, joins, and re-enters.
@@ -484,11 +671,12 @@ function Invoke-StandDown($Entry, [string]$LayoutName, [bool]$Full) {
         Check ($null -ne $again) "$($Entry.Key): a reload while paused re-enters once synced"
 
         # Watchdog: the coordinator stops beating; fail live after 6 s + 2 s.
+        $displayBefore = Get-DisplayEvents $run.Root
         $hung = Send $run 'hang'
         $live = Wait-Hidden $run '1' $hung 30000
         $after = if ($live) { $live.Clock - $hung } else { [double]::NaN }
         Write-Output ("     watchdog: failed live {0:N3} s after the coordinator stopped beating (bound 6 s stale + 2 s hook + {1:N1} s)" -f $after, $Entry.Tick)
-        Check ($null -ne $live -and $after -le 6 + 2 + $Entry.Tick + 1.5) "$($Entry.Key): with no beat the skin fails live within the stale limit plus one hook period"
+        Check-Bound ($null -ne $live) ($after -le 6 + 2 + $Entry.Tick + 1.5) ((Get-DisplayEvents $run.Root) - $displayBefore) "$($Entry.Key): with no beat the skin fails live within the stale limit plus one hook period"
         $null = Send $run 'idle 0'
         $null = Send $run 'unhang'
         Start-Sleep -Seconds 2
@@ -537,5 +725,5 @@ foreach ($key in $Skin) {
         $first = $false
     }
 }
-Write-Output "$checks checks, $failures failures."
+Write-Output "$checks checks, $failures failures, $late late during display re-detection."
 if ($failures) { throw 'Idle stand-down native checks failed.' }

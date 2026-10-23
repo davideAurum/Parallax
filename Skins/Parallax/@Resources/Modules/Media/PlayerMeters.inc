@@ -52,7 +52,7 @@ UpdateDivider=-1
 ; cadence rather than every animation tick.
 [MeterCover]
 Meter=Image
-Group=MediaTrack
+Group=MediaTrack|ParallaxIdleFreeze
 MeasureName=MeasureCover
 Container=MeterCoverMask
 X=0
@@ -130,7 +130,7 @@ LucideDiscLowerPath=(18*#MediaLucideScale#),(12*#MediaLucideScale#) | CurveTo (1
 [MeterTrackTitle]
 Meter=String
 MeterStyle=StyleLabel
-Group=MediaTrack
+Group=MediaTrack|ParallaxIdleFreeze
 MeasureName=MeasureTitle
 X=(#MediaMetadataX#+20*#Scale#)
 Y=(#MediaMetadataY#+12*#Scale#)
@@ -145,7 +145,7 @@ Hidden=1
 [MeterArtist]
 Meter=String
 MeterStyle=StyleLabel
-Group=MediaTrack
+Group=MediaTrack|ParallaxIdleFreeze
 MeasureName=MeasureArtist
 X=(#MediaMetadataX#+20*#Scale#)
 Y=(#MediaMetadataY#+#MediaMetadataPitch#+12*#Scale#)
@@ -158,7 +158,7 @@ Hidden=1
 [MeterAlbum]
 Meter=String
 MeterStyle=StyleLabel|MediaSecondaryStyle
-Group=MediaTrack
+Group=MediaTrack|ParallaxIdleFreeze
 MeasureName=MeasureAlbum
 X=(#MediaMetadataX#+20*#Scale#)
 Y=(#MediaMetadataY#+2*#MediaMetadataPitch#+12*#Scale#)
@@ -170,7 +170,7 @@ Hidden=1
 
 [MeterProgress]
 Meter=Bar
-Group=MediaTimeline
+Group=MediaTimeline|ParallaxIdleFreeze
 MeasureName=MeasureProgress
 X=#MediaProgressX#
 Y=#MediaProgressY#
@@ -207,7 +207,7 @@ StringAlign=Right
 [MeterTiming]
 Meter=String
 MeterStyle=MediaTimingStyle
-Group=MediaTimeline
+Group=MediaTimeline|ParallaxIdleFreeze
 MeasureName=MeasurePosition
 MeasureName2=MeasureDuration
 Text=%1 / %2

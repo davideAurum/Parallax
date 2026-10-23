@@ -10,6 +10,7 @@
 ; Parent options cannot change dynamically; use !Refresh after editing.
 [MeasureVisualizerAudio]
 Measure=Plugin
+Group=ParallaxIdlePause
 Plugin=AudioLevel
 Port=Output
 ID=#VisualizerDeviceID#
@@ -32,6 +33,7 @@ UpdateDivider=#VisualizerCaptureDivider#
 ; through its own buffer errors (docs/PERFORMANCE-REVIEW.md VIS-04).
 [MeasureVisualizerDevice]
 Measure=Plugin
+Group=ParallaxIdlePause
 Plugin=AudioLevel
 Parent=MeasureVisualizerAudio
 Type=DeviceStatus
@@ -39,6 +41,7 @@ UpdateDivider=#VisualizerDeviceNameDivider#
 
 [MeasureVisualizerFormat]
 Measure=Plugin
+Group=ParallaxIdlePause
 Plugin=AudioLevel
 Parent=MeasureVisualizerAudio
 Type=Format
@@ -50,6 +53,7 @@ UpdateDivider=#VisualizerCaptureDivider#
 
 [MeasureVisualizerRMS]
 Measure=Plugin
+Group=ParallaxIdlePause
 Plugin=AudioLevel
 Parent=MeasureVisualizerAudio
 Type=RMS
@@ -72,6 +76,7 @@ UpdateDivider=#VisualizerCaptureDivider#
 ; meters that have not had their first update yet.
 [MeasureVisualizerState]
 Measure=Calc
+Group=ParallaxIdlePause
 Formula=(MeasureVisualizerDevice<=0 ? 0 : (#VisualizerFormatInvalid#=1 ? 3 : (MeasureVisualizerRMS>#VisualizerIdleFloor# ? 2 : 1)))
 DynamicVariables=1
 IfCondition=MeasureVisualizerState=0
@@ -88,6 +93,7 @@ UpdateDivider=#VisualizerCaptureDivider#
 
 [MeasureVisualizerBand0]
 Measure=Plugin
+Group=ParallaxIdlePause
 Plugin=AudioLevel
 Parent=MeasureVisualizerAudio
 Type=Band
@@ -99,6 +105,7 @@ UpdateDivider=#VisualizerCaptureDivider#
 
 [MeasureVisualizerBand1]
 Measure=Plugin
+Group=ParallaxIdlePause
 Plugin=AudioLevel
 Parent=MeasureVisualizerAudio
 Type=Band
@@ -110,6 +117,7 @@ UpdateDivider=#VisualizerCaptureDivider#
 
 [MeasureVisualizerBand2]
 Measure=Plugin
+Group=ParallaxIdlePause
 Plugin=AudioLevel
 Parent=MeasureVisualizerAudio
 Type=Band
@@ -121,6 +129,7 @@ UpdateDivider=#VisualizerCaptureDivider#
 
 [MeasureVisualizerBand3]
 Measure=Plugin
+Group=ParallaxIdlePause
 Plugin=AudioLevel
 Parent=MeasureVisualizerAudio
 Type=Band
@@ -132,6 +141,7 @@ UpdateDivider=#VisualizerCaptureDivider#
 
 [MeasureVisualizerBand4]
 Measure=Plugin
+Group=ParallaxIdlePause
 Plugin=AudioLevel
 Parent=MeasureVisualizerAudio
 Type=Band
@@ -143,6 +153,7 @@ UpdateDivider=#VisualizerCaptureDivider#
 
 [MeasureVisualizerBand5]
 Measure=Plugin
+Group=ParallaxIdlePause
 Plugin=AudioLevel
 Parent=MeasureVisualizerAudio
 Type=Band
@@ -154,6 +165,7 @@ UpdateDivider=#VisualizerCaptureDivider#
 
 [MeasureVisualizerBand6]
 Measure=Plugin
+Group=ParallaxIdlePause
 Plugin=AudioLevel
 Parent=MeasureVisualizerAudio
 Type=Band
@@ -165,6 +177,7 @@ UpdateDivider=#VisualizerCaptureDivider#
 
 [MeasureVisualizerBand7]
 Measure=Plugin
+Group=ParallaxIdlePause
 Plugin=AudioLevel
 Parent=MeasureVisualizerAudio
 Type=Band
@@ -176,6 +189,7 @@ UpdateDivider=#VisualizerCaptureDivider#
 
 [MeasureVisualizerBand8]
 Measure=Plugin
+Group=ParallaxIdlePause
 Plugin=AudioLevel
 Parent=MeasureVisualizerAudio
 Type=Band
@@ -187,6 +201,7 @@ UpdateDivider=#VisualizerCaptureDivider#
 
 [MeasureVisualizerBand9]
 Measure=Plugin
+Group=ParallaxIdlePause
 Plugin=AudioLevel
 Parent=MeasureVisualizerAudio
 Type=Band
@@ -198,6 +213,7 @@ UpdateDivider=#VisualizerCaptureDivider#
 
 [MeasureVisualizerBand10]
 Measure=Plugin
+Group=ParallaxIdlePause
 Plugin=AudioLevel
 Parent=MeasureVisualizerAudio
 Type=Band
@@ -209,6 +225,7 @@ UpdateDivider=#VisualizerCaptureDivider#
 
 [MeasureVisualizerBand11]
 Measure=Plugin
+Group=ParallaxIdlePause
 Plugin=AudioLevel
 Parent=MeasureVisualizerAudio
 Type=Band
@@ -220,6 +237,7 @@ UpdateDivider=#VisualizerCaptureDivider#
 
 [MeasureVisualizerBand12]
 Measure=Plugin
+Group=ParallaxIdlePause
 Plugin=AudioLevel
 Parent=MeasureVisualizerAudio
 Type=Band
@@ -231,6 +249,7 @@ UpdateDivider=#VisualizerCaptureDivider#
 
 [MeasureVisualizerBand13]
 Measure=Plugin
+Group=ParallaxIdlePause
 Plugin=AudioLevel
 Parent=MeasureVisualizerAudio
 Type=Band
@@ -242,6 +261,7 @@ UpdateDivider=#VisualizerCaptureDivider#
 
 [MeasureVisualizerBand14]
 Measure=Plugin
+Group=ParallaxIdlePause
 Plugin=AudioLevel
 Parent=MeasureVisualizerAudio
 Type=Band
@@ -253,6 +273,7 @@ UpdateDivider=#VisualizerCaptureDivider#
 
 [MeasureVisualizerBand15]
 Measure=Plugin
+Group=ParallaxIdlePause
 Plugin=AudioLevel
 Parent=MeasureVisualizerAudio
 Type=Band
@@ -264,6 +285,7 @@ UpdateDivider=#VisualizerCaptureDivider#
 
 [MeasureVisualizerBand16]
 Measure=Plugin
+Group=ParallaxIdlePause
 Plugin=AudioLevel
 Parent=MeasureVisualizerAudio
 Type=Band
@@ -275,6 +297,7 @@ UpdateDivider=#VisualizerCaptureDivider#
 
 [MeasureVisualizerBand17]
 Measure=Plugin
+Group=ParallaxIdlePause
 Plugin=AudioLevel
 Parent=MeasureVisualizerAudio
 Type=Band
@@ -286,6 +309,7 @@ UpdateDivider=#VisualizerCaptureDivider#
 
 [MeasureVisualizerBand18]
 Measure=Plugin
+Group=ParallaxIdlePause
 Plugin=AudioLevel
 Parent=MeasureVisualizerAudio
 Type=Band
@@ -297,6 +321,7 @@ UpdateDivider=#VisualizerCaptureDivider#
 
 [MeasureVisualizerBand19]
 Measure=Plugin
+Group=ParallaxIdlePause
 Plugin=AudioLevel
 Parent=MeasureVisualizerAudio
 Type=Band
@@ -308,6 +333,7 @@ UpdateDivider=#VisualizerCaptureDivider#
 
 [MeasureVisualizerBand20]
 Measure=Plugin
+Group=ParallaxIdlePause
 Plugin=AudioLevel
 Parent=MeasureVisualizerAudio
 Type=Band
@@ -319,6 +345,7 @@ UpdateDivider=#VisualizerCaptureDivider#
 
 [MeasureVisualizerBand21]
 Measure=Plugin
+Group=ParallaxIdlePause
 Plugin=AudioLevel
 Parent=MeasureVisualizerAudio
 Type=Band
@@ -330,6 +357,7 @@ UpdateDivider=#VisualizerCaptureDivider#
 
 [MeasureVisualizerBand22]
 Measure=Plugin
+Group=ParallaxIdlePause
 Plugin=AudioLevel
 Parent=MeasureVisualizerAudio
 Type=Band
@@ -341,6 +369,7 @@ UpdateDivider=#VisualizerCaptureDivider#
 
 [MeasureVisualizerBand23]
 Measure=Plugin
+Group=ParallaxIdlePause
 Plugin=AudioLevel
 Parent=MeasureVisualizerAudio
 Type=Band

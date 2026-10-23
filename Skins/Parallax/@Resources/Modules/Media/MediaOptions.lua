@@ -66,11 +66,32 @@ local function readExpanded()
     return value == '1' and '1' or '0'
 end
 
+local standbyChecked
+
 function Initialize()
     settingsPath = SKIN:GetVariable('@') .. 'User\\Media.inc'
+    standbyChecked = false
 end
 
-function Update() return 'Queue' end
+local IDLE_MINUTES = { ['5'] = true, ['10'] = true, ['30'] = true }
+
+-- Idle stand-down load validation (Global Settings Idle pause): a Media.ini
+-- load built in standby while the pause is Off (or holds a hand-edited value)
+-- has no hook to bring it back, so it returns to live here, once per load.
+-- Setup.ini and Queue.ini never act on the saved standby.
+local function checkStandby()
+    standbyChecked = true
+    if SKIN:GetVariable('CURRENTFILE', '') ~= 'Media.ini' then return end
+    if SKIN:GetVariable('MediaStandby', '0') ~= '1' then return end
+    local minutes = (SKIN:GetVariable('IdlePauseMinutes', '0') or ''):match('^%s*(.-)%s*$')
+    if IDLE_MINUTES[minutes] then return end
+    IdleStandby(0, 'fail-live')
+end
+
+function Update()
+    if not standbyChecked then checkStandby() end
+    return 'Queue'
+end
 
 -- An unreadable or unsaved preference leaves the queue display unchanged.
 local function setExpanded(requested)
@@ -227,6 +248,24 @@ function ApplyLease(capture, standby, reason)
         SKIN:Bang('!Refresh')
     end
     return true
+end
+
+-- The idle stand-down's single write (@Resources\Idle\StandDown.lua sends
+-- IdleStandby(level, reason) here; Media.ini only). Standby and the open
+-- drawer's capture change together, so entering and leaving standby is one
+-- coalesced reload: level 1 also parks a live open drawer (released capture,
+-- "Capture paused"); level 0 takes a parked drawer back to live, since input
+-- is what ends standby and the capture lease would unpark on input anyway. A
+-- deferred drawer stays deferred. The lease stamp skips the provider resume
+-- on that reload (MEDIA-08).
+function IdleStandby(level, reason)
+    level = tonumber(level) == 1 and 1 or 0
+    local capture = tonumber(SKIN:GetVariable('MediaDrawerCapture', '0')) or 0
+    local open = SKIN:GetVariable('VisualizerDrawer', '1') == '2'
+    if level == 1 and capture == 0 and open then capture = 1 end
+    if level == 0 and capture == 1 then capture = 0 end
+    if reason ~= 'fail-live' then reason = 'standby' end
+    return ApplyLease(capture, level, reason)
 end
 
 -- One capture at a time (XMOD-02): an opening drawer starts deferred while

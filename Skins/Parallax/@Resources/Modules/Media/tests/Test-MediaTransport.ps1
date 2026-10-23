@@ -42,6 +42,7 @@ function Write-TestFile([string]$Path, [string]$Content) {
 $sourceMap = [ordered]@{
     'Media\Media.ini' = (Join-Path $skinSource 'Media\Media.ini')
     '@Resources\Defaults.inc' = (Join-Path $resourcesRoot 'Defaults.inc')
+    '@Resources\Idle\Hook0.inc' = (Join-Path $resourcesRoot 'Idle\Hook0.inc')
     '@Resources\Geometry.inc' = (Join-Path $resourcesRoot 'Geometry.inc')
     '@Resources\Styles.inc' = (Join-Path $resourcesRoot 'Styles.inc')
     '@Resources\User\Settings.inc' = (Join-Path $resourcesRoot 'User\Settings.inc')

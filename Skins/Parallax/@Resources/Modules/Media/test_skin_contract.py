@@ -1017,8 +1017,10 @@ class SkinContractTests(unittest.TestCase):
             self.assertEqual(header['UpdateDivider'],'#MediaLegacyDivider#')
             self.assertEqual(header['UpdateDivider'],sections['MeasureMediaHeader']['UpdateDivider'])
             self.assertNotIn('MeterPlayerName',sections)
-            self.assertEqual(visited[-1].name,'Header.inc')
-            actual={name for name,section in sections.items() if 'Meter' in section and resolve_style(sections,name).get('Group')=='MediaPlayerIcons'}
+            # Header.inc is the last module include; the idle stand-down hook
+            # include (Hook0.inc while Idle pause is Off) follows it.
+            self.assertEqual([path.name for path in visited[-2:]],['Header.inc','Hook0.inc'])
+            actual={name for name,section in sections.items() if 'Meter' in section and 'MediaPlayerIcons' in [group.strip() for group in resolve_style(sections,name).get('Group','').split('|')]}
             self.assertEqual(actual,names)
             self.assertFalse(any(re.fullmatch(r'MeterPlayer\w+Icon', name) for name in sections))
             # Monitor-play is the default face. Only Media.ini's MediaPulse.lua
@@ -1493,7 +1495,8 @@ class SkinContractTests(unittest.TestCase):
             if name == 'Settings/Settings.ini':
                 self.assertNotIn('OnRefreshAction', config)
             else:
-                join = '#ParallaxIdleJoinAction#' if name == 'Media.ini' else ''
+                # Every view joins the idle coordinator (empty unless Idle pause is on).
+                join = '#ParallaxIdleJoinAction#'
                 self.assertEqual(config['OnRefreshAction'],
                                  '[!CommandMeasure MeasureMediaLifecycle "ResumeProviders()"]' + join)
             if name == 'Queue/Queue.ini':
@@ -2155,7 +2158,9 @@ class SkinContractTests(unittest.TestCase):
                     '@Resources/Modules/Media/Lifecycle.inc',f'@Resources/Modules/Media/VisualizerDrawer{drawer}.inc']+
                     (['@Resources/Modules/Visualizer/Capture.inc','@Resources/Modules/Visualizer/Spectrum.inc'] if drawer==2 else [])+
                     ['@Resources/Modules/Media/Header.inc'])
-                self.assertEqual(visited[-1].name,'Header.inc')
+                # Header.inc is the last module include; the idle stand-down hook
+                # include (Hook0.inc while Idle pause is Off) follows it.
+                self.assertEqual([path.name for path in visited[-2:]],['Header.inc','Hook0.inc'])
                 measures=[name for name,section in sections.items() if 'Measure' in section]
                 self.assertEqual(measures[-1],'MeasureMediaHeader')
                 if drawer!=2:
@@ -2171,7 +2176,9 @@ class SkinContractTests(unittest.TestCase):
                 self.assertEqual(order,['@Resources/Modules/Visualizer/Fallbacks.inc']+core+[
                     '@Resources/Modules/Media/SetupMeters.inc','@Resources/Modules/Media/Lifecycle.inc',
                     '@Resources/Modules/Media/Header.inc'])
-                self.assertEqual(visited[-1].name,'Header.inc')
+                # Header.inc is the last module include; the idle stand-down hook
+                # include (Hook0.inc while Idle pause is Off) follows it.
+                self.assertEqual([path.name for path in visited[-2:]],['Header.inc','Hook0.inc'])
         # Flags a later include's geometry depends on are set BEFORE the first
         # include: a late override leaks stale values through forward references
         # in Rainmeter's final variable pass (found natively).

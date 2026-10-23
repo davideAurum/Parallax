@@ -6,24 +6,28 @@
 ; drawer smoothly; see InlineQueueGeometry.inc for the variables.
 [MeasureConnection]
 Measure=Plugin
+Group=ParallaxIdlePause
 Plugin=WebNowPlaying
 PlayerType=Status
 UpdateDivider=#MediaLegacyDivider#
 
 [MeasurePlayer]
 Measure=Plugin
+Group=ParallaxIdlePause
 Plugin=WebNowPlaying
 PlayerType=Player
 UpdateDivider=#MediaLegacyDivider#
 
 [MeasureTitle]
 Measure=Plugin
+Group=ParallaxIdlePause
 Plugin=WebNowPlaying
 PlayerType=Title
 UpdateDivider=#MediaLegacyDivider#
 
 [MeasureArtist]
 Measure=Plugin
+Group=ParallaxIdlePause
 Plugin=WebNowPlaying
 PlayerType=Artist
 Substitute="":"Artist unavailable"
@@ -32,12 +36,14 @@ UpdateDivider=#MediaLegacyDivider#
 ; Raw artist value for matching local Windows sessions; never substitute metadata.
 [MeasureSourceArtist]
 Measure=Plugin
+Group=ParallaxIdlePause
 Plugin=WebNowPlaying
 PlayerType=Artist
 UpdateDivider=#MediaLegacyDivider#
 
 [MeasureAlbum]
 Measure=Plugin
+Group=ParallaxIdlePause
 Plugin=WebNowPlaying
 PlayerType=Album
 Substitute="":"Album unavailable"
@@ -48,6 +54,7 @@ UpdateDivider=#MediaLegacyDivider#
 ; path containing 0 is never touched; empty means no image, not a missing file.
 [MeasureCover]
 Measure=Plugin
+Group=ParallaxIdlePause
 Plugin=WebNowPlaying
 PlayerType=Cover
 RegExpSubstitute=1
@@ -59,24 +66,28 @@ UpdateDivider=#MediaLegacyDivider#
 ; MediaHeader.lua (the title's player name); no separate skin Variable needed.
 [MeasureState]
 Measure=Plugin
+Group=ParallaxIdlePause
 Plugin=WebNowPlaying
 PlayerType=State
 UpdateDivider=#MediaLegacyDivider#
 
 [MeasurePosition]
 Measure=Plugin
+Group=ParallaxIdlePause
 Plugin=WebNowPlaying
 PlayerType=Position
 UpdateDivider=#MediaLegacyDivider#
 
 [MeasureDuration]
 Measure=Plugin
+Group=ParallaxIdlePause
 Plugin=WebNowPlaying
 PlayerType=Duration
 UpdateDivider=#MediaLegacyDivider#
 
 [MeasureProgress]
 Measure=Plugin
+Group=ParallaxIdlePause
 Plugin=WebNowPlaying
 PlayerType=Progress
 MinValue=0
@@ -85,18 +96,21 @@ UpdateDivider=#MediaLegacyDivider#
 
 [MeasureCanPrevious]
 Measure=Plugin
+Group=ParallaxIdlePause
 Plugin=WebNowPlaying
 PlayerType=SupportsSkipPrevious
 UpdateDivider=#MediaLegacyDivider#
 
 [MeasureCanPlayPause]
 Measure=Plugin
+Group=ParallaxIdlePause
 Plugin=WebNowPlaying
 PlayerType=SupportsPlayPause
 UpdateDivider=#MediaLegacyDivider#
 
 [MeasureCanNext]
 Measure=Plugin
+Group=ParallaxIdlePause
 Plugin=WebNowPlaying
 PlayerType=SupportsSkipNext
 UpdateDivider=#MediaLegacyDivider#
@@ -104,6 +118,7 @@ UpdateDivider=#MediaLegacyDivider#
 ; Passive source reader uses this update's metadata and never starts the helper.
 [MeasureMediaSource]
 Measure=Script
+Group=ParallaxIdlePause
 ScriptFile=#@#Modules\Media\Source\SourceReader.lua
 UpdateDivider=#MediaLegacyDivider#
 
@@ -117,11 +132,13 @@ UpdateDivider=#MediaLegacyDivider#
 ; adapter must stay a pure function of the current sample.
 [MeasureMediaPulse]
 Measure=Script
+Group=ParallaxIdlePause
 ScriptFile=#@#Modules\Media\MediaPulse.lua
 UpdateDivider=#MediaPulseDivider#
 
 ; Last measure: reads this update's provider values and guards every command.
 [MeasureMediaUI]
 Measure=Script
+Group=ParallaxIdlePause
 ScriptFile=#@#Modules\Media\Media.lua
 UpdateDivider=#MediaLegacyDivider#

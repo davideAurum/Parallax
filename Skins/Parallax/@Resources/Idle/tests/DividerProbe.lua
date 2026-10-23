@@ -65,6 +65,13 @@ function Initialize()
     texts, lastText = {}, {}
     for name in SELF:GetOption('ProbeTexts', ''):gmatch('[^|]+') do texts[#texts + 1] = name end
     log('L|load')
+    -- ProbeVariable (optional): a variable formula evaluated once per load,
+    -- logged as F|clock|name|value (e.g. Media's MediaTickInterval).
+    local name = SELF:GetOption('ProbeVariable', '')
+    if name ~= '' then
+        local value = SKIN:ParseFormula(SKIN:ReplaceVariables('(#' .. name .. '#)'))
+        log('F|' .. name .. '|' .. tostring(value))
+    end
 end
 
 function Update()

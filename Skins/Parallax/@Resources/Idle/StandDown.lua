@@ -10,13 +10,15 @@
 --
 --   in place (most skins): freeze. Module controllers' IdleEnter(), then
 --     !PauseMeasureGroup ParallaxIdlePause, every repainting meter (group
---     ParallaxIdleFreeze) to UpdateDivider -1 with one forced update, and the
---     "Paused (idle)" line over the headline value. The skin then repaints
---     nothing until input. Leaving unpauses, runs IdleLeave(), forces fresh
---     samples before anything is shown, deletes the freeze dividers (the
---     style or skin default applies again), lets the controllers re-apply the
---     dividers they manage (ReapplyDividers) and the headline
---     (RestoreHeadline), then forces one meter pass and one paint.
+--     ParallaxIdleFreeze) to UpdateDivider -1 with one forced update, the
+--     headline meters hidden (ParallaxIdleHeadline) and the "Paused (idle)"
+--     line shown in their place. The skin then repaints nothing until input.
+--     Leaving unpauses, runs IdleLeave(), forces fresh samples before
+--     anything is shown, deletes the freeze dividers (the style or skin
+--     default applies again), lets the controllers re-apply the dividers they
+--     manage (ReapplyDividers), forces one meter pass, hides the line, shows
+--     the headline meters again as they were (or as the last hover set them),
+--     calls the controllers' RestoreHeadline and paints once.
 --   refresh standby (ParallaxIdleStandbyMode=refresh: Media.ini, the
 --     standalone Visualizer): when the wanted level differs from the one this
 --     load was built with (ParallaxIdleStandbyState), one request to the
@@ -34,9 +36,25 @@
 -- as the last statement; a broadcast that re-enters during the join is
 -- evaluated again once the outer pass finishes, never dropped.
 --
+-- Headline (C.6: frozen values stay visible, the headline is hidden, never
+-- merely covered: the line has no fill, so a translucent background could not
+-- hide it). ParallaxIdleHeadline names the meters (separated by |) that the
+-- line replaces: every meter in its row plus the headline values. Enter
+-- records each one's visibility (its Hidden option, which !ShowMeter and
+-- !HideMeter keep current) and hides it; leave puts each back. A missing
+-- meter is skipped. ParallaxIdleHoverSwap ("Gear|Value", optional) names a
+-- hover pair: the skin's MouseOver/MouseLeaveAction show the gear and hide
+-- the value, and back. The gear stays under the hover actions while paused
+-- (the line never reaches its slot); the hover actions call Hover() (through
+-- #ParallaxIdleHoverAction#, empty while Idle pause is Off) so a hover-out
+-- during the pause cannot show the frozen value; and when the gear moved
+-- during the pause, leave shows the value exactly when the gear is hidden,
+-- as the last hover would have.
+--
 -- Module controllers (ParallaxIdleControllers, Script measure names separated
--- by |) may define IdleEnter, IdleLeave, ReapplyDividers and RestoreHeadline;
--- a missing function is skipped. Test hooks (staged copies only, absent from
+-- by |) may define IdleEnter, IdleLeave, ReapplyDividers and RestoreHeadline
+-- (after the hook's own headline restore); a missing function is skipped.
+-- Test hooks (staged copies only, absent from
 -- shipped files, honoured only inside their bounds):
 -- ParallaxIdleTestStaleSeconds (5-180) and ParallaxIdleTestUnsyncedSeconds
 -- (2-10).
@@ -47,6 +65,7 @@ local RETRY_SECONDS = 30
 
 local link
 local controllers, refreshMode, persisted, writer
+local headline, hoverGear, hoverValue, shown, gearHiddenAtEnter
 local entered, loadAt, lastRun, rearmAt, requestedAt
 local updates, busy, rerun
 local staleSeconds, unsyncedSeconds, gapSeconds
@@ -83,12 +102,59 @@ local function call(name)
     end
 end
 
+local function names(text)
+    local list = {}
+    for name in (text or ''):gmatch('[^|%s]+') do list[#list + 1] = name end
+    return list
+end
+
+-- Whether a meter is hidden now, as Rainmeter reads its Hidden option
+-- (!ShowMeter and !HideMeter write it; an INI value may be a formula); nil
+-- when this load has no such meter.
+local function isHidden(name)
+    local meter = SKIN:GetMeter(name)
+    if not meter then return nil end
+    local text = meter:GetOption('Hidden', '0')
+    local number = tonumber(text) or tonumber(SKIN:ParseFormula(text)) or 0
+    return number ~= 0
+end
+
+local function hideHeadline()
+    shown = {}
+    gearHiddenAtEnter = hoverGear and isHidden(hoverGear)
+    for _, name in ipairs(headline) do
+        local hidden = isHidden(name)
+        if hidden ~= nil then
+            shown[name] = not hidden
+            if not hidden then SKIN:Bang('!HideMeter', name) end
+        end
+    end
+end
+
+local function restoreHeadline()
+    if not shown then return end
+    local gearHidden = hoverGear and isHidden(hoverGear)
+    for _, name in ipairs(headline) do
+        local visible = shown[name]
+        if visible ~= nil then
+            -- A hover during the pause moved the gear: the value follows it,
+            -- as the skin's own swap would have left it.
+            if name == hoverValue and gearHidden ~= nil and gearHiddenAtEnter ~= nil and gearHidden ~= gearHiddenAtEnter then
+                visible = gearHidden
+            end
+            if isHidden(name) == visible then SKIN:Bang(visible and '!ShowMeter' or '!HideMeter', name) end
+        end
+    end
+    shown = nil
+end
+
 local function enter()
     entered = true
     call('IdleEnter')
     SKIN:Bang('!PauseMeasureGroup', 'ParallaxIdlePause')
     SKIN:Bang('!SetOptionGroup', 'ParallaxIdleFreeze', 'UpdateDivider', '-1')
     SKIN:Bang('!UpdateMeterGroup', 'ParallaxIdleFreeze')
+    hideHeadline()
     SKIN:Bang('!ShowMeter', 'MeterParallaxPaused')
     SKIN:Bang('!UpdateMeter', 'MeterParallaxPaused')
     SKIN:Bang('!Redraw')
@@ -105,8 +171,18 @@ local function leave()
     call('ReapplyDividers')
     SKIN:Bang('!UpdateMeterGroup', 'ParallaxIdleFreeze')
     SKIN:Bang('!HideMeter', 'MeterParallaxPaused')
+    restoreHeadline()
     call('RestoreHeadline')
     SKIN:Bang('!Redraw')
+end
+
+-- From the skin's hover actions (#ParallaxIdleHoverAction#, before their
+-- !Redraw): while paused, a hover-out that just showed the frozen headline
+-- value hides it again. The gear itself follows the hover as usual.
+function Hover()
+    if entered and hoverValue and shown and shown[hoverValue] ~= nil and isHidden(hoverValue) == false then
+        SKIN:Bang('!HideMeter', hoverValue)
+    end
 end
 
 -- Refresh standby: one request per load to the module's single writer, which
@@ -124,8 +200,12 @@ end
 
 function Initialize()
     link = loadLink()
-    controllers = {}
-    for name in (variable('ParallaxIdleControllers', '') or ''):gmatch('[^|%s]+') do controllers[#controllers + 1] = name end
+    controllers = names(variable('ParallaxIdleControllers', ''))
+    headline = names(variable('ParallaxIdleHeadline', ''))
+    local pair = names(variable('ParallaxIdleHoverSwap', ''))
+    hoverGear, hoverValue = pair[1], pair[2]
+    if not (hoverGear and hoverValue) then hoverGear, hoverValue = nil, nil end
+    shown, gearHiddenAtEnter = nil, nil
     refreshMode = variable('ParallaxIdleStandbyMode', '') == 'refresh'
     writer = refreshMode and (variable('ParallaxIdleStandbyWriter', '') or '') or ''
     persisted = refreshMode and variable('ParallaxIdleStandbyState', '0') == '1'

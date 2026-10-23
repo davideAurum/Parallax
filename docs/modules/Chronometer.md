@@ -184,7 +184,7 @@ These are wall-clock duration timers: moving the system clock forward shortens o
 
 When Global Settings **Idle pause** is on (5, 10 or 30 minutes; default Off), Chronometer pauses with the rest of the suite after that long without keyboard or mouse input ([shared design](../ARCHITECTURE.md#idle-stand-down)).
 
-- **While paused:** the title row reads **Paused (idle)** in the muted colour, covering the title text (title and line do not both fit at the narrow widths; the clock icon stays). The clock face, date, uptime, event and timer rows stay visible but frozen at the moment of the pause: no measure updates and no meter repaints, so the window is not redrawn until input. Clicks still work and repaint the rows they change.
+- **While paused:** the title text is hidden and **Paused (idle)** takes its place in the muted colour, after the clock icon and before the gear slot (title and line do not both fit at the narrow widths). The clock face, date, uptime, event and timer rows stay visible but frozen at the moment of the pause: no measure updates and no meter repaints, so the window is not redrawn until input. Clicks still work and repaint the rows they change.
 - **Timers keep their deadlines.** Running timers count against the wall clock, not against updates. On resume, a timer whose deadline passed while paused is marked done and saved (`IdleLeave`) before the first repaint; nothing is spliced in between.
 - **On the first input** (seen within the coordinator's 2 s tick), measures update first, then every meter, then one repaint: the time and countdowns are current at once.
 - **Still running while paused:** the skin's 1 s timer and Rainmeter's mouse timer (with nothing to update or paint) and the stand-down hook's own check about once a minute.

@@ -16,7 +16,11 @@ shared hook (@Resources/Idle/Hook.inc, StandDown.lua) depends on:
   the module controller that re-applies it (ReapplyDividers);
 * each Lua file that sets UpdateDivider belongs to a module listed in
   LUA_DIVIDER_OWNERS (the module suites check those ReapplyDividers);
-* shipped runtime state files are all zero.
+* shipped runtime state files are all zero;
+* the "Paused (idle)" line has no fill, and each entrypoint's
+  ParallaxIdleHeadline names existing meters including every meter in the
+  line's row (hidden while paused, never merely covered); a hover pair's
+  value is a headline meter and the hover-out action re-hides it while paused.
 
 Run: python -m unittest tools/tests/test_idle_freeze_contract.py
 Survey: python tools/tests/test_idle_freeze_contract.py --survey [overrides]
@@ -371,11 +375,17 @@ class HookFiles(unittest.TestCase):
         self.assertRegex(text, r'(?m)^UpdateDivider=#ParallaxIdleHookDivider#')
         self.assertRegex(text, r'(?m)^Text=Paused \(idle\)')
         self.assertNotRegex(text, r'(?i)tooltip')
+        # The line replaces hidden headline meters; a fill would only cover
+        # them, and Background transparency makes BackgroundColor translucent.
+        line = text.split('[MeterParallaxPaused]', 1)[1]
+        self.assertNotRegex(line, r'(?im)^\s*SolidColor\s*=')
+        self.assertRegex(text, r'(?m)^ParallaxIdleHoverAction=\[!CommandMeasure MeasureParallaxStandDown "Hover\(\)"\]\r?$')
 
     def test_defaults(self):
         text = read_text(RESOURCES / 'Defaults.inc')
         for line in ('IdlePauseMinutes=0', 'ParallaxIdleJoinAction=', 'ParallaxIdleHookMs=60000',
-                     'ParallaxIdleHookDivider=60', 'ParallaxIdleControllers='):
+                     'ParallaxIdleHookDivider=60', 'ParallaxIdleControllers=', 'ParallaxIdleHeadline=',
+                     'ParallaxIdleHoverSwap=', 'ParallaxIdleHoverAction='):
             self.assertRegex(text, '(?m)^' + re.escape(line) + r'\r?$')
         self.assertRegex(read_text(RESOURCES / 'User' / 'Settings.inc'), r'(?m)^IdlePauseMinutes=0\r?$')
 
@@ -426,8 +436,8 @@ class Consumers(unittest.TestCase):
             config = Config(relative, hooked({}))
             refresh = config.own('RAINMETER', 'OnRefreshAction') or ''
             self.assertTrue(refresh.endswith('#ParallaxIdleJoinAction#'), f'{relative}: OnRefreshAction ends with the join')
-            for name in ('ParallaxIdleControllers', 'ParallaxIdleHookDivider', 'ParallaxPausedX', 'ParallaxPausedY',
-                         'ParallaxPausedW', 'ParallaxPausedH', 'ParallaxPausedAlign'):
+            for name in ('ParallaxIdleControllers', 'ParallaxIdleHeadline', 'ParallaxIdleHookDivider', 'ParallaxPausedX',
+                         'ParallaxPausedY', 'ParallaxPausedW', 'ParallaxPausedH', 'ParallaxPausedAlign'):
                 self.assertRegex(raw, '(?m)^' + name + '=', f'{relative}: sets {name}')
             self.assertIn('#ParallaxIdleHookMs#', raw, relative)
 
@@ -469,6 +479,77 @@ class Consumers(unittest.TestCase):
                         self.assertNotIn(PAUSE, groups, f'{label}: [{shown}] must never be paused')
                     elif periodic(config, name):
                         self.assertIn(PAUSE, groups, f'{label}: periodic measure [{shown}] is not in ParallaxIdlePause')
+
+
+def row_key(config, text):
+    """A comparable form of a Y option: its value when the fully expanded
+    formula is plain arithmetic, else the expanded text without spaces."""
+    if text is None:
+        return None
+    expanded = re.sub(r'\s+', '', config.expand(text))
+    try:
+        return round(float(evaluate(expanded)), 6)
+    except Exception:
+        return expanded
+
+
+def split_names(text):
+    return [name.strip() for name in (text or '').split('|') if name.strip()]
+
+
+class Headline(unittest.TestCase):
+    """C.6: the paused line replaces the headline, which is hidden, never
+    merely covered (the line has no fill). Every meter in the line's row is
+    in ParallaxIdleHeadline, every listed name exists, and a gear/value hover
+    pair keeps the frozen value hidden on a hover-out."""
+
+    def test_headline_lists_cover_the_paused_row(self):
+        for relative, variants in CONSUMERS.items():
+            for overrides in variants:
+                label = f'{relative} {overrides}'
+                config = Config(relative, hooked(overrides))
+                listed = split_names(config.variables.get('ParallaxIdleHeadline'))
+                self.assertTrue(listed, f'{label}: ParallaxIdleHeadline is empty')
+                upper = {name.upper() for name in listed}
+                for name in listed:
+                    self.assertTrue(name.upper() in config.sections, f'{label}: headline meter [{name}] does not exist')
+                    self.assertEqual(config.kind(name.upper()), 'meter', f'{label}: [{name}] is not a meter')
+                row = row_key(config, config.variables.get('ParallaxPausedY'))
+                in_row = []
+                for name in config.meters():
+                    if name == 'METERPARALLAXPAUSED':
+                        continue
+                    if row_key(config, config.option(name, 'Y')) == row:
+                        in_row.append(name)
+                        self.assertIn(name, upper, f'{label}: [{config.sections[name]["name"]}] sits in the paused '
+                                      f'line\'s row (Y {row}) but is not in ParallaxIdleHeadline')
+                self.assertTrue(in_row, f'{label}: no meter shares the paused line\'s row; is ParallaxPausedY right?')
+
+    def test_hover_pairs(self):
+        for relative in CONSUMERS:
+            config = Config(relative, hooked({}))
+            pair = split_names(config.variables.get('ParallaxIdleHoverSwap'))
+            listed = {name.upper() for name in split_names(config.variables.get('ParallaxIdleHeadline'))}
+            leave = config.own('RAINMETER', 'MouseLeaveAction') or ''
+            if not pair:
+                # Without a pair, no hover action may show a headline meter.
+                for name in listed:
+                    self.assertNotRegex(leave, r'(?i)\[!ShowMeter\s+' + re.escape(name) + r'\]',
+                                        f'{relative}: MouseLeaveAction shows headline meter {name} but no ParallaxIdleHoverSwap names it')
+                continue
+            self.assertEqual(len(pair), 2, f'{relative}: ParallaxIdleHoverSwap is "Gear|Value"')
+            gear, value = pair[0].upper(), pair[1].upper()
+            self.assertTrue(gear in config.sections, f'{relative}: hover gear [{pair[0]}] does not exist')
+            self.assertIn(value, listed, f'{relative}: the hover value is a headline meter')
+            self.assertNotIn(gear, listed, f'{relative}: the gear stays under the hover actions')
+            shows = re.search(r'(?i)\[!ShowMeter\s+' + re.escape(pair[1]) + r'\]', leave)
+            if shows:
+                self.assertTrue(leave.endswith('#ParallaxIdleHoverAction#[!Redraw]'),
+                                f'{relative}: MouseLeaveAction must end with #ParallaxIdleHoverAction#[!Redraw]: {leave}')
+            else:
+                # A script hover (RAM's Display.lua Hover) keeps the value
+                # hidden itself while the line shows.
+                self.assertIn('!CommandMeasure', leave, f'{relative}: hover value shown neither by bang nor by a script')
 
 
 def write_lists(relative, meters_path, measures_path, overrides):

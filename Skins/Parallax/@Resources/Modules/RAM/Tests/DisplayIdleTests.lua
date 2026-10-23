@@ -11,6 +11,7 @@ function Suite.Run(displayPath)
         local skin = {}
         function skin:GetVariable(name) return variables[name] end
         function skin:GetMeter(name)
+            if state.options[name .. ':missing'] then return nil end
             return { GetOption = function(_, key, default) return state.options[name .. ':' .. key] or default end }
         end
         function skin:GetMeasure(name)
@@ -75,6 +76,24 @@ function Suite.Run(displayPath)
     quiet.bangs = {}
     quiet.env.IdleLeave()
     check(quiet.bangs[#quiet.bangs] == '!HideMeter MeterRAMHistoryUncollected', 'Hidden history keeps the cover hidden')
+
+    -- Hover: the gear follows the pointer; the headline percentage comes back
+    -- on a hover-out only while the stand-down line is not shown (no hook
+    -- loaded, or loaded and live).
+    local function hoverBangs(options, inside)
+        local hover = fixture(base, options)
+        hover.env.Hover(inside)
+        return table.concat(hover.bangs, '\n')
+    end
+    local live = { '!HideMeter MeterRAMOptions', '!ShowMeter MeterRAMPercent', '!Redraw' }
+    check(hoverBangs({ ['MeterParallaxPaused:missing'] = true }, 0) == table.concat(live, '\n'), 'No hook: hover-out shows the percentage')
+    check(hoverBangs({ ['MeterParallaxPaused:Hidden'] = '1' }, 0) == table.concat(live, '\n'), 'Hook live: hover-out shows the percentage')
+    check(hoverBangs({ ['MeterParallaxPaused:Hidden'] = '0' }, 0) == '!HideMeter MeterRAMOptions\n!HideMeter MeterRAMPercent\n!Redraw',
+        'Paused: hover-out keeps the frozen percentage hidden')
+    check(hoverBangs({ ['MeterParallaxPaused:Hidden'] = '0' }, 1) == '!ShowMeter MeterRAMOptions\n!HideMeter MeterRAMPercent\n!Redraw',
+        'Paused: hover-in shows the gear')
+    check(hoverBangs({ ['MeterParallaxPaused:missing'] = true }, 1) == '!ShowMeter MeterRAMOptions\n!HideMeter MeterRAMPercent\n!Redraw',
+        'No hook: hover-in unchanged')
     return 'PASS: ' .. passed .. ' Display.lua idle assertions; ' .. _VERSION
 end
 

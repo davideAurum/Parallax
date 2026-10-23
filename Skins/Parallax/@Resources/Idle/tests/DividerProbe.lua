@@ -12,6 +12,10 @@
 --     S|clock|tag|meter|divider            snapshot: each meter's effective
 --                                          UpdateDivider (own option, then its
 --                                          MeterStyle, else the skin default)
+--     B|clock|tag|meter|hidden             with each snapshot: 1 or 0 for every
+--                                          ParallaxIdleHeadline meter and the
+--                                          ParallaxIdleHoverSwap meters
+--                                          (missing when the load lacks one)
 --     V|clock|hidden|digest|changed        measure values each tick: a digest
 --                                          of every listed measure's string
 --                                          value, and how many changed
@@ -46,11 +50,27 @@ local function effective(meter)
     return tonumber(number) or value
 end
 
+local function hidden(meter)
+    local text = meter:GetOption('Hidden', '0')
+    local number = tonumber(text) or tonumber(SKIN:ParseFormula(text)) or 0
+    return number ~= 0 and '1' or '0'
+end
+
 function Snapshot(tag)
     local out = {}
     for _, name in ipairs(meters) do
         local meter = SKIN:GetMeter(name)
         out[#out + 1] = string.format('S|%.3f|%s|%s|%s', os.clock(), tag, name, meter and tostring(effective(meter)) or 'missing')
+    end
+    local seen = {}
+    for _, list in ipairs({ SKIN:GetVariable('ParallaxIdleHeadline', ''), SKIN:GetVariable('ParallaxIdleHoverSwap', '') }) do
+        for name in (list or ''):gmatch('[^|%s]+') do
+            if not seen[name] then
+                seen[name] = true
+                local meter = SKIN:GetMeter(name)
+                out[#out + 1] = string.format('B|%.3f|%s|%s|%s', os.clock(), tag, name, meter and hidden(meter) or 'missing')
+            end
+        end
     end
     local file = io.open(logPath, 'ab')
     if file then file:write(table.concat(out, '\n') .. '\n'); file:close() end

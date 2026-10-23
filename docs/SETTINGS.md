@@ -137,7 +137,7 @@ Owner decision 2 (2026-10-22): the utilities can pause while you are away, **off
 - 5 to 10 to 30 minutes: `!RefreshGroup ParallaxIdleCoordinator`, which reloads only the hidden `Parallax\Idle` coordinator (silent when it is not loaded; a utility starts it on its next join).
 - Back to the value the suite loaded with: nothing.
 
-**What it does** ([shared design](ARCHITECTURE.md#idle-stand-down)): after that many minutes without keyboard or mouse input, each loaded utility freezes in place with a muted **Paused (idle)** line over its headline value; Media and the standalone Audio Visualizer reload into a standby variant that releases their audio capture. The first input resumes them within the coordinator's 2 s tick. `IDLE_TIME` counts keyboard and mouse input only, so gamepad play, video playback and some remote tools can let the pause start.
+**What it does** ([shared design](ARCHITECTURE.md#idle-stand-down)): after that many minutes without keyboard or mouse input, each loaded utility freezes in place: its headline is hidden and a muted **Paused (idle)** line takes its place, while the other figures stay visible, frozen; Media and the standalone Audio Visualizer reload into a standby variant that releases their audio capture. The first input resumes them within the coordinator's 2 s tick. `IDLE_TIME` counts keyboard and mouse input only, so gamepad play, video playback and some remote tools can let the pause start.
 
 Layout: the row is 28 px, so `PanelHeight` is 786, up from 758 (the window is 456 x 794 by default, 282 x 596 at 180/0.75). Rows below Refresh moved down by 28 px.
 

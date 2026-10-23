@@ -237,7 +237,7 @@ Earlier one-time host checks established native capacity availability and valid 
 
 With Global Settings **Idle pause** on (5, 10 or 30 minutes; default Off), Disk Meter pauses after that long without keyboard or mouse input ([shared design](../ARCHITECTURE.md#idle-stand-down)).
 
-- **While paused:** the title row reads **Paused (idle)**, covering the title and the headline total. Drive rows and the graph stay visible, frozen at the pause; the 183 periodic measures (inventory, capacity, rate banks and `MeasureIO`) are paused and every meter, the 208 drive-row meters included, sits at UpdateDivider -1.
+- **While paused:** the title and the headline total are hidden and **Paused (idle)** takes the title's place after the icon, ending before the gear slot (the gear still follows the hover; a hover-out never shows the frozen total). On resume both come back as they were, or as the last hover left them. Drive rows and the graph stay visible, frozen at the pause; the 183 periodic measures (inventory, capacity, rate banks and `MeasureIO`) are paused and every meter, the 208 drive-row meters included, sits at UpdateDivider -1.
 - **On the first input:** measures update before anything is shown; `IO.lua` `ReapplyDividers` sends each letter's row divider again from its own record (shown rows 1, hidden and absent rows -1), bypassing its cache. The history is not joined across the pause: `observe()` fills the paused seconds with empty slots, so the graph shows a gap (a five-minute pause scrolls the old points out of the 60-slot window).
 - **Still running while paused:** the skin's timer and mouse timer with nothing to update, the stand-down hook's check about once a minute, and UsageMonitor's process-wide LogicalDisk reader.
 

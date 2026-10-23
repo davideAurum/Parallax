@@ -79,16 +79,35 @@ function Suite.Run(standDownPath, linkPath)
         }
         for key, value in pairs(options.variables or {}) do variables[key] = value end
         state.variables = variables
+        -- Meters by name: { Hidden = text }. !ShowMeter and !HideMeter write
+        -- Hidden as Rainmeter does (Meter::Show/Hide set the parser value).
+        state.meters = options.meters or {}
         local skin = {}
         function skin:GetVariable(name, default)
             local value = variables[name]
             if value == nil then return default end
             return value
         end
+        function skin:GetMeter(name)
+            local meter = state.meters[name]
+            if not meter then return nil end
+            return { GetOption = function(_, key, default)
+                local value = meter[key]
+                if value == nil then return default end
+                return value
+            end }
+        end
+        function skin:ParseFormula(text)
+            assert(text:match('^[%d%s%(%)%+%-%*/%.]+$'), 'Only arithmetic formulas in fixtures: ' .. text)
+            return assert(loadstring('return ' .. text))()
+        end
         function skin:Bang(...)
             local args = { ... }
             for _, value in ipairs(args) do assert(type(value) == 'string', 'Bang arguments are strings') end
             state.bangs[#state.bangs + 1] = table.concat(args, ' ')
+            if (args[1] == '!ShowMeter' or args[1] == '!HideMeter') and state.meters[args[2]] then
+                state.meters[args[2]].Hidden = args[1] == '!ShowMeter' and '0' or '1'
+            end
             if state.onBang then state.onBang(args) end
         end
         setmetatable(skin, { __index = function(_, key) error('Unexpected SKIN:' .. tostring(key)) end })
@@ -410,6 +429,118 @@ function Suite.Run(standDownPath, linkPath)
         old.now = old.now + 100
         old.broadcast('1', old.now - 400)
         equal(old.count('!PauseMeasureGroup'), 0, 'A stale beat never freezes')
+    end)
+
+    -- The headline: hidden on enter (not covered), restored on leave exactly
+    -- as it was, including INI formulas and meters a variant lacks.
+    local function headlineMeters()
+        return {
+            MeterTitle = { Hidden = '0' }, MeterTotal = { Hidden = '0' }, MeterOptions = { Hidden = '1' },
+            MeterOff = { Hidden = '(1-0)' }, MeterOn = { Hidden = '(1-1)' }, MeterParallaxPaused = { Hidden = '1' },
+        }
+    end
+    local headlineVariables = {
+        ParallaxIdleHeadline = 'MeterTitle|MeterTotal|MeterOff|MeterOn|MeterAbsent',
+        ParallaxIdleHoverSwap = 'MeterOptions|MeterTotal',
+    }
+    local HIDE = { '!HideMeter MeterTitle', '!HideMeter MeterTotal', '!HideMeter MeterOn' }
+    local SHOW = { '!ShowMeter MeterTitle', '!ShowMeter MeterTotal', '!ShowMeter MeterOn' }
+    local function withHeadline(base, extra, at)
+        local out = {}
+        for index, bang in ipairs(base) do
+            out[#out + 1] = bang
+            if bang == at then for _, item in ipairs(extra) do out[#out + 1] = item end end
+        end
+        return out
+    end
+
+    scenario('the headline is hidden while paused and restored as it was', function()
+        local state = live({ variables = headlineVariables, meters = headlineMeters() })
+        state.broadcast('1')
+        expectSequence(state, withHeadline(ENTER, HIDE, '!UpdateMeterGroup ParallaxIdleFreeze'), 'Enter hides the visible headline meters after the freeze pass')
+        equal(state.meters.MeterTitle.Hidden, '1', 'Title hidden')
+        equal(state.meters.MeterTotal.Hidden, '1', 'Value hidden')
+        equal(state.meters.MeterOn.Hidden, '1', 'A formula-visible meter is hidden')
+        equal(state.meters.MeterOff.Hidden, '(1-0)', 'An already hidden meter is left alone')
+        equal(state.meters.MeterOptions.Hidden, '1', 'The gear is not touched')
+        state.reset()
+        state.broadcast('0')
+        expectSequence(state, withHeadline(LEAVE, SHOW, '!HideMeter MeterParallaxPaused'), 'Leave restores after the meter pass, before RestoreHeadline')
+        equal(state.meters.MeterTitle.Hidden, '0', 'Title back')
+        equal(state.meters.MeterTotal.Hidden, '0', 'Value back')
+        equal(state.meters.MeterOn.Hidden, '0', 'Formula-visible meter back')
+        equal(state.meters.MeterOff.Hidden, '(1-0)', 'Hidden meter still hidden, untouched')
+        -- A second pause records again.
+        state.reset()
+        state.broadcast('1')
+        equal(state.count('!HideMeter MeterTitle'), 1, 'Second enter hides again')
+        -- The watchdog's fail-live leave restores too.
+        state.reset()
+        for _ = 1, 4 do state.now = state.now + 60; state.env.Update() end
+        equal(state.count('!ShowMeter MeterTitle'), 1, 'Fail-live restores the headline')
+        -- No list: no meter is touched (Off-equivalent wiring, older entrypoints).
+        local bare = live({ meters = headlineMeters() })
+        bare.broadcast('1')
+        expectSequence(bare, ENTER, 'No ParallaxIdleHeadline: the plain sequence')
+    end)
+
+    scenario('hover pair: the gear follows the pointer, the frozen value never shows', function()
+        -- Hover-out during the pause: the skin's swap shows the value, Hover() hides it again.
+        local state = live({ variables = headlineVariables, meters = headlineMeters() })
+        state.env.Hover()
+        equal(#state.bangs, 0, 'Hover() while live does nothing')
+        state.broadcast('1')
+        state.reset()
+        state.meters.MeterOptions.Hidden = '0'                    -- MouseOverAction
+        state.meters.MeterTotal.Hidden = '1'
+        state.env.Hover()
+        equal(#state.bangs, 0, 'Hover-in while paused: nothing to hide')
+        state.meters.MeterOptions.Hidden = '1'                    -- MouseLeaveAction
+        state.meters.MeterTotal.Hidden = '0'
+        state.env.Hover()
+        expectSequence(state, { '!HideMeter MeterTotal' }, 'Hover-out while paused hides the frozen value again')
+        state.reset()
+        state.broadcast('0')
+        equal(state.meters.MeterTotal.Hidden, '0', 'Gear hidden at enter and at leave: the value returns')
+        -- Hover-in during the pause, pointer still over the skin at resume.
+        local inside = live({ variables = headlineVariables, meters = headlineMeters() })
+        inside.broadcast('1')
+        inside.meters.MeterOptions.Hidden = '0'
+        inside.meters.MeterTotal.Hidden = '1'
+        inside.env.Hover()
+        inside.reset()
+        inside.broadcast('0')
+        equal(inside.meters.MeterTotal.Hidden, '1', 'Gear shown at resume: the value stays hidden')
+        equal(inside.meters.MeterOptions.Hidden, '0', 'and the gear stays shown')
+        equal(inside.count('!ShowMeter MeterTotal'), 0, 'No show for the value')
+        -- Paused while hovered (gear shown, value hidden), hover-out before resume.
+        local hovered = headlineMeters()
+        hovered.MeterOptions.Hidden = '0'
+        hovered.MeterTotal.Hidden = '1'
+        local parked = live({ variables = headlineVariables, meters = hovered })
+        parked.broadcast('1')
+        equal(parked.count('!HideMeter MeterTotal'), 0, 'An already hidden value is not hidden again')
+        parked.meters.MeterOptions.Hidden = '1'
+        parked.meters.MeterTotal.Hidden = '0'
+        parked.env.Hover()
+        equal(parked.meters.MeterTotal.Hidden, '1', 'Hover-out while paused hides it')
+        parked.broadcast('0')
+        equal(parked.meters.MeterTotal.Hidden, '0', 'The gear moved during the pause: the value follows it (shown)')
+        -- Paused while hovered, still hovered at resume.
+        local still = headlineMeters()
+        still.MeterOptions.Hidden = '0'
+        still.MeterTotal.Hidden = '1'
+        local stay = live({ variables = headlineVariables, meters = still })
+        stay.broadcast('1')
+        stay.broadcast('0')
+        equal(stay.meters.MeterTotal.Hidden, '1', 'Hovered throughout: the value stays hidden')
+        -- A half-specified pair is ignored (no gear logic, plain restore).
+        local half = live({ variables = { ParallaxIdleHeadline = 'MeterTotal', ParallaxIdleHoverSwap = 'MeterOptions' }, meters = headlineMeters() })
+        half.broadcast('1')
+        half.meters.MeterOptions.Hidden = '0'
+        half.env.Hover()
+        half.broadcast('0')
+        equal(half.meters.MeterTotal.Hidden, '0', 'No pair: the snapshot is restored')
     end)
 
     return 'PASS: ' .. passed .. ' assertions in ' .. #cases .. ' stand-down scenarios; ' .. _VERSION .. '.\n' .. table.concat(cases, '\n')

@@ -23,12 +23,20 @@
 #   leave    idle file 0: the line hides within the same bound; every meter's
 #            divider equals its pre-enter snapshot; measure values move again
 #            (reported; a quiet machine can leave some unchanged).
+#   headline every ParallaxIdleHeadline meter is hidden while paused and back
+#            exactly as before after leave (B probe records); with a hover
+#            pair, emulated hover actions while paused move only the gear,
+#            the frozen value never shows, a resume with the pointer still
+#            over the skin keeps the value hidden, and the next hover-out
+#            restores the live headline.
 #   restart  paused, then the skin reloads: it re-enters once synced.
 #   watchdog paused, then the coordinator stops beating (its script paused by
 #            the driver): the skin fails live within the staged 6 s stale limit
 #            plus one 2 s hook period.
 #   log      no error or warning in Rainmeter.log.
 # Mode capture: live and paused window captures only (both default layouts).
+# -BackgroundAlpha stages a translucent BackgroundColor (Global Settings
+# Background transparency) for captures that show the headline is hidden.
 # -Suite runs StandDownSuite.lua inside Rainmeter's own Lua.
 # -Combined loads every utility config at once in one instance (Media.ini for
 # Parallax\Media; Setup.ini shares that config and runs on its own) with the
@@ -51,7 +59,11 @@ param(
     [switch]$Suite,
     [switch]$Combined,
     [switch]$CoordinatorAtStart,
-    [string]$OutDir = ''
+    [string]$OutDir = '',
+    # Staged BackgroundColor alpha (Global Settings Background transparency);
+    # -1 keeps the shipped value. A translucent background shows anything the
+    # paused line only covered, so captures with it prove the headline hides.
+    [ValidateRange(-1, 255)][int]$BackgroundAlpha = -1
 )
 Set-StrictMode -Version Latest
 $ErrorActionPreference = 'Stop'
@@ -92,11 +104,30 @@ function Check-Bound([bool]$Reached, [bool]$Within, [int]$DisplayEvents, [string
 # probe evaluates once per load.
 $skins = [ordered]@{}
 function Register-Skin([string]$Key, [string]$Config, [string]$File, [double]$Tick, [scriptblock]$Extra = $null, [string]$Texts = '',
-        [scriptblock]$Prepare = $null, [string]$Variable = '', [switch]$StaticValues) {
+        [scriptblock]$Prepare = $null, [string]$Variable = '', [switch]$StaticValues, [string]$Hover = '') {
     $script:skins[$Key] = [pscustomobject]@{ Key = $Key; Config = $Config; File = $File; Tick = $Tick; Extra = $Extra; Texts = $Texts
-        Prepare = $Prepare; Variable = $Variable; StaticValues = [bool]$StaticValues
+        Prepare = $Prepare; Variable = $Variable; StaticValues = [bool]$StaticValues; Hover = $Hover
         Relative = ($Config.Substring('Parallax\'.Length) + '\' + $File).Replace('\', '/') }
 }
+# Hover pairs (ParallaxIdleHoverSwap): 'swap:Gear,Value' for a bang swap in
+# the skin's hover actions, 'script:Measure:Gear,Value' for a script hover.
+function Send-Hover($Run, [string]$Side) {
+    $spec = $Run.Entry.Hover
+    if ($spec -like 'swap:*') { return Send $Run ("swap {0} {1},{2}" -f $Run.Entry.Config, $Side, $spec.Substring(5)) }
+    $measure = $spec.Split(':')[1]
+    return Send $Run ("scripthover {0} {1},{2}" -f $Run.Entry.Config, $measure, $(if ($Side -eq 'in') { '1' } else { '0' }))
+}
+function Get-HoverPair($Entry) { $names = $Entry.Hover.Split(':')[-1].Split(','); return [pscustomobject]@{ Gear = $names[0]; Value = $names[1] } }
+# Headline visibility records (B) of one snapshot tag after a clock: meter -> '1' hidden, '0' shown.
+function Get-Visibility($Records, [string]$Tag, [double]$After = -1) {
+    $selected = @($Records | Where-Object { $_.Kind -eq 'B' -and $_.Rest[0] -eq $Tag -and $_.Clock -ge $After })
+    if (-not $selected.Count) { return $null }
+    $first = $selected[0].Clock
+    $map = [ordered]@{}
+    foreach ($record in $selected) { if ([math]::Abs($record.Clock - $first) -lt 0.5 -and -not $map.Contains($record.Rest[1])) { $map[$record.Rest[1]] = $record.Rest[2] } }
+    return $map
+}
+function Format-Visibility($Map) { if ($null -eq $Map) { return '(none)' }; ($Map.Keys | ForEach-Object { "$_=$($Map[$_])" }) -join ' ' }
 function Get-RefreshCount([string]$Root, [string]$Pattern) {
     $log = "$Root\Rainmeter.log"
     if (-not (Test-Path -LiteralPath $log)) { return 0 }
@@ -299,16 +330,16 @@ Register-Skin 'Chronometer' 'Parallax\Chronometer' 'Chronometer.ini' 1.0
 Register-Skin 'RAM' 'Parallax\RAM' 'RAM.ini' 1.0 {
     param($Run, $Process)
     Test-HostCycle $Run $Process 'RAM page-file host' 'ParallaxRamPageFile' 'MeterRAMPageGiB' '^Checking' 'GB$'
-} 'MeterRAMPageGiB'
+} 'MeterRAMPageGiB' -Hover 'script:MeasureRAMSettings:MeterRAMOptions,MeterRAMPercent'
 Register-Skin 'GPU' 'Parallax\GPU' 'GPU.ini' 1.0 {
     param($Run, $Process)
     # Readings come from the resident driver host; on a machine without one
     # discrete GPU it runs for process names only and the temperature stays
     # Unavailable, which this check then reports as its fresh state.
     Test-HostCycle $Run $Process 'GPU telemetry host' 'ParallaxGpuTemperature' 'MeterTemperatureValue' '^Checking' '(C|Unavailable|Unsupported)$'
-} 'MeterTemperatureValue|MeterActivityValue'
-Register-Skin 'CPU' 'Parallax\CPU' 'CPU.ini' 1.0
-Register-Skin 'IO' 'Parallax\IO' 'IO-Disk.ini' 1.0
+} 'MeterTemperatureValue|MeterActivityValue' -Hover 'swap:MeterOptions,MeterActivityValue'
+Register-Skin 'CPU' 'Parallax\CPU' 'CPU.ini' 1.0 -Hover 'swap:MeterOptions,MeterTotal'
+Register-Skin 'IO' 'Parallax\IO' 'IO-Disk.ini' 1.0 -Hover 'swap:MeterIOOptions,MeterIOTotal'
 Register-Skin 'Network' 'Parallax\Network' 'Network.ini' 1.0 {
     param($Run, $Process)
     # NetIn/NetOut report bytes accumulated over the pause on their first
@@ -403,6 +434,20 @@ function Update()
         SKIN:Bang('!Refresh', argument)
     elseif command == 'snap' then
         SKIN:Bang('!CommandMeasure', 'MeasureParallaxDividerProbe', "Snapshot('" .. extra .. "')", argument)
+    elseif command == 'swap' then
+        -- A bang hover pair, as the skin's MouseOver/MouseLeaveAction run it:
+        -- extra is in|out,Gear,Value; then #ParallaxIdleHoverAction# and the
+        -- action's !Redraw.
+        local side, gear, value = extra:match('^(%a+),([^,]+),([^,]+)$')
+        local out = side == 'out'
+        SKIN:Bang(out and '!HideMeter' or '!ShowMeter', gear, argument)
+        SKIN:Bang(out and '!ShowMeter' or '!HideMeter', value, argument)
+        SKIN:Bang('!CommandMeasure', 'MeasureParallaxStandDown', 'Hover()', argument)
+        SKIN:Bang('!Redraw', argument)
+    elseif command == 'scripthover' then
+        -- A script hover (RAM.ini: !CommandMeasure MeasureRAMSettings "Hover(n)").
+        local measure, inside = extra:match('^([^,]+),(%d)$')
+        SKIN:Bang('!CommandMeasure', measure, 'Hover(' .. inside .. ')', argument)
     elseif command == 'quit' then
         SKIN:Bang('!Quit')
     end
@@ -544,6 +589,10 @@ function Set-StandDownStage([string]$Root, [string]$Target, [string]$LayoutName)
             @('Scale', $scale), @('ColumnWidth', $width), @('TitleFontSize', '12'), @('HeaderFontSize', '10'), @('FontSize', '10'))) {
         Set-Key $settings $pair[0] $pair[1]
     }
+    if ($BackgroundAlpha -ge 0) {
+        $channels = ([regex]::Match([IO.File]::ReadAllText($settings), '(?m)^BackgroundColor=(\d+),(\d+),(\d+)')).Groups
+        Set-Key $settings 'BackgroundColor' ('{0},{1},{2},{3}' -f $channels[1].Value, $channels[2].Value, $channels[3].Value, $BackgroundAlpha)
+    }
     $idleIni = Join-Path $Target 'Idle\Idle.ini'
     Set-Key $idleIni 'ParallaxIdleTick' '500'
     Set-Key $idleIni 'ParallaxIdleTestFile' "$Root\idle.txt"
@@ -658,6 +707,12 @@ function Invoke-StandDown($Entry, [string]$LayoutName, [bool]$Full) {
         Start-Sleep -Milliseconds 600
         $baseline = Get-Snapshot (Read-Probe $run.Probe) 'baseline'
         Check ($null -ne $baseline -and $baseline.Dividers.Count -gt 0) "$($Entry.Key): baseline snapshot of $(if ($baseline) { $baseline.Dividers.Count } else { 0 }) meters"
+        $baselineShown = Get-Visibility (Read-Probe $run.Probe) 'baseline'
+        Write-Output "     headline before the pause: $(Format-Visibility $baselineShown)"
+        # The Visualizer's overlay shows only without signal, so its live
+        # headline depends on what is playing: reported, not compared.
+        $signalDependent = $Entry.Key -eq 'Visualizer'
+        if (-not $signalDependent) { Check ($null -ne $baselineShown -and @($baselineShown.Values | Where-Object { $_ -eq '0' }).Count -gt 0) "$($Entry.Key): the headline list names meters shown before the pause" }
         Capture $run $process 'live'
 
         $displayBefore = Get-DisplayEvents $run.Root
@@ -671,6 +726,11 @@ function Invoke-StandDown($Entry, [string]$LayoutName, [bool]$Full) {
         $snapshot = Get-Snapshot $records 'enter' $enter.Clock
         $notFrozen = @($snapshot.Dividers.Keys | Where-Object { $snapshot.Dividers[$_] -ne '-1' -and $snapshot.Dividers[$_] -ne 'missing' })
         Check ($notFrozen.Count -eq 0) "$($Entry.Key): every meter resolves to UpdateDivider -1 while paused ($($snapshot.Dividers.Count) meters$(if ($notFrozen.Count) { '; not frozen: ' + (($notFrozen | Select-Object -First 8) -join ', ') }))"
+        $pausedShown = Get-Visibility $records 'enter' $enter.Clock
+        $pair = if ($Entry.Hover) { Get-HoverPair $Entry } else { $null }
+        $stillShown = @(if ($pausedShown) { $pausedShown.Keys | Where-Object { $pausedShown[$_] -eq '0' -and -not ($pair -and $_ -eq $pair.Gear) } })
+        Write-Output "     headline while paused: $(Format-Visibility $pausedShown)"
+        Check ($null -ne $pausedShown -and $stillShown.Count -eq 0) "$($Entry.Key): every headline meter is hidden while paused$(if ($stillShown.Count) { '; shown: ' + ($stillShown -join ', ') })"
         Start-Sleep -Milliseconds 3800
         if ($Full) {
             $window = @(Read-Probe $run.Probe | Where-Object { $_.Kind -eq 'V' -and $_.Clock -ge $enter.Clock + 0.5 -and $_.Clock -le $enter.Clock + 3.5 })
@@ -691,6 +751,10 @@ function Invoke-StandDown($Entry, [string]$LayoutName, [bool]$Full) {
         $after = Get-Snapshot (Read-Probe $run.Probe) 'live' $leave.Clock
         $differ = @($baseline.Dividers.Keys | Where-Object { $after.Dividers[$_] -ne $baseline.Dividers[$_] })
         Check ($differ.Count -eq 0) "$($Entry.Key): every meter's divider equals its pre-enter snapshot after leave$(if ($differ.Count) { '; differ: ' + (($differ | Select-Object -First 8 | ForEach-Object { "$_ $($baseline.Dividers[$_])->$($after.Dividers[$_])" }) -join ', ') })"
+        $afterShown = Get-Visibility (Read-Probe $run.Probe) 'live' $leave.Clock
+        Write-Output "     headline after leave: $(Format-Visibility $afterShown)"
+        if ($signalDependent) { Check ($null -ne $afterShown) "$($Entry.Key): the headline was recorded after leave (signal-dependent, not compared)" }
+        else { Check ($null -ne $afterShown -and (Format-Visibility $afterShown) -eq (Format-Visibility $baselineShown)) "$($Entry.Key): the headline is back exactly as before the pause" }
         if (-not $Full) { return }
         Start-Sleep -Seconds 3
         $resumed = @(Read-Probe $run.Probe | Where-Object { $_.Kind -eq 'V' -and $_.Clock -ge $leave.Clock -and [int]$_.Rest[2] -gt 0 })
@@ -698,6 +762,35 @@ function Invoke-StandDown($Entry, [string]$LayoutName, [bool]$Full) {
         if ($Entry.StaticValues) { Write-Output '     (this view has no changing value without a provider; not checked)' }
         else { Check ($resumed.Count -gt 0) "$($Entry.Key): measure values move again after leave" }
         Capture $run $process 'resumed'
+
+        # Hover pair (emulated hover actions, as the skin's MouseOver/Leave run
+        # them): while paused the gear follows the pointer and the frozen value
+        # never shows; resuming with the pointer still over the skin keeps the
+        # value hidden and the gear shown; the next hover-out restores both.
+        if ($Entry.Hover) {
+            $pair = Get-HoverPair $Entry
+            $written = Send $run 'idle 10'
+            $null = Wait-Hidden $run '0' $written 15000
+            $steps = @(@{ Side = 'in'; Tag = 'hoverin'; Gear = '0'; Value = '1'; Text = 'hover-in while paused: gear shown, value hidden' },
+                @{ Side = 'out'; Tag = 'hoverout'; Gear = '1'; Value = '1'; Text = 'hover-out while paused: gear hidden, the frozen value stays hidden' },
+                @{ Side = 'in'; Tag = 'hoverin2'; Gear = '0'; Value = '1'; Text = 'hover-in again before the resume' })
+            foreach ($step in $steps) {
+                $null = Send-Hover $run $step.Side
+                $null = Send $run "snap $($Entry.Config) $($step.Tag)"
+                Start-Sleep -Milliseconds 500
+                $map = Get-Visibility (Read-Probe $run.Probe) $step.Tag
+                Check ($null -ne $map -and $map[$pair.Gear] -eq $step.Gear -and $map[$pair.Value] -eq $step.Value) "$($Entry.Key): $($step.Text) ($(Format-Visibility $map))"
+            }
+            $resumedAt = Send $run 'idle 0'
+            $back = Wait-Hidden $run '1' $resumedAt 15000
+            $map = if ($back) { Get-Visibility (Read-Probe $run.Probe) 'live' $back.Clock } else { $null }
+            Check ($null -ne $map -and $map[$pair.Gear] -eq '0' -and $map[$pair.Value] -eq '1') "$($Entry.Key): resumed with the pointer over the skin: the value follows the gear and stays hidden ($(Format-Visibility $map))"
+            $null = Send-Hover $run 'out'
+            $null = Send $run "snap $($Entry.Config) hoverlive"
+            Start-Sleep -Milliseconds 500
+            $map = Get-Visibility (Read-Probe $run.Probe) 'hoverlive'
+            Check ($null -ne $map -and (Format-Visibility $map) -eq (Format-Visibility $baselineShown)) "$($Entry.Key): the next hover-out restores the live headline ($(Format-Visibility $map))"
+        }
 
         # Restart while paused: the reload starts live, joins, and re-enters.
         $written = Send $run 'idle 10'

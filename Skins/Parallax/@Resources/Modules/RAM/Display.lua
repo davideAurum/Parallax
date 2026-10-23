@@ -32,10 +32,20 @@ end
 
 function Initialize() values = {} end
 
+-- While the idle stand-down has this skin paused (Global Settings Idle pause;
+-- @Resources\Idle\StandDown.lua shows MeterParallaxPaused in the title row),
+-- the headline percentage stays hidden: a hover-out must not show the frozen
+-- value. The gear follows the hover as usual, and the hook restores the
+-- percentage from the gear on resume.
+local function idlePaused()
+    local line = SKIN:GetMeter('MeterParallaxPaused')
+    return line ~= nil and line:GetOption('Hidden', '1') == '0'
+end
+
 function Hover(inside)
     local hovered = tonumber(inside) == 1
     show('MeterRAMOptions', hovered)
-    show('MeterRAMPercent', not hovered)
+    show('MeterRAMPercent', not hovered and not idlePaused())
     SKIN:Bang('!Redraw')
 end
 
@@ -95,8 +105,9 @@ end
 -- ReapplyDividers, which sets every divider this script and the history
 -- retirement manage from the stored preferences, ignoring any cache: the
 -- shown Used unit samples, the hidden one idles, and the restarted history
--- cover updates. The headline percentage is only covered while paused (the
--- hook's line); Hover's Show/Hide state survives, so nothing to restore.
+-- cover updates. The hook hides the title and headline percentage while
+-- paused and restores them itself (ParallaxIdleHeadline and
+-- ParallaxIdleHoverSwap in RAM.ini), so there is no RestoreHeadline here.
 function ReapplyDividers()
     if values.RAMUseMiB ~= nil then
         for _, unit in ipairs({'GiB', 'MiB'}) do

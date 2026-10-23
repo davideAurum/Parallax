@@ -2,8 +2,10 @@
 ; "Idle stand-down"). Loaded only through Hook5/10/30.inc, which every utility
 ; entrypoint includes as its LAST section ([ParallaxIdleHookInclude]), so the
 ; "Paused (idle)" line draws on top. The entrypoint, after its own includes,
-; sets the line's placement (ParallaxPausedX/Y/W/H/Align), names its module
-; controllers (ParallaxIdleControllers) and derives the hook's divider
+; sets the line's placement (ParallaxPausedX/Y/W/H/Align), names the headline
+; meters the line replaces (ParallaxIdleHeadline, hidden while paused) and any
+; gear/value hover pair (ParallaxIdleHoverSwap), names its module controllers
+; (ParallaxIdleControllers) and derives the hook's divider
 ; (ParallaxIdleHookDivider, about ParallaxIdleHookMs of its own ticks).
 ;
 ; Groups this hook acts on (docs/ARCHITECTURE.md; tools/tests/
@@ -19,6 +21,9 @@ ParallaxIdleAway=0
 ParallaxIdlePaused=0
 ParallaxIdleSync=0
 ParallaxIdleBeat=0
+; Appended to the skin's hover actions before their !Redraw: while paused, a
+; hover-out that shows the frozen headline value has it hidden again.
+ParallaxIdleHoverAction=[!CommandMeasure MeasureParallaxStandDown "Hover()"]
 
 [MeasureParallaxStandDown]
 Measure=Script
@@ -29,8 +34,10 @@ ScriptFile=#@#Idle\StandDown.lua
 Group=ParallaxIdleHook | ParallaxIdleJoin
 UpdateDivider=#ParallaxIdleHookDivider#
 
-; Replaces the headline value while paused: frozen values stay visible below,
-; the headline is covered so a stale figure is never presented as current.
+; Takes the headline's place while paused: StandDown.lua hides the
+; ParallaxIdleHeadline meters, so a stale headline is never shown as current.
+; No fill: covering is not hiding once Global Settings Background transparency
+; makes BackgroundColor translucent. Frozen values elsewhere stay visible.
 [MeterParallaxPaused]
 Meter=String
 MeterStyle=StyleLabel
@@ -40,7 +47,6 @@ W=#ParallaxPausedW#
 H=#ParallaxPausedH#
 StringAlign=#ParallaxPausedAlign#
 FontColor=#MutedColor#
-SolidColor=#BackgroundColor#
 Text=Paused (idle)
 Hidden=1
 UpdateDivider=-1

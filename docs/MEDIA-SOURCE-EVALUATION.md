@@ -63,9 +63,9 @@ Not verified: WNP's behaviour in a running Rainmeter (nothing was instrumented),
    - **Gains:** the helper's whole cost, and one PowerShell Resume host per Media refresh.
    - **Losses:** the feature the owner asked for. The Source detection settings row, `SourceReader.lua`, `Lifecycle.inc`'s Source host and the docs would also need removing.
 2. **Keep the reworked observer** (this package).
-   - **Behaviour:** visible behaviour and honest states are unchanged.
+   - **Behaviour:** visible behaviour and honest states are unchanged. While Spotify plays, the snapshot is still written every cycle, so the header keeps the old tolerance to a slow collection (about 3-4 s).
    - **Cost:** see [Cost context](#cost-context). The PowerShell collection is now the floor, at roughly 1% of a core rather than the 0.5% the review hoped for. Step 3 has to measure it.
-   - **Risk:** the change-only heartbeat leaves about 1-2 s of margin before the reader would call an observation stale, against about 3 s before (see [Media.md](modules/Media.md#source-setup-and-behavior)). A heartbeat delayed beyond that shows the honest `Unknown` for about a second.
+   - **Risk:** low. Only observations without a playing Spotify record use the sparse heartbeat, which leaves about 1-2 s of margin instead of about 3-4 s (see [Media.md](modules/Media.md#source-setup-and-behavior)). A late one lets such an observation expire briefly, and an expired and an unmatched observation both show `Unknown`, so the Player looks the same.
 3. **Hybrid: collect only when WNP's track changes.**
    - **How it works:** `SourceReader.lua` already reads WNP's title, artist and state every second. It would write a small request token whenever those change while the player is `Windows Media Session`. The observer would collect once per request instead of every 2 s.
    - **Gains:** idle cost close to zero.
@@ -92,7 +92,7 @@ Not verified: WNP's behaviour in a running Rainmeter (nothing was instrumented),
   - **Stop check:** about 5.8 ms per call before, ten times a second, which is about 5.8% of a core on its own. After: one wake per 2 s cycle, and the check is two .NET calls.
   - **Collection:** about 20-25 ms of CPU per cycle (median 11 ms wall, 45 timed collections). That is three enumerations and two reads per session in PowerShell; about nine deadline checks at about 1 ms each are the largest single part.
   - **Snapshot text:** 2-3.6 ms per cycle.
-  - **Snapshot write:** about 10 ms of CPU, now about every 4 s instead of every 2 s.
+  - **Snapshot write:** about 10 ms of CPU, every 2 s while Spotify plays (as before) and about every 4 s otherwise.
   - **Real worker, 20 s windows:** the old worker used 11.2% of a core and the new one 2.1-2.5%, including first-run script compilation. The in-process steady-state estimate is about 1.5% under the same load.
 
 The reworked helper should therefore land around 1% of a core, against 7.6%. Retiring it (option 1 or 5) or going event-driven (options 3 and 4) would remove most of what remains.
@@ -107,4 +107,4 @@ The reworked helper should therefore land around 1% of a core, against 7.6%. Ret
 Decisions for the owner:
 - Is Spotify identification in the header worth a resident helper at the cost step 3 measures?
 - Should an upstream request be filed with WebNowPlaying?
-- Is the heartbeat trade-off (about 4 s writes with about 1-2 s of margin) acceptable, or should every cycle be written again (`$script:SourceHeartbeatLeadSeconds = 4.0`) while keeping the other gains?
+- Should the snapshot also be written only about every 4 s while Spotify plays? That saves about 15 writes a minute during playback, but one collection slower than about 1-2 s would then show `Media Player: Unknown` instead of `Spotify` for about a second (the default keeps every-cycle writes and the old 3-4 s tolerance).

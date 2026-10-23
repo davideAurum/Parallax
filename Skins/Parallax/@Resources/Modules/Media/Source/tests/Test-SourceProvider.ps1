@@ -378,7 +378,9 @@ foreach ($state in @('unavailable','stopped')) {
     Assert-Test ($keyFirst -cne (Get-SourcePayloadKey (ConvertTo-SourceSnapshotText (New-SourceSnapshot $state)))) 'A state change kept the payload key.'
 }
 # The reader accepts a ready snapshot while now < observed + 6, so an unchanged
-# one is rewritten once less than three seconds of that window remain.
+# one without a playing Spotify record ($later: Spotify paused, another app
+# playing) is rewritten once less than three seconds of that window remain.
+Assert-Test (-not (Test-SourcePlayingSpotify $later)) 'A paused Spotify record or a playing other app counted as playing Spotify.'
 $publishedReady=[pscustomobject]@{Key=$keyFirst; Observed=1000L; ValidUntil=1006L}
 foreach ($case in @(
     @{Published=$null; Key=$keyFirst; Now=1003.0; Due=$true; Why='the first observation'},
@@ -392,37 +394,133 @@ foreach ($case in @(
 }
 $unavailableKey=Get-SourcePayloadKey (ConvertTo-SourceSnapshotText (New-SourceSnapshot 'unavailable'))
 Assert-Test (-not (Test-SourcePublishDue ([pscustomobject]@{Key=$unavailableKey; Observed=0L; ValidUntil=0L}) $unavailableKey (New-SourceSnapshot 'unavailable') 999999.0)) 'An unchanged unavailable observation was rewritten.'
-# The worker itself: a simulated clock advancing two seconds per cycle (the real
-# cadence) and a 100 ms test cycle make the write schedule exact.
-$writeRoot=Initialize-SourceStorage (Join-Path ([IO.Path]::GetTempPath()) ('Parallax-SourceProvider-writes-'+[Guid]::NewGuid().ToString('N')))
+# A playing Spotify record is the one payload the header can show, so it is
+# rewritten every cycle, as before change-only publishing.
+$playingFixture=New-TestAdapter 2
+$playingFixture.State.Sessions[0].Playing=1
+$playingSpotify=Get-SourceCollection -Adapter $playingFixture.Adapter -Observed 1002 -Elapsed $playingFixture.Clock
+$playingKey=Get-SourcePayloadKey (ConvertTo-SourceSnapshotText $playingSpotify)
+Assert-Test (Test-SourcePlayingSpotify $playingSpotify) 'A playing Spotify record was not recognized.'
+Assert-Test (-not (Test-SourcePlayingSpotify (New-SourceSnapshot 'unavailable'))) 'An unavailable observation counted as playing Spotify.'
+$publishedPlaying=[pscustomobject]@{Key=$playingKey; Observed=1002L; ValidUntil=1008L}
+foreach ($now in @(1002.0,1003.5,1004.05,1005.0)) {
+    Assert-Test (Test-SourcePublishDue $publishedPlaying $playingKey $playingSpotify $now) "An unchanged playing Spotify observation was not rewritten with $(1008-$now) s left."
+}
+
+# The worker itself, on a simulated clock. Each collection starts two seconds
+# after the previous one (the real cadence) or, after an overrun, right after
+# the previous write, as the real loop skips its wait. A step's Stall delays
+# the collection after its observation time is taken, as a slow Windows call
+# would. A 50 ms test cycle keeps the run short; the write schedule is exact.
 $savedWriter=(Get-Item Function:\Write-SourceAtomicFile).ScriptBlock
-$writeLog=[pscustomobject]@{Snapshots=@()}
+$simulation=[pscustomobject]@{Start=0.0; Now=0.0; Calls=0; Plan=@(); Collections=@(); Writes=@();
+    Root=(Initialize-SourceStorage (Join-Path ([IO.Path]::GetTempPath()) ('Parallax-SourceProvider-writes-'+[Guid]::NewGuid().ToString('N'))))}
 function Write-SourceAtomicFile {
     param([string]$Root,[string]$Name,[string]$Text)
     if ($Name -eq 'source.snapshot') {
-        $writeLog.Snapshots+=('{0}@{1}' -f [regex]::Match($Text,'(?m)^state=(\w+)$').Groups[1].Value,[regex]::Match($Text,'(?m)^observed=(\d+)$').Groups[1].Value)
+        $simulation.Writes+=[pscustomobject]@{Time=$simulation.Now; Call=$simulation.Calls;
+            State=[regex]::Match($Text,'(?m)^state=(\w+)$').Groups[1].Value;
+            Observed=[long][regex]::Match($Text,'(?m)^observed=(\d+)$').Groups[1].Value;
+            ValidUntil=[long][regex]::Match($Text,'(?m)^valid_until=(\d+)$').Groups[1].Value;
+            PlayingSpotify=($Text -match '(?m)^source1=spotify$' -and $Text -match '(?m)^playing1=1$')}
     }
     & $savedWriter $Root $Name $Text
 }
-$simulation=[pscustomobject]@{Now=1000.0; Calls=0}
-$simFixture=New-TestAdapter 1
-$simCollector={
-    $simulation.Calls++
-    if ($simulation.Calls -gt 1) { $simulation.Now+=2.0 }
-    if ($simulation.Calls -eq 4) { $simFixture.State.Sessions[0].Title='Synthetic changed title' }
-    if ($simulation.Calls -eq 6) { [IO.File]::WriteAllText((Join-Path $writeRoot 'stop.request'),"stop`n") }
-    Get-SourceCollection -Adapter $simFixture.Adapter -Observed ([long][Math]::Floor($simulation.Now)) -Elapsed $simFixture.Clock
-}.GetNewClosure()
-$simClock={ $simulation.Now+0.05 }.GetNewClosure()
+function New-SourceSimulationPlan {
+    param([int]$Count,[int]$Playing,[int]$PlayFrom=0,[int[]]$StallAt=@(),[double]$Stall=0,[int]$TitleFrom=0)
+    for ($call=1; $call -le $Count; $call++) {
+        [pscustomobject]@{Source='spotify'; Playing=$(if ($PlayFrom -gt 0 -and $call -ge $PlayFrom) { 1 } else { $Playing });
+            Title=$(if ($TitleFrom -gt 0 -and $call -ge $TitleFrom) { 'Synthetic changed title' } else { 'Synthetic title' });
+            Stall=$(if ($StallAt -contains $call) { $Stall } else { 0.0 })}
+    }
+}
+function Invoke-SourceSimulation {
+    param([object[]]$Plan,[double]$Start)
+    $stopRequest=Join-Path $simulation.Root 'stop.request'
+    if ([IO.File]::Exists($stopRequest)) { [IO.File]::Delete($stopRequest) }
+    $simulation.Start=$Start; $simulation.Now=$Start; $simulation.Calls=0; $simulation.Plan=$Plan
+    $simulation.Collections=@(); $simulation.Writes=@()
+    $collector={
+        $simulation.Calls++
+        $step=$simulation.Plan[$simulation.Calls-1]
+        if ($simulation.Calls -gt 1) { $simulation.Start=[Math]::Max($simulation.Start+2.0,$simulation.Now) }
+        $observed=[long][Math]::Floor($simulation.Start)
+        $simulation.Now=$simulation.Start+0.02+$step.Stall
+        # The last step requests Stop: its observation is dropped and the
+        # worker publishes its stopped state.
+        if ($simulation.Calls -eq $simulation.Plan.Count) { [IO.File]::WriteAllText((Join-Path $simulation.Root 'stop.request'),"stop`n") }
+        $simulation.Collections+=[pscustomobject]@{Observed=$observed; End=$simulation.Now}
+        New-SourceSnapshot 'ready' @([pscustomobject]@{Source=$step.Source; Title=$step.Title; Artist='Synthetic artist'; Playing=$step.Playing}) $observed
+    }
+    Assert-Test (Invoke-SourceRun $simulation.Root $collector -CycleMilliseconds 50 -Clock { $simulation.Now }) 'Simulated worker did not run.'
+    Assert-Test ($simulation.Calls -eq $Plan.Count) 'Simulated worker changed the collection count.'
+    Assert-Test ($simulation.Writes[-1].State -eq 'stopped') 'Simulated worker did not end with its stopped state.'
+    # Every replacement of a ready snapshot, with the validity it had left when
+    # it was replaced (the reader calls it stale once that reaches zero), and
+    # what the old every-cycle schedule left at the same point.
+    $replacements=@()
+    for ($index=0; $index -lt $simulation.Writes.Count-1; $index++) {
+        $current=$simulation.Writes[$index]; $next=$simulation.Writes[$index+1]
+        $collection=$simulation.Collections[$current.Call-1]
+        $oldLeft=$collection.Observed+6-$simulation.Collections[$current.Call].End
+        $replacements+=[pscustomobject]@{Call=$current.Call; NextCall=$next.Call; PlayingSpotify=$current.PlayingSpotify;
+            Left=($current.ValidUntil-$next.Time); OldLeft=$oldLeft}
+    }
+    [pscustomobject]@{Schedule=(@($simulation.Writes | ForEach-Object { '{0}@{1}' -f $_.State,$_.Observed }) -join ' '); Replacements=$replacements}
+}
+function Assert-SourceHeaderTolerance {
+    param($Result,[string]$Case)
+    foreach ($replacement in @($Result.Replacements)) {
+        if ($replacement.PlayingSpotify) {
+            Assert-Test ($replacement.NextCall -eq $replacement.Call+1) "$Case skipped a write while Spotify played."
+            Assert-Test ([Math]::Abs($replacement.Left-$replacement.OldLeft) -lt 0.0001) "$Case left $($replacement.Left) s of a header-visible observation; the old schedule left $($replacement.OldLeft) s."
+            Assert-Test ($replacement.Left -gt 0) "$Case let a header-visible observation expire ($($replacement.Left) s left)."
+        }
+    }
+}
 try {
-    Assert-Test (Invoke-SourceRun $writeRoot $simCollector -CycleMilliseconds 100 -Clock $simClock) 'Change-only worker did not run.'
+    # Spotify paused (nothing the header can show): 1000 first; 1002 unchanged
+    # with 3.98 s left (skipped); 1004 heartbeat; 1006 changed title; 1008
+    # unchanged (skipped); then Stop's stopped state.
+    $sparse=Invoke-SourceSimulation (New-SourceSimulationPlan 6 0 -TitleFrom 4) 1000.0
+    $expectedWrites='ready@1000 ready@1004 ready@1006 stopped@0'
+    Assert-Test ($sparse.Schedule -eq $expectedWrites) "Change-only writes were '$($sparse.Schedule)', expected '$expectedWrites'."
+    $script:SourceTestTimings+=('Snapshot writes over 5 simulated cycles, Spotify paused: {0} (was 6)' -f @($sparse.Schedule -split ' ').Count)
+    # Spotify playing: every cycle is written, as before.
+    $dense=Invoke-SourceSimulation (New-SourceSimulationPlan 6 1 -TitleFrom 4) 1000.0
+    $expectedWrites='ready@1000 ready@1002 ready@1004 ready@1006 ready@1008 stopped@0'
+    Assert-Test ($dense.Schedule -eq $expectedWrites) "Writes while Spotify played were '$($dense.Schedule)', expected '$expectedWrites'."
+    Assert-SourceHeaderTolerance $dense 'Steady playback'
+    # One stalled collection while Spotify plays, at the observation-second
+    # offsets that leave the least slack: 2.0 s at .75 (the review's case) and
+    # 3.0 s at .25. Both keep the old schedule's margin; neither expires.
+    foreach ($case in @(@{Start=1000.75; Stall=2.0}, @{Start=1000.25; Stall=3.0})) {
+        $stalled=Invoke-SourceSimulation (New-SourceSimulationPlan 7 1 -StallAt 3 -Stall $case.Stall) $case.Start
+        $label='A {0:N1} s stall at +{1:N2}' -f $case.Stall,($case.Start-1000)
+        Assert-SourceHeaderTolerance $stalled $label
+        $least=(@($stalled.Replacements | ForEach-Object { $_.Left }) | Measure-Object -Minimum).Minimum
+        $script:SourceTestTimings+=('{0} while Spotify plays: least validity left {1:N2} s (old schedule the same)' -f $label,$least)
+    }
+    # Paused, then playing: the paused phase keeps its sparse heartbeat (the
+    # second collection is skipped), and its stall lets that snapshot expire
+    # for a moment, which nothing displays. From the first playing observation
+    # on, every cycle is written and a second stall keeps the old margin.
+    $mixed=Invoke-SourceSimulation (New-SourceSimulationPlan 7 0 -PlayFrom 4 -StallAt 3,5 -Stall 2.0) 1000.75
+    $mixedCalls=(@($mixed.Replacements | ForEach-Object { $_.Call }) -join ',')
+    Assert-Test ($mixedCalls -eq '1,3,4,5,6') "Paused-then-playing writes came from collections $mixedCalls, expected 1,3,4,5,6 and Stop."
+    Assert-SourceHeaderTolerance $mixed 'Paused, then playing'
+    # The same 2.0 s stall with the sparse heartbeat applied to playing Spotify
+    # too (the reviewed first version) expires the header-visible observation,
+    # so this check detects that regression.
+    $savedPlaying=(Get-Item Function:\Test-SourcePlayingSpotify).ScriptBlock
+    function Test-SourcePlayingSpotify { param($Snapshot) $false }
+    try {
+        $regressed=Invoke-SourceSimulation (New-SourceSimulationPlan 7 1 -StallAt 3 -Stall 2.0) 1000.75
+    } finally { Set-Item Function:\Test-SourcePlayingSpotify $savedPlaying }
+    $regressedLeast=(@($regressed.Replacements | ForEach-Object { $_.Left }) | Measure-Object -Minimum).Minimum
+    Assert-Test ($regressedLeast -le 0) "A sparse heartbeat during playback no longer fails the stall check ($regressedLeast s left)."
+    $script:SourceTestTimings+=('Same 2.0 s stall with a sparse heartbeat during playback: {0:N2} s left (would read Unknown)' -f $regressedLeast)
 } finally { Set-Item Function:\Write-SourceAtomicFile $savedWriter }
-# 1000 first; 1002 unchanged with 3.95 s left (skipped); 1004 heartbeat; 1006
-# changed title; 1008 unchanged (skipped); then Stop's stopped state.
-$expectedWrites='ready@1000 ready@1004 ready@1006 stopped@0'
-Assert-Test (($writeLog.Snapshots -join ' ') -eq $expectedWrites) "Change-only writes were '$($writeLog.Snapshots -join ' ')', expected '$expectedWrites'."
-Assert-Test ($simulation.Calls -eq 6) 'Change-only worker changed the collection count.'
-$script:SourceTestTimings+=('Snapshot writes over 5 simulated cycles (10 s): {0} (was 6)' -f $writeLog.Snapshots.Count)
 
 $script:SourceTestCollections=0
 $collector={ $script:SourceTestCollections++; New-SourceSnapshot 'unavailable' }

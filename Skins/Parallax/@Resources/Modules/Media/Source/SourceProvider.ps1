@@ -19,8 +19,9 @@ $script:SourceStrictUtf8 = New-Object Text.UTF8Encoding($false, $true)
 # The last root string accepted by Resolve-SourceDataRoot and its resolved form.
 $script:SourceRootInput = $null
 $script:SourceRoot = $null
-# Change-only publishing: an unchanged ready observation is rewritten once the
-# published one has less than this many seconds of validity left.
+# Change-only publishing: an unchanged ready observation without a playing
+# Spotify record is rewritten once the published one has less than this many
+# seconds of validity left (see Test-SourcePublishDue).
 $script:SourceHeartbeatLeadSeconds = 3.0
 
 function Get-SourceUnixTime { [long][Math]::Floor(([DateTime]::UtcNow - [DateTime]'1970-01-01').TotalSeconds) }
@@ -298,18 +299,38 @@ function Get-SourcePayloadKey {
     $Text -replace '(?m)^(?:observed|valid_until)=\d+\n', ''
 }
 
+# True when an observation holds a playing Spotify record: the only payload
+# whose freshness the Player can show. MediaHeader.lua consults the source
+# reader only while WNP reports a generic session playing (state 1), and
+# SourceReader.resolve confirms Spotify only for one matching record that is
+# classified spotify and also playing. Without such a record a fresh snapshot
+# resolves as unmatched and an expired one as stale, and both read Unknown.
+function Test-SourcePlayingSpotify {
+    param($Snapshot)
+    foreach ($record in @($Snapshot.Records)) {
+        if ($record.Source -eq 'spotify' -and [int]$record.Playing -eq 1) { return $true }
+    }
+    return $false
+}
+
 # Change-only publishing. A changed observation (state or any record) is written
-# at once. An unchanged ready observation is rewritten as a heartbeat when the
-# published one has less than SourceHeartbeatLeadSeconds of validity left, or
-# when the clock has moved back before it. SourceReader.parse accepts a ready
-# snapshot only while now < valid_until = observed + 6 and observed <= now + 1;
-# with the 2-second cycle the heartbeat lands about every 4 s, about a second
-# before the previous observation would read as stale. Unavailable and stopped
-# observations carry no expiry, so unchanged ones are not rewritten.
+# at once. An unchanged ready observation is rewritten:
+# - every cycle while it holds a playing Spotify record, exactly as before
+#   change-only publishing, so the header keeps the old tolerance to a slow
+#   collection (the previous observation still has about 3-4 s left when the
+#   next one is written);
+# - otherwise as a heartbeat when the published one has less than
+#   SourceHeartbeatLeadSeconds of validity left, or when the clock has moved
+#   back before it. With the 2-second cycle that is about every 4 s; a late one
+#   lets the snapshot expire for a moment, which nothing displays.
+# SourceReader.parse accepts a ready snapshot only while now < valid_until =
+# observed + 6 and observed <= now + 1. Unavailable and stopped observations
+# carry no expiry, so unchanged ones are not rewritten.
 function Test-SourcePublishDue {
     param($Published, [string]$Key, $Snapshot, [double]$Now)
     if ($null -eq $Published -or -not [string]::Equals($Published.Key, $Key, [StringComparison]::Ordinal)) { return $true }
     if ($Snapshot.State -ne 'ready') { return $false }
+    if (Test-SourcePlayingSpotify $Snapshot) { return $true }
     return (($Published.ValidUntil - $Now) -lt $script:SourceHeartbeatLeadSeconds) -or ($Published.Observed -gt $Now)
 }
 

@@ -68,7 +68,7 @@ user-selected Lucide metadata and playback icons are attributed below.
 | Fonts and icons — bundled | Private IBM Plex Sans fonts ([license](../../Skins/Parallax/@Resources/Licenses/IBM-Plex-OFL.txt)); native Shape adaptations of Lucide artwork ([provenance and licenses](../../Skins/Parallax/@Resources/Modules/Media/Icons/Lucide/README.md)). | No download, system font installation or SVG-rendering plugin required. |
 | Typed numeric settings — bundled | Rainmeter's bundled RunCommand plugin, Windows PowerShell/.NET WinForms and the shared `Scripts/SettingsInput.ps1` overlay. | An explicit numeric-field click starts one temporary editor. Fixed numeric/cancel output is revalidated before saving; invalid, cancelled, unrequested or hidden-field results do not save. No polling or provider starts. |
 | Playback metadata and controls — optional, plugin bundled | [WebNowPlaying](https://wnp.keifufu.dev/rainmeter/getting-started) plugin 2.0.7.0 (MIT License, keifufu and Trevor Hamilton), bundled in the Parallax `.rmskin` from `packaging/Plugins/WebNowPlaying` and installed by Skin Installer unless a newer version is present ([license](../../Skins/Parallax/@Resources/Licenses/WebNowPlaying-LICENSE.txt), [provenance](../../packaging/Plugins/WebNowPlaying/README.md)); a supported player. Browser playback additionally requires the separately installed WebNowPlaying browser extension; desktop adapters are also separate. A development copy of the skin without the package needs a manual plugin install (2.x+). | Sampled on the skin update; `MediaInterval` does not throttle WNP internally. Inactive connections show no active media; unsupported controls remain disabled. Setup unloads the optional plugin. |
-| Spotify source identification — optional | Bundled `SourceProvider.ps1` and the shared `ProviderOwner.psm1` owner lease, Rainmeter's bundled RunCommand plugin, Windows PowerShell 5.1, built-in .NET and Windows media-session APIs. No Spotify authentication or network request. | Explicit Start uses a dormant `State=Hide` RunCommand control and enables one persistent observer targeting a 2-second collection cadence, with load-time recovery through `MediaLifecycle.lua`/`Lifecycle.inc`. Stop uses the same hidden event-only path. Between collections the observer waits on its owner Rainmeter and a stop event, not a poll, and rewrites its snapshot only on change, plus a heartbeat about every 4 seconds. Observations expire after 6 seconds. Missing or inconclusive evidence leaves generic Windows playback identified as `Unknown`. |
+| Spotify source identification — optional | Bundled `SourceProvider.ps1` and the shared `ProviderOwner.psm1` owner lease, Rainmeter's bundled RunCommand plugin, Windows PowerShell 5.1, built-in .NET and Windows media-session APIs. No Spotify authentication or network request. | Explicit Start uses a dormant `State=Hide` RunCommand control and enables one persistent observer targeting a 2-second collection cadence, with load-time recovery through `MediaLifecycle.lua`/`Lifecycle.inc`. Stop uses the same hidden event-only path. Between collections the observer waits on its owner Rainmeter and a stop event, not a poll, and rewrites its snapshot every cycle while Spotify plays and otherwise only on change, plus a heartbeat about every 4 seconds. Observations expire after 6 seconds. Missing or inconclusive evidence leaves generic Windows playback identified as `Unknown`. |
 | Spotify queue — optional | Bundled `QueueProvider.ps1`, `QueueCore.psm1`, `QueueAuth.psm1` and the shared `ProviderOwner.psm1` owner lease; Rainmeter's bundled RunCommand plugin; Windows PowerShell 5.1/.NET; network access; Spotify Developer app public Client ID and user-authorized PKCE sign-in. The [queue setup guide](../../Skins/Parallax/@Resources/Modules/Media/Queue/README.md) records Development Mode prerequisites, including owner Premium and user allowlisting. No client secret. | Start, Stop, Restart and Disconnect use dormant `State=Hide` RunCommand controls with a fixed allowlist and do not overlap. One opt-in worker requests every 30 seconds by default, configurable to 30–150 seconds, subject to backoff/quota pauses. Sign in deliberately retains a visible setup console/browser flow. Passive views read local snapshots on their update. Missing, stopped, expired or failed data produces explicit status and suppresses rows. |
 
 Both provider helpers require an explicit initial Start (or successful queue sign-in).
@@ -723,15 +723,24 @@ Between collections the worker waits instead of polling (since 2026-10-22):
   end of the cycle, within 2 seconds. An owner handle that cannot be waited on
   keeps the old 100 ms owner wait.
 - **Change-only writes.** A changed observation (state or any record) is
-  written at once, and every run writes its first observation. An unchanged
-  `ready` one is rewritten as a heartbeat once the published one has less
-  than 3 seconds of its 6-second validity left. With the 2-second cycle that
-  is about every 4 seconds, at least about a second before the reader would
-  call it stale; the old every-cycle writes left about 3 seconds.
-- **Late heartbeats.** A heartbeat delayed beyond that margin, for example by
-  a stalled Windows call, shows the reader's honest stale state, so the
-  header reads `Unknown` and never old data. Setting
-  `$script:SourceHeartbeatLeadSeconds` to 4 restores every-cycle writes.
+  written at once, and every run writes its first observation.
+- **While Spotify plays, every cycle.** An unchanged `ready` observation that
+  holds a playing Spotify record is still rewritten every cycle, as before.
+  That is the only observation the Player can show: the header consults the
+  reader only while WNP reports a generic session playing, and only a playing
+  Spotify record confirms Spotify. The previous observation therefore keeps
+  about 3-4 seconds of validity when the next is written, so one slow
+  collection of up to about 3 seconds still cannot turn `Spotify` into
+  `Unknown`.
+- **Otherwise, a heartbeat.** Any other unchanged `ready` observation (Spotify
+  paused or absent, other apps, no sessions) is rewritten once the published
+  one has less than 3 seconds of its 6-second validity left, about every 4
+  seconds. A late heartbeat lets it expire for a moment; an expired and an
+  unmatched observation both read `Unknown`, so nothing visible changes.
+  Making writes sparse while Spotify plays too would save about 15 more
+  writes a minute but cut that stall tolerance to about 1-2 seconds; it is
+  left to an owner decision
+  ([MEDIA-SOURCE-EVALUATION.md](../MEDIA-SOURCE-EVALUATION.md#recommendation)).
 - **Unavailable observations** carry no expiry and are not rewritten while
   unchanged.
 - **The adapter** to the Windows media-session APIs is built once per worker,
@@ -1020,7 +1029,9 @@ What changed:
 4. No ACL calls on routine snapshot replacements, and the destination path is
    resolved once per write.
 5. Change-only snapshot writes with a heartbeat at under 3 s of validity
-   left, and no forced flush for the snapshot.
+   left, and no forced flush for the snapshot. After review, unchanged
+   observations holding a playing Spotify record are written every cycle
+   again (see below).
 6. The owner lease is walked only after the worker probe.
 7. A Resume beside a running worker skips storage initialization.
 
@@ -1086,6 +1097,35 @@ Not verified:
 - The fallbacks: no stop event, and an owner handle that cannot be waited on.
   They are exercised only synthetically.
 - The live Rainmeter, which was not touched.
+
+After review (same day). The first version wrote every unchanged `ready`
+observation only about every 4 seconds, which left one slow collection only
+about 1-2 seconds before the header turned `Spotify` into `Unknown`; the old
+schedule tolerated about 3-4 seconds. That contradicted the
+behaviour-preserving brief, so the fixes below were added as new commits:
+
+- **Every cycle while Spotify plays.** Unchanged observations holding a
+  playing Spotify record are written every cycle again; only the others keep
+  the sparse heartbeat.
+  - `Test-SourceProvider.ps1` now passes 334 assertions. It checks the rule's
+    decisions, and that a worker on a simulated clock writes every cycle while
+    Spotify plays (`ready@1000` through `ready@1008`) and keeps the sparse
+    schedule while it is paused.
+  - **One stalled collection** while Spotify plays: a 2.0 s stall at +0.75 s
+    into the observation second leaves 1.23 s and a 3.0 s stall at +0.25 s
+    leaves 0.73 s. Both equal the old every-cycle schedule.
+  - **Paused, then playing**, with a stall in each phase: only the paused
+    phase skips a write, and it expires for a moment, which nothing shows.
+  - **The reviewed version fails the check.** With the sparse heartbeat
+    forced for playing Spotify, the same 2.0 s stall leaves -0.77 s. Three
+    mutations of the rule fail the suite: no every-cycle rule, a paused
+    Spotify record counting as playing, and any playing app counting.
+  - **Real worker:** the review's real-time stall script (the real
+    `Invoke-SourceRun`, one playing Spotify record, the snapshot judged every
+    100 ms by the reader's integer-time rule) gave 0 stale samples for 1.3, 2.0
+    and 3.0 s stalls, with at least 1.88, 1.11 and 0.12 s left. The review
+    measured 2 and 9 stale samples for the first version, and 0 for the old
+    provider.
 
 ### Cover without the WNP plugin (2026-10-20)
 

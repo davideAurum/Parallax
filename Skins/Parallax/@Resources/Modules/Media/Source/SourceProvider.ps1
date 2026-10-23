@@ -242,17 +242,26 @@ function Write-SourceAtomicFile {
     param([string]$Root, [ValidateSet('source.snapshot','stop.request','enabled.intent')][string]$Name, [string]$Text)
     $destination = Get-SourceRuntimeFile $Root $Name
     if ($Text -match '[^\x00-\x7F]' -or $Text.Length -gt 131072) { throw 'Invalid source output bytes.' }
-    $temporary = Join-Path $Root ($Name+'.'+[Guid]::NewGuid().ToString('N')+'.tmp')
+    # stop.request and enabled.intent are the durable lifecycle vetoes and keep
+    # an explicit private ACL on every write. The snapshot's temporary file
+    # inherits the private directory's user-only ACL; its first creation still
+    # gets the explicit protected ACL, and File.Replace keeps the replaced
+    # file's DACL, so routine publishes make no ACL calls.
+    $lifecycle = $Name -ne 'source.snapshot'
+    $temporary = [IO.Path]::Combine([IO.Path]::GetDirectoryName($destination), $Name+'.'+[Guid]::NewGuid().ToString('N')+'.tmp')
     try {
         $stream = [IO.File]::Open($temporary, [IO.FileMode]::CreateNew, [IO.FileAccess]::Write, [IO.FileShare]::None)
         try {
             $bytes = [Text.Encoding]::ASCII.GetBytes($Text)
             $stream.Write($bytes,0,$bytes.Length); $stream.Flush($true)
         } finally { $stream.Dispose() }
-        Set-SourcePrivateFile $temporary
-        $null = Get-SourceRuntimeFile $Root $Name
-        if ([IO.File]::Exists($destination)) {
-            Set-SourcePrivateFile $destination
+        # The junction guard again, right before the swap, on the path already
+        # resolved above (no second root resolution).
+        Assert-SourceRuntimePath $destination
+        $replace = [IO.File]::Exists($destination)
+        if ($lifecycle -or -not $replace) { Set-SourcePrivateFile $temporary }
+        if ($replace) {
+            if ($lifecycle) { Set-SourcePrivateFile $destination }
             [IO.File]::Replace($temporary,$destination,[Management.Automation.Language.NullString]::Value)
         } else { [IO.File]::Move($temporary,$destination) }
     } finally {

@@ -317,6 +317,45 @@ Assert-Test ((Wait-SourceSignal $waiter 150) -eq 'timeout' -and $fallbackClock.E
 $waiter=New-SourceWaiter ([pscustomobject]@{Name='not a process'}) $null
 Assert-Test ($waiter.PollOwner -and (Wait-SourceSignal $waiter 150) -eq 'owner') 'Unwaitable owner did not fall back to the bounded owner wait.'
 
+# ACLs: the private directory's ACL is set by Initialize-SourceStorage. A
+# snapshot gets an explicit private ACL only when first created; File.Replace
+# keeps it. The lifecycle vetoes keep their explicit ACL on every write.
+$aclRoot=Initialize-SourceStorage (Join-Path ([IO.Path]::GetTempPath()) ('Parallax-SourceProvider-acl-'+[Guid]::NewGuid().ToString('N')))
+$savedPrivate=(Get-Item Function:\Set-SourcePrivateFile).ScriptBlock
+$aclState=[pscustomobject]@{Calls=@()}
+function Set-SourcePrivateFile { param([string]$Path) $aclState.Calls+=[IO.Path]::GetFileName($Path); & $savedPrivate $Path }
+function Test-SourcePrivateFile([string]$Path) {
+    $fileSecurity=[IO.File]::GetAccessControl($Path)
+    $fileRules=@($fileSecurity.GetAccessRules($true,$true,[Security.Principal.SecurityIdentifier]))
+    return ($fileSecurity.AreAccessRulesProtected -and $fileRules.Count -eq 1 -and $fileRules[0].IdentityReference.Value -eq $sid.Value -and
+        $fileRules[0].AccessControlType -eq 'Allow' -and -not $fileRules[0].IsInherited)
+}
+try {
+    $aclSnapshot=Join-Path $aclRoot 'source.snapshot'
+    Publish-SourceSnapshot $aclRoot (New-SourceSnapshot 'unavailable')
+    Assert-Test ($aclState.Calls.Count -eq 1 -and $aclState.Calls[0] -like 'source.snapshot.*.tmp') 'First snapshot creation did not get one explicit private ACL.'
+    foreach ($state in @('stopped','unavailable','stopped')) { Publish-SourceSnapshot $aclRoot (New-SourceSnapshot $state) }
+    Assert-Test ($aclState.Calls.Count -eq 1) "Routine snapshot replacements made $($aclState.Calls.Count - 1) ACL calls."
+    Assert-Test (Test-SourcePrivateFile $aclSnapshot) 'Replaced snapshot lost its protected user-only ACL.'
+    # A snapshot left with only inherited permissions is made explicit again by
+    # the next command's storage initialization, and replacements then keep it.
+    $loose=New-Object Security.AccessControl.FileSecurity
+    $loose.SetAccessRuleProtection($false,$false)
+    [IO.File]::SetAccessControl($aclSnapshot,$loose)
+    Assert-Test (-not (Test-SourcePrivateFile $aclSnapshot)) 'Synthetic inherited-only snapshot ACL was not applied.'
+    $null=Initialize-SourceStorage $aclRoot
+    Publish-SourceSnapshot $aclRoot (New-SourceSnapshot 'unavailable')
+    Assert-Test (Test-SourcePrivateFile $aclSnapshot) 'Storage initialization did not restore the explicit snapshot ACL.'
+    $aclState.Calls=@()
+    Write-SourceAtomicFile $aclRoot 'stop.request' "stop`n"
+    Write-SourceAtomicFile $aclRoot 'stop.request' "stop`n"
+    Set-SourceEnabledIntent $aclRoot $true
+    Set-SourceEnabledIntent $aclRoot $false
+    Assert-Test ($aclState.Calls.Count -eq 6) "Lifecycle vetoes made $($aclState.Calls.Count) ACL calls for four writes instead of 6."
+    Assert-Test ((Test-SourcePrivateFile (Join-Path $aclRoot 'stop.request')) -and (Test-SourcePrivateFile (Join-Path $aclRoot 'enabled.intent'))) 'Lifecycle veto lost its explicit private ACL.'
+    Assert-Test (@(Get-ChildItem -LiteralPath $aclRoot -Filter '*.tmp').Count -eq 0) 'ACL checks left temporary files.'
+} finally { Set-Item Function:\Set-SourcePrivateFile $savedPrivate }
+
 $script:SourceTestCollections=0
 $collector={ $script:SourceTestCollections++; New-SourceSnapshot 'unavailable' }
 Assert-Test (Invoke-SourceOnce $root $collector) 'Once could not publish a synthetic observation.'

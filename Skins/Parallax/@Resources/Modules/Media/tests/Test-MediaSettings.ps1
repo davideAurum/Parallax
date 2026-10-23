@@ -456,7 +456,9 @@ ExpectedBarThickness=$(([double]$barThickness).ToString([Globalization.CultureIn
           @('MeterUtilitySettingsNote','Media settings are found here.'),@('MeterUtilitySettingsGlobalLink','Global Settings are found here.'),
           # The suite also sets Hidden and Expanded: every Spectrum drawer state
           # must fit its 76px stepper field.
-          @('MeterVisualizerDrawerValue','Collapsed'))
+          @('MeterVisualizerDrawerValue','Collapsed'),
+          # Title animation: Off / 10 fps / 20 fps in a 56px field, and the label.
+          @('MeterTitleAnimationValue','20 fps'),@('MeterTitleAnimationLabel','Title animation'))
     } else {
         # The single-row title binds MeasureMediaHeader (see the probe loop),
         # so its probe renders the same live title text.

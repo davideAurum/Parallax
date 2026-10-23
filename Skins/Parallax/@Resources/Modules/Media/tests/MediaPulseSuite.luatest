@@ -26,12 +26,18 @@ function suite.run(sourcePath)
     }
     -- The icon box as Rainmeter hands it to Lua: variables already expanded.
     local box = { X = '((4+6)+(168+8))', Y = '(4+12+15-4-14/2)' }
+    -- InlineQueueGeometry.inc's values at the default 20 fps on a 50 ms tick.
+    local twenty = { MediaTitleFrameTicks = '1', MediaTickInterval = '50' }
     local function fixture(variables, playing, geometry)
         local values = { MeasureConnection = { value = 1 }, MeasureState = { value = playing and 1 or 2 },
             MeasureTitle = { text = 'Synthetic fixture title' } }
         local log, options = {}, {}
         local mock = {}
         geometry = geometry or box
+        variables = variables or twenty
+        function mock:ReplaceVariables(text)
+            return (text:gsub('#([%w_]+)#', function(name) return variables[name] end))
+        end
         function mock:GetMeter(name)
             assert(name == 'MeterPlayerIcon', 'Unexpected meter lookup: ' .. tostring(name))
             return { GetOption = function(_, key, default)
@@ -240,6 +246,72 @@ function suite.run(sourcePath)
             f = fixture(nil, false, geometry)
             f.tick()
             check(f.options.X == nil and f.options.Y == nil, 'An unusable box must not be written')
+        end
+    end)
+
+    scenario('10 fps runs every other tick and keeps the 1100 ms period', function()
+        -- MediaPulseDivider is 2, so one Update here is one frame of two ticks.
+        local ten = { MediaTitleFrameTicks = '2', MediaTickInterval = '50' }
+        local f = fixture(ten)
+        f.tick()
+        f.play(true)
+        local result, bangs = f.tick()
+        check(result == 1 and divider(bangs) == '2', 'The icon follows the 10 fps frame divider')
+        check(count(bangs, '!UpdateMeter', 'MeterPlayerIcon') == 1, 'Playback still forces one update')
+        -- At divider 2 the icon may not be due this tick, so the swap paints now.
+        check(count(bangs, '!Redraw') == 1, 'The 10 fps start paints the swap')
+        local frames, reference = { shapes(f) }, fixture(nil, true)
+        local twentyFrames = {}
+        reference.tick()
+        twentyFrames[1] = shapes(reference)
+        for index = 2, 44 do
+            reference.tick()
+            twentyFrames[index] = shapes(reference)
+        end
+        for index = 2, 23 do
+            local _, frame = f.tick()
+            check(count(frame, '!SetOption') == #frame and divider(frame) == nil, 'A 10 fps frame only sets bars')
+            frames[index] = shapes(f)
+        end
+        -- 1100 ms / 100 ms = 11 frames per cycle; frame k is the 20 fps tick 2k.
+        check(same(frames[1], frames[12]) and same(frames[2], frames[13]) and same(frames[1], frames[23]),
+            'The 10 fps wave does not repeat every 11 frames')
+        for index = 1, 22 do
+            check(same(frames[index], twentyFrames[2 * index]), 'Frame ' .. index .. ' is not the 20 fps tick ' .. (2 * index))
+        end
+        f.play(false)
+        result, bangs = f.tick()
+        check(result == 0 and divider(bangs) == '-1' and at_rest(f) and count(bangs, '!Redraw') == 1, '10 fps settles like 20 fps')
+    end)
+
+    scenario('off swaps the title icon without animating', function()
+        local off = { MediaTitleFrameTicks = '0', MediaTickInterval = '1000' }
+        local f = fixture(off)
+        f.tick()
+        f.play(true)
+        local result, bangs = f.tick()
+        check(result == 1, 'Playing still reads 1')
+        check(count(bangs, '!ShowMeter', 'MeterPlayerIcon') == 1 and count(bangs, '!HideMeter', 'MeterMediaIcon') == 1,
+            'Off still shows Audio Lines while playing')
+        check(at_rest(f) and divider(bangs) == '-1', 'Off keeps the static bars outside periodic updates')
+        check(count(bangs, '!UpdateMeter', 'MeterPlayerIcon') == 1 and count(bangs, '!Redraw') == 1, 'Off paints the swap once')
+        for _ = 1, 40 do
+            local _, idle = f.tick()
+            check(#idle == 0, 'A static playing icon issued work')
+        end
+        f.play(false)
+        result, bangs = f.tick()
+        check(result == 0 and count(bangs, '!ShowMeter', 'MeterMediaIcon') == 1 and count(bangs, '!Redraw') == 1,
+            'Off swaps back once')
+        -- Missing or unreadable animation variables mean a static icon.
+        for _, variables in ipairs({ {}, { MediaTitleFrameTicks = '(#Broken#)', MediaTickInterval = '50' },
+                { MediaTitleFrameTicks = '3', MediaTickInterval = '50' } }) do
+            f = fixture(variables, true)
+            f.tick()
+            for _ = 1, 5 do
+                local _, frame = f.tick()
+                check(#frame == 0 and at_rest(f), 'Unreadable animation settings must not animate')
+            end
         end
     end)
 

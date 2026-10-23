@@ -14,7 +14,8 @@ UpdateDivider=#MediaLegacyDivider#
 ; One title-icon slot, two drawings, exactly one shown. Lucide monitor-play is
 ; the default and stands whenever nothing is playing; Setup, which has no
 ; player, never leaves it. While a track plays, MediaPulse.lua hides it and
-; shows the animated Lucide audio-lines in the same box, then swaps back.
+; shows the Lucide audio-lines in the same box (animated unless the title
+; animation is off), then swaps back.
 ; SVG source and license: Icons\Lucide\README.md.
 [MediaHeaderIconStyle]
 X=#ContentX#
@@ -49,8 +50,11 @@ MeterStyle=MediaHeaderIconStyle
 ; and starts hidden; the same script shows it only while a track plays, and
 ; settles the bars back to the static values below whenever it is hidden
 ; again. It keeps the style's UpdateDivider=-1 at rest, so nothing repaints
-; while nothing plays: the script raises it to every tick (with one forced
-; update) when playback starts, and returns it to -1 with the settled bars.
+; while nothing plays: when playback starts the script raises it to one
+; update per animation frame (every tick at 20 fps, every other at 10 fps;
+; User\Media.inc MediaTitleAnimation) with one forced update, and returns it
+; to -1 with the settled bars. With animation off it shows the bars below,
+; static, and never leaves -1.
 Hidden=1
 Shape=Line (2*#MediaPlayerLucideScale#),(10*#MediaPlayerLucideScale#),(2*#MediaPlayerLucideScale#),(13*#MediaPlayerLucideScale#) | Extend LucideAudioLinesStroke
 Shape2=Line (6*#MediaPlayerLucideScale#),(6*#MediaPlayerLucideScale#),(6*#MediaPlayerLucideScale#),(17*#MediaPlayerLucideScale#) | Extend LucideAudioLinesStroke

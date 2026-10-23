@@ -107,7 +107,7 @@ def number_text(number):
 def read_config(name, *, scale=1, columns=1, column_width=220,
                 expanded=0, row_limit=5, show_details=1, typography='default', surface=1, bar_thickness=6,
                 drawer=1, corner=None, preset=None, visualizer_columns=None, simulate_user=True,
-                missing=None):
+                missing=None, title_animation=None):
     """Load an entrypoint like Rainmeter: includes in file order, paths eagerly.
 
     Rainmeter expands an @Include path as it reads it, with the variables known
@@ -211,6 +211,8 @@ def read_config(name, *, scale=1, columns=1, column_width=220,
                              DividerThickness=str(surface), DividerColor='219,122,81')
             if corner is not None:
                 variables['CornerRadius'] = str(corner)
+            if title_animation is not None:
+                variables['MediaTitleAnimation'] = str(title_animation)
 
     load(ROOT / 'Media' / name)
     if name=='Settings/Settings.ini':
@@ -1031,7 +1033,8 @@ class SkinContractTests(unittest.TestCase):
                 self.assertEqual(pulse['ScriptFile'],'#@#Modules\\Media\\MediaPulse.lua')
                 # Explicit: Media.ini's DefaultUpdateDivider also applies to
                 # measures and would hold the pulse to the provider cadence.
-                self.assertEqual(pulse['UpdateDivider'],'1')
+                # One update per animation frame (InlineQueueGeometry.inc).
+                self.assertEqual(pulse['UpdateDivider'],'#MediaPulseDivider#')
                 # At rest the playing icon takes no part in periodic updates;
                 # MediaPulse.lua raises it only while a track plays.
                 self.assertNotIn('UpdateDivider',sections['MeterPlayerIcon'])
@@ -1153,6 +1156,58 @@ class SkinContractTests(unittest.TestCase):
         sections,_,_,expand=read_config('Setup.ini')
         self.assertEqual(numeric(expand('#MediaLegacyDivider#')),1)
         self.assertEqual(numeric(expand(sections['MeterHeading']['UpdateDivider'])),1)
+
+    def test_title_animation_setting_chooses_the_tick_and_pulse(self):
+        # Owner decision 2026-10-22 (MEDIA-06): User\Media.inc
+        # MediaTitleAnimation is 20 (fps, the default), 10 or 0 (a static
+        # icon). Media ticks at 50 ms only while the icon can animate or the
+        # spectrum drawer is open; otherwise at MediaInterval itself.
+        shipped={line.split('=',1)[0]:line.split('=',1)[1] for line in source_lines(RESOURCES/'User'/'Media.inc')
+                 if '=' in line and not line.startswith(';')}
+        self.assertEqual(shipped['MediaTitleAnimation'],'20')
+        for animation,frames in (('20',1),('10',2),('0',0),('15',1),(None,1)):
+            for drawer in DRAWER_STATES:
+                with self.subTest(animation=animation,drawer=drawer):
+                    sections,variables,_,expand=read_config('Media.ini',drawer=drawer,title_animation=animation)
+                    val=lambda expression: numeric(expand(expression))
+                    self.assertEqual(sections['Rainmeter']['Update'],'#MediaTickInterval#')
+                    tick=val(sections['Rainmeter']['Update'])
+                    self.assertEqual(tick,50 if frames or drawer==2 else 1000)
+                    legacy=val('#MediaLegacyDivider#')
+                    self.assertEqual(legacy*tick,1000)
+                    self.assertEqual(val('#MediaTitleFrameTicks#'),frames)
+                    # At 10 fps the pulse runs every other 50 ms tick; off, it
+                    # follows the play state's own provider cadence.
+                    self.assertEqual(val(sections['MeasureMediaPulse']['UpdateDivider']),frames or legacy)
+                    if drawer==2:
+                        self.assertEqual(val('#VisualizerCaptureDivider#'),1)
+                        for name in ('MeasureVisualizerVolume','MeasureVisualizerDeviceName','MeasureVisualizerDevice'):
+                            self.assertEqual(val(sections[name]['UpdateDivider'])*tick,1000,name)
+        # Setup has no player and no drawer: its tick stays MediaInterval.
+        for animation in ('20','10','0'):
+            sections,_,_,expand=read_config('Setup.ini',title_animation=animation)
+            self.assertEqual(numeric(expand(sections['Rainmeter']['Update'])),1000)
+            self.assertEqual(numeric(expand('#MediaLegacyDivider#')),1)
+        # The tick is chosen once, in InlineQueueGeometry.inc and before the
+        # divider derived from it, from flags each entrypoint settles before
+        # that include; nothing overrides any of it later (XMOD-03's pitfall).
+        derived=('MediaAnimationInterval','MediaTitleFrameTicks','MediaTickInterval','MediaLegacyDivider','MediaPulseDivider')
+        geometry=[line.split('=',1)[0] for line in source_lines(RESOURCES/'Modules'/'Media'/'InlineQueueGeometry.inc') if '=' in line and not line.startswith(';')]
+        self.assertEqual([key for key in geometry if key in derived],list(derived))
+        for path in shipped_sources('.ini','.inc'):
+            if path.name=='InlineQueueGeometry.inc':
+                continue
+            for line in source_lines(path):
+                self.assertNotIn(line.split('=',1)[0].strip(),derived,f'{path} redefines a Media tick variable')
+        for entry in ('Media.ini','Setup.ini'):
+            keys=[line.split('=',1)[0] for line in source_lines(ROOT/'Media'/entry) if '=' in line and not line.startswith(';')]
+            geometry_include=next(index for index,key in enumerate(keys) if key=='@Include12')
+            for flag in ('MediaPlayerHost','MediaVisualizerHost','MediaTitleAnimation','VisualizerDrawer'):
+                self.assertLess(keys.index(flag),geometry_include,f'{entry}: {flag}')
+        sections,_,_,_=read_config('Media.ini')
+        self.assertEqual(sections['Variables']['MediaPlayerHost'],'1')
+        sections,_,_,_=read_config('Setup.ini')
+        self.assertEqual(sections['Variables']['MediaPlayerHost'],'0')
 
     def test_title_rows_scale_and_center_across_supported_extremes(self):
         for config in CONFIGS:
@@ -1439,9 +1494,12 @@ class SkinContractTests(unittest.TestCase):
         self.assertEqual(variables['PanelHeight'],'162')
         self.assertEqual(sections['Variables']['MediaSettingsQueueDetailsVisible'],'0')
         # The Spectrum drawer row added 28 to both heights (554/498 before);
-        # the shared Spectrum steppers then added 204 (582/526 before).
-        self.assertEqual(numeric(expand('#SettingsPanelHeight#')),730)
+        # the shared Spectrum steppers then added 204 (582/526 before), and the
+        # Title animation row another 28 (786/730 before).
+        self.assertEqual(numeric(expand('#SettingsPanelHeight#')),758)
         self.assertEqual(sections['Variables']['VisualizerDrawer'],'1')
+        # Entrypoint fallback for preserved files without the key.
+        self.assertEqual(sections['Variables']['MediaTitleAnimation'],'20')
         self.assertEqual(sections['Rainmeter']['ContextAction2'],'["#CONFIGEDITOR#" "#@#User\\Media.inc"]')
         self.assertIn('SettingsMeters.inc',[path.name for path in visited])
         self.assertEqual(variables['SettingsUtilityName'],'Media')
@@ -1459,6 +1517,12 @@ class SkinContractTests(unittest.TestCase):
             self.assertEqual(sections[f'MeterVisualizerDrawer{part}']['LeftMouseUpAction'],
                              f'''[!CommandMeasure MeasureMediaSettings "StepChoice('VisualizerDrawer',{direction})"]''')
             self.assertNotIn('ToolTipText',sections[f'MeterVisualizerDrawer{part}'],part)
+            # The Title animation choice (Off / 10 fps / 20 fps) is the same
+            # wrapping stepper.
+            self.assertEqual(sections[f'MeterTitleAnimation{part}']['LeftMouseUpAction'],
+                             f'''[!CommandMeasure MeasureMediaSettings "StepChoice('MediaTitleAnimation',{direction})"]''')
+            self.assertNotIn('ToolTipText',sections[f'MeterTitleAnimation{part}'],part)
+        self.assertEqual(sections['MeterTitleAnimationLabel']['Text'],'Title animation')
         for meter,key in [('Width','Columns'),('QueueRows','QueueRowLimit'),('QueuePoll','QueuePollSeconds')]:
             for part in ('Label','Frame','Value'):
                 self.assertEqual(sections[f'Meter{meter}{part}']['LeftMouseUpAction'],
@@ -1497,8 +1561,11 @@ class SkinContractTests(unittest.TestCase):
         # Settings.lua rebuilds the same heights at runtime and owns the cycle.
         # Static text checks only; MediaSettingsSuite.luatest runs the script.
         controller=(RESOURCES/'Modules'/'Media'/'Settings.lua').read_text(encoding='ascii')
-        self.assertIn('local settingsHeight = 786 - collapsedHeight',controller)
-        self.assertIn("SKIN:Bang('!SetVariable', 'VisualizerSettingsTop', 172 - collapsedHeight)",controller)
+        self.assertIn('local settingsHeight = 814 - collapsedHeight',controller)
+        self.assertIn("SKIN:Bang('!SetVariable', 'VisualizerSettingsTop', 200 - collapsedHeight)",controller)
+        self.assertIn("MediaTitleAnimation = { '0', '10', '20' }",controller)
+        self.assertIn("animationNames = { ['0'] = 'Off', ['10'] = '10 fps', ['20'] = '20 fps' }",controller)
+        self.assertIn("MediaTitleAnimation = '20'",controller)
         self.assertIn("VisualizerDrawer = { '0', '1', '2' }",controller)
         self.assertIn("drawerNames = { ['0'] = 'Hidden', ['1'] = 'Collapsed', ['2'] = 'Expanded' }",controller)
         self.assertIn("SKIN:Bang('!CommandMeasure', 'MeasureMediaOptions', 'ApplyVisualizerPreference()', 'Parallax\\\\Media')",controller)
@@ -1515,21 +1582,23 @@ class SkinContractTests(unittest.TestCase):
                             box=lambda name:meter_bounds(resolve_style(sections,name),val)
                             panel=Bounds(val('#Inset#'),val('#Inset#'),val('#WindowWidth#')-val('#Inset#'),val('#WindowHeight#')-val('#Inset#'))
                             shift=0 if expanded else 56
-                            self.assertEqual(val('#WindowHeight#'),math.floor((786-shift)*scale+0.5)+val('#Gap#'))
+                            self.assertEqual(val('#WindowHeight#'),math.floor((814-shift)*scale+0.5)+val('#Gap#'))
                             self.assertEqual(variables['Columns'],str(columns))
                             self.assertEqual(variables['PanelHeight'],'162')
                             for name,section in sections.items():
                                 if 'Meter' in section and name!='MeterBounds': self.assertTrue(box(name).inside(panel),name)
-                            # The Spectrum drawer row takes Queue section's old slot;
-                            # every later row moved down by exactly 28.
-                            for stem,y in [('Width',100),('VisualizerDrawer',128),('QueueExpanded',156),('QueueRows',184),
-                                           ('QueueDetails',212),('QueuePoll',476)]:
+                            # The Spectrum drawer row took Queue section's old slot,
+                            # then the Title animation row the next: every later row
+                            # moved down by exactly 28 each time.
+                            for stem,y in [('Width',100),('VisualizerDrawer',128),('TitleAnimation',156),('QueueExpanded',184),
+                                           ('QueueRows',212),('QueueDetails',240),('QueuePoll',504)]:
                                 label,value='Meter'+stem+'Label','Meter'+stem+'Value'
                                 numeric_field=stem in ('Width','QueueRows','QueuePoll')
-                                # Number fields and the categorical Spectrum drawer
-                                # share the previous/value/next group; the drawer's
-                                # field is 76 wide (Collapsed/Expanded at max type).
-                                stepper=numeric_field or stem=='VisualizerDrawer'
+                                # Number fields and the categorical choices share the
+                                # previous/value/next group; the drawer's field is 76
+                                # wide (Collapsed/Expanded at max type), while Title
+                                # animation keeps the default 56 (Off / 10 fps / 20 fps).
+                                stepper=numeric_field or stem in ('VisualizerDrawer','TitleAnimation')
                                 field=76 if stem=='VisualizerDrawer' else 56
                                 parts=[label,value]+(['Meter'+stem+p for p in ('Decrease','Frame','Increase')] if stepper else [])
                                 hidden=not expanded and stem in ('QueueRows','QueueDetails')
@@ -1580,21 +1649,21 @@ class SkinContractTests(unittest.TestCase):
                                     self.assertEqual(resolve_style(sections,value)['FontColor'],'#TextColor#')
                                     self.assertEqual(resolve_style(sections,'Meter'+stem+'Decrease')['FontColor'],'#AccentColor#')
                                 else: self.assertEqual(resolve_style(sections,value)['SolidColor'],'#GraphBackgroundColor#')
-                            for name,y in [('MeterSamplingHeading',450),('MeterStatus',504),('MeterSourceLabel',534),
-                                           ('MeterQueueHeading',618),('MeterLinksHeading',730)]:
+                            for name,y in [('MeterSamplingHeading',478),('MeterStatus',532),('MeterSourceLabel',562),
+                                           ('MeterQueueHeading',646),('MeterLinksHeading',758)]:
                                 self.assertAlmostEqual(box(name).top,val('#Inset#')+(y-shift)*scale)
                             # Spectrum: Audio settings' steppers on its two-column
                             # grid, on Media's 28px pitch below the queue rows.
-                            # Headings at 246 (Animation 334), rules 21 below.
-                            for name,y in [('MeterVisualizerSettingsAppearance',246),('MeterVisualizerSettingsPerformance',246),
-                                           ('MeterVisualizerSettingsAnimation',334)]:
+                            # Headings at 274 (Animation 362), rules 21 below.
+                            for name,y in [('MeterVisualizerSettingsAppearance',274),('MeterVisualizerSettingsPerformance',274),
+                                           ('MeterVisualizerSettingsAnimation',362)]:
                                 self.assertAlmostEqual(val(resolve_style(sections,name)['Y']),val('#Inset#')+(y-shift)*scale,msg=name)
                                 self.assertAlmostEqual(val(resolve_style(sections,name+'Rule')['Y']),val('#Inset#')+(y+21-shift)*scale,msg=name)
                             self.assertEqual(expand(sections['MeterVisualizerSettingsAppearance']['Text']),'Spectrum')
                             left_x,right_x=val('#ContentX#'),val('#VisualizerSettingsRightX#')
-                            spectrum_rows=[('Height',left_x,272),('Spacing',left_x,300),('Color',left_x,328),('Radius',left_x,356),
-                                           ('Baseline',left_x,384),('Quality',right_x,272),('Cadence',right_x,300),
-                                           ('Sensitivity',right_x,360),('Attack',right_x,388),('Decay',right_x,416)]
+                            spectrum_rows=[('Height',left_x,300),('Spacing',left_x,328),('Color',left_x,356),('Radius',left_x,384),
+                                           ('Baseline',left_x,412),('Quality',right_x,300),('Cadence',right_x,328),
+                                           ('Sensitivity',right_x,388),('Attack',right_x,416),('Decay',right_x,444)]
                             self.assertNotIn('MeterVisualizerSettingsWidthRow',sections)
                             for stem,x,y in spectrum_rows:
                                 frame,label=box(f'MeterVisualizerSettings{stem}Row'),box(f'MeterVisualizerSettings{stem}Label')
@@ -1610,6 +1679,8 @@ class SkinContractTests(unittest.TestCase):
                             self.assertAlmostEqual(box('MeterSamplingHeading').top-box('MeterVisualizerSettingsDecayRow').bottom,14*scale)
                             for name in ('MeterVisualizerDrawerLabel','MeterVisualizerDrawerDecrease','MeterVisualizerDrawerFrame',
                                          'MeterVisualizerDrawerValue','MeterVisualizerDrawerIncrease',
+                                         'MeterTitleAnimationLabel','MeterTitleAnimationDecrease','MeterTitleAnimationFrame',
+                                         'MeterTitleAnimationValue','MeterTitleAnimationIncrease',
                                          'MeterQueueExpandedLabel','MeterQueueExpandedValue','MeterSourceStart','MeterSourceStop',
                                          'MeterSignIn','MeterStart','MeterStop','MeterRestart','MeterDisconnect','MeterOpenQueue','MeterPlayerSetup','MeterHelp'):
                                 self.assertGreater(box(name).width,0)
@@ -1642,7 +1713,7 @@ class SkinContractTests(unittest.TestCase):
                     self.assertEqual(window.height,
                                      media_drawer_geometry(column_width,scale,columns,expanded,rows)[3])
                 else:
-                    expected_height = math.floor(((786 if expanded else 730) if name == 'Settings/Settings.ini' else 162)*scale+0.5)
+                    expected_height = math.floor(((814 if expanded else 758) if name == 'Settings/Settings.ini' else 162)*scale+0.5)
                     self.assertEqual(window.height, expected_height+val('#Gap#'))
                 self.assertEqual(val('#UnitWidth#'), math.floor(column_width * scale + 0.5))
                 self.assertEqual(val('#Gap#') % 2, 0)

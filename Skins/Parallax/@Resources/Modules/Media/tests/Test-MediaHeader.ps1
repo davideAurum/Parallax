@@ -97,6 +97,9 @@ TitleRowCenterY=10
 Inset=4
 MediaHeaderY=(#Inset#+92+12)
 MediaColor=137,190,250
+; InlineQueueGeometry.inc's values at the default 20 fps title animation.
+MediaTitleFrameTicks=(20=0 ? 0 : (20=10 ? 2 : 1))
+MediaTickInterval=50
 
 [MeasureConnection]
 Measure=Script

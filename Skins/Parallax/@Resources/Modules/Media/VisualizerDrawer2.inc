@@ -7,10 +7,11 @@
 ; Only this file opens the drawer geometry (InlineQueueGeometry.inc): a saved
 ; value that does not name this file can never lift an empty sheet.
 MediaVisualizerOpen=1
-; Media updates every #MediaAnimationInterval# (50 ms). The Visualizer cadence
+; While the drawer is open Media ticks every #MediaAnimationInterval# (50 ms;
+; InlineQueueGeometry.inc chooses #MediaTickInterval#). The Visualizer cadence
 ; maps onto that tick: 50 and 33 ms both run every tick (33 ms cannot be met
 ; inside Media), 100 ms every other tick.
-VisualizerCaptureDivider=(Max(1,Round(#VisualizerEffectiveInterval#/#MediaAnimationInterval#)))
+VisualizerCaptureDivider=(Max(1,Round(#VisualizerEffectiveInterval#/#MediaTickInterval#)))
 VisualizerPlotInnerWidth=(#MediaVisualizerPlotWidth#-2)
 VisualizerPlotInnerHeight=(#MediaVisualizerPlotHeight#-2)
 VisualizerSpectrumX=(#MediaVisualizerPlotX#+1)
@@ -18,8 +19,8 @@ VisualizerSpectrumY=(#MediaVisualizerPlotY#+1)
 ; Output-row cadence on Media's tick: Win7Audio volume and the device name
 ; and status once a second each, as in the standalone. Every Win7Audio read
 ; is a full COM device enumeration (docs/PERFORMANCE-REVIEW.md VIS-04).
-VisualizerVolumeDivider=(Max(1,Round(1000/#MediaAnimationInterval#)))
-VisualizerDeviceNameDivider=(Max(1,Round(1000/#MediaAnimationInterval#)))
+VisualizerVolumeDivider=(Max(1,Round(1000/#MediaTickInterval#)))
+VisualizerDeviceNameDivider=(Max(1,Round(1000/#MediaTickInterval#)))
 VisualizerVolumeAvailable=0
 
 [MediaVisualizerCaptureInclude]

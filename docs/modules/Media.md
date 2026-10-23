@@ -18,7 +18,8 @@ user-selected Lucide metadata and playback icons are attributed below.
   User Round Group and Disc 3 icons identify the metadata rows. The one-line
   title reads `Media Player: stopped` (or `paused` for a paused track) behind
   Lucide Monitor Play when nothing is playing, and `Media Player: <player>`
-  behind animated Lucide Audio Lines while a track plays. The compact layout
+  behind Lucide Audio Lines while a track plays, animated at 20 fps by default
+  (10 fps or static by the Title animation setting). The compact layout
   shortens the label to `Media:`. Other playback-state captions
   are omitted.
 - Previous, play/pause, and next controls use WNP capability measures. Unsupported
@@ -63,7 +64,7 @@ user-selected Lucide metadata and playback icons are attributed below.
 
 | Feature | Dependencies | Cadence and fallback |
 | --- | --- | --- |
-| Base UI and Setup — required | Windows, Rainmeter, built-in measures/meters and bundled Lua/includes. | The player updates every 50 ms (`MediaAnimationInterval`) for its title-icon animation; `MediaLegacyDivider` keeps provider polling and queue/options reads at `MediaInterval` (1 second). Meters repaint on change, not on that tick: Media.ini's `DefaultUpdateDivider` holds every meter without its own divider to the 1-second cadence, static meters use `UpdateDivider=-1`, and the title icon joins periodic updates only while a track plays (see [Paint on change](#paint-on-change-2026-10-22)). Setup updates at `MediaInterval` and loads without external plugins. |
+| Base UI and Setup — required | Windows, Rainmeter, built-in measures/meters and bundled Lua/includes. | The player updates every 50 ms (`MediaAnimationInterval`) while its title icon can animate (`MediaTitleAnimation` 20 or 10) or the spectrum drawer is open, and every `MediaInterval` (1 second) otherwise; `MediaLegacyDivider` keeps provider polling and queue/options reads at `MediaInterval`. Meters repaint on change, not on that tick: Media.ini's `DefaultUpdateDivider` holds every meter without its own divider to the 1-second cadence, static meters use `UpdateDivider=-1`, and the title icon joins periodic updates only while a track plays (see [Paint on change](#paint-on-change-2026-10-22)). Setup updates at `MediaInterval` and loads without external plugins. |
 | Spectrum drawer — optional, plugins bundled with Rainmeter | Rainmeter's bundled AudioLevel and Win7AudioPlugin plugins, a Windows output endpoint, and the Visualizer module's shared `Modules/Visualizer/{Fallbacks,Options,Capture,Audio,Spectrum}.inc`, `HeightPresets/*.inc`, `Color.lua`, `SpectrumPaths.lua` and `User/Visualizer.inc`. Media settings' Spectrum section adds `Modules/Visualizer/SettingsShared.inc` and `Settings.lua` (event-only; its numeric input is the shared one-shot helper, launched only by a click). Writes `AnchorY` and its `ParallaxDrawerAnchorY` record in this config's own Rainmeter.ini section on tab clicks, Media settings saves and any load whose drawer-owned anchor does not match (that load-time repair's `!SetAnchor` also rewrites `AnchorX` with its existing value); a user-set anchor is never changed. | Capture and Win7Audio exist only while `VisualizerDrawer=2`; collapsed, hidden and Setup load no AudioLevel or Win7Audio measure. Open, it runs on Media's 50 ms tick (100 ms for the Visualizer's 100 ms choice); Win7Audio volume, device name and device status once a second each (the volume was read every 250 ms before 2026-10-22). Win7Audio errors show `--`, mute shows `Muted`; a failed numeric getter can leave an old volume. The output row's click/wheel switches the system default output (no volume or mute command). A missing or unavailable endpoint shows `Output unavailable`; quiet output shows `Idle - quiet`; an invalid format shows `Unsupported format`. Loading the standalone Visualizer too runs a second, independent capture. |
 | Fonts and icons — bundled | Private IBM Plex Sans fonts ([license](../../Skins/Parallax/@Resources/Licenses/IBM-Plex-OFL.txt)); native Shape adaptations of Lucide artwork ([provenance and licenses](../../Skins/Parallax/@Resources/Modules/Media/Icons/Lucide/README.md)). | No download, system font installation or SVG-rendering plugin required. |
 | Typed numeric settings — bundled | Rainmeter's bundled RunCommand plugin, Windows PowerShell/.NET WinForms and the shared `Scripts/SettingsInput.ps1` overlay. | An explicit numeric-field click starts one temporary editor. Fixed numeric/cancel output is revalidated before saving; invalid, cancelled, unrequested or hidden-field results do not save. No polling or provider starts. |
@@ -108,12 +109,13 @@ The user file ships these defaults in `[Variables]`:
 | --- | --- | --- |
 | `Columns` | `1` | Use `1` for compact art or `2` for the large overhanging tile. Saved choices are preserved. |
 | `PanelHeight` | `162` | Saved minimum logical height; the rendered layout grows to fit enlarged controls and Queue below the artwork. |
-| `MediaInterval` | `1000` | Skin update milliseconds. Does not throttle WNP's internal work. |
+| `MediaInterval` | `1000` | Milliseconds between provider samples and text updates; also the skin's whole update interval while the title icon cannot animate (`MediaTitleAnimation=0`) and the drawer is closed. Does not throttle WNP's internal work. |
 | `QueueExpanded` | `0` | Remember the inline queue section as collapsed or expanded. A confirmed empty queue saves the collapsed state. |
 | `QueueRowLimit` | `5` | Maximum shown entries, every integer 1–5; arrow step 1 or typed value. |
 | `QueueShowDetails` | `1` | Show artist/podcast details beside titles; 0 hides them. |
 | `QueuePollSeconds` | `30` | Spotify request interval in whole seconds, 30–150; arrow step 1 or typed value. |
 | `VisualizerDrawer` | `1` | Spectrum drawer above the player: `0` hidden, `1` tab only, `2` open (captures the output device). Literal digits only. |
+| `MediaTitleAnimation` | `20` | Title icon animation while a WebNowPlaying player reports Playing: `20` or `10` frames per second, or `0` for a static icon. Any other number means 20; use literal digits. With `0` and the drawer closed, Media updates once per `MediaInterval` instead of every 50 ms. Media settings' Title animation row. |
 
 Global colors, font, and scale flow through the shared defaults/settings; a user
 can add local overrides to `User/Media.inc`. The shipped layouts target the
@@ -209,12 +211,22 @@ The compact Media footer shortens long status phrases to Storage error,
 Spotify error, Queue error, Quota reached or Stopped so they fit at the maximum
 body size. The standalone Queue panel retains the full status wording.
 
-The settings panel is always two pitches wide. It is 786 logical pixels tall
-with Queue expanded and 730 with Queue collapsed (582/526 before the Spectrum
-section, 554/498 before the Spectrum drawer row). That row sits directly under Panel columns: a wrapping previous/value/next
+The settings panel is always two pitches wide. It is 814 logical pixels tall
+with Queue expanded and 758 with Queue collapsed (786/730 before the Title
+animation row, 582/526 before the Spectrum section, 554/498 before the
+Spectrum drawer row). That row sits directly under Panel columns: a wrapping previous/value/next
 group for Hidden, Collapsed and Expanded with a 76 px field (the shared stepper
 widened so the longer names fit at the largest body size). Saving it asks Media
-to place its anchor and reload.
+to place its anchor and reload. **Title animation** (owner decision,
+2026-10-22) follows it: the same wrapping group over Off, 10 fps and 20 fps
+(`MediaTitleAnimation` 0/10/20) in the default 56 px field; the label, frame
+and value step forward like `>`. A saved number other than 0 or 10 shows as
+20 fps, which is how Media reads it, and text that is no number shows Off.
+Saving writes the one key and refreshes
+Media, which chooses its tick and pulse cadence when it loads (and the
+standalone Queue, as every display key does). The label reads Title animation
+rather than the setting's full name, which would clip in the 114 px label
+column at the 10 pt maximum body size.
 
 **Spectrum section** (user request, 2026-10-11: the drawer should offer every
 setting the standalone has). Between Display and Queue sampling, Media settings
@@ -474,9 +486,10 @@ mute command is ever sent. It then clears `VisualizerDeviceID` in
 Rainmeter log if it is not loaded) and reloads Media through
 `RefreshVisualizerDrawer()`, which re-runs provider resume like any Media
 refresh. The standalone's own row now asks Media's open drawer to reload too,
-so both captures follow the new default. Media
-already updates every 50 ms (`MediaAnimationInterval`), so no other skin's
-cadence changes. The Visualizer interval maps onto that tick through
+so both captures follow the new default. While
+the drawer is open Media updates every 50 ms (`MediaTickInterval` picks the
+fast tick for an open drawer even with the title animation off), so no other
+skin's cadence changes. The Visualizer interval maps onto that tick through
 `VisualizerCaptureDivider = Max(1, Round(interval / 50))`: 50 and 33 ms run
 every tick (33 ms cannot be met inside Media), 100 ms every other tick.
 Collapsing, and any Media refresh while open, releases and reopens the capture
@@ -758,6 +771,10 @@ User direction, 2026-10-04: one title, one icon, both driven by whether
 something is playing. Nothing playing shows Lucide Monitor Play and
 `Media Player: stopped`; a playing track shows animated Lucide Audio Lines
 and `Media Player: <player>`. The separate current-player row is removed.
+Owner decision, 2026-10-22: the animation is a setting, Title animation in
+Media settings (`MediaTitleAnimation`): 20 fps (default), 10 fps or Off. It
+only ever animates while a player reports Playing; Off still swaps the two
+icons, showing Audio Lines static at its rest geometry while playing.
 User direction, later the same day: a paused track reads `Media Player: paused`
 instead of `stopped`, keeping Monitor Play.
 
@@ -782,10 +799,14 @@ Rainmeter's native Lua APIs preserve accented, CJK and non-BMP player names.
 Both icons live in one title-icon box at `ContentX` on the shared
 `StyleTitleRow` center, scaled by `TitleIconSize / 24`. Monitor Play is the
 ini default (`Hidden=0`) and Audio Lines starts hidden. `MediaPulse.lua`, the
-existing every-tick animation script, shows one and hides the other whenever
+animation script, shows one and hides the other whenever
 the playing test changes - always on its first update, so the swap never relies
 on the ini defaults agreeing - and animates the Audio Lines bars while
-playing. Setup loads no pulse script, so it only ever shows Monitor Play.
+playing. It runs once per animation frame (`MediaPulseDivider`: every 50 ms
+tick at 20 fps, every other tick at 10 fps with the phase step doubled, so the
+1100 ms pulse period holds; at the provider cadence when off). The icon meter
+joins periodic updates only while it animates, at the same divider. Setup
+loads no pulse script, so it only ever shows Monitor Play.
 
 The title starts after the icon and the shared four-pixel gap and ends 24
 logical pixels (the 18-pixel gear plus six) before the content's right edge, at
@@ -1041,6 +1062,50 @@ its own commit so it can be measured alone.
   away. The scratch native harness counted 2 Win7Audio and 2 device-status
   reads per 2 seconds (from 8 and 40), with the volume change still reaching
   the readout.
+- **MEDIA-06, Title animation setting (owner decision 2026-10-22).** New
+  `User\Media.inc` key `MediaTitleAnimation`: `20` (default), `10` or `0`,
+  with the same fallback in Media.ini, Setup.ini and Media settings, and a
+  Title animation row in Media settings (see
+  [Gear and expandable queue](#gear-and-expandable-queue)). The icon animates
+  only while a player reports Playing. `InlineQueueGeometry.inc` derives
+  `MediaTitleFrameTicks` (1, 2 or 0), then Media's own tick
+  `MediaTickInterval`: 50 ms when Media.ini's title icon can animate
+  (`MediaPlayerHost=1`, a new entrypoint flag set before the includes; 0 in
+  Setup.ini) or the drawer is open, otherwise `MediaInterval`. Both entrypoints
+  now use `Update=#MediaTickInterval#`, and `MediaLegacyDivider` derives from
+  that tick in the same file, after it, from values every entrypoint settles
+  before the include, so no later override can leave it stale (the XMOD-03
+  verifier's pitfall); Setup.ini's late `MediaAnimationInterval` override is
+  gone, its tick is still `MediaInterval` and its divider still 1.
+  `MeasureMediaPulse` runs at `MediaPulseDivider` (one frame: 1 tick at
+  20 fps, 2 at 10 fps, the provider cadence when off); `MediaPulse.lua` reads
+  the frame and tick variables, doubles the phase step at 10 fps so the
+  1100 ms period holds, gives the icon the same divider while animating, and
+  with animation off keeps the icon static at `-1` and paints only the icon
+  swap. Unreadable values mean a static icon. The drawer's capture and
+  output-row dividers derive from `MediaTickInterval`, which an open drawer
+  always makes 50 ms. Checked: a new contract test covers every animation
+  value and drawer state (tick 50 or 1000 ms, a 1-second
+  `MediaLegacyDivider`, pulse divider 1/2/legacy, capture divider 1 and 1 s
+  output row when open, Setup at `MediaInterval`, the variables defined once
+  and in order, the flags before the geometry include); the pulse suite adds
+  10 fps (frame k equals the 20 fps tick 2k; 11 frames per period) and Off
+  (one painted swap each way, then no work; 671 assertions); the settings
+  contract and native suites cover the new row's geometry, wiring, clicks and
+  saves (each click writes once and refreshes Media and Queue; a hand-saved
+  15 steps as 20 fps and abc as Off), and natively measured text fits the
+  field and label at the 10 pt maximum (Title animation 184 of 228 px at
+  scale 2). The settings panel grows 28 px to 814/758; its preview capture
+  (456×766) is the previous one (456×738) with a single 28 px band inserted at
+  y=154, every other row pixel-identical. In the scratch native harness the
+  playing icon updated on 28 of 40 ticks at 20 fps (after the 1-second play
+  state pickup), 14 at 10 fps and once (the swap) when off; with the drawer
+  collapsed and animation off Media ticked once a second, and the Setup
+  preview capture is unchanged. Limitation: like
+  `VisualizerDrawer`, the key needs literal digits. Text that is no number
+  fails Rainmeter's formulas: Media then keeps a static icon but also falls
+  back to Rainmeter's default 1-second tick, which would slow an open
+  spectrum drawer, until a Media settings click writes a valid value.
 
 ### Cover without the WNP plugin (2026-10-20)
 

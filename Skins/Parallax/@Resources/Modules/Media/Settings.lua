@@ -5,12 +5,17 @@
 local settingsPath, values, status, restartPending, layoutExpanded
 local editingRequest, settingsRevision, providerLaunched
 local defaults = { Columns = '1', QueueExpanded = '0', QueueRowLimit = '5', QueueShowDetails = '1', QueuePollSeconds = '30',
-    VisualizerDrawer = '1' }
+    VisualizerDrawer = '1', MediaTitleAnimation = '20' }
 local allowed = {
     QueueExpanded = { '0', '1' }, QueueShowDetails = { '0', '1' },
-    VisualizerDrawer = { '0', '1', '2' }
+    VisualizerDrawer = { '0', '1', '2' },
+    -- Title icon frames per second while playing; 0 is a static icon.
+    MediaTitleAnimation = { '0', '10', '20' }
 }
 local drawerNames = { ['0'] = 'Hidden', ['1'] = 'Collapsed', ['2'] = 'Expanded' }
+local animationNames = { ['0'] = 'Off', ['10'] = '10 fps', ['20'] = '20 fps' }
+-- Wrapping previous/value/next choices (UTILITY-SETTINGS.md).
+local choiceKeys = { VisualizerDrawer = true, MediaTitleAnimation = true }
 local numberFields = {
     Columns = { minimum = 1, maximum = 2, meter = 'MeterWidthFrame' },
     QueueRowLimit = { minimum = 1, maximum = 5, meter = 'MeterQueueRowsFrame' },
@@ -102,6 +107,16 @@ local function current(key)
         local number = tonumber(value)
         return (number == 1 or number == 2) and '1' or '0'
     end
+    -- Show what Media animates (InlineQueueGeometry.inc MediaTitleFrameTicks):
+    -- a number equal to 0 is off, equal to 10 is 10 fps, any other is 20 fps.
+    -- Text that is no number fails Media's formulas and MediaPulse.lua then
+    -- keeps the icon static, so it reads Off.
+    if key == 'MediaTitleAnimation' and not accepted(key, value) then
+        local number = tonumber(value)
+        if number == nil or number == 0 then return '0' end
+        if number == 10 then return '10' end
+        return '20'
+    end
     return accepted(key, value) or defaults[key]
 end
 
@@ -112,7 +127,7 @@ local function renderLayout()
     if layoutExpanded == expanded then return end
     layoutExpanded = expanded
     local collapsedHeight = (1 - expanded) * 56
-    local settingsHeight = 786 - collapsedHeight
+    local settingsHeight = 814 - collapsedHeight
     -- Rainmeter expands nested variable references at load, so rebuild both
     -- physical heights instead of retaining the initial collapsed expression.
     local heightPx = SKIN:ParseFormula(SKIN:ReplaceVariables('(Round(' .. settingsHeight .. '*#Scale#))'))
@@ -121,7 +136,7 @@ local function renderLayout()
     SKIN:Bang('!SetVariable', 'MediaSettingsQueueCollapsedHeight', collapsedHeight)
     SKIN:Bang('!SetVariable', 'SettingsPanelHeight', settingsHeight)
     -- The shared Spectrum steppers sit below the queue rows.
-    SKIN:Bang('!SetVariable', 'VisualizerSettingsTop', 172 - collapsedHeight)
+    SKIN:Bang('!SetVariable', 'VisualizerSettingsTop', 200 - collapsedHeight)
     SKIN:Bang('!SetVariable', 'PanelHeightPx', heightPx)
     SKIN:Bang('!SetVariable', 'WindowHeight', heightPx + gap)
 end
@@ -130,6 +145,7 @@ function Render()
     renderLayout()
     option('MeterWidthValue', current('Columns'))
     option('MeterVisualizerDrawerValue', drawerNames[current('VisualizerDrawer')])
+    option('MeterTitleAnimationValue', animationNames[current('MediaTitleAnimation')])
     option('MeterQueueExpandedValue', current('QueueExpanded') == '1' and 'Expanded' or 'Collapsed')
     option('MeterQueueRowsValue', current('QueueRowLimit'))
     option('MeterQueueDetailsValue', current('QueueShowDetails') == '1' and 'Shown' or 'Hidden')
@@ -314,9 +330,10 @@ end
 -- Compatibility callbacks retain the same bounded numeric behavior. The
 -- settings UI uses explicit arrows and the numeric overlay instead.
 function ToggleColumns() return StepNumber('Columns', 1) end
--- Categorical previous/next with wrapping; only the drawer state uses it.
+-- Categorical previous/next with wrapping: the drawer state and the title
+-- icon animation.
 function StepChoice(key, delta)
-    local choices = key == 'VisualizerDrawer' and allowed[key]
+    local choices = choiceKeys[key] and allowed[key]
     if not choices or (delta ~= -1 and delta ~= 1) or editingRequest then return false end
     values = readValues() or values
     local now, index = current(key), 1

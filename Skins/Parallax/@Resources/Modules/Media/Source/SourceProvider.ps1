@@ -14,6 +14,7 @@ $script:SourceProviderPath = $PSCommandPath
 $script:SourceManager = $null
 $script:SourcePendingTask = $null
 $script:SourceAsTask = $null
+$script:SourceAdapter = $null
 $script:SourceStrictUtf8 = New-Object Text.UTF8Encoding($false, $true)
 # The last root string accepted by Resolve-SourceDataRoot and its resolved form.
 $script:SourceRootInput = $null
@@ -349,7 +350,12 @@ function Get-SourceCollection {
     $timer = [Diagnostics.Stopwatch]::StartNew()
     if ($null -eq $Elapsed) { $Elapsed = { $timer.Elapsed.TotalMilliseconds }.GetNewClosure() }
     try {
-        if ($null -eq $Adapter) { $Adapter = New-SourceNativeAdapter }
+        if ($null -eq $Adapter) {
+            # Built once per process (Add-Type plus a reflection search), like the
+            # session manager it uses; a failed build is retried next cycle.
+            if ($null -eq $script:SourceAdapter) { $script:SourceAdapter = New-SourceNativeAdapter }
+            $Adapter = $script:SourceAdapter
+        }
         $sessions = @(& $Adapter.GetSessions (Get-SourceRemaining $Elapsed))
         $null = Get-SourceRemaining $Elapsed
         if ($sessions.Count -gt 16) { throw 'Too many native media sessions.' }

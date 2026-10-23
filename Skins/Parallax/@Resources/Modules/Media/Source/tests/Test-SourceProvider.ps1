@@ -21,7 +21,7 @@ function Assert-Throws([scriptblock]$Action,[string]$Message) {
 $loadOutput = @(. $sourcePath)
 Assert-Test ($loadOutput.Count -eq 0) 'Dot-source produced output.'
 Assert-Test (-not (Test-Path -LiteralPath $runRoot)) 'Dot-source created test storage.'
-Assert-Test ($null -eq $script:SourceManager -and $null -eq $script:SourceAsTask) 'Dot-source initialized native collection.'
+Assert-Test ($null -eq $script:SourceManager -and $null -eq $script:SourceAsTask -and $null -eq $script:SourceAdapter) 'Dot-source initialized native collection.'
 
 # Every Start/Resume launch is intercepted, including negative startup checks.
 # No child process or native observer can be launched by this suite.
@@ -160,6 +160,27 @@ Assert-Throws { ConvertTo-SourceHex ("Synthetic"+[char]0+"title") } 'Hex encoder
 $fixture=New-TestAdapter 1
 $fixture.State.Sessions[0].Artist="Synthetic"+[char]0+"artist"
 Assert-Test ((Get-SourceCollection -Adapter $fixture.Adapter -Observed 1000 -Elapsed $fixture.Clock).State -eq 'unavailable') 'NUL metadata did not invalidate the complete collection.'
+
+# Without an injected adapter, collection builds the native adapter once per
+# process and reuses it; a failed build is not cached and is retried next cycle.
+# A synthetic factory stands in for the WinRT adapter.
+$savedAdapterFactory=(Get-Item Function:\New-SourceNativeAdapter).ScriptBlock
+$factoryState=[pscustomobject]@{Builds=0; Failures=1}
+$factoryFixture=New-TestAdapter 1
+function New-SourceNativeAdapter {
+    $factoryState.Builds++
+    if ($factoryState.Failures -gt 0) { $factoryState.Failures--; throw 'Synthetic adapter build failure' }
+    $factoryFixture.Adapter
+}
+try {
+    Assert-Test ((Get-SourceCollection -Observed 1000 -Elapsed $factoryFixture.Clock).State -eq 'unavailable') 'Failed adapter build did not fail closed.'
+    Assert-Test ($null -eq $script:SourceAdapter) 'Failed adapter build was cached.'
+    foreach ($attempt in 1..3) {
+        Assert-Test ((Get-SourceCollection -Observed 1000 -Elapsed $factoryFixture.Clock).State -eq 'ready') 'Cached adapter did not collect.'
+    }
+    Assert-Test ($factoryState.Builds -eq 2) "Adapter was built $($factoryState.Builds) times for four collections."
+    Assert-Test ($factoryFixture.State.Enumerations -eq 9 -and $factoryFixture.State.Reads -eq 6) 'Reused adapter skipped session consistency checks.'
+} finally { Set-Item Function:\New-SourceNativeAdapter $savedAdapterFactory; $script:SourceAdapter=$null }
 
 foreach ($state in @('unavailable','stopped')) {
     $text=ConvertTo-SourceSnapshotText (New-SourceSnapshot $state)
@@ -421,7 +442,7 @@ Assert-Throws { Write-SourceAtomicFile $root 'enabled.intent' "PARALLAX_AUTOSTAR
 Start-SourceObserver $root
 $beforeLaunches=$script:SourceTestLaunches.Count
 $reloadOutput=@(. $sourcePath)
-Assert-Test ($reloadOutput.Count -eq 0 -and $null -eq $script:SourceManager) 'Fresh helper load did not remain passive.'
+Assert-Test ($reloadOutput.Count -eq 0 -and $null -eq $script:SourceManager -and $null -eq $script:SourceAdapter) 'Fresh helper load did not remain passive.'
 Invoke-SourceCommand 'Resume' $root
 Assert-Test ($script:SourceTestLaunches.Count -eq ($beforeLaunches+1)) 'Previously enabled observer did not resume after a fresh helper load.'
 Assert-Test ($script:SourceTestLaunches[-1].Style -eq 'Hidden' -and $script:SourceTestLaunches[-1].Arguments.Contains('-Command Run')) 'Resume did not use the existing hidden worker launch.'
@@ -467,7 +488,7 @@ Assert-Test ((Test-SourceEnabledIntent $root) -and -not (Test-SourceStop $root))
 Assert-Test ($script:SourceTestLaunches.Count -eq ($beforeLaunches+1)) 'Later explicit Start did not request exactly one launch.'
 Stop-SourceObserver $root
 Assert-Test (@(Get-ChildItem -LiteralPath $root -Filter '*.tmp').Count -eq 0) 'Lifecycle intent updates left atomic temporary files.'
-Assert-Test ($null -eq $script:SourceManager -and $null -eq $script:SourceAsTask) 'Synthetic tests touched native session APIs.'
+Assert-Test ($null -eq $script:SourceManager -and $null -eq $script:SourceAsTask -and $null -eq $script:SourceAdapter) 'Synthetic tests touched native session APIs.'
 Assert-Test ((Get-FileHash -LiteralPath $sourcePath -Algorithm SHA256).Hash -eq $sourceHash) 'Production source changed during tests.'
 $report="PASS: $script:SourceTestChecks synthetic source-provider assertions; no native sessions, network, credentials, or live configuration used.`n"+
     (($script:SourceTestTimings | ForEach-Object { "  $_`n" }) -join '')+"Source SHA256: $sourceHash`n"

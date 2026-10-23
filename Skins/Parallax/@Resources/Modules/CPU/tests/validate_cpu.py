@@ -262,6 +262,12 @@ def validate():
                 assert all(ref.strip() in sections for ref in value.split("|")), (name, key)
     measures = [name for name, values in sections.items() if "Measure" in values]
     assert len(measures) == 108 + 9 * 64
+    # CPU-02 / ENGINE-05: a DynamicVariables UsageMonitor measure re-reads, and
+    # reloads the plugin, every tick even while disabled. !SetOption already
+    # forces the one re-read CPU.lua needs.
+    usage_monitor = [name for name, values in sections.items() if values.get("Plugin") == "UsageMonitor"]
+    assert len(usage_monitor) == 1 + 64 + 64 + 10 + 2, len(usage_monitor)
+    assert not [name for name in usage_monitor if "DynamicVariables" in sections[name]]
     total_utility = sections["MeasureCPUTotal"]
     assert total_utility["Measure"] == "Plugin" and total_utility["Plugin"] == "UsageMonitor"
     assert total_utility["Category"] == "Processor Information"
@@ -301,6 +307,9 @@ def validate():
             assert f"CPUCore{index}" in meter["Group"].split("|")
             assert not any(key.startswith("MeasureName") for key in meter)
         assert f"MeterSensorCoreLabel{index}" not in sections
+        # CPU-04: idle slots skip the meter pass; CPU.lua restores divider 1 on binding.
+        for prefix in ("MeterCoreLabel", "MeterCoreBar", "MeterCoreValue", "MeterCoreVoltage", "MeterCoreTemperature"):
+            assert sections[f"{prefix}{index}"]["UpdateDivider"] == "-1", (prefix, index)
     assert not (ROOT / "@Resources/Modules/CPU/CoreSensorMeters.inc").exists()
     for index in range(1, 11):
         assert f"MeterProcessBar{index}" not in sections
@@ -540,10 +549,16 @@ def validate():
     assert "set('MeterCoreLabel' .. slot, 'Text', tostring(index))" in script
     assert "SKIN:Bang('!CommandMeasure', 'MeasureCPUSensors', 'SetThreadPage(' .. first .. ')')" in script
     assert all("ToolTip" not in source for source in (script, sensor_script, setup_script, discovery_script))
-    assert "set(measure, 'Name', '0,' .. (index - 1))" in script
+    # Slots bind absolute instances, re-pointing a measure only when its Name changes.
+    assert "bindMeasure(measure, '0,' .. (index - 1), true)" in script
+    assert "if name and applied.name ~= name then" in script and "set(measure, 'Name', name)" in script
     assert "local function busyPercent(value)" in script and "value > 100.5" in script
     assert "return math.min(100, value)" in script and "graphUtility" not in script and "Processor Utility" not in script
     assert "local function updateThreadValues()" in script
+    # A -1 meter ignores !SetOption until forced: binding must restore 1 and force.
+    assert "set(prefix .. slot, 'UpdateDivider', live and 1 or -1)" in script
+    assert "if live then SKIN:Bang('!UpdateMeterGroup', 'CPUCore' .. slot) end" in script
+    assert "for slot = 1, 64 do slotLive(slot, slot <= state.active) end" in script
     assert "SKIN:GetMeasure('MeasureCPU' .. slot):GetValue()" in script
     assert "string.format('%.' .. state.decimals .. 'f%%', value)" in script
     for prefix in ('MeterCoreVoltage', 'MeterCoreTemperature'):
@@ -579,17 +594,22 @@ def validate():
     assert "CPUVoltageDecimals = @(0, 3)" in discovery_script
     assert "CPUTemperatureDecimals = @(0, 1)" in discovery_script
     assert "InputText" not in discovery_script
-    assert "readBinding('Clock')" in sensor_script and 'local function formatClock(value)' in sensor_script
+    # Each render shares one parsed value-name set per hive across its readings.
+    assert "readBinding('Clock', nil, lists)" in sensor_script and 'local function formatClock(value)' in sensor_script
     assert "local providerStarted = state.providerRunning == false and providerRunning" in sensor_script
     assert "state.reconnectQueued = state.reconnectQueued or parameters ~= state.arguments" in sensor_script
     assert "local function formatVoltage(value)" in sensor_script
     assert "precisionChanged" in sensor_script
     assert "set('MeterCurrentClockValue', 'Text'" in sensor_script
-    assert "readBinding('Fan')" in sensor_script and "local function formatFan(value)" in sensor_script
+    assert "readBinding('Fan', nil, lists)" in sensor_script and "local function formatFan(value)" in sensor_script
     assert "set('MeterCurrentFanValue', 'Text'" in sensor_script
-    assert "readBinding('MotherboardFan')" in sensor_script
+    assert "readBinding('MotherboardFan', nil, lists)" in sensor_script
     assert "set('MeterMotherboardFanValue', 'Text'" in sensor_script
     assert "local displayClock = clock or nativeClock" in sensor_script
+    # A running HWiNFO whose export stopped updating must not read as live.
+    assert "local exportStaleSeconds = 60" in sensor_script
+    assert "status = 'HWiNFO: export not updating'" in sensor_script
+    assert "local coreReady = not frozen and" in sensor_script
     assert 'CPUClockIndex' not in sensor_script and 'CPUClockIndex' not in setup_script
     assert "parts[1] == 'CLOCK'" in setup_script and "normalizedLabel ~= 'Core Clocks'" in setup_script
     assert "CLOCK|HKEY_CURRENT_USER|index" in discovery_script

@@ -316,6 +316,24 @@ function Suite.run(path)
         eq(f.names, '', 'a re-entered PID waits for a reply at or after its re-entry')
         eq(f.meter.Text, '42 °C', 'readings stay valid throughout')
     end)
+    test('bar geometry is resolved once per load, not on every bar write', function()
+        for _, case in ipairs({{vars = {}, width = 98, thickness = 6},
+            {vars = {ContentWidth = '(#PanelWidth#-2*#Padding#)', DataBarThickness = '12', Scale = '1.5'}, width = 47, thickness = 18}}) do
+            local f = fixture({vars = case.vars}); f:live(); local parsed = f.formulas
+            eq(parsed > 0, true, 'formula variables are resolved')
+            for sequence = 2, 4 do
+                f.now = f.now + 2
+                f:sample({[4] = tostring(sequence), [13] = tostring(6442450944 - sequence * 1000000000), [18] = tostring(10 * sequence)}); f:update()
+            end
+            eq(f.formulas, parsed, 'no geometry parse after the first')
+            eq(f:text('MeterGPUVRAMValue'), '6.1/8.6 GB'); eq(f:text('MeterGPULoadValue'), '40%')
+            local endpoint, stroke = f:bar('MeterGPULoadBar')
+            eq(stroke, case.thickness, 'cached thickness')
+            eq(endpoint, tonumber(string.format('%.3f', case.width * 0.4)), 'cached engine width')
+            endpoint = f:bar('MeterGPUVRAMBar')
+            eq(endpoint, tonumber(string.format('%.3f', 200 * 6147483648 / 8589934592)), 'cached content width')
+        end
+    end)
     test('a snapshot shown unavailable in between is validated and shown again in full', function()
         local f = fixture(); f:live(); local saved = f.files[dataPath]
         f.files[dataPath] = nil; f:update(); eq(f.meter.Text, 'Checking...'); eq(f:text('MeterActivityValue'), '--')

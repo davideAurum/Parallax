@@ -538,6 +538,39 @@ function suite.Run(cpuPath)
         assert(context:visible('MeterCoreState'), 'state visible')
         for slot = 1, 64 do assert(context.measures['MeasureCPU' .. slot].disabled, 'slot ' .. slot .. ' disabled') end
     end)
+    test('steady-state cycles paint once, from the skin cycle', function()
+        -- CPU-01 / XMOD-04: Update() sets options only. The skin's own meter
+        -- pass applies them and redraws; no forced CPUUI pass, no extra frame.
+        local context = newMock(cpuPath)
+        context:run(4)
+        for _ = 1, 6 do
+            local stats = context:cycle()
+            equal(stats.redraws, 1, 'redraws per cycle')
+            equal(context:count(context.controllerBangs, '!Redraw'), 0, 'controller !Redraw')
+            equal(context:count(context.controllerBangs, '!UpdateMeterGroup'), 0, 'controller !UpdateMeterGroup')
+            equal(context:count(context.controllerBangs, '!UpdateMeter'), 0, 'controller !UpdateMeter')
+            equal(stats.rereads.MeterHistory, 1, 'MeterHistory re-reads per cycle')
+            equal(stats.rereads.MeterTotal, 1, 'MeterTotal re-reads per cycle')
+            threadRows(context, 1, 12, 1)
+        end
+    end)
+    test('settings, paging and deferred results still repaint immediately', function()
+        local context = newMock(cpuPath, {infoStatus=0, info='', variables={CPUAutoRows='0', CPUCoresPerPage='4'}})
+        context:run(3)
+        context:event('Page', 1)
+        assert(context.lastEventRedraws >= 1, 'Page repaints')
+        context:event('ApplySetting', 'CPUShowProcesses', 0)
+        assert(context.lastEventRedraws >= 1, 'ApplySetting repaints')
+        context.variables.cputhreadcolor2 = '1,2,3'
+        context:event('ApplyPreferences')
+        assert(context.lastEventRedraws >= 1, 'thread colour change repaints')
+        context.measures.MeasureCPUInfo.value, context.measures.MeasureCPUInfo.string = 1, 'OK|6|12'
+        context.infoStatus, context.info = 1, 'OK|6|12'
+        context:event('ApplyProcessorInfo')
+        assert(context.lastEventRedraws >= 1, 'deferred processor details repaint')
+        context:event('ApplyPreferences')
+        equal(context.lastEventRedraws, 0, 'unchanged preferences do not repaint')
+    end)
     test('controller never assigns tooltips', function()
         local context = newMock(cpuPath, {variables={CPUAutoRows='0', CPUCoresPerPage='4'}})
         context:run(4)

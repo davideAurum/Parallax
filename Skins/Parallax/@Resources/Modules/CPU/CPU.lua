@@ -1,5 +1,8 @@
 -- Parallax original CPU presentation/controller. No provider or process polling.
--- Processor Time measures precede this Script measure. Bangs are queued by Rainmeter.
+-- Processor Time measures precede this Script measure. SKIN:Bang runs each bang
+-- synchronously. Update() only sets options: every meter it changes updates in
+-- the skin's own meter pass right after this measure, which then redraws once.
+-- Event handlers (settings, paging, FinishActions) repaint explicitly.
 local state
 
 local function integer(value, fallback, minimum, maximum)
@@ -639,7 +642,6 @@ function Update()
             end
         end
     end
-    redraw()
     return value
 end
 

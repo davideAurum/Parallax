@@ -157,7 +157,11 @@ local function readNativeClock()
     return nil
 end
 
-local function render()
+-- Event paths repaint at once. The periodic Update() path, and page changes
+-- made by the controller (which repaints afterwards itself), pass false and
+-- leave painting to the skin cycle: every meter set here has UpdateDivider 1,
+-- so the meter pass that follows the measures draws these values this tick.
+local function render(paint)
     local clock, fan, motherboardFan
     local nativeClock = readNativeClock()
     local status
@@ -211,7 +215,7 @@ local function render()
     set('MeterCurrentFanValue', 'Text', fan and formatFan(fan) or 'Unavailable')
     set('MeterMotherboardFanValue', 'Text', motherboardFan and formatFan(motherboardFan) or 'Unavailable')
     set('MeterSensors', 'Text', status)
-    redraw()
+    if paint ~= false then redraw() end
 end
 
 function Initialize()
@@ -224,7 +228,7 @@ function SetThreadPage(first)
     first = tonumber(first)
     if not state or not finite(first) or first ~= math.floor(first) or first < 1 or first > 64 then return end
     state.firstThread = first
-    render()
+    render(false)
 end
 
 local function discoveryArguments()
@@ -416,6 +420,6 @@ function Update()
         state.prime = false
         if state.reconnectQueued then Reconnect() end
     end
-    render()
+    render(false)
     return 0
 end

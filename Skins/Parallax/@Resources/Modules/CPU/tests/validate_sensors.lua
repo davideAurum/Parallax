@@ -99,7 +99,7 @@ local function newMock(sensorPath, options)
             CPUTemperatureDecimals=options.temperatureDecimals or '0', CPUVoltageDecimals=options.voltageDecimals or '3'},
         registry={[HIVE_USER]={}, [HIVE_MACHINE]={}}, measures={}, meters={}, native={},
         queue={}, now=1000, running=options.running == nil and 1 or options.running,
-        runs=0, serial=0, requests={}, nativeReads=0
+        runs=0, serial=0, requests={}, nativeReads=0, paints=0
     }
     local function measure(name, native, enabled)
         local item = {name=name, options={Disabled=enabled == false and '1' or '0'},
@@ -212,7 +212,9 @@ local function newMock(sensorPath, options)
                     equal(args[3], 'PrimeComplete()', 'script callback')
                     self.environment.PrimeComplete()
                 end
-            elseif bang ~= '!UpdateMeterGroup' and bang ~= '!Redraw' then
+            elseif bang == '!Redraw' then
+                self.paints = self.paints + 1
+            elseif bang ~= '!UpdateMeterGroup' then
                 error('Unexpected production bang in offline test: ' .. tostring(bang))
             end
             index = index + 1
@@ -852,6 +854,36 @@ function suite.Run(sensorPath)
         coreReading(context, 1, '41', '0.910')
         coreReading(context, 5, '64', '1.240')
         equal(bindingState(context), bindings, 'returning page preserves bindings')
+    end)
+    test('periodic sensor reads leave painting to the skin cycle', function()
+        -- CPU-01 / XMOD-04: Update() runs inside the measure pass, and every
+        -- meter it sets updates in the meter pass that follows, so it must not
+        -- add a forced pass and an extra frame. Events still repaint.
+        local context, data = connect(sensorPath)
+        context.paints = 0
+        for _ = 1, 3 do
+            context.now = context.now + 2
+            context:refreshNative()
+            context:call('Update')
+        end
+        context:change(data.hive, 'ValueRaw103', '66')
+        equal(context.paints, 0, 'periodic Update repaints')
+        readings(context, '66', '1.250')
+        context:call('SetThreadPage', 9)
+        equal(context.paints, 0, 'controller page change repaints in the controller')
+        context:call('SetThreadPage', 1)
+        context:call('Reconnect')
+        assert(context.paints >= 1, 'Reconnect repaints')
+        context.paints = 0
+        context:complete(data)
+        assert(context.paints >= 1, 'discovery completion repaints')
+        context.paints = 0
+        context.variables.CPUVoltageDecimals = '2'
+        context:call('ApplyPreferences')
+        assert(context.paints >= 1, 'precision change repaints')
+        context.paints = 0
+        context:setEnabled(false)
+        assert(context.paints >= 1, 'disabling sensors repaints')
     end)
     test('sensor rendering never assigns tooltips', function()
         local context = connect(sensorPath, {cores={

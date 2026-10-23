@@ -1110,18 +1110,9 @@ behaviour-preserving brief, so the fixes below were added as new commits:
 - **Every cycle while Spotify plays.** Unchanged observations holding a
   playing Spotify record are written every cycle again; only the others keep
   the sparse heartbeat.
-- **Snapshot flush, split out.** The first version also stopped forcing
-  snapshot writes to disk in the same commit. That part was undone and then
-  re-applied as a commit of its own, so it can be measured alone.
-- **A squatted stop event cannot spin the wait.** The worker clears the stop
-  event after each wake. With a signaled manual-reset event pre-created under
-  its name, a 300 ms cycle now makes 2 waits (457 without the reset, a busy
-  spin), and Stop still ends the worker in 33 ms. The suite passes 340
-  assertions.
-  - `Test-SourceProvider.ps1` now passes 334 assertions. It checks the rule's
-    decisions, and that a worker on a simulated clock writes every cycle while
-    Spotify plays (`ready@1000` through `ready@1008`) and keeps the sparse
-    schedule while it is paused.
+  - `Test-SourceProvider.ps1` checks the rule's decisions, and that a worker
+    on a simulated clock writes every cycle while Spotify plays (`ready@1000`
+    through `ready@1008`) and keeps the sparse schedule while it is paused.
   - **One stalled collection** while Spotify plays: a 2.0 s stall at +0.75 s
     into the observation second leaves 1.23 s and a 3.0 s stall at +0.25 s
     leaves 0.73 s. Both equal the old every-cycle schedule.
@@ -1137,6 +1128,24 @@ behaviour-preserving brief, so the fixes below were added as new commits:
     and 3.0 s stalls, with at least 1.88, 1.11 and 0.12 s left. The review
     measured 2 and 9 stale samples for the first version, and 0 for the old
     provider.
+- **Snapshot flush, split out.** The first version also stopped forcing
+  snapshot writes to disk in the same commit. That part was undone and then
+  re-applied as a commit of its own, so it can be measured alone.
+- **A squatted stop event cannot spin the wait.** The worker clears the stop
+  event after each wake. With a signaled manual-reset event pre-created under
+  its name, a 300 ms cycle now makes 2 waits (457 without the reset, a busy
+  spin), and Stop still ends the worker in 33 ms.
+
+Checks after these fixes:
+
+- **`Source/tests/Test-SourceProvider.ps1`: 340 synthetic assertions pass**
+  (248 before review).
+- **`tests/Test-ProviderLease.ps1`: 12/12.** Both isolated workers exited
+  194 ms after their Rainmeter quit.
+- **`tools/Test-Parallax.ps1 -RequireAllModules -WarningsAsErrors`:** 23
+  configs, 99 files, 0 errors, 0 warnings.
+- Not rerun: `Test-SourceReader.ps1` and `Test-SourceNative.ps1`. The reader
+  and the collection code did not change.
 
 ### Cover without the WNP plugin (2026-10-20)
 

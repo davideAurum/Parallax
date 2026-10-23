@@ -168,6 +168,42 @@ local function readNativeClock()
     return nil
 end
 
+-- HWiNFO's Gadget export carries no sample timestamp. If HWiNFO keeps running
+-- but stops writing it, the last values stay in the registry and would look
+-- live. Every bound raw value (temperatures, VIDs, clock and fans, including
+-- the CPU-wide summaries) forms one signature. If that signature is unchanged
+-- for exportStaleSeconds while HWiNFO runs, the export counts as not
+-- updating; any single change restores live readings. A reading that is
+-- legitimately constant cannot trip this while any other bound reading
+-- moves. A frozen export is only recognisable after that window, so it still
+-- shows as connected for up to a minute after load, reconnect or restart.
+local exportStaleSeconds = 60
+local exportKinds = {'Temperature', 'Voltage', 'Clock', 'Fan', 'MotherboardFan'}
+
+local function exportFrozen()
+    local parts = {}
+    for _, kind in ipairs(exportKinds) do
+        if state.bindings[kind] then parts[#parts + 1] = kind .. '=' .. text('MeasureCPUSensor' .. kind .. 'Raw', true) end
+    end
+    for core = 0, 63 do
+        for _, kind in ipairs({'Temperature', 'Voltage'}) do
+            if state.coreBindings[kind][core] then
+                parts[#parts + 1] = kind .. core .. '=' .. text('MeasureCPUSensorCore' .. kind .. 'Raw' .. (core + 1), true)
+            end
+        end
+    end
+    if #parts == 0 then
+        state.exportSignature = nil
+        return false
+    end
+    local signature, now = table.concat(parts, '|'), os.time()
+    if signature ~= state.exportSignature then
+        state.exportSignature, state.exportChangedAt = signature, now
+        return false
+    end
+    return now - state.exportChangedAt >= exportStaleSeconds
+end
+
 -- Event paths repaint at once. The periodic Update() path, and page changes
 -- made by the controller (which repaints afterwards itself), pass false and
 -- leave painting to the skin cycle: every meter set here has UpdateDivider 1,
@@ -177,6 +213,7 @@ local function render(paint)
     local nativeClock = readNativeClock()
     local lists = {}
     local status
+    local frozen = false
     if not state.enabled then
         status = 'HWiNFO sensors: off'
     elseif state.pending or state.prime then
@@ -184,13 +221,19 @@ local function render(paint)
     elseif SKIN:GetMeasure('MeasureCPUHWiNFORunning'):GetValue() ~= 1 then
         -- Old registry values are suppressed while HWiNFO64 is not running.
         status = 'HWiNFO: not running'
+    elseif exportFrozen() then
+        -- Values from an export that stopped updating are suppressed the same way.
+        frozen = true
+        status = 'HWiNFO: export not updating'
     else
         -- The footer reports provider status only; readings live in their rows.
         clock = readBinding('Clock', nil, lists)
         fan = readBinding('Fan', nil, lists)
         motherboardFan = readBinding('MotherboardFan', nil, lists)
     end
-    local coreReady = state.enabled and not state.pending and not state.prime
+    -- Off, connecting or stopped: the next readable export starts a fresh window.
+    if status and not frozen then state.exportSignature = nil end
+    local coreReady = not frozen and state.enabled and not state.pending and not state.prime
         and SKIN:GetMeasure('MeasureCPUHWiNFORunning'):GetValue() == 1
     local coreReadings, readings = 0, {}
     for core = 0, 63 do

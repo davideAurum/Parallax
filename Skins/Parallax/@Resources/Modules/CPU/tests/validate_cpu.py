@@ -606,6 +606,10 @@ def validate():
     assert "readBinding('MotherboardFan', nil, lists)" in sensor_script
     assert "set('MeterMotherboardFanValue', 'Text'" in sensor_script
     assert "local displayClock = clock or nativeClock" in sensor_script
+    # A running HWiNFO whose export stopped updating must not read as live.
+    assert "local exportStaleSeconds = 60" in sensor_script
+    assert "status = 'HWiNFO: export not updating'" in sensor_script
+    assert "local coreReady = not frozen and" in sensor_script
     assert 'CPUClockIndex' not in sensor_script and 'CPUClockIndex' not in setup_script
     assert "parts[1] == 'CLOCK'" in setup_script and "normalizedLabel ~= 'Core Clocks'" in setup_script
     assert "CLOCK|HKEY_CURRENT_USER|index" in discovery_script

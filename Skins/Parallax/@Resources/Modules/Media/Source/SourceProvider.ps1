@@ -129,6 +129,59 @@ function Get-SourceMutexName {
 
 function New-SourceMutex { param([string]$Root) New-Object Threading.Mutex($false, (Get-SourceMutexName $Root)) }
 function New-SourceControlMutex { param([string]$Root) New-Object Threading.Mutex($false, ((Get-SourceMutexName $Root)+'.Control')) }
+# Auto-reset, so a wake-up nobody consumed cannot keep a later worker spinning.
+function New-SourceStopEvent { param([string]$Root) New-Object Threading.EventWaitHandle($false, [Threading.EventResetMode]::AutoReset, ((Get-SourceMutexName $Root)+'.Stop')) }
+
+# Wakes a waiting worker right after Stop writes its durable marker. The event
+# is only a wake-up; if it cannot be set, the worker still sees the marker at
+# the end of its current cycle (at most two seconds).
+function Send-SourceStopSignal {
+    param([string]$Root)
+    try {
+        $event = New-SourceStopEvent $Root
+        try { $null = $event.Set() } finally { $event.Dispose() }
+    } catch { }
+}
+
+# What a worker waits on between collections: the stop event and, with a lease,
+# the owner's own process handle, which the Process object keeps open for the
+# whole run. If that handle cannot be waited on, PollOwner keeps the earlier
+# 100 ms owner wait instead.
+function New-SourceWaiter {
+    param($Owner, [Threading.WaitHandle]$StopEvent)
+    $handles = New-Object 'Collections.Generic.List[Threading.WaitHandle]'
+    if ($null -ne $StopEvent) { $handles.Add($StopEvent) }
+    $ownerIndex = -1; $pollOwner = $false
+    if ($null -ne $Owner) {
+        try {
+            $ownerWait = New-Object Threading.ManualResetEvent($false)
+            $unused = $ownerWait.SafeWaitHandle
+            $ownerWait.SafeWaitHandle = New-Object Microsoft.Win32.SafeHandles.SafeWaitHandle($Owner.Handle, $false)
+            $unused.Dispose()
+            $ownerIndex = $handles.Count; $handles.Add($ownerWait)
+        } catch { $pollOwner = $true }
+    }
+    [pscustomobject]@{Owner=$Owner; Handles=$handles.ToArray(); OwnerIndex=$ownerIndex; PollOwner=$pollOwner}
+}
+
+# One wait for the rest of a cycle. Returns 'owner' once the launching Rainmeter
+# has exited (a failed wait counts too: the worker ends and its observation
+# expires), 'wake' when the stop event fired or a fallback owner slice ended,
+# and 'timeout' otherwise. The stop event comes first, so a Stop that is
+# already pending wins over an owner exit, as it did when Stop was polled first.
+function Wait-SourceSignal {
+    param($Waiter, [int]$Milliseconds)
+    if ($Waiter.PollOwner) {
+        if (Wait-MediaOwnerExit $Waiter.Owner ([Math]::Min(100, $Milliseconds))) { return 'owner' }
+        return 'wake'
+    }
+    if ($Waiter.Handles.Count -eq 0) { Start-Sleep -Milliseconds $Milliseconds; return 'timeout' }
+    try { $index = [Threading.WaitHandle]::WaitAny($Waiter.Handles, $Milliseconds) }
+    catch { return 'owner' }
+    if ($index -eq [Threading.WaitHandle]::WaitTimeout) { return 'timeout' }
+    if ($index -eq $Waiter.OwnerIndex) { return 'owner' }
+    return 'wake'
+}
 function Enter-SourceMutex {
     param([Threading.Mutex]$Mutex, [int]$Milliseconds = 0)
     try { return $Mutex.WaitOne($Milliseconds) }
@@ -374,13 +427,17 @@ function Invoke-SourceRun {
     param([string]$Root, [scriptblock]$Collector = { Get-SourceCollection }, [string]$Lease = '')
     $owner = Open-MediaOwner $Lease
     if ($owner -is [bool]) { return $false }
-    $mutex = New-SourceMutex $Root; $owned = $false
+    $mutex = New-SourceMutex $Root; $owned = $false; $stopEvent = $null; $waiter = $null
     try {
         $owned = Enter-SourceMutex $mutex
         if (-not $owned) { return $false }
         # The root was validated by the caller; the stop marker's path is fixed
-        # for the whole run, so polling it is a single .NET existence check.
+        # for the whole run, so checking it is a single .NET existence check.
         $stopPath = [IO.Path]::Combine($Root, 'stop.request')
+        # Without the event (an unavailable or squatted name) Stop is still seen
+        # at the end of the current cycle, because the marker is checked there.
+        try { $stopEvent = New-SourceStopEvent $Root } catch { $stopEvent = $null }
+        $waiter = New-SourceWaiter $owner $stopEvent
         # Only an explicit Start clears a previous Stop. A delayed child must
         # preserve a Stop that completed after the launch was requested.
         while (-not (Test-SourceStopPath $stopPath)) {
@@ -388,17 +445,27 @@ function Invoke-SourceRun {
             try { $snapshot = & $Collector } catch { $snapshot = New-SourceSnapshot 'unavailable' }
             if (Test-SourceStopPath $stopPath) { break }
             Publish-SourceSnapshot $Root $snapshot
-            while ($cycle.ElapsedMilliseconds -lt 2000 -and -not (Test-SourceStopPath $stopPath)) {
+            # One wait for the rest of the cycle instead of 100 ms polling. A wake
+            # re-checks the durable marker, because any process in this session
+            # can set a Local\ event; a spurious wake only resumes the wait.
+            while (($remaining = 2000 - $cycle.ElapsedMilliseconds) -gt 0) {
+                $signal = Wait-SourceSignal $waiter ([int]$remaining)
                 # The launching Rainmeter is gone. Exit without a 'stopped'
                 # snapshot: resume intent is unchanged, and the next Rainmeter's
                 # skin load starts a fresh worker.
-                if (Wait-MediaOwnerExit $owner 100) { return $true }
+                if ($signal -eq 'owner') { return $true }
+                if ($signal -eq 'timeout' -or (Test-SourceStopPath $stopPath)) { break }
             }
             $cycle.Stop()
         }
         Publish-SourceSnapshot $Root (New-SourceSnapshot 'stopped')
         return $true
-    } finally { if ($owned) { $mutex.ReleaseMutex() }; $mutex.Dispose(); if ($owner) { $owner.Dispose() } }
+    } finally {
+        if ($owned) { $mutex.ReleaseMutex() }; $mutex.Dispose()
+        if ($null -ne $waiter -and $waiter.OwnerIndex -ge 0) { $waiter.Handles[$waiter.OwnerIndex].Dispose() }
+        if ($null -ne $stopEvent) { $stopEvent.Dispose() }
+        if ($owner) { $owner.Dispose() }
+    }
 }
 
 function Stop-SourceObserver {
@@ -411,6 +478,8 @@ function Stop-SourceObserver {
         # The Stop marker is the durable veto. If the following intent write
         # fails, Resume must still leave this explicit Stop in force.
         Write-SourceAtomicFile $Root 'stop.request' "stop`n"
+        # Wake a waiting worker now; the marker above stays the durable signal.
+        Send-SourceStopSignal $Root
         Set-SourceEnabledIntent $Root $false
         $owned = Enter-SourceMutex $mutex 10000
         if (-not $owned) { throw 'The source observer has not stopped yet.' }

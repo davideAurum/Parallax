@@ -7,6 +7,7 @@ $sourceHash = (Get-FileHash -LiteralPath $sourcePath -Algorithm SHA256).Hash
 $runRoot = Join-Path ([IO.Path]::GetTempPath()) ('Parallax-SourceProvider-test-'+[Guid]::NewGuid().ToString('N'))
 if (Test-Path -LiteralPath $runRoot) { throw 'Test directory must be fresh.' }
 $script:SourceTestChecks = 0
+$script:SourceTestTimings = @()
 function Assert-Test([bool]$Condition,[string]$Message) {
     $script:SourceTestChecks++
     if (-not $Condition) { throw $Message }
@@ -206,6 +207,95 @@ Assert-Test (Invoke-SourceRun $dirStopRoot { $dirStopCalls.Count++; New-SourceSn
 Assert-Test ($dirStopCalls.Count -eq 0) 'Worker collected despite a directory stop marker.'
 Assert-Throws { Write-SourceAtomicFile $dirStopRoot 'stop.request' "stop`n" } 'Stop writer replaced a directory.'
 
+# The worker waits once per cycle on the owner process and a named stop event.
+# A second runspace in this process plays the other side (Stop, a stray event),
+# so the worker below runs the real Invoke-SourceRun on this thread.
+$waitRoot=Initialize-SourceStorage (Join-Path ([IO.Path]::GetTempPath()) ('Parallax-SourceProvider-wait-'+[Guid]::NewGuid().ToString('N')))
+function Start-SourceTestPeer {
+    param([int[]]$StrayAtMs,[int]$StopAtMs)
+    $ready=New-Object Threading.ManualResetEvent($false)
+    $peer=[PowerShell]::Create()
+    $null=$peer.AddScript({
+        param($SourcePath,$Root,$StrayAtMs,$StopAtMs,$Ready)
+        . $SourcePath
+        # Times count from the moment the worker is released, not from load.
+        $null=$Ready.Set()
+        $clock=[Diagnostics.Stopwatch]::StartNew()
+        foreach ($at in $StrayAtMs) {
+            Start-Sleep -Milliseconds ([Math]::Max(0,$at-$clock.ElapsedMilliseconds))
+            Send-SourceStopSignal $Root
+        }
+        Start-Sleep -Milliseconds ([Math]::Max(0,$StopAtMs-$clock.ElapsedMilliseconds))
+        $stopAt=[Diagnostics.Stopwatch]::GetTimestamp()
+        Stop-SourceObserver $Root
+        $stopAt
+    }).AddArgument($sourcePath).AddArgument($waitRoot).AddArgument($StrayAtMs).AddArgument($StopAtMs).AddArgument($ready)
+    $result=$peer.BeginInvoke()
+    if (-not $ready.WaitOne(30000)) { throw 'Synthetic Stop peer did not load.' }
+    $ready.Dispose()
+    [pscustomobject]@{Shell=$peer; Result=$result}
+}
+function Complete-SourceTestPeer {
+    param($Peer)
+    try { $output=@($Peer.Shell.EndInvoke($Peer.Result)) } finally { $Peer.Shell.Dispose() }
+    Assert-Test ($output.Count -eq 1) 'Synthetic Stop peer failed.'
+    return [long]$output[0]
+}
+$waitState=[pscustomobject]@{Calls=0; Started=@()}
+$waitCollector={ $waitState.Calls++; $waitState.Started+=[Diagnostics.Stopwatch]::GetTimestamp(); New-SourceSnapshot 'unavailable' }.GetNewClosure()
+$toMs=1000.0/[Diagnostics.Stopwatch]::Frequency
+# Stop arrives 300 ms into the first wait. The old 100 ms poll saw it within a
+# slice; a timer-only wait would take the remaining ~1.7 s; the event wakes at once.
+$peer=Start-SourceTestPeer @() 300
+Assert-Test (Invoke-SourceRun $waitRoot $waitCollector) 'Event-woken worker did not exit cleanly.'
+$returnedAt=[Diagnostics.Stopwatch]::GetTimestamp()
+$stopAt=Complete-SourceTestPeer $peer
+$stopLatency=($returnedAt-$stopAt)*$toMs
+Assert-Test ($stopLatency -ge 0 -and $stopLatency -lt 1000) "Stop took $([Math]::Round($stopLatency)) ms to end a waiting worker."
+$script:SourceTestTimings+=('Stop to worker exit: {0:N0} ms' -f $stopLatency)
+Assert-Test ($waitState.Calls -eq 1) 'Stop during the wait allowed another collection.'
+Assert-Test ([IO.File]::ReadAllText((Join-Path $waitRoot 'source.snapshot')) -match '(?m)^state=stopped$') 'Event-woken worker did not leave the stopped display.'
+# A stray event without the marker (any process in the session can set it)
+# neither stops the worker nor starts an early collection.
+[IO.File]::Delete((Join-Path $waitRoot 'stop.request'))
+$waitState.Calls=0; $waitState.Started=@()
+$peer=Start-SourceTestPeer @(300,600) 2600
+Assert-Test (Invoke-SourceRun $waitRoot $waitCollector) 'Worker woken by stray events did not exit cleanly.'
+$returnedAt=[Diagnostics.Stopwatch]::GetTimestamp()
+$stopAt=Complete-SourceTestPeer $peer
+$stopLatency=($returnedAt-$stopAt)*$toMs
+Assert-Test ($waitState.Calls -eq 2) "Stray stop events changed the two-second cycle ($($waitState.Calls) collections in 2.6 s)."
+$cycleMs=($waitState.Started[1]-$waitState.Started[0])*$toMs
+Assert-Test ($cycleMs -ge 1990 -and $cycleMs -lt 2600) "Collection cycle was $([Math]::Round($cycleMs)) ms after stray events."
+Assert-Test ($stopLatency -ge 0 -and $stopLatency -lt 1000) "Stop after stray events took $([Math]::Round($stopLatency)) ms."
+$script:SourceTestTimings+=('Cycle with two stray events: {0:N0} ms; then Stop to exit: {1:N0} ms' -f $cycleMs,$stopLatency)
+# Owner exit stays immediate: a short-lived stand-in process is the lease owner.
+[IO.File]::Delete((Join-Path $waitRoot 'stop.request'))
+$sleeperInfo=New-Object Diagnostics.ProcessStartInfo((Join-Path $env:SystemRoot 'System32\WindowsPowerShell\v1.0\powershell.exe'),'-NoLogo -NoProfile -NonInteractive -Command Start-Sleep -Milliseconds 2500')
+$sleeperInfo.UseShellExecute=$false; $sleeperInfo.CreateNoWindow=$true
+$sleeper=[Diagnostics.Process]::Start($sleeperInfo)
+try {
+    $lease='{0}:{1}' -f $sleeper.Id,$sleeper.StartTime.ToUniversalTime().Ticks
+    Assert-Test (Test-MediaOwnerLeaseText $lease) 'Stand-in owner lease is malformed.'
+    $waitState.Calls=0
+    Assert-Test (Invoke-SourceRun $waitRoot $waitCollector -Lease $lease) 'Leased worker did not exit when its owner did.'
+    $returnedUtc=[DateTime]::UtcNow
+    Assert-Test ($sleeper.WaitForExit(5000)) 'Stand-in owner did not exit.'
+    $ownerLatency=($returnedUtc-$sleeper.ExitTime.ToUniversalTime()).TotalMilliseconds
+    Assert-Test ($ownerLatency -gt -50 -and $ownerLatency -lt 500) "Worker left $([Math]::Round($ownerLatency)) ms after its owner exited."
+    $script:SourceTestTimings+=('Owner exit to worker exit: {0:N0} ms' -f $ownerLatency)
+    Assert-Test ($waitState.Calls -ge 1) 'Leased worker never collected.'
+    Assert-Test ([IO.File]::ReadAllText((Join-Path $waitRoot 'source.snapshot')) -match '(?m)^state=unavailable$') 'Owner exit published a stopped snapshot.'
+    Assert-Test (-not (Test-SourceStop $waitRoot)) 'Owner exit wrote a stop marker.'
+} finally { if (-not $sleeper.HasExited) { $sleeper.Kill() }; $sleeper.Dispose() }
+# Fallbacks: without any handle the wait is a plain timed wait; an owner whose
+# handle cannot be waited on keeps the bounded owner wait and never spins.
+$waiter=New-SourceWaiter $null $null
+$fallbackClock=[Diagnostics.Stopwatch]::StartNew()
+Assert-Test ((Wait-SourceSignal $waiter 150) -eq 'timeout' -and $fallbackClock.ElapsedMilliseconds -ge 140) 'Handle-less wait did not wait out its time.'
+$waiter=New-SourceWaiter ([pscustomobject]@{Name='not a process'}) $null
+Assert-Test ($waiter.PollOwner -and (Wait-SourceSignal $waiter 150) -eq 'owner') 'Unwaitable owner did not fall back to the bounded owner wait.'
+
 $script:SourceTestCollections=0
 $collector={ $script:SourceTestCollections++; New-SourceSnapshot 'unavailable' }
 Assert-Test (Invoke-SourceOnce $root $collector) 'Once could not publish a synthetic observation.'
@@ -379,7 +469,8 @@ Stop-SourceObserver $root
 Assert-Test (@(Get-ChildItem -LiteralPath $root -Filter '*.tmp').Count -eq 0) 'Lifecycle intent updates left atomic temporary files.'
 Assert-Test ($null -eq $script:SourceManager -and $null -eq $script:SourceAsTask) 'Synthetic tests touched native session APIs.'
 Assert-Test ((Get-FileHash -LiteralPath $sourcePath -Algorithm SHA256).Hash -eq $sourceHash) 'Production source changed during tests.'
-$report="PASS: $script:SourceTestChecks synthetic source-provider assertions; no native sessions, network, credentials, or live configuration used.`nSource SHA256: $sourceHash`n"
+$report="PASS: $script:SourceTestChecks synthetic source-provider assertions; no native sessions, network, credentials, or live configuration used.`n"+
+    (($script:SourceTestTimings | ForEach-Object { "  $_`n" }) -join '')+"Source SHA256: $sourceHash`n"
 [IO.File]::WriteAllText((Join-Path $root 'results.txt'),$report,[Text.UTF8Encoding]::new($false))
 Write-Output $report
 Write-Output "Synthetic evidence retained at $root"

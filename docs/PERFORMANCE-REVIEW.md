@@ -382,8 +382,13 @@ These touch disjoint files and can be built at the same time, each in its own wo
 - **B1 Resident helpers launched detached,** with one compile per host and the bootstrap removed (ENGINE-06, RAM-01/03, GPU-07, XMOD-05 cache). Touches GPU and RAM after A3/A4.
 - **B2 UsageMonitor registration by include variant** (T4). Touches CPU, GPU and RAM after A3/A4.
 - **B3 Shared helper kit and change-only writer** (XMOD-06a, XMOD-08). Optional.
-- **B4 HWiNFO export durability.** Added 2026-10-22 at the owner's request. HWiNFO stopped writing its registry export after the owner's update to 8.54 on 2026-10-01, although `Sensors\EnableVSB` stayed on; the fix for that is in HWiNFO's settings and is the owner's. B4 builds on A3's frozen-export detection and touches CPU and GPU files, so it runs after B2.
-  1. **An actionable stale message.** The CPU footer names the likely fix: re-enable "Report value in Gadget" in HWiNFO's sensor settings.
+- **B4 HWiNFO export durability.** Added 2026-10-22 at the owner's request. B4 builds on A3's frozen-export detection and touches CPU and GPU files, so it runs after B2.
+  - **Cause found the same evening.** HWiNFO polls sensors, and writes its export, only while its sensors window is open. The owner's `HWiNFO64.INI` starts HWiNFO at logon (`Autorun=1`) with its main window minimised and no setting that opens the sensors window. So from the 2026-10-01 reinstall (8.54) on, HWiNFO sat in the tray without polling.
+  - **Confirmed by opening the window.** When the owner opened the sensors window at 22:58, the export resumed within seconds: 80-88 of 94 values changing in 4 s, and CPU Meter's readings moving.
+  - **The lasting fix is HWiNFO's own setting** to open the sensors window at startup (minimised is fine). It is the owner's to set.
+
+  B4 itself:
+  1. **An actionable stale message.** The CPU footer names the fix: "HWiNFO export not updating: open HWiNFO's sensors window".
   2. **CPU clock from Windows.** When HWiNFO's clock is frozen or missing, CPU Meter falls back to Windows' own processor-performance counter, labelled as a different source. Temperatures, voltages and fan speeds have no Windows source without a kernel driver, so they stay HWiNFO-only and are withheld while frozen.
   3. **The same freshness check on GPU Meter's optional HWiNFO override** (`GPUPowerSource`/`GPUClockSource=1`). It is unused by default, but has the same weakness.
 

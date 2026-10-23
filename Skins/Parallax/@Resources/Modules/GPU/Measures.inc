@@ -97,6 +97,77 @@ RegValue=ValueRaw#GPUClockIndex#
 UpdateDivider=(Max(1,Ceil(#SensorInterval#/Max(1,#MetricsInterval#))))
 Disabled=1
 
+; Freshness reference for an HWiNFO override. The Gadget export has no
+; timestamp, HWiNFO writes it only while its Sensors window is open, and a
+; mapped clock can legitimately hold one value for minutes (an idle GPU).
+; The first eight exported raw values join the mapped ones in one signature;
+; Temperature.lua withholds the overrides only when all of them stay
+; unchanged for 60 s. Enabled with MeasureGPURegistryNames, only for an
+; explicit override; the default driver path never reads them.
+[MeasureGPUExportProbe0]
+Measure=Registry
+RegHKey=#GPURegHKey#
+RegKey=#GPURegKey#
+RegValue=ValueRaw0
+UpdateDivider=(Max(1,Ceil(#SensorInterval#/Max(1,#MetricsInterval#))))
+Disabled=1
+
+[MeasureGPUExportProbe1]
+Measure=Registry
+RegHKey=#GPURegHKey#
+RegKey=#GPURegKey#
+RegValue=ValueRaw1
+UpdateDivider=(Max(1,Ceil(#SensorInterval#/Max(1,#MetricsInterval#))))
+Disabled=1
+
+[MeasureGPUExportProbe2]
+Measure=Registry
+RegHKey=#GPURegHKey#
+RegKey=#GPURegKey#
+RegValue=ValueRaw2
+UpdateDivider=(Max(1,Ceil(#SensorInterval#/Max(1,#MetricsInterval#))))
+Disabled=1
+
+[MeasureGPUExportProbe3]
+Measure=Registry
+RegHKey=#GPURegHKey#
+RegKey=#GPURegKey#
+RegValue=ValueRaw3
+UpdateDivider=(Max(1,Ceil(#SensorInterval#/Max(1,#MetricsInterval#))))
+Disabled=1
+
+[MeasureGPUExportProbe4]
+Measure=Registry
+RegHKey=#GPURegHKey#
+RegKey=#GPURegKey#
+RegValue=ValueRaw4
+UpdateDivider=(Max(1,Ceil(#SensorInterval#/Max(1,#MetricsInterval#))))
+Disabled=1
+
+[MeasureGPUExportProbe5]
+Measure=Registry
+RegHKey=#GPURegHKey#
+RegKey=#GPURegKey#
+RegValue=ValueRaw5
+UpdateDivider=(Max(1,Ceil(#SensorInterval#/Max(1,#MetricsInterval#))))
+Disabled=1
+
+[MeasureGPUExportProbe6]
+Measure=Registry
+RegHKey=#GPURegHKey#
+RegKey=#GPURegKey#
+RegValue=ValueRaw6
+UpdateDivider=(Max(1,Ceil(#SensorInterval#/Max(1,#MetricsInterval#))))
+Disabled=1
+
+[MeasureGPUExportProbe7]
+Measure=Registry
+RegHKey=#GPURegHKey#
+RegKey=#GPURegKey#
+RegValue=ValueRaw7
+UpdateDivider=(Max(1,Ceil(#SensorInterval#/Max(1,#MetricsInterval#))))
+Disabled=1
+
 ; One metadata query on load/refresh, never a recurring telemetry process.
 ; Original helper selects a discrete DXCore adapter, queries its metadata, and
 ; provides the exact adapter identity to the direct telemetry provider.

@@ -30,6 +30,18 @@
 #   log      no error or warning in Rainmeter.log.
 # Mode capture: live and paused window captures only (both default layouts).
 # -Suite runs StandDownSuite.lua inside Rainmeter's own Lua.
+# -Combined loads every utility config at once in one instance (Media.ini for
+# Parallax\Media; Setup.ini shares that config and runs on its own) with the
+# driver: every skin syncs, enters and leaves on one idle write, every meter
+# freezes and comes back to its snapshot, the RAM and GPU hosts stop and one
+# new host each starts, the instance has no active render session while
+# paused, the coordinator loads exactly once and Media and the Visualizer
+# reload exactly twice, and the log stays clean. The coordinator starts from
+# the first join, or with -CoordinatorAtStart in its place in Rainmeter's own
+# startup walk, after some utilities and before others. One thread runs every
+# skin's transition and both standby reloads, so each skin's latency bound is
+# the slowest skin's; the longest main-thread block is reported. -Skin picks a
+# subset (Setup excluded).
 [CmdletBinding()]
 param(
     [string]$RainmeterPath = (Join-Path $env:ProgramFiles 'Rainmeter\Rainmeter.exe'),
@@ -37,6 +49,8 @@ param(
     [ValidateSet('full', 'capture')][string]$Mode = 'full',
     [ValidateSet('w220-s1', 'w180-s0.75')][string[]]$Layout = @('w220-s1', 'w180-s0.75'),
     [switch]$Suite,
+    [switch]$Combined,
+    [switch]$CoordinatorAtStart,
     [string]$OutDir = ''
 )
 Set-StrictMode -Version Latest
@@ -521,24 +535,28 @@ function Get-Snapshot($Records, [string]$Tag, [double]$After = -1) {
     return [pscustomobject]@{ Clock = $first; Dividers = $map }
 }
 
-# One staged instance: the target skin, the coordinator (started by the join)
-# and the driver.
-function New-StandDownRun($Entry, [string]$LayoutName) {
-    $root = New-Root
-    $target = Copy-Skin $root
-    $settings = Join-Path $target '@Resources\User\Settings.inc'
+# Shared staging: Idle pause 5 min with fast test hooks, the layout, and the
+# coordinator's test idle file.
+function Set-StandDownStage([string]$Root, [string]$Target, [string]$LayoutName) {
+    $settings = Join-Path $Target '@Resources\User\Settings.inc'
     $width, $scale = switch ($LayoutName) { 'w220-s1' { '220', '1' } 'w180-s0.75' { '180', '0.75' } }
     foreach ($pair in @(@('IdlePauseMinutes', '5'), @('ParallaxIdleHookMs', '2000'), @('ParallaxIdleTestStaleSeconds', '6'),
             @('Scale', $scale), @('ColumnWidth', $width), @('TitleFontSize', '12'), @('HeaderFontSize', '10'), @('FontSize', '10'))) {
         Set-Key $settings $pair[0] $pair[1]
     }
-    $idleIni = Join-Path $target 'Idle\Idle.ini'
+    $idleIni = Join-Path $Target 'Idle\Idle.ini'
     Set-Key $idleIni 'ParallaxIdleTick' '500'
-    Set-Key $idleIni 'ParallaxIdleTestFile' "$root\idle.txt"
+    Set-Key $idleIni 'ParallaxIdleTestFile' "$Root\idle.txt"
     Set-Key $idleIni 'ParallaxIdleTestPauseSeconds' '4'
     Set-Key $idleIni 'ParallaxIdleTestAwaySeconds' '4'
     Set-Key $idleIni 'ParallaxIdleTestHeartbeatTicks' '4'
-    if ($Entry.Prepare) { & $Entry.Prepare $root $target }
+    Put $Root "$Root\idle.txt" '0'
+    Put $Root "$Root\Driver.lua" $driverLua
+    Put $Root "$Target\ADriver\Driver.ini" "[Rainmeter]`r`nUpdate=100`r`n`r`n[Variables]`r`nCommandFile=$Root\cmd.txt`r`nDriverLog=$Root\driver.log`r`nIdleFile=$Root\idle.txt`r`n`r`n[MeasureDriver]`r`nMeasure=Script`r`nScriptFile=$Root\Driver.lua`r`n`r`n[MeterBounds]`r`nMeter=Image`r`nW=1`r`nH=1`r`nSolidColor=0,0,0,1`r`nUpdateDivider=-1`r`n"
+}
+# Appends the divider probe to one staged entrypoint; Suffix keeps the files of
+# several probes in one instance apart. Returns the probe log path.
+function Add-StandDownProbe([string]$Root, [string]$Target, $Entry, [string]$Suffix = '') {
     # Every meter and paused measure of each variant this run loads (Media: the
     # open drawer live and parked), merged; a name a load lacks reads 'missing'.
     $variantSets = [Collections.Generic.List[object]]::new()
@@ -552,28 +570,35 @@ function New-StandDownRun($Entry, [string]$LayoutName) {
     $index = 0
     foreach ($set in $variantSets) {
         $index++
-        $lists = & python (Join-Path $toolsRoot 'tests\test_idle_freeze_contract.py') --list $Entry.Relative "$root\meters$index.txt" "$root\measures$index.txt" 'IdlePauseMinutes=5' @set 2>&1
+        $lists = & python (Join-Path $toolsRoot 'tests\test_idle_freeze_contract.py') --list $Entry.Relative "$Root\meters$Suffix$index.txt" "$Root\measures$Suffix$index.txt" 'IdlePauseMinutes=5' @set 2>&1
         if ($LASTEXITCODE -ne 0) { throw "Static list failed: $lists" }
         Write-Host "     $lists $($set -join ' ')"
-        foreach ($name in [IO.File]::ReadAllLines("$root\meters$index.txt")) { if ($name -and -not $meterNames.Contains($name)) { $meterNames.Add($name) } }
-        foreach ($name in [IO.File]::ReadAllLines("$root\measures$index.txt")) { if ($name -and -not $measureNames.Contains($name)) { $measureNames.Add($name) } }
+        foreach ($name in [IO.File]::ReadAllLines("$Root\meters$Suffix$index.txt")) { if ($name -and -not $meterNames.Contains($name)) { $meterNames.Add($name) } }
+        foreach ($name in [IO.File]::ReadAllLines("$Root\measures$Suffix$index.txt")) { if ($name -and -not $measureNames.Contains($name)) { $measureNames.Add($name) } }
     }
-    [IO.File]::WriteAllLines("$root\meters.txt", $meterNames)
-    [IO.File]::WriteAllLines("$root\measures.txt", $measureNames)
-    $entryPath = Join-Path $target ($Entry.Config.Substring('Parallax\'.Length) + '\' + $Entry.File)
+    [IO.File]::WriteAllLines("$Root\meters$Suffix.txt", $meterNames)
+    [IO.File]::WriteAllLines("$Root\measures$Suffix.txt", $measureNames)
+    $entryPath = Join-Path $Target ($Entry.Config.Substring('Parallax\'.Length) + '\' + $Entry.File)
     $default = '1'
     $entryText = [IO.File]::ReadAllText($entryPath)
     $match = [regex]::Match($entryText, '(?m)^DefaultUpdateDivider=([^\r\n]*)')
     if ($match.Success) { $default = $match.Groups[1].Value }
-    Copy-Item -LiteralPath (Join-Path $PSScriptRoot 'DividerProbe.lua') -Destination "$root\DividerProbe.lua"
-    $entryText = $entryText.TrimEnd() + "`r`n`r`n[MeasureParallaxDividerProbe]`r`nMeasure=Script`r`nScriptFile=$root\DividerProbe.lua`r`nUpdateDivider=1`r`nProbeMeters=$root\meters.txt`r`nProbeMeasures=$root\measures.txt`r`nProbeLog=$root\probe.log`r`nProbeDefault=$default`r`nProbeTexts=$($Entry.Texts)`r`nProbeVariable=$($Entry.Variable)`r`n"
+    Copy-Item -LiteralPath (Join-Path $PSScriptRoot 'DividerProbe.lua') -Destination "$Root\DividerProbe.lua" -Force
+    $entryText = $entryText.TrimEnd() + "`r`n`r`n[MeasureParallaxDividerProbe]`r`nMeasure=Script`r`nScriptFile=$Root\DividerProbe.lua`r`nUpdateDivider=1`r`nProbeMeters=$Root\meters$Suffix.txt`r`nProbeMeasures=$Root\measures$Suffix.txt`r`nProbeLog=$Root\probe$Suffix.log`r`nProbeDefault=$default`r`nProbeTexts=$($Entry.Texts)`r`nProbeVariable=$($Entry.Variable)`r`n"
     [IO.File]::WriteAllText($entryPath, $entryText, $encoding)
-    Put $root "$root\idle.txt" '0'
-    Put $root "$root\Driver.lua" $driverLua
-    Put $root "$target\ADriver\Driver.ini" "[Rainmeter]`r`nUpdate=100`r`n`r`n[Variables]`r`nCommandFile=$root\cmd.txt`r`nDriverLog=$root\driver.log`r`nIdleFile=$root\idle.txt`r`n`r`n[MeasureDriver]`r`nMeasure=Script`r`nScriptFile=$root\Driver.lua`r`n`r`n[MeterBounds]`r`nMeter=Image`r`nW=1`r`nH=1`r`nSolidColor=0,0,0,1`r`nUpdateDivider=-1`r`n"
-    $folder = Split-Path -Parent $entryPath
+    return "$Root\probe$Suffix.log"
+}
+# One staged instance: the target skin, the coordinator (started by the join)
+# and the driver.
+function New-StandDownRun($Entry, [string]$LayoutName) {
+    $root = New-Root
+    $target = Copy-Skin $root
+    Set-StandDownStage $root $target $LayoutName
+    if ($Entry.Prepare) { & $Entry.Prepare $root $target }
+    $probe = Add-StandDownProbe $root $target $Entry
+    $folder = Join-Path $target $Entry.Config.Substring('Parallax\'.Length)
     Write-Settings $root @([pscustomobject]@{ Name = $Entry.Config; Active = (Get-ActiveIndex $folder $Entry.File) }, [pscustomobject]@{ Name = 'Parallax\ADriver'; Active = 1 })
-    return [pscustomobject]@{ Root = $root; Target = $target; Probe = "$root\probe.log"; Driver = "$root\driver.log"; Entry = $Entry; Layout = $LayoutName; Sequence = 0 }
+    return [pscustomobject]@{ Root = $root; Target = $target; Probe = $probe; Driver = "$root\driver.log"; Entry = $Entry; Layout = $LayoutName; Sequence = 0 }
 }
 function Send($Run, [string]$Command) {
     $Run.Sequence++
@@ -710,6 +735,177 @@ function Invoke-StandDown($Entry, [string]$LayoutName, [bool]$Full) {
     }
 }
 
+# The longest gap between consecutive ticks of one probe (a 1 s skin) within
+# 4 s after a clock: how long Rainmeter's thread was blocked.
+function Get-LongestBlock([string]$Probe, [double]$After) {
+    $ticks = @(Read-Probe $Probe | Where-Object { $_.Kind -eq 'V' -and $_.Clock -ge $After - 1 -and $_.Clock -le $After + 4 } | ForEach-Object Clock)
+    $longest = 0.0
+    for ($i = 1; $i -lt $ticks.Count; $i++) { $longest = [math]::Max($longest, $ticks[$i] - $ticks[$i - 1]) }
+    return $longest
+}
+function Invoke-Combined([string]$LayoutName, [bool]$AtStart) {
+    $keys = @('Chronometer', 'RAM', 'GPU', 'CPU', 'IO', 'Network', 'Media', 'Queue', 'Visualizer')
+    if ($Skin.Count) { $keys = @($Skin | Where-Object { $_ -ne 'Setup' }) }
+    foreach ($key in $keys) { if (-not $skins.Contains($key)) { throw "Unknown skin '$key'." } }
+    Write-Output "--- combined $LayoutName`: $($keys -join ', '); coordinator $(if ($AtStart) { 'active at start' } else { 'started by the first join' })"
+    $root = New-Root
+    $target = Copy-Skin $root
+    Set-StandDownStage $root $target $LayoutName
+    & $mediaPrepare $root $target
+    $control = [pscustomobject]@{ Root = $root; Target = $target; Driver = "$root\driver.log"; Sequence = 0 }
+    $runs = [ordered]@{}
+    $configs = [Collections.Generic.List[object]]::new()
+    foreach ($key in $keys) {
+        $entry = $skins[$key]
+        $probe = Add-StandDownProbe $root $target $entry "-$key"
+        $runs[$key] = [pscustomobject]@{ Root = $root; Target = $target; Probe = $probe; Entry = $entry }
+        $folder = Join-Path $target $entry.Config.Substring('Parallax\'.Length)
+        $configs.Add([pscustomobject]@{ Name = $entry.Config; Active = (Get-ActiveIndex $folder $entry.File) })
+    }
+    if ($AtStart) { $configs.Add([pscustomobject]@{ Name = 'Parallax\Idle'; Active = 1 }) }
+    $configs.Add([pscustomobject]@{ Name = 'Parallax\ADriver'; Active = 1 })
+    Write-Settings $root $configs
+    # One Rainmeter thread runs every skin's enter or leave and both standby
+    # reloads back to back, so no skin can be faster than the slowest one: each
+    # skin's bound here is the slowest skin's single-run bound. The longest gap
+    # between one probe's ticks around each step (the main-thread block) is
+    # reported.
+    $combinedBound = 0.5 + (@($keys | ForEach-Object { $skins[$_].Tick }) | Measure-Object -Maximum).Maximum + 0.4
+    $hostMarkers = [ordered]@{}
+    foreach ($pair in @(@('RAM', 'ParallaxRamPageFile'), @('GPU', 'ParallaxGpuTemperature'))) { if ($keys -contains $pair[0]) { $hostMarkers[$pair[0]] = $pair[1] } }
+    $reloads = [ordered]@{ Coordinator = 'Parallax\\Idle\\Idle\.ini: Refreshing skin' }
+    if ($keys -contains 'Media') { $reloads['Media'] = 'Parallax\\Media\\Media\.ini: Refreshing skin' }
+    if ($keys -contains 'Visualizer') { $reloads['Visualizer'] = 'Parallax\\Visualizer\\Visualizer\.ini: Refreshing skin' }
+    $capture = $keys -contains 'Visualizer'
+    $process = $null
+    try {
+        $process = Start-Run $root
+        $started = [Diagnostics.Stopwatch]::StartNew()
+        foreach ($key in $keys) {
+            $left = [math]::Max(1000, 120000 - [int]$started.ElapsedMilliseconds)
+            $sync = Wait-Record $runs[$key] 'Y' 0 $left
+            Check ($null -ne $sync) "combined $key`: the hook joined and synced"
+        }
+        Write-Output ("     all synced {0:N1} s after the start" -f ($started.ElapsedMilliseconds / 1000))
+        Start-Sleep -Seconds 3
+        $baseline = @{}
+        foreach ($key in $keys) { $null = Send $control "snap $($runs[$key].Entry.Config) baseline" }
+        Start-Sleep -Milliseconds 800
+        foreach ($key in $keys) {
+            $baseline[$key] = Get-Snapshot (Read-Probe $runs[$key].Probe) 'baseline'
+            Check ($null -ne $baseline[$key] -and $baseline[$key].Dividers.Count -gt 0) "combined $key`: baseline snapshot of $(if ($baseline[$key]) { $baseline[$key].Dividers.Count } else { 0 }) meters"
+        }
+        $hosts = @{}
+        foreach ($name in $hostMarkers.Keys) {
+            $hosts[$name] = @(Get-RunHosts $process $hostMarkers[$name] | Where-Object { Get-Process -Id $_.Id -ErrorAction SilentlyContinue })
+            Check ($hosts[$name].Count -ge 1) "combined $name`: a host is running before the pause ($($hosts[$name].Count))"
+        }
+        $sessionsLive = Get-ActiveSessions $process
+        Write-Output "     active render sessions before the pause: $sessionsLive"
+        if ($capture) { Check ($sessionsLive -ge 1) 'combined: the live capture has a render session before the pause' }
+
+        # Loads before the pause (Media also reloads once to defer its drawer
+        # when the standalone Visualizer loads after it in the walk).
+        $reloadBase = @{}
+        foreach ($name in $reloads.Keys) { $reloadBase[$name] = Get-RefreshCount $root $reloads[$name] }
+        $displayBefore = Get-DisplayEvents $root
+        $written = Send $control 'idle 10'
+        $enter = @{}
+        foreach ($key in $keys) {
+            $bound = $combinedBound
+            $enter[$key] = Wait-Hidden $runs[$key] '0' $written 20000
+            $latency = if ($enter[$key]) { $enter[$key].Clock - $written } else { [double]::NaN }
+            Write-Output ("     {0} enter: {1:N3} s (bound {2:N1} s)" -f $key, $latency, $bound)
+            Check-Bound ($null -ne $enter[$key]) ($latency -le $bound) ((Get-DisplayEvents $root) - $displayBefore) "combined $key`: enter within a coordinator tick plus the slowest skin's tick"
+        }
+        Write-Output ("     enter: longest main-thread block {0:N2} s" -f (Get-LongestBlock $runs[$keys[0]].Probe $written))
+        Start-Sleep -Milliseconds 4000
+        foreach ($key in $keys) {
+            if ($null -eq $enter[$key]) { continue }
+            $records = Read-Probe $runs[$key].Probe
+            $snapshot = Get-Snapshot $records 'enter' $enter[$key].Clock
+            $notFrozen = @(if ($snapshot) { $snapshot.Dividers.Keys | Where-Object { $snapshot.Dividers[$_] -ne '-1' -and $snapshot.Dividers[$_] -ne 'missing' } })
+            Check ($null -ne $snapshot -and $notFrozen.Count -eq 0) "combined $key`: every meter resolves to UpdateDivider -1 while paused ($(if ($snapshot) { $snapshot.Dividers.Count } else { 0 }) meters$(if ($notFrozen.Count) { '; not frozen: ' + (($notFrozen | Select-Object -First 8) -join ', ') }))"
+            $window = @($records | Where-Object { $_.Kind -eq 'V' -and $_.Clock -ge $enter[$key].Clock + 0.5 -and $_.Clock -le $enter[$key].Clock + 3.5 })
+            $moved = @($window | Where-Object { [int]$_.Rest[2] -ne 0 })
+            $digests = @($window | ForEach-Object { $_.Rest[1] } | Select-Object -Unique)
+            Check-Bound ($moved.Count -eq 0 -and $digests.Count -le 1) ($window.Count -ge 2) ((Get-DisplayEvents $root) - $displayBefore) "combined $key`: paused measure values stay constant for 3 s ($($window.Count) ticks, $($digests.Count) distinct digest)"
+        }
+        foreach ($name in $hostMarkers.Keys) {
+            $running = @(Get-RunHosts $process $hostMarkers[$name] | Where-Object { Get-Process -Id $_.Id -ErrorAction SilentlyContinue })
+            Check ($running.Count -eq 0) "combined $name`: no host runs while paused"
+        }
+        $sessionsPaused = Get-ActiveSessions $process
+        Write-Output "     active render sessions while paused: $sessionsPaused"
+        Check ($sessionsPaused -eq 0) 'combined: no active render session while paused'
+        if ($OutDir) {
+            $null = New-Item -ItemType Directory -Path $OutDir -Force
+            foreach ($key in $keys) {
+                $window = @(Find-Window $process $runs[$key].Entry.Config)
+                if ($window.Count) { Save-Capture $window[0] (Join-Path $OutDir ("combined-{0}-{1}-paused.png" -f $key, $LayoutName)) }
+            }
+        }
+
+        $displayBefore = Get-DisplayEvents $root
+        $resumedAt = Send $control 'idle 0'
+        $leave = @{}
+        foreach ($key in $keys) {
+            $bound = $combinedBound
+            $leave[$key] = Wait-Hidden $runs[$key] '1' $resumedAt 20000
+            $latency = if ($leave[$key]) { $leave[$key].Clock - $resumedAt } else { [double]::NaN }
+            Write-Output ("     {0} leave: {1:N3} s" -f $key, $latency)
+            Check-Bound ($null -ne $leave[$key]) ($latency -le $bound) ((Get-DisplayEvents $root) - $displayBefore) "combined $key`: leave within a coordinator tick plus the slowest skin's tick"
+        }
+        Write-Output ("     leave: longest main-thread block {0:N2} s" -f (Get-LongestBlock $runs[$keys[0]].Probe $resumedAt))
+        Start-Sleep -Seconds 3
+        foreach ($key in $keys) {
+            if ($null -eq $leave[$key] -or $null -eq $baseline[$key]) { continue }
+            $records = Read-Probe $runs[$key].Probe
+            $after = Get-Snapshot $records 'live' $leave[$key].Clock
+            $differ = @(if ($after) { $baseline[$key].Dividers.Keys | Where-Object { $after.Dividers[$_] -ne $baseline[$key].Dividers[$_] } })
+            Check ($null -ne $after -and $differ.Count -eq 0) "combined $key`: every meter's divider equals its pre-enter snapshot after leave$(if ($differ.Count) { '; differ: ' + (($differ | Select-Object -First 8 | ForEach-Object { "$_ $($baseline[$key].Dividers[$_])->$($after.Dividers[$_])" }) -join ', ') })"
+            $resumed = @($records | Where-Object { $_.Kind -eq 'V' -and $_.Clock -ge $leave[$key].Clock -and [int]$_.Rest[2] -gt 0 })
+            # Media's drawer defers to the standalone Visualizer here, so its
+            # paused measures are the provider fixtures, which never change.
+            if ($runs[$key].Entry.StaticValues -or $key -eq 'Media') { Write-Output "     $key`: $($resumed.Count) ticks with changed values after leave (fixtures only; not checked)" }
+            else { Check ($resumed.Count -gt 0) "combined $key`: measure values move again after leave ($($resumed.Count) ticks)" }
+        }
+        foreach ($name in $hostMarkers.Keys) {
+            $old = @($hosts[$name] | ForEach-Object Id)
+            $one = Wait-Until { @(Get-RunHosts $process $hostMarkers[$name] | Where-Object { (Get-Process -Id $_.Id -ErrorAction SilentlyContinue) -and $_.Id -notin $old }).Count -ge 1 } 30000
+            Start-Sleep -Seconds 1
+            $after = @(Get-RunHosts $process $hostMarkers[$name] | Where-Object { Get-Process -Id $_.Id -ErrorAction SilentlyContinue })
+            Write-Output ("     {0}: a new host {1} ms after the resume; running now: {2}" -f $name, $one, $after.Count)
+            Check ($one -ge 0 -and $after.Count -eq 1 -and @($after | Where-Object { $_.Id -in $old }).Count -eq 0) "combined $name`: exactly one new host after the resume"
+        }
+        $sessionsBack = Get-ActiveSessions $process
+        Write-Output "     active render sessions after the resume: $sessionsBack"
+        if ($capture) { Check ($sessionsBack -ge 1) 'combined: the live capture''s render session is back after the resume' }
+        foreach ($name in $reloads.Keys) {
+            $count = Get-RefreshCount $root $reloads[$name]
+            $during = $count - $reloadBase[$name]
+            Write-Output "     $name loads: $($reloadBase[$name]) before the pause, $during during pause and resume"
+            if ($name -eq 'Coordinator') { Check ($count -eq 1) 'combined: the coordinator loaded exactly once in the whole run' }
+            else { Check ($during -eq 2) "combined $name`: exactly two reloads for the pause and the resume (standby, back)" }
+        }
+    } finally {
+        if ($null -ne $process) {
+            try { $null = Send $control 'quit' } catch { }
+            if (-not $process.WaitForExit(15000)) { Stop-Run $process }
+        }
+        $display = Get-DisplayEvents $root
+        if ($display) { Write-Output "     note: Windows reported $display display/work-area change(s); Rainmeter's timers can stall then." }
+        $issues = @(Get-LogIssues $root)
+        $issues | Select-Object -First 12 | ForEach-Object { Write-Output "     log: $_" }
+        Check ($issues.Count -eq 0) "combined $LayoutName`: Rainmeter logged no error or warning"
+        Write-Output "     evidence: $root"
+    }
+}
+
+if ($Combined) {
+    foreach ($layoutName in $Layout) { Invoke-Combined $layoutName ([bool]$CoordinatorAtStart) }
+}
+
 if ($Suite) {
     Write-Output '--- StandDownSuite inside Rainmeter'
     $root = New-Root
@@ -730,7 +926,8 @@ if ($Suite) {
     Check ($issues.Count -eq 0) 'Rainmeter logged no error or warning'
 }
 
-foreach ($key in $Skin) {
+# With -Combined, -Skin chooses the combined run's skins instead.
+foreach ($key in $(if ($Combined) { @() } else { $Skin })) {
     if (-not $skins.Contains($key)) { throw "Unknown skin '$key'. Registered: $(@($skins.Keys) -join ', ')" }
     $entry = $skins[$key]
     $first = $true

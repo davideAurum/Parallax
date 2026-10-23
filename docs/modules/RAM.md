@@ -164,6 +164,8 @@ The overview reports unavailable inventory explicitly. PAGE has the provider sta
 
 **Not verified:** a Top processes toggle in a live, interactive session (the refresh is asserted from source; the native harness does not click it); CPU cost (left to step 3).
 
+**DynamicVariables guard, 2026-10-23 (package B2 step 3).** None of the five ranks has `DynamicVariables`, nor did they at the review baseline, so nothing needed removing; with it, every update would re-run UsageMonitor's `Reload` and re-register the Process category. `Validate-RAM.ps1` now rejects it on the ranks and in `Process.lua` (98,865 assertions; a mutation check adding it to one rank failed as expected).
+
 **Why live PAGE stayed Unavailable with no host, and the fix, 2026-10-23 (performance package B1, step 4).** The owner's Memory Meter showed `PAGE: Unavailable` while no PAGE host ran, after about 19-24 h of uptime (2026-10-22).
 
 - **Cause found in code and reproduced in isolation.** Every PAGE failure was terminal. The host ends itself when its lease is older than 15 s, and only the skin's `Update` renews the lease. Anything that stops RAM's updates for more than 15 s therefore ends the host for good: a suspended or long-blocked Rainmeter main thread (for example a long skin load or refresh), or a sleep after which the host wakes and reads the old lease before the skin renews it. The controller then saw the host gone (RunCommand status 1 before B1; no samples now), cleaned up, and stayed `failed` with no retry. On the base commit `191a1cd`, suspending an isolated Rainmeter for 20 s made the host exit at its lease window, and for all 44 updates after resume PAGE read Unavailable with RunCommand status 1 and no PAGE host process: the owner's symptom.

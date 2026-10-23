@@ -154,8 +154,12 @@ foreach ($rank in 1..5) {
     Assert-RAM ($provider.Plugin -eq 'UsageMonitor' -and $provider.Alias -eq 'RAM') 'Process ranks must use bundled private-working-set counters.'
     Assert-RAM ($provider.Index -eq [string]$rank -and $provider.Rollup -eq '1' -and $provider.Percent -eq '0') 'Process ranks must retain descending name rollups in bytes.'
     Assert-RAM ($provider.UpdateDivider -eq '1') 'Process rank cadence must follow MetricsInterval.'
+    # B2 step 3 (ENGINE-05 / XMOD-07): DynamicVariables would re-run the
+    # plugin's Reload, re-registering the Process category, on every update.
+    Assert-RAM (-not $provider.ContainsKey('DynamicVariables')) 'UsageMonitor ranks must not re-read their options every update.'
 }
 Assert-RAM ($measures.MeasureRAMProcessView.ScriptFile -eq '#@#Modules\RAM\Process.lua') 'Missing cached process table controller.'
+Assert-RAM ((Get-Content -LiteralPath (Join-Path $PSScriptRoot 'Process.lua') -Raw) -notmatch 'DynamicVariables') 'The process controller must never turn on DynamicVariables at runtime.'
 Assert-RAM ($includeValues -notcontains '#@#Modules\RAM\SettingsMeters.inc') 'Settings controls must not overlay the RAM meter.'
 Assert-RAM ($settingsEntry.Rainmeter.Update -eq '-1') 'Settings utility must not poll.'
 Assert-RAM ($settingsEntry.Rainmeter.Group -eq 'Parallax') 'Settings utility must participate in shared appearance refreshes.'

@@ -350,6 +350,13 @@ usage_monitor = {name: opts for name, opts in sections.items() if opts.get("Plug
 expected_monitor = ({"MeasureGPUActivity", *(f"MeasureGPUProcess{i}" for i in range(2, 6))} if TABLE else set()) | (
     {f"MeasureGPUProcessMemory{i}" for i in range(1, 6)} if MEMORY else set())
 assert set(usage_monitor) == expected_monitor, sorted(usage_monitor)
+# B2 step 3 (ENGINE-05 / XMOD-07): DynamicVariables on a UsageMonitor measure
+# re-reads its options, and so calls the plugin's Reload (re-registering its
+# category), on every update, disabled or not. ProcessGraph.lua's !SetOption
+# Name already forces the one re-read a rebinding needs, so none may have it,
+# and no controller may turn it on at runtime.
+assert not [name for name in usage_monitor if "DynamicVariables" in sections[name]], "UsageMonitor with DynamicVariables"
+assert "DynamicVariables" not in (GPU_DIR / "ProcessGraph.lua").read_text(encoding="utf-8")
 for name in usage_monitor:
     assert (GPU_DIR / ("ProcessMemoryMeasures1.inc" if "Memory" in name else "ProcessMeasures1.inc")).read_text(
         encoding="utf-8-sig").count(f"[{name}]") == 1, name

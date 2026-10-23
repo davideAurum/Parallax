@@ -369,6 +369,41 @@ function Suite.run(Core, Connection, fixtures)
         equal(mock.reads.MeasureNetworkAlias, 1)
     end)
 
+    test('controller re-derives the view only on connection bank or Wi-Fi ticks', function()
+        local connection = sections(fixtures.moduleRoot .. '\\ConnectionMeasures.inc')
+        local options = connection.MeasureConnectionController
+        local bank, radio = tonumber(options.BankDivider), tonumber(options.WiFiDivider)
+        truth(radio and radio >= 1, 'controller must declare its Wi-Fi divider')
+        for _, suffix in ipairs(wifiNames) do
+            equal(tonumber(connection['MeasureConnectionWiFi' .. suffix].UpdateDivider), radio,
+                'Wi-Fi ' .. suffix .. ' must update on the controller Wi-Fi ticks')
+        end
+        local function schedule(overrides, last)
+            local mock = controller(overrides)
+            mock.dimensions.BankDivider, mock.dimensions.WiFiDivider = bank, radio
+            mock.environment.Initialize()
+            local worked = {}
+            for t = 0, last do
+                mock.reads = {}
+                local result = mock:tick()
+                equal(result, mock.latest['MeterConnectionSignalBar:Shape2']:match('^Rectangle') and 1 or 0,
+                    'skipped ticks must keep the measure value')
+                if next(mock.reads) then worked[#worked + 1] = t end
+            end
+            return table.concat(worked, ','), mock
+        end
+        local ticks, mock = schedule(nil, 20)
+        equal(ticks, '0,2,4,5,6,8,10,12,14,15,16,18,20')
+        -- A Wi-Fi update between bank ticks still shows on its own tick (25).
+        for _ = 21, 24 do mock:tick() end
+        mock.wifi.quality = 30
+        mock:tick()
+        equal(mock.latest['MeterConnectionSignal:Text'], '30%')
+        equal(schedule({NetworkWiFiEnabled = '0'}, 9), '0,2,4,6,8', 'disabled Wi-Fi adds no ticks')
+        local everyTick = controller()
+        for _ = 1, 3 do everyTick.reads = {}; everyTick:tick(); truth(next(everyTick.reads) ~= nil, 'default dividers run every tick') end
+    end)
+
     test('metadata controller has no companion width output or persistence action', function()
         local mock = controller({NetworkConnectionColumns = '2'})
         equal(rawget(mock.environment, 'ToggleWidth'), nil)

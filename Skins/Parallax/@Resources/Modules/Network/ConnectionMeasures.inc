@@ -98,6 +98,8 @@ CoreFile=#@#Modules\Network\Core.lua
 ConnectionCoreFile=#@#Modules\Network\ConnectionCore.lua
 SignalWidth=#ContentWidth#
 SignalHeight=#DataBarThicknessPx#
-; Must equal the SysInfo connection bank's UpdateDivider above.
+; Must equal the UpdateDivider of the SysInfo connection bank and of the
+; Wi-Fi measures above: the controller only re-derives the view on their ticks.
 BankDivider=2
+WiFiDivider=5
 UpdateDivider=1

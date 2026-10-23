@@ -1,6 +1,6 @@
 -- Connection presentation only: native measures own every reported value.
 local Core, Connection, config, cache
-local ticks, bankDivider, identity
+local ticks, bankDivider, wifiDivider, identity, lastResult
 local wifiNames = {'SSID', 'Quality', 'PHY', 'Rx', 'Tx'}
 
 local function variable(key, default) return SKIN:GetVariable(key, default) end
@@ -37,9 +37,11 @@ function Initialize()
     Connection = dofile(SELF:GetOption('ConnectionCoreFile'))
     config = Connection.configureWifi(variable('NetworkWiFiEnabled', '1'), variable('NetworkWiFiInterface', '0'))
     cache = {}
-    -- The SysInfo connection bank updates on the first tick, then every
-    -- BankDivider ticks; this controller runs every tick from the first.
-    ticks, bankDivider, identity = -1, divider('BankDivider'), nil
+    -- The SysInfo connection bank and the enabled Wi-Fi measures update on
+    -- the first tick, then every BankDivider / WiFiDivider ticks; this
+    -- controller runs every tick from the first.
+    ticks, bankDivider, wifiDivider = -1, divider('BankDivider'), divider('WiFiDivider')
+    identity, lastResult = nil, nil
     for _, suffix in ipairs(wifiNames) do
         local measure = 'MeasureConnectionWiFi' .. suffix
         SKIN:Bang('!SetOption', measure, 'WiFiIntfID', tostring(config.index))
@@ -50,7 +52,14 @@ end
 
 function Update()
     ticks = ticks + 1
-    if not identity or ticks % bankDivider == 0 then
+    local bankTick = ticks % bankDivider == 0
+    -- Every value this section shows comes from the connection bank or the
+    -- Wi-Fi measures. On a tick where neither updated, the view cannot have
+    -- changed: keep it, and the measure value, instead of re-deriving both.
+    if lastResult ~= nil and not bankTick and not (config.enabled and ticks % wifiDivider == 0) then
+        return lastResult
+    end
+    if not identity or bankTick then
         -- Adapter identity comes from Network's per-second traffic bank, which
         -- uses the same selector. Sample it only on this bank's ticks so the
         -- identity, addresses and link rates shown together are one snapshot,
@@ -91,5 +100,6 @@ function Update()
         and ('Rectangle 0,0,' .. string.format('%.3f', width * view.signalPercent / 100) .. ',' .. tostring(height)
             .. ' | Fill Color ' .. variable(view.signalColor, '137,190,250') .. ' | StrokeWidth 0')
         or 'Line 0,0,0,0 | StrokeWidth 0')
-    return view.signalPercent ~= nil and 1 or 0
+    lastResult = view.signalPercent ~= nil and 1 or 0
+    return lastResult
 end

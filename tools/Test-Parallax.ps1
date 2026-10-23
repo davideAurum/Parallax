@@ -3,7 +3,14 @@
 param(
     [string]$SkinRoot = (Join-Path $PSScriptRoot '..\Skins\Parallax'),
     [switch]$RequireAllModules,
-    [switch]$WarningsAsErrors
+    [switch]$WarningsAsErrors,
+    # Validates one include variant: each 'Name=Value' pins that variable for
+    # every config, as if the user's saved file said so, whatever the shipped
+    # files assign. It applies wherever this validator expands variables:
+    # @Include paths (so VisualizerDrawer=2 checks VisualizerDrawer2.inc),
+    # MeasureName/MeterStyle references and ScriptFile paths. Pass several as
+    # an array: -Variable 'VisualizerDrawer=2','MediaDrawerCapture=1'.
+    [string[]]$Variable = @()
 )
 Set-StrictMode -Version Latest
 $ErrorActionPreference = 'Stop'
@@ -11,6 +18,11 @@ Import-Module (Join-Path $PSScriptRoot 'Parallax.Build.psm1') -Force
 $SkinRoot = (Get-Item -LiteralPath $SkinRoot).FullName
 $issues = [Collections.Generic.List[object]]::new()
 $cache = @{}
+$overrides = [ordered]@{}
+foreach ($assignment in $Variable) {
+    if ($assignment -notmatch '^\s*([A-Za-z_@][\w.@-]*)\s*=(.*)$') { throw "-Variable expects Name=Value, not '$assignment'." }
+    $overrides[$Matches[1]] = $Matches[2]
+}
 function Add-Issue([string]$Level, [string]$File, [int]$Line, [string]$Message) {
     $issues.Add([pscustomobject]@{ Level = $Level; File = $File; Line = $Line; Message = $Message })
 }
@@ -85,7 +97,11 @@ function Visit-Ini([string]$Path, [hashtable]$State) {
             $entry = $section.Keys[$key]
             if ($key -notlike '@Include*') {
                 $State.Sections[$section.Name].Keys[$key] = $entry
-                if ($section.Name -ieq 'Variables') { $State.Variables[$key] = $entry.Value }
+                if ($section.Name -ieq 'Variables') {
+                    $State.Variables[$key] = $entry.Value
+                    # A -Variable override outlasts every file assignment.
+                    if ($overrides.Contains($key)) { $State.Variables[$key] = $overrides[$key] }
+                }
                 continue
             }
             $target = Expand-PathVariables $entry.Value.Trim('"') $State.Variables
@@ -141,6 +157,7 @@ foreach ($config in $configs) {
             ROOTCONFIG = 'Parallax'
         }
     }
+    foreach ($name in $overrides.Keys) { $state.Variables[$name] = $overrides[$name] }
     Visit-Ini $config.FullName $state
     if (-not $state.Sections.ContainsKey('Rainmeter')) { Add-Issue 'Error' $config.FullName 0 'Parallax configs require a [Rainmeter] section.' }
     if (-not $state.Sections.ContainsKey('Metadata')) { Add-Issue 'Warning' $config.FullName 0 'Release configs should contain [Metadata].' }
@@ -231,6 +248,8 @@ foreach ($issue in $uniqueIssues) {
 }
 $errors = @($uniqueIssues | Where-Object Level -eq 'Error').Count
 $warnings = @($uniqueIssues | Where-Object Level -eq 'Warning').Count
-Write-Host "Static validation: $($configs.Count) config(s), $($cache.Count) INI/include file(s), $errors error(s), $warnings warning(s). Runtime behavior is not validated."
+$variantText = ''
+if ($overrides.Count) { $variantText = ' Variant: ' + (@($overrides.Keys | ForEach-Object { "$_=$($overrides[$_])" }) -join ', ') + '.' }
+Write-Host "Static validation: $($configs.Count) config(s), $($cache.Count) INI/include file(s), $errors error(s), $warnings warning(s).$variantText Runtime behavior is not validated."
 if ($errors -gt 0 -or ($WarningsAsErrors -and $warnings -gt 0)) { throw 'Parallax static validation failed.' }
-[pscustomobject]@{ Configs = $configs.Count; Files = $cache.Count; Errors = $errors; Warnings = $warnings }
+[pscustomobject]@{ Configs = $configs.Count; Files = $cache.Count; Errors = $errors; Warnings = $warnings; Variables = @($overrides.Keys | ForEach-Object { "$_=$($overrides[$_])" }) }

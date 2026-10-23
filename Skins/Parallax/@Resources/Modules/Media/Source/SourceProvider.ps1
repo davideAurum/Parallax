@@ -193,6 +193,16 @@ function Enter-SourceMutex {
     catch [Threading.AbandonedMutexException] { return $true }
 }
 
+# A passive probe: true while another worker holds this root's worker mutex.
+function Test-SourceWorkerRunning {
+    param([string]$Root)
+    $mutex = New-SourceMutex $Root
+    try {
+        if (-not (Enter-SourceMutex $mutex)) { return $true }
+        $mutex.ReleaseMutex(); return $false
+    } finally { $mutex.Dispose() }
+}
+
 function Get-SourceKind {
     param([string]$AppId)
     foreach ($known in @('Spotify.exe','Spotify','SpotifyAB.SpotifyMusic_zpdnekdrzrea0!Spotify')) {
@@ -603,6 +613,11 @@ function Invoke-SourceCommand {
         # A load-time resume check must not create private runtime storage for
         # a user who has never enabled source detection.
         if (-not (Test-SourceEnabledIntent $candidate) -or (Test-SourceStop $candidate)) { return }
+        # A running worker set up its storage when it started. Probe it before
+        # Initialize-SourceStorage rewrites the directory and file ACLs on every
+        # Media refresh. Start-SourceObserver probes again under the control
+        # mutex, so the outcome is the one it would have reached anyway.
+        if (Test-SourceWorkerRunning $candidate) { return }
     }
     $root = Initialize-SourceStorage $Path
     switch ($Action) {

@@ -474,6 +474,10 @@ public sealed class ParallaxSourceTestMutexHolder : IDisposable {
 }
 '@
 $holder=New-Object ParallaxSourceTestMutexHolder((Get-SourceMutexName $root))
+# Counts storage initializations (directory and file ACL rewrites).
+$savedInitialize=(Get-Item Function:\Initialize-SourceStorage).ScriptBlock
+$initializeState=[pscustomobject]@{Calls=0}
+function Initialize-SourceStorage { param([string]$Path) $initializeState.Calls++; & $savedInitialize $Path }
 try {
     Assert-Test ($holder.Acquired.WaitOne(5000)) 'Synthetic mutex holder did not acquire ownership.'
     $before=$script:SourceTestCollections
@@ -494,7 +498,18 @@ try {
     # MEDIA-08: the owner-lease walk happens only once no worker holds the mutex.
     Assert-Test ($leaseState.Calls -eq 0) "Start or Resume beside an active worker walked the owner lease $($leaseState.Calls) times."
     Assert-Test ($script:SourceTestCollections -eq $before) 'Resume collected synchronously beside an active worker.'
+    # ...and a Resume command beside a running worker leaves its storage ACLs alone.
+    $initializeState.Calls=0
+    Invoke-SourceCommand 'Resume' $root
+    Invoke-SourceCommand 'Resume' $root
+    Assert-Test ($initializeState.Calls -eq 0 -and $script:SourceTestLaunches.Count -eq $beforeLaunches) 'Resume beside an active worker rewrote storage ACLs or launched.'
 } finally { $holder.Dispose() }
+try {
+    # With no worker, Resume initializes storage and launches exactly as before.
+    $initializeState.Calls=0; $beforeLaunches=$script:SourceTestLaunches.Count
+    Invoke-SourceCommand 'Resume' $root
+    Assert-Test ($initializeState.Calls -eq 1 -and $script:SourceTestLaunches.Count -eq ($beforeLaunches+1)) 'Resume without a worker did not initialize storage and launch once.'
+} finally { Set-Item Function:\Initialize-SourceStorage $savedInitialize }
 
 # Inspect an explicit Start while holding its child launch for later execution.
 $script:SourceTestLaunches=@()

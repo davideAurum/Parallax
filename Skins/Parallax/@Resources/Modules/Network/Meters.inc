@@ -117,8 +117,8 @@ W=#ContentWidth#
 H=(#NetworkGraphHeight#*#Scale#)
 Shape=Rectangle 0,0,#ContentWidth#,(#NetworkGraphHeight#*#Scale#) | Fill Color 0,0,0,0 | StrokeWidth 0
 Shape2=Path History | Stroke Color #NetworkInColor# | StrokeWidth #Scale# | Fill Color 0,0,0,0
+; Network.lua's !SetOption of History/Shape2 forces a one-shot re-read on change.
 History=1,1 | LineTo 1,1
-DynamicVariables=1
 AntiAlias=1
 
 [MeterNetworkOutLabel]
@@ -171,8 +171,8 @@ W=#ContentWidth#
 H=(#NetworkGraphHeight#*#Scale#)
 Shape=Rectangle 0,0,#ContentWidth#,(#NetworkGraphHeight#*#Scale#) | Fill Color 0,0,0,0 | StrokeWidth 0
 Shape2=Path History | Stroke Color #NetworkOutColor# | StrokeWidth #Scale# | Fill Color 0,0,0,0
+; Network.lua's !SetOption of History/Shape2 forces a one-shot re-read on change.
 History=1,1 | LineTo 1,1
-DynamicVariables=1
 AntiAlias=1
 
 [MeterNetworkFooter]

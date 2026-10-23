@@ -144,8 +144,9 @@ Y=(#Inset#+218*#Scale#)
 W=#ContentWidth#
 H=#DataBarThicknessPx#
 Shape=Rectangle 0,0,#ContentWidth#,#DataBarThicknessPx# | Fill Color #TrackColor# | StrokeWidth 0
+; Connection.lua's !SetOption of Shape2 forces a one-shot re-read when the
+; fill changes; otherwise the shapes are not rebuilt every second.
 Shape2=Line 0,0,0,0 | StrokeWidth 0
-DynamicVariables=1
 
 [MeterConnectionRadio]
 Meter=String

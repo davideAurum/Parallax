@@ -22,24 +22,33 @@ end
 function Display(immediate)
     local frame = cached
     if frame and frame.epoch and not model.Fresh(frame.epoch, os.time(), interval) then frame = nil end
-    local dirty = false
+    local dirty = {}
     local useMB = tonumber(SKIN:GetVariable('RAMUseMiB')) == 1
     local decimals = tonumber(SKIN:GetVariable('RAMDecimals')) or 1
     local ratio = frame and frame.status == 'OK' and frame.total > 0 and frame.used / frame.total or nil
     if set('MeasureRAMPageRatio', 'Formula', string.format('%.15f', ratio or 0)) then
         SKIN:Bang('!UpdateMeasure', 'MeasureRAMPageRatio')
-        dirty = true
+        dirty.MeterRAMPageBar = true
     end
     local showBar = tonumber(SKIN:GetVariable('RAMShowPageBar')) == 1 and ratio ~= nil
-    dirty = set('MeterRAMPageBar', 'Hidden', showBar and '0' or '1') or dirty
+    if set('MeterRAMPageBar', 'Hidden', showBar and '0' or '1') then dirty.MeterRAMPageBar = true end
     for _, entry in ipairs({{'MeterRAMPageGiB', false}, {'MeterRAMPageMiB', true}}) do
-        dirty = set(entry[1], 'Text', model.Format(frame, entry[2], decimals).text) or dirty
-        dirty = set(entry[1], 'Hidden', entry[2] == useMB and '0' or '1') or dirty
+        local text = set(entry[1], 'Text', model.Format(frame, entry[2], decimals).text)
+        local hidden = set(entry[1], 'Hidden', entry[2] == useMB and '0' or '1')
+        if text or hidden then dirty[entry[1]] = true end
     end
-    if dirty and immediate ~= false then
-        for _, name in ipairs(targets) do SKIN:Bang('!UpdateMeter', name) end
-        SKIN:Bang('!Redraw')
+    -- The PAGE meters use UpdateDivider=-1, so a changed option appears only
+    -- after a forced update. Periodic calls (immediate == false) still force
+    -- the changed meters and leave the redraw to the skin's own update cycle;
+    -- out-of-cycle calls from Start, failure and Settings redraw themselves.
+    local changed = false
+    for _, name in ipairs(targets) do
+        if dirty[name] then
+            SKIN:Bang('!UpdateMeter', name)
+            changed = true
+        end
     end
+    if changed and immediate ~= false then SKIN:Bang('!Redraw') end
 end
 
 local function cleanup()

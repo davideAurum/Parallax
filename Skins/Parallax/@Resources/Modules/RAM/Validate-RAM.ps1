@@ -95,6 +95,9 @@ foreach ($name in 'MeterRAMPercent', 'MeterRAMBar', 'MeterRAMHistory') {
 }
 Assert-RAM ($meters.MeterRAMBar.H -eq '#DataBarThicknessPx#') 'RAM capacity bar must inherit shared data-bar thickness.'
 Assert-RAM ($meters.MeterRAMPageBar.H -eq '#DataBarThicknessPx#' -and $meters.MeterRAMPageBar.MeasureName -eq 'MeasureRAMPageRatio') 'PAGE must have its own shared-thickness paging-file ratio bar.'
+foreach ($name in 'MeterRAMPageBar', 'MeterRAMPageGiB', 'MeterRAMPageMiB') {
+    Assert-RAM ($meters[$name].UpdateDivider -eq '-1') "$name changes only through PageFile.lua and must not re-read every update."
+}
 Assert-RAM ($measures.MeasureRAMPageRatio.Measure -eq 'Calc' -and $measures.MeasureRAMPageRatio.UpdateDivider -eq '-1' -and $measures.MeasureRAMPageRatio.MinValue -eq '0' -and $measures.MeasureRAMPageRatio.MaxValue -eq '1') 'PAGE ratio must be an event-only native 0..1 value.'
 Assert-RAM ($geometry.Variables.DataBarThicknessPx -eq '(Max(1,Round(#DataBarThickness#*#Scale#)))') 'Shared bar thickness must round scaled pixels and remain visible.'
 Assert-RAM ($meters.MeterRAMHistory.AutoScale -eq '0') 'History must keep the native full-capacity range.'
@@ -156,6 +159,7 @@ $pageDisplay = [regex]::Match($pageScript,'(?s)function Display\([^)]*\)(.*?)\nl
 $pageProviderDisplay = $pageDisplay.Replace("SKIN:Bang('!UpdateMeasure', 'MeasureRAMPageRatio')", '')
 Assert-RAM ($pageDisplay.Length -gt 0 -and $pageProviderDisplay -notmatch 'io\.|launch\(|!CommandMeasure|!UpdateMeasure') 'PAGE Display may update its cached ratio without provider or session IO.'
 Assert-RAM ($pageScript -notmatch 'MeasureRAMHistory|!UpdateMeterGroup') 'PAGE rendering must not force physical-memory history.'
+Assert-RAM ($pageDisplay.Contains("if dirty[name] then") -and $pageDisplay.Contains("SKIN:Bang('!UpdateMeter', name)") -and $pageDisplay.Contains("if changed and immediate ~= false then SKIN:Bang('!Redraw') end")) 'PAGE Display must force its changed UpdateDivider=-1 meters on every path; only the redraw depends on immediate.'
 $tooltipScripts = @('Display.lua', 'Info.lua', 'PageFile.lua', 'Process.lua', 'Settings.lua' | Where-Object { (Get-Content -LiteralPath (Join-Path $PSScriptRoot $_) -Raw) -match 'ToolTipText' })
 Assert-RAM ($tooltipScripts.Count -eq 0) "RAM controllers must not assign tooltips: $($tooltipScripts -join ', ')"
 foreach ($pair in @(@('Units','RAMUseMiB'), @('Decimals','RAMDecimals'), @('PercentDecimals','RAMPercentDecimals'), @('Bar','RAMShowBar'), @('PageBar','RAMShowPageBar'), @('History','RAMShowHistory'))) {

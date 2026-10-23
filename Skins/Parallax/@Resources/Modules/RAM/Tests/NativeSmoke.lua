@@ -126,9 +126,29 @@ local function checkPageController()
     env.Update()
     check(launches.MeasureRAMPageHost == 1 and files[lease] == token..'|'..now, 'PAGE must start one resident host with its own lease')
     files[path] = 'RAM_PAGE|1|'..token..'|1|'..now..'|OK|3000000000|12000000000|2'
+    local periodicStart = #actions
     env.Update()
     check(options.MeterRAMPageGiB.Text == '3.00/12.00 GB' and options.MeterRAMPageMiB.Text == '3000.00/12000.00 MB', 'Controller lost actual paging-file byte formatting')
     check(ratioValue == 0.25 and options.MeterRAMPageBar.Hidden == '0', 'PAGE bar must use its own paging-file used/allocated ratio')
+    -- PAGE meters use UpdateDivider=-1, so the periodic path must force each
+    -- changed meter itself and leave the redraw to the skin's update cycle.
+    local function meterWork(from)
+        local updates, redraws = {}, 0
+        for index = from + 1, #actions do
+            local action = actions[index]
+            if action[1] == '!UpdateMeter' then updates[action[2]] = (updates[action[2]] or 0) + 1 end
+            if action[1] == '!Redraw' then redraws = redraws + 1 end
+        end
+        return updates, redraws
+    end
+    local periodicUpdates, periodicRedraws = meterWork(periodicStart)
+    check(periodicUpdates.MeterRAMPageGiB == 1 and periodicUpdates.MeterRAMPageMiB == 1 and periodicUpdates.MeterRAMPageBar == 1
+        and periodicRedraws == 0, 'Periodic PAGE data must force each changed event-only meter once, without an extra redraw')
+    local steadyStart = #actions
+    env.Update()
+    local steadyUpdates, steadyRedraws = meterWork(steadyStart)
+    check(next(steadyUpdates) == nil and steadyRedraws == 0 and options.MeterRAMPageGiB.Text == '3.00/12.00 GB',
+        'An unchanged PAGE frame must not force meter updates or redraws')
     local beforeReads, beforeActions = opens, #actions
     variables.RAMUseMiB, variables.RAMDecimals = '1','0'
     env.Display()
@@ -137,6 +157,9 @@ local function checkPageController()
     check(options.MeterRAMPageMiB.Text == '3000/12000 MB' and options.MeterRAMPageMiB.Hidden == '0'
         and options.MeterRAMPageGiB.Hidden == '1', 'Cached PAGE units/precision did not apply immediately')
     check(#actions > beforeActions, 'PAGE cached format did not update its meters')
+    local settingsUpdates, settingsRedraws = meterWork(beforeActions)
+    check(settingsUpdates.MeterRAMPageGiB == 1 and settingsUpdates.MeterRAMPageMiB == 1 and not settingsUpdates.MeterRAMPageBar
+        and settingsRedraws == 1, 'An out-of-cycle PAGE format change must force only its changed meters, then redraw once')
     variables.RAMShowBar='0'; env.Display()
     check(options.MeterRAMPageBar.Hidden == '0', 'Hiding physical RAM bar must not hide PAGE bar')
     variables.RAMShowPageBar='0'; env.Display()

@@ -11,7 +11,7 @@ Percent=0
 RawValue=0
 MinValue=0
 MaxValue=(Max(1,#IODiskMaxMiBs#*1048576))
-Group=IORatesA
+Group=IORatesA|ParallaxIdlePause
 Disabled=1
 
 [MeasureIODiskWriteA]
@@ -25,7 +25,7 @@ Percent=0
 RawValue=0
 MinValue=0
 MaxValue=(Max(1,#IODiskMaxMiBs#*1048576))
-Group=IORatesA
+Group=IORatesA|ParallaxIdlePause
 Disabled=1
 
 [MeasureIODiskReadB]
@@ -39,7 +39,7 @@ Percent=0
 RawValue=0
 MinValue=0
 MaxValue=(Max(1,#IODiskMaxMiBs#*1048576))
-Group=IORatesB
+Group=IORatesB|ParallaxIdlePause
 Disabled=1
 
 [MeasureIODiskWriteB]
@@ -53,7 +53,7 @@ Percent=0
 RawValue=0
 MinValue=0
 MaxValue=(Max(1,#IODiskMaxMiBs#*1048576))
-Group=IORatesB
+Group=IORatesB|ParallaxIdlePause
 Disabled=1
 
 [MeasureIODiskReadC]
@@ -67,7 +67,7 @@ Percent=0
 RawValue=0
 MinValue=0
 MaxValue=(Max(1,#IODiskMaxMiBs#*1048576))
-Group=IORatesC
+Group=IORatesC|ParallaxIdlePause
 Disabled=1
 
 [MeasureIODiskWriteC]
@@ -81,7 +81,7 @@ Percent=0
 RawValue=0
 MinValue=0
 MaxValue=(Max(1,#IODiskMaxMiBs#*1048576))
-Group=IORatesC
+Group=IORatesC|ParallaxIdlePause
 Disabled=1
 
 [MeasureIODiskReadD]
@@ -95,7 +95,7 @@ Percent=0
 RawValue=0
 MinValue=0
 MaxValue=(Max(1,#IODiskMaxMiBs#*1048576))
-Group=IORatesD
+Group=IORatesD|ParallaxIdlePause
 Disabled=1
 
 [MeasureIODiskWriteD]
@@ -109,7 +109,7 @@ Percent=0
 RawValue=0
 MinValue=0
 MaxValue=(Max(1,#IODiskMaxMiBs#*1048576))
-Group=IORatesD
+Group=IORatesD|ParallaxIdlePause
 Disabled=1
 
 [MeasureIODiskReadE]
@@ -123,7 +123,7 @@ Percent=0
 RawValue=0
 MinValue=0
 MaxValue=(Max(1,#IODiskMaxMiBs#*1048576))
-Group=IORatesE
+Group=IORatesE|ParallaxIdlePause
 Disabled=1
 
 [MeasureIODiskWriteE]
@@ -137,7 +137,7 @@ Percent=0
 RawValue=0
 MinValue=0
 MaxValue=(Max(1,#IODiskMaxMiBs#*1048576))
-Group=IORatesE
+Group=IORatesE|ParallaxIdlePause
 Disabled=1
 
 [MeasureIODiskReadF]
@@ -151,7 +151,7 @@ Percent=0
 RawValue=0
 MinValue=0
 MaxValue=(Max(1,#IODiskMaxMiBs#*1048576))
-Group=IORatesF
+Group=IORatesF|ParallaxIdlePause
 Disabled=1
 
 [MeasureIODiskWriteF]
@@ -165,7 +165,7 @@ Percent=0
 RawValue=0
 MinValue=0
 MaxValue=(Max(1,#IODiskMaxMiBs#*1048576))
-Group=IORatesF
+Group=IORatesF|ParallaxIdlePause
 Disabled=1
 
 [MeasureIODiskReadG]
@@ -179,7 +179,7 @@ Percent=0
 RawValue=0
 MinValue=0
 MaxValue=(Max(1,#IODiskMaxMiBs#*1048576))
-Group=IORatesG
+Group=IORatesG|ParallaxIdlePause
 Disabled=1
 
 [MeasureIODiskWriteG]
@@ -193,7 +193,7 @@ Percent=0
 RawValue=0
 MinValue=0
 MaxValue=(Max(1,#IODiskMaxMiBs#*1048576))
-Group=IORatesG
+Group=IORatesG|ParallaxIdlePause
 Disabled=1
 
 [MeasureIODiskReadH]
@@ -207,7 +207,7 @@ Percent=0
 RawValue=0
 MinValue=0
 MaxValue=(Max(1,#IODiskMaxMiBs#*1048576))
-Group=IORatesH
+Group=IORatesH|ParallaxIdlePause
 Disabled=1
 
 [MeasureIODiskWriteH]
@@ -221,7 +221,7 @@ Percent=0
 RawValue=0
 MinValue=0
 MaxValue=(Max(1,#IODiskMaxMiBs#*1048576))
-Group=IORatesH
+Group=IORatesH|ParallaxIdlePause
 Disabled=1
 
 [MeasureIODiskReadI]
@@ -235,7 +235,7 @@ Percent=0
 RawValue=0
 MinValue=0
 MaxValue=(Max(1,#IODiskMaxMiBs#*1048576))
-Group=IORatesI
+Group=IORatesI|ParallaxIdlePause
 Disabled=1
 
 [MeasureIODiskWriteI]
@@ -249,7 +249,7 @@ Percent=0
 RawValue=0
 MinValue=0
 MaxValue=(Max(1,#IODiskMaxMiBs#*1048576))
-Group=IORatesI
+Group=IORatesI|ParallaxIdlePause
 Disabled=1
 
 [MeasureIODiskReadJ]
@@ -263,7 +263,7 @@ Percent=0
 RawValue=0
 MinValue=0
 MaxValue=(Max(1,#IODiskMaxMiBs#*1048576))
-Group=IORatesJ
+Group=IORatesJ|ParallaxIdlePause
 Disabled=1
 
 [MeasureIODiskWriteJ]
@@ -277,7 +277,7 @@ Percent=0
 RawValue=0
 MinValue=0
 MaxValue=(Max(1,#IODiskMaxMiBs#*1048576))
-Group=IORatesJ
+Group=IORatesJ|ParallaxIdlePause
 Disabled=1
 
 [MeasureIODiskReadK]
@@ -291,7 +291,7 @@ Percent=0
 RawValue=0
 MinValue=0
 MaxValue=(Max(1,#IODiskMaxMiBs#*1048576))
-Group=IORatesK
+Group=IORatesK|ParallaxIdlePause
 Disabled=1
 
 [MeasureIODiskWriteK]
@@ -305,7 +305,7 @@ Percent=0
 RawValue=0
 MinValue=0
 MaxValue=(Max(1,#IODiskMaxMiBs#*1048576))
-Group=IORatesK
+Group=IORatesK|ParallaxIdlePause
 Disabled=1
 
 [MeasureIODiskReadL]
@@ -319,7 +319,7 @@ Percent=0
 RawValue=0
 MinValue=0
 MaxValue=(Max(1,#IODiskMaxMiBs#*1048576))
-Group=IORatesL
+Group=IORatesL|ParallaxIdlePause
 Disabled=1
 
 [MeasureIODiskWriteL]
@@ -333,7 +333,7 @@ Percent=0
 RawValue=0
 MinValue=0
 MaxValue=(Max(1,#IODiskMaxMiBs#*1048576))
-Group=IORatesL
+Group=IORatesL|ParallaxIdlePause
 Disabled=1
 
 [MeasureIODiskReadM]
@@ -347,7 +347,7 @@ Percent=0
 RawValue=0
 MinValue=0
 MaxValue=(Max(1,#IODiskMaxMiBs#*1048576))
-Group=IORatesM
+Group=IORatesM|ParallaxIdlePause
 Disabled=1
 
 [MeasureIODiskWriteM]
@@ -361,7 +361,7 @@ Percent=0
 RawValue=0
 MinValue=0
 MaxValue=(Max(1,#IODiskMaxMiBs#*1048576))
-Group=IORatesM
+Group=IORatesM|ParallaxIdlePause
 Disabled=1
 
 [MeasureIODiskReadN]
@@ -375,7 +375,7 @@ Percent=0
 RawValue=0
 MinValue=0
 MaxValue=(Max(1,#IODiskMaxMiBs#*1048576))
-Group=IORatesN
+Group=IORatesN|ParallaxIdlePause
 Disabled=1
 
 [MeasureIODiskWriteN]
@@ -389,7 +389,7 @@ Percent=0
 RawValue=0
 MinValue=0
 MaxValue=(Max(1,#IODiskMaxMiBs#*1048576))
-Group=IORatesN
+Group=IORatesN|ParallaxIdlePause
 Disabled=1
 
 [MeasureIODiskReadO]
@@ -403,7 +403,7 @@ Percent=0
 RawValue=0
 MinValue=0
 MaxValue=(Max(1,#IODiskMaxMiBs#*1048576))
-Group=IORatesO
+Group=IORatesO|ParallaxIdlePause
 Disabled=1
 
 [MeasureIODiskWriteO]
@@ -417,7 +417,7 @@ Percent=0
 RawValue=0
 MinValue=0
 MaxValue=(Max(1,#IODiskMaxMiBs#*1048576))
-Group=IORatesO
+Group=IORatesO|ParallaxIdlePause
 Disabled=1
 
 [MeasureIODiskReadP]
@@ -431,7 +431,7 @@ Percent=0
 RawValue=0
 MinValue=0
 MaxValue=(Max(1,#IODiskMaxMiBs#*1048576))
-Group=IORatesP
+Group=IORatesP|ParallaxIdlePause
 Disabled=1
 
 [MeasureIODiskWriteP]
@@ -445,7 +445,7 @@ Percent=0
 RawValue=0
 MinValue=0
 MaxValue=(Max(1,#IODiskMaxMiBs#*1048576))
-Group=IORatesP
+Group=IORatesP|ParallaxIdlePause
 Disabled=1
 
 [MeasureIODiskReadQ]
@@ -459,7 +459,7 @@ Percent=0
 RawValue=0
 MinValue=0
 MaxValue=(Max(1,#IODiskMaxMiBs#*1048576))
-Group=IORatesQ
+Group=IORatesQ|ParallaxIdlePause
 Disabled=1
 
 [MeasureIODiskWriteQ]
@@ -473,7 +473,7 @@ Percent=0
 RawValue=0
 MinValue=0
 MaxValue=(Max(1,#IODiskMaxMiBs#*1048576))
-Group=IORatesQ
+Group=IORatesQ|ParallaxIdlePause
 Disabled=1
 
 [MeasureIODiskReadR]
@@ -487,7 +487,7 @@ Percent=0
 RawValue=0
 MinValue=0
 MaxValue=(Max(1,#IODiskMaxMiBs#*1048576))
-Group=IORatesR
+Group=IORatesR|ParallaxIdlePause
 Disabled=1
 
 [MeasureIODiskWriteR]
@@ -501,7 +501,7 @@ Percent=0
 RawValue=0
 MinValue=0
 MaxValue=(Max(1,#IODiskMaxMiBs#*1048576))
-Group=IORatesR
+Group=IORatesR|ParallaxIdlePause
 Disabled=1
 
 [MeasureIODiskReadS]
@@ -515,7 +515,7 @@ Percent=0
 RawValue=0
 MinValue=0
 MaxValue=(Max(1,#IODiskMaxMiBs#*1048576))
-Group=IORatesS
+Group=IORatesS|ParallaxIdlePause
 Disabled=1
 
 [MeasureIODiskWriteS]
@@ -529,7 +529,7 @@ Percent=0
 RawValue=0
 MinValue=0
 MaxValue=(Max(1,#IODiskMaxMiBs#*1048576))
-Group=IORatesS
+Group=IORatesS|ParallaxIdlePause
 Disabled=1
 
 [MeasureIODiskReadT]
@@ -543,7 +543,7 @@ Percent=0
 RawValue=0
 MinValue=0
 MaxValue=(Max(1,#IODiskMaxMiBs#*1048576))
-Group=IORatesT
+Group=IORatesT|ParallaxIdlePause
 Disabled=1
 
 [MeasureIODiskWriteT]
@@ -557,7 +557,7 @@ Percent=0
 RawValue=0
 MinValue=0
 MaxValue=(Max(1,#IODiskMaxMiBs#*1048576))
-Group=IORatesT
+Group=IORatesT|ParallaxIdlePause
 Disabled=1
 
 [MeasureIODiskReadU]
@@ -571,7 +571,7 @@ Percent=0
 RawValue=0
 MinValue=0
 MaxValue=(Max(1,#IODiskMaxMiBs#*1048576))
-Group=IORatesU
+Group=IORatesU|ParallaxIdlePause
 Disabled=1
 
 [MeasureIODiskWriteU]
@@ -585,7 +585,7 @@ Percent=0
 RawValue=0
 MinValue=0
 MaxValue=(Max(1,#IODiskMaxMiBs#*1048576))
-Group=IORatesU
+Group=IORatesU|ParallaxIdlePause
 Disabled=1
 
 [MeasureIODiskReadV]
@@ -599,7 +599,7 @@ Percent=0
 RawValue=0
 MinValue=0
 MaxValue=(Max(1,#IODiskMaxMiBs#*1048576))
-Group=IORatesV
+Group=IORatesV|ParallaxIdlePause
 Disabled=1
 
 [MeasureIODiskWriteV]
@@ -613,7 +613,7 @@ Percent=0
 RawValue=0
 MinValue=0
 MaxValue=(Max(1,#IODiskMaxMiBs#*1048576))
-Group=IORatesV
+Group=IORatesV|ParallaxIdlePause
 Disabled=1
 
 [MeasureIODiskReadW]
@@ -627,7 +627,7 @@ Percent=0
 RawValue=0
 MinValue=0
 MaxValue=(Max(1,#IODiskMaxMiBs#*1048576))
-Group=IORatesW
+Group=IORatesW|ParallaxIdlePause
 Disabled=1
 
 [MeasureIODiskWriteW]
@@ -641,7 +641,7 @@ Percent=0
 RawValue=0
 MinValue=0
 MaxValue=(Max(1,#IODiskMaxMiBs#*1048576))
-Group=IORatesW
+Group=IORatesW|ParallaxIdlePause
 Disabled=1
 
 [MeasureIODiskReadX]
@@ -655,7 +655,7 @@ Percent=0
 RawValue=0
 MinValue=0
 MaxValue=(Max(1,#IODiskMaxMiBs#*1048576))
-Group=IORatesX
+Group=IORatesX|ParallaxIdlePause
 Disabled=1
 
 [MeasureIODiskWriteX]
@@ -669,7 +669,7 @@ Percent=0
 RawValue=0
 MinValue=0
 MaxValue=(Max(1,#IODiskMaxMiBs#*1048576))
-Group=IORatesX
+Group=IORatesX|ParallaxIdlePause
 Disabled=1
 
 [MeasureIODiskReadY]
@@ -683,7 +683,7 @@ Percent=0
 RawValue=0
 MinValue=0
 MaxValue=(Max(1,#IODiskMaxMiBs#*1048576))
-Group=IORatesY
+Group=IORatesY|ParallaxIdlePause
 Disabled=1
 
 [MeasureIODiskWriteY]
@@ -697,7 +697,7 @@ Percent=0
 RawValue=0
 MinValue=0
 MaxValue=(Max(1,#IODiskMaxMiBs#*1048576))
-Group=IORatesY
+Group=IORatesY|ParallaxIdlePause
 Disabled=1
 
 [MeasureIODiskReadZ]
@@ -711,7 +711,7 @@ Percent=0
 RawValue=0
 MinValue=0
 MaxValue=(Max(1,#IODiskMaxMiBs#*1048576))
-Group=IORatesZ
+Group=IORatesZ|ParallaxIdlePause
 Disabled=1
 
 [MeasureIODiskWriteZ]
@@ -725,5 +725,5 @@ Percent=0
 RawValue=0
 MinValue=0
 MaxValue=(Max(1,#IODiskMaxMiBs#*1048576))
-Group=IORatesZ
+Group=IORatesZ|ParallaxIdlePause
 Disabled=1

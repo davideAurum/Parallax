@@ -84,7 +84,7 @@ function Convert-Providers([string]$Source) {
 }
 
 $null = New-Item -ItemType Directory -Path $runRoot -Force
-$relatives = @('IO\IO-Disk.ini', '@Resources\Defaults.inc', '@Resources\User\Settings.inc', '@Resources\User\IO.inc', '@Resources\Geometry.inc', '@Resources\Styles.inc',
+$relatives = @('IO\IO-Disk.ini', '@Resources\Defaults.inc', '@Resources\Idle\Hook0.inc','@Resources\User\Settings.inc', '@Resources\User\IO.inc', '@Resources\Geometry.inc', '@Resources\Styles.inc',
     '@Resources\Modules\IO\Inventory.inc', '@Resources\Modules\IO\Native.inc', '@Resources\Modules\IO\Disk.inc', '@Resources\Modules\IO\Model.inc',
     '@Resources\Modules\IO\View.inc', '@Resources\Modules\IO\DriveMeters.inc', '@Resources\Modules\IO\IO.lua', '@Resources\Modules\IO\Names.lua')
 $copies = [ordered]@{ New = $sourceRoot }

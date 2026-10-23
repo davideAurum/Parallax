@@ -120,6 +120,7 @@ Register-Skin 'GPU' 'Parallax\GPU' 'GPU.ini' 1.0 {
     Test-HostCycle $Run $Process 'GPU telemetry host' 'ParallaxGpuTemperature' 'MeterTemperatureValue' '^Checking' '(C|Unavailable|Unsupported)$'
 } 'MeterTemperatureValue|MeterActivityValue'
 Register-Skin 'CPU' 'Parallax\CPU' 'CPU.ini' 1.0
+Register-Skin 'IO' 'Parallax\IO' 'IO-Disk.ini' 1.0
 
 Add-Type -AssemblyName System.Drawing
 if (-not ('ParallaxStandDownNative' -as [type])) {

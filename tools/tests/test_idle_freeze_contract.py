@@ -44,6 +44,7 @@ CONSUMERS = OrderedDict([
     ('RAM/RAM.ini', [{}, {'RAMShowProcesses': '0'}]),
     ('GPU/GPU.ini', [{}, {'GPUShowProcesses': '0'}, {'GPUShowProcessMemory': '0'}]),
     ('CPU/CPU.ini', [{}, {'CPUShowProcesses': '0'}]),
+    ('IO/IO-Disk.ini', [{}]),
 ])
 
 # Every utility entrypoint, wired or not yet (all ten once C2 is complete).
@@ -68,6 +69,7 @@ RESTORED = {}
 LUA_DIVIDER_OWNERS = {
     'RAM/Display.lua': 'MeasureRAMSettings ReapplyDividers: Used GB/MB by unit, history cover (Tests/DisplayIdleTests.lua)',
     'CPU/CPU.lua': 'MeasureCPUController ReapplyDividers: all 64 Thread slots from slotLive (tests/validate_controller.lua idle case)',
+    'IO/IO.lua': 'MeasureIO ReapplyDividers: every IORow<letter> group from its row record (tests/ControllerSuite.lua idle case)',
     'GPU/Temperature.lua': 'its own ReapplyDividers: the restarted History cover (tests/TemperatureSuite.lua idle case)',
     'RAM/Process.lua':'its own measure MeasureRAMProcessView only (not a meter); paused with the skin and re-idled by its own Update',
 }
@@ -77,6 +79,7 @@ LUA_DIVIDER_OWNERS = {
 # even though their static divider is -1. Patterns match upper-case names.
 LUA_MANAGED_METERS = {
     'CPU/CPU.ini': r'^METERCORE(LABEL|BAR|VALUE|VOLTAGE|TEMPERATURE)\d+$',
+    'IO/IO-Disk.ini': r'^METERIO(DRIVE|CAPACITY|USED|DISKREADLABEL|DISKWRITELABEL|DISKREAD|DISKWRITE|LEGEND)[A-Z]$',
 }
 
 # Shipped runtime state files that must stay all zero (a release install

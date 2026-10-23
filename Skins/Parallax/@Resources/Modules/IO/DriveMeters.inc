@@ -9,7 +9,7 @@ Y=0
 W=#ContentWidth#
 Text=A:
 Hidden=1
-Group=IORowA
+Group=IORowA|ParallaxIdleFreeze
 UpdateDivider=-1
 
 [MeterIOCapacityA]
@@ -21,7 +21,7 @@ W=((#ContentWidth#-8*#Scale#)*0.44)
 StringAlign=Right
 Text=Unavailable
 Hidden=1
-Group=IORowA
+Group=IORowA|ParallaxIdleFreeze
 UpdateDivider=-1
 
 [MeterIOUsedA]
@@ -29,7 +29,7 @@ Meter=Bar
 MeterStyle=StyleIOBar
 MeasureName=MeasureIOUsedA
 Y=0
-Group=IORowA
+Group=IORowA|ParallaxIdleFreeze
 UpdateDivider=-1
 
 [MeterIODiskReadLabelA]
@@ -42,7 +42,7 @@ H=(10*#Scale#)
 Shape=Line (1*#Scale#),(6*#Scale#),(4*#Scale#),(3*#Scale#) | Stroke Color #DiskReadColor# | StrokeWidth (Max(1,2*#Scale#))
 Shape2=Line (4*#Scale#),(3*#Scale#),(7*#Scale#),(6*#Scale#) | Stroke Color #DiskReadColor# | StrokeWidth (Max(1,2*#Scale#))
 Hidden=1
-Group=IORowA
+Group=IORowA|ParallaxIdleFreeze
 UpdateDivider=-1
 
 [MeterIODiskWriteLabelA]
@@ -55,7 +55,7 @@ H=(10*#Scale#)
 Shape=Line (1*#Scale#),(3*#Scale#),(4*#Scale#),(6*#Scale#) | Stroke Color #DiskWriteColor# | StrokeWidth (Max(1,2*#Scale#))
 Shape2=Line (4*#Scale#),(6*#Scale#),(7*#Scale#),(3*#Scale#) | Stroke Color #DiskWriteColor# | StrokeWidth (Max(1,2*#Scale#))
 Hidden=1
-Group=IORowA
+Group=IORowA|ParallaxIdleFreeze
 UpdateDivider=-1
 
 [MeterIODiskReadA]
@@ -66,7 +66,7 @@ Y=0
 W=((#ContentWidth#-8*#Scale#)*0.28-11*#Scale#)
 Text=--
 Hidden=1
-Group=IORowA
+Group=IORowA|ParallaxIdleFreeze
 UpdateDivider=-1
 
 [MeterIODiskWriteA]
@@ -77,7 +77,7 @@ Y=0
 W=((#ContentWidth#-8*#Scale#)*0.28-11*#Scale#)
 Text=--
 Hidden=1
-Group=IORowA
+Group=IORowA|ParallaxIdleFreeze
 UpdateDivider=-1
 
 [MeterIOLegendA]
@@ -89,7 +89,7 @@ W=(26*#Scale#)
 H=(18*#Scale#)
 Text=A:
 Hidden=1
-Group=IORowA
+Group=IORowA|ParallaxIdleFreeze
 UpdateDivider=-1
 
 [MeterIODriveB]
@@ -99,7 +99,7 @@ Y=0
 W=#ContentWidth#
 Text=B:
 Hidden=1
-Group=IORowB
+Group=IORowB|ParallaxIdleFreeze
 UpdateDivider=-1
 
 [MeterIOCapacityB]
@@ -111,7 +111,7 @@ W=((#ContentWidth#-8*#Scale#)*0.44)
 StringAlign=Right
 Text=Unavailable
 Hidden=1
-Group=IORowB
+Group=IORowB|ParallaxIdleFreeze
 UpdateDivider=-1
 
 [MeterIOUsedB]
@@ -119,7 +119,7 @@ Meter=Bar
 MeterStyle=StyleIOBar
 MeasureName=MeasureIOUsedB
 Y=0
-Group=IORowB
+Group=IORowB|ParallaxIdleFreeze
 UpdateDivider=-1
 
 [MeterIODiskReadLabelB]
@@ -132,7 +132,7 @@ H=(10*#Scale#)
 Shape=Line (1*#Scale#),(6*#Scale#),(4*#Scale#),(3*#Scale#) | Stroke Color #DiskReadColor# | StrokeWidth (Max(1,2*#Scale#))
 Shape2=Line (4*#Scale#),(3*#Scale#),(7*#Scale#),(6*#Scale#) | Stroke Color #DiskReadColor# | StrokeWidth (Max(1,2*#Scale#))
 Hidden=1
-Group=IORowB
+Group=IORowB|ParallaxIdleFreeze
 UpdateDivider=-1
 
 [MeterIODiskWriteLabelB]
@@ -145,7 +145,7 @@ H=(10*#Scale#)
 Shape=Line (1*#Scale#),(3*#Scale#),(4*#Scale#),(6*#Scale#) | Stroke Color #DiskWriteColor# | StrokeWidth (Max(1,2*#Scale#))
 Shape2=Line (4*#Scale#),(6*#Scale#),(7*#Scale#),(3*#Scale#) | Stroke Color #DiskWriteColor# | StrokeWidth (Max(1,2*#Scale#))
 Hidden=1
-Group=IORowB
+Group=IORowB|ParallaxIdleFreeze
 UpdateDivider=-1
 
 [MeterIODiskReadB]
@@ -156,7 +156,7 @@ Y=0
 W=((#ContentWidth#-8*#Scale#)*0.28-11*#Scale#)
 Text=--
 Hidden=1
-Group=IORowB
+Group=IORowB|ParallaxIdleFreeze
 UpdateDivider=-1
 
 [MeterIODiskWriteB]
@@ -167,7 +167,7 @@ Y=0
 W=((#ContentWidth#-8*#Scale#)*0.28-11*#Scale#)
 Text=--
 Hidden=1
-Group=IORowB
+Group=IORowB|ParallaxIdleFreeze
 UpdateDivider=-1
 
 [MeterIOLegendB]
@@ -179,7 +179,7 @@ W=(26*#Scale#)
 H=(18*#Scale#)
 Text=B:
 Hidden=1
-Group=IORowB
+Group=IORowB|ParallaxIdleFreeze
 UpdateDivider=-1
 
 [MeterIODriveC]
@@ -189,7 +189,7 @@ Y=0
 W=#ContentWidth#
 Text=C:
 Hidden=1
-Group=IORowC
+Group=IORowC|ParallaxIdleFreeze
 UpdateDivider=-1
 
 [MeterIOCapacityC]
@@ -201,7 +201,7 @@ W=((#ContentWidth#-8*#Scale#)*0.44)
 StringAlign=Right
 Text=Unavailable
 Hidden=1
-Group=IORowC
+Group=IORowC|ParallaxIdleFreeze
 UpdateDivider=-1
 
 [MeterIOUsedC]
@@ -209,7 +209,7 @@ Meter=Bar
 MeterStyle=StyleIOBar
 MeasureName=MeasureIOUsedC
 Y=0
-Group=IORowC
+Group=IORowC|ParallaxIdleFreeze
 UpdateDivider=-1
 
 [MeterIODiskReadLabelC]
@@ -222,7 +222,7 @@ H=(10*#Scale#)
 Shape=Line (1*#Scale#),(6*#Scale#),(4*#Scale#),(3*#Scale#) | Stroke Color #DiskReadColor# | StrokeWidth (Max(1,2*#Scale#))
 Shape2=Line (4*#Scale#),(3*#Scale#),(7*#Scale#),(6*#Scale#) | Stroke Color #DiskReadColor# | StrokeWidth (Max(1,2*#Scale#))
 Hidden=1
-Group=IORowC
+Group=IORowC|ParallaxIdleFreeze
 UpdateDivider=-1
 
 [MeterIODiskWriteLabelC]
@@ -235,7 +235,7 @@ H=(10*#Scale#)
 Shape=Line (1*#Scale#),(3*#Scale#),(4*#Scale#),(6*#Scale#) | Stroke Color #DiskWriteColor# | StrokeWidth (Max(1,2*#Scale#))
 Shape2=Line (4*#Scale#),(6*#Scale#),(7*#Scale#),(3*#Scale#) | Stroke Color #DiskWriteColor# | StrokeWidth (Max(1,2*#Scale#))
 Hidden=1
-Group=IORowC
+Group=IORowC|ParallaxIdleFreeze
 UpdateDivider=-1
 
 [MeterIODiskReadC]
@@ -246,7 +246,7 @@ Y=0
 W=((#ContentWidth#-8*#Scale#)*0.28-11*#Scale#)
 Text=--
 Hidden=1
-Group=IORowC
+Group=IORowC|ParallaxIdleFreeze
 UpdateDivider=-1
 
 [MeterIODiskWriteC]
@@ -257,7 +257,7 @@ Y=0
 W=((#ContentWidth#-8*#Scale#)*0.28-11*#Scale#)
 Text=--
 Hidden=1
-Group=IORowC
+Group=IORowC|ParallaxIdleFreeze
 UpdateDivider=-1
 
 [MeterIOLegendC]
@@ -269,7 +269,7 @@ W=(26*#Scale#)
 H=(18*#Scale#)
 Text=C:
 Hidden=1
-Group=IORowC
+Group=IORowC|ParallaxIdleFreeze
 UpdateDivider=-1
 
 [MeterIODriveD]
@@ -279,7 +279,7 @@ Y=0
 W=#ContentWidth#
 Text=D:
 Hidden=1
-Group=IORowD
+Group=IORowD|ParallaxIdleFreeze
 UpdateDivider=-1
 
 [MeterIOCapacityD]
@@ -291,7 +291,7 @@ W=((#ContentWidth#-8*#Scale#)*0.44)
 StringAlign=Right
 Text=Unavailable
 Hidden=1
-Group=IORowD
+Group=IORowD|ParallaxIdleFreeze
 UpdateDivider=-1
 
 [MeterIOUsedD]
@@ -299,7 +299,7 @@ Meter=Bar
 MeterStyle=StyleIOBar
 MeasureName=MeasureIOUsedD
 Y=0
-Group=IORowD
+Group=IORowD|ParallaxIdleFreeze
 UpdateDivider=-1
 
 [MeterIODiskReadLabelD]
@@ -312,7 +312,7 @@ H=(10*#Scale#)
 Shape=Line (1*#Scale#),(6*#Scale#),(4*#Scale#),(3*#Scale#) | Stroke Color #DiskReadColor# | StrokeWidth (Max(1,2*#Scale#))
 Shape2=Line (4*#Scale#),(3*#Scale#),(7*#Scale#),(6*#Scale#) | Stroke Color #DiskReadColor# | StrokeWidth (Max(1,2*#Scale#))
 Hidden=1
-Group=IORowD
+Group=IORowD|ParallaxIdleFreeze
 UpdateDivider=-1
 
 [MeterIODiskWriteLabelD]
@@ -325,7 +325,7 @@ H=(10*#Scale#)
 Shape=Line (1*#Scale#),(3*#Scale#),(4*#Scale#),(6*#Scale#) | Stroke Color #DiskWriteColor# | StrokeWidth (Max(1,2*#Scale#))
 Shape2=Line (4*#Scale#),(6*#Scale#),(7*#Scale#),(3*#Scale#) | Stroke Color #DiskWriteColor# | StrokeWidth (Max(1,2*#Scale#))
 Hidden=1
-Group=IORowD
+Group=IORowD|ParallaxIdleFreeze
 UpdateDivider=-1
 
 [MeterIODiskReadD]
@@ -336,7 +336,7 @@ Y=0
 W=((#ContentWidth#-8*#Scale#)*0.28-11*#Scale#)
 Text=--
 Hidden=1
-Group=IORowD
+Group=IORowD|ParallaxIdleFreeze
 UpdateDivider=-1
 
 [MeterIODiskWriteD]
@@ -347,7 +347,7 @@ Y=0
 W=((#ContentWidth#-8*#Scale#)*0.28-11*#Scale#)
 Text=--
 Hidden=1
-Group=IORowD
+Group=IORowD|ParallaxIdleFreeze
 UpdateDivider=-1
 
 [MeterIOLegendD]
@@ -359,7 +359,7 @@ W=(26*#Scale#)
 H=(18*#Scale#)
 Text=D:
 Hidden=1
-Group=IORowD
+Group=IORowD|ParallaxIdleFreeze
 UpdateDivider=-1
 
 [MeterIODriveE]
@@ -369,7 +369,7 @@ Y=0
 W=#ContentWidth#
 Text=E:
 Hidden=1
-Group=IORowE
+Group=IORowE|ParallaxIdleFreeze
 UpdateDivider=-1
 
 [MeterIOCapacityE]
@@ -381,7 +381,7 @@ W=((#ContentWidth#-8*#Scale#)*0.44)
 StringAlign=Right
 Text=Unavailable
 Hidden=1
-Group=IORowE
+Group=IORowE|ParallaxIdleFreeze
 UpdateDivider=-1
 
 [MeterIOUsedE]
@@ -389,7 +389,7 @@ Meter=Bar
 MeterStyle=StyleIOBar
 MeasureName=MeasureIOUsedE
 Y=0
-Group=IORowE
+Group=IORowE|ParallaxIdleFreeze
 UpdateDivider=-1
 
 [MeterIODiskReadLabelE]
@@ -402,7 +402,7 @@ H=(10*#Scale#)
 Shape=Line (1*#Scale#),(6*#Scale#),(4*#Scale#),(3*#Scale#) | Stroke Color #DiskReadColor# | StrokeWidth (Max(1,2*#Scale#))
 Shape2=Line (4*#Scale#),(3*#Scale#),(7*#Scale#),(6*#Scale#) | Stroke Color #DiskReadColor# | StrokeWidth (Max(1,2*#Scale#))
 Hidden=1
-Group=IORowE
+Group=IORowE|ParallaxIdleFreeze
 UpdateDivider=-1
 
 [MeterIODiskWriteLabelE]
@@ -415,7 +415,7 @@ H=(10*#Scale#)
 Shape=Line (1*#Scale#),(3*#Scale#),(4*#Scale#),(6*#Scale#) | Stroke Color #DiskWriteColor# | StrokeWidth (Max(1,2*#Scale#))
 Shape2=Line (4*#Scale#),(6*#Scale#),(7*#Scale#),(3*#Scale#) | Stroke Color #DiskWriteColor# | StrokeWidth (Max(1,2*#Scale#))
 Hidden=1
-Group=IORowE
+Group=IORowE|ParallaxIdleFreeze
 UpdateDivider=-1
 
 [MeterIODiskReadE]
@@ -426,7 +426,7 @@ Y=0
 W=((#ContentWidth#-8*#Scale#)*0.28-11*#Scale#)
 Text=--
 Hidden=1
-Group=IORowE
+Group=IORowE|ParallaxIdleFreeze
 UpdateDivider=-1
 
 [MeterIODiskWriteE]
@@ -437,7 +437,7 @@ Y=0
 W=((#ContentWidth#-8*#Scale#)*0.28-11*#Scale#)
 Text=--
 Hidden=1
-Group=IORowE
+Group=IORowE|ParallaxIdleFreeze
 UpdateDivider=-1
 
 [MeterIOLegendE]
@@ -449,7 +449,7 @@ W=(26*#Scale#)
 H=(18*#Scale#)
 Text=E:
 Hidden=1
-Group=IORowE
+Group=IORowE|ParallaxIdleFreeze
 UpdateDivider=-1
 
 [MeterIODriveF]
@@ -459,7 +459,7 @@ Y=0
 W=#ContentWidth#
 Text=F:
 Hidden=1
-Group=IORowF
+Group=IORowF|ParallaxIdleFreeze
 UpdateDivider=-1
 
 [MeterIOCapacityF]
@@ -471,7 +471,7 @@ W=((#ContentWidth#-8*#Scale#)*0.44)
 StringAlign=Right
 Text=Unavailable
 Hidden=1
-Group=IORowF
+Group=IORowF|ParallaxIdleFreeze
 UpdateDivider=-1
 
 [MeterIOUsedF]
@@ -479,7 +479,7 @@ Meter=Bar
 MeterStyle=StyleIOBar
 MeasureName=MeasureIOUsedF
 Y=0
-Group=IORowF
+Group=IORowF|ParallaxIdleFreeze
 UpdateDivider=-1
 
 [MeterIODiskReadLabelF]
@@ -492,7 +492,7 @@ H=(10*#Scale#)
 Shape=Line (1*#Scale#),(6*#Scale#),(4*#Scale#),(3*#Scale#) | Stroke Color #DiskReadColor# | StrokeWidth (Max(1,2*#Scale#))
 Shape2=Line (4*#Scale#),(3*#Scale#),(7*#Scale#),(6*#Scale#) | Stroke Color #DiskReadColor# | StrokeWidth (Max(1,2*#Scale#))
 Hidden=1
-Group=IORowF
+Group=IORowF|ParallaxIdleFreeze
 UpdateDivider=-1
 
 [MeterIODiskWriteLabelF]
@@ -505,7 +505,7 @@ H=(10*#Scale#)
 Shape=Line (1*#Scale#),(3*#Scale#),(4*#Scale#),(6*#Scale#) | Stroke Color #DiskWriteColor# | StrokeWidth (Max(1,2*#Scale#))
 Shape2=Line (4*#Scale#),(6*#Scale#),(7*#Scale#),(3*#Scale#) | Stroke Color #DiskWriteColor# | StrokeWidth (Max(1,2*#Scale#))
 Hidden=1
-Group=IORowF
+Group=IORowF|ParallaxIdleFreeze
 UpdateDivider=-1
 
 [MeterIODiskReadF]
@@ -516,7 +516,7 @@ Y=0
 W=((#ContentWidth#-8*#Scale#)*0.28-11*#Scale#)
 Text=--
 Hidden=1
-Group=IORowF
+Group=IORowF|ParallaxIdleFreeze
 UpdateDivider=-1
 
 [MeterIODiskWriteF]
@@ -527,7 +527,7 @@ Y=0
 W=((#ContentWidth#-8*#Scale#)*0.28-11*#Scale#)
 Text=--
 Hidden=1
-Group=IORowF
+Group=IORowF|ParallaxIdleFreeze
 UpdateDivider=-1
 
 [MeterIOLegendF]
@@ -539,7 +539,7 @@ W=(26*#Scale#)
 H=(18*#Scale#)
 Text=F:
 Hidden=1
-Group=IORowF
+Group=IORowF|ParallaxIdleFreeze
 UpdateDivider=-1
 
 [MeterIODriveG]
@@ -549,7 +549,7 @@ Y=0
 W=#ContentWidth#
 Text=G:
 Hidden=1
-Group=IORowG
+Group=IORowG|ParallaxIdleFreeze
 UpdateDivider=-1
 
 [MeterIOCapacityG]
@@ -561,7 +561,7 @@ W=((#ContentWidth#-8*#Scale#)*0.44)
 StringAlign=Right
 Text=Unavailable
 Hidden=1
-Group=IORowG
+Group=IORowG|ParallaxIdleFreeze
 UpdateDivider=-1
 
 [MeterIOUsedG]
@@ -569,7 +569,7 @@ Meter=Bar
 MeterStyle=StyleIOBar
 MeasureName=MeasureIOUsedG
 Y=0
-Group=IORowG
+Group=IORowG|ParallaxIdleFreeze
 UpdateDivider=-1
 
 [MeterIODiskReadLabelG]
@@ -582,7 +582,7 @@ H=(10*#Scale#)
 Shape=Line (1*#Scale#),(6*#Scale#),(4*#Scale#),(3*#Scale#) | Stroke Color #DiskReadColor# | StrokeWidth (Max(1,2*#Scale#))
 Shape2=Line (4*#Scale#),(3*#Scale#),(7*#Scale#),(6*#Scale#) | Stroke Color #DiskReadColor# | StrokeWidth (Max(1,2*#Scale#))
 Hidden=1
-Group=IORowG
+Group=IORowG|ParallaxIdleFreeze
 UpdateDivider=-1
 
 [MeterIODiskWriteLabelG]
@@ -595,7 +595,7 @@ H=(10*#Scale#)
 Shape=Line (1*#Scale#),(3*#Scale#),(4*#Scale#),(6*#Scale#) | Stroke Color #DiskWriteColor# | StrokeWidth (Max(1,2*#Scale#))
 Shape2=Line (4*#Scale#),(6*#Scale#),(7*#Scale#),(3*#Scale#) | Stroke Color #DiskWriteColor# | StrokeWidth (Max(1,2*#Scale#))
 Hidden=1
-Group=IORowG
+Group=IORowG|ParallaxIdleFreeze
 UpdateDivider=-1
 
 [MeterIODiskReadG]
@@ -606,7 +606,7 @@ Y=0
 W=((#ContentWidth#-8*#Scale#)*0.28-11*#Scale#)
 Text=--
 Hidden=1
-Group=IORowG
+Group=IORowG|ParallaxIdleFreeze
 UpdateDivider=-1
 
 [MeterIODiskWriteG]
@@ -617,7 +617,7 @@ Y=0
 W=((#ContentWidth#-8*#Scale#)*0.28-11*#Scale#)
 Text=--
 Hidden=1
-Group=IORowG
+Group=IORowG|ParallaxIdleFreeze
 UpdateDivider=-1
 
 [MeterIOLegendG]
@@ -629,7 +629,7 @@ W=(26*#Scale#)
 H=(18*#Scale#)
 Text=G:
 Hidden=1
-Group=IORowG
+Group=IORowG|ParallaxIdleFreeze
 UpdateDivider=-1
 
 [MeterIODriveH]
@@ -639,7 +639,7 @@ Y=0
 W=#ContentWidth#
 Text=H:
 Hidden=1
-Group=IORowH
+Group=IORowH|ParallaxIdleFreeze
 UpdateDivider=-1
 
 [MeterIOCapacityH]
@@ -651,7 +651,7 @@ W=((#ContentWidth#-8*#Scale#)*0.44)
 StringAlign=Right
 Text=Unavailable
 Hidden=1
-Group=IORowH
+Group=IORowH|ParallaxIdleFreeze
 UpdateDivider=-1
 
 [MeterIOUsedH]
@@ -659,7 +659,7 @@ Meter=Bar
 MeterStyle=StyleIOBar
 MeasureName=MeasureIOUsedH
 Y=0
-Group=IORowH
+Group=IORowH|ParallaxIdleFreeze
 UpdateDivider=-1
 
 [MeterIODiskReadLabelH]
@@ -672,7 +672,7 @@ H=(10*#Scale#)
 Shape=Line (1*#Scale#),(6*#Scale#),(4*#Scale#),(3*#Scale#) | Stroke Color #DiskReadColor# | StrokeWidth (Max(1,2*#Scale#))
 Shape2=Line (4*#Scale#),(3*#Scale#),(7*#Scale#),(6*#Scale#) | Stroke Color #DiskReadColor# | StrokeWidth (Max(1,2*#Scale#))
 Hidden=1
-Group=IORowH
+Group=IORowH|ParallaxIdleFreeze
 UpdateDivider=-1
 
 [MeterIODiskWriteLabelH]
@@ -685,7 +685,7 @@ H=(10*#Scale#)
 Shape=Line (1*#Scale#),(3*#Scale#),(4*#Scale#),(6*#Scale#) | Stroke Color #DiskWriteColor# | StrokeWidth (Max(1,2*#Scale#))
 Shape2=Line (4*#Scale#),(6*#Scale#),(7*#Scale#),(3*#Scale#) | Stroke Color #DiskWriteColor# | StrokeWidth (Max(1,2*#Scale#))
 Hidden=1
-Group=IORowH
+Group=IORowH|ParallaxIdleFreeze
 UpdateDivider=-1
 
 [MeterIODiskReadH]
@@ -696,7 +696,7 @@ Y=0
 W=((#ContentWidth#-8*#Scale#)*0.28-11*#Scale#)
 Text=--
 Hidden=1
-Group=IORowH
+Group=IORowH|ParallaxIdleFreeze
 UpdateDivider=-1
 
 [MeterIODiskWriteH]
@@ -707,7 +707,7 @@ Y=0
 W=((#ContentWidth#-8*#Scale#)*0.28-11*#Scale#)
 Text=--
 Hidden=1
-Group=IORowH
+Group=IORowH|ParallaxIdleFreeze
 UpdateDivider=-1
 
 [MeterIOLegendH]
@@ -719,7 +719,7 @@ W=(26*#Scale#)
 H=(18*#Scale#)
 Text=H:
 Hidden=1
-Group=IORowH
+Group=IORowH|ParallaxIdleFreeze
 UpdateDivider=-1
 
 [MeterIODriveI]
@@ -729,7 +729,7 @@ Y=0
 W=#ContentWidth#
 Text=I:
 Hidden=1
-Group=IORowI
+Group=IORowI|ParallaxIdleFreeze
 UpdateDivider=-1
 
 [MeterIOCapacityI]
@@ -741,7 +741,7 @@ W=((#ContentWidth#-8*#Scale#)*0.44)
 StringAlign=Right
 Text=Unavailable
 Hidden=1
-Group=IORowI
+Group=IORowI|ParallaxIdleFreeze
 UpdateDivider=-1
 
 [MeterIOUsedI]
@@ -749,7 +749,7 @@ Meter=Bar
 MeterStyle=StyleIOBar
 MeasureName=MeasureIOUsedI
 Y=0
-Group=IORowI
+Group=IORowI|ParallaxIdleFreeze
 UpdateDivider=-1
 
 [MeterIODiskReadLabelI]
@@ -762,7 +762,7 @@ H=(10*#Scale#)
 Shape=Line (1*#Scale#),(6*#Scale#),(4*#Scale#),(3*#Scale#) | Stroke Color #DiskReadColor# | StrokeWidth (Max(1,2*#Scale#))
 Shape2=Line (4*#Scale#),(3*#Scale#),(7*#Scale#),(6*#Scale#) | Stroke Color #DiskReadColor# | StrokeWidth (Max(1,2*#Scale#))
 Hidden=1
-Group=IORowI
+Group=IORowI|ParallaxIdleFreeze
 UpdateDivider=-1
 
 [MeterIODiskWriteLabelI]
@@ -775,7 +775,7 @@ H=(10*#Scale#)
 Shape=Line (1*#Scale#),(3*#Scale#),(4*#Scale#),(6*#Scale#) | Stroke Color #DiskWriteColor# | StrokeWidth (Max(1,2*#Scale#))
 Shape2=Line (4*#Scale#),(6*#Scale#),(7*#Scale#),(3*#Scale#) | Stroke Color #DiskWriteColor# | StrokeWidth (Max(1,2*#Scale#))
 Hidden=1
-Group=IORowI
+Group=IORowI|ParallaxIdleFreeze
 UpdateDivider=-1
 
 [MeterIODiskReadI]
@@ -786,7 +786,7 @@ Y=0
 W=((#ContentWidth#-8*#Scale#)*0.28-11*#Scale#)
 Text=--
 Hidden=1
-Group=IORowI
+Group=IORowI|ParallaxIdleFreeze
 UpdateDivider=-1
 
 [MeterIODiskWriteI]
@@ -797,7 +797,7 @@ Y=0
 W=((#ContentWidth#-8*#Scale#)*0.28-11*#Scale#)
 Text=--
 Hidden=1
-Group=IORowI
+Group=IORowI|ParallaxIdleFreeze
 UpdateDivider=-1
 
 [MeterIOLegendI]
@@ -809,7 +809,7 @@ W=(26*#Scale#)
 H=(18*#Scale#)
 Text=I:
 Hidden=1
-Group=IORowI
+Group=IORowI|ParallaxIdleFreeze
 UpdateDivider=-1
 
 [MeterIODriveJ]
@@ -819,7 +819,7 @@ Y=0
 W=#ContentWidth#
 Text=J:
 Hidden=1
-Group=IORowJ
+Group=IORowJ|ParallaxIdleFreeze
 UpdateDivider=-1
 
 [MeterIOCapacityJ]
@@ -831,7 +831,7 @@ W=((#ContentWidth#-8*#Scale#)*0.44)
 StringAlign=Right
 Text=Unavailable
 Hidden=1
-Group=IORowJ
+Group=IORowJ|ParallaxIdleFreeze
 UpdateDivider=-1
 
 [MeterIOUsedJ]
@@ -839,7 +839,7 @@ Meter=Bar
 MeterStyle=StyleIOBar
 MeasureName=MeasureIOUsedJ
 Y=0
-Group=IORowJ
+Group=IORowJ|ParallaxIdleFreeze
 UpdateDivider=-1
 
 [MeterIODiskReadLabelJ]
@@ -852,7 +852,7 @@ H=(10*#Scale#)
 Shape=Line (1*#Scale#),(6*#Scale#),(4*#Scale#),(3*#Scale#) | Stroke Color #DiskReadColor# | StrokeWidth (Max(1,2*#Scale#))
 Shape2=Line (4*#Scale#),(3*#Scale#),(7*#Scale#),(6*#Scale#) | Stroke Color #DiskReadColor# | StrokeWidth (Max(1,2*#Scale#))
 Hidden=1
-Group=IORowJ
+Group=IORowJ|ParallaxIdleFreeze
 UpdateDivider=-1
 
 [MeterIODiskWriteLabelJ]
@@ -865,7 +865,7 @@ H=(10*#Scale#)
 Shape=Line (1*#Scale#),(3*#Scale#),(4*#Scale#),(6*#Scale#) | Stroke Color #DiskWriteColor# | StrokeWidth (Max(1,2*#Scale#))
 Shape2=Line (4*#Scale#),(6*#Scale#),(7*#Scale#),(3*#Scale#) | Stroke Color #DiskWriteColor# | StrokeWidth (Max(1,2*#Scale#))
 Hidden=1
-Group=IORowJ
+Group=IORowJ|ParallaxIdleFreeze
 UpdateDivider=-1
 
 [MeterIODiskReadJ]
@@ -876,7 +876,7 @@ Y=0
 W=((#ContentWidth#-8*#Scale#)*0.28-11*#Scale#)
 Text=--
 Hidden=1
-Group=IORowJ
+Group=IORowJ|ParallaxIdleFreeze
 UpdateDivider=-1
 
 [MeterIODiskWriteJ]
@@ -887,7 +887,7 @@ Y=0
 W=((#ContentWidth#-8*#Scale#)*0.28-11*#Scale#)
 Text=--
 Hidden=1
-Group=IORowJ
+Group=IORowJ|ParallaxIdleFreeze
 UpdateDivider=-1
 
 [MeterIOLegendJ]
@@ -899,7 +899,7 @@ W=(26*#Scale#)
 H=(18*#Scale#)
 Text=J:
 Hidden=1
-Group=IORowJ
+Group=IORowJ|ParallaxIdleFreeze
 UpdateDivider=-1
 
 [MeterIODriveK]
@@ -909,7 +909,7 @@ Y=0
 W=#ContentWidth#
 Text=K:
 Hidden=1
-Group=IORowK
+Group=IORowK|ParallaxIdleFreeze
 UpdateDivider=-1
 
 [MeterIOCapacityK]
@@ -921,7 +921,7 @@ W=((#ContentWidth#-8*#Scale#)*0.44)
 StringAlign=Right
 Text=Unavailable
 Hidden=1
-Group=IORowK
+Group=IORowK|ParallaxIdleFreeze
 UpdateDivider=-1
 
 [MeterIOUsedK]
@@ -929,7 +929,7 @@ Meter=Bar
 MeterStyle=StyleIOBar
 MeasureName=MeasureIOUsedK
 Y=0
-Group=IORowK
+Group=IORowK|ParallaxIdleFreeze
 UpdateDivider=-1
 
 [MeterIODiskReadLabelK]
@@ -942,7 +942,7 @@ H=(10*#Scale#)
 Shape=Line (1*#Scale#),(6*#Scale#),(4*#Scale#),(3*#Scale#) | Stroke Color #DiskReadColor# | StrokeWidth (Max(1,2*#Scale#))
 Shape2=Line (4*#Scale#),(3*#Scale#),(7*#Scale#),(6*#Scale#) | Stroke Color #DiskReadColor# | StrokeWidth (Max(1,2*#Scale#))
 Hidden=1
-Group=IORowK
+Group=IORowK|ParallaxIdleFreeze
 UpdateDivider=-1
 
 [MeterIODiskWriteLabelK]
@@ -955,7 +955,7 @@ H=(10*#Scale#)
 Shape=Line (1*#Scale#),(3*#Scale#),(4*#Scale#),(6*#Scale#) | Stroke Color #DiskWriteColor# | StrokeWidth (Max(1,2*#Scale#))
 Shape2=Line (4*#Scale#),(6*#Scale#),(7*#Scale#),(3*#Scale#) | Stroke Color #DiskWriteColor# | StrokeWidth (Max(1,2*#Scale#))
 Hidden=1
-Group=IORowK
+Group=IORowK|ParallaxIdleFreeze
 UpdateDivider=-1
 
 [MeterIODiskReadK]
@@ -966,7 +966,7 @@ Y=0
 W=((#ContentWidth#-8*#Scale#)*0.28-11*#Scale#)
 Text=--
 Hidden=1
-Group=IORowK
+Group=IORowK|ParallaxIdleFreeze
 UpdateDivider=-1
 
 [MeterIODiskWriteK]
@@ -977,7 +977,7 @@ Y=0
 W=((#ContentWidth#-8*#Scale#)*0.28-11*#Scale#)
 Text=--
 Hidden=1
-Group=IORowK
+Group=IORowK|ParallaxIdleFreeze
 UpdateDivider=-1
 
 [MeterIOLegendK]
@@ -989,7 +989,7 @@ W=(26*#Scale#)
 H=(18*#Scale#)
 Text=K:
 Hidden=1
-Group=IORowK
+Group=IORowK|ParallaxIdleFreeze
 UpdateDivider=-1
 
 [MeterIODriveL]
@@ -999,7 +999,7 @@ Y=0
 W=#ContentWidth#
 Text=L:
 Hidden=1
-Group=IORowL
+Group=IORowL|ParallaxIdleFreeze
 UpdateDivider=-1
 
 [MeterIOCapacityL]
@@ -1011,7 +1011,7 @@ W=((#ContentWidth#-8*#Scale#)*0.44)
 StringAlign=Right
 Text=Unavailable
 Hidden=1
-Group=IORowL
+Group=IORowL|ParallaxIdleFreeze
 UpdateDivider=-1
 
 [MeterIOUsedL]
@@ -1019,7 +1019,7 @@ Meter=Bar
 MeterStyle=StyleIOBar
 MeasureName=MeasureIOUsedL
 Y=0
-Group=IORowL
+Group=IORowL|ParallaxIdleFreeze
 UpdateDivider=-1
 
 [MeterIODiskReadLabelL]
@@ -1032,7 +1032,7 @@ H=(10*#Scale#)
 Shape=Line (1*#Scale#),(6*#Scale#),(4*#Scale#),(3*#Scale#) | Stroke Color #DiskReadColor# | StrokeWidth (Max(1,2*#Scale#))
 Shape2=Line (4*#Scale#),(3*#Scale#),(7*#Scale#),(6*#Scale#) | Stroke Color #DiskReadColor# | StrokeWidth (Max(1,2*#Scale#))
 Hidden=1
-Group=IORowL
+Group=IORowL|ParallaxIdleFreeze
 UpdateDivider=-1
 
 [MeterIODiskWriteLabelL]
@@ -1045,7 +1045,7 @@ H=(10*#Scale#)
 Shape=Line (1*#Scale#),(3*#Scale#),(4*#Scale#),(6*#Scale#) | Stroke Color #DiskWriteColor# | StrokeWidth (Max(1,2*#Scale#))
 Shape2=Line (4*#Scale#),(6*#Scale#),(7*#Scale#),(3*#Scale#) | Stroke Color #DiskWriteColor# | StrokeWidth (Max(1,2*#Scale#))
 Hidden=1
-Group=IORowL
+Group=IORowL|ParallaxIdleFreeze
 UpdateDivider=-1
 
 [MeterIODiskReadL]
@@ -1056,7 +1056,7 @@ Y=0
 W=((#ContentWidth#-8*#Scale#)*0.28-11*#Scale#)
 Text=--
 Hidden=1
-Group=IORowL
+Group=IORowL|ParallaxIdleFreeze
 UpdateDivider=-1
 
 [MeterIODiskWriteL]
@@ -1067,7 +1067,7 @@ Y=0
 W=((#ContentWidth#-8*#Scale#)*0.28-11*#Scale#)
 Text=--
 Hidden=1
-Group=IORowL
+Group=IORowL|ParallaxIdleFreeze
 UpdateDivider=-1
 
 [MeterIOLegendL]
@@ -1079,7 +1079,7 @@ W=(26*#Scale#)
 H=(18*#Scale#)
 Text=L:
 Hidden=1
-Group=IORowL
+Group=IORowL|ParallaxIdleFreeze
 UpdateDivider=-1
 
 [MeterIODriveM]
@@ -1089,7 +1089,7 @@ Y=0
 W=#ContentWidth#
 Text=M:
 Hidden=1
-Group=IORowM
+Group=IORowM|ParallaxIdleFreeze
 UpdateDivider=-1
 
 [MeterIOCapacityM]
@@ -1101,7 +1101,7 @@ W=((#ContentWidth#-8*#Scale#)*0.44)
 StringAlign=Right
 Text=Unavailable
 Hidden=1
-Group=IORowM
+Group=IORowM|ParallaxIdleFreeze
 UpdateDivider=-1
 
 [MeterIOUsedM]
@@ -1109,7 +1109,7 @@ Meter=Bar
 MeterStyle=StyleIOBar
 MeasureName=MeasureIOUsedM
 Y=0
-Group=IORowM
+Group=IORowM|ParallaxIdleFreeze
 UpdateDivider=-1
 
 [MeterIODiskReadLabelM]
@@ -1122,7 +1122,7 @@ H=(10*#Scale#)
 Shape=Line (1*#Scale#),(6*#Scale#),(4*#Scale#),(3*#Scale#) | Stroke Color #DiskReadColor# | StrokeWidth (Max(1,2*#Scale#))
 Shape2=Line (4*#Scale#),(3*#Scale#),(7*#Scale#),(6*#Scale#) | Stroke Color #DiskReadColor# | StrokeWidth (Max(1,2*#Scale#))
 Hidden=1
-Group=IORowM
+Group=IORowM|ParallaxIdleFreeze
 UpdateDivider=-1
 
 [MeterIODiskWriteLabelM]
@@ -1135,7 +1135,7 @@ H=(10*#Scale#)
 Shape=Line (1*#Scale#),(3*#Scale#),(4*#Scale#),(6*#Scale#) | Stroke Color #DiskWriteColor# | StrokeWidth (Max(1,2*#Scale#))
 Shape2=Line (4*#Scale#),(6*#Scale#),(7*#Scale#),(3*#Scale#) | Stroke Color #DiskWriteColor# | StrokeWidth (Max(1,2*#Scale#))
 Hidden=1
-Group=IORowM
+Group=IORowM|ParallaxIdleFreeze
 UpdateDivider=-1
 
 [MeterIODiskReadM]
@@ -1146,7 +1146,7 @@ Y=0
 W=((#ContentWidth#-8*#Scale#)*0.28-11*#Scale#)
 Text=--
 Hidden=1
-Group=IORowM
+Group=IORowM|ParallaxIdleFreeze
 UpdateDivider=-1
 
 [MeterIODiskWriteM]
@@ -1157,7 +1157,7 @@ Y=0
 W=((#ContentWidth#-8*#Scale#)*0.28-11*#Scale#)
 Text=--
 Hidden=1
-Group=IORowM
+Group=IORowM|ParallaxIdleFreeze
 UpdateDivider=-1
 
 [MeterIOLegendM]
@@ -1169,7 +1169,7 @@ W=(26*#Scale#)
 H=(18*#Scale#)
 Text=M:
 Hidden=1
-Group=IORowM
+Group=IORowM|ParallaxIdleFreeze
 UpdateDivider=-1
 
 [MeterIODriveN]
@@ -1179,7 +1179,7 @@ Y=0
 W=#ContentWidth#
 Text=N:
 Hidden=1
-Group=IORowN
+Group=IORowN|ParallaxIdleFreeze
 UpdateDivider=-1
 
 [MeterIOCapacityN]
@@ -1191,7 +1191,7 @@ W=((#ContentWidth#-8*#Scale#)*0.44)
 StringAlign=Right
 Text=Unavailable
 Hidden=1
-Group=IORowN
+Group=IORowN|ParallaxIdleFreeze
 UpdateDivider=-1
 
 [MeterIOUsedN]
@@ -1199,7 +1199,7 @@ Meter=Bar
 MeterStyle=StyleIOBar
 MeasureName=MeasureIOUsedN
 Y=0
-Group=IORowN
+Group=IORowN|ParallaxIdleFreeze
 UpdateDivider=-1
 
 [MeterIODiskReadLabelN]
@@ -1212,7 +1212,7 @@ H=(10*#Scale#)
 Shape=Line (1*#Scale#),(6*#Scale#),(4*#Scale#),(3*#Scale#) | Stroke Color #DiskReadColor# | StrokeWidth (Max(1,2*#Scale#))
 Shape2=Line (4*#Scale#),(3*#Scale#),(7*#Scale#),(6*#Scale#) | Stroke Color #DiskReadColor# | StrokeWidth (Max(1,2*#Scale#))
 Hidden=1
-Group=IORowN
+Group=IORowN|ParallaxIdleFreeze
 UpdateDivider=-1
 
 [MeterIODiskWriteLabelN]
@@ -1225,7 +1225,7 @@ H=(10*#Scale#)
 Shape=Line (1*#Scale#),(3*#Scale#),(4*#Scale#),(6*#Scale#) | Stroke Color #DiskWriteColor# | StrokeWidth (Max(1,2*#Scale#))
 Shape2=Line (4*#Scale#),(6*#Scale#),(7*#Scale#),(3*#Scale#) | Stroke Color #DiskWriteColor# | StrokeWidth (Max(1,2*#Scale#))
 Hidden=1
-Group=IORowN
+Group=IORowN|ParallaxIdleFreeze
 UpdateDivider=-1
 
 [MeterIODiskReadN]
@@ -1236,7 +1236,7 @@ Y=0
 W=((#ContentWidth#-8*#Scale#)*0.28-11*#Scale#)
 Text=--
 Hidden=1
-Group=IORowN
+Group=IORowN|ParallaxIdleFreeze
 UpdateDivider=-1
 
 [MeterIODiskWriteN]
@@ -1247,7 +1247,7 @@ Y=0
 W=((#ContentWidth#-8*#Scale#)*0.28-11*#Scale#)
 Text=--
 Hidden=1
-Group=IORowN
+Group=IORowN|ParallaxIdleFreeze
 UpdateDivider=-1
 
 [MeterIOLegendN]
@@ -1259,7 +1259,7 @@ W=(26*#Scale#)
 H=(18*#Scale#)
 Text=N:
 Hidden=1
-Group=IORowN
+Group=IORowN|ParallaxIdleFreeze
 UpdateDivider=-1
 
 [MeterIODriveO]
@@ -1269,7 +1269,7 @@ Y=0
 W=#ContentWidth#
 Text=O:
 Hidden=1
-Group=IORowO
+Group=IORowO|ParallaxIdleFreeze
 UpdateDivider=-1
 
 [MeterIOCapacityO]
@@ -1281,7 +1281,7 @@ W=((#ContentWidth#-8*#Scale#)*0.44)
 StringAlign=Right
 Text=Unavailable
 Hidden=1
-Group=IORowO
+Group=IORowO|ParallaxIdleFreeze
 UpdateDivider=-1
 
 [MeterIOUsedO]
@@ -1289,7 +1289,7 @@ Meter=Bar
 MeterStyle=StyleIOBar
 MeasureName=MeasureIOUsedO
 Y=0
-Group=IORowO
+Group=IORowO|ParallaxIdleFreeze
 UpdateDivider=-1
 
 [MeterIODiskReadLabelO]
@@ -1302,7 +1302,7 @@ H=(10*#Scale#)
 Shape=Line (1*#Scale#),(6*#Scale#),(4*#Scale#),(3*#Scale#) | Stroke Color #DiskReadColor# | StrokeWidth (Max(1,2*#Scale#))
 Shape2=Line (4*#Scale#),(3*#Scale#),(7*#Scale#),(6*#Scale#) | Stroke Color #DiskReadColor# | StrokeWidth (Max(1,2*#Scale#))
 Hidden=1
-Group=IORowO
+Group=IORowO|ParallaxIdleFreeze
 UpdateDivider=-1
 
 [MeterIODiskWriteLabelO]
@@ -1315,7 +1315,7 @@ H=(10*#Scale#)
 Shape=Line (1*#Scale#),(3*#Scale#),(4*#Scale#),(6*#Scale#) | Stroke Color #DiskWriteColor# | StrokeWidth (Max(1,2*#Scale#))
 Shape2=Line (4*#Scale#),(6*#Scale#),(7*#Scale#),(3*#Scale#) | Stroke Color #DiskWriteColor# | StrokeWidth (Max(1,2*#Scale#))
 Hidden=1
-Group=IORowO
+Group=IORowO|ParallaxIdleFreeze
 UpdateDivider=-1
 
 [MeterIODiskReadO]
@@ -1326,7 +1326,7 @@ Y=0
 W=((#ContentWidth#-8*#Scale#)*0.28-11*#Scale#)
 Text=--
 Hidden=1
-Group=IORowO
+Group=IORowO|ParallaxIdleFreeze
 UpdateDivider=-1
 
 [MeterIODiskWriteO]
@@ -1337,7 +1337,7 @@ Y=0
 W=((#ContentWidth#-8*#Scale#)*0.28-11*#Scale#)
 Text=--
 Hidden=1
-Group=IORowO
+Group=IORowO|ParallaxIdleFreeze
 UpdateDivider=-1
 
 [MeterIOLegendO]
@@ -1349,7 +1349,7 @@ W=(26*#Scale#)
 H=(18*#Scale#)
 Text=O:
 Hidden=1
-Group=IORowO
+Group=IORowO|ParallaxIdleFreeze
 UpdateDivider=-1
 
 [MeterIODriveP]
@@ -1359,7 +1359,7 @@ Y=0
 W=#ContentWidth#
 Text=P:
 Hidden=1
-Group=IORowP
+Group=IORowP|ParallaxIdleFreeze
 UpdateDivider=-1
 
 [MeterIOCapacityP]
@@ -1371,7 +1371,7 @@ W=((#ContentWidth#-8*#Scale#)*0.44)
 StringAlign=Right
 Text=Unavailable
 Hidden=1
-Group=IORowP
+Group=IORowP|ParallaxIdleFreeze
 UpdateDivider=-1
 
 [MeterIOUsedP]
@@ -1379,7 +1379,7 @@ Meter=Bar
 MeterStyle=StyleIOBar
 MeasureName=MeasureIOUsedP
 Y=0
-Group=IORowP
+Group=IORowP|ParallaxIdleFreeze
 UpdateDivider=-1
 
 [MeterIODiskReadLabelP]
@@ -1392,7 +1392,7 @@ H=(10*#Scale#)
 Shape=Line (1*#Scale#),(6*#Scale#),(4*#Scale#),(3*#Scale#) | Stroke Color #DiskReadColor# | StrokeWidth (Max(1,2*#Scale#))
 Shape2=Line (4*#Scale#),(3*#Scale#),(7*#Scale#),(6*#Scale#) | Stroke Color #DiskReadColor# | StrokeWidth (Max(1,2*#Scale#))
 Hidden=1
-Group=IORowP
+Group=IORowP|ParallaxIdleFreeze
 UpdateDivider=-1
 
 [MeterIODiskWriteLabelP]
@@ -1405,7 +1405,7 @@ H=(10*#Scale#)
 Shape=Line (1*#Scale#),(3*#Scale#),(4*#Scale#),(6*#Scale#) | Stroke Color #DiskWriteColor# | StrokeWidth (Max(1,2*#Scale#))
 Shape2=Line (4*#Scale#),(6*#Scale#),(7*#Scale#),(3*#Scale#) | Stroke Color #DiskWriteColor# | StrokeWidth (Max(1,2*#Scale#))
 Hidden=1
-Group=IORowP
+Group=IORowP|ParallaxIdleFreeze
 UpdateDivider=-1
 
 [MeterIODiskReadP]
@@ -1416,7 +1416,7 @@ Y=0
 W=((#ContentWidth#-8*#Scale#)*0.28-11*#Scale#)
 Text=--
 Hidden=1
-Group=IORowP
+Group=IORowP|ParallaxIdleFreeze
 UpdateDivider=-1
 
 [MeterIODiskWriteP]
@@ -1427,7 +1427,7 @@ Y=0
 W=((#ContentWidth#-8*#Scale#)*0.28-11*#Scale#)
 Text=--
 Hidden=1
-Group=IORowP
+Group=IORowP|ParallaxIdleFreeze
 UpdateDivider=-1
 
 [MeterIOLegendP]
@@ -1439,7 +1439,7 @@ W=(26*#Scale#)
 H=(18*#Scale#)
 Text=P:
 Hidden=1
-Group=IORowP
+Group=IORowP|ParallaxIdleFreeze
 UpdateDivider=-1
 
 [MeterIODriveQ]
@@ -1449,7 +1449,7 @@ Y=0
 W=#ContentWidth#
 Text=Q:
 Hidden=1
-Group=IORowQ
+Group=IORowQ|ParallaxIdleFreeze
 UpdateDivider=-1
 
 [MeterIOCapacityQ]
@@ -1461,7 +1461,7 @@ W=((#ContentWidth#-8*#Scale#)*0.44)
 StringAlign=Right
 Text=Unavailable
 Hidden=1
-Group=IORowQ
+Group=IORowQ|ParallaxIdleFreeze
 UpdateDivider=-1
 
 [MeterIOUsedQ]
@@ -1469,7 +1469,7 @@ Meter=Bar
 MeterStyle=StyleIOBar
 MeasureName=MeasureIOUsedQ
 Y=0
-Group=IORowQ
+Group=IORowQ|ParallaxIdleFreeze
 UpdateDivider=-1
 
 [MeterIODiskReadLabelQ]
@@ -1482,7 +1482,7 @@ H=(10*#Scale#)
 Shape=Line (1*#Scale#),(6*#Scale#),(4*#Scale#),(3*#Scale#) | Stroke Color #DiskReadColor# | StrokeWidth (Max(1,2*#Scale#))
 Shape2=Line (4*#Scale#),(3*#Scale#),(7*#Scale#),(6*#Scale#) | Stroke Color #DiskReadColor# | StrokeWidth (Max(1,2*#Scale#))
 Hidden=1
-Group=IORowQ
+Group=IORowQ|ParallaxIdleFreeze
 UpdateDivider=-1
 
 [MeterIODiskWriteLabelQ]
@@ -1495,7 +1495,7 @@ H=(10*#Scale#)
 Shape=Line (1*#Scale#),(3*#Scale#),(4*#Scale#),(6*#Scale#) | Stroke Color #DiskWriteColor# | StrokeWidth (Max(1,2*#Scale#))
 Shape2=Line (4*#Scale#),(6*#Scale#),(7*#Scale#),(3*#Scale#) | Stroke Color #DiskWriteColor# | StrokeWidth (Max(1,2*#Scale#))
 Hidden=1
-Group=IORowQ
+Group=IORowQ|ParallaxIdleFreeze
 UpdateDivider=-1
 
 [MeterIODiskReadQ]
@@ -1506,7 +1506,7 @@ Y=0
 W=((#ContentWidth#-8*#Scale#)*0.28-11*#Scale#)
 Text=--
 Hidden=1
-Group=IORowQ
+Group=IORowQ|ParallaxIdleFreeze
 UpdateDivider=-1
 
 [MeterIODiskWriteQ]
@@ -1517,7 +1517,7 @@ Y=0
 W=((#ContentWidth#-8*#Scale#)*0.28-11*#Scale#)
 Text=--
 Hidden=1
-Group=IORowQ
+Group=IORowQ|ParallaxIdleFreeze
 UpdateDivider=-1
 
 [MeterIOLegendQ]
@@ -1529,7 +1529,7 @@ W=(26*#Scale#)
 H=(18*#Scale#)
 Text=Q:
 Hidden=1
-Group=IORowQ
+Group=IORowQ|ParallaxIdleFreeze
 UpdateDivider=-1
 
 [MeterIODriveR]
@@ -1539,7 +1539,7 @@ Y=0
 W=#ContentWidth#
 Text=R:
 Hidden=1
-Group=IORowR
+Group=IORowR|ParallaxIdleFreeze
 UpdateDivider=-1
 
 [MeterIOCapacityR]
@@ -1551,7 +1551,7 @@ W=((#ContentWidth#-8*#Scale#)*0.44)
 StringAlign=Right
 Text=Unavailable
 Hidden=1
-Group=IORowR
+Group=IORowR|ParallaxIdleFreeze
 UpdateDivider=-1
 
 [MeterIOUsedR]
@@ -1559,7 +1559,7 @@ Meter=Bar
 MeterStyle=StyleIOBar
 MeasureName=MeasureIOUsedR
 Y=0
-Group=IORowR
+Group=IORowR|ParallaxIdleFreeze
 UpdateDivider=-1
 
 [MeterIODiskReadLabelR]
@@ -1572,7 +1572,7 @@ H=(10*#Scale#)
 Shape=Line (1*#Scale#),(6*#Scale#),(4*#Scale#),(3*#Scale#) | Stroke Color #DiskReadColor# | StrokeWidth (Max(1,2*#Scale#))
 Shape2=Line (4*#Scale#),(3*#Scale#),(7*#Scale#),(6*#Scale#) | Stroke Color #DiskReadColor# | StrokeWidth (Max(1,2*#Scale#))
 Hidden=1
-Group=IORowR
+Group=IORowR|ParallaxIdleFreeze
 UpdateDivider=-1
 
 [MeterIODiskWriteLabelR]
@@ -1585,7 +1585,7 @@ H=(10*#Scale#)
 Shape=Line (1*#Scale#),(3*#Scale#),(4*#Scale#),(6*#Scale#) | Stroke Color #DiskWriteColor# | StrokeWidth (Max(1,2*#Scale#))
 Shape2=Line (4*#Scale#),(6*#Scale#),(7*#Scale#),(3*#Scale#) | Stroke Color #DiskWriteColor# | StrokeWidth (Max(1,2*#Scale#))
 Hidden=1
-Group=IORowR
+Group=IORowR|ParallaxIdleFreeze
 UpdateDivider=-1
 
 [MeterIODiskReadR]
@@ -1596,7 +1596,7 @@ Y=0
 W=((#ContentWidth#-8*#Scale#)*0.28-11*#Scale#)
 Text=--
 Hidden=1
-Group=IORowR
+Group=IORowR|ParallaxIdleFreeze
 UpdateDivider=-1
 
 [MeterIODiskWriteR]
@@ -1607,7 +1607,7 @@ Y=0
 W=((#ContentWidth#-8*#Scale#)*0.28-11*#Scale#)
 Text=--
 Hidden=1
-Group=IORowR
+Group=IORowR|ParallaxIdleFreeze
 UpdateDivider=-1
 
 [MeterIOLegendR]
@@ -1619,7 +1619,7 @@ W=(26*#Scale#)
 H=(18*#Scale#)
 Text=R:
 Hidden=1
-Group=IORowR
+Group=IORowR|ParallaxIdleFreeze
 UpdateDivider=-1
 
 [MeterIODriveS]
@@ -1629,7 +1629,7 @@ Y=0
 W=#ContentWidth#
 Text=S:
 Hidden=1
-Group=IORowS
+Group=IORowS|ParallaxIdleFreeze
 UpdateDivider=-1
 
 [MeterIOCapacityS]
@@ -1641,7 +1641,7 @@ W=((#ContentWidth#-8*#Scale#)*0.44)
 StringAlign=Right
 Text=Unavailable
 Hidden=1
-Group=IORowS
+Group=IORowS|ParallaxIdleFreeze
 UpdateDivider=-1
 
 [MeterIOUsedS]
@@ -1649,7 +1649,7 @@ Meter=Bar
 MeterStyle=StyleIOBar
 MeasureName=MeasureIOUsedS
 Y=0
-Group=IORowS
+Group=IORowS|ParallaxIdleFreeze
 UpdateDivider=-1
 
 [MeterIODiskReadLabelS]
@@ -1662,7 +1662,7 @@ H=(10*#Scale#)
 Shape=Line (1*#Scale#),(6*#Scale#),(4*#Scale#),(3*#Scale#) | Stroke Color #DiskReadColor# | StrokeWidth (Max(1,2*#Scale#))
 Shape2=Line (4*#Scale#),(3*#Scale#),(7*#Scale#),(6*#Scale#) | Stroke Color #DiskReadColor# | StrokeWidth (Max(1,2*#Scale#))
 Hidden=1
-Group=IORowS
+Group=IORowS|ParallaxIdleFreeze
 UpdateDivider=-1
 
 [MeterIODiskWriteLabelS]
@@ -1675,7 +1675,7 @@ H=(10*#Scale#)
 Shape=Line (1*#Scale#),(3*#Scale#),(4*#Scale#),(6*#Scale#) | Stroke Color #DiskWriteColor# | StrokeWidth (Max(1,2*#Scale#))
 Shape2=Line (4*#Scale#),(6*#Scale#),(7*#Scale#),(3*#Scale#) | Stroke Color #DiskWriteColor# | StrokeWidth (Max(1,2*#Scale#))
 Hidden=1
-Group=IORowS
+Group=IORowS|ParallaxIdleFreeze
 UpdateDivider=-1
 
 [MeterIODiskReadS]
@@ -1686,7 +1686,7 @@ Y=0
 W=((#ContentWidth#-8*#Scale#)*0.28-11*#Scale#)
 Text=--
 Hidden=1
-Group=IORowS
+Group=IORowS|ParallaxIdleFreeze
 UpdateDivider=-1
 
 [MeterIODiskWriteS]
@@ -1697,7 +1697,7 @@ Y=0
 W=((#ContentWidth#-8*#Scale#)*0.28-11*#Scale#)
 Text=--
 Hidden=1
-Group=IORowS
+Group=IORowS|ParallaxIdleFreeze
 UpdateDivider=-1
 
 [MeterIOLegendS]
@@ -1709,7 +1709,7 @@ W=(26*#Scale#)
 H=(18*#Scale#)
 Text=S:
 Hidden=1
-Group=IORowS
+Group=IORowS|ParallaxIdleFreeze
 UpdateDivider=-1
 
 [MeterIODriveT]
@@ -1719,7 +1719,7 @@ Y=0
 W=#ContentWidth#
 Text=T:
 Hidden=1
-Group=IORowT
+Group=IORowT|ParallaxIdleFreeze
 UpdateDivider=-1
 
 [MeterIOCapacityT]
@@ -1731,7 +1731,7 @@ W=((#ContentWidth#-8*#Scale#)*0.44)
 StringAlign=Right
 Text=Unavailable
 Hidden=1
-Group=IORowT
+Group=IORowT|ParallaxIdleFreeze
 UpdateDivider=-1
 
 [MeterIOUsedT]
@@ -1739,7 +1739,7 @@ Meter=Bar
 MeterStyle=StyleIOBar
 MeasureName=MeasureIOUsedT
 Y=0
-Group=IORowT
+Group=IORowT|ParallaxIdleFreeze
 UpdateDivider=-1
 
 [MeterIODiskReadLabelT]
@@ -1752,7 +1752,7 @@ H=(10*#Scale#)
 Shape=Line (1*#Scale#),(6*#Scale#),(4*#Scale#),(3*#Scale#) | Stroke Color #DiskReadColor# | StrokeWidth (Max(1,2*#Scale#))
 Shape2=Line (4*#Scale#),(3*#Scale#),(7*#Scale#),(6*#Scale#) | Stroke Color #DiskReadColor# | StrokeWidth (Max(1,2*#Scale#))
 Hidden=1
-Group=IORowT
+Group=IORowT|ParallaxIdleFreeze
 UpdateDivider=-1
 
 [MeterIODiskWriteLabelT]
@@ -1765,7 +1765,7 @@ H=(10*#Scale#)
 Shape=Line (1*#Scale#),(3*#Scale#),(4*#Scale#),(6*#Scale#) | Stroke Color #DiskWriteColor# | StrokeWidth (Max(1,2*#Scale#))
 Shape2=Line (4*#Scale#),(6*#Scale#),(7*#Scale#),(3*#Scale#) | Stroke Color #DiskWriteColor# | StrokeWidth (Max(1,2*#Scale#))
 Hidden=1
-Group=IORowT
+Group=IORowT|ParallaxIdleFreeze
 UpdateDivider=-1
 
 [MeterIODiskReadT]
@@ -1776,7 +1776,7 @@ Y=0
 W=((#ContentWidth#-8*#Scale#)*0.28-11*#Scale#)
 Text=--
 Hidden=1
-Group=IORowT
+Group=IORowT|ParallaxIdleFreeze
 UpdateDivider=-1
 
 [MeterIODiskWriteT]
@@ -1787,7 +1787,7 @@ Y=0
 W=((#ContentWidth#-8*#Scale#)*0.28-11*#Scale#)
 Text=--
 Hidden=1
-Group=IORowT
+Group=IORowT|ParallaxIdleFreeze
 UpdateDivider=-1
 
 [MeterIOLegendT]
@@ -1799,7 +1799,7 @@ W=(26*#Scale#)
 H=(18*#Scale#)
 Text=T:
 Hidden=1
-Group=IORowT
+Group=IORowT|ParallaxIdleFreeze
 UpdateDivider=-1
 
 [MeterIODriveU]
@@ -1809,7 +1809,7 @@ Y=0
 W=#ContentWidth#
 Text=U:
 Hidden=1
-Group=IORowU
+Group=IORowU|ParallaxIdleFreeze
 UpdateDivider=-1
 
 [MeterIOCapacityU]
@@ -1821,7 +1821,7 @@ W=((#ContentWidth#-8*#Scale#)*0.44)
 StringAlign=Right
 Text=Unavailable
 Hidden=1
-Group=IORowU
+Group=IORowU|ParallaxIdleFreeze
 UpdateDivider=-1
 
 [MeterIOUsedU]
@@ -1829,7 +1829,7 @@ Meter=Bar
 MeterStyle=StyleIOBar
 MeasureName=MeasureIOUsedU
 Y=0
-Group=IORowU
+Group=IORowU|ParallaxIdleFreeze
 UpdateDivider=-1
 
 [MeterIODiskReadLabelU]
@@ -1842,7 +1842,7 @@ H=(10*#Scale#)
 Shape=Line (1*#Scale#),(6*#Scale#),(4*#Scale#),(3*#Scale#) | Stroke Color #DiskReadColor# | StrokeWidth (Max(1,2*#Scale#))
 Shape2=Line (4*#Scale#),(3*#Scale#),(7*#Scale#),(6*#Scale#) | Stroke Color #DiskReadColor# | StrokeWidth (Max(1,2*#Scale#))
 Hidden=1
-Group=IORowU
+Group=IORowU|ParallaxIdleFreeze
 UpdateDivider=-1
 
 [MeterIODiskWriteLabelU]
@@ -1855,7 +1855,7 @@ H=(10*#Scale#)
 Shape=Line (1*#Scale#),(3*#Scale#),(4*#Scale#),(6*#Scale#) | Stroke Color #DiskWriteColor# | StrokeWidth (Max(1,2*#Scale#))
 Shape2=Line (4*#Scale#),(6*#Scale#),(7*#Scale#),(3*#Scale#) | Stroke Color #DiskWriteColor# | StrokeWidth (Max(1,2*#Scale#))
 Hidden=1
-Group=IORowU
+Group=IORowU|ParallaxIdleFreeze
 UpdateDivider=-1
 
 [MeterIODiskReadU]
@@ -1866,7 +1866,7 @@ Y=0
 W=((#ContentWidth#-8*#Scale#)*0.28-11*#Scale#)
 Text=--
 Hidden=1
-Group=IORowU
+Group=IORowU|ParallaxIdleFreeze
 UpdateDivider=-1
 
 [MeterIODiskWriteU]
@@ -1877,7 +1877,7 @@ Y=0
 W=((#ContentWidth#-8*#Scale#)*0.28-11*#Scale#)
 Text=--
 Hidden=1
-Group=IORowU
+Group=IORowU|ParallaxIdleFreeze
 UpdateDivider=-1
 
 [MeterIOLegendU]
@@ -1889,7 +1889,7 @@ W=(26*#Scale#)
 H=(18*#Scale#)
 Text=U:
 Hidden=1
-Group=IORowU
+Group=IORowU|ParallaxIdleFreeze
 UpdateDivider=-1
 
 [MeterIODriveV]
@@ -1899,7 +1899,7 @@ Y=0
 W=#ContentWidth#
 Text=V:
 Hidden=1
-Group=IORowV
+Group=IORowV|ParallaxIdleFreeze
 UpdateDivider=-1
 
 [MeterIOCapacityV]
@@ -1911,7 +1911,7 @@ W=((#ContentWidth#-8*#Scale#)*0.44)
 StringAlign=Right
 Text=Unavailable
 Hidden=1
-Group=IORowV
+Group=IORowV|ParallaxIdleFreeze
 UpdateDivider=-1
 
 [MeterIOUsedV]
@@ -1919,7 +1919,7 @@ Meter=Bar
 MeterStyle=StyleIOBar
 MeasureName=MeasureIOUsedV
 Y=0
-Group=IORowV
+Group=IORowV|ParallaxIdleFreeze
 UpdateDivider=-1
 
 [MeterIODiskReadLabelV]
@@ -1932,7 +1932,7 @@ H=(10*#Scale#)
 Shape=Line (1*#Scale#),(6*#Scale#),(4*#Scale#),(3*#Scale#) | Stroke Color #DiskReadColor# | StrokeWidth (Max(1,2*#Scale#))
 Shape2=Line (4*#Scale#),(3*#Scale#),(7*#Scale#),(6*#Scale#) | Stroke Color #DiskReadColor# | StrokeWidth (Max(1,2*#Scale#))
 Hidden=1
-Group=IORowV
+Group=IORowV|ParallaxIdleFreeze
 UpdateDivider=-1
 
 [MeterIODiskWriteLabelV]
@@ -1945,7 +1945,7 @@ H=(10*#Scale#)
 Shape=Line (1*#Scale#),(3*#Scale#),(4*#Scale#),(6*#Scale#) | Stroke Color #DiskWriteColor# | StrokeWidth (Max(1,2*#Scale#))
 Shape2=Line (4*#Scale#),(6*#Scale#),(7*#Scale#),(3*#Scale#) | Stroke Color #DiskWriteColor# | StrokeWidth (Max(1,2*#Scale#))
 Hidden=1
-Group=IORowV
+Group=IORowV|ParallaxIdleFreeze
 UpdateDivider=-1
 
 [MeterIODiskReadV]
@@ -1956,7 +1956,7 @@ Y=0
 W=((#ContentWidth#-8*#Scale#)*0.28-11*#Scale#)
 Text=--
 Hidden=1
-Group=IORowV
+Group=IORowV|ParallaxIdleFreeze
 UpdateDivider=-1
 
 [MeterIODiskWriteV]
@@ -1967,7 +1967,7 @@ Y=0
 W=((#ContentWidth#-8*#Scale#)*0.28-11*#Scale#)
 Text=--
 Hidden=1
-Group=IORowV
+Group=IORowV|ParallaxIdleFreeze
 UpdateDivider=-1
 
 [MeterIOLegendV]
@@ -1979,7 +1979,7 @@ W=(26*#Scale#)
 H=(18*#Scale#)
 Text=V:
 Hidden=1
-Group=IORowV
+Group=IORowV|ParallaxIdleFreeze
 UpdateDivider=-1
 
 [MeterIODriveW]
@@ -1989,7 +1989,7 @@ Y=0
 W=#ContentWidth#
 Text=W:
 Hidden=1
-Group=IORowW
+Group=IORowW|ParallaxIdleFreeze
 UpdateDivider=-1
 
 [MeterIOCapacityW]
@@ -2001,7 +2001,7 @@ W=((#ContentWidth#-8*#Scale#)*0.44)
 StringAlign=Right
 Text=Unavailable
 Hidden=1
-Group=IORowW
+Group=IORowW|ParallaxIdleFreeze
 UpdateDivider=-1
 
 [MeterIOUsedW]
@@ -2009,7 +2009,7 @@ Meter=Bar
 MeterStyle=StyleIOBar
 MeasureName=MeasureIOUsedW
 Y=0
-Group=IORowW
+Group=IORowW|ParallaxIdleFreeze
 UpdateDivider=-1
 
 [MeterIODiskReadLabelW]
@@ -2022,7 +2022,7 @@ H=(10*#Scale#)
 Shape=Line (1*#Scale#),(6*#Scale#),(4*#Scale#),(3*#Scale#) | Stroke Color #DiskReadColor# | StrokeWidth (Max(1,2*#Scale#))
 Shape2=Line (4*#Scale#),(3*#Scale#),(7*#Scale#),(6*#Scale#) | Stroke Color #DiskReadColor# | StrokeWidth (Max(1,2*#Scale#))
 Hidden=1
-Group=IORowW
+Group=IORowW|ParallaxIdleFreeze
 UpdateDivider=-1
 
 [MeterIODiskWriteLabelW]
@@ -2035,7 +2035,7 @@ H=(10*#Scale#)
 Shape=Line (1*#Scale#),(3*#Scale#),(4*#Scale#),(6*#Scale#) | Stroke Color #DiskWriteColor# | StrokeWidth (Max(1,2*#Scale#))
 Shape2=Line (4*#Scale#),(6*#Scale#),(7*#Scale#),(3*#Scale#) | Stroke Color #DiskWriteColor# | StrokeWidth (Max(1,2*#Scale#))
 Hidden=1
-Group=IORowW
+Group=IORowW|ParallaxIdleFreeze
 UpdateDivider=-1
 
 [MeterIODiskReadW]
@@ -2046,7 +2046,7 @@ Y=0
 W=((#ContentWidth#-8*#Scale#)*0.28-11*#Scale#)
 Text=--
 Hidden=1
-Group=IORowW
+Group=IORowW|ParallaxIdleFreeze
 UpdateDivider=-1
 
 [MeterIODiskWriteW]
@@ -2057,7 +2057,7 @@ Y=0
 W=((#ContentWidth#-8*#Scale#)*0.28-11*#Scale#)
 Text=--
 Hidden=1
-Group=IORowW
+Group=IORowW|ParallaxIdleFreeze
 UpdateDivider=-1
 
 [MeterIOLegendW]
@@ -2069,7 +2069,7 @@ W=(26*#Scale#)
 H=(18*#Scale#)
 Text=W:
 Hidden=1
-Group=IORowW
+Group=IORowW|ParallaxIdleFreeze
 UpdateDivider=-1
 
 [MeterIODriveX]
@@ -2079,7 +2079,7 @@ Y=0
 W=#ContentWidth#
 Text=X:
 Hidden=1
-Group=IORowX
+Group=IORowX|ParallaxIdleFreeze
 UpdateDivider=-1
 
 [MeterIOCapacityX]
@@ -2091,7 +2091,7 @@ W=((#ContentWidth#-8*#Scale#)*0.44)
 StringAlign=Right
 Text=Unavailable
 Hidden=1
-Group=IORowX
+Group=IORowX|ParallaxIdleFreeze
 UpdateDivider=-1
 
 [MeterIOUsedX]
@@ -2099,7 +2099,7 @@ Meter=Bar
 MeterStyle=StyleIOBar
 MeasureName=MeasureIOUsedX
 Y=0
-Group=IORowX
+Group=IORowX|ParallaxIdleFreeze
 UpdateDivider=-1
 
 [MeterIODiskReadLabelX]
@@ -2112,7 +2112,7 @@ H=(10*#Scale#)
 Shape=Line (1*#Scale#),(6*#Scale#),(4*#Scale#),(3*#Scale#) | Stroke Color #DiskReadColor# | StrokeWidth (Max(1,2*#Scale#))
 Shape2=Line (4*#Scale#),(3*#Scale#),(7*#Scale#),(6*#Scale#) | Stroke Color #DiskReadColor# | StrokeWidth (Max(1,2*#Scale#))
 Hidden=1
-Group=IORowX
+Group=IORowX|ParallaxIdleFreeze
 UpdateDivider=-1
 
 [MeterIODiskWriteLabelX]
@@ -2125,7 +2125,7 @@ H=(10*#Scale#)
 Shape=Line (1*#Scale#),(3*#Scale#),(4*#Scale#),(6*#Scale#) | Stroke Color #DiskWriteColor# | StrokeWidth (Max(1,2*#Scale#))
 Shape2=Line (4*#Scale#),(6*#Scale#),(7*#Scale#),(3*#Scale#) | Stroke Color #DiskWriteColor# | StrokeWidth (Max(1,2*#Scale#))
 Hidden=1
-Group=IORowX
+Group=IORowX|ParallaxIdleFreeze
 UpdateDivider=-1
 
 [MeterIODiskReadX]
@@ -2136,7 +2136,7 @@ Y=0
 W=((#ContentWidth#-8*#Scale#)*0.28-11*#Scale#)
 Text=--
 Hidden=1
-Group=IORowX
+Group=IORowX|ParallaxIdleFreeze
 UpdateDivider=-1
 
 [MeterIODiskWriteX]
@@ -2147,7 +2147,7 @@ Y=0
 W=((#ContentWidth#-8*#Scale#)*0.28-11*#Scale#)
 Text=--
 Hidden=1
-Group=IORowX
+Group=IORowX|ParallaxIdleFreeze
 UpdateDivider=-1
 
 [MeterIOLegendX]
@@ -2159,7 +2159,7 @@ W=(26*#Scale#)
 H=(18*#Scale#)
 Text=X:
 Hidden=1
-Group=IORowX
+Group=IORowX|ParallaxIdleFreeze
 UpdateDivider=-1
 
 [MeterIODriveY]
@@ -2169,7 +2169,7 @@ Y=0
 W=#ContentWidth#
 Text=Y:
 Hidden=1
-Group=IORowY
+Group=IORowY|ParallaxIdleFreeze
 UpdateDivider=-1
 
 [MeterIOCapacityY]
@@ -2181,7 +2181,7 @@ W=((#ContentWidth#-8*#Scale#)*0.44)
 StringAlign=Right
 Text=Unavailable
 Hidden=1
-Group=IORowY
+Group=IORowY|ParallaxIdleFreeze
 UpdateDivider=-1
 
 [MeterIOUsedY]
@@ -2189,7 +2189,7 @@ Meter=Bar
 MeterStyle=StyleIOBar
 MeasureName=MeasureIOUsedY
 Y=0
-Group=IORowY
+Group=IORowY|ParallaxIdleFreeze
 UpdateDivider=-1
 
 [MeterIODiskReadLabelY]
@@ -2202,7 +2202,7 @@ H=(10*#Scale#)
 Shape=Line (1*#Scale#),(6*#Scale#),(4*#Scale#),(3*#Scale#) | Stroke Color #DiskReadColor# | StrokeWidth (Max(1,2*#Scale#))
 Shape2=Line (4*#Scale#),(3*#Scale#),(7*#Scale#),(6*#Scale#) | Stroke Color #DiskReadColor# | StrokeWidth (Max(1,2*#Scale#))
 Hidden=1
-Group=IORowY
+Group=IORowY|ParallaxIdleFreeze
 UpdateDivider=-1
 
 [MeterIODiskWriteLabelY]
@@ -2215,7 +2215,7 @@ H=(10*#Scale#)
 Shape=Line (1*#Scale#),(3*#Scale#),(4*#Scale#),(6*#Scale#) | Stroke Color #DiskWriteColor# | StrokeWidth (Max(1,2*#Scale#))
 Shape2=Line (4*#Scale#),(6*#Scale#),(7*#Scale#),(3*#Scale#) | Stroke Color #DiskWriteColor# | StrokeWidth (Max(1,2*#Scale#))
 Hidden=1
-Group=IORowY
+Group=IORowY|ParallaxIdleFreeze
 UpdateDivider=-1
 
 [MeterIODiskReadY]
@@ -2226,7 +2226,7 @@ Y=0
 W=((#ContentWidth#-8*#Scale#)*0.28-11*#Scale#)
 Text=--
 Hidden=1
-Group=IORowY
+Group=IORowY|ParallaxIdleFreeze
 UpdateDivider=-1
 
 [MeterIODiskWriteY]
@@ -2237,7 +2237,7 @@ Y=0
 W=((#ContentWidth#-8*#Scale#)*0.28-11*#Scale#)
 Text=--
 Hidden=1
-Group=IORowY
+Group=IORowY|ParallaxIdleFreeze
 UpdateDivider=-1
 
 [MeterIOLegendY]
@@ -2249,7 +2249,7 @@ W=(26*#Scale#)
 H=(18*#Scale#)
 Text=Y:
 Hidden=1
-Group=IORowY
+Group=IORowY|ParallaxIdleFreeze
 UpdateDivider=-1
 
 [MeterIODriveZ]
@@ -2259,7 +2259,7 @@ Y=0
 W=#ContentWidth#
 Text=Z:
 Hidden=1
-Group=IORowZ
+Group=IORowZ|ParallaxIdleFreeze
 UpdateDivider=-1
 
 [MeterIOCapacityZ]
@@ -2271,7 +2271,7 @@ W=((#ContentWidth#-8*#Scale#)*0.44)
 StringAlign=Right
 Text=Unavailable
 Hidden=1
-Group=IORowZ
+Group=IORowZ|ParallaxIdleFreeze
 UpdateDivider=-1
 
 [MeterIOUsedZ]
@@ -2279,7 +2279,7 @@ Meter=Bar
 MeterStyle=StyleIOBar
 MeasureName=MeasureIOUsedZ
 Y=0
-Group=IORowZ
+Group=IORowZ|ParallaxIdleFreeze
 UpdateDivider=-1
 
 [MeterIODiskReadLabelZ]
@@ -2292,7 +2292,7 @@ H=(10*#Scale#)
 Shape=Line (1*#Scale#),(6*#Scale#),(4*#Scale#),(3*#Scale#) | Stroke Color #DiskReadColor# | StrokeWidth (Max(1,2*#Scale#))
 Shape2=Line (4*#Scale#),(3*#Scale#),(7*#Scale#),(6*#Scale#) | Stroke Color #DiskReadColor# | StrokeWidth (Max(1,2*#Scale#))
 Hidden=1
-Group=IORowZ
+Group=IORowZ|ParallaxIdleFreeze
 UpdateDivider=-1
 
 [MeterIODiskWriteLabelZ]
@@ -2305,7 +2305,7 @@ H=(10*#Scale#)
 Shape=Line (1*#Scale#),(3*#Scale#),(4*#Scale#),(6*#Scale#) | Stroke Color #DiskWriteColor# | StrokeWidth (Max(1,2*#Scale#))
 Shape2=Line (4*#Scale#),(6*#Scale#),(7*#Scale#),(3*#Scale#) | Stroke Color #DiskWriteColor# | StrokeWidth (Max(1,2*#Scale#))
 Hidden=1
-Group=IORowZ
+Group=IORowZ|ParallaxIdleFreeze
 UpdateDivider=-1
 
 [MeterIODiskReadZ]
@@ -2316,7 +2316,7 @@ Y=0
 W=((#ContentWidth#-8*#Scale#)*0.28-11*#Scale#)
 Text=--
 Hidden=1
-Group=IORowZ
+Group=IORowZ|ParallaxIdleFreeze
 UpdateDivider=-1
 
 [MeterIODiskWriteZ]
@@ -2327,7 +2327,7 @@ Y=0
 W=((#ContentWidth#-8*#Scale#)*0.28-11*#Scale#)
 Text=--
 Hidden=1
-Group=IORowZ
+Group=IORowZ|ParallaxIdleFreeze
 UpdateDivider=-1
 
 [MeterIOLegendZ]
@@ -2339,5 +2339,5 @@ W=(26*#Scale#)
 H=(18*#Scale#)
 Text=Z:
 Hidden=1
-Group=IORowZ
+Group=IORowZ|ParallaxIdleFreeze
 UpdateDivider=-1

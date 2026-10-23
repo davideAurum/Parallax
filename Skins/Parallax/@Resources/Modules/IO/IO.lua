@@ -71,6 +71,20 @@ local function rowActive(letter, active)
     end
 end
 
+-- Idle stand-down (Global Settings Idle pause; @Resources\Idle\StandDown.lua).
+-- Every row meter is in ParallaxIdleFreeze: while paused all of them sit at
+-- UpdateDivider -1. On resume the hook deletes that key (every row would then
+-- update at the skin default, 1) and calls this, which re-applies each
+-- letter's divider from this script's record, bypassing the change cache;
+-- the hook's following forced update applies them. Absent and hidden letters
+-- idle at -1 again. The disk history needs nothing here: observe() already
+-- fills the paused seconds with empty slots, so the graph shows a gap.
+function ReapplyDividers()
+    for _, letter in ipairs(letters) do
+        SKIN:Bang('!SetOptionGroup', 'IORow' .. letter, 'UpdateDivider', cache['IORow' .. letter] and '1' or '-1')
+    end
+end
+
 local function scaled(value, base, units)
     if not finite(value) or value < 0 then return '--' end
     local unit = 1

@@ -8,6 +8,7 @@ PanelHeightPx=(Round(Max(#PanelHeight#,157+Max(0,Max(1,Round(#DataBarThickness#*
 
 [MeasureIO]
 Measure=Script
+Group=ParallaxIdlePause
 ScriptFile=#@#Modules\IO\IO.lua
 
 ; Dense instrument styles. Every actual meter declares Meter explicitly.
@@ -90,6 +91,7 @@ UpdateDivider=-1
 
 [MeterIOTitle]
 Meter=String
+Group=ParallaxIdleFreeze
 MeterStyle=StyleTitle|StyleTitleRow
 X=(#ContentX#+#TitleIconSize#+#TitleIconGap#)
 W=(#ContentWidth#-#TitleIconSize#-#TitleIconGap#-52*#Scale#)
@@ -97,6 +99,7 @@ Text=Disk Meter
 
 [MeterIOTotal]
 Meter=String
+Group=ParallaxIdleFreeze
 MeterStyle=StyleTitle|StyleTitleRow
 ; This is live capacity data, independent of title typography.
 FontSize=(#FontSize#*#Scale#)
@@ -125,6 +128,7 @@ LeftMouseUpAction=[!ActivateConfig "Parallax\IO\Settings" "Settings.ini"]
 
 [MeterIOCapacityHeading]
 Meter=String
+Group=ParallaxIdleFreeze
 MeterStyle=StyleIOHeader
 Y=(#Inset#+24*#Scale#)
 Text=Capacity: free / total
@@ -134,6 +138,7 @@ Text=Capacity: free / total
 
 [MeterIOEmpty]
 Meter=String
+Group=ParallaxIdleFreeze
 MeterStyle=StyleIOText
 Y=(#Inset#+42*#Scale#)
 Text=Select drives in settings.
@@ -152,6 +157,7 @@ Shape4=Line 1,(3*#IOGraphHeight#*#Scale#/4),(#ContentWidth#-1),(3*#IOGraphHeight
 
 [MeterIODiskGraph]
 Meter=Shape
+Group=ParallaxIdleFreeze
 X=#ContentX#
 Y=(#Inset#+(89+#IOBarExtra#)*#Scale#)
 W=#ContentWidth#
@@ -180,15 +186,18 @@ Hidden=1
 
 [MeterIOGraphPositive]
 Meter=String
+Group=ParallaxIdleFreeze
 MeterStyle=StyleIOGraphAxis
 Text=+
 
 [MeterIOGraphZero]
 Meter=String
+Group=ParallaxIdleFreeze
 MeterStyle=StyleIOGraphAxis
 Text=0
 
 [MeterIOGraphNegative]
 Meter=String
+Group=ParallaxIdleFreeze
 MeterStyle=StyleIOGraphAxis
 Text=-

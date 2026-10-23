@@ -36,6 +36,15 @@ function Start-Process {
     }
     $script:SourceTestLaunches+=@{File=$FilePath;Arguments=$ArgumentList;Style=$WindowStyle}
 }
+# Counts owner-lease walks (a CIM query each) and can return a synthetic lease;
+# otherwise the real walk runs and finds no Rainmeter ancestor here.
+$savedLease=(Get-Item Function:\Get-MediaOwnerLease).ScriptBlock
+$leaseState=[pscustomobject]@{Calls=0; Value=$null}
+function Get-MediaOwnerLease {
+    $leaseState.Calls++
+    if ($null -ne $leaseState.Value) { return $leaseState.Value }
+    & $savedLease
+}
 Invoke-SourceCommand 'Resume' $runRoot
 Assert-Test (-not (Test-Path -LiteralPath $runRoot)) 'Resume created storage without prior opt-in.'
 Assert-Test ($script:SourceTestLaunches.Count -eq 0) 'Resume launched without prior opt-in.'
@@ -476,18 +485,23 @@ try {
     [IO.File]::Delete((Get-SourceRuntimeFile $root 'stop.request'))
     [IO.File]::Delete((Get-SourceRuntimeFile $root 'enabled.intent'))
     $beforeLaunches=$script:SourceTestLaunches.Count
+    $leaseState.Calls=0
     Start-SourceObserver $root
     Assert-Test (Test-SourceEnabledIntent $root) 'Start did not opt an already-running legacy observer into resume.'
     Resume-SourceObserver $root
     Invoke-SourceCommand 'Resume' $root
     Assert-Test ($script:SourceTestLaunches.Count -eq $beforeLaunches) 'Start or repeated Resume launched beside an active worker.'
+    # MEDIA-08: the owner-lease walk happens only once no worker holds the mutex.
+    Assert-Test ($leaseState.Calls -eq 0) "Start or Resume beside an active worker walked the owner lease $($leaseState.Calls) times."
     Assert-Test ($script:SourceTestCollections -eq $before) 'Resume collected synchronously beside an active worker.'
 } finally { $holder.Dispose() }
 
 # Inspect an explicit Start while holding its child launch for later execution.
 $script:SourceTestLaunches=@()
 $script:SourceCheckControlLock=$true
-Start-SourceObserver $root
+$leaseState.Calls=0; $leaseState.Value='4242:638000000000000000'
+try { Start-SourceObserver $root } finally { $leaseState.Value=$null }
+Assert-Test ($leaseState.Calls -eq 1 -and $script:SourceTestLaunches[0].Arguments.EndsWith(' -OwnerLease 4242:638000000000000000')) 'Launch did not walk the owner lease once and pass it on.'
 Assert-Test ($script:SourceTestLaunches.Count -eq 1) 'Start did not request exactly one process.'
 Assert-Test ($script:SourceTestLaunches[0].Style -eq 'Hidden') 'Worker startup was not hidden.'
 Assert-Test ($script:SourceTestLaunches[0].File -eq (Join-Path $env:SystemRoot 'System32\WindowsPowerShell\v1.0\powershell.exe')) 'Worker executable was not fixed Windows PowerShell.'

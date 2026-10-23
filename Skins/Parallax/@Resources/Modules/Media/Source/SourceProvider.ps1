@@ -550,9 +550,6 @@ function Start-SourceObserver {
     $executable = Join-Path $env:SystemRoot 'System32\WindowsPowerShell\v1.0\powershell.exe'
     if (-not [IO.File]::Exists($executable) -or $script:SourceProviderPath -match '["\r\n]') { throw 'Windows PowerShell is unavailable.' }
     $arguments = '-NoLogo -NoProfile -NonInteractive -ExecutionPolicy Bypass -File "{0}" -Command Run -DataRoot "{1}" -Quiet' -f $script:SourceProviderPath,$Root
-    # Bind the worker to the Rainmeter that asked for it (no lease from a shell).
-    $lease = Get-MediaOwnerLease
-    if ($lease) { $arguments += ' -OwnerLease ' + $lease }
     $control = New-SourceControlMutex $Root; $controlOwned = $false
     $mutex = New-SourceMutex $Root; $owned = $false
     try {
@@ -572,6 +569,11 @@ function Start-SourceObserver {
         # Do not retain worker ownership across asynchronous process startup:
         # a quickly starting child would otherwise mistake us for a worker.
         $mutex.ReleaseMutex(); $owned = $false
+        # Bind the worker to the Rainmeter that asked for it (no lease from a
+        # shell). Computed only now, as Start-QueueBackground does: its CIM walk
+        # is wasted on the usual Resume that finds the worker already running.
+        $lease = Get-MediaOwnerLease
+        if ($lease) { $arguments += ' -OwnerLease ' + $lease }
         if (-not $Resume) {
             $stop = Get-SourceRuntimeFile $Root 'stop.request'
             if ([IO.File]::Exists($stop)) { [IO.File]::Delete($stop) }

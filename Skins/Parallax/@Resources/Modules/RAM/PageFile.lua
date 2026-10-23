@@ -169,9 +169,11 @@ local function readFrame(now)
         return
     end
     cached, lastSequence, lastEpoch, lastWire = frame, frame.sequence, frame.epoch, wire
-    -- Accepted epochs never regress, so this only moves forward. The first
-    -- sample replaces the 20-second startup guard.
-    aliveUntil = frame.epoch + model.Window(interval)
+    -- A late host is shown Unavailable after the freshness window but may
+    -- still resume; with no sample for twice that window (at least 30 s) it
+    -- counts as stopped. Accepted epochs never regress, so this only moves
+    -- forward. The first sample replaces the 20-second startup guard.
+    aliveUntil = frame.epoch + math.max(30, 2 * model.Window(interval))
 end
 
 function Update()

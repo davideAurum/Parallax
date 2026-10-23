@@ -242,8 +242,9 @@ local function checkPageController()
     check(launches.MeasureRAMPageLauncher == 1 and launches.MeasureRAMPageBootstrap == 1 and removed[lease] == 1,
         'A failed launch must not relaunch or clean twice')
 
-    -- The detached host's liveness rests on its samples: one that stops
-    -- publishing ends the session when its last sample leaves the window.
+    -- The detached host's liveness rests on its samples. A late sample is
+    -- hidden at once, a late host may resume, and one silent for twice the
+    -- freshness window (at least 30 s) ends the session.
     reset(); startHost(); providers.MeasureRAMPageLauncher.value=1; providers.MeasureRAMPageLauncher.text='RAM_PAGE_STARTED'
     files[path] = 'RAM_PAGE|1|'..token..'|1|'..now..'|OK|3000000000|12000000000|2'
     env.Update()
@@ -252,8 +253,16 @@ local function checkPageController()
     now = sampled + 8; env.Update()
     check(not removed[lease] and options.MeterRAMPageGiB.Text == '3.00/12.00 GB', 'A sample is current through its whole freshness window')
     now = sampled + 9; env.Update()
+    check(not removed[lease] and options.MeterRAMPageGiB.Text == 'Unavailable', 'A late sample is hidden at once')
+    now = sampled + 25
+    files[path] = 'RAM_PAGE|1|'..token..'|2|'..now..'|OK|3000000000|12000000000|2'
+    env.Update()
+    check(not removed[lease] and options.MeterRAMPageGiB.Text == '3.00/12.00 GB', 'A late host resumes within the grace')
+    now = sampled + 55; env.Update()
+    check(not removed[lease] and options.MeterRAMPageGiB.Text == 'Unavailable', 'The grace runs from the newest sample')
+    now = sampled + 56; env.Update()
     check(removed[lease] == 1 and removed[path] == 1 and options.MeterRAMPageGiB.Text == 'Unavailable',
-        'A host with no current sample past the window must end the session honestly')
+        'A host silent past the grace must end the session honestly')
     check(next(kills) == nil and launches.MeasureRAMPageLauncher == 1, 'A silent host is not killed or relaunched by this controller')
 
     -- A launcher that never reports: the 20-second startup guard still ends it.

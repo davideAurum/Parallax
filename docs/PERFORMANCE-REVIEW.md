@@ -321,6 +321,25 @@ No quiet-state cost.
 
 *ENGINE-02.*
 
+**Measured 2026-10-22** with the isolated benchmark and the live preferences: `HardwareAcceleration=0` (WARP) against `=1` (D3D11), 3 trials each, interleaved one trial at a time. Reports `*-live-ha0-t*` and `*-live-ha1-t*`.
+
+| Scenario | Renderer | Total | UI thread | Other threads | p95 second | Wakeups/s | Private MB |
+| --- | --- | ---: | ---: | ---: | ---: | ---: | ---: |
+| Six live skins | 0 (WARP) | 28.23 [27.96-33.02] | 16.15 | 11.97 | 54.8 | 1,444 | 92 |
+| Six live skins | 1 (D3D11) | 29.18 [27.11-31.10] | 19.88 | 7.33 | 40.4 | 1,190 | 141 |
+| Media | 0 | 16.90 [15.87-17.94] | 11.40 | 5.50 | 35.1 | 702 | 22 |
+| Media | 1 | 14.90 [13.39-17.24] | 13.46 | 1.03 | 28.2 | 451 | 73 |
+| CPU | 0 | 9.22 [8.20-9.24] | 2.68 | 6.56 | 18.5 | 277 | 68 |
+| CPU | 1 | 6.99 [6.30-8.34] | 2.61 | 4.43 | 11.6 | 210 | 118 |
+
+What this shows:
+- **The renderer barely changes total CPU.** The six-skin difference is inside the trial spread.
+- **It changes where the work runs.** Hardware rendering moves about 3.7 points onto the shared UI thread and takes about 4.6 off the rasterizer worker threads, lowers the worst seconds (p95 55% → 40%) and the wakeups, and costs about 50 MB.
+- **Turning acceleration off is not a saving lever.** Fewer repaints (T1) are, on either path.
+- **Isolated runs before this one used WARP.** Their totals are representative of the live profile; their UI-thread shares understate the live profile by about 3-4 points.
+- **Session drift is real.** The same six-skin WARP scenario measured 24.1% at 13:47 and 28.2% here, while other applications were busy. This is why step 3 compares builds only within one interleaved session.
+- **The GPU-engine percentages of off-screen isolated windows** (about 2% under WARP, about 0.1% under D3D11) do not represent on-screen composition and are not used for conclusions.
+
 Parallax must not write the owner's Rainmeter.ini. T1 reduces GPU work on either render path. An owner-run A/B of `HardwareAcceleration` 1 vs 0 (Manage → Settings, then restart), and optionally pinning Rainmeter to the UHD 630 in Windows graphics settings, would show where the remaining cost lands.
 
 ## Sharing across modules: what to share and what not

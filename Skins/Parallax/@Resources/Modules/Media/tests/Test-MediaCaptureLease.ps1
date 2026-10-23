@@ -655,9 +655,11 @@ end
         $before = Get-MediaRefreshes $root
         $displayBefore = Get-DisplayEvents $root
         $clock = if ($Command) { Send $Command } else { [Diagnostics.Stopwatch]::StartNew() }
-        $elapsed = Wait-State $Want ([math]::Max($BoundMs * 3, 15000))
+        # Generous: Windows display re-detection can stall Rainmeter's timers for
+        # many seconds, and each stall also re-arms the lease's staleness clock.
+        $elapsed = Wait-State $Want ([math]::Max($BoundMs * 6, 60000))
         $total = $clock.ElapsedMilliseconds
-        $refreshed = Wait-Refreshes ($before + 1) 10000
+        $refreshed = Wait-Refreshes ($before + 1) 20000
         Start-Sleep -Milliseconds 2500
         $after = Get-MediaRefreshes $root
         $sessions = Get-Sessions

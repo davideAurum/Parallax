@@ -188,13 +188,16 @@ function Update()
         return tonumber(loadedCapture) or 0
     end
     busy = true
-    local passes = 0
+    local passes, ok, message = 0, true, nil
     repeat
         rerun = false
         passes = passes + 1
-        evaluate()
-    until not rerun or passes >= 3
+        ok, message = pcall(evaluate)
+    until not ok or not rerun or passes >= 3
+    -- Always leave the guard open: a script error in one pass must not stop
+    -- every later update of this load. Rainmeter still logs the error.
     busy = false
+    if not ok then error(message, 0) end
     return tonumber(loadedCapture) or 0
 end
 

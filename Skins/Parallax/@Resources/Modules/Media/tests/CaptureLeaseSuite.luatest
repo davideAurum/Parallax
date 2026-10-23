@@ -63,6 +63,10 @@ function Suite.Run(leasePath, linkPath)
             return value
         end
         function skin:GetMeasure(name)
+            if state.throwOnce then
+                state.throwOnce = false
+                error('synthetic script error')
+            end
             if name == 'MeasureVisualizerState' then
                 if state.signal == nil then return nil end
                 return { GetValue = function() return state.signal end }
@@ -352,6 +356,18 @@ function Suite.Run(leasePath, linkPath)
         local unreadable = load({ capture = 0, idleActive = 1, visualizer = 1, unreadable = true })
         unreadable.env.Update(); unreadable.run(5)
         equal(#unreadable.applies, 0, 'Unreadable settings: no deferral')
+    end)
+
+    scenario('a script error in one pass does not stop later updates', function()
+        local s = load({ capture = 1, idleActive = 1 })
+        s.env.Update(); s.run(1); s.broadcast(true)
+        s.throwOnce = true
+        s.now = s.now + 1
+        local ok = pcall(s.env.Update)
+        equal(ok, false, 'The error still reaches Rainmeter (logged)')
+        s.run(1)
+        s.broadcast(false)
+        onlyApply(s, '0', 'unpark', 'The next update still evaluates and resumes')
     end)
 
     scenario('bounded test hooks', function()

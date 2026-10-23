@@ -577,8 +577,9 @@ into it. Lease reasons (park, unpark, defer, reclaim, standby, fail-live) also
 stamp `MediaLeaseRefreshAt`/`MediaLeaseRefreshClock`, so that reload starts no
 provider resume (see [Provider recovery](#provider-recovery-after-restart)). The
 tab and Media settings write the state with reason `toggle`: opening,
-collapsing or hiding the drawer always starts it live, with no stamp and no
-extra refresh, because their own refresh carries it. Collapsing and hiding
+collapsing or hiding the drawer starts it live (or deferred while the
+standalone Audio Visualizer is loaded; see below), with no stamp and no extra
+refresh, because their own refresh carries it. Collapsing and hiding
 also ask a loaded [input-idle coordinator](../ARCHITECTURE.md#input-idle-coordinator)
 to re-check whether anything still needs it (a silent group request).
 `CaptureState.inc` ships at all zeros and a release install resets it.
@@ -643,10 +644,11 @@ deferred drawer also drops Media's 50 ms drawer tick (the title animation
 keeps its own). While the drawer is open the coordinator adds about 0.1% of a
 core and 2.5 wakeups/s. Measuring audiodg and power requests is step 3's.
 
-**Checks (2026-10-23).** `tests/CaptureLeaseSuite.luatest` (95 assertions,
-offline and inside Rainmeter; 13/13 mutations caught) covers the thresholds,
-every resume path, sleep, restart, a missing coordinator, standby and nested
-joins. `tests/Test-MediaCaptureLease.ps1` stage B runs Media.ini with the real
+**Checks (2026-10-23).** `tests/CaptureLeaseSuite.luatest` (123 assertions in
+11 scenarios, offline and inside Rainmeter; 19/19 mutations caught) covers the
+thresholds, every resume path, sleep, restart, a missing coordinator, standby,
+nested joins, deferral and a script error in one pass (the lease's re-entrancy
+guard always reopens, so one error cannot stop later updates). `tests/Test-MediaCaptureLease.ps1` stage B runs Media.ini with the real
 coordinator in an isolated instance: away parked within 0.4 s of the idle file
 change, input resumed within 0.5 s, the click, Playing, a coordinator that stops
 beating (8.2 s with an 8 s stale hook) and unloading the coordinator each

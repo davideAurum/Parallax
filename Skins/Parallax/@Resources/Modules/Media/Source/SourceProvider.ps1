@@ -268,11 +268,7 @@ function Write-SourceAtomicFile {
         $stream = [IO.File]::Open($temporary, [IO.FileMode]::CreateNew, [IO.FileAccess]::Write, [IO.FileShare]::None)
         try {
             $bytes = [Text.Encoding]::ASCII.GetBytes($Text)
-            $stream.Write($bytes,0,$bytes.Length)
-            # Only the vetoes must survive a power loss. The reader reads the
-            # snapshot through the file cache, and after a power loss its old
-            # observation is stale anyway (a torn file reads as unavailable).
-            if ($lifecycle) { $stream.Flush($true) }
+            $stream.Write($bytes,0,$bytes.Length); $stream.Flush($true)
         } finally { $stream.Dispose() }
         # The junction guard again, right before the swap, on the path already
         # resolved above (no second root resolution).

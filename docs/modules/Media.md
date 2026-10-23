@@ -761,10 +761,9 @@ The current-user-only directory `%LOCALAPPDATA%\Parallax\Media\Source\` holds
 - **Snapshot permissions.** The directory carries a protected user-only ACL,
   set at the start of every command. A snapshot gets an explicit private ACL
   when first created, and replacement keeps it.
-- **Snapshot durability.** The snapshot is not forced to disk. After a power
-  loss a torn file reads as unavailable and an old one as stale.
-- **Stop request and enabled intent** keep a forced flush and an explicit
-  private ACL on every write.
+- **Durability.** Every write, the snapshot included, is forced to disk.
+- **Stop request and enabled intent** keep an explicit private ACL on every
+  write.
 No app IDs, tokens or credentials enter the snapshot; title/artist data remain
 local runtime data and must never be distributed. The strict ASCII
 `PARALLAX_SOURCE_V1` envelope carries state, observation/expiry timestamps and
@@ -1029,9 +1028,8 @@ What changed:
 4. No ACL calls on routine snapshot replacements, and the destination path is
    resolved once per write.
 5. Change-only snapshot writes with a heartbeat at under 3 s of validity
-   left, and no forced flush for the snapshot. After review, unchanged
-   observations holding a playing Spotify record are written every cycle
-   again (see below).
+   left. After review, unchanged observations holding a playing Spotify
+   record are written every cycle again (see below).
 6. The owner lease is walked only after the worker probe.
 7. A Resume beside a running worker skips storage initialization.
 
@@ -1107,6 +1105,9 @@ behaviour-preserving brief, so the fixes below were added as new commits:
 - **Every cycle while Spotify plays.** Unchanged observations holding a
   playing Spotify record are written every cycle again; only the others keep
   the sparse heartbeat.
+- **Snapshot flush, split out.** The first version also stopped forcing
+  snapshot writes to disk in the same commit. That part was undone, so it can
+  be re-applied and measured as a commit of its own.
   - `Test-SourceProvider.ps1` now passes 334 assertions. It checks the rule's
     decisions, and that a worker on a simulated clock writes every cycle while
     Spotify plays (`ready@1000` through `ready@1008`) and keeps the sparse

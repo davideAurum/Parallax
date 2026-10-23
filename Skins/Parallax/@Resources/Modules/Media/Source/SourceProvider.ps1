@@ -19,8 +19,12 @@ $script:SourceStrictUtf8 = New-Object Text.UTF8Encoding($false, $true)
 # The last root string accepted by Resolve-SourceDataRoot and its resolved form.
 $script:SourceRootInput = $null
 $script:SourceRoot = $null
+# Change-only publishing: an unchanged ready observation is rewritten once the
+# published one has less than this many seconds of validity left.
+$script:SourceHeartbeatLeadSeconds = 3.0
 
 function Get-SourceUnixTime { [long][Math]::Floor(([DateTime]::UtcNow - [DateTime]'1970-01-01').TotalSeconds) }
+function Get-SourceUnixTimeExact { [DateTimeOffset]::UtcNow.ToUnixTimeMilliseconds() / 1000.0 }
 
 function Get-SourceDefaultRoot {
     Join-Path ([Environment]::GetFolderPath('LocalApplicationData')) 'Parallax\Media\Source'
@@ -253,7 +257,11 @@ function Write-SourceAtomicFile {
         $stream = [IO.File]::Open($temporary, [IO.FileMode]::CreateNew, [IO.FileAccess]::Write, [IO.FileShare]::None)
         try {
             $bytes = [Text.Encoding]::ASCII.GetBytes($Text)
-            $stream.Write($bytes,0,$bytes.Length); $stream.Flush($true)
+            $stream.Write($bytes,0,$bytes.Length)
+            # Only the vetoes must survive a power loss. The reader reads the
+            # snapshot through the file cache, and after a power loss its old
+            # observation is stale anyway (a torn file reads as unavailable).
+            if ($lifecycle) { $stream.Flush($true) }
         } finally { $stream.Dispose() }
         # The junction guard again, right before the swap, on the path already
         # resolved above (no second root resolution).
@@ -272,6 +280,27 @@ function Write-SourceAtomicFile {
 function Publish-SourceSnapshot {
     param([string]$Root, $Snapshot)
     Write-SourceAtomicFile $Root 'source.snapshot' (ConvertTo-SourceSnapshotText $Snapshot)
+}
+
+# Everything a reader sees in a snapshot except its two timestamps.
+function Get-SourcePayloadKey {
+    param([string]$Text)
+    $Text -replace '(?m)^(?:observed|valid_until)=\d+\n', ''
+}
+
+# Change-only publishing. A changed observation (state or any record) is written
+# at once. An unchanged ready observation is rewritten as a heartbeat when the
+# published one has less than SourceHeartbeatLeadSeconds of validity left, or
+# when the clock has moved back before it. SourceReader.parse accepts a ready
+# snapshot only while now < valid_until = observed + 6 and observed <= now + 1;
+# with the 2-second cycle the heartbeat lands about every 4 s, about a second
+# before the previous observation would read as stale. Unavailable and stopped
+# observations carry no expiry, so unchanged ones are not rewritten.
+function Test-SourcePublishDue {
+    param($Published, [string]$Key, $Snapshot, [double]$Now)
+    if ($null -eq $Published -or -not [string]::Equals($Published.Key, $Key, [StringComparison]::Ordinal)) { return $true }
+    if ($Snapshot.State -ne 'ready') { return $false }
+    return (($Published.ValidUntil - $Now) -lt $script:SourceHeartbeatLeadSeconds) -or ($Published.Observed -gt $Now)
 }
 
 function Get-SourceRemaining {
@@ -439,7 +468,10 @@ function Invoke-SourceOnce {
 }
 
 function Invoke-SourceRun {
-    param([string]$Root, [scriptblock]$Collector = { Get-SourceCollection }, [string]$Lease = '')
+    # CycleMilliseconds and Clock exist for the synthetic tests; the Run command
+    # always uses the 2-second cycle and the system clock.
+    param([string]$Root, [scriptblock]$Collector = { Get-SourceCollection }, [string]$Lease = '',
+        [ValidateRange(50,2000)][int]$CycleMilliseconds = 2000, [scriptblock]$Clock = { Get-SourceUnixTimeExact })
     $owner = Open-MediaOwner $Lease
     if ($owner -is [bool]) { return $false }
     $mutex = New-SourceMutex $Root; $owned = $false; $stopEvent = $null; $waiter = $null
@@ -453,17 +485,25 @@ function Invoke-SourceRun {
         # at the end of the current cycle, because the marker is checked there.
         try { $stopEvent = New-SourceStopEvent $Root } catch { $stopEvent = $null }
         $waiter = New-SourceWaiter $owner $stopEvent
+        # The first observation of every run is always written; see
+        # Test-SourcePublishDue for when later ones are.
+        $published = $null
         # Only an explicit Start clears a previous Stop. A delayed child must
         # preserve a Stop that completed after the launch was requested.
         while (-not (Test-SourceStopPath $stopPath)) {
             $cycle = [Diagnostics.Stopwatch]::StartNew()
             try { $snapshot = & $Collector } catch { $snapshot = New-SourceSnapshot 'unavailable' }
             if (Test-SourceStopPath $stopPath) { break }
-            Publish-SourceSnapshot $Root $snapshot
+            $text = ConvertTo-SourceSnapshotText $snapshot
+            $key = Get-SourcePayloadKey $text
+            if (Test-SourcePublishDue $published $key $snapshot ([double](& $Clock))) {
+                Write-SourceAtomicFile $Root 'source.snapshot' $text
+                $published = [pscustomobject]@{Key=$key; Observed=$snapshot.Observed; ValidUntil=$snapshot.ValidUntil}
+            }
             # One wait for the rest of the cycle instead of 100 ms polling. A wake
             # re-checks the durable marker, because any process in this session
             # can set a Local\ event; a spurious wake only resumes the wait.
-            while (($remaining = 2000 - $cycle.ElapsedMilliseconds) -gt 0) {
+            while (($remaining = $CycleMilliseconds - $cycle.ElapsedMilliseconds) -gt 0) {
                 $signal = Wait-SourceSignal $waiter ([int]$remaining)
                 # The launching Rainmeter is gone. Exit without a 'stopped'
                 # snapshot: resume intent is unchanged, and the next Rainmeter's

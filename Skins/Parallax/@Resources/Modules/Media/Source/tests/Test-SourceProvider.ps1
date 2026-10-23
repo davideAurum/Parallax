@@ -356,6 +356,65 @@ try {
     Assert-Test (@(Get-ChildItem -LiteralPath $aclRoot -Filter '*.tmp').Count -eq 0) 'ACL checks left temporary files.'
 } finally { Set-Item Function:\Set-SourcePrivateFile $savedPrivate }
 
+# Change-only writes. Two collections of the same sessions differ only in their
+# timestamps, which the payload key ignores; any record or state change differs.
+$keyFixture=New-TestAdapter 2
+$keyFirst=Get-SourcePayloadKey (ConvertTo-SourceSnapshotText (Get-SourceCollection -Adapter $keyFixture.Adapter -Observed 1000 -Elapsed $keyFixture.Clock))
+$later=Get-SourceCollection -Adapter $keyFixture.Adapter -Observed 1003 -Elapsed $keyFixture.Clock
+Assert-Test ($keyFirst -ceq (Get-SourcePayloadKey (ConvertTo-SourceSnapshotText $later))) 'Timestamps alone changed the payload key.'
+Assert-Test ($keyFirst -notmatch 'observed=|valid_until=' -and $keyFirst -match '(?m)^count=2$' -and $keyFirst -match '(?m)^playing2=1$') 'Payload key kept timestamps or lost records.'
+$keyFixture.State.Sessions[1].Playing=0
+Assert-Test ($keyFirst -cne (Get-SourcePayloadKey (ConvertTo-SourceSnapshotText (Get-SourceCollection -Adapter $keyFixture.Adapter -Observed 1003 -Elapsed $keyFixture.Clock)))) 'A playing-state change kept the payload key.'
+foreach ($state in @('unavailable','stopped')) {
+    Assert-Test ($keyFirst -cne (Get-SourcePayloadKey (ConvertTo-SourceSnapshotText (New-SourceSnapshot $state)))) 'A state change kept the payload key.'
+}
+# The reader accepts a ready snapshot while now < observed + 6, so an unchanged
+# one is rewritten once less than three seconds of that window remain.
+$publishedReady=[pscustomobject]@{Key=$keyFirst; Observed=1000L; ValidUntil=1006L}
+foreach ($case in @(
+    @{Published=$null; Key=$keyFirst; Now=1003.0; Due=$true; Why='the first observation'},
+    @{Published=$publishedReady; Key=$keyFirst; Now=1002.0; Due=$false; Why='an unchanged observation with 4 s left'},
+    @{Published=$publishedReady; Key=$keyFirst; Now=1002.99; Due=$false; Why='an unchanged observation with 3.01 s left'},
+    @{Published=$publishedReady; Key=$keyFirst; Now=1003.01; Due=$true; Why='an unchanged observation with 2.99 s left'},
+    @{Published=$publishedReady; Key=$keyFirst; Now=1007.0; Due=$true; Why='an unchanged, already expired observation'},
+    @{Published=$publishedReady; Key=$keyFirst; Now=999.5; Due=$true; Why='a clock moved back before the observation'},
+    @{Published=$publishedReady; Key='changed'; Now=1000.1; Due=$true; Why='a changed observation'})) {
+    Assert-Test ((Test-SourcePublishDue $case.Published $case.Key $later $case.Now) -eq $case.Due) "Wrong publish decision for $($case.Why)."
+}
+$unavailableKey=Get-SourcePayloadKey (ConvertTo-SourceSnapshotText (New-SourceSnapshot 'unavailable'))
+Assert-Test (-not (Test-SourcePublishDue ([pscustomobject]@{Key=$unavailableKey; Observed=0L; ValidUntil=0L}) $unavailableKey (New-SourceSnapshot 'unavailable') 999999.0)) 'An unchanged unavailable observation was rewritten.'
+# The worker itself: a simulated clock advancing two seconds per cycle (the real
+# cadence) and a 100 ms test cycle make the write schedule exact.
+$writeRoot=Initialize-SourceStorage (Join-Path ([IO.Path]::GetTempPath()) ('Parallax-SourceProvider-writes-'+[Guid]::NewGuid().ToString('N')))
+$savedWriter=(Get-Item Function:\Write-SourceAtomicFile).ScriptBlock
+$writeLog=[pscustomobject]@{Snapshots=@()}
+function Write-SourceAtomicFile {
+    param([string]$Root,[string]$Name,[string]$Text)
+    if ($Name -eq 'source.snapshot') {
+        $writeLog.Snapshots+=('{0}@{1}' -f [regex]::Match($Text,'(?m)^state=(\w+)$').Groups[1].Value,[regex]::Match($Text,'(?m)^observed=(\d+)$').Groups[1].Value)
+    }
+    & $savedWriter $Root $Name $Text
+}
+$simulation=[pscustomobject]@{Now=1000.0; Calls=0}
+$simFixture=New-TestAdapter 1
+$simCollector={
+    $simulation.Calls++
+    if ($simulation.Calls -gt 1) { $simulation.Now+=2.0 }
+    if ($simulation.Calls -eq 4) { $simFixture.State.Sessions[0].Title='Synthetic changed title' }
+    if ($simulation.Calls -eq 6) { [IO.File]::WriteAllText((Join-Path $writeRoot 'stop.request'),"stop`n") }
+    Get-SourceCollection -Adapter $simFixture.Adapter -Observed ([long][Math]::Floor($simulation.Now)) -Elapsed $simFixture.Clock
+}.GetNewClosure()
+$simClock={ $simulation.Now+0.05 }.GetNewClosure()
+try {
+    Assert-Test (Invoke-SourceRun $writeRoot $simCollector -CycleMilliseconds 100 -Clock $simClock) 'Change-only worker did not run.'
+} finally { Set-Item Function:\Write-SourceAtomicFile $savedWriter }
+# 1000 first; 1002 unchanged with 3.95 s left (skipped); 1004 heartbeat; 1006
+# changed title; 1008 unchanged (skipped); then Stop's stopped state.
+$expectedWrites='ready@1000 ready@1004 ready@1006 stopped@0'
+Assert-Test (($writeLog.Snapshots -join ' ') -eq $expectedWrites) "Change-only writes were '$($writeLog.Snapshots -join ' ')', expected '$expectedWrites'."
+Assert-Test ($simulation.Calls -eq 6) 'Change-only worker changed the collection count.'
+$script:SourceTestTimings+=('Snapshot writes over 5 simulated cycles (10 s): {0} (was 6)' -f $writeLog.Snapshots.Count)
+
 $script:SourceTestCollections=0
 $collector={ $script:SourceTestCollections++; New-SourceSnapshot 'unavailable' }
 Assert-Test (Invoke-SourceOnce $root $collector) 'Once could not publish a synthetic observation.'

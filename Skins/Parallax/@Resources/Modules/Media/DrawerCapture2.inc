@@ -32,12 +32,15 @@ ParallaxIdleAway=0
 ParallaxIdlePaused=0
 ParallaxIdleSync=0
 ParallaxIdleBeat=0
+; Set to 1 by the standalone Audio Visualizer (Modules\Visualizer\Companion.lua)
+; with the ParallaxMediaCompanion group update: re-check whether to defer.
+ParallaxCompanionCheck=0
 
 ; The capture lease (Modules\Media\CaptureLease.lua) owns this state.
 [MeasureMediaCaptureLease]
 Measure=Script
 ScriptFile=#@#Modules\Media\CaptureLease.lua
-Group=ParallaxIdleHook | ParallaxIdleJoin
+Group=ParallaxIdleHook | ParallaxIdleJoin | ParallaxMediaCompanion
 UpdateDivider=#MediaLegacyDivider#
 
 [MeterVisualizerDeviceName]

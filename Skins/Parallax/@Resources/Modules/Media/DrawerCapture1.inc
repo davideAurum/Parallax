@@ -17,6 +17,9 @@ ParallaxIdleAway=0
 ParallaxIdlePaused=0
 ParallaxIdleSync=0
 ParallaxIdleBeat=0
+; Set to 1 by the standalone Audio Visualizer (Modules\Visualizer\Companion.lua)
+; with the ParallaxMediaCompanion group update: re-check whether to defer.
+ParallaxCompanionCheck=0
 
 ; The sensitivity ticks, from the Audio settings value as in the live drawer.
 [MeasureMediaDrawerDbMid]
@@ -36,7 +39,7 @@ UpdateDivider=-1
 [MeasureMediaCaptureLease]
 Measure=Script
 ScriptFile=#@#Modules\Media\CaptureLease.lua
-Group=ParallaxIdleHook | ParallaxIdleJoin
+Group=ParallaxIdleHook | ParallaxIdleJoin | ParallaxMediaCompanion
 UpdateDivider=#MediaLegacyDivider#
 
 [MeterVisualizerDeviceName]

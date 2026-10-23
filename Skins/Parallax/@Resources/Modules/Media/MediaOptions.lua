@@ -229,6 +229,14 @@ function ApplyLease(capture, standby, reason)
     return true
 end
 
+-- One capture at a time (XMOD-02): an opening drawer starts deferred while
+-- Rainmeter.ini records the standalone Audio Visualizer loaded (Active=1, its
+-- only skin file), and live otherwise; the lease re-checks after each load.
+local function openingCapture()
+    local values = readSection(rainmeterIni(), 4194304, SKIN:GetVariable('ROOTCONFIG', 'Parallax') .. '\\Visualizer', { active = true })
+    return values and values.active == '1' and 2 or 0
+end
+
 -- Collapsing or hiding the drawer: ask a loaded Parallax\Idle coordinator to
 -- re-check whether anything still needs it (@Resources\Idle\Link.lua). A
 -- silent group request; nothing happens when the coordinator is not loaded
@@ -257,8 +265,9 @@ function ToggleVisualizer()
     end
     SKIN:Bang('!WriteKeyValue', 'Variables', 'VisualizerDrawer', value, settingsPath)
     if readDrawer() ~= value then return false end
-    -- Opening or collapsing always starts the drawer live.
-    ApplyLease(0, nil, 'toggle')
+    -- Opening or collapsing starts the drawer live, or deferred to a loaded
+    -- standalone Audio Visualizer.
+    ApplyLease(openingCapture(), nil, 'toggle')
     placeAnchor(lift, false)
     if value ~= '2' then requestReevaluate() end
     -- Keep an already-open settings panel in sync with the tab.
@@ -285,7 +294,7 @@ function ApplyVisualizerPreference()
         local lift = 0
         if state == '2' then lift = openLift() end
         if lift then placeAnchor(lift, false) end
-        ApplyLease(0, nil, 'toggle')
+        ApplyLease(openingCapture(), nil, 'toggle')
         if state ~= '2' then requestReevaluate() end
     end
     SKIN:Bang('!Refresh')

@@ -2524,7 +2524,12 @@ class SkinContractTests(unittest.TestCase):
                     lease=sections['MeasureMediaCaptureLease']
                     self.assertEqual(lease['Measure'],'Script')
                     self.assertEqual(lease['ScriptFile'],'#@#Modules\\Media\\CaptureLease.lua')
-                    self.assertEqual([group.strip() for group in lease['Group'].split('|')],['ParallaxIdleHook','ParallaxIdleJoin'])
+                    # ...and the standalone Audio Visualizer's one-capture notice
+                    # (Modules\Visualizer\Companion.lua: ParallaxCompanionCheck=1
+                    # with this group's update).
+                    self.assertEqual([group.strip() for group in lease['Group'].split('|')],
+                                     ['ParallaxIdleHook','ParallaxIdleJoin','ParallaxMediaCompanion'])
+                    self.assertEqual(variables['ParallaxCompanionCheck'],'0')
                     self.assertEqual(lease['UpdateDivider'],'#MediaLegacyDivider#')
                     self.assertEqual(value_of(expand)('#MediaLegacyDivider#')*value_of(expand)('#MediaTickInterval#'),1000,
                                      'About once a second')

@@ -16,6 +16,9 @@ ParallaxIdleAway=0
 ParallaxIdlePaused=0
 ParallaxIdleSync=0
 ParallaxIdleBeat=0
+; Set to 1 by the standalone Audio Visualizer (Modules\Visualizer\Companion.lua)
+; with the ParallaxMediaCompanion group update: re-check whether to defer.
+ParallaxCompanionCheck=0
 
 [MediaVisualizerCaptureParentInclude]
 @Include22=#@#Modules\Visualizer\Capture.inc
@@ -40,7 +43,7 @@ OnUpdateAction=[!CommandMeasure MeasureVisualizerColor "Apply(false)"]
 [MeasureMediaCaptureLease]
 Measure=Script
 ScriptFile=#@#Modules\Media\CaptureLease.lua
-Group=ParallaxIdleHook | ParallaxIdleJoin
+Group=ParallaxIdleHook | ParallaxIdleJoin | ParallaxMediaCompanion
 UpdateDivider=#MediaLegacyDivider#
 
 ; Both output-row texts are event-driven (UpdateDivider=-1): Audio.inc's

@@ -41,14 +41,20 @@ function Suite.Run(leasePath, linkPath)
         for key, value in pairs(options.hooks or {}) do variables[key] = value end
         state.variables = variables
         local files = { [resources .. 'Idle\\Link.lua'] = '-- link' }
-        if options.idleActive ~= nil then
-            files[skins .. 'Parallax\\Idle\\Idle.ini'] = '[Rainmeter]\r\n'
-            files[settings .. 'Rainmeter.ini'] = '[Rainmeter]\r\n[Parallax\\Idle]\r\nActive=' .. options.idleActive .. '\r\n'
-        else
-            files[settings .. 'Rainmeter.ini'] = '[Rainmeter]\r\n'
-        end
+        if options.idleActive ~= nil then files[skins .. 'Parallax\\Idle\\Idle.ini'] = '[Rainmeter]\r\n' end
         if options.noLink then files[resources .. 'Idle\\Link.lua'] = nil end
         state.files = files
+        -- Rainmeter.ini from the recorded Active values (nil omits a section);
+        -- tests change state.idleActive / state.visualizer and call it again.
+        state.idleActive, state.visualizer = options.idleActive, options.visualizer
+        function state.writeSettings()
+            local text = '[Rainmeter]\r\n'
+            if state.idleActive ~= nil then text = text .. '[Parallax\\Idle]\r\nActive=' .. state.idleActive .. '\r\n' end
+            if state.visualizer ~= nil then text = text .. '[Parallax\\Visualizer]\r\nActive=' .. state.visualizer .. '\r\n' end
+            if options.unreadable then files[settings .. 'Rainmeter.ini'] = nil else files[settings .. 'Rainmeter.ini'] = text end
+        end
+        state.writeSettings()
+        state.reevaluations = 0
         local skin = {}
         local env
         function skin:GetVariable(name, default)
@@ -74,6 +80,12 @@ function Suite.Run(leasePath, linkPath)
                 local capture, reason = args[3]:match("^ApplyLease%((%d), nil, '([%w-]+)'%)$")
                 assert(capture, 'Unexpected lease command ' .. tostring(args[3]))
                 state.applies[#state.applies + 1] = { capture = capture, reason = reason, at = state.now }
+            elseif args[1] == '!SetVariable' then
+                assert(args[2] == 'ParallaxCompanionCheck' and args[3] == '0' and #args == 3, 'Only the companion flag is cleared, in this skin')
+                variables.ParallaxCompanionCheck = args[3]
+            elseif args[1] == '!UpdateMeasureGroup' and args[2] == 'ParallaxIdleReevaluateRequest' then
+                assert(args[3] == '*', 'Silent group request')
+                state.reevaluations = state.reevaluations + 1
             elseif args[1] == '!ActivateConfig' or (args[1] == '!UpdateMeasureGroup' and args[2] == 'ParallaxIdleSyncRequest') then
                 state.joins[#state.joins + 1] = { bang = args[1], at = state.now }
                 -- A loaded coordinator answers inside the call (Start's or
@@ -272,7 +284,7 @@ function Suite.Run(leasePath, linkPath)
         equal(standby.env.Unpark('click'), false, 'No click resume in standby')
         local deferred = load({ capture = 2, idleActive = 1 })
         deferred.env.Update(); deferred.run(1)
-        onlyApply(deferred, '0', 'reclaim', 'A saved deferred state with nothing deferring reclaims live')
+        onlyApply(deferred, '0', 'reclaim', 'A saved deferred state with no standalone loaded reclaims live')
         local click = load({ capture = 0, idleActive = 1 })
         equal(click.env.Unpark('click'), false, 'A click does nothing while live')
         equal(#click.applies, 0, 'No request for a live drawer')
@@ -300,6 +312,46 @@ function Suite.Run(leasePath, linkPath)
         equal(#active.joins, 1, 'Unsynced: the next re-join waits 10 minutes')
         active.run(100)
         equal(#active.joins, 2, 'One re-join after 10 minutes')
+    end)
+
+    scenario('one capture: defer to a loaded standalone, reclaim when it goes', function()
+        for _, capture in ipairs({ 0, 1 }) do
+            local s = load({ capture = capture, idleActive = 1, visualizer = 1, signal = 1 })
+            s.env.Update()
+            equal(#s.applies, 0, 'Not inside the load update')
+            s.run(1)
+            onlyApply(s, '2', 'defer', 'Saved ' .. capture .. ' with the standalone loaded')
+            equal(s.reevaluations, 1, 'The idle coordinator is asked to re-check')
+            equal(#s.joins, 0, 'A deferring drawer does not join')
+        end
+        local stays = load({ capture = 2, idleActive = 1, visualizer = 1 })
+        stays.env.Update(); stays.run(60)
+        equal(#stays.applies, 0, 'Deferred while the standalone stays loaded')
+        equal(#stays.joins, 0, 'A deferred drawer never joins the coordinator')
+        local setup = load({ capture = 0, idleActive = 1, visualizer = 0, signal = 1 })
+        setup.env.Update(); setup.run(1)
+        equal(#setup.applies, 0, 'Standalone not loaded: stays live')
+        -- The standalone loads: its Companion.lua sets the flag and updates
+        -- the ParallaxMediaCompanion group.
+        setup.visualizer = 1; setup.writeSettings()
+        setup.variables.ParallaxCompanionCheck = '1'
+        setup.env.Update()
+        onlyApply(setup, '2', 'defer', 'Companion check after the standalone loaded')
+        equal(setup.variables.ParallaxCompanionCheck, '0', 'The flag is cleared in this skin')
+        local back = load({ capture = 2, idleActive = 1, visualizer = 1 })
+        back.env.Update(); back.run(5)
+        back.visualizer = 0; back.writeSettings()   -- unloaded: Active=0 already recorded
+        back.variables.ParallaxCompanionCheck = '1'
+        back.env.Update()
+        onlyApply(back, '0', 'reclaim', 'Companion check after the standalone unloaded')
+        local exit = load({ capture = 2, idleActive = 1, visualizer = 1 })
+        exit.env.Update(); exit.run(5)
+        exit.variables.ParallaxCompanionCheck = '1'
+        exit.env.Update()
+        equal(#exit.applies, 0, 'A check while the standalone is still recorded loaded changes nothing')
+        local unreadable = load({ capture = 0, idleActive = 1, visualizer = 1, unreadable = true })
+        unreadable.env.Update(); unreadable.run(5)
+        equal(#unreadable.applies, 0, 'Unreadable settings: no deferral')
     end)
 
     scenario('bounded test hooks', function()

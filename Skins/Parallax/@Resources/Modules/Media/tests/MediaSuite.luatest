@@ -817,6 +817,21 @@ function suite.run(sourcePath, optionsPath)
             end
             local unlinked = options({ open = '1', noLink = true })
             check(unlinked.env.ToggleVisualizer() == true, 'A missing idle link does not stop the toggle')
+            -- One capture at a time (XMOD-02): with the standalone Audio
+            -- Visualizer recorded loaded, the drawer opens deferred.
+            local withStandalone = '[Rainmeter]\r\n[Parallax\\Media]\r\nActive=1\r\nAnchorY=0\r\n[Parallax\\Visualizer]\r\nActive=1\r\n'
+            local deferred = options({ open = '0', media = '[Variables]\r\nVisualizerDrawer=1\r\n', rainmeter = withStandalone })
+            check(deferred.env.ToggleVisualizer() == true, 'Open applied')
+            check(deferred.value('MediaDrawerCapture') == '2', 'Opens deferred to the loaded standalone')
+            check(deferred.writes('MediaLeaseRefreshAt') == 0 and deferred.selfRefreshes() == 1, "Still the toggle's own single reload")
+            local unloaded = options({ open = '0', media = '[Variables]\r\nVisualizerDrawer=1\r\n',
+                rainmeter = '[Rainmeter]\r\n[Parallax\\Media]\r\nActive=1\r\nAnchorY=0\r\n[Parallax\\Visualizer]\r\nActive=0\r\n',
+                state = '[Variables]\r\nMediaDrawerCapture=2\r\nMediaStandby=0\r\nMediaLeaseRefreshAt=0\r\nMediaLeaseRefreshClock=0\r\n' })
+            check(unloaded.env.ToggleVisualizer() == true, 'Open applied')
+            check(unloaded.value('MediaDrawerCapture') == '0', 'Opens live once the standalone is unloaded')
+            local settings = options({ media = '[Variables]\r\nVisualizerDrawer=2\r\n', rainmeter = withStandalone })
+            check(settings.env.ApplyVisualizerPreference() == true, 'Settings preference applied')
+            check(settings.value('MediaDrawerCapture') == '2', 'Media settings opening the drawer also defers')
         end)
     end
 

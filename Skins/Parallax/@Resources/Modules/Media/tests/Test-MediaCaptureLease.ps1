@@ -27,10 +27,16 @@
 # Media refresh, the render session goes and comes back with the capture, and
 # the log stays clean. Steps slowed by Windows display re-detection (which
 # stalls Rainmeter's timers) are reported as late, not failed.
+#
+# Stage C (one capture): Media's open drawer defers to the standalone Audio
+# Visualizer when it loads (one refresh, the deferred message captured at
+# 180/0.75 compact with fonts 12/10/10) and takes the capture back when it
+# unloads; the reversed load order and a startup with both loaded also defer;
+# clean logs. Rainmeter exit (no notice) is covered offline only.
 [CmdletBinding()]
 param(
     [string]$RainmeterPath = (Join-Path $env:ProgramFiles 'Rainmeter\Rainmeter.exe'),
-    [ValidateSet('A', 'B')][string[]]$Stage = @('A', 'B'),
+    [ValidateSet('A', 'B', 'C')][string[]]$Stage = @('A', 'B', 'C'),
     # A Skins\Parallax tree of the build before the variant split (b0f1aba),
     # for the pixel-identity check of the live variant. Optional.
     [string]$BaselineSkinRoot = '',
@@ -524,6 +530,12 @@ function Update()
         SKIN:Bang('!UnpauseMeasure', 'MeasureParallaxIdle', 'Parallax\\Idle')
     elseif command == 'unload' then
         SKIN:Bang('!DeactivateConfig', 'Parallax\\Idle')
+    elseif command == 'loadvis' then
+        SKIN:Bang('!ActivateConfig', 'Parallax\\Visualizer', 'Visualizer.ini')
+    elseif command == 'unloadvis' then
+        SKIN:Bang('!DeactivateConfig', 'Parallax\\Visualizer')
+    elseif command == 'loadmedia' then
+        SKIN:Bang('!ActivateConfig', 'Parallax\\Media', 'Media.ini')
     elseif command == 'quit' then
         log(seq .. '|quit')
         SKIN:Bang('!Quit')
@@ -709,6 +721,100 @@ end
         Check ($issues.Count -eq 0) 'Rainmeter logged no error or warning'
     } finally { Stop-Run $process }
     Write-Output "     evidence: $root"
+}
+
+# Stage C (one capture): Media's open drawer and the standalone Audio
+# Visualizer in one isolated instance, at 180/0.75 with fonts 12/10/10. The
+# driver skin loads and unloads the standalone or Media; each case checks the
+# drawer's capture state, the number of Media loads and the log.
+if ('C' -in $Stage) {
+    Write-Output '--- Stage C: defer to the standalone Audio Visualizer'
+    $narrow = [pscustomobject]@{ Name = 'w180-s0.75-c1'; Width = '180'; Scale = '0.75'; Columns = '1' }
+    $cases = @(
+        [pscustomobject]@{ Name = 'Media first, then the standalone'; Active = @('Parallax\Media', 'Parallax\ADriver') },
+        [pscustomobject]@{ Name = 'standalone first, then Media'; Active = @('Parallax\Visualizer', 'Parallax\ADriver') },
+        [pscustomobject]@{ Name = 'startup with both loaded'; Active = @('Parallax\Media', 'Parallax\Visualizer', 'Parallax\ADriver') }
+    )
+    foreach ($case in $cases) {
+        Write-Output "  case: $($case.Name)"
+        $root = New-Root
+        $target = Copy-Skin $root $skinSource 'Parallax' $narrow
+        Add-Probe $root (Join-Path $target 'Media\Media.ini') "$root\report.txt"
+        Put $root "$root\idle.txt" '0'
+        Put $root "$root\Driver.lua" $driverLua
+        Put $root "$target\ADriver\Driver.ini" "[Rainmeter]`r`nUpdate=100`r`n`r`n[Variables]`r`nCommandFile=$root\cmd.txt`r`nDriverLog=$root\driver.log`r`nIdleFile=$root\idle.txt`r`n`r`n[MeasureDriver]`r`nMeasure=Script`r`nScriptFile=$root\Driver.lua`r`n`r`n[MeterBounds]`r`nMeter=Image`r`nW=1`r`nH=1`r`nSolidColor=0,0,0,1`r`nUpdateDivider=-1`r`n"
+        Write-Settings $root $case.Active
+        $statePath = Join-Path $target '@Resources\Modules\Media\CaptureState.inc'
+        $script:sequence = 0
+        function Send([string]$Command) {
+            $script:sequence++
+            [IO.File]::WriteAllText("$root\cmd.txt", "$($script:sequence) $Command", $encoding)
+        }
+        function Wait-For([scriptblock]$Condition, [int]$Milliseconds) {
+            $clock = [Diagnostics.Stopwatch]::StartNew()
+            while ($clock.ElapsedMilliseconds -lt $Milliseconds) { if (& $Condition) { return $clock.ElapsedMilliseconds }; Start-Sleep -Milliseconds 100 }
+            return -1
+        }
+        $process = $null
+        try {
+            $process = Start-Run $root
+            Start-Sleep -Seconds 2
+            switch ($case.Name) {
+                'Media first, then the standalone' {
+                    $null = Wait-Loaded $process @("$root\report.txt")
+                    Check ((Get-CaptureState $statePath) -eq '0') 'Media alone starts live'
+                    $before = Get-MediaRefreshes $root
+                    Send 'loadvis'
+                    $elapsed = Wait-For { (Get-CaptureState $statePath) -eq '2' } 15000
+                    Start-Sleep -Seconds 3
+                    $after = Get-MediaRefreshes $root
+                    Write-Output ("     deferred {0} ms after the standalone was asked to load; Media refreshes {1} -> {2}" -f $elapsed, $before, $after)
+                    Check ($elapsed -ge 0) 'Media defers (state 2) once the standalone loads'
+                    Check ($after -eq $before + 1) 'Exactly one Media refresh'
+                    $report = Read-Report "$root\report.txt"
+                    $window = @(Find-Window ([ParallaxLeaseNative]::Of([uint32]$process.Id)) 'Parallax\Media')
+                    if ($window.Count -eq 1) {
+                        $bitmap = Save-Capture $window[0] "$root\C-deferred-w180-s0.75-c1.png"; $bitmap.Dispose()
+                        Write-Output "     capture: $root\C-deferred-w180-s0.75-c1.png ($($window[0].Width)x$($window[0].Height))"
+                    }
+                    $before = Get-MediaRefreshes $root
+                    Send 'unloadvis'
+                    $elapsed = Wait-For { (Get-CaptureState $statePath) -eq '0' } 15000
+                    Start-Sleep -Seconds 3
+                    $after = Get-MediaRefreshes $root
+                    Write-Output ("     reclaimed {0} ms after the standalone was asked to unload; Media refreshes {1} -> {2}" -f $elapsed, $before, $after)
+                    Check ($elapsed -ge 0) 'Media takes the capture back (state 0) once the standalone unloads'
+                    Check ($after -eq $before + 1) 'Exactly one Media refresh'
+                    Check (@([ParallaxLeaseNative]::SessionStates([uint32]$process.Id) | Where-Object { $_ -eq 1 }).Count -ge 1) 'The drawer''s live capture holds a render session again'
+                }
+                'standalone first, then Media' {
+                    $null = Wait-For { @(Find-Window ([ParallaxLeaseNative]::Of([uint32]$process.Id)) 'Parallax\Visualizer').Count -eq 1 } 60000
+                    Start-Sleep -Seconds 2
+                    Send 'loadmedia'
+                    $elapsed = Wait-For { (Get-CaptureState $statePath) -eq '2' } 30000
+                    Start-Sleep -Seconds 3
+                    $loads = Get-MediaRefreshes $root
+                    Write-Output ("     deferred {0} ms after Media was asked to load; Media loads {1}" -f $elapsed, $loads)
+                    Check ($elapsed -ge 0) 'Media opened after the standalone defers'
+                    Check ($loads -eq 2) 'The load plus exactly one deferral refresh'
+                }
+                'startup with both loaded' {
+                    $elapsed = Wait-For { (Get-CaptureState $statePath) -eq '2' } 60000
+                    Start-Sleep -Seconds 3
+                    $loads = Get-MediaRefreshes $root
+                    Write-Output ("     deferred {0} ms into the run; Media loads {1}" -f $elapsed, $loads)
+                    Check ($elapsed -ge 0) 'Starting with both loaded leaves Media deferred'
+                    Check ($loads -eq 2) 'The load plus exactly one deferral refresh'
+                }
+            }
+            Send 'quit'
+            $null = $process.WaitForExit(10000)
+            $issues = @(Get-LogIssues $root)
+            $issues | Select-Object -First 8 | ForEach-Object { Write-Output "     log: $_" }
+            Check ($issues.Count -eq 0) "$($case.Name): Rainmeter logged no error or warning"
+        } finally { Stop-Run $process }
+        Write-Output "     evidence: $root"
+    }
 }
 
 Write-Output "$checks checks, $failures failures, $late late step(s) during Windows display re-detection."

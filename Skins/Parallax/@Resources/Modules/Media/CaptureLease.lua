@@ -23,6 +23,12 @@
 --     script's own schedule (sleep) re-arms that clock instead;
 --   * at most one change is requested per load; MediaStandby=1 (the idle
 --     stand-down) leaves everything to that feature.
+-- One capture at a time (XMOD-02): when Rainmeter.ini records the standalone
+-- Audio Visualizer loaded, the drawer defers to it (state 2, "Spectrum is
+-- shown in Audio Visualizer") and takes the capture back (reclaim, state 0)
+-- once it is not. Checked once per load and whenever the Visualizer's
+-- Companion.lua asks (ParallaxCompanionCheck=1 with the ParallaxMediaCompanion
+-- group update). A deferred drawer never joins the idle coordinator.
 -- Test hooks (staged copies only, absent from shipped files, honoured only
 -- inside their bounds): MediaLeaseTestQuietSeconds (1-120) and
 -- MediaLeaseTestStaleSeconds (5-180).
@@ -32,10 +38,10 @@ local STALE_SECONDS = 180
 local UNSYNCED_SECONDS = 10
 local RETRY_SECONDS = 30
 
-local link
+local link, linkModule
 local loadedCapture, loadedStandby
 local loadAt, lastRun, rearmAt, quietSince, requestedAt
-local updates, busy, rerun
+local updates, busy, rerun, validated
 local quietSeconds, staleSeconds, gapSeconds
 
 local function variable(name, default)
@@ -61,6 +67,7 @@ local function loadLink()
     file:close()
     local ok, module = pcall(dofile, path)
     if not ok or type(module) ~= 'table' or type(module.new) ~= 'function' then return nil end
+    linkModule = module
     return module.new(SKIN)
 end
 
@@ -80,13 +87,41 @@ local function join(now)
     if link then link.join(now) end
 end
 
+-- Whether Rainmeter.ini records the standalone Audio Visualizer loaded (its
+-- only skin file, Active=1); nil when the file cannot be read.
+local function standaloneActive()
+    if not linkModule then return nil end
+    local settings = (variable('SETTINGSPATH', '') or '') .. 'Rainmeter.ini'
+    local active = linkModule.activeOf(settings, variable('ROOTCONFIG', 'Parallax') .. '\\Visualizer')
+    if active == nil then return nil end
+    return active == 1
+end
+
+-- Defer to a loaded standalone, or take the capture back from one that is
+-- gone. True when a change was requested.
+local function validate(now)
+    local standalone = standaloneActive()
+    if standalone == nil then return false end
+    if loadedCapture == '2' then
+        if standalone then return false end
+        request(0, 'reclaim', now)
+        return true
+    end
+    if not standalone then return false end
+    request(2, 'defer', now)
+    -- Nothing in a deferred drawer needs the idle coordinator.
+    if link then link.requestReevaluate() end
+    return true
+end
+
 function Initialize()
+    linkModule = nil
     link = loadLink()
     loadedCapture = variable('MediaDrawerCapture', '0')
     loadedStandby = variable('MediaStandby', '0')
     loadAt = os.time()
     lastRun, rearmAt, quietSince, requestedAt = nil, nil, nil, nil
-    updates, busy, rerun = 0, false, false
+    updates, busy, rerun, validated = 0, false, false, false
     quietSeconds = hook('MediaLeaseTestQuietSeconds', 1, QUIET_SECONDS) or QUIET_SECONDS
     staleSeconds = hook('MediaLeaseTestStaleSeconds', 5, STALE_SECONDS) or STALE_SECONDS
     -- About twice this measure's own period (MediaInterval, 1 s), plus the
@@ -105,6 +140,16 @@ local function evaluate()
     if loadedStandby == '1' then return end
     -- The reload a request causes ends this load; retry only if it never came.
     if requestedAt ~= nil and now - requestedAt >= 0 and now - requestedAt < RETRY_SECONDS then return end
+    -- One capture at a time: once after the load's own first update, and on
+    -- each companion check from the standalone Visualizer.
+    local companion = variable('ParallaxCompanionCheck', '0') == '1'
+    if companion then SKIN:Bang('!SetVariable', 'ParallaxCompanionCheck', '0') end
+    if companion or (not validated and updates > 1) then
+        validated = true
+        if validate(now) then return end
+    end
+    -- Deferred: no capture to lease and no coordinator to join.
+    if loadedCapture == '2' then return end
 
     local signal = measureValue('MeasureVisualizerState') == 2
     if signal then quietSince = nil elseif quietSince == nil then quietSince = now end
@@ -114,10 +159,7 @@ local function evaluate()
     local stale = now - math.max(beat, rearmAt or loadAt) > staleSeconds
     local playing = measureValue('MeasureState') == 1
 
-    if loadedCapture == '2' then
-        -- Nothing defers yet: a saved deferred state goes back to live.
-        return request(0, 'reclaim', now)
-    elseif loadedCapture == '1' then
+    if loadedCapture == '1' then
         if synced and not away then return request(0, 'unpark', now) end
         if playing then return request(0, 'unpark', now) end
         if not synced and now - loadAt >= UNSYNCED_SECONDS then return request(0, 'fail-live', now) end

@@ -52,6 +52,10 @@ try {
     foreach ($name in @('Defaults.inc', 'Geometry.inc', 'Styles.inc')) {
         Copy-IntoRun (Join-Path $resourceRoot $name) (Join-Path $resources $name)
     }
+    # Idle pause is Off in the staged settings: the entrypoint's last include is
+    # the comment-only Idle hook variant.
+    New-Item -ItemType Directory -Path (Join-Path $resources 'Idle') -Force | Out-Null
+    Copy-IntoRun (Join-Path $resourceRoot 'Idle\Hook0.inc') (Join-Path $resources 'Idle\Hook0.inc')
     foreach ($name in @('Core.lua', 'Store.lua', 'Chronometer.lua', 'Event.lua', 'EventCore.lua', 'Defaults.inc', 'Layout.inc', 'Styles.inc')) {
         Copy-IntoRun (Join-Path $moduleRoot $name) (Join-Path $scripts $name)
     }

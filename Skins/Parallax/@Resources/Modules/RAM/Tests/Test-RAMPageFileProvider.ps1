@@ -64,8 +64,9 @@ public static class ParallaxRamPageFileTests
         internal readonly ParallaxRamPageFile.Paths Paths;
         internal long Time = 10000;
         internal bool Live = true;
-        internal int Waits, Limit = 3, Step = 1, RemoveAt = -1;
+        internal int Waits, Limit = 3, Step = 1, RemoveAt = -1, LockAt = -1;
         internal bool Renew, Corrupt;
+        private FileStream locked;
         internal readonly List<string> Samples = new List<string>();
         internal Guard(ParallaxRamPageFile.Paths paths) { Paths = paths; }
         public bool Alive { get { return Live; } }
@@ -74,6 +75,10 @@ public static class ParallaxRamPageFileTests
             Check(milliseconds == 1000, "Requested cadence unchanged");
             Samples.Add(File.ReadAllText(Paths.Data, Encoding.ASCII));
             ++Waits;
+            // A reader holding the snapshot without delete sharing for one
+            // sample makes that sample's replacement fail.
+            if (locked != null) { locked.Dispose(); locked = null; }
+            if (Waits == LockAt) locked = new FileStream(Paths.Data, FileMode.Open, FileAccess.Read, FileShare.Read);
             Time += Step;
             if (Renew) Lease(Paths, Time);
             if (Corrupt) File.WriteAllText(Paths.Lease, Paths.Token + "|", Encoding.ASCII);
@@ -164,8 +169,37 @@ public static class ParallaxRamPageFileTests
         ParallaxRamPageFile.RunSession(paths, 1000, guard, delegate { return guard.Time; }, delegate
         { ++calls; return new ParallaxRamPageFile.Frame("UNSUPPORTED"); });
         Check(calls == 1 && guard.Samples.Count == 3, "Unsupported is terminal for native calls");
-        Check(guard.Samples[2].Contains("|3|10002|UNSUPPORTED|?|?|?"), "Unsupported heartbeat continues");
+        Check(guard.Samples[1] == guard.Samples[0] && guard.Samples[2].Contains("|2|10002|UNSUPPORTED|?|?|?"),
+            "Unsupported state continues as a heartbeat every two seconds, not every sample");
         Cleaned(paths);
+
+        // Write on change: an unchanged reading is published only as a heartbeat
+        // (2 s at the 1 s default); a changed one at once, in either direction.
+        paths = NewPaths(); guard = new Guard(paths); guard.Limit = 6; guard.Renew = true;
+        Lease(paths, guard.Time); calls = 0;
+        ParallaxRamPageFile.RunSession(paths, 1000, guard, delegate { return guard.Time; }, delegate
+        { return ++calls == 4 ? new ParallaxRamPageFile.Frame("OK", 8192, 8192, 1) : new ParallaxRamPageFile.Frame("OK", 4096, 8192, 1); });
+        Check(calls == 6 && guard.Samples.Count == 6, "Every interval is still sampled");
+        Check(guard.Samples[0].Contains("|1|10000|OK|4096|8192|1") && guard.Samples[1] == guard.Samples[0], "An unchanged reading within the heartbeat is not rewritten");
+        Check(guard.Samples[2].Contains("|2|10002|OK|4096|8192|1"), "An unchanged reading is rewritten as a heartbeat");
+        Check(guard.Samples[3].Contains("|3|10003|OK|8192|8192|1") && guard.Samples[4].Contains("|4|10004|OK|4096|8192|1"), "A changed reading is written at once");
+        Check(guard.Samples[5] == guard.Samples[4], "Sequence and timestamp advance only with a write");
+        Cleaned(paths);
+
+        // A failed replacement (reader lock) is retried on the next sample.
+        paths = NewPaths(); guard = new Guard(paths); guard.Limit = 4; guard.Renew = true; guard.LockAt = 1;
+        Lease(paths, guard.Time); calls = 0;
+        ParallaxRamPageFile.RunSession(paths, 1000, guard, delegate { return guard.Time; }, delegate
+        { return ++calls == 1 ? new ParallaxRamPageFile.Frame("OK", 4096, 8192, 1) : new ParallaxRamPageFile.Frame("OK", 8192, 8192, 1); });
+        Check(guard.Samples[1] == guard.Samples[0], "A locked snapshot keeps its previous complete sample");
+        Check(guard.Samples[2].Contains("|3|10002|OK|8192|8192|1"), "The failed change is published on the next sample");
+        Cleaned(paths);
+
+        foreach (int[] pair in new int[][] { new int[] { 1000, 2 }, new int[] { 2000, 2 }, new int[] { 3000, 3 }, new int[] { 5000, 5 }, new int[] { 30000, 30 } })
+        {
+            long window = Math.Max(8, (3 * pair[0] + 999) / 1000 + 2);
+            Check(ParallaxRamPageFile.HeartbeatSeconds(pair[0]) == pair[1] && 3 * pair[1] <= window, "Heartbeat sits at a third of the reader's freshness window");
+        }
 
         foreach (bool corrupt in new bool[] { false, true })
         {
@@ -199,7 +233,8 @@ public static class ParallaxRamPageFileTests
         ParallaxRamPageFile.RunSession(paths, 1000, guard, delegate { return guard.Time; }, delegate
         {
             if (++calls == 2) File.Delete(removing.Lease);
-            return new ParallaxRamPageFile.Frame("OK", 4096, 8192, 1);
+            // A changed reading, so only the removed lease prevents the write.
+            return new ParallaxRamPageFile.Frame("OK", calls == 1 ? 4096UL : 8192UL, 8192, 1);
         });
         Check(calls == 2 && guard.Samples.Count == 1 && guard.Samples[0].Contains("|1|10000|OK|4096|8192|1"),
             "No snapshot is written after the lease is removed");

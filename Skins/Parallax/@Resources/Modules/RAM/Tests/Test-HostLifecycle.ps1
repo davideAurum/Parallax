@@ -25,6 +25,9 @@ param(
     [ValidateRange(10,180)][int]$RecoverySeconds = 45,
     [ValidateSet('Exit','Kill')][string]$Finish = 'Exit',
     [switch]$SkipUnload,
+    # Seconds to watch after the first reading: every skin update must keep
+    # showing a current reading (no stale or Checking flicker).
+    [ValidateRange(0,600)][int]$ObserveSeconds = 0,
     [string]$ProjectRoot,
     [string]$RainmeterPath = (Join-Path $env:ProgramFiles 'Rainmeter\Rainmeter.exe')
 )
@@ -249,6 +252,15 @@ try {
     Check ($token -ne '') 'Load: the host command carries its session token'
     $files = @(Get-SessionFiles $token)
     Check (($files -contains ($spec.Prefix + $token + '.dat')) -and ($files -contains ($spec.Prefix + $token + '.lease'))) 'Load: the session holds its snapshot and lease'
+    if ($ObserveSeconds) {
+        $mark = @(Get-Content -LiteralPath $observedPath -Encoding UTF8).Count
+        Start-Sleep -Seconds $ObserveSeconds
+        $watched = @(Get-Content -LiteralPath $observedPath -Encoding UTF8 | Select-Object -Skip $mark | ForEach-Object { ($_ -split '\|', 2)[1] })
+        $other = @($watched | Where-Object { $_ -notmatch $spec.Reading })
+        $result.ObservedUpdates = $watched.Count
+        $result.ObservedNonReadings = ($other | Select-Object -Unique) -join ', '
+        Check ($watched.Count -ge $ObserveSeconds / 2 -and $other.Count -eq 0) "Observe: all $($watched.Count) updates over $ObserveSeconds s showed a current reading"
+    }
 
     if (-not $SkipUnload) {
         Send-Bang ('!DeactivateConfig "' + $spec.Config + '"')

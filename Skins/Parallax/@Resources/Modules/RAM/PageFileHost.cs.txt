@@ -70,7 +70,10 @@ public static class ParallaxRamPageFile
             if (!parent.Alive) return;
             WriteSnapshot(paths, Snapshot(paths.Token, 0, clock(), new Frame("STARTING")), true);
             ownData = true;
-            long sequence = 0;
+            long sequence = 0, written = 0;
+            // The reading last published; null forces the next write.
+            string published = null;
+            long heartbeat = HeartbeatSeconds(intervalMs);
             bool unsupported = false;
             while (parent.Alive)
             {
@@ -82,13 +85,20 @@ public static class ParallaxRamPageFile
                 if (!LeaseFresh(validLease, now, intervalMs)) break;
                 Frame frame = unsupported ? new Frame("UNSUPPORTED") : sample();
                 unsupported = frame.Status == "UNSUPPORTED";
-                if (sequence == MaximumInteger) break;
-                string text = Snapshot(paths.Token, ++sequence, clock(), frame);
-                // Never recreate session files after the skin's cleanup.
-                if (!File.Exists(paths.Lease)) break;
-                try { WriteSnapshot(paths, text, false); }
-                catch (IOException) { /* Reader lock: the old timestamp ages normally. */ }
-                catch (UnauthorizedAccessException) { /* Retry next interval while leased. */ }
+                // Publish a changed reading at once; an unchanged one only as a
+                // heartbeat that keeps the reader's freshness window from lapsing.
+                string reading = Values(frame);
+                long stamp = clock();
+                if (reading != published || stamp - written >= heartbeat || stamp < written)
+                {
+                    if (sequence == MaximumInteger) break;
+                    string text = Snapshot(paths.Token, ++sequence, stamp, frame);
+                    // Never recreate session files after the skin's cleanup.
+                    if (!File.Exists(paths.Lease)) break;
+                    try { WriteSnapshot(paths, text, false); published = reading; written = stamp; }
+                    catch (IOException) { /* Reader lock: retried next sample; the old timestamp ages normally. */ }
+                    catch (UnauthorizedAccessException) { /* Retried next sample while leased. */ }
+                }
                 if (!WaitInterval(parent, paths, intervalMs)) break;
             }
         }
@@ -98,6 +108,25 @@ public static class ParallaxRamPageFile
             Delete(paths.Lease);
             // WriteSnapshot deletes only the temporary file it created.
         }
+    }
+
+    // Seconds between writes of an unchanged reading. PageFile.lua treats a
+    // sample as current for max(8, ceil(3 * interval / 1000) + 2) seconds;
+    // a heartbeat at a third of that keeps several seconds of margin for a
+    // late host or reader (2 s at the default 1 s interval, every sample at
+    // 2 s and slower).
+    internal static long HeartbeatSeconds(int intervalMs)
+    {
+        long window = Math.Max(8L, (3L * intervalMs + 999) / 1000 + 2);
+        return Math.Max(1L, window / 3);
+    }
+
+    // Everything a snapshot carries except its sequence and timestamp.
+    internal static string Values(Frame frame)
+    {
+        return frame.Status + "|" + (frame.Used.HasValue ? Number((long)frame.Used.Value) : "?") + "|" +
+            (frame.Total.HasValue ? Number((long)frame.Total.Value) : "?") + "|" +
+            (frame.Count.HasValue ? Number(frame.Count.Value) : "?");
     }
 
     // Waits one sampling interval in slices of at most five seconds, so a

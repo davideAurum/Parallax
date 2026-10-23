@@ -4,6 +4,13 @@ Review date 2026-10-22, against commit 71bfcdc (0.1.0-alpha.6 plus the WebNowPla
 
 CPU figures are **percent of one logical core** unless stated otherwise. 100% means one of the 12 hardware threads is fully busy; the whole machine is 1200%.
 
+## Where it stands (2026-10-23)
+
+- **Six live skins:** 20.5% of a core at baseline, 9.0 after phase A, 7.7 after phase B (−63%). With the CPU, RAM and GPU process lists hidden: 4.7 (−77%). Measured in an isolated benchmark with live preferences, 3 interleaved trials. See [Phase B result](#phase-b-result-merged-and-measured-2026-10-23).
+- **The overnight fan peaks are not Parallax.** They come with bursts of display re-detection work in explorer and NVIDIA's display service, about every 50 s, with the screens off. Parallax is a steady floor of about a quarter of the night-time load. See [Overnight trace](#overnight-trace-2026-102223-what-drives-the-night-time-fan).
+- **Nothing has reached the desktop yet.** The live skin changes only when a release is installed.
+- **Next:** phase C (releasing the drawer's capture after silence, and the idle stand-down), then step 3's per-fix evidence.
+
 ## Bottom line
 
 1. **Parallax uses about 31% of a core continuously in a quiet state, plus most of audiodg's 11%.** The 31% splits into Rainmeter at 21.7%, of which 16% is its single drawing thread, and Parallax's PowerShell helpers at 9.6%. Measured live, read-only, after 19 hours of uptime; the cumulative counters agree.
@@ -454,7 +461,7 @@ Reading it:
 - **A hint of synergy, not yet a claim.** The six-skin gain (15.3) exceeds the sum of the measured solo gains (Media 9.7 + CPU 1.5 + GPU 1.1 + RAM 0 = 12.2; IO and Chronometer were not measured solo). But the difference (3.1) is about the baseline's wide spread (±2.9). Step 3's per-fix builds decide it.
 - **What this run cannot show.** A2's Source-helper gain needs the live trace after a release; isolated profiles keep Media's providers inert. audiodg, kept alive by the open drawer's capture, is phase C1.
 
-## Phase B result (merged 2026-10-23, not yet measured)
+## Phase B result (merged and measured 2026-10-23)
 
 Each package was built in its own worktree and then reviewed by an independent agent that tried to break it. B4 and B6 came back with required changes, were fixed and reviewed again. All five were approved. They are merged on the review branch, one merge per package: `bee188c` B1, `7ccad28` B2, `9bb2a1b` B4, `44ad4b5` B5, `0fd5b39` B6. B1, B2 and B4 were built in sequence, each on the previous one. B5 and B6 were built from `191a1cd`. The five packages share no files.
 
@@ -489,10 +496,38 @@ Each package was built in its own worktree and then reviewed by an independent a
 
 The stale doc lines the reviewers flagged (ARCHITECTURE, PACKAGING, DEPENDENCIES, RAM.md, GPU.md) were corrected at merge.
 
-**Still to measure, after the overnight trace ends:**
-- Baseline `916c9ab`, phase A `dfe55b8` and phase B, interleaved, with live preferences and hardware rendering.
-- B1's wakeup reduction.
-- B2's gains, which show only in opt-out scenarios.
+**Measured 2026-10-23, 08:38-09:53.**
+- **Setup:** isolated benchmark, live preferences (drawer open), hardware rendering.
+- **Trials:** 3 per build, interleaved in a rotating order.
+- **Same instrument for every build:** the benchmark tooling is byte-identical in all three commits.
+- **"Lists hidden":** phase B with `CPUShowProcesses=0`, `RAMShowProcesses=0` and `GPUShowProcesses=0`, from a copy of the live preferences.
+- **Reports:** `build/perf-benchmark/*-live-pb-*-t*.json`.
+
+CPU in % of one core, median [min-max].
+
+| Scenario | Baseline `916c9ab` | Phase A `dfe55b8` | Phase B `08ecb9f` | Phase B, lists hidden |
+| --- | ---: | ---: | ---: | ---: |
+| **Six live skins** | 20.54 [11.48-21.58] | 9.02 [6.81-9.44] | **7.68** [7.50-9.28] | **4.69** [4.30-5.48] |
+| UI thread | 12.54 | 2.97 | 2.99 | 3.14 |
+| Plugin threads | 5.20 | 4.22 | 3.88 | 0.64 |
+| Helpers | 2.54 | 0.80 | 0.81 | 0.92 |
+| p95 second | 27.74 | 15.34 | 14.39 | 10.13 |
+| Rainmeter wakeups/s | 1,154 | 642 | 567 | 531 |
+| Media | 9.89 | 2.20 | 2.00 | — |
+| Visualizer | 4.19 | 1.80 | 1.48 | — |
+| CPU | 5.02 | 4.37 | 4.47 | 1.70 |
+| GPU | 4.10 | 2.03 | 2.02 | 1.11 |
+| GPU wakeups/s | 263 | 257 | **155** | 127 |
+| RAM | 3.66 | 3.64 | 3.39 | 0.74 |
+| RAM wakeups/s | 251 | 266 | **159** | 131 |
+
+**Reading it:**
+- **From baseline, the six skins cost 63% less after phase B** (20.5 → 7.7), and 77% less with the process lists hidden (→ 4.7). The peak second fell from 27.7 to 14.4.
+- **Phase B's CPU change at the default settings is inside the trial spread** (9.0 → 7.7, with overlapping ranges). That was expected: B1 removes wakeups rather than CPU time, and B2 changes nothing at the defaults.
+- **B1's wakeup cut is clear.** GPU and RAM each lose about 100 Rainmeter wakeups a second (257 → 155, 266 → 159). That matches the 104/s measured live for RunCommand's polling thread.
+- **The process lists are now the largest remaining cost.** Hiding them takes the six skins from 7.7 to 4.7, and plugin-thread time from 3.9 to 0.6. That plugin time is UsageMonitor's whole-category Process and GPU readers. Hiding the lists is a feature trade-off and the owner's choice; the defaults keep them.
+- **One outlier.** Baseline's first six-skin trial read 11.5, about half the other two (21.6 and 20.5), and its UI-thread time was half as well. The median uses all three trials.
+- **Why these differ from yesterday's run** (25.5 at baseline, 10.3 after phase A): that ran under different background load. Today's numbers come from one interleaved session, so they compare like with like.
 
 ## Overnight trace (2026-10-22/23): what drives the night-time fan
 

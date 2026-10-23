@@ -397,8 +397,9 @@ function Update()
         else local action=actions[command];if action then SKIN:Bang('!CommandMeasure','MeasureGPUSettings',action) end end
         write([=[$runRoot\popup-done.txt]=],command)
     end
-    local out={'Columns='..SKIN:GetVariable('Columns'),'PanelHeight='..SKIN:GetVariable('PanelHeight')}
-    for _,name in ipairs({'MeterSettingsColumnsValue','MeterSettingsHeightValue','MeterSettingsSensorsValue','MeterSettingsTemperatureValue','MeterSettingsPowerSourceValue','MeterSettingsClockSourceValue','MeterSettingsPowerValue','MeterSettingsNotice','MeterSettingsPick1','MeterSettingsTitle'}) do
+    -- The settings window's own height is a formula (648 plus its process rows).
+    local out={'Columns='..SKIN:GetVariable('Columns'),'PanelHeight='..tostring(SKIN:ParseFormula(SKIN:GetVariable('PanelHeight')))}
+    for _,name in ipairs({'MeterSettingsColumnsValue','MeterSettingsHeightValue','MeterSettingsSensorsValue','MeterSettingsProcessesValue','MeterSettingsProcessMemoryValue','MeterSettingsTemperatureValue','MeterSettingsPowerSourceValue','MeterSettingsClockSourceValue','MeterSettingsPowerValue','MeterSettingsNotice','MeterSettingsPick1','MeterSettingsTitle'}) do
         local meter=SKIN:GetMeter(name);if meter then out[#out+1]=name..'='..meter:GetOption('Text','') end
     end
     write([=[$runRoot\settings-observed.txt]=],table.concat(out,'\n'))
@@ -594,7 +595,7 @@ if ('__ACTION__' -eq 'invalid') {
             } 'Typed Columns result did not reach the production completion action.' 12
             Wait-Condition {Text-Matches $observedPath ('(?m)^Columns='+$scenario.Columns+'\r?$')} 'Typed Columns did not preserve or reload the expected monitor width.' 12
             if (-not $scenario.Changed -and ((Get-FileHash -LiteralPath $userPath).Hash -ne $beforeTypedHash -or (Get-Item -LiteralPath $observedPath).LastWriteTimeUtc -ne $beforeTypedReload)) {throw 'Cancelled or invalid Columns input wrote preferences or refreshed GPU.'}
-            if (-not (Text-Matches (Join-Path $runRoot 'settings-observed.txt') '(?m)^PanelHeight=648\r?$')) {throw 'Typed Columns changed settings geometry.'}
+            if (-not (Text-Matches (Join-Path $runRoot 'settings-observed.txt') '(?m)^PanelHeight=704\r?$')) {throw 'Typed Columns changed settings geometry.'}
             Write-RunFile (Join-Path $runRoot ('typed-columns-'+($case+1)+'-result.txt')) (Get-Content -LiteralPath (Join-Path $runRoot 'typed-input-observed.txt') -Raw)
         }
     } finally {Write-RunFile $inputPath $inputSource}
@@ -648,7 +649,7 @@ try {
         Action 'powersource';Wait-Condition {Text-Matches $observedPath '(?m)^GPUPowerSource=0$'} 'Driver power source did not persist.'
         Action 'clocksource';Wait-Condition {Text-Matches $observedPath '(?m)^GPUClockSource=0$'} 'Driver clock source did not persist.'
         Action 'fit';Wait-Condition {Text-Matches $observedPath '(?m)^PanelHeight=462$'} 'GPU did not reload fitted height.'
-        if (-not (Text-Matches (Join-Path $runRoot 'settings-observed.txt') '(?m)^PanelHeight=648$')) { throw 'Settings geometry changed with monitor height.' }
+        if (-not (Text-Matches (Join-Path $runRoot 'settings-observed.txt') '(?m)^PanelHeight=704$')) { throw 'Settings geometry changed with monitor height.' }
         Action 'browse';Wait-Condition {Text-Matches (Join-Path $runRoot 'discovery-observed.txt') '(?m)^1\r?$'} 'Real discovery did not complete.'
         $realDiscovery=Get-Content -LiteralPath (Join-Path $runRoot 'discovery-observed.txt') -Raw
         Write-RunFile (Join-Path $runRoot 'real-discovery-result.txt') $realDiscovery

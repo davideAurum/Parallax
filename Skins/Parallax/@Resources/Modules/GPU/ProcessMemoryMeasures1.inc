@@ -1,44 +1,10 @@
-; Ranks share UsageMonitor's existing GPU Engine collection worker. Rank 1
-; reuses MeasureGPUActivity. Keep raw PID/adapter/engine identities and values.
-[MeasureGPUProcess2]
-Measure=Plugin
-Plugin=UsageMonitor
-Alias=GPU
-Index=2
-Rollup=0
-PIDToName=0
-Percent=0
-RawValue=0
-
-[MeasureGPUProcess3]
-Measure=Plugin
-Plugin=UsageMonitor
-Alias=GPU
-Index=3
-Rollup=0
-PIDToName=0
-Percent=0
-RawValue=0
-
-[MeasureGPUProcess4]
-Measure=Plugin
-Plugin=UsageMonitor
-Alias=GPU
-Index=4
-Rollup=0
-PIDToName=0
-Percent=0
-RawValue=0
-
-[MeasureGPUProcess5]
-Measure=Plugin
-Plugin=UsageMonitor
-Alias=GPU
-Index=5
-Rollup=0
-PIDToName=0
-Percent=0
-RawValue=0
+; GPUShowProcessMemory=1: the process table's VRAM column. ProcessMeasures1.inc
+; includes this file only in that state (ProcessMemoryMeasures0.inc otherwise),
+; so the GPU Process Memory category has a reader only while the column shows.
+[Variables]
+; Only this file opens the VRAM column's geometry (GPU.ini, ProcessMeters1.inc)
+; and ProcessGraph.lua's memory bindings.
+GPUProcessMemoryColumn=1
 
 ; Per-process memory lookups share one GPU Process Memory collection worker.
 ; They read Local Usage, not the VRAM alias's Dedicated Usage: Local Usage is
@@ -111,7 +77,3 @@ PIDToName=0
 Percent=0
 RawValue=1
 Disabled=1
-
-[MeasureGPUProcessController]
-Measure=Script
-ScriptFile=#@#Modules\GPU\ProcessGraph.lua

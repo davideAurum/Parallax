@@ -8,6 +8,13 @@ Columns=1
 ; (Fit); larger values add space below the history graph. 650 was the Fit
 ; value of the previous layout and is still treated as Fit.
 PanelHeight=462
+; Process table (the five busiest GPU processes): 1 shows it; 0 hides it and
+; loads none of its UsageMonitor measures, so Windows' GPU Engine and GPU
+; Process Memory counters are not read at all, and a fitted panel shortens.
+GPUShowProcesses=1
+; The table's VRAM column: 0 hides it and loads none of its GPU Process
+; Memory measures; the GPU % column is unaffected.
+GPUShowProcessMemory=1
 GPUEnableSensors=1
 ; Power/clock source: 0=direct driver (default), 1=explicit HWiNFO override.
 ; Overrides also require GPUEnableSensors=1 and a valid mapping below.

@@ -1,17 +1,9 @@
-; Built-in UsageMonitor has a shared 1 Hz worker independent of UpdateDivider.
-; Keep the raw PID/adapter/engine instance: translating to an executable name
-; may combine multiple engines or PIDs. Index=1 selects one ranked instance;
-; it feeds row 1 of the process table only. The header figure and the History
-; graph come from the direct driver sample (TemperatureMeasures.inc).
-[MeasureGPUActivity]
-Measure=Plugin
-Plugin=UsageMonitor
-Alias=GPU
-Index=1
-Rollup=0
-PIDToName=0
-Percent=0
-RawValue=0
+; No UsageMonitor measure lives here: the process table's GPU Engine ranks,
+; including MeasureGPUActivity (row 1), load only with the table
+; (ProcessMeasures<GPUShowProcesses>.inc), because a loaded UsageMonitor
+; measure keeps its category reader running even while Disabled. The header
+; figure and the History graph come from the direct driver sample
+; (TemperatureMeasures.inc).
 
 ; Self reference starts at zero on load AND refresh; global Counter does not.
 ; Counts History points: Temperature.lua forces it together with the Line

@@ -628,6 +628,42 @@ function Suite.run(path)
         f.missingMemory[1] = false; f.memoryValues[memoryKey(first)] = 1048576; f:update()
         eq(f:text('Memory', 1), '1 MB'); eq(f.memoryLookups[1], 2)
     end)
+    -- GPUShowProcessMemory=0: ProcessMemoryMeasures0.inc and
+    -- ProcessMemoryMeters0.inc load instead, GPUProcessMemoryColumn stays 0,
+    -- and no VRAM measure or meter exists to bind, bang or write.
+    test('a hidden VRAM column sends no memory lookup, bang or cell write', function()
+        local rows = {{name = instance(11), value = 50}, {name = instance(22), value = 40}}
+        local f = fixture(rows, {variables = {GPUProcessMemoryColumn = '0'},
+            memoryValues = {[memoryKey(rows[1].name)] = 100 * 1000000}})
+        eq(f:text('Name', 1), 'PID 11'); eq(f:text('Value', 1), '50.0%')
+        eq(f:text('Name', 2), 'PID 22'); eq(f:text('Value', 2), '40.0%')
+        shown(f, 2); eq(f.request, '11,22')
+        f.rows = {{name = instance(33), value = 20}}; f:update()
+        f.rows = {}; f:update()
+        eq(f:text('Name', 1), 'No active GPU process data'); eq(f:text('Value', 1), '--'); shown(f, 1)
+        for slot = 1, 5 do
+            eq(f:text('Memory', slot), nil, 'no VRAM cell write ' .. slot)
+            eq(f.memoryLookups[slot], nil, 'no VRAM lookup ' .. slot)
+            eq(f.memory[slot].enabled, false); eq(f.memory[slot].updates, 0); eq(f.memory[slot].name, noMemory)
+        end
+        for _, call in ipairs(f.calls) do
+            lacks(tostring(call.args[1]), 'Memory', 'no memory target in ' .. call.command)
+        end
+    end)
+    test('a missing VRAM lookup is never bound, so no bang names it', function()
+        local first = instance(11)
+        local f = fixture({})
+        for slot = 1, 5 do f.missingMemory[slot] = true end
+        f:clear(); f.rows = {{name = first, value = 25}}; f:update()
+        eq(f:text('Memory', 1), '--'); eq(f:text('Value', 1), '25.0%')
+        f.rows = {}; f:update(); noData(f, '11')
+        for _, call in ipairs(f.calls) do
+            ok(call.command ~= '!EnableMeasure' and call.command ~= '!DisableMeasure' and call.command ~= '!UpdateMeasure',
+                'no measure bang: ' .. call.command)
+            lacks(tostring(call.args[1]), 'MeasureGPUProcessMemory', 'no option on a missing lookup')
+        end
+        eq(f.memory[1].enabled, false); eq(f.memory[1].name, noMemory)
+    end)
     test('name requests keep recently ranked PIDs in spare slots for fifteen seconds', function()
         local f = fixture({{name = instance(11), value = 50}, {name = instance(22), value = 40},
             {name = instance(33), value = 30}})

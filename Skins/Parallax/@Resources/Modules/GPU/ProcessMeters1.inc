@@ -7,6 +7,10 @@
 ; a sum. VRAM is bound once per row from that PID's identity, never summed
 ; across engine rows. ProcessGraph.lua hides rows beyond the distinct PID
 ; count for this cycle instead of padding them with placeholder text.
+; GPU.ini includes this file only while GPUShowProcesses=1
+; (ProcessMeters0.inc otherwise). The VRAM column's header and cells are in
+; ProcessMemoryMeters<GPUShowProcessMemory>.inc; without them the name
+; column takes their width (#GPUProcessNameWidth#).
 ; Everything here sits #GPUBarExtra# lower when the shared bar is thicker
 ; than 6 px, because the VRAM bar above grows in place.
 
@@ -18,20 +22,7 @@ FontColor=#TextColor#
 AntiAlias=1
 ClipString=1
 X=#ContentX#
-W=(#ContentWidth#-#GPUProcessMemoryWidth#-#GPUProcessValueWidth#-8*#Scale#)
-H=(16*#Scale#)
-Text=--
-
-[GPUStyleProcessMemory]
-FontFace=#FontFace#
-FontSize=(#FontSize#*#Scale#)
-FontWeight=500
-FontColor=#TextColor#
-AntiAlias=1
-ClipString=1
-StringAlign=Center
-X=(#ContentX#+#ContentWidth#-#GPUProcessValueWidth#-4*#Scale#-#GPUProcessMemoryWidth#/2)
-W=#GPUProcessMemoryWidth#
+W=#GPUProcessNameWidth#
 H=(16*#Scale#)
 Text=--
 
@@ -52,29 +43,16 @@ Text=--
 Meter=String
 MeterStyle=StyleLabel
 Y=(#Inset#+(276+#GPUBarExtra#)*#Scale#)
-W=(#ContentWidth#-#GPUProcessMemoryWidth#-#GPUProcessValueWidth#-8*#Scale#)
+W=#GPUProcessNameWidth#
 H=(16*#Scale#)
 FontColor=#HeaderTextColor#
 FontSize=(#HeaderFontSize#*#Scale#)
 Text=Process
 
-; Lucide "gpu" icon (the same glyph as this module's own title icon, at
-; header-icon size), adapted to native Shapes rather than a bitmap.
-[MeterGPUProcessMemoryHeader]
-Meter=Shape
-X=(#ContentX#+#ContentWidth#-#GPUProcessValueWidth#-4*#Scale#-#GPUProcessMemoryWidth#/2-7*#Scale#)
-Y=(#Inset#+(277+#GPUBarExtra#)*#Scale#)
-W=(14*#Scale#)
-H=(14*#Scale#)
-Shape=Path GPUProcessCardBoard | Extend GPUProcessHeaderIconStroke
-Shape2=Line (2*14*#Scale#/24),(21*14*#Scale#/24),(2*14*#Scale#/24),(3*14*#Scale#/24) | Extend GPUProcessHeaderIconStroke
-Shape3=Path GPUProcessCardConnector | Extend GPUProcessHeaderIconStroke
-Shape4=Ellipse (16*14*#Scale#/24),(11*14*#Scale#/24),(2*14*#Scale#/24),(2*14*#Scale#/24) | Extend GPUProcessHeaderIconStroke
-Shape5=Ellipse (8*14*#Scale#/24),(11*14*#Scale#/24),(2*14*#Scale#/24),(2*14*#Scale#/24) | Extend GPUProcessHeaderIconStroke
-GPUProcessHeaderIconStroke=Fill Color 0,0,0,0 | Stroke Color #HeaderTextColor# | StrokeWidth (2*14*#Scale#/24) | StrokeStartCap Round | StrokeEndCap Round | StrokeLineJoin Round
-GPUProcessCardBoard=(2*14*#Scale#/24),(17*14*#Scale#/24) | LineTo (20*14*#Scale#/24),(17*14*#Scale#/24) | ArcTo (22*14*#Scale#/24),(15*14*#Scale#/24),(2*14*#Scale#/24),(2*14*#Scale#/24),0,1,0 | LineTo (22*14*#Scale#/24),(7*14*#Scale#/24) | ArcTo (20*14*#Scale#/24),(5*14*#Scale#/24),(2*14*#Scale#/24),(2*14*#Scale#/24),0,1,0 | LineTo (2*14*#Scale#/24),(5*14*#Scale#/24)
-GPUProcessCardConnector=(7*14*#Scale#/24),(17*14*#Scale#/24) | LineTo (7*14*#Scale#/24),(20*14*#Scale#/24) | ArcTo (8*14*#Scale#/24),(21*14*#Scale#/24),(1*14*#Scale#/24),(1*14*#Scale#/24),0,1,0 | LineTo (13*14*#Scale#/24),(21*14*#Scale#/24) | ArcTo (14*14*#Scale#/24),(20*14*#Scale#/24),(1*14*#Scale#/24),(1*14*#Scale#/24),0,1,0 | LineTo (14*14*#Scale#/24),(17*14*#Scale#/24)
-UpdateDivider=-1
+; The VRAM header glyph and the five VRAM cells, or a comment-only stub
+; while GPUShowProcessMemory=0.
+[GPUProcessMemoryMeterInclude]
+@Include13=#@#Modules\GPU\ProcessMemoryMeters#GPUShowProcessMemory#.inc
 
 ; Lucide gauge icon, adapted to native Shapes from the exact path data in
 ; @Resources/Modules/CPU/Icons/gauge.svg (this module reuses the same glyph
@@ -109,12 +87,6 @@ MeterStyle=GPUStyleProcessName
 Group=GPUProcessGraph|GPUProcessRow1
 Y=(#Inset#+(296+#GPUBarExtra#)*#Scale#)
 
-[MeterGPUProcessMemory1]
-Meter=String
-MeterStyle=GPUStyleProcessMemory
-Group=GPUProcessGraph|GPUProcessRow1
-Y=(#Inset#+(296+#GPUBarExtra#)*#Scale#)
-
 [MeterGPUProcessValue1]
 Meter=String
 MeterStyle=GPUStyleProcessValue
@@ -124,12 +96,6 @@ Y=(#Inset#+(296+#GPUBarExtra#)*#Scale#)
 [MeterGPUProcessName2]
 Meter=String
 MeterStyle=GPUStyleProcessName
-Group=GPUProcessGraph|GPUProcessRow2
-Y=(#Inset#+(312+#GPUBarExtra#)*#Scale#)
-
-[MeterGPUProcessMemory2]
-Meter=String
-MeterStyle=GPUStyleProcessMemory
 Group=GPUProcessGraph|GPUProcessRow2
 Y=(#Inset#+(312+#GPUBarExtra#)*#Scale#)
 
@@ -145,12 +111,6 @@ MeterStyle=GPUStyleProcessName
 Group=GPUProcessGraph|GPUProcessRow3
 Y=(#Inset#+(328+#GPUBarExtra#)*#Scale#)
 
-[MeterGPUProcessMemory3]
-Meter=String
-MeterStyle=GPUStyleProcessMemory
-Group=GPUProcessGraph|GPUProcessRow3
-Y=(#Inset#+(328+#GPUBarExtra#)*#Scale#)
-
 [MeterGPUProcessValue3]
 Meter=String
 MeterStyle=GPUStyleProcessValue
@@ -163,12 +123,6 @@ MeterStyle=GPUStyleProcessName
 Group=GPUProcessGraph|GPUProcessRow4
 Y=(#Inset#+(344+#GPUBarExtra#)*#Scale#)
 
-[MeterGPUProcessMemory4]
-Meter=String
-MeterStyle=GPUStyleProcessMemory
-Group=GPUProcessGraph|GPUProcessRow4
-Y=(#Inset#+(344+#GPUBarExtra#)*#Scale#)
-
 [MeterGPUProcessValue4]
 Meter=String
 MeterStyle=GPUStyleProcessValue
@@ -178,12 +132,6 @@ Y=(#Inset#+(344+#GPUBarExtra#)*#Scale#)
 [MeterGPUProcessName5]
 Meter=String
 MeterStyle=GPUStyleProcessName
-Group=GPUProcessGraph|GPUProcessRow5
-Y=(#Inset#+(360+#GPUBarExtra#)*#Scale#)
-
-[MeterGPUProcessMemory5]
-Meter=String
-MeterStyle=GPUStyleProcessMemory
 Group=GPUProcessGraph|GPUProcessRow5
 Y=(#Inset#+(360+#GPUBarExtra#)*#Scale#)
 

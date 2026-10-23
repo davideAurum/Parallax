@@ -52,7 +52,7 @@ function Initialize() local f=io.open([=[$logPath]=],'wb');f:write('tick|time|se
 function Update()
     ticks=ticks+1
     local seq,activity='-','-'
-    local session=tostring(SKIN:GetMeasure('MeasureGPUTemperatureBootstrap'):GetStringValue() or ''):match('^%s*(.-)%s*$')
+    local session=tostring(SKIN:GetMeasure('MeasureGPUTemperatureLauncher'):GetStringValue() or ''):match('^%s*(.-)%s*$')
     local pathHex=session:match('^GPU_TEMP_SESSION|1|%x+|(%x+)|%x+$')
     if pathHex then
         local snapshot=read(unhex(pathHex))

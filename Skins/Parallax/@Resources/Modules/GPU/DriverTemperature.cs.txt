@@ -53,23 +53,9 @@ public static class ParallaxGpuTemperature
         }
     }
 
-    // Bootstrap allocates names only, so closing the skin before it consumes
-    // this result leaves no files. Lua creates the initial lease before Run.
-    // Run never accepts a path; every filename derives from the random token.
-    public static string CreateSession(string luidHex, int intervalMs)
-    {
-        string luid = ValidateLuid(luidHex);
-        ValidateInterval(intervalMs);
-        for (int attempt = 0; attempt < 3; ++attempt)
-        {
-            string token = Guid.NewGuid().ToString("N");
-            Paths paths = new Paths(token);
-            if (File.Exists(paths.Data) || File.Exists(paths.Lease) || File.Exists(paths.Temporary)) continue;
-            return "GPU_TEMP_SESSION|1|" + token + "|" + Hex(Encoding.UTF8.GetBytes(paths.Data)) + "|" + luid;
-        }
-        throw new IOException("Unable to create a unique GPU temperature session.");
-    }
-
+    // The launcher mints the random token with [guid]::NewGuid() and writes
+    // the initial lease before starting Run. Run never accepts a path; it
+    // validates the token and every filename derives from it.
     // One resident loop inside the caller's process, run detached from
     // RunCommand: a short launcher starts it and exits once it holds its
     // Rainmeter ancestor. A lost or removed lease (the skin's stop request) or

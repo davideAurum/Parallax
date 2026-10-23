@@ -1,19 +1,9 @@
-; One bounded setup command, then one bounded launcher that starts the
-; persistent direct-driver host hidden and detached and exits once the host
-; holds its Rainmeter ancestor, so no RunCommand thread stays attached to it.
-; The host stops when that ancestor exits, when its session lease lapses, or
-; when the controller removes the lease on close. No command runs per sample.
-[MeasureGPUTemperatureBootstrap]
-Measure=Plugin
-Plugin=RunCommand
-Program=%SystemRoot%\System32\WindowsPowerShell\v1.0\powershell.exe
-StartInFolder=#@#Modules\GPU\
-Parameter=
-State=Hide
-OutputType=UTF8
-Timeout=12000
-UpdateDivider=1
-
+; One bounded launcher (plain PowerShell, no compile) mints the random
+; session, writes its lease, starts the persistent direct-driver host hidden
+; and detached, and exits once the host holds its Rainmeter ancestor, so no
+; RunCommand thread stays attached to it. The host stops when that ancestor
+; exits, when its session lease lapses, or when the controller removes the
+; lease on close. No command runs per sample.
 [MeasureGPUTemperatureLauncher]
 Measure=Plugin
 Plugin=RunCommand

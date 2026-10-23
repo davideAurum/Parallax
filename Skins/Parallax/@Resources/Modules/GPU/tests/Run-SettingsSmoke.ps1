@@ -368,11 +368,10 @@ function Update()
         if metric then metrics[#metrics+1]=name..'='..metric:GetOption(name:find('Bar$') and 'Shape2' or 'Text','') end
     end
     write([=[$runRoot\driver-metrics-observed.txt]=],table.concat(metrics,'\n'))
-    local bootstrap=SKIN:GetMeasure('MeasureGPUTemperatureBootstrap')
-    write([=[$runRoot\temperature-session.txt]=],bootstrap:GetStringValue())
+    -- The one launcher prints the session of the host it started.
     local launcher=SKIN:GetMeasure('MeasureGPUTemperatureLauncher')
+    write([=[$runRoot\temperature-session.txt]=],launcher:GetStringValue())
     write([=[$runRoot\driver-status.txt]=],tostring(launcher:GetValue()))
-    write([=[$runRoot\launcher-output.txt]=],launcher:GetStringValue())
     return 0
 end
 "@
@@ -746,7 +745,7 @@ try {
     Write-Output (Get-Content -LiteralPath (Join-Path $runRoot 'process-memory-audit.txt') -Raw)
     if ($memoryVisible) {Write-Output 'PASS: positive native per-process dedicated bytes reached exact PID / LUID / physical-GPU rows; labels and raw values agree.'}
     else {Write-Output 'OBSERVED: no usable positive ranked dedicated-memory reading during the bounded wait; zero, missing and idle readings remained --. Native Lua fixtures cover unavailable and replacement identities.'}
-    # The host runs detached: its launcher reported it started and exited, so
+    # The host runs detached: its launcher reported its session and exited, so
     # Rainmeter keeps no PowerShell child and no RunCommand thread polls it.
     $hostSource=Join-Path $parallaxRoot '@Resources\Modules\GPU\DriverTemperature.cs.txt'
     $hosts=@(Get-CimInstance Win32_Process -Filter "Name='powershell.exe'" | Where-Object {
@@ -756,7 +755,6 @@ try {
     $hostProcessId=[int]$hosts[0].ProcessId
     Wait-Condition {@([GpuSmokeProcessTree]::Children([uint32]$process.Id)).Count -eq 0} 'A PowerShell stayed a RunCommand child of Rainmeter.' 15
     if (-not (Text-Matches (Join-Path $runRoot 'driver-status.txt') '^1$')) {throw 'The host launcher did not complete.'}
-    if (-not (Text-Matches (Join-Path $runRoot 'launcher-output.txt') '^GPU_TEMP_STARTED$')) {throw 'The host launcher did not report a started host.'}
     if ($ControllerLifecycle -eq 'Unload') {
         Write-RunFile (Join-Path $runRoot 'main-command.txt') 'deactivate'
         Wait-Condition {-not (Get-Process -Id $hostProcessId -ErrorAction SilentlyContinue)} 'Temperature host survived GPU unload.' 12

@@ -396,6 +396,13 @@ def validate():
     assert clock_label["Hidden"] == "1" and clock_value["Hidden"] == "1"
     assert {"CPUInfo", "CPUClock", "CPUUI"}.issubset(clock_label["Group"].split("|"))
     assert {"CPUInfo", "CPUClock", "CPUUI"}.issubset(clock_value["Group"].split("|"))
+    # The Windows aggregate clock is never shown unnamed: Sensors.lua writes
+    # "Windows" here whenever it, not HWiNFO's Core Clocks, is the reading.
+    clock_source = effective("MeterCurrentClockSource")
+    assert clock_source["Text"] == "" and clock_source["Hidden"] == "1"
+    assert clock_source["FontColor"] == "#MutedColor#" and clock_source["StringAlign"] == "Right"
+    assert clock_source["FontSize"] == "(#FontSize#*#Scale#)" and clock_source["FontWeight"] == "500"
+    assert {"CPUInfo", "CPUClock", "CPUUI"}.issubset(clock_source["Group"].split("|"))
     fan_label, fan_value = effective("MeterCurrentFanLabel"), effective("MeterCurrentFanValue")
     assert fan_label["Text"] == "Fan:" and fan_value["Text"] == "Unavailable"
     assert fan_value["FontColor"] == "#AccentColor2#"
@@ -426,6 +433,21 @@ def validate():
             assert number("#Inset#") * 2 == number("#Gap#")
             if (column_width, scale, columns) == (220, 1, 1):
                 assert number("#PanelWidth#") == 220 and width == 228
+            # The not-updating footer "HWiNFO: open Sensors" is 141.90 px (10.64 em) in bundled
+            # IBM Plex Sans Medium at the 10 pt body maximum (Pillow advance, pt*96/72). The
+            # footer's StyleLabel clip box must hold it at every width and scale.
+            footer = effective('MeterSensors')
+            assert footer['FontSize'] == '(#FontSize#*#Scale#)' and footer.get('FontWeight') == '500'
+            assert number(footer['W']) >= 141.90 * scale
+            # The clock source "Windows" is 56.25 px at the 10 pt maximum. It sits flush right
+            # in the space after the Clock value's right-aligned anchor, 4 px clear of it.
+            clock_value_box, clock_source_box = effective('MeterCurrentClockValue'), effective('MeterCurrentClockSource')
+            assert clock_value_box['StringAlign'] == 'Right' and clock_source_box['StringAlign'] == 'Right'
+            source_right = number(clock_source_box['X'])
+            assert source_right == number('#ContentX#') + number('#ContentWidth#')
+            assert source_right - number(clock_source_box['W']) >= number(clock_value_box['X']) + 4 * scale - 0.01
+            assert number(clock_source_box['W']) >= 56.25 * scale
+            assert clock_source_box['Y'] == clock_value_box['Y'] and clock_source_box['H'] == clock_value_box['H']
             # Runtime table Y positions vary, but its source column widths do not.
             label, bar = effective('MeterCoreLabel1'), effective('MeterCoreBar1')
             assert number(label['X']) + number(label['W']) <= number(bar['X'])
@@ -582,6 +604,7 @@ def validate():
         assert "y('" + prefix + "' .. slot, 0)" in script
     assert "!ShowMeterGroup' or '!HideMeterGroup', 'CPUInfo'" in script
     assert "y('MeterCurrentClockLabel', cursor)" in script and "cursor = cursor + 16" in script
+    assert "y('MeterCurrentClockSource', cursor)" in script and "y('MeterCurrentClockSource', 0)" in script
     assert "y('MeterCurrentFanLabel', cursor)" in script and "y('MeterCurrentFanValue', cursor)" in script
     assert "y('MeterMotherboardFanLabel', cursor)" in script and "y('MeterMotherboardFanValue', cursor)" in script
     assert "y('MeterHistoryTrack', cursor)" in script and "y('MeterHistory', cursor)" in script
@@ -621,10 +644,16 @@ def validate():
     assert "set('MeterCurrentFanValue', 'Text'" in sensor_script
     assert "readBinding('MotherboardFan', nil, lists)" in sensor_script
     assert "set('MeterMotherboardFanValue', 'Text'" in sensor_script
-    assert "local displayClock = clock or nativeClock" in sensor_script
+    # HWiNFO's Core Clocks first; the Windows aggregate only with its source named.
+    assert "local displayClock, clockSource = clock, ''" in sensor_script
+    assert "displayClock, clockSource = nativeClock, 'Windows'" in sensor_script
+    assert "set('MeterCurrentClockSource', 'Text', clockSource)" in sensor_script
     # A running HWiNFO whose export stopped updating must not read as live.
     assert "local exportStaleSeconds = 60" in sensor_script
-    assert "status = 'HWiNFO: export not updating'" in sensor_script
+    # The footer names the fix: HWiNFO writes its export only while its Sensors window is open.
+    assert "local exportStaleStatus = 'HWiNFO: open Sensors'" in sensor_script
+    assert "status = exportStaleStatus" in sensor_script
+    assert "export not updating'" not in sensor_script
     assert "local coreReady = not frozen and" in sensor_script
     assert 'CPUClockIndex' not in sensor_script and 'CPUClockIndex' not in setup_script
     assert "parts[1] == 'CLOCK'" in setup_script and "normalizedLabel ~= 'Core Clocks'" in setup_script

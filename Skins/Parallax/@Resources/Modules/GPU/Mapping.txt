@@ -175,19 +175,33 @@ For a selected HWiNFO source, Off means optional reads are disabled.
 Unmapped means the index or identity is absent.
 Unavailable: required exports or valid values are absent. Check mapping:
 the index is invalid or the exported sensor / label no longer matches.
+Not updating: the selected values and the first eight exported raw values
+(ValueRaw0-7) have all stayed unchanged for 60 seconds, so the reading is
+withheld until any of them changes. HWiNFO writes the export only while its
+Sensors window is open; minimised is fine. Open that window to resume.
+HWiNFO's own settings can show Sensors at startup; that choice is yours.
 
 Adding or removing Gadget exports can change indices. Recheck mappings
 after any such change. Exact identity checks help detect index drift but
 cannot distinguish two sensors with identical names and labels.
 
-Snapshot / age unknown is deliberate. These registry exports have no
-sample timestamp; HWiNFO may leave values behind after it stops. A repeated
-value does not prove a stall, and a running process would not prove fresh
-sensor data. Do not use these snapshots as temperature or power alarms.
+Freshness is inferred, not timestamped. These registry exports have no
+sample timestamp; HWiNFO stops writing them while its Sensors window is closed
+and may leave values behind after it exits. The skin therefore watches the
+selected values plus the first eight exported raw values, and shows Not
+updating once all of them have held still for 60 seconds. One value holding
+still is normal (an idle GPU's clock can sit at one MHz figure for minutes)
+and stays live while any other watched value moves. Known limits: a frozen
+export still reads as live for up to a minute after GPU loads or refreshes;
+an export whose watched values all genuinely hold still for a minute is
+flagged until one moves; a running HWiNFO process does not prove fresh data.
+Do not use these snapshots as temperature or power alarms.
 
 Registry measures start disabled; only explicitly selected HWiNFO overrides
-with the toggle On enable their bank. A shared export-name check runs if either
-bank is needed. Enabled reads follow SensorInterval (normally 2000 ms), rounded
+with the toggle On enable their bank. A shared export-name check and eight
+freshness probes (MeasureGPUExportProbe0-7, reading ValueRaw0-7) run if
+either bank is needed; the Driver default reads none of them.
+Enabled reads follow SensorInterval (normally 2000 ms), rounded
 up to a whole number of skin updates. HWiNFO controls its own collection cadence.
 The UsageMonitor GPU category polls independently at 1 Hz. To release this
 skin's GPU category consumer, unload GPU; changing MetricsInterval does

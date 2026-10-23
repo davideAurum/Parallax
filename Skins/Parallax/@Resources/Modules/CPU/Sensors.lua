@@ -177,7 +177,12 @@ end
 -- legitimately constant cannot trip this while any other bound reading
 -- moves. A frozen export is only recognisable after that window, so it still
 -- shows as connected for up to a minute after load, reconnect or restart.
+-- HWiNFO polls its sensors, and writes this export, only while its Sensors
+-- window is open (minimised is fine), so the footer names that fix. The text
+-- is 10.64 em in IBM Plex Sans Medium and fits the narrowest footer (12.5 em
+-- at width 180) at the 10 pt body maximum and every scale.
 local exportStaleSeconds = 60
+local exportStaleStatus = 'HWiNFO: open Sensors'
 local exportKinds = {'Temperature', 'Voltage', 'Clock', 'Fan', 'MotherboardFan'}
 
 local function exportFrozen()
@@ -224,7 +229,7 @@ local function render(paint)
     elseif exportFrozen() then
         -- Values from an export that stopped updating are suppressed the same way.
         frozen = true
-        status = 'HWiNFO: export not updating'
+        status = exportStaleStatus
     else
         -- The footer reports provider status only; readings live in their rows.
         clock = readBinding('Clock', nil, lists)
@@ -264,9 +269,15 @@ local function render(paint)
             status = 'HWiNFO: connected, ' .. coreReadings .. (coreReadings == 1 and ' core' or ' cores')
         end
     end
-    -- The HWiNFO Core Clocks export takes precedence over the Windows aggregate.
-    local displayClock = clock or nativeClock
+    -- The HWiNFO Core Clocks export takes precedence. When it is frozen,
+    -- missing, unsupported or HWiNFO is off, Windows' own aggregate
+    -- (Processor Frequency x % Processor Performance) is shown instead. It is a
+    -- different measurement, so its source is named beside it and the two are
+    -- never mixed silently; value and source change in the same render.
+    local displayClock, clockSource = clock, ''
+    if not displayClock and nativeClock then displayClock, clockSource = nativeClock, 'Windows' end
     set('MeterCurrentClockValue', 'Text', displayClock and formatClock(displayClock) or 'Unavailable')
+    set('MeterCurrentClockSource', 'Text', clockSource)
     set('MeterCurrentFanValue', 'Text', fan and formatFan(fan) or 'Unavailable')
     set('MeterMotherboardFanValue', 'Text', motherboardFan and formatFan(motherboardFan) or 'Unavailable')
     set('MeterSensors', 'Text', status)

@@ -397,6 +397,10 @@ assert not any(opts.get("Plugin") == "RunCommand" and opts.get("Timeout", "-1") 
 assert not any(name.startswith("MeasureGPUTemperature") and opts.get("Measure") == "Registry" for name, opts in sections.items())
 assert sections["MeasureGPUTemperatureController"]["Measure"] == "Script"
 assert sections["MeasureGPUTemperatureController"]["ScriptFile"] == "#@#Modules\\GPU\\Temperature.lua"
+# A frozen HWiNFO override export is withheld as "Not updating"; the behaviour is in TemperatureSuite.lua.
+assert "local exportStaleSeconds, exportProbes = 60, 8" in temperature_text
+assert "if reading and frozen then value = 'Not updating' end" in temperature_text
+assert "SKIN:Bang('!EnableMeasure', 'MeasureGPUExportProbe' .. index)" in temperature_text
 assert sections["MeasureGPUView"]["Measure"] == "Script"
 assert sections["MeasureGPUView"]["ScriptFile"] == "#@#Modules\\GPU\\GPU.lua"
 if TABLE:
@@ -654,6 +658,11 @@ def check_case(column_width, scale, columns, title_size, bar_thickness, saved_he
     name_w = content_w - 46 * scale - 4 * scale - ((58 + 4) * scale if MEMORY else 0)
     assert math.isclose(n("#GPUProcessNameWidth#"), name_w), case
     assert n("#GPUEngineBarWidth#") > 0 and name_w > 0, case
+    # A frozen HWiNFO override reads "Not updating": 79.18 px in bundled IBM Plex Sans
+    # Medium at the 10 pt body maximum (Pillow advance, pt*96/72), within the value cell.
+    for name in ("MeterPowerValue", "MeterClockValue"):
+        assert box[name][2] >= 79.18 * scale, (case, name)  # (x, y, w, h)
+        assert box[name][0] + box[name][2] <= content_right + EPS, (case, name)
     # Every meter stays inside the window; every string stays inside the
     # painted panel and clips rather than growing the window.
     for name, (x, y, w, h) in box.items():
@@ -847,7 +856,13 @@ if "--all-scales" in sys.argv[1:]:
 # Check the actual sensor-divider formula at default and slower/faster intervals.
 for metrics, sensors in ((1000, 2000), (1500, 2000), (500, 2000), (3000, 2000)):
     variables = dict(sections["Variables"], MetricsInterval=str(metrics), SensorInterval=str(sensors))
-    for name in ["MeasureGPURegistryNames"] + [f"MeasureGPU{field}{suffix}" for field in ("Power", "Clock") for suffix in ("Sensor", "Label", "Value", "ValueRaw")]:
+    # Freshness probes for an HWiNFO override read the first eight exported raw values.
+    probes = [f"MeasureGPUExportProbe{index}" for index in range(8)]
+    for index, name in enumerate(probes):
+        assert sections[name]["Measure"] == "Registry" and sections[name]["RegValue"] == f"ValueRaw{index}", name
+        assert sections[name]["RegHKey"] == "#GPURegHKey#" and sections[name]["RegKey"] == "#GPURegKey#", name
+    assert "MeasureGPUExportProbe8" not in sections
+    for name in ["MeasureGPURegistryNames"] + [f"MeasureGPU{field}{suffix}" for field in ("Power", "Clock") for suffix in ("Sensor", "Label", "Value", "ValueRaw")] + probes:
         assert sections[name]["Disabled"] == "1", name  # Canonical source enabling is tested in native Lua.
         divider = number(sections[name]["UpdateDivider"], variables)
         assert divider * metrics + EPS >= sensors, name

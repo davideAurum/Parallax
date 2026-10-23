@@ -47,6 +47,10 @@ function Suite.run(path)
     for _, field in ipairs({'Power', 'Clock'}) do
         for _, suffix in ipairs({'Sensor', 'Label', 'Value', 'ValueRaw'}) do registryNames['MeasureGPU' .. field .. suffix] = true end
     end
+    -- Freshness probes read ValueRaw0..7; like the value list they serve every
+    -- override, so they count as inventory rather than either field's bank.
+    local function inventory(name) return name == 'MeasureGPURegistryNames' or name:match('^MeasureGPUExportProbe[0-7]$') ~= nil end
+    for index = 0, 7 do registryNames['MeasureGPUExportProbe' .. index] = true end
     local function canonical(value) return tostring(value or ''):match('^%s*(.-)%s*$') end
     local function fixture(options)
         options = options or {}
@@ -59,7 +63,9 @@ function Suite.run(path)
                 MeasureGPUPowerSensor = adapter, MeasureGPUPowerLabel = 'GPU Power',
                 MeasureGPUPowerValue = '77.7 W', MeasureGPUPowerValueRaw = '77.7',
                 MeasureGPUClockSensor = adapter, MeasureGPUClockLabel = 'GPU Clock',
-                MeasureGPUClockValue = '1234.5 MHz', MeasureGPUClockValueRaw = '1234.5'}}
+                MeasureGPUClockValue = '1234.5 MHz', MeasureGPUClockValueRaw = '1234.5',
+                -- Only ValueRaw3/4 exist in the default list; they mirror the mapped indices.
+                MeasureGPUExportProbe3 = '77.7', MeasureGPUExportProbe4 = '1234.5'}}
         for name, value in pairs(options.exports or {}) do f.exports[name] = value end
         local allowedFiles = {[dataPath] = true, [leasePath] = true, [tmpPath] = true}
         f.meters.MeterTemperatureValue = f.meter
@@ -104,7 +110,7 @@ function Suite.run(path)
                 assert(canonical(f.vars.GPUEnableSensors) == '1', 'disabled HWiNFO export accessed: ' .. name)
                 local field = name:match('^MeasureGPU(Power)') or name:match('^MeasureGPU(Clock)')
                 if field then assert(canonical(f.vars['GPU' .. field .. 'Source']) == '1', 'unselected HWiNFO export accessed: ' .. name)
-                else assert(name == 'MeasureGPURegistryNames' and (canonical(f.vars.GPUPowerSource) == '1' or canonical(f.vars.GPUClockSource) == '1'),
+                else assert(inventory(name) and (canonical(f.vars.GPUPowerSource) == '1' or canonical(f.vars.GPUClockSource) == '1'),
                     'registry inventory accessed without an explicit HWiNFO source') end
                 assert(f.registryEnables[name] == 1 and f.registryUpdates[name] == 1, 'export read before one-time initialization: ' .. name)
                 if f.exports[name] == false then return nil end
@@ -165,7 +171,7 @@ function Suite.run(path)
                 assert(canonical(f.vars.GPUEnableSensors) == '1', 'disabled override bank enabled')
                 local field = args[1]:match('^MeasureGPU(Power)') or args[1]:match('^MeasureGPU(Clock)')
                 if field then assert(canonical(f.vars['GPU' .. field .. 'Source']) == '1', 'unselected override bank enabled')
-                else assert(canonical(f.vars.GPUPowerSource) == '1' or canonical(f.vars.GPUClockSource) == '1', 'unselected inventory enabled') end
+                else assert(inventory(args[1]) and (canonical(f.vars.GPUPowerSource) == '1' or canonical(f.vars.GPUClockSource) == '1'), 'unselected inventory enabled') end
                 f.registryEnables[args[1]] = (f.registryEnables[args[1]] or 0) + 1
                 assert(f.registryEnables[args[1]] == 1, 'registry measure enabled repeatedly')
             elseif command == '!UpdateMeasure' then
@@ -900,7 +906,9 @@ function Suite.run(path)
         eq(f.reads.MeasureGPURegistryNames, nil)
     end)
     test('canonical override selection enables and initializes only its required banks once', function()
-        for _, selection in ipairs({{true, false, 5}, {false, true, 5}, {true, true, 9}, {false, false, 0}}) do
+        -- One field's four-measure bank, plus the shared value list and the eight
+        -- freshness probes (ValueRaw0..7) whenever any override is selected.
+        for _, selection in ipairs({{true, false, 13}, {false, true, 13}, {true, true, 17}, {false, false, 0}}) do
             local f = fixture(manualOptions(selection[1], selection[2]))
             local count = 0
             for name in pairs(registryNames) do
@@ -924,6 +932,83 @@ function Suite.run(path)
         local f = fixture(options); f:live(); eq(f:text('MeterPowerValue'), '77.7 W')
         eq(f.registryEnables.MeasureGPURegistryNames, 1); eq(f.registryEnables.MeasureGPUPowerValue, 1)
         eq(f.registryEnables.MeasureGPUClockValue, nil)
+    end)
+    -- Advance the fixture clock in 2 s steps with a fresh driver sample each
+    -- time, so only the HWiNFO export, never the driver snapshot, can go stale.
+    local function hold(f, seconds)
+        for _ = 1, seconds / 2 do f.now = f.now + 2; f:sample(); f:update() end
+    end
+    test('a frozen HWiNFO override export reads Not updating after 60 s and recovers on any change', function()
+        local f = fixture(manualOptions(true, false)); f:live()
+        eq(f:text('MeterPowerValue'), '77.7 W'); eq(f:text('MeterClockValue'), '1607.5 MHz')
+        hold(f, 58)
+        eq(f:text('MeterPowerValue'), '77.7 W', 'still within the window')
+        hold(f, 2)
+        eq(f:text('MeterPowerValue'), 'Not updating')
+        eq(f:text('MeterClockValue'), '1607.5 MHz', 'the driver source is unaffected')
+        eq(f.meter.Text, '42 °C', 'driver temperature is unaffected')
+        hold(f, 120)
+        eq(f:text('MeterPowerValue'), 'Not updating', 'stays withheld')
+        -- Any probed export value moving restores the reading at once.
+        f.exports.MeasureGPUExportProbe4 = '1300.0'; f:update()
+        eq(f:text('MeterPowerValue'), '77.7 W', 'any change restores the reading')
+        hold(f, 60); eq(f:text('MeterPowerValue'), 'Not updating', 'caught again')
+        -- So does the mapped value itself.
+        f.exports.MeasureGPUPowerValue, f.exports.MeasureGPUPowerValueRaw = '80.5 W', '80.5'; f:update()
+        eq(f:text('MeterPowerValue'), '80.5 W')
+        -- Both overrides are withheld together; values lingering after HWiNFO
+        -- exits look the same and are withheld the same way.
+        f = fixture(manualOptions(true, true)); f:live(); hold(f, 60)
+        eq(f:text('MeterPowerValue'), 'Not updating'); eq(f:text('MeterClockValue'), 'Not updating')
+        eq(f.launches[bootstrap], 1, 'detection launches nothing')
+    end)
+    test('an idle mapped clock that holds one value stays live while the export moves', function()
+        -- Live 2026-10-23 export: GPU Clock held 139.0 MHz for 36 s while GPU
+        -- Power changed on every poll. Here ValueRaw3 stands in for that power.
+        local f = fixture(manualOptions(false, true)); f:live()
+        for step = 1, 5 do
+            hold(f, 40)
+            f.exports.MeasureGPUExportProbe3 = tostring(11 + step / 10); f:update()
+            eq(f:text('MeterClockValue'), '1234.5 MHz', 'live at step ' .. step)
+        end
+        hold(f, 60)
+        eq(f:text('MeterClockValue'), 'Not updating', 'the whole export froze')
+        eq(f:text('MeterPowerValue'), '55.3 W', 'driver power unaffected')
+    end)
+    test('mapping and availability statuses stay more specific than Not updating', function()
+        for _, item in ipairs({
+                {vars = {GPUPowerIndex = '-1'}, expected = 'Unmapped'},
+                {vars = {GPUPowerIndex = '3.5'}, expected = 'Check mapping'},
+                {exports = {MeasureGPUPowerSensor = 'Different GPU'}, expected = 'Check mapping'},
+                {exports = {MeasureGPURegistryNames = 'Sensor3|Label3|Value3'}, expected = 'Unavailable'},
+                {exports = {MeasureGPUPowerValue = '77.7'}, expected = 'Unavailable'}}) do
+            local options = manualOptions(true, false)
+            for name, value in pairs(item.vars or {}) do options.vars[name] = value end
+            options.exports = item.exports
+            local f = fixture(options); f:live(); hold(f, 90)
+            eq(f:text('MeterPowerValue'), item.expected)
+        end
+        local options = manualOptions(true, true); options.vars.GPUEnableSensors = '0'
+        local f = fixture(options); f:live(); hold(f, 90)
+        eq(f:text('MeterPowerValue'), 'Off'); eq(f:text('MeterClockValue'), 'Off')
+    end)
+    test('the default driver path never enables or reads the freshness probes', function()
+        local f = fixture(); f:live(); hold(f, 120)
+        for index = 0, 7 do
+            eq(f.registryEnables['MeasureGPUExportProbe' .. index], nil)
+            eq(f.reads['MeasureGPUExportProbe' .. index], nil)
+        end
+        eq(f:text('MeterPowerValue'), '55.3 W'); eq(f:text('MeterClockValue'), '1607.5 MHz')
+    end)
+    test('probes outside the exported value list are not read; a lone constant export still freezes', function()
+        -- Known limit: an export whose only probed values hold perfectly still
+        -- for a minute is flagged until one moves.
+        local options = manualOptions(false, true)
+        options.exports = {MeasureGPURegistryNames = 'Sensor4|Label4|Value4|ValueRaw4', MeasureGPUExportProbe0 = '5'}
+        local f = fixture(options); f:live(); hold(f, 60)
+        eq(f:text('MeterClockValue'), 'Not updating')
+        eq(f.reads.MeasureGPUExportProbe0, nil, 'a probe outside the value list is not read')
+        eq((f.reads.MeasureGPUExportProbe4 or 0) > 0, true, 'an exported probe is read')
     end)
     test('invalid, missing and disabled source preferences leave all registry measures disabled', function()
         for _, field in ipairs({'Power', 'Clock'}) do

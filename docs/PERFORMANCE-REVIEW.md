@@ -435,7 +435,11 @@ Phase A can be one workflow: six builder agents, one per package in its own work
    - **How:** an isolated benchmark with `HardwareAcceleration=0` versus `1` in the generated Rainmeter.ini. The live setting and live instance are untouched.
    - **Note:** every isolated run in this review used Rainmeter's default, 0 (software rendering), while the live profile uses 1. Step 3 measures both modes.
 
-The audiodg attribution question is answered: see [Live A/B](#live-ab-drawer-and-spotify-2026-10-22).
+6. **Frozen HWiNFO export (A3 honesty commit `1cb1bc7`): keep.**
+   - **Confirmed on screen first:** two captures of the live CPU Meter 8 s apart showed every usage value changing, while all voltage, temperature, clock and fan values stayed identical to the export last written on 2026-10-01. The footer read "HWiNFO: connected" because it only checked that HWiNFO was running.
+   - **With the commit:** once every bound value has been unchanged for 60 s, the footer reads "HWiNFO: export not updating" and the frozen readings are withheld. They return when values change.
+
+The audiodg attribution question is answered: see [Live A/B](#live-ab-drawer-and-spotify-2026-10-22). Still open with the owner: the GPU History time axis (`a49a440`, 1 px per real 2 s sample, about 7 min on screen) and whether Media's idle 50 ms wake-up while title animation is on is worth removing (deferred until the phase-A benchmark quantifies it).
 
 ## Found along the way (not performance)
 

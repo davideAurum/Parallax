@@ -418,11 +418,15 @@ $inner=@"
                 data.Count=(uint)sensorCount;data.Sensors[0].CurrentTemp=value;data.Sensors[0].Target=target;
                 data.Sensors[1].CurrentTemp=value;data.Sensors[1].Target=target;return status;
             };
-            int? result;
-            FixtureIdentity=new Queue<bool>(new bool[]{false});
-            check(driver.ReadTemperature(out result)=="DEVICE_CHANGED"&&!result.HasValue&&calls==0,"before identity blocks call");
-            FixtureIdentity=new Queue<bool>(new bool[]{true,false});
-            check(driver.ReadTemperature(out result)=="DEVICE_CHANGED"&&!result.HasValue&&calls==1,"after identity clears result");
+            int? result;Frame frame;
+            // Identity brackets the whole frame: one check before the first
+            // driver call and one after the last, none inside a single read.
+            FixtureIdentity=new Queue<bool>(new bool[]{false});frame=driver.ReadFrame();
+            check(frame.TemperatureStatus=="DEVICE_CHANGED"&&!frame.Temperature.HasValue&&calls==0,"frame identity before blocks call");
+            FixtureIdentity=new Queue<bool>(new bool[]{true,false});frame=driver.ReadFrame();
+            check(frame.TemperatureStatus=="DEVICE_CHANGED"&&!frame.Temperature.HasValue&&calls==1,"frame identity after clears result");
+            FixtureIdentity=new Queue<bool>(new bool[]{true,true,true});frame=driver.ReadFrame();
+            check(frame.TemperatureStatus=="OK"&&frame.Temperature==49&&calls==2&&FixtureIdentity.Count==1,"exactly two identity checks per frame");
             foreach(int t in new int[]{-273,0,49,300})
             {value=t;FixtureIdentity=new Queue<bool>(new bool[]{true,true});check(driver.ReadTemperature(out result)=="OK"&&result==value,"GPU target");}
             foreach(int t in new int[]{-274,301})
@@ -474,10 +478,10 @@ $inner=@"
             resetIdentity();check(driver.ReadClock(out scalar)=="OK"&&scalar==frequency,"clock present bit accepts reserved flags");
             foreach(uint wrong in new uint[]{1,2,15}){selector=wrong;resetIdentity();check(driver.ReadClock(out scalar)=="UNAVAILABLE"&&!scalar.HasValue,"base or boost never mistaken for current");}
             selector=0;badClockVersion=true;resetIdentity();check(driver.ReadClock(out scalar)=="UNAVAILABLE","returned clock version validated");badClockVersion=false;
-            FixtureIdentity=new Queue<bool>(new bool[]{false});before=clockCalls;
-            check(driver.ReadClock(out scalar)=="DEVICE_CHANGED"&&clockCalls==before,"clock identity checked before query");
-            FixtureIdentity=new Queue<bool>(new bool[]{true,false});
-            check(driver.ReadClock(out scalar)=="DEVICE_CHANGED"&&!scalar.HasValue,"clock identity checked after query");
+            FixtureIdentity=new Queue<bool>(new bool[]{false});before=clockCalls;Frame framed=driver.ReadFrame();
+            check(framed.ClockStatus=="DEVICE_CHANGED"&&clockCalls==before,"frame identity checked before clock query");
+            FixtureIdentity=new Queue<bool>(new bool[]{true,false});framed=driver.ReadFrame();
+            check(framed.ClockStatus=="DEVICE_CHANGED"&&!framed.GraphicsClockKHz.HasValue&&clockCalls==before+1,"frame identity checked after clock query");
             NvidiaClockQuery savedClocks=driver.clocks;driver.clocks=null;resetIdentity();
             check(driver.ReadClock(out scalar)=="UNSUPPORTED","missing clock API");driver.clocks=savedClocks;
 
@@ -524,8 +528,8 @@ $inner=@"
             powerStatus=0;mw=13299;mutatePci=true;resetIdentity();
             check(driver.ReadPower(out scalar)=="DEVICE_CHANGED"&&!scalar.HasValue,"PCI mutation after power clears reading");mutatePci=false;bus=1;
             mutateDomain=true;resetIdentity();check(driver.ReadPower(out scalar)=="DEVICE_CHANGED"&&!scalar.HasValue,"NVML domain mutation after power clears reading");mutateDomain=false;domain=0;
-            FixtureIdentity=new Queue<bool>(new bool[]{false});before=powerCalls;
-            check(driver.ReadPower(out scalar)=="DEVICE_CHANGED"&&powerCalls==before,"power identity before query");
+            FixtureIdentity=new Queue<bool>(new bool[]{false});before=powerCalls;framed=driver.ReadFrame();
+            check(framed.PowerStatus=="DEVICE_CHANGED"&&powerCalls==before,"frame identity before power query");
             driver.powerSupport="UNSUPPORTED";resetIdentity();check(driver.ReadPower(out scalar)=="UNSUPPORTED"&&!scalar.HasValue,"missing NVML power provider");
             resetIdentity();Frame combined=driver.ReadFrame();
             check(combined.ClockStatus=="OK"&&combined.PowerStatus=="UNSUPPORTED","missing power preserves clock");
@@ -595,10 +599,10 @@ $inner=@"
                 availableBytes=remaining;frame=new Frame("UNAVAILABLE");resetIdentity();
                 check(driver.ReadMemory(frame)=="OK"&&frame.Available==remaining,"full and empty allocatable memory");
             }
-            frame=new Frame("UNAVAILABLE");FixtureIdentity=new Queue<bool>(new bool[]{false});int exBefore=exCalls;
-            check(driver.ReadMemory(frame)=="DEVICE_CHANGED"&&exCalls==exBefore,"memory identity before query");
-            frame=new Frame("UNAVAILABLE");FixtureIdentity=new Queue<bool>(new bool[]{true,false});
-            check(driver.ReadMemory(frame)=="DEVICE_CHANGED"&&!frame.Physical.HasValue,"memory identity after query");
+            FixtureIdentity=new Queue<bool>(new bool[]{false});int exBefore=exCalls;frame=driver.ReadFrame();
+            check(frame.MemoryStatus=="DEVICE_CHANGED"&&exCalls==exBefore,"frame identity before memory query");
+            FixtureIdentity=new Queue<bool>(new bool[]{true,false});frame=driver.ReadFrame();
+            check(frame.MemoryStatus=="DEVICE_CHANGED"&&!frame.Physical.HasValue&&exCalls==exBefore+1,"frame identity after memory query");
             driver.sharedSupport="OK";
             driver.sharedProperty=delegate(IntPtr adapter,uint property,UIntPtr size,IntPtr output)
             {check(property==15&&size.ToUInt64()==4,"physical count query");Marshal.WriteInt32(output,(int)physicalCount);return propertyStatus;};
@@ -630,8 +634,8 @@ $inner=@"
             check(driver.ReadShared(frame)=="UNAVAILABLE"&&!frame.SharedResident.HasValue,"shared query failure");queryStatus=0;
             driver.sharedSupport="UNSUPPORTED";frame=new Frame("UNAVAILABLE");resetIdentity();
             check(driver.ReadShared(frame)=="UNSUPPORTED","unsupported DXCore state");driver.sharedSupport="OK";
-            frame=new Frame("UNAVAILABLE");FixtureIdentity=new Queue<bool>(new bool[]{true,true,false});
-            check(driver.ReadShared(frame)=="DEVICE_CHANGED"&&!frame.SharedCommitted.HasValue,"shared identity after query");
+            FixtureIdentity=new Queue<bool>(new bool[]{true,false});int sharedBefore=sharedCalls;frame=driver.ReadFrame();
+            check(frame.SharedStatus=="DEVICE_CHANGED"&&!frame.SharedCommitted.HasValue&&sharedCalls==sharedBefore+1,"frame identity after shared query");
             driver.utilization=delegate(IntPtr gpu,ref UtilizationData data)
             {
                 ++utilCalls;check(data.Version==(72|0x10000)&&data.Domains.Length==8,"utilization ABI");
@@ -657,8 +661,8 @@ $inner=@"
                 utilStatus=failure;frame=new Frame("UNAVAILABLE");resetIdentity();
                 check(driver.ReadUtilization(frame)==(failure==-104?"UNSUPPORTED":failure==-10?"DEVICE_CHANGED":"UNAVAILABLE"),"activity error classification");
             }
-            utilStatus=0;frame=new Frame("UNAVAILABLE");FixtureIdentity=new Queue<bool>(new bool[]{true,false});
-            check(driver.ReadUtilization(frame)=="DEVICE_CHANGED"&&!frame.Utilization[0].HasValue,"activity identity after query");
+            utilStatus=0;FixtureIdentity=new Queue<bool>(new bool[]{true,false});int utilBefore=utilCalls;frame=driver.ReadFrame();
+            check(frame.UtilizationStatus=="DEVICE_CHANGED"&&!frame.Utilization[0].HasValue&&utilCalls==utilBefore+1,"frame identity after activity query");
             NvidiaUtilizationQuery savedUtilization=driver.utilization;driver.utilization=null;frame=new Frame("UNAVAILABLE");resetIdentity();
             check(driver.ReadUtilization(frame)=="UNSUPPORTED"&&!frame.Utilization[0].HasValue,"missing activity API");driver.utilization=savedUtilization;
             resetIdentity();Frame combined=driver.ReadFrame();

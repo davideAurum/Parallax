@@ -921,6 +921,14 @@ public static class ParallaxGpuTemperature
             return NvidiaUnsupported(status) ? "UNSUPPORTED" : "UNAVAILABLE";
         }
 
+        // One identity check before the first driver call and one after the
+        // last bracket the whole frame; the individual reads do not repeat it.
+        // DXCore validity and staleness are monotonic (once invalid or stale,
+        // always so), LUIDs are unique per boot, and invalidated NVAPI/NVML
+        // handles already report DEVICE_CHANGED through NvidiaResult/NvmlResult,
+        // so a change at any point during the frame still voids every field.
+        // Callers other than this frame (diagnostic probes) get no identity
+        // guarantee from a single Read* call.
         internal Frame ReadFrame()
         {
             if (!opened || disposed) return new Frame("UNAVAILABLE");
@@ -946,7 +954,6 @@ public static class ParallaxGpuTemperature
             if (!opened || disposed) return "UNAVAILABLE";
             try
             {
-                if (!IdentityMatches()) return "DEVICE_CHANGED";
                 if (nvidiaStatus != "OK") return NvidiaUnavailable();
                 ulong physicalBytes, allocatableBytes, availableBytes;
                 int status = -3;
@@ -954,7 +961,6 @@ public static class ParallaxGpuTemperature
                 {
                     MemoryEx data = new MemoryEx { Version = 80 | 0x10000 };
                     status = memoryEx(physical, ref data);
-                    if (!IdentityMatches()) return "DEVICE_CHANGED";
                     if (status == 0)
                     {
                         if (data.Version != (80 | 0x10000)) return "UNAVAILABLE";
@@ -966,7 +972,6 @@ public static class ParallaxGpuTemperature
                 if (memoryLegacy == null) return NvidiaResult(status);
                 MemoryLegacy legacy = new MemoryLegacy { Version = 32 | 0x30000 };
                 status = memoryLegacy(physical, ref legacy);
-                if (!IdentityMatches()) return "DEVICE_CHANGED";
                 if (status != 0) return NvidiaResult(status);
                 if (legacy.Version != (32 | 0x30000)) return "UNAVAILABLE";
                 // Legacy KB values use 1024 bytes. Widen before multiplying.
@@ -1006,20 +1011,17 @@ public static class ParallaxGpuTemperature
             IntPtr input = IntPtr.Zero, output = IntPtr.Zero;
             try
             {
-                if (!IdentityMatches()) return "DEVICE_CHANGED";
                 if (sharedSupport != "OK") return sharedSupport;
                 if (sharedProperty == null || sharedQuery == null) return "UNSUPPORTED";
                 input = Marshal.AllocHGlobal(8); output = Marshal.AllocHGlobal(16);
                 Marshal.Copy(new byte[8], 0, input, 8);
                 Marshal.Copy(new byte[16], 0, output, 16);
                 int status = sharedProperty(adapter, 15, new UIntPtr(4), output);
-                if (!IdentityMatches()) return "DEVICE_CHANGED";
                 if (status < 0) return "UNAVAILABLE";
                 if (Marshal.ReadInt32(output) != 1) return "UNSUPPORTED";
                 Marshal.Copy(new byte[16], 0, output, 16);
                 Marshal.WriteInt32(input, 4, 1); // Physical index 0, DXCoreMemoryType.Shared.
                 status = sharedQuery(adapter, 2, new UIntPtr(8), input, new UIntPtr(16), output);
-                if (!IdentityMatches()) return "DEVICE_CHANGED";
                 if (status < 0) return "UNAVAILABLE";
                 ulong committed = unchecked((ulong)Marshal.ReadInt64(output));
                 ulong resident = unchecked((ulong)Marshal.ReadInt64(output, 8));
@@ -1041,11 +1043,9 @@ public static class ParallaxGpuTemperature
             if (!opened || disposed) return "UNAVAILABLE";
             try
             {
-                if (!IdentityMatches()) return "DEVICE_CHANGED";
                 if (utilization == null || nvidiaStatus != "OK") return NvidiaUnavailable();
                 UtilizationData data = new UtilizationData { Version = 72 | 0x10000, Domains = new UtilizationDomain[8] };
                 int status = utilization(physical, ref data);
-                if (!IdentityMatches()) return "DEVICE_CHANGED";
                 if (status != 0) return NvidiaResult(status);
                 if (data.Version != (72 | 0x10000) || data.Domains == null || data.Domains.Length != 8) return "UNAVAILABLE";
                 for (int index = 0; index < 4; ++index)
@@ -1063,13 +1063,11 @@ public static class ParallaxGpuTemperature
             if (!opened || disposed) return "UNAVAILABLE";
             try
             {
-                if (!IdentityMatches()) return "DEVICE_CHANGED";
                 if (clocks == null || nvidiaStatus != "OK") return NvidiaUnavailable();
                 for (uint version = 3; version >= 2; --version)
                 {
                     ClockData data = new ClockData { Version = 264 | version << 16, ClockType = 0, Domains = new ClockDomain[32] };
                     int status = clocks(physical, ref data);
-                    if (!IdentityMatches()) return "DEVICE_CHANGED";
                     if (status == -9 && version == 3) continue;
                     if (status != 0) return NvidiaResult(status);
                     if (data.Version != (264 | version << 16) || (data.ClockType & 15) != 0 ||
@@ -1260,7 +1258,6 @@ public static class ParallaxGpuTemperature
             if (!opened || disposed) return "UNAVAILABLE";
             try
             {
-                if (!IdentityMatches()) return "DEVICE_CHANGED";
                 if (powerSupport != "OK") return powerSupport;
                 if (nvmlPower == null || nvmlPci == null || nvmlDevice == IntPtr.Zero) return "UNSUPPORTED";
                 string status = PowerIdentityMatches();
@@ -1282,11 +1279,9 @@ public static class ParallaxGpuTemperature
             if (!opened || disposed) return "UNAVAILABLE";
             try
             {
-                if (!IdentityMatches()) return "DEVICE_CHANGED";
                 if (thermal == null || nvidiaStatus != "OK") return NvidiaUnavailable();
                 ThermalSettings data = new ThermalSettings { Version = 68 | 0x20000, Sensors = new ThermalSensor[3] };
                 int status = thermal(physical, 15, ref data); // ALL sensors; GPU target is an output, not index 1.
-                if (!IdentityMatches()) return "DEVICE_CHANGED";
                 if (status != 0) return NvidiaResult(status);
                 if (data.Version != (68 | 0x20000) || data.Count > 3 || data.Sensors == null || data.Sensors.Length != 3)
                     return "UNAVAILABLE";

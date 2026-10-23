@@ -7,12 +7,15 @@ param([string]$RainmeterPath = (Join-Path $env:ProgramFiles 'Rainmeter\Rainmeter
 $ErrorActionPreference = 'Stop'
 $testProcess = $null
 $sourcePath = [IO.Path]::GetFullPath((Join-Path $PSScriptRoot '..\Media.lua'))
+# MediaOptions.lua: the drawer toggles and the capture-lease writer (ApplyLease).
+$optionsSourcePath = [IO.Path]::GetFullPath((Join-Path $PSScriptRoot '..\MediaOptions.lua'))
 $sourceSuitePath = Join-Path $PSScriptRoot 'MediaSuite.luatest'
 $tempParent = [IO.Path]::GetFullPath([IO.Path]::GetTempPath())
 $runRoot = [IO.Path]::GetFullPath((Join-Path $tempParent ('Parallax-Media-test-' + [Guid]::NewGuid().ToString('N'))))
 if (-not $runRoot.StartsWith($tempParent.TrimEnd('\') + '\', [StringComparison]::OrdinalIgnoreCase)) { throw 'Test root must be inside the temp parent.' }
 if (-not (Test-Path -LiteralPath $RainmeterPath -PathType Leaf)) { throw 'Existing Rainmeter installation required; this test installs nothing.' }
 if (-not (Test-Path -LiteralPath $sourcePath -PathType Leaf)) { throw 'Production Media.lua is missing.' }
+if (-not (Test-Path -LiteralPath $optionsSourcePath -PathType Leaf)) { throw 'Production MediaOptions.lua is missing.' }
 if (Test-Path -LiteralPath $runRoot) { throw 'Test run root must be fresh.' }
 if ((Get-Item -LiteralPath $tempParent).Attributes -band [IO.FileAttributes]::ReparsePoint) { throw 'Test temp parent must not be a junction.' }
 
@@ -22,16 +25,19 @@ foreach ($dir in @($runRoot, $skinRoot, $configRoot, "$runRoot\Production", "$ru
     $null = New-Item -ItemType Directory -Path $dir
 }
 $productionPath = Join-Path $runRoot 'Production\Media.lua'
+$optionsPath = Join-Path $runRoot 'Production\MediaOptions.lua'
 $suitePath = Join-Path $runRoot 'MediaSuite.lua'
 $iniPath = Join-Path $runRoot 'Rainmeter.ini'
 $resultPath = Join-Path $runRoot 'results.txt'
 $evidencePath = Join-Path $runRoot 'run-evidence.json'
-foreach ($path in @($suitePath, $productionPath, $resultPath, $runRoot)) {
+foreach ($path in @($suitePath, $productionPath, $optionsPath, $resultPath, $runRoot)) {
     if ($path.Contains(']=]') -or $path.Contains('"') -or $path.Contains("`r") -or $path.Contains("`n")) { throw 'Unsupported delimiter in test path.' }
 }
 Copy-Item -LiteralPath $sourcePath -Destination $productionPath
+Copy-Item -LiteralPath $optionsSourcePath -Destination $optionsPath
 Copy-Item -LiteralPath $sourceSuitePath -Destination $suitePath
 $sourceHash = (Get-FileHash -LiteralPath $productionPath -Algorithm SHA256).Hash
+$optionsHash = (Get-FileHash -LiteralPath $optionsPath -Algorithm SHA256).Hash
 $encoding = [Text.UTF8Encoding]::new($false)
 
 [IO.File]::WriteAllText($iniPath, @"
@@ -77,10 +83,11 @@ function Update() return 0 end
 function AuditAndQuit()
     local ok, report = pcall(function()
         local suite = dofile([=[$suitePath]=])
-        local count, cases = suite.run([=[$productionPath]=])
+        local count, cases = suite.run([=[$productionPath]=], [=[$optionsPath]=])
         return 'PASS: '..count..' assertions in '..#cases..' synthetic Media scenarios; '.._VERSION..'.\n'
             ..table.concat(cases, '\n')..'\n'
             ..'Production SHA256: $sourceHash\n'
+            ..'MediaOptions SHA256: $optionsHash\n'
             ..'Adapter behavior only. No WNP, authentication, live Rainmeter settings, screenshot, DPI or performance verification.\n'
     end)
     if not ok then report = 'FAIL: '..tostring(report)..'\n' end
@@ -114,6 +121,7 @@ try {
     Write-Output $report
     if ($report -notmatch '^PASS:') { throw 'Media behavior tests failed.' }
     if ((Get-FileHash -LiteralPath $sourcePath -Algorithm SHA256).Hash -ne $sourceHash) { throw 'Production source changed during the test; results cover only the retained snapshot.' }
+    if ((Get-FileHash -LiteralPath $optionsSourcePath -Algorithm SHA256).Hash -ne $optionsHash) { throw 'MediaOptions.lua changed during the test; results cover only the retained snapshot.' }
     Write-Output "Isolated evidence retained at $runRoot"
 } finally {
     if ($null -ne $testProcess) {

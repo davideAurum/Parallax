@@ -471,7 +471,8 @@ closes; with KeepOnScreen off the drawer goes off-screen instead.
 open state; states 0 and 1 load comment-only stubs, so collapsed and hidden
 Media contain no AudioLevel measure at all (AudioLevel opens its capture at
 initialization, so `Disabled=1` would not have stopped it). The open drawer
-hosts the Visualizer's shared `Capture.inc` (one output parent plus device,
+hosts, in its live variant (see [Capture lease](#capture-lease)), the
+Visualizer's shared `Capture.inc` (one output parent plus device,
 format, RMS, state and 24 band children) and `Spectrum.inc` (band geometry,
 palette script, mask and fill), and the standalone's `Audio.inc`: the two
 once-per-load dB-tick Calcs, one Win7Audio volume measure (read once a
@@ -489,7 +490,7 @@ Rainmeter log if it is not loaded) and reloads Media through
 refresh. The standalone's own row now asks Media's open drawer to reload too,
 so both captures follow the new default. While
 the drawer is open Media updates every 50 ms (`MediaTickInterval` picks the
-fast tick for an open drawer even with the title animation off), so no other
+fast tick for an open, live drawer even with the title animation off), so no other
 skin's cadence changes. The Visualizer interval maps onto that tick through
 `VisualizerCaptureDivider = Max(1, Round(interval / 50))`: 50 and 33 ms run
 every tick (33 ms cannot be met inside Media), 100 ms every other tick.
@@ -535,6 +536,50 @@ Media's 7 KB plot-width formula dozens of times per bar on every tick;
 [PERFORMANCE.md](../PERFORMANCE.md#spectrum-drawer-path-cost-2026-10-11)).
 There is still no slide animation: the
 tab writes the preference and refreshes, which restarts the skin.
+
+### Capture lease
+
+Performance review theme T2 (VIS-01, MEDIA-05, XMOD-02, ENGINE-03; owner
+decision 1, 2026-10-22). Rainmeter 4.5.28's AudioLevel `Port=Output` starts a
+silent render stream beside its loopback capture and stops it only when the
+measure unloads, so an open drawer keeps the Windows audio engine (audiodg)
+running all night: measured live at 9.8% of a core while open, and not running
+at all while collapsed. Disabling or pausing the measure does not release it;
+only a reload into an include without AudioLevel does.
+
+**Variants (2026-10-23).** `VisualizerDrawer2.inc` keeps what every open drawer
+shows: the drawer geometry, the plot frame and grid, the static `0 dB` /
+`40 Hz` / `16 kHz` labels, the speaker icon and the status overlay. Its last
+section includes `Modules\Media\DrawerCapture<MediaDrawerCapture>.inc`, chosen
+by the runtime file `Modules\Media\CaptureState.inc`:
+
+| `MediaDrawerCapture` | Variant | What it loads and shows |
+| --- | --- | --- |
+| `0` (shipped) | Live | The former open drawer's live content, unchanged and in the same order: `Capture.inc`, `Audio.inc`, the palette hook, device name, volume and output-switch target, the two sensitivity ticks, then `Spectrum.inc` last. |
+| `1` | Capture paused | No AudioLevel, Win7Audio or spectrum script. The plot says `Capture paused` in `MutedColor`; the device name and volume read `--`; the sensitivity ticks come from two local Calcs. A transparent target over the whole plot (alpha 1, hand cursor, no tooltip) resumes the capture on a click. |
+| `2` | Deferred | No AudioLevel, Win7Audio or spectrum script, and nothing clickable. A message in the drawer's own fill covers the plot box and its dB gutter: `Spectrum is shown in Audio Visualizer`, within two lines down to width 180, scale 0.75, compact, with the largest body font (inside the plot alone it would need three there); the axis labels are blank and the output row reads `--`. |
+
+All three share the drawer geometry, so the window keeps its size and the panel
+does not move. Media's tick adds the 50 ms drawer term only while the capture is
+live (`...*(VisualizerDrawer=2)*(MediaDrawerCapture=0)` in
+`InlineQueueGeometry.inc`); the title animation keeps its own term. The live
+variant draws exactly what the drawer drew before the split: the meters that
+now draw before it (`0 dB`, `40 Hz`, `16 kHz`) overlap none of the moved ones.
+
+**Single writer.** `MediaOptions.ApplyLease(capture, standby, reason)` is the only
+writer of `CaptureState.inc`. It reads the file (an unreadable file, a missing
+`[Variables]` section or a repeated key fails closed), returns if nothing
+changes, writes only the changed keys, reads them back and refreshes Media at
+most once per load, so several changes before that posted refresh coalesce
+into it. Lease reasons (park, unpark, defer, reclaim, standby, fail-live) also
+stamp `MediaLeaseRefreshAt`/`MediaLeaseRefreshClock`, so that reload starts no
+provider resume (see [Provider recovery](#provider-recovery-after-restart)). The
+tab and Media settings write the state with reason `toggle`: opening,
+collapsing or hiding the drawer always starts it live, with no stamp and no
+extra refresh, because their own refresh carries it. Collapsing and hiding
+also ask a loaded [input-idle coordinator](../ARCHITECTURE.md#input-idle-coordinator)
+to re-check whether anything still needs it (a silent group request).
+`CaptureState.inc` ships at all zeros and a release install resets it.
 
 ## Provider behavior and limits
 

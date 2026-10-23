@@ -107,7 +107,7 @@ def number_text(number):
 def read_config(name, *, scale=1, columns=1, column_width=220,
                 expanded=0, row_limit=5, show_details=1, typography='default', surface=1, bar_thickness=6,
                 drawer=1, corner=None, preset=None, visualizer_columns=None, simulate_user=True,
-                missing=None, title_animation=None):
+                missing=None, title_animation=None, capture=None):
     """Load an entrypoint like Rainmeter: includes in file order, paths eagerly.
 
     Rainmeter expands an @Include path as it reads it, with the variables known
@@ -190,6 +190,9 @@ def read_config(name, *, scale=1, columns=1, column_width=220,
                     variables[key] = value
         if not simulate_user:
             return
+        if path == RESOURCES / 'Modules' / 'Media' / 'CaptureState.inc' and capture is not None:
+            # Simulate the runtime capture lease (MediaOptions.ApplyLease).
+            variables['MediaDrawerCapture'] = str(capture)
         if path == RESOURCES / 'User' / 'Visualizer.inc':
             # Simulate the Audio settings choices Media's drawer reads first.
             if preset is not None:
@@ -2400,8 +2403,102 @@ class SkinContractTests(unittest.TestCase):
                                 if name!='MeterBounds':
                                     self.assertTrue(bounds.inside(surface),f'{name}: {bounds} outside {surface}')
                             unavailable=resolve_style(sections,'MeterVisualizerUnavailable')
-                            self.assertIn(unavailable.get('ClipString'),('1','2'))
+                            self.assertIn(expand(unavailable.get('ClipString')),('1','2'))
                             self.assertIn('FontFace',unavailable)
+
+    def test_open_drawer_capture_variants_share_the_frame_and_only_live_captures(self):
+        # docs/PERFORMANCE-REVIEW.md phase C1: VisualizerDrawer2.inc keeps the
+        # frame, geometry and static labels and includes
+        # DrawerCapture<MediaDrawerCapture>.inc. Only variant 0 (live) loads
+        # AudioLevel, Win7Audio and the spectrum scripts; 1 (paused) and 2
+        # (deferred) are capture-free, so a reload into them is what releases
+        # the Windows audio engine.
+        geometry=('WindowWidth','WindowHeight','MediaTop','MediaVisualizerOpen','MediaVisualizerOpenLift',
+                  'MediaVisualizerPlotX','MediaVisualizerPlotY','MediaVisualizerPlotWidth','MediaVisualizerPlotHeight',
+                  'MediaVisualizerRowX','MediaVisualizerRowY','MediaVisualizerRowWidth','VisualizerBarHeight')
+        live_only=('Capture.inc','Audio.inc','Spectrum.inc')
+        shared=('MeterVisualizerPlot','MeterVisualizerUnavailable','MeterVisualizerOutputIcon','MeterVisualizerDbMax',
+                'MeterVisualizerLow','MeterVisualizerHigh','MeterVisualizerDeviceName','MeterVisualizerVolume')
+        # The sensitivity ticks belong to a scale; the deferred drawer shows none.
+        ticks=('MeterVisualizerDbMid','MeterVisualizerDbMin')
+        for width in (180,220):
+            for scale in (0.75,1,2):
+                for columns in COLUMNS:
+                    for animation in (0,20):
+                        states={}
+                        for capture in (0,1,2):
+                            with self.subTest(width=width,scale=scale,columns=columns,animation=animation,capture=capture):
+                                sections,variables,visited,expand=read_config('Media.ini',column_width=width,scale=scale,
+                                    columns=columns,drawer=2,capture=capture,title_animation=animation,typography='max')
+                                val=value_of(expand)
+                                names=[path.name for path in visited]
+                                self.assertEqual(names[names.index('VisualizerDrawer2.inc')+1],f'DrawerCapture{capture}.inc')
+                                self.assertEqual(sum(name.startswith('DrawerCapture') for name in names),1)
+                                plugins={section.get('Plugin') for section in sections.values() if 'Plugin' in section}
+                                scripts={section.get('ScriptFile','').rsplit('\\',1)[-1] for section in sections.values() if 'ScriptFile' in section}
+                                if capture==0:
+                                    self.assertTrue(all(name in names for name in live_only))
+                                    self.assertIn('AudioLevel',plugins)
+                                    self.assertIn('Win7AudioPlugin',plugins)
+                                    self.assertTrue({'Color.lua','SpectrumPaths.lua'}<=scripts)
+                                    self.assertEqual(val('#MediaTickInterval#'),50,'Live capture keeps the 50 ms tick')
+                                else:
+                                    self.assertFalse(any(name in names for name in live_only))
+                                    self.assertNotIn('AudioLevel',plugins)
+                                    self.assertNotIn('Win7AudioPlugin',plugins)
+                                    self.assertFalse({'Color.lua','SpectrumPaths.lua'}&scripts)
+                                    self.assertFalse(any(name.startswith('MeasureVisualizer') for name in sections))
+                                    self.assertEqual(val('#MediaTickInterval#'),50 if animation else val('#MediaInterval#'),
+                                                     'A paused or deferred drawer adds no fast tick of its own')
+                                    self.assertIn('CaptureLease.lua',scripts)
+                                for name in shared:
+                                    self.assertIn(name,sections)
+                                for name in ticks:
+                                    self.assertEqual(name in sections,capture!=2,name)
+                                axis=[expand(resolve_style(sections,name)['Text']) for name in
+                                      ('MeterVisualizerDbMax','MeterVisualizerLow','MeterVisualizerHigh')]
+                                self.assertEqual(axis,['','',''] if capture==2 else ['0 dB','40 Hz','16 kHz'])
+                                for name,section in sections.items():
+                                    for key,value in section.items():
+                                        if re.fullmatch(r'MeasureName\d*',key):
+                                            self.assertIn(value,sections,f'{name} {key}')
+                                overlay=resolve_style(sections,'MeterVisualizerUnavailable')
+                                text,color=expand(overlay['Text']),expand(overlay['FontColor'])
+                                lines=expand(overlay['ClipString'])
+                                expected={0:('Output unavailable','#WarningColor#','1'),1:('Capture paused','#MutedColor#','1'),
+                                          2:('Spectrum is shown in Audio Visualizer','#MutedColor#','2')}[capture]
+                                self.assertEqual((text,color,lines),(expand(expected[0]),expand(expected[1]),expected[2]))
+                                own=[name for name,section in sections.items() if 'Meter' in section and
+                                     name not in shared and name not in DRAWER_METERS and
+                                     name.startswith(('MeterVisualizer','MeterMediaCapture'))]
+                                actions={(name,key):value for name in own for key,value in resolve_style(sections,name).items()
+                                         if re.search('Action[0-9]*$',key)}
+                                if capture==1:
+                                    resume=resolve_style(sections,'MeterMediaCaptureResume')
+                                    self.assertEqual(resume['LeftMouseUpAction'],'[!CommandMeasure MeasureMediaCaptureLease "Unpark(\'click\')"]')
+                                    self.assertEqual(resume['MouseActionCursor'],'1')
+                                    self.assertEqual(expand(resume['SolidColor']),'0,0,0,1')
+                                    self.assertEqual(meter_bounds(resume,val),meter_bounds(resolve_style(sections,'MeterVisualizerPlot'),val),'The click target covers the plot')
+                                    self.assertEqual(set(actions),{('MeterMediaCaptureResume','LeftMouseUpAction')})
+                                elif capture==2:
+                                    self.assertEqual(actions,{},'The deferred drawer is not clickable')
+                                    # The message covers the plot box and its gutter in the sheet's fill.
+                                    message=meter_bounds(overlay,val)
+                                    plot=meter_bounds(resolve_style(sections,'MeterVisualizerPlot'),val)
+                                    self.assertEqual(expand(overlay['SolidColor']),expand('#MediaQueueDrawerFill#'))
+                                    self.assertTrue(message.top<=plot.top and message.bottom>=plot.bottom and message.right>=plot.right)
+                                    self.assertLessEqual(message.left,val('#MediaVisualizerRowX#'))
+                                else:
+                                    self.assertEqual(expand(overlay['SolidColor']),expand('#GraphBackgroundColor#'))
+                                self.assertFalse(any(key.startswith('ToolTip') for section in sections.values() for key in section))
+                                window=Bounds(0,0,val('#WindowWidth#'),val('#WindowHeight#'))
+                                for name in shared+tuple(own)+tuple(name for name in ticks if name in sections):
+                                    bounds=meter_bounds(presentation_style(sections,name,'Media.ini',0,5),val)
+                                    self.assertTrue(bounds.inside(window),f'{name}: {bounds} outside {window}')
+                                states[capture]={variable:val(f'#{variable}#') for variable in geometry}
+                        with self.subTest(width=width,scale=scale,columns=columns,animation=animation):
+                            self.assertEqual(states[1],states[0],'Paused drawer keeps the live geometry')
+                            self.assertEqual(states[2],states[0],'Deferred drawer keeps the live geometry')
 
     def test_spectrum_tab_shares_the_gear_column_and_flips_its_chevron(self):
         for drawer in (1,2):

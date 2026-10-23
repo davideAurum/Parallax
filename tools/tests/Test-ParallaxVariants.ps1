@@ -35,7 +35,10 @@ $SkinRoot = (Get-Item -LiteralPath $SkinRoot).FullName
 $variantSets = @(
     , @()
     , @('VisualizerDrawer=0')
-    , @('VisualizerDrawer=2')
+    # The open drawer's capture variants (Modules\Media\DrawerCapture<n>.inc).
+    , @('VisualizerDrawer=2', 'MediaDrawerCapture=0')
+    , @('VisualizerDrawer=2', 'MediaDrawerCapture=1')
+    , @('VisualizerDrawer=2', 'MediaDrawerCapture=2')
 )
 
 $assertions = 0

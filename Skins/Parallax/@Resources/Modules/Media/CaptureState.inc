@@ -5,7 +5,8 @@
 ; or partial file means live capture.
 [Variables]
 ; 0 live capture, 1 capture paused (released after silence while you are
-; away), 2 deferred to a loaded Audio Visualizer.
+; away), 2 deferred to a loaded Audio Visualizer. While VisualizerDrawer=2 it
+; names the drawer variant, Modules\Media\DrawerCapture<n>.inc.
 MediaDrawerCapture=0
 ; Reserved for the idle stand-down; 0 here.
 MediaStandby=0

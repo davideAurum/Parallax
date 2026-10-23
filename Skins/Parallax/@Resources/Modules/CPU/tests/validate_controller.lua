@@ -605,6 +605,58 @@ function suite.Run(cpuPath)
         context:event('ApplySetting', 'CPUHistorySamples', 30)
         equal(context:cycle().reloads, 0, 'capacity change leaves measures alone')
     end)
+    test('steady ticks resend no unchanged option or visibility', function()
+        -- CPU-04: unchanged process rows, state text and visibility send nothing.
+        local context = newMock(cpuPath)
+        context:run(5)
+        for _ = 1, 4 do
+            context:cycle()
+            local log = context.controllerBangs
+            for _, name in ipairs({'!ShowMeterGroup', '!HideMeterGroup', '!ShowMeter', '!HideMeter'}) do
+                equal(context:count(log, name), 0, name .. ' per steady cycle')
+            end
+            for slot = 1, 5 do
+                equal(context:count(log, '!SetOption', 'MeterProcessName' .. slot), 0, 'unchanged process name ' .. slot)
+                equal(context:count(log, '!SetOption', 'MeterProcessValue' .. slot), 0, 'unchanged process value ' .. slot)
+            end
+            equal(context:count(log, '!SetOption', 'MeterProcessesState'), 0, 'hidden state text')
+            local seen = {}
+            for _, args in ipairs(log) do
+                if args[1] == '!SetOption' then
+                    local key = args[2] .. '|' .. args[3]
+                    assert(not seen[key], 'option sent twice in one cycle: ' .. key)
+                    seen[key] = true
+                end
+            end
+            threadRows(context, 1, 12, 1)
+        end
+    end)
+    test('process rows bang only when a row appears or disappears', function()
+        local context = newMock(cpuPath)
+        context:run(5)
+        context.processes = {{name='alpha.exe', value=12.5}, {name='beta.exe', value=6.25}, {name='gamma.exe', value=3}}
+        context:cycle()
+        equal(context:count(context.controllerBangs, '!HideMeterGroup'), 2, 'two ranks vanished')
+        equal(context:count(context.controllerBangs, '!ShowMeterGroup'), 0, 'no row appeared')
+        assert(not context:visible('MeterProcessName4') and context:visible('MeterProcessName3'), 'rows follow ranks')
+        context.processes = {{name='beta.exe', value=9}, {name='alpha.exe', value=8}}
+        context:cycle()
+        equal(context:count(context.controllerBangs, '!HideMeterGroup'), 1, 'third rank vanished')
+        equal(context:count(context.controllerBangs, '!SetOption', 'MeterProcessName1'), 1, 'reranked name')
+        equal(context:text('MeterProcessName1'), 'beta.exe')
+        equal(context:text('MeterProcessValue2'), '8.0%')
+        context.processes = {}
+        context:cycle()
+        equal(context:text('MeterProcessesState'), 'No active process data')
+        assert(context:visible('MeterProcessesState'), 'empty state shown')
+        context:event('ApplySetting', 'CPUShowProcesses', 0)
+        context:event('ApplySetting', 'CPUShowProcesses', 1)
+        equal(context:meterOption('MeterProcessesState', 'Text'), 'Waiting for process data...', 'rebinding waits again')
+        context.processes = {{name='delta.exe', value=4}}
+        context:run(3)
+        equal(context:text('MeterProcessName1'), 'delta.exe')
+        assert(context:visible('MeterProcessName1') and not context:visible('MeterProcessesState'), 'row after rebinding')
+    end)
     test('controller never assigns tooltips', function()
         local context = newMock(cpuPath, {variables={CPUAutoRows='0', CPUCoresPerPage='4'}})
         context:run(4)

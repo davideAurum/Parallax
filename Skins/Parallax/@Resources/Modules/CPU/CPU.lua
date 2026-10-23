@@ -26,12 +26,33 @@ local function busyPercent(value)
     return math.min(100, value)
 end
 
+-- Each !SetOption forces a full option re-read of its section, and each
+-- show/hide bang searches the skin's meters and forces a window resize check.
+-- Send them only when the value differs from the one this script last sent.
+-- Every option, meter visibility and process-row group this script changes
+-- goes through these helpers, so the caches match the skin.
 local function set(meter, key, value)
-    SKIN:Bang('!SetOption', meter, key, tostring(value))
+    value = tostring(value)
+    state.sent = state.sent or {}
+    local cacheKey = meter .. '\0' .. key
+    if state.sent[cacheKey] == value then return end
+    state.sent[cacheKey] = value
+    SKIN:Bang('!SetOption', meter, key, value)
 end
 
 local function visible(meter, show)
+    show = show and true or false
+    state.shown = state.shown or {}
+    if state.shown[meter] == show then return end
+    state.shown[meter] = show
     SKIN:Bang(show and '!ShowMeter' or '!HideMeter', meter)
+end
+
+local function processRowVisible(slot, show)
+    state.processShown = state.processShown or {}
+    if state.processShown[slot] == show then return end
+    state.processShown[slot] = show
+    SKIN:Bang(show and '!ShowMeterGroup' or '!HideMeterGroup', 'CPUProcess' .. slot)
 end
 
 local function redraw()
@@ -347,7 +368,7 @@ local function bindProcesses()
         local enabled = state.showProcesses and slot <= state.processCount
         local measure = 'MeasureCPUProcess' .. slot
         bindMeasure(measure, nil, enabled)
-        SKIN:Bang('!HideMeterGroup', 'CPUProcess' .. slot)
+        processRowVisible(slot, false)
     end
     visible('MeterProcessesState', state.showProcesses)
     set('MeterProcessesState', 'Text', 'Waiting for process data...')
@@ -361,7 +382,7 @@ local function updateProcesses()
         local measure = SKIN:GetMeasure('MeasureCPUProcess' .. slot)
         local name, value = measure:GetStringValue(), measure:GetValue()
         local valid = name ~= '' and name ~= '0' and value == value and value > 0 and value <= 100
-        SKIN:Bang(valid and '!ShowMeterGroup' or '!HideMeterGroup', 'CPUProcess' .. slot)
+        processRowVisible(slot, valid)
         if valid then
             populated = populated + 1
             set('MeterProcessName' .. slot, 'Text', name)
@@ -369,7 +390,8 @@ local function updateProcesses()
         end
     end
     visible('MeterProcessesState', populated == 0)
-    set('MeterProcessesState', 'Text', 'No active process data')
+    -- The state line is drawn only without ranked rows; set its text then.
+    if populated == 0 then set('MeterProcessesState', 'Text', 'No active process data') end
 end
 
 local function clearHistoryPath(index)

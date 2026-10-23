@@ -449,6 +449,46 @@ Reading it:
 - **A hint of synergy, not yet a claim.** The six-skin gain (15.3) exceeds the sum of the measured solo gains (Media 9.7 + CPU 1.5 + GPU 1.1 + RAM 0 = 12.2; IO and Chronometer were not measured solo). But the difference (3.1) is about the baseline's wide spread (±2.9). Step 3's per-fix builds decide it.
 - **What this run cannot show.** A2's Source-helper gain needs the live trace after a release; isolated profiles keep Media's providers inert. audiodg, kept alive by the open drawer's capture, is phase C1.
 
+## Phase B result (merged 2026-10-23, not yet measured)
+
+Each package was built in its own worktree and then reviewed by an independent agent that tried to break it. B4 and B6 came back with required changes, were fixed and reviewed again. All five were approved. They are merged on the review branch, one merge per package: `bee188c` B1, `7ccad28` B2, `9bb2a1b` B4, `44ad4b5` B5, `0fd5b39` B6. B1, B2 and B4 were built in sequence, each on the previous one. B5 and B6 were built from `191a1cd`. The five packages share no files.
+
+| Package | Commits | What changed | Visible to the owner |
+| --- | ---: | --- | --- |
+| **B1** helpers | 8 | RAM's PAGE host and GPU's telemetry host now run detached from RunCommand. That ends RunCommand's 1 ms polling thread, measured live at 64-104 wakeups/s per host. The compiling bootstrap is gone: one fewer C# compile per load (RAM 2 → 1, GPU 3 → 2). PowerShell starts per load are unchanged against baseline. RAM's snapshot is written only on change, plus a heartbeat. A failed session retries after 10, 60 and 300 s. | PAGE and GPU readings recover by themselves after a stall. Before, the live "PAGE: Unavailable" never recovered; the cause was reproduced by suspending Rainmeter for 20 s. After a refresh, the old host lingers up to about 17 s, then removes its own files. |
+| **B2** UsageMonitor | 5 | UsageMonitor measures load by include variant. Nothing changes at the defaults. Savings appear only with the opt-outs: `GPUShowProcesses=0`, `GPUShowProcessMemory=0`, and `CPUShowProcesses=0` together with the new `RAMShowProcesses=0`. The suspected second Process read does not exist; the UsageMonitor source confirms it. | New RAM setting to hide the process list. |
+| **B4** HWiNFO | 7 | A frozen export now names the fix in CPU's footer: "HWiNFO: open Sensors". The plan's longer text does not fit the narrowest footer. CPU's clock falls back to Windows and is marked as a Windows reading. GPU's HWiNFO override shows "Not updating" after 60 s without change. GPU's mapping guide is updated. | Clear messages when HWiNFO's sensors window is closed. |
+| **B5** Media transport | 1 | Media's transport buttons repaint when the play state changes outside Media, for example a media key or another app. The bug predates phase A. No periodic repaint was added. | The Play/Pause button follows external pauses within about 1 s. |
+| **B6** step-3 tooling | 11 | `New-PerfBuild` makes baseline + k and all − k builds, with a byte-exact UTF-16 merge. `tools/perf-fixes.json` lists 43 phase-A fixes in 30 units. `Invoke-PerfMatrix` runs the matrix and classifies interactions by the rule above. A new validator rule (XMOD-04) flags unconditional repaint bangs. The workflow is in `docs/PERF-STEP3.md`. | None (developer tooling). |
+
+**Not built, with reasons:**
+- **GPU write-on-change.** GPU's payload changed on 19 of 19 idle samples, because board power moves every sample.
+- **Folding GPU's adapter query into the host.** It reshapes adapter state and is not low-risk.
+- **RAM-02, slower PAGE sampling.** Not approved.
+- **B3, the shared helper-kit file.** A new executable file needs a staging-allowlist change. RAM's change-only writer landed inside B1 instead.
+- **The compiled-assembly cache.** Out of scope for this phase.
+
+**Checks on the merged tree:**
+- `Test-Parallax.ps1 -RequireAllModules -WarningsAsErrors`: 23 configs, 109 files, 0 errors, 0 warnings. This includes the new XMOD-04 rule run over every package's Lua.
+- Tool tests: `Test-RepaintRule` 50 assertions, `Test-PerfBuild` 49, `Test-PerfMatrix` 107, `Test-PerfManifest -SkipBuilds` 309, and the 15 tests in `test_merge_utf16.py`. All pass.
+- Native Rainmeter runs passed on each package's own branch. None ran on the merged tree, so the overnight trace stayed clean.
+
+**Open minor issues from the reviews (not fixed):**
+1. A hand-edited `CPUShowProcesses` other than 0 or 1 loads no process slots and asks for a refresh that cannot help. The settings window only writes 0 or 1.
+2. With GPU's table off, GPU Settings reads "462 px / Fit" while the fitted panel is 352 px.
+3. RAM and GPU retries rely on each launcher measure being declared before its controller. Swapping the order would use up all three retries at once.
+4. Closing a skin in its first seconds leaves the new host running until its 15 s lease lapses. It can also leave a small `.lease` file in TEMP.
+5. Media's `LayoutTransport`, currently disabled, would force its meters twice if re-enabled. The comment on why the periodic path needs no `!Redraw` names the wrong engine mechanism.
+6. CPU says "HWiNFO: open Sensors" where GPU says "Not updating" for the same condition.
+7. `Invoke-PerfMatrix -Metric` is fragile with a partial metric list.
+
+The stale doc lines the reviewers flagged (ARCHITECTURE, PACKAGING, DEPENDENCIES, RAM.md, GPU.md) were corrected at merge.
+
+**Still to measure, after the overnight trace ends:**
+- Baseline `916c9ab`, phase A `dfe55b8` and phase B, interleaved, with live preferences and hardware rendering.
+- B1's wakeup reduction.
+- B2's gains, which show only in opt-out scenarios.
+
 ## Owner decisions (2026-10-22)
 
 1. **Drawer capture when silent (T2): release it.**

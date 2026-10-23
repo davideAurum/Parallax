@@ -178,9 +178,14 @@ local function providers()
         local measure=assert(SKIN:GetMeasure('MeasureNetwork'..suffix),'Missing traffic measure')
         assert(measure:GetNumberOption('UpdateDivider')==1 and measure:GetNumberOption('DynamicVariables')==1,'Traffic measure cadence/selector changed')
     end
-    for _,suffix in ipairs({'Alias','Description','Guid','Status','State','Type','Internet','IP','Gateway','RxLink','TxLink'}) do
+    -- Identity is shared with the traffic bank above; the controller samples it on these bank ticks.
+    for _,suffix in ipairs({'Alias','Description','Guid','Status','State'}) do
+        assert(SKIN:GetMeasure('MeasureConnection'..suffix)==nil,'Duplicated connection identity measure returned')
+    end
+    for _,suffix in ipairs({'Type','Internet','IP','Gateway','RxLink','TxLink'}) do
         local measure=assert(SKIN:GetMeasure('MeasureConnection'..suffix),'Missing connection measure')
         assert(measure:GetNumberOption('UpdateDivider')==2,'Connection metadata cadence changed')
+        assert(conn:GetNumberOption('BankDivider')==2,'Controller bank divider differs from the connection bank')
         if suffix=='Internet' then assert(measure:GetOption('SysInfoData','')=='','PC-wide Internet incorrectly scoped')
         else assert(measure:GetNumberOption('DynamicVariables')==1 and measure:GetOption('SysInfoData')==SKIN:GetVariable('NetworkInterface'),'Connection selector differs') end
     end

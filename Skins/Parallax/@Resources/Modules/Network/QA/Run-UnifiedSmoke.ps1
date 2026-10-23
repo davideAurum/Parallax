@@ -33,11 +33,12 @@ try {
     if ($sourceEntry -notmatch '(?m)^Update=1000\r?$') { throw 'Combined native monitor must retain one-second update.' }
     if ($sourceRedirect -notmatch '(?m)^Update=-1\r?$' -or $sourceRedirect -match '(?m)^Measure=') { throw 'Legacy redirect must not collect telemetry or poll.' }
     $nativeDefinitions=(Get-Content -LiteralPath (Join-Path $moduleRoot 'Measures.inc') -Raw)+"`n"+(Get-Content -LiteralPath (Join-Path $moduleRoot 'ConnectionMeasures.inc') -Raw)
-    if ([regex]::Matches($nativeDefinitions,'(?m)^Measure=SysInfo\r?$').Count -ne 16 -or
+    # 11 SysInfo: Network's 5 identity measures (shared with the connection rows) plus 6 connection-only fields.
+    if ([regex]::Matches($nativeDefinitions,'(?m)^Measure=SysInfo\r?$').Count -ne 11 -or
         [regex]::Matches($nativeDefinitions,'(?m)^Measure=Net(In|Out)\r?$').Count -ne 2 -or
         [regex]::Matches($nativeDefinitions,'(?m)^Measure=WiFiStatus\r?$').Count -ne 5 -or
         [regex]::Matches($nativeDefinitions,'(?m)^Measure=Script\r?$').Count -ne 2 -or
-        [regex]::Matches($nativeDefinitions,'(?m)^Measure=').Count -ne 25) { throw 'Combined provider banks changed unexpectedly.' }
+        [regex]::Matches($nativeDefinitions,'(?m)^Measure=').Count -ne 20) { throw 'Combined provider banks changed unexpectedly.' }
     $sourceMeters=(Get-Content -LiteralPath (Join-Path $moduleRoot 'Meters.inc') -Raw)+"`n"+(Get-Content -LiteralPath (Join-Path $moduleRoot 'ConnectionMeters.inc') -Raw)
     $meterNames=[Collections.Generic.List[string]]::new();$glyphs=[Collections.Generic.List[object]]::new()
     function Add-Glyph([string]$Target,[string]$Text,[bool]$Width=$true,[bool]$Live=$false) {

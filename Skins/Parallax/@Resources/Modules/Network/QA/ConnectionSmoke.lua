@@ -289,7 +289,11 @@ local function run()
     local glyphs = glyphChecks()
     local controller = assert(SKIN:GetMeasure('MeasureConnectionController'), 'Controller missing')
     assert(controller:GetNumberOption('UpdateDivider') == 1, 'Controller cadence differs from one second')
-    for _, suffix in ipairs({'Alias', 'Description', 'Guid', 'Status', 'State', 'Type', 'Internet', 'IP', 'Gateway', 'RxLink', 'TxLink'}) do
+    -- Identity (Alias/Description/Guid/Status/State) is read from the traffic bank.
+    for _, suffix in ipairs({'Alias', 'Description', 'Guid', 'Status', 'State'}) do
+        assert(SKIN:GetMeasure('MeasureConnection' .. suffix) == nil, suffix .. ' duplicate identity measure returned')
+    end
+    for _, suffix in ipairs({'Type', 'Internet', 'IP', 'Gateway', 'RxLink', 'TxLink'}) do
         local native = assert(SKIN:GetMeasure('MeasureConnection' .. suffix), suffix .. ' native measure missing')
         assert(native:GetNumberOption('UpdateDivider') == 2, suffix .. ' does not have two-second cadence')
         if suffix ~= 'Internet' then

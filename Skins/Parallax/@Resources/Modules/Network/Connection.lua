@@ -1,14 +1,17 @@
 -- Connection presentation only: native measures own every reported value.
 local Core, Connection, config, cache
+local ticks, bankDivider, identity
 local wifiNames = {'SSID', 'Quality', 'PHY', 'Rx', 'Tx'}
 
 local function variable(key, default) return SKIN:GetVariable(key, default) end
 
-local function value(suffix, stringValue)
-    local measure = SKIN:GetMeasure('MeasureConnection' .. suffix)
+local function read(name, stringValue)
+    local measure = SKIN:GetMeasure(name)
     if not measure then return stringValue and '' or nil end
     return stringValue and measure:GetStringValue() or measure:GetValue()
 end
+
+local function value(suffix, stringValue) return read('MeasureConnection' .. suffix, stringValue) end
 
 local function option(suffix, key, content)
     content = tostring(content)
@@ -22,11 +25,21 @@ end
 local function text(suffix, content) option(suffix, 'Text', Core.safe(content)) end
 local function color(suffix, key) option(suffix, 'FontColor', variable(key, '175,175,175')) end
 
+-- A whole number of skin ticks between updates of a native measure bank.
+local function divider(key)
+    local n = SELF:GetNumberOption(key, 1)
+    if n ~= n or n < 1 or n > 3600 then return 1 end
+    return math.floor(n)
+end
+
 function Initialize()
     Core = dofile(SELF:GetOption('CoreFile'))
     Connection = dofile(SELF:GetOption('ConnectionCoreFile'))
     config = Connection.configureWifi(variable('NetworkWiFiEnabled', '1'), variable('NetworkWiFiInterface', '0'))
     cache = {}
+    -- The SysInfo connection bank updates on the first tick, then every
+    -- BankDivider ticks; this controller runs every tick from the first.
+    ticks, bankDivider, identity = -1, divider('BankDivider'), nil
     for _, suffix in ipairs(wifiNames) do
         local measure = 'MeasureConnectionWiFi' .. suffix
         SKIN:Bang('!SetOption', measure, 'WiFiIntfID', tostring(config.index))
@@ -36,10 +49,22 @@ function Initialize()
 end
 
 function Update()
+    ticks = ticks + 1
+    if not identity or ticks % bankDivider == 0 then
+        -- Adapter identity comes from Network's per-second traffic bank, which
+        -- uses the same selector. Sample it only on this bank's ticks so the
+        -- identity, addresses and link rates shown together are one snapshot,
+        -- as when the bank kept its own copies of these five measures.
+        identity = {
+            alias = read('MeasureNetworkAlias', true), description = read('MeasureNetworkDescription', true),
+            guid = read('MeasureNetworkGuid', true), status = read('MeasureNetworkStatus'),
+            state = read('MeasureNetworkState')
+        }
+    end
     local adapter = {
-        selector = variable('NetworkInterface', 'Best'), alias = value('Alias', true),
-        description = value('Description', true), guid = value('Guid', true),
-        status = value('Status'), state = value('State'), type = value('Type'),
+        selector = variable('NetworkInterface', 'Best'), alias = identity.alias,
+        description = identity.description, guid = identity.guid,
+        status = identity.status, state = identity.state, type = value('Type'),
         internet = value('Internet'), ip = value('IP', true), gateway = value('Gateway', true),
         receiveSpeed = value('RxLink'), transmitSpeed = value('TxLink')
     }

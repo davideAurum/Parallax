@@ -1,39 +1,7 @@
 ; Adapter metadata stays on the same selector as Network's traffic measures.
-[MeasureConnectionAlias]
-Measure=SysInfo
-SysInfoType=ADAPTER_ALIAS
-SysInfoData=#NetworkInterface#
-UpdateDivider=2
-DynamicVariables=1
-
-[MeasureConnectionDescription]
-Measure=SysInfo
-SysInfoType=ADAPTER_DESCRIPTION
-SysInfoData=#NetworkInterface#
-UpdateDivider=2
-DynamicVariables=1
-
-[MeasureConnectionGuid]
-Measure=SysInfo
-SysInfoType=ADAPTER_GUID
-SysInfoData=#NetworkInterface#
-UpdateDivider=2
-DynamicVariables=1
-
-[MeasureConnectionStatus]
-Measure=SysInfo
-SysInfoType=ADAPTER_STATUS
-SysInfoData=#NetworkInterface#
-UpdateDivider=2
-DynamicVariables=1
-
-[MeasureConnectionState]
-Measure=SysInfo
-SysInfoType=ADAPTER_STATE
-SysInfoData=#NetworkInterface#
-UpdateDivider=2
-DynamicVariables=1
-
+; Alias, description, GUID, status and state come from Network's identical
+; MeasureNetwork* bank (Measures.inc, earlier in update order); the controller
+; samples them on this bank's ticks so the section stays one 2 s snapshot.
 [MeasureConnectionType]
 Measure=SysInfo
 SysInfoType=ADAPTER_TYPE
@@ -130,4 +98,6 @@ CoreFile=#@#Modules\Network\Core.lua
 ConnectionCoreFile=#@#Modules\Network\ConnectionCore.lua
 SignalWidth=#ContentWidth#
 SignalHeight=#DataBarThicknessPx#
+; Must equal the SysInfo connection bank's UpdateDivider above.
+BankDivider=2
 UpdateDivider=1

@@ -380,20 +380,24 @@ local function applyThreadBarColors()
     end
 end
 
+-- The ten UsageMonitor slots load only with ProcessMeasures1.inc
+-- (CPUShowProcesses=1 at load); CPU Settings refreshes CPU Meter when the
+-- list is toggled. A list shown without them (an unrefreshed variable change)
+-- binds nothing and says so instead of naming absent measures.
 local function bindProcesses()
     state.processWarmup = 2
     for slot = 1, 10 do
-        local enabled = state.showProcesses and slot <= state.processCount
+        local enabled = state.showProcesses and state.processesLoaded and slot <= state.processCount
         local measure = 'MeasureCPUProcess' .. slot
         bindMeasure(measure, nil, enabled)
         processRowVisible(slot, false)
     end
     visible('MeterProcessesState', state.showProcesses)
-    set('MeterProcessesState', 'Text', 'Waiting for process data...')
+    set('MeterProcessesState', 'Text', state.processesLoaded and 'Waiting for process data...' or 'Refresh CPU Meter to load processes')
 end
 
 local function updateProcesses()
-    if not state.showProcesses then return end
+    if not state.showProcesses or not state.processesLoaded then return end
     if state.processWarmup > 0 then state.processWarmup = state.processWarmup - 1; return end
     local populated = 0
     for slot = 1, state.processCount do
@@ -671,6 +675,7 @@ function Update()
         state.showFan = option('CPUShowFan', 1, 0, 1) == 1
         state.showMotherboardFan = option('CPUShowMotherboardFan', 1, 0, 1) == 1
         state.showProcesses = option('CPUShowProcesses', 1, 0, 1) == 1
+        state.processesLoaded = SKIN:GetMeasure('MeasureCPUProcess1') ~= nil
         state.processCount = option('CPUProcessCount', 5, 1, 10)
         state.rows = option('CPUCoresPerPage', 8, 1, 64)
         state.page = option('CPUPage', 1, 1, 64)

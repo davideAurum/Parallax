@@ -108,7 +108,7 @@ Skin Installer backs up the old copy by renaming `Skins\Parallax` to `Skins\@Bac
 
 From 0.1.0-alpha.5 three changes cover it (details in [Media: Provider lifetime and upgrades](modules/Media.md#provider-lifetime-and-upgrades)):
 
-- Workers carry an owner lease and exit within one idle wait (100 ms for Source, 1 second for Queue, after any in-flight queue request) of the Rainmeter that started them, so Skin Installer's own Rainmeter shutdown also ends them. Their saved resume intent is kept, so the reloaded Media restarts them.
+- Workers carry an owner lease and exit within one idle wait (at once for Source, which waits on the owner process itself; 1 second for Queue, after any in-flight queue request) of the Rainmeter that started them, so Skin Installer's own Rainmeter shutdown also ends them. Their saved resume intent is kept, so the reloaded Media restarts them.
 - Workers run with their `%LOCALAPPDATA%\Parallax\Media\...` data root as working directory, so even a live one holds nothing inside the skin.
 - Just before opening Skin Installer, `UpdateInstall.ps1` ends any `powershell.exe` whose command line runs this installed skin's `SourceProvider.ps1` or `QueueProvider.ps1` with `-Command Run` (the only helpers that stay resident; RAM's PageFileHost and GPU's DriverTemperature already exit with Rainmeter). Resume intent is left as it was. If one will not end within 5 seconds, the helper reports `blocked` and does not open Skin Installer. If the user then cancels Skin Installer, those workers stay stopped until Media next loads.
 

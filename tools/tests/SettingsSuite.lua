@@ -17,13 +17,17 @@ function suite.run(sourcePath)
         return { GetX=function() return 226 end, GetY=function() return 84 end, GetW=function() return 300 end, GetH=function() return 18 end }
     end
     function mock:GetMeasure() return { GetStringValue=function() return inputOutput end } end
-    local env = setmetatable({ SKIN=mock }, { __index=_G })
+    -- A controlled clock seeds flush tokens per load, as os.clock does natively.
+    local clock = 100
+    local env = setmetatable({ SKIN=mock, os={ clock=function() return clock end } }, { __index=_G })
     local chunk = assert(loadfile(sourcePath))
     setfenv(chunk, env); chunk(); env.Initialize()
     local function check(value, message)
         assert(value, message); passed = passed + 1
     end
     local function reset() calls = {} end
+    -- !RefreshGroup Parallax reloads Settings itself; the mock replays that.
+    local function reload() clock = clock + 1; env.Initialize() end
     local function display(meter)
         for _, call in ipairs(calls) do if call[1]=='!SetOption' and call[2]==meter and call[3]=='Text' then return call[4] end end
     end
@@ -45,7 +49,43 @@ function suite.run(sourcePath)
             else error('Unexpected preset command: ' .. tostring(call[1])) end
         end
         check(refresh == 1, 'Each accepted preset refreshes exactly once')
+        reload()
         return values
+    end
+    -- Stepper arrows: one write, an in-place display update and one built-in
+    -- !Delay flush timer, but no refresh until that timer fires.
+    local function deferred()
+        local values, token, delay, redraws, texts, updated, textOnly = {}, nil, nil, 0, {}, {}, true
+        for _, call in ipairs(calls) do
+            if call[1] == '!WriteKeyValue' then
+                check(call[2] == 'Variables' and call[5] == 'X:\\Isolated\\User\\Settings.inc', 'Unexpected persistence target')
+                values[call[3]] = call[4]
+            elseif call[1] == '!SetOption' then
+                textOnly = textOnly and call[3] == 'Text'
+                texts[call[2]] = true
+            elseif call[1] == '!UpdateMeter' then updated[call[2]] = true
+            elseif call[1] == '!Redraw' then redraws = redraws + 1
+            elseif #call == 1 and tostring(call[1]):match('^%[!Delay ') then
+                check(token == nil, 'An arrow click arms exactly one flush timer')
+                delay, token = call[1]:match('^%[!Delay (%d+)%]%[!CommandMeasure MeasureSettings "FlushRefresh%((%d+)%)"%]$')
+                check(delay == '800' and token ~= nil, 'Flush must use the built-in 800 ms !Delay and the fixed callback')
+                token = tonumber(token)
+            else error('Arrow refreshed or ran an unexpected command: ' .. tostring(call[1])) end
+        end
+        check(token ~= nil and redraws == 1, 'An arrow must redraw once and arm its flush timer')
+        local count, forced = 0, true
+        for meter in pairs(texts) do count = count + 1; forced = forced and updated[meter] == true end
+        check(textOnly and count == 24 and forced, 'An arrow must set only text, for every summary, field and color value, forced onto its Update=-1 meter')
+        return values, token
+    end
+    local function flush(token)
+        reset()
+        check(env.FlushRefresh(token), 'The newest flush timer did not refresh')
+        check(#calls == 1 and calls[1][1] == '!RefreshGroup' and calls[1][2] == 'Parallax', 'A flush must refresh the suite exactly once')
+        reload()
+    end
+    local function stale(token, message)
+        reset(); check(not env.FlushRefresh(token) and #calls == 0, message)
     end
     env.Update()
     check(#calls == 24, 'Display update should set summaries, profile, fields and all color hex values')
@@ -157,13 +197,14 @@ function suite.run(sourcePath)
         vars[stored] = current
         reset()
         check(env.Adjust(key, direction), 'Valid arrow step rejected: '..key)
-        local values = writes()
+        local values, token = deferred()
         local count = 0
         for savedKey in pairs(values) do
             count = count + 1
             check(savedKey == stored, 'Arrow changed an unrelated preference: '..savedKey)
         end
         check(count == 1 and values[stored] == expected, 'Arrow step/precision differs: '..key)
+        flush(token)
         vars[stored] = original
     end
     local function idleAdjustment(key, current, direction)
@@ -229,6 +270,95 @@ function suite.run(sourcePath)
         reset(); check(not env.Adjust(key,1) and #calls == 0, 'Untrusted arrow key caused execution')
     end
     reset(); check(not env.Adjust(nil,1) and #calls == 0, 'Missing arrow key caused execution')
+
+    -- SHARED-02 debounce. The mock parser (vars) stays stale until a reload,
+    -- as Rainmeter's does, so a burst must step from the saved values.
+    local function timerToken()
+        local token = tostring(calls[#calls] and calls[#calls][1]):match('^%[!Delay 800%]%[!CommandMeasure MeasureSettings "FlushRefresh%((%d+)%)"%]$')
+        check(token ~= nil, 'The pending refresh was not rescheduled')
+        return tonumber(token)
+    end
+    local tokens = {}
+    for index, expected in ipairs({'1.01','1.02','1.03'}) do
+        reset(); check(env.Adjust('Scale',1), 'Burst click rejected')
+        local values, token = deferred()
+        check(values.Scale == expected, 'Burst click stepped from the stale loaded value')
+        check(display('MeterScaleInput') == (100 + index)..'%', 'Scale field did not show the saved value at once')
+        tokens[index] = token
+    end
+    check(vars.Scale == '1' and display('MeterGeometry'):find('Scale: 103%', 1, true) ~= nil, 'Layout summary did not follow the saved scale')
+    check(tokens[1] < tokens[2] and tokens[2] < tokens[3], 'Each click must issue a newer token')
+    stale(tokens[1], 'An older timer refreshed during a burst')
+    stale(tokens[2], 'An older timer refreshed during a burst')
+    flush(tokens[3])
+    stale(tokens[3], 'A flushed timer refreshed again')
+    vars.BackgroundColor = '17,34,51,255'
+    for _, item in ipairs({{'17,34,51,252','1.18%'},{'17,34,51,249','2.35%'},{'17,34,51,246','3.53%'}}) do
+        reset(); check(env.Adjust('BackgroundTransparency',1), 'Transparency burst click rejected')
+        local values, token = deferred(); tokens[#tokens+1] = token
+        check(values.BackgroundColor == item[1] and display('MeterBackgroundTransparencyInput') == item[2], 'Transparency burst did not step from the saved alpha')
+    end
+    check(display('MeterBackgroundColorValue') == '#112233F6', 'Background hex did not follow the saved alpha')
+    flush(tokens[#tokens])
+    vars.BackgroundColor = '15,15,15,255'
+    -- An open numeric editor holds the refresh, which would kill its helper.
+    reset(); check(env.Adjust('Gutter',1), 'Gutter arrow rejected'); local _, held = deferred()
+    reset(); check(env.BeginEdit('Gutter'), 'Editor did not start with a refresh pending')
+    check(editorParameter():find('-Initial "9"', 1, true) ~= nil, 'Editor must start from the saved value')
+    stale(held, 'A pending refresh fired while the editor was open')
+    reset(); inputOutput = 'PARALLAX_INPUT_V1|cancel|'
+    check(not env.CommitInput() and #calls == 1, 'Cancel must only reschedule the pending refresh')
+    local rescheduled = timerToken()
+    stale(held, 'A superseded timer refreshed')
+    flush(rescheduled)
+    reset(); check(env.Adjust('Gutter',-1), 'Gutter arrow rejected'); held = select(2, deferred())
+    reset(); check(env.BeginEdit('Gutter'), 'Editor did not start with a refresh pending')
+    reset(); inputOutput = 'PARALLAX_INPUT_V1|ok|99'
+    check(not env.CommitInput(), 'Invalid edit applied')
+    check(display('MeterInputStatus') == 'Value was not applied. Click the field to try again.', 'Invalid edit lost its error state')
+    flush(timerToken())
+    reset(); check(env.Adjust('Gutter',1), 'Gutter arrow rejected'); held = select(2, deferred())
+    reset(); check(env.BeginEdit('Gutter'), 'Editor did not start with a refresh pending')
+    reset(); inputOutput = 'PARALLAX_INPUT_V1|ok|12'
+    check(env.CommitInput() and writes().Gutter == '12', 'A typed commit must refresh at once')
+    stale(held, 'A typed commit left its superseded timer live')
+    reset(); check(env.Adjust('Scale',1), 'Scale arrow rejected'); held = select(2, deferred())
+    reset(); check(env.BeginEdit('Scale'), 'Scale editor did not start')
+    check(editorParameter():find('-Initial "101"', 1, true) and editorParameter():find('-Scale 1.0000', 1, true), 'Editor must show the saved scale but size to the drawn one')
+    reset(); inputOutput = 'PARALLAX_INPUT_V1|cancel|'; env.CommitInput(); flush(timerToken())
+    -- Immediate commits supersede a pending refresh; their reload strands its timer.
+    reset(); check(env.Adjust('CornerRadius',1), 'Rounding arrow rejected'); held = select(2, deferred())
+    reset(); check(env.OpenColor('BorderColor'), 'Picker rejected with a refresh pending')
+    check(#calls == 2 and calls[1][1] == '!RefreshGroup' and calls[1][2] == 'Parallax', 'The picker must apply the pending change first')
+    check(calls[2][1] == '[!Delay 1][!ActivateConfig "Parallax\\ColorPicker" "ColorPicker.ini"][!CommandMeasure MeasureColorPicker "OpenTarget(\'BorderColor\')" "Parallax\\ColorPicker"]',
+        'The picker must open after the posted refreshes, with the exact allowlisted target')
+    reload(); stale(held, 'The picker flush left its superseded timer live')
+    reset(); check(env.Adjust('FontSize',1), 'Body size arrow rejected'); held = select(2, deferred())
+    reset(); check(env.Theme('default'), 'Default rejected with a refresh pending'); writes()
+    stale(held, 'Default left its superseded timer live')
+    reset(); check(env.Adjust('BorderThickness',1), 'Border arrow rejected'); held = select(2, deferred())
+    -- With an arrow refresh pending, a preset refreshes the whole suite once.
+    reset(); check(env.Profile('economy'), 'Profile rejected with a refresh pending'); writes()
+    stale(held, 'A profile left its superseded timer live')
+    -- A timer armed before a reload survives it natively; new tokens must not match it.
+    reset(); check(env.Adjust('Gutter',1), 'Gutter arrow rejected'); held = select(2, deferred())
+    reset(); check(env.Theme('default'), 'Default rejected'); writes()
+    reset(); check(env.Adjust('Gutter',1), 'Gutter arrow rejected'); local fresh = select(2, deferred())
+    check(fresh ~= held, 'Flush tokens must differ across loads')
+    stale(held, 'A timer from before the reload refreshed the new burst early')
+    flush(fresh)
+    -- The CRT clock reads -1 after 24.8 days; tokens must stay within a 32-bit '%d'.
+    local uptime = clock; clock = -0.002; env.Initialize()
+    reset(); check(env.Adjust('Gutter',1), 'Gutter arrow rejected'); held = select(2, deferred())
+    check(held == 999999999, 'Token seed must stay bounded and positive')
+    clock = uptime; flush(held)
+    -- OnCloseAction applies a pending change that the destroyed timer would lose.
+    reset(); check(not env.FlushPending() and #calls == 0, 'Closing without a pending change refreshed')
+    reset(); check(env.Adjust('DataBarThickness',1), 'Data bar arrow rejected'); held = select(2, deferred())
+    reset(); check(env.FlushPending() and #calls == 1 and calls[1][1] == '!RefreshGroup' and calls[1][2] == 'Parallax', 'Closing must apply a pending change once')
+    reset(); check(not env.FlushPending() and #calls == 0, 'Closing flushed twice')
+    stale(held, 'A timer refreshed after the close flush')
+    reload()
 
     -- Default is the only theme; stepping must neither reapply it nor disturb
     -- the dropdown, even if the last recorded theme is an unknown identifier.
@@ -311,21 +441,41 @@ function suite.run(sourcePath)
         reset(); check(env.Accent(name), 'Accent rejected'); local values = writes()
         check(values.AccentColor and not values.BackgroundColor, 'Accent changed surface')
     end
-    reset(); env.Profile('economy'); local values = writes()
+    -- SHARED-02 scope: a preset reloads only the skins that read the intervals
+    -- (GPU, RAM and IO groups; Visualizer and Media by name) and updates
+    -- Settings in place, without reloading Settings or the rest of the suite.
+    local consumers = '!RefreshGroup|ParallaxGPU,!RefreshGroup|ParallaxIO,!RefreshGroup|ParallaxRAM,!Refresh|Parallax\\Media,!Refresh|Parallax\\Visualizer'
+    local function scoped()
+        local values, targets, redraws = {}, {}, 0
+        for _, call in ipairs(calls) do
+            if call[1] == '!WriteKeyValue' then
+                check(call[2] == 'Variables' and call[5] == 'X:\\Isolated\\User\\Settings.inc', 'Unexpected persistence target')
+                values[call[3]] = call[4]
+            elseif call[1] == '!RefreshGroup' or call[1] == '!Refresh' then targets[#targets+1] = call[1]..'|'..tostring(call[2])
+            elseif call[1] == '!Redraw' then redraws = redraws + 1
+            elseif call[1] ~= '!SetOption' and call[1] ~= '!UpdateMeter' then error('Unexpected preset command: '..tostring(call[1])) end
+        end
+        check(table.concat(targets, ',') == consumers, 'A preset must refresh exactly the interval consumers, got '..table.concat(targets, ','))
+        check(redraws == 1, 'A scoped preset must redraw Settings in place')
+        return values
+    end
+    reset(); check(env.Profile('economy'), 'Economy rejected'); local values = scoped()
     check(values.MetricsInterval=='2000' and values.SensorInterval=='4000' and values.CapacityInterval=='60000' and values.VisualizerInterval=='100', 'Economy cadence incorrect')
-    reset(); env.Profile('balanced'); values = writes()
-    check(values.MetricsInterval=='1000' and values.SensorInterval=='2000' and values.CapacityInterval=='30000' and values.VisualizerInterval=='50', 'Balanced cadence incorrect')
+    check(display('MeterRefreshValue') == 'Economy' and display('MeterCadence') == 'Metrics 2s  Sensors 4s  Disk 60s  Spectrum ~10 FPS', 'Settings did not show the preset in place')
+    reset(); check(env.CycleProfile(1), 'Second preset click rejected'); values = scoped()
+    check(values.MetricsInterval=='1000' and values.SensorInterval=='2000' and values.CapacityInterval=='30000' and values.VisualizerInterval=='50', 'A second click must step from the saved preset, not the loaded one')
+    check(display('MeterRefreshValue') == 'Balanced', 'Settings did not show the second preset in place')
     local cadenceKeys = {'MetricsInterval','SensorInterval','CapacityInterval','VisualizerInterval'}
     local cadences = {balanced={'1000','2000','30000','50'}, economy={'2000','4000','60000','100'}}
     for _, current in ipairs({'balanced','economy','custom'}) do
         for index, key in ipairs(cadenceKeys) do vars[key] = (cadences[current] or cadences.balanced)[index] end
         if current == 'custom' then vars.SensorInterval='3000' end
-        reset(); env.Update()
+        reload(); reset(); env.Update()
         check(display('MeterRefreshValue') == (current == 'balanced' and 'Balanced' or current == 'economy' and 'Economy' or 'Custom'), 'Refresh choice misrepresents saved intervals')
         for _, call in ipairs(calls) do check(call[1] == '!SetOption', 'Reading a custom profile mutated settings') end
         for _, direction in ipairs({-1,1}) do
-            reset(); check(env.CycleProfile(direction), 'Valid profile direction rejected')
-            local saved = writes()
+            reload(); reset(); check(env.CycleProfile(direction), 'Valid profile direction rejected')
+            local saved = scoped()
             local target = current == 'balanced' and 'economy' or current == 'economy' and 'balanced' or (direction == -1 and 'economy' or 'balanced')
             local count = 0
             for key in pairs(saved) do count = count + 1 end

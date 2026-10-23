@@ -65,7 +65,7 @@ user-selected Lucide metadata and playback icons are attributed below.
 | Feature | Dependencies | Cadence and fallback |
 | --- | --- | --- |
 | Base UI and Setup — required | Windows, Rainmeter, built-in measures/meters and bundled Lua/includes. | The player updates every 50 ms (`MediaAnimationInterval`) while its title icon can animate (`MediaTitleAnimation` 20 or 10) or the spectrum drawer is open, and every `MediaInterval` (1 second) otherwise; `MediaLegacyDivider` keeps provider polling and queue/options reads at `MediaInterval`. Meters repaint on change, not on that tick: Media.ini's `DefaultUpdateDivider` holds every meter without its own divider to the 1-second cadence, static meters use `UpdateDivider=-1`, and the title icon joins periodic updates only while a track plays (see [Paint on change](#paint-on-change-2026-10-22)). Setup updates at `MediaInterval` and loads without external plugins. |
-| Spectrum drawer — optional, plugins bundled with Rainmeter | Rainmeter's bundled AudioLevel and Win7AudioPlugin plugins, a Windows output endpoint, and the Visualizer module's shared `Modules/Visualizer/{Fallbacks,Options,Capture,Audio,Spectrum}.inc`, `HeightPresets/*.inc`, `Color.lua`, `SpectrumPaths.lua` and `User/Visualizer.inc`. Media settings' Spectrum section adds `Modules/Visualizer/SettingsShared.inc` and `Settings.lua` (event-only; its numeric input is the shared one-shot helper, launched only by a click). Writes `AnchorY` and its `ParallaxDrawerAnchorY` record in this config's own Rainmeter.ini section on tab clicks, Media settings saves and any load whose drawer-owned anchor does not match (that load-time repair's `!SetAnchor` also rewrites `AnchorX` with its existing value); a user-set anchor is never changed. | Capture and Win7Audio exist only while `VisualizerDrawer=2`; collapsed, hidden and Setup load no AudioLevel or Win7Audio measure. Open, it runs on Media's 50 ms tick (100 ms for the Visualizer's 100 ms choice); Win7Audio volume, device name and device status once a second each (the volume was read every 250 ms before 2026-10-22). Win7Audio errors show `--`, mute shows `Muted`; a failed numeric getter can leave an old volume. The output row's click/wheel switches the system default output (no volume or mute command). A missing or unavailable endpoint shows `Output unavailable`; quiet output shows `Idle - quiet`; an invalid format shows `Unsupported format`. Loading the standalone Visualizer too runs a second, independent capture. |
+| Spectrum drawer — optional, plugins bundled with Rainmeter | Rainmeter's bundled AudioLevel and Win7AudioPlugin plugins, a Windows output endpoint, and the Visualizer module's shared `Modules/Visualizer/{Fallbacks,Options,Capture,Audio,Spectrum}.inc`, `HeightPresets/*.inc`, `Color.lua`, `SpectrumPaths.lua` and `User/Visualizer.inc`. Media settings' Spectrum section adds `Modules/Visualizer/SettingsShared.inc` and `Settings.lua` (event-only; its numeric input is the shared one-shot helper, launched only by a click). Writes `AnchorY` and its `ParallaxDrawerAnchorY` record in this config's own Rainmeter.ini section on tab clicks, Media settings saves and any load whose drawer-owned anchor does not match (that load-time repair's `!SetAnchor` also rewrites `AnchorX` with its existing value); a user-set anchor is never changed. Since 2026-10-23 the open drawer's capture lease also uses the bundled input-idle coordinator config `Parallax\Idle` (`Idle/Idle.ini`, `@Resources/Idle/Coordinator.lua` and `Link.lua`), which reads Rainmeter's built-in SysInfo `IDLE_TIME` (keyboard and mouse input only) every 2 s and is loaded only while the drawer is open and not deferred, and the bundled runtime state file `Modules/Media/CaptureState.inc` (shipped at zeros, written only by `MediaOptions.ApplyLease`). | Capture and Win7Audio exist only while `VisualizerDrawer=2` and the capture is live (`MediaDrawerCapture=0`); collapsed, hidden, paused, deferred and Setup load no AudioLevel or Win7Audio measure. The lease parks the capture after 2 minutes of silence while you are away 5 minutes and nothing plays, and resumes it on input, WebNowPlaying Playing or a click ([Capture lease](#capture-lease)). Without the coordinator (missing or unloaded) the drawer stays live: a paused drawer resumes 10 s after a load without a sync, or 3 minutes after the last beat. Live, it runs on Media's 50 ms tick (100 ms for the Visualizer's 100 ms choice); Win7Audio volume, device name and device status once a second each (the volume was read every 250 ms before 2026-10-22). Win7Audio errors show `--`, mute shows `Muted`; a failed numeric getter can leave an old volume. The output row's click/wheel switches the system default output (no volume or mute command). A missing or unavailable endpoint shows `Output unavailable`; quiet output shows `Idle - quiet`; an invalid format shows `Unsupported format`. While the standalone Audio Visualizer is loaded the drawer defers to it (state 2) instead of running a second capture, and takes the capture back when it unloads; the standalone's event-only `Companion.lua` notifies Media through two silent group bangs. |
 | Fonts and icons — bundled | Private IBM Plex Sans fonts ([license](../../Skins/Parallax/@Resources/Licenses/IBM-Plex-OFL.txt)); native Shape adaptations of Lucide artwork ([provenance and licenses](../../Skins/Parallax/@Resources/Modules/Media/Icons/Lucide/README.md)). | No download, system font installation or SVG-rendering plugin required. |
 | Typed numeric settings — bundled | Rainmeter's bundled RunCommand plugin, Windows PowerShell/.NET WinForms and the shared `Scripts/SettingsInput.ps1` overlay. | An explicit numeric-field click starts one temporary editor. Fixed numeric/cancel output is revalidated before saving; invalid, cancelled, unrequested or hidden-field results do not save. No polling or provider starts. |
 | Playback metadata and controls — optional, plugin bundled | [WebNowPlaying](https://wnp.keifufu.dev/rainmeter/getting-started) plugin 2.0.7.0 (MIT License, keifufu and Trevor Hamilton), bundled in the Parallax `.rmskin` from `packaging/Plugins/WebNowPlaying` and installed by Skin Installer unless a newer version is present ([license](../../Skins/Parallax/@Resources/Licenses/WebNowPlaying-LICENSE.txt), [provenance](../../packaging/Plugins/WebNowPlaying/README.md)); a supported player. Browser playback additionally requires the separately installed WebNowPlaying browser extension; desktop adapters are also separate. A development copy of the skin without the package needs a manual plugin install (2.x+). | Sampled on the skin update; `MediaInterval` does not throttle WNP internally. Inactive connections show no active media; unsupported controls remain disabled. Setup unloads the optional plugin. |
@@ -471,7 +471,8 @@ closes; with KeepOnScreen off the drawer goes off-screen instead.
 open state; states 0 and 1 load comment-only stubs, so collapsed and hidden
 Media contain no AudioLevel measure at all (AudioLevel opens its capture at
 initialization, so `Disabled=1` would not have stopped it). The open drawer
-hosts the Visualizer's shared `Capture.inc` (one output parent plus device,
+hosts, in its live variant (see [Capture lease](#capture-lease)), the
+Visualizer's shared `Capture.inc` (one output parent plus device,
 format, RMS, state and 24 band children) and `Spectrum.inc` (band geometry,
 palette script, mask and fill), and the standalone's `Audio.inc`: the two
 once-per-load dB-tick Calcs, one Win7Audio volume measure (read once a
@@ -489,7 +490,7 @@ Rainmeter log if it is not loaded) and reloads Media through
 refresh. The standalone's own row now asks Media's open drawer to reload too,
 so both captures follow the new default. While
 the drawer is open Media updates every 50 ms (`MediaTickInterval` picks the
-fast tick for an open drawer even with the title animation off), so no other
+fast tick for an open, live drawer even with the title animation off), so no other
 skin's cadence changes. The Visualizer interval maps onto that tick through
 `VisualizerCaptureDivider = Max(1, Round(interval / 50))`: 50 and 33 ms run
 every tick (33 ms cannot be met inside Media), 100 ms every other tick.
@@ -497,7 +498,9 @@ Collapsing, and any Media refresh while open, releases and reopens the capture
 (AudioLevel's finalize path, reviewed in source). With a blank
 `VisualizerDeviceID` the drawer follows the default output that was current
 when it opened, until Media next refreshes. If the standalone Visualizer is
-also loaded, two independent loopback captures run; nothing detects this.
+also loaded, the drawer defers to it instead of running a second capture
+(see [Capture lease](#capture-lease)); before 2026-10-23 two independent
+loopback captures ran.
 
 **Shared preferences.** Media.ini reads `Modules\Visualizer\Fallbacks.inc` and
 `User\Visualizer.inc` *before* Defaults.inc and `User\Media.inc`, so Media's
@@ -535,6 +538,132 @@ Media's 7 KB plot-width formula dozens of times per bar on every tick;
 [PERFORMANCE.md](../PERFORMANCE.md#spectrum-drawer-path-cost-2026-10-11)).
 There is still no slide animation: the
 tab writes the preference and refreshes, which restarts the skin.
+
+### Capture lease
+
+Performance review theme T2 (VIS-01, MEDIA-05, XMOD-02, ENGINE-03; owner
+decision 1, 2026-10-22). Rainmeter 4.5.28's AudioLevel `Port=Output` starts a
+silent render stream beside its loopback capture and stops it only when the
+measure unloads, so an open drawer keeps the Windows audio engine (audiodg)
+running all night: measured live at 9.8% of a core while open, and not running
+at all while collapsed. Disabling or pausing the measure does not release it;
+only a reload into an include without AudioLevel does.
+
+**Variants (2026-10-23).** `VisualizerDrawer2.inc` keeps what every open drawer
+shows: the drawer geometry, the plot frame and grid, the static `0 dB` /
+`40 Hz` / `16 kHz` labels, the speaker icon and the status overlay. Its last
+section includes `Modules\Media\DrawerCapture<MediaDrawerCapture>.inc`, chosen
+by the runtime file `Modules\Media\CaptureState.inc`:
+
+| `MediaDrawerCapture` | Variant | What it loads and shows |
+| --- | --- | --- |
+| `0` (shipped) | Live | The former open drawer's live content, unchanged and in the same order: `Capture.inc`, `Audio.inc`, the palette hook, device name, volume and output-switch target, the two sensitivity ticks, then `Spectrum.inc` last. |
+| `1` | Capture paused | No AudioLevel, Win7Audio or spectrum script. The plot says `Capture paused` in `MutedColor`; the device name and volume read `--`; the sensitivity ticks come from two local Calcs. A transparent target over the whole plot (alpha 1, hand cursor, no tooltip) resumes the capture on a click. |
+| `2` | Deferred | No AudioLevel, Win7Audio or spectrum script, and nothing clickable. A message in the drawer's own fill covers the plot box and its dB gutter: `Spectrum is shown in Audio Visualizer`, within two lines down to width 180, scale 0.75, compact, with the largest body font (inside the plot alone it would need three there); the axis labels are blank and the output row reads `--`. |
+
+All three share the drawer geometry, so the window keeps its size and the panel
+does not move. Media's tick adds the 50 ms drawer term only while the capture is
+live (`...*(VisualizerDrawer=2)*(MediaDrawerCapture=0)` in
+`InlineQueueGeometry.inc`); the title animation keeps its own term. The live
+variant draws exactly what the drawer drew before the split: the meters that
+now draw before it (`0 dB`, `40 Hz`, `16 kHz`) overlap none of the moved ones.
+
+**Single writer.** `MediaOptions.ApplyLease(capture, standby, reason)` is the only
+writer of `CaptureState.inc`. It reads the file (an unreadable file, a missing
+`[Variables]` section or a repeated key fails closed), returns if nothing
+changes, writes only the changed keys, reads them back and refreshes Media at
+most once per load, so several changes before that posted refresh coalesce
+into it. Lease reasons (park, unpark, defer, reclaim, standby, fail-live) also
+stamp `MediaLeaseRefreshAt`/`MediaLeaseRefreshClock`, so that reload starts no
+provider resume (see [Provider recovery](#provider-recovery-after-restart)). The
+tab and Media settings write the state with reason `toggle`: opening,
+collapsing or hiding the drawer starts it live (or deferred while the
+standalone Audio Visualizer is loaded; see below), with no stamp and no extra
+refresh, because their own refresh carries it. Collapsing and hiding
+also ask a loaded [input-idle coordinator](../ARCHITECTURE.md#input-idle-coordinator)
+to re-check whether anything still needs it (a silent group request).
+`CaptureState.inc` ships at all zeros and a release install resets it.
+
+**Park and resume (2026-10-23).** `Modules\Media\CaptureLease.lua` runs in every
+open-drawer variant (`MeasureMediaCaptureLease`, about once a second at the
+provider cadence, plus each idle broadcast). It parks the capture (state 1)
+when all of these hold:
+
+- the drawer has been silent for 2 minutes: no once-a-second sample of
+  `MeasureVisualizerState` showed signal since this load (`Output unavailable`
+  and `Unsupported format` count as silence; any signal sample restarts the
+  2 minutes, and so does every reload);
+- the `Parallax\Idle` coordinator reports you away, that is 5 minutes without
+  keyboard or mouse input, with a beat younger than 3 minutes;
+- no WebNowPlaying player reports Playing.
+
+So the drawer parks at the later of the two thresholds. It resumes (state 0)
+on your next input (the coordinator's next tick, within 2 s), when a
+WebNowPlaying player reports Playing (within the 1 s provider cadence), or on
+a click on the paused plot. It also fails live (resumes) when no coordinator
+has synced 10 s after a paused load (missing, unloaded or blocked), or when the
+coordinator's beat goes 3 minutes stale; a gap in the lease's own schedule
+(sleep) re-arms that clock instead. Unloading the coordinator resumes at once,
+because its `OnCloseAction` broadcasts "not away". A restart while paused
+resumes on the first sync if you are at the computer, at the cost of one extra
+refresh. Each transition is one Media refresh with no provider resume; the lease
+asks for at most one change per load (retried after 30 s if that refresh never
+came). Non-WebNowPlaying audio that starts while paused does not resume the
+capture by itself: input or a click does.
+
+The lease joins the coordinator 100 ms after each load
+(`ParallaxIdleJoinAction`, appended to Media.ini's `OnRefreshAction` only when
+an open-drawer variant defines it) and never inside the load's own first
+update, so Rainmeter's startup walk is never disturbed. The coordinator stays
+loaded while Media.ini's drawer is open and not deferred, and unloads itself
+otherwise within about 10 minutes, or at its next tick after a collapse or
+hide. Test hooks `MediaLeaseTestQuietSeconds` (1-120) and
+`MediaLeaseTestStaleSeconds` (5-180) are absent from shipped files; harnesses
+set them in staged copies.
+
+**One capture at a time (2026-10-23, XMOD-02).** While Rainmeter.ini records
+the standalone Audio Visualizer (`Parallax\Visualizer`) loaded, the open drawer
+defers to it (state 2, reason `defer`): one refresh into the capture-free
+`Spectrum is shown in Audio Visualizer` variant, which never joins the idle
+coordinator and asks a loaded one to re-check. When the standalone is no longer
+recorded loaded the drawer takes the capture back (state 0, reason `reclaim`).
+The lease checks once per load (after the load's own first update) and
+whenever the standalone's `Companion.lua` asks: 100 ms after each of its loads
+and after a real unload it sends `!SetVariableGroup ParallaxCompanionCheck 1
+Parallax` and `!UpdateMeasureGroup ParallaxMediaCompanion *`, which reach only
+the lease (group `ParallaxMediaCompanion`), and the lease clears the flag. The
+tab and Media settings open the drawer deferred directly while the standalone
+is loaded. At Rainmeter exit nothing is sent; the next start validates again
+from Rainmeter.ini. A paused drawer defers too, and resumes live when the
+standalone goes.
+
+**Cost.** Parked, Media holds no AudioLevel or Win7Audio measure and no render
+stream, so the Windows audio engine can stop (live A/B on 2026-10-22: audiodg not
+running with the drawer collapsed, 9.8% of a core with it open). A paused or
+deferred drawer also drops Media's 50 ms drawer tick (the title animation
+keeps its own). While the drawer is open the coordinator adds about 0.1% of a
+core and 2.5 wakeups/s. Measuring audiodg and power requests is step 3's.
+
+**Checks (2026-10-23).** `tests/CaptureLeaseSuite.luatest` (123 assertions in
+11 scenarios, offline and inside Rainmeter; 19/19 mutations caught) covers the
+thresholds, every resume path, sleep, restart, a missing coordinator, standby,
+nested joins, deferral and a script error in one pass (the lease's re-entrancy
+guard always reopens, so one error cannot stop later updates). `tests/Test-MediaCaptureLease.ps1` stage B runs Media.ini with the real
+coordinator in an isolated instance: away parked within 0.4 s of the idle file
+change, input resumed within 0.5 s, the click, Playing, a coordinator that stops
+beating (8.2 s with an 8 s stale hook) and unloading the coordinator each
+resumed, with exactly one Media refresh per transition, the Rainmeter render
+session gone while parked and back after, and a clean log. Physical input,
+real WebNowPlaying, the provider-resume skip (isolated profiles never resume
+providers) and audiodg itself remain unverified here. Stage C loads Media's
+open drawer and the standalone together at 180/0.75 compact with fonts
+12/10/10: loading the standalone deferred the drawer in 0.67 s with one Media
+refresh (the deferred message fits two lines, captured), unloading it took the
+capture back in 0.45 s with one refresh and the render session back, the
+reversed load order and a startup with both loaded each ended deferred after the
+load plus one refresh, and every log was clean. `CompanionSuite.lua` (51
+assertions) and the lease suite cover exit and unreadable settings offline;
+Rainmeter exit itself was not run natively.
 
 ## Provider behavior and limits
 
@@ -626,6 +755,25 @@ quota override flags. No credentials or intent files belong in distribution.
 Interactive Connect retains its existing bounded locking behavior: Stop can time
 out while consent is pending. This change does not add sign-in cancellation.
 Completed Stop/Disconnect prevents delayed recovery workers from collecting.
+
+**Reloads the capture lease causes (2026-10-23, MEDIA-08).** Media's own
+capture-lease reloads (parking or resuming the spectrum drawer's capture; see
+[Capture lease](#capture-lease)) would otherwise each start up to two
+PowerShell resume launchers for providers that are already running.
+`MediaOptions.ApplyLease` stamps `MediaLeaseRefreshAt` (`os.time()`) and
+`MediaLeaseRefreshClock` (`floor(os.clock())`) in the runtime file
+`Modules\Media\CaptureState.inc` before such a reload, and `ResumeProviders()`
+skips both launches only when all of these hold: the view is `Media.ini`; the
+stamp is 0-15 s old; and the `os.clock()` delta agrees with the wall-time
+delta within 2 s. In Rainmeter's Lua `os.clock()` is wall time since that
+Rainmeter process started (checked natively: about 2.5 s at skin load in each of
+two separate starts, advancing with wall time), so a stamp from an earlier
+process never matches and a restart always resumes. Setup, standalone Queue and
+every reload a user or another skin asks for resume exactly as before.
+`OnCloseAction` in Media.ini and Setup.ini writes `MediaLeaseRefreshAt=0`. After
+about 24.8 days of continuous Rainmeter uptime the C runtime's `clock()` stops
+counting (it returns -1); the stamp is then rejected and lease reloads simply
+resume providers as before.
 
 ### Provider lifetime and upgrades
 

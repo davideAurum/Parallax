@@ -351,7 +351,26 @@ assert.equal(palette.Measure, 'Script');
 assert.equal(palette.ScriptFile, '#@#Modules\\Visualizer\\Color.lua');
 assert.equal(palette.UpdateDivider, '-1', 'Appearance selection must not add recurring work');
 assert.ok(!palette.Formula && !palette.IfConditionMode, 'The old Calc palette selector must not overwrite gradients');
-assert.equal(rainmeter.OnRefreshAction, '[!CommandMeasure MeasureVisualizerColor "Apply()"]');
+// The palette first, then the one-capture notice to Media's drawer 100 ms
+// later (after Rainmeter's startup walk; Companion.lua, XMOD-02). Both target
+// this skin's own measures, which exist in every Visualizer variant.
+assert.equal(rainmeter.OnRefreshAction,
+  '[!CommandMeasure MeasureVisualizerColor "Apply()"][!Delay 100][!CommandMeasure MeasureVisualizerCompanion "Announce()"]');
+assert.equal(rainmeter.OnCloseAction, '[!CommandMeasure MeasureVisualizerCompanion "Closing()"]');
+const companion = sections.get('MeasureVisualizerCompanion');
+assert.equal(companion.Measure, 'Script');
+assert.equal(companion.ScriptFile, '#@#Modules\\Visualizer\\Companion.lua');
+assert.equal(companion.UpdateDivider, '-1', 'The companion notice is event-only');
+const companionCallbacks = [...sections].flatMap(([name, section]) =>
+  Object.entries(section).filter(([key, value]) => key.includes('Action') &&
+    /MeasureVisualizerCompanion/.test(value)).map(([key]) => name + '.' + key));
+assert.deepEqual(companionCallbacks, ['Rainmeter.OnRefreshAction', 'Rainmeter.OnCloseAction']);
+const companionScript = readFileSync(resolve(skinRoot, '@Resources/Modules/Visualizer/Companion.lua'), 'utf8');
+assert.deepEqual([...companionScript.matchAll(/SKIN:Bang\(([^)]*)\)/g)].map((match) => match[1]),
+  ["'!SetVariableGroup', 'ParallaxCompanionCheck', '1', 'Parallax'", "'!UpdateMeasureGroup', 'ParallaxMediaCompanion', '*'"],
+  'Companion.lua sends only the two silent group bangs');
+assert.ok(!/io\.open\([^)]*'w|os\.(execute|remove|rename)|!CommandMeasure|!ActivateConfig/.test(companionScript),
+  'Companion.lua writes nothing, launches nothing and commands no other skin');
 const paletteCallbacks = [...sections].flatMap(([name, section]) =>
   Object.entries(section).filter(([key, value]) => key.includes('Action') &&
     /!CommandMeasure\s+"?MeasureVisualizerColor(?:"|\s)/i.test(value)).map(([key]) => name + '.' + key));

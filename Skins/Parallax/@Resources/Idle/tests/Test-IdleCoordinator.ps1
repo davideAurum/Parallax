@@ -8,9 +8,11 @@
 # signal comes from a test file the witness skin writes, not physical input.
 #
 # Cases:
-#   transitions      tick 500 ms, away 5 s, heartbeat 6 ticks; idle 0 -> 10 -> 0.
-#                    A witness hook skin joins (first activation, defaults
-#                    apply), sees away 0 -> 1 -> 0 within a tick of each write
+#   transitions      tick 500 ms, away 5 s, heartbeat 6 ticks, Idle pause on
+#                    (staged IdlePauseMinutes=5) with an 8 s pause hook;
+#                    idle 0 -> 10 -> 0. A witness hook skin joins (first
+#                    activation, defaults apply), sees away and paused
+#                    0 -> 1 -> 0 within a tick of each write
 #                    and heartbeat beats in between; the coordinator window is
 #                    hidden or a transparent pixel. Also runs CoordinatorSuite.lua
 #                    inside Rainmeter's own Lua.
@@ -182,6 +184,12 @@ function New-Run([string]$Name, [hashtable]$Hooks, [bool]$Witness, [string]$Idle
     Copy-Item -LiteralPath "$resources\Idle\Coordinator.lua", "$resources\Idle\Link.lua" -Destination "$parallax\@Resources\Idle"
     Copy-Item -LiteralPath "$resources\Defaults.inc" -Destination "$parallax\@Resources"
     Copy-Item -LiteralPath "$resources\User\Settings.inc", "$resources\User\Media.inc" -Destination "$parallax\@Resources\User"
+    if ($Name -eq 'transitions') {
+        # Idle pause on in the staged copy only.
+        $settings = [IO.File]::ReadAllText("$parallax\@Resources\User\Settings.inc")
+        if ([regex]::Matches($settings, '(?m)^IdlePauseMinutes=0\r?$').Count -ne 1) { throw 'User\Settings.inc has no single IdlePauseMinutes=0 line.' }
+        Put "$parallax\@Resources\User\Settings.inc" ([regex]::Replace($settings, '(?m)^IdlePauseMinutes=0', 'IdlePauseMinutes=5'))
+    }
     $idle = [IO.File]::ReadAllText("$skinSource\Idle\Idle.ini")
     foreach ($key in $Hooks.Keys) {
         $pattern = '(?m)^' + [regex]::Escape($key) + '=[^\r\n]*'
@@ -283,6 +291,7 @@ foreach ($name in $Case) {
             'transitions' {
                 $caseHooks = $hooks.Clone()
                 $caseHooks.ParallaxIdleTestFile = '{root}\idle.txt'
+                $caseHooks.ParallaxIdleTestPauseSeconds = '8'
                 $run = New-Run $name $caseHooks $true ''
                 $idle = [IO.File]::ReadAllText("$($run.Root)\Skins\Parallax\Idle\Idle.ini")
                 Check ($idle -match ('(?m)^ParallaxIdleTestFile=' + [regex]::Escape("$($run.Root)\idle.txt") + '\r?$')) 'Staged Idle.ini reads the test idle file'
@@ -309,15 +318,18 @@ foreach ($name in $Case) {
                 Check (@($records | Where-Object { $_.Kind -eq 'joined' }).Count -eq 1) 'The witness joined once'
                 Check (@($records | Where-Object { $_.Kind -eq 'nested' }).Count -ge 1) 'The first broadcast re-entered the joining witness (synchronous activation)'
                 $tick = 0.5
-                foreach ($step in @(@{ Write = 1; Away = '1'; Label = 'away 0 -> 1' }, @{ Write = 2; Away = '0'; Label = 'away 1 -> 0' })) {
+                foreach ($step in @(@{ Write = 1; Away = '1'; Label = 'away and paused 0 -> 1' }, @{ Write = 2; Away = '0'; Label = 'away and paused 1 -> 0' })) {
                     $written = $writes[$step.Write].Clock
-                    $first = @($updates | Where-Object { $_.Clock -ge $written -and $_.Away -eq $step.Away } | Select-Object -First 1)
+                    # The staged pause (8 s) is below the written idle time (10 s),
+                    # so both flags change in the same broadcast.
+                    $first = @($updates | Where-Object { $_.Clock -ge $written -and $_.Away -eq $step.Away -and $_.Paused -eq $step.Away } | Select-Object -First 1)
                     $latency = if ($first.Count) { $first[0].Clock - $written } else { [double]::NaN }
                     Write-Output ("     {0}: seen {1:N3} s after the write" -f $step.Label, $latency)
                     Check ($first.Count -eq 1 -and $latency -le $tick + 0.15) "$($step.Label) within one 500 ms tick"
                 }
                 $before = @($updates | Where-Object { $_.Clock -lt $writes[1].Clock })
-                Check (@($before | Where-Object { $_.Away -ne '0' }).Count -eq 0) 'Away stays 0 before the idle file says 10'
+                Check (@($before | Where-Object { $_.Away -ne '0' -or $_.Paused -ne '0' }).Count -eq 0) 'Away and paused stay 0 before the idle file says 10'
+                Check (@($updates | Where-Object { $_.Away -ne $_.Paused }).Count -eq 0) 'Away and paused never disagree (they flip in one broadcast)'
                 $awayBeats = @($updates | Where-Object { $_.Clock -gt $writes[1].Clock -and $_.Clock -lt $writes[2].Clock -and $_.Away -eq '1' } | Select-Object -ExpandProperty Beat -Unique)
                 Check ($awayBeats.Count -ge 2) "Heartbeats refresh the beat while the state holds ($($awayBeats.Count) distinct beats while away)"
                 # Each broadcast stamps a new beat (os.time). A heartbeat is a new

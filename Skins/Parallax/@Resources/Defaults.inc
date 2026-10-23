@@ -36,6 +36,10 @@ MetricsInterval=1000
 SensorInterval=2000
 CapacityInterval=30000
 VisualizerInterval=50
+; Idle pause (Global Settings): 0 is Off; 5, 10 or 30 minutes without
+; keyboard or mouse input pause the utilities (@Resources\Idle\Hook<n>.inc).
+; Any other value acts as Off.
+IdlePauseMinutes=0
 GraphBackgroundColor=25,25,25,255
 GridColor=50,50,50,180
 GraphHeight=48

@@ -14,7 +14,10 @@
 --   !UpdateMeasureGroup ParallaxIdleHook *
 -- on a change, about once a minute as a heartbeat, after a tick gap of more
 -- than 10 s (sleep or resume), on Start() and on a consumer's sync request.
--- ParallaxIdlePaused is always 0 until the idle stand-down setting exists.
+-- ParallaxIdleAway is 1 after 5 minutes without input (the drawer's capture
+-- lease). ParallaxIdlePaused is 1 after the Global Settings "Idle pause"
+-- minutes without input (User\Settings.inc IdlePauseMinutes 5, 10 or 30;
+-- anything else is Off): the idle stand-down (@Resources\Idle\StandDown.lua).
 --
 -- Update() does nothing until Start() has run from OnRefreshAction: the load's
 -- forced first update, and the request Calcs' load-time OnUpdateAction, come
@@ -27,11 +30,14 @@ local GAP_SECONDS = 10
 local AWAY_SECONDS = 300
 local HEARTBEAT_SECONDS = 60
 local REEVALUATE_TICKS = 300
+local PAUSE_MINUTES = { ['5'] = 5, ['10'] = 10, ['30'] = 30 }
+-- Configs whose skins carry the idle stand-down hook while it is on.
+local UTILITY_CONFIGS = { 'Chronometer', 'CPU', 'GPU', 'RAM', 'IO', 'Network', 'Media', 'Media\\Queue', 'Visualizer' }
 
 local Link
 local started, ticks, lastTick, requested
 local lastAway, lastPaused
-local awaySeconds, heartbeatTicks, reevaluateTicks, testFile, tickSeconds, gapSeconds
+local awaySeconds, pauseSeconds, heartbeatTicks, reevaluateTicks, testFile, tickSeconds, gapSeconds
 
 -- A test hook: a whole number inside [low, high], otherwise nil. Shipped
 -- files leave every hook empty; test harnesses set them in staged copies.
@@ -82,10 +88,18 @@ end
 --       (User\Media.inc VisualizerDrawer=2) and its capture not deferred to
 --       the standalone Audio Visualizer (CaptureState.inc MediaDrawerCapture
 --       is not 2).
+--   C2: Idle pause on and any utility config loaded (Media's Setup.ini and
+--       the Queue config included).
 local function needed()
     local resources = SKIN:GetVariable('@', '')
     local root = SKIN:GetVariable('ROOTCONFIG', 'Parallax')
     local settings = SKIN:GetVariable('SETTINGSPATH', '') .. 'Rainmeter.ini'
+    if pauseSeconds then
+        for _, config in ipairs(UTILITY_CONFIGS) do
+            local active = Link.activeOf(settings, root .. '\\' .. config)
+            if active == nil or active > 0 then return true end
+        end
+    end
     local media = Link.activeOf(settings, root .. '\\Media')
     if media == nil then return true end
     if media == 1 then
@@ -111,6 +125,12 @@ function Initialize()
     -- (up to 10 s) needs room for its own jitter.
     gapSeconds = math.max(GAP_SECONDS, 2 * tickSeconds)
     awaySeconds = hook('ParallaxIdleTestAwaySeconds', 1, AWAY_SECONDS) or AWAY_SECONDS
+    -- Idle pause: 5, 10 or 30 minutes, otherwise Off (a hand-edited value
+    -- shows Custom in Global Settings and acts as Off). The test hook only
+    -- shortens a setting that is on.
+    local minutes = SKIN:GetVariable('IdlePauseMinutes', '0')
+    minutes = type(minutes) == 'string' and PAUSE_MINUTES[minutes:match('^%s*(.-)%s*$')] or nil
+    pauseSeconds = minutes and (hook('ParallaxIdleTestPauseSeconds', 1, 1800) or minutes * 60) or nil
     heartbeatTicks = hook('ParallaxIdleTestHeartbeatTicks', 2, 300) or math.max(2, math.floor(HEARTBEAT_SECONDS / tickSeconds + 0.5))
     reevaluateTicks = hook('ParallaxIdleTestReevaluateTicks', 2, REEVALUATE_TICKS) or REEVALUATE_TICKS
     local file = SKIN:GetVariable('ParallaxIdleTestFile', '')
@@ -122,11 +142,11 @@ function Update()
     ticks = ticks + 1
     local now = os.time()
     local idle = readIdle()
-    local away = lastAway
-    if idle ~= nil then away = idle >= awaySeconds end
+    local away, paused = lastAway, lastPaused
+    if idle ~= nil then away, paused = idle >= awaySeconds, pauseSeconds ~= nil and idle >= pauseSeconds end
     local gap = lastTick ~= nil and (now - lastTick > gapSeconds or now < lastTick)
     lastTick = now
-    if away ~= lastAway or ticks % heartbeatTicks == 0 or gap then broadcast(away, false) end
+    if away ~= lastAway or paused ~= lastPaused or ticks % heartbeatTicks == 0 or gap then broadcast(away, paused) end
     if ticks >= 2 and (requested or ticks % reevaluateTicks == 0) then
         requested = false
         if not needed() then
@@ -143,7 +163,7 @@ function Start()
     lastTick = os.time()
     ticks = 0
     started = true
-    broadcast(idle ~= nil and idle >= awaySeconds or false, false)
+    broadcast(idle ~= nil and idle >= awaySeconds or false, idle ~= nil and pauseSeconds ~= nil and idle >= pauseSeconds or false)
 end
 
 -- A consumer's silent group request: repeat the current state.

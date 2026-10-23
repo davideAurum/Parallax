@@ -34,6 +34,7 @@ MetricsInterval=1000
 SensorInterval=2000
 CapacityInterval=30000
 VisualizerInterval=50
+IdlePauseMinutes=0
 GraphBackgroundColor=25,25,25,255
 GridColor=50,50,50,180
 GraphHeight=48

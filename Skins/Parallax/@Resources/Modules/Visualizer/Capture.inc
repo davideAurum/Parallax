@@ -60,7 +60,11 @@ UpdateDivider=#VisualizerCaptureDivider#
 ; it back the capture cadence (quoted: Media's divider is a formula with
 ; spaces) and forces one update, because a -1 meter ignores !SetOption until
 ; it is forced (docs/PERFORMANCE-REVIEW.md MEDIA-04, VIS-02).
-; IfConditionMode=0 runs each action once per transition.
+; IfConditionMode=0 runs each action once per transition. OnChangeAction then
+; paints the transition: the overlay is -1 in both hosts, so in a quiet window
+; no meter is due to repaint it (VIS-03). It runs after the actions above and,
+; unlike them, not on the load's first update, where a redraw would paint
+; meters that have not had their first update yet.
 [MeasureVisualizerState]
 Measure=Calc
 Formula=(MeasureVisualizerDevice<=0 ? 0 : (#VisualizerFormatInvalid#=1 ? 3 : (MeasureVisualizerRMS>#VisualizerIdleFloor# ? 2 : 1)))
@@ -74,6 +78,7 @@ IfTrueAction3=[!SetOption MeterVisualizerSpectrumMask UpdateDivider "#Visualizer
 IfCondition4=MeasureVisualizerState=3
 IfTrueAction4=[!SetOption MeterVisualizerSpectrumMask UpdateDivider -1][!SetOption MeterVisualizerUnavailable Text "Unsupported format"][!SetOption MeterVisualizerUnavailable FontColor "#WarningColor#"][!HideMeterGroup VisualizerSpectrum][!ShowMeter MeterVisualizerUnavailable][!UpdateMeter MeterVisualizerUnavailable]
 IfConditionMode=0
+OnChangeAction=[!Redraw]
 UpdateDivider=#VisualizerCaptureDivider#
 
 [MeasureVisualizerBand0]

@@ -86,6 +86,9 @@ Shape4=Line (12*14*#Scale#/24),(14*14*#Scale#/24),(12.01*14*#Scale#/24),(14*14*#
 LucideSpeakerStroke=Fill Color 0,0,0,0 | Stroke Color #MediaColor# | StrokeWidth (2*14*#Scale#/24) | StrokeStartCap Round | StrokeEndCap Round | StrokeLineJoin Round
 UpdateDivider=-1
 
+; Both output-row texts are event-driven (UpdateDivider=-1): Audio.inc's
+; measures update them and repaint when what they show changes, so they keep
+; no periodic repaint alive in a quiet drawer.
 [MeterVisualizerDeviceName]
 Meter=String
 MeterStyle=StyleLabel
@@ -95,7 +98,7 @@ Y=#MediaVisualizerRowY#
 W=(#MediaVisualizerRowWidth#-18*#Scale#-64*#Scale#)
 H=(18*#Scale#)
 Text=%1
-UpdateDivider=#VisualizerDeviceNameDivider#
+UpdateDivider=-1
 
 ; Audio.inc's MeasureVisualizerVolumeValue sets this text: a whole percent,
 ; Muted, or -- when Win7Audio reports no device.
@@ -109,7 +112,7 @@ W=(60*#Scale#)
 StringAlign=Right
 Text=--
 NumOfDecimals=0
-UpdateDivider=#VisualizerVolumeDivider#
+UpdateDivider=-1
 
 ; Switching clears a custom capture ID and refreshes, because AudioLevel parent
 ; options cannot change at runtime; the standalone Visualizer refreshes too so

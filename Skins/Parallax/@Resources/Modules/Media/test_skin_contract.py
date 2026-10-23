@@ -1108,7 +1108,9 @@ class SkinContractTests(unittest.TestCase):
         static = ('MeterQueueDrawer','MeterQueueHeading','MeterQueueRule','MeterNoMedia','MeterCoverPlaceholder',
                   'MeterCoverLabel','MeterTimingUnavailable','MeterQueueHeaderNumber','MeterQueueHeaderTrack',
                   'MeterPlayerIcon','MeterMediaIcon')+tuple(f'MeterQueue{kind}{row}' for kind in ('Number','Row') for row in range(1,6))
-        for drawer in (0,1):
+        # The open drawer adds no periodic meter either: its mask joins only
+        # with signal (Capture.inc), and the output row repaints on change.
+        for drawer in DRAWER_STATES:
             for columns in COLUMNS:
                 with self.subTest(drawer=drawer,columns=columns):
                     sections,_,_,expand=read_config('Media.ini',drawer=drawer,columns=columns)
@@ -1138,6 +1140,15 @@ class SkinContractTests(unittest.TestCase):
                         self.assertNotIn('OnUpdateAction',style,name)
                     for name in static:
                         self.assertEqual(val(resolve_style(sections,name)['UpdateDivider']),-1,name)
+                    if drawer==2:
+                        for name in ('MeterVisualizerSpectrumMask','MeterVisualizerVolume','MeterVisualizerDeviceName','MeterVisualizerUnavailable'):
+                            self.assertEqual(resolve_style(sections,name)['UpdateDivider'],'-1',name)
+                        self.assertEqual(sections['MeasureVisualizerVolumeShown']['OnChangeAction'],
+                                         '[!UpdateMeter MeterVisualizerVolume][!Redraw]')
+                        self.assertEqual(sections['MeasureVisualizerDeviceName']['OnChangeAction'],
+                                         '[!UpdateMeter MeterVisualizerDeviceName][!Redraw]')
+                        self.assertEqual(sections['MeasureVisualizerState']['OnChangeAction'],'[!Redraw]')
+                        self.assertNotIn('OnChangeAction',sections['MeasureVisualizerVolume'])
         # Setup ticks at MediaInterval itself: its shared meters keep divider 1.
         sections,_,_,expand=read_config('Setup.ini')
         self.assertEqual(numeric(expand('#MediaLegacyDivider#')),1)

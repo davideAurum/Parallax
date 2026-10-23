@@ -1023,6 +1023,14 @@ its own commit so it can be measured alone.
   With the drawer open, paused and quiet, the scratch native harness counted
   repaints on 8 of 40 ticks (the 250 ms volume readout, addressed next)
   instead of 40 of 40; with signal the mask updates every tick as before.
+- **VIS-03 in the drawer, event-driven output row.** The drawer's volume and
+  device-name meters are now `UpdateDivider=-1`; the shared `Audio.inc`
+  measures update them and repaint only when the shown text changes, and the
+  capture state repaints its own transitions (details in
+  [Visualizer paint on change](Visualizer.md#paint-on-change-2026-10-22)).
+  Open, quiet and paused, the drawer now repaints on 2 of 40 ticks, the
+  1-second text meters, and its open-drawer preview capture is
+  pixel-identical to the tree before this series (output row included).
 
 ### Cover without the WNP plugin (2026-10-20)
 

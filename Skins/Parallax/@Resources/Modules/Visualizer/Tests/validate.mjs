@@ -74,6 +74,7 @@ const state = sections.get('MeasureVisualizerState');
 const format = sections.get('MeasureVisualizerFormat');
 const volume = sections.get('MeasureVisualizerVolume');
 const volumeValue = sections.get('MeasureVisualizerVolumeValue');
+const volumeShown = sections.get('MeasureVisualizerVolumeShown');
 const volumeMeter = effective('MeterVisualizerVolume');
 const meters = [...sections].filter(([name]) => name.startsWith('MeterVisualizer'));
 const pluginMeasures = [...sections].filter(([, s]) => s.Plugin === 'AudioLevel');
@@ -106,7 +107,21 @@ assert.equal(volumeMeter.FontColor, '#TextColor#');
 assert.equal(volumeMeter.StringAlign, 'RightCenter');
 assert.equal(volumeMeter.MeasureName, 'MeasureVisualizerVolumeValue');
 assert.equal(volumeMeter.NumOfDecimals, '0');
-assert.equal(volumeMeter.DynamicVariables, '1');
+// Event-driven readouts (VIS-03): a due meter repaints the whole window, so
+// the output row and overlay update only when what they show changes.
+assert.equal(volumeMeter.DynamicVariables, undefined);
+assert.equal(volumeMeter.UpdateDivider, '-1');
+assert.equal(volumeShown.Measure, 'Calc');
+assert.equal(volumeShown.OnChangeAction, '[!UpdateMeter MeterVisualizerVolume][!Redraw]');
+assert.equal(volume.OnChangeAction, undefined, 'An OnChangeAction on Win7Audio would re-run its COM string lookup');
+const deviceNameMeter = effective('MeterVisualizerDeviceName');
+assert.equal(deviceNameMeter.UpdateDivider, '-1');
+assert.equal(deviceNameMeter.DynamicVariables, undefined);
+assert.equal(sections.get('MeasureVisualizerDeviceName').OnChangeAction, '[!UpdateMeter MeterVisualizerDeviceName][!Redraw]');
+assert.equal(effective('MeterVisualizerUnavailable').UpdateDivider, '-1');
+assert.equal(state.OnChangeAction, '[!Redraw]');
+// No standalone meter is due on a quiet tick; the mask joins only with signal.
+assert.deepEqual(meters.filter(([name]) => effective(name).UpdateDivider !== '-1').map(([name]) => name), []);
 assert.equal(volumeMeter.Text, '--');
 assert.equal(volume.Plugin, 'Win7AudioPlugin');
 assert.equal([...sections.values()].filter(section => section.Plugin === 'Win7AudioPlugin').length, 1);
@@ -252,7 +267,7 @@ for (const [interval, expectedMs] of [[50, 250], [33, 264], [100, 300]]) {
   assert.ok(Number.isInteger(divider) && divider > 0);
   assert.equal(divider * formula(rainmeter.Update, vars), expectedMs);
   assert.equal(formula(volumeValue.UpdateDivider, vars), divider);
-  assert.equal(formula(volumeMeter.UpdateDivider, vars), divider);
+  assert.equal(formula(volumeShown.UpdateDivider, vars), divider);
 }
 const volumeError = new RegExp(volume.IfMatch);
 for (const [description, expected] of [
@@ -266,6 +281,12 @@ let priorVolumeError;
 let volumeConditions = [false, false, false];
 let volumeTemplate = volumeMeter.Text;
 let validVolumeTransitions = 0;
+// The -1 meter shows what it rendered at its last forced update: the load's
+// first update, a text action's !UpdateMeter or the shown-state Calc's
+// OnChangeAction (which never runs on the first update).
+let displayed;
+let shownState;
+let changeRepaints = 0;
 for (const [description, rawVolume, expected] of [
   ['Speakers (Audio Device)', 0, '0%'],
   ['Speakers (Audio Device)', 100, '100%'],
@@ -287,6 +308,8 @@ for (const [description, rawVolume, expected] of [
   priorVolumeError = failed;
   const numeric = formula(volumeValue.Formula, {}, { MeasureVisualizerVolume: rawVolume });
   assert.equal(numeric, rawVolume, 'The readout must bind numeric volume, not plugin device text');
+  const render = () => volumeTemplate.replaceAll('%1', numeric.toFixed(Number(volumeMeter.NumOfDecimals)));
+  if (displayed === undefined) displayed = render();
   for (let i = 0; i < volumeConditions.length; i++) {
     const suffix = i === 0 ? '' : i + 1;
     const active = Boolean(formula(volumeValue['IfCondition' + suffix],
@@ -296,15 +319,27 @@ for (const [description, rawVolume, expected] of [
       assert.ok(!/!(?:Show|Hide)Meter/.test(action), 'Volume state updates must preserve hover visibility');
       assert.ok(action.includes('[!UpdateMeter MeterVisualizerVolume]'));
       volumeTemplate = /!SetOption MeterVisualizerVolume Text "([^"]+)"/.exec(action)[1];
+      displayed = render();
       if (i === 2) validVolumeTransitions++;
     }
     volumeConditions[i] = active;
   }
-  const rendered = volumeTemplate.replaceAll('%1', numeric.toFixed(Number(volumeMeter.NumOfDecimals)));
+  const state = formula(volumeShown.Formula, { VisualizerVolumeAvailable: String(volumeAvailable) },
+    { MeasureVisualizerVolumeValue: numeric });
+  assert.equal(state, volumeAvailable ? numeric : -2);
+  if (shownState !== undefined && state !== shownState) {
+    assert.ok(volumeShown.OnChangeAction.startsWith('[!UpdateMeter MeterVisualizerVolume]'));
+    displayed = render();
+    changeRepaints++;
+  }
+  shownState = state;
+  const rendered = displayed;
   assert.equal(rendered, expected, 'Wrong volume state for ' + description + ' / ' + rawVolume);
   assert.ok(!rendered.includes(description) || !description, 'Plugin device name leaked into numeric readout');
 }
 assert.equal(validVolumeTransitions, 4, 'Valid-to-valid values should use the existing numeric binding');
+// Every displayed change but the error-to-empty-name one repaints exactly once.
+assert.equal(changeRepaints, 9, 'The shown-state Calc must repaint each displayed volume change');
 const palette = sections.get('MeasureVisualizerColor');
 assert.equal(palette.Measure, 'Script');
 assert.equal(palette.ScriptFile, '#@#Modules\\Visualizer\\Color.lua');

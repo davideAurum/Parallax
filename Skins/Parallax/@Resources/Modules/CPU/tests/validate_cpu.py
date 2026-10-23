@@ -307,6 +307,9 @@ def validate():
             assert f"CPUCore{index}" in meter["Group"].split("|")
             assert not any(key.startswith("MeasureName") for key in meter)
         assert f"MeterSensorCoreLabel{index}" not in sections
+        # CPU-04: idle slots skip the meter pass; CPU.lua restores divider 1 on binding.
+        for prefix in ("MeterCoreLabel", "MeterCoreBar", "MeterCoreValue", "MeterCoreVoltage", "MeterCoreTemperature"):
+            assert sections[f"{prefix}{index}"]["UpdateDivider"] == "-1", (prefix, index)
     assert not (ROOT / "@Resources/Modules/CPU/CoreSensorMeters.inc").exists()
     for index in range(1, 11):
         assert f"MeterProcessBar{index}" not in sections
@@ -552,6 +555,10 @@ def validate():
     assert "local function busyPercent(value)" in script and "value > 100.5" in script
     assert "return math.min(100, value)" in script and "graphUtility" not in script and "Processor Utility" not in script
     assert "local function updateThreadValues()" in script
+    # A -1 meter ignores !SetOption until forced: binding must restore 1 and force.
+    assert "set(prefix .. slot, 'UpdateDivider', live and 1 or -1)" in script
+    assert "if live then SKIN:Bang('!UpdateMeterGroup', 'CPUCore' .. slot) end" in script
+    assert "for slot = 1, 64 do slotLive(slot, slot <= state.active) end" in script
     assert "SKIN:GetMeasure('MeasureCPU' .. slot):GetValue()" in script
     assert "string.format('%.' .. state.decimals .. 'f%%', value)" in script
     for prefix in ('MeterCoreVoltage', 'MeterCoreTemperature'):

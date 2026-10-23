@@ -66,6 +66,20 @@ local function save(key, value)
     SKIN:Bang('!WriteKeyValue', 'Variables', key, tostring(value), state.userFile)
 end
 
+-- Idle Thread slots keep UpdateDivider=-1 (CoreMeters.inc), so their hidden
+-- meters skip every meter pass. Binding a slot restores divider 1 and forces
+-- one update of its group. That re-read also applies every option set while
+-- the slot was idle, including the V/T text Sensors.lua keeps for all 64
+-- slots, before the warmup shows the slot. Unbinding sets -1 again.
+local slotMeters = {'MeterCoreLabel', 'MeterCoreBar', 'MeterCoreValue', 'MeterCoreVoltage', 'MeterCoreTemperature'}
+local function slotLive(slot, live)
+    state.slotLive = state.slotLive or {}
+    if (state.slotLive[slot] or false) == live then return end
+    state.slotLive[slot] = live
+    for _, prefix in ipairs(slotMeters) do set(prefix .. slot, 'UpdateDivider', live and 1 or -1) end
+    if live then SKIN:Bang('!UpdateMeterGroup', 'CPUCore' .. slot) end
+end
+
 -- The first twelve colors are deliberately distinct for the common 12-thread
 -- layout. Higher thread counts repeat the editable palette rather than
 -- inventing a measurement-specific color at runtime.
@@ -333,6 +347,9 @@ local function bindCores()
     end
     -- A changed UsageMonitor instance needs fresh samples. Discard its warmup.
     state.warmup = 2
+    -- Bound slots are always 1..active. Their options are all set above, so
+    -- the forced update in slotLive applies them together.
+    for slot = 1, 64 do slotLive(slot, slot <= state.active) end
     visible('MeterCoreState', state.showCores)
     visible('MeterPrevious', enabled and state.page > 1)
     visible('MeterNext', enabled and state.page < state.pages)

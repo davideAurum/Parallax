@@ -657,6 +657,83 @@ function suite.Run(cpuPath)
         equal(context:text('MeterProcessName1'), 'delta.exe')
         assert(context:visible('MeterProcessName1') and not context:visible('MeterProcessesState'), 'row after rebinding')
     end)
+    -- Like Sensors.lua: before the controller on every tick, and at once on a
+    -- page change, set V/T text for all 64 slots from absolute thread numbers.
+    local function sensorStub(context)
+        local first = 1
+        local function render()
+            for slot = 1, 64 do
+                local thread = first + slot - 1
+                context.bang('!SetOption', 'MeterCoreTemperature' .. slot, 'Text', 'T' .. thread .. '@' .. context.tick)
+                context.bang('!SetOption', 'MeterCoreVoltage' .. slot, 'Text', 'V' .. thread .. '@' .. context.tick)
+            end
+        end
+        context.beforeController = render
+        context.onSensorCommand = function(command)
+            first = tonumber(command:match('^SetThreadPage%((%d+)%)$')) or first
+            render()
+        end
+    end
+    local function sensorRows(context, first, rows)
+        for slot = 1, rows do
+            local thread = first + slot - 1
+            assert(context:visible('MeterCoreTemperature' .. slot), 'sensor cell ' .. slot .. ' visible')
+            equal(context:text('MeterCoreTemperature' .. slot), 'T' .. thread .. '@' .. context.tick, 'temperature cell ' .. slot)
+            equal(context:text('MeterCoreVoltage' .. slot), 'V' .. thread .. '@' .. context.tick, 'voltage cell ' .. slot)
+        end
+    end
+    local slotPrefixes = {'MeterCoreLabel', 'MeterCoreBar', 'MeterCoreValue', 'MeterCoreVoltage', 'MeterCoreTemperature'}
+    test('idle Thread slots skip the meter pass', function()
+        -- CPU-04: the 52 unused slots (260 hidden meters) are not updated per tick.
+        local context = newMock(cpuPath)
+        sensorStub(context)
+        context:run(4)
+        local before = {}
+        for slot = 1, 64 do
+            for _, prefix in ipairs(slotPrefixes) do
+                local meter = context.meters[prefix .. slot]
+                equal(meter.divider, slot <= 12 and 1 or -1, prefix .. slot .. ' divider')
+                before[meter.name] = meter.updates
+            end
+        end
+        context:run(3)
+        for slot = 1, 64 do
+            for _, prefix in ipairs(slotPrefixes) do
+                local meter = context.meters[prefix .. slot]
+                equal(meter.updates - before[meter.name], slot <= 12 and 3 or 0, prefix .. slot .. ' updates in 3 cycles')
+            end
+        end
+        threadRows(context, 1, 12, 1)
+        sensorRows(context, 1, 12)
+    end)
+    test('binding a slot applies values set while it was idle', function()
+        local context = newMock(cpuPath, {threads=10, variables={CPUAutoRows='0', CPUCoresPerPage='4'}})
+        sensorStub(context)
+        context:run(3)
+        threadRows(context, 1, 4, 1)
+        sensorRows(context, 1, 4)
+        context:event('ApplySetting', 'CPUShowCores', 0)
+        context:run(1)
+        for slot = 1, 64 do equal(context.meters['MeterCoreTemperature' .. slot].divider, -1, 'idle slot ' .. slot) end
+        context:run(2)
+        context:event('ApplySetting', 'CPUShowCores', 1)
+        context:run(2)
+        threadRows(context, 1, 4, 1)
+        sensorRows(context, 1, 4)
+        context:event('Page', 1)
+        context:event('Page', 1)
+        context:run(2)
+        threadRows(context, 9, 2, 1)
+        sensorRows(context, 9, 2)
+        for slot = 3, 4 do
+            assert(not context:visible('MeterCoreValue' .. slot), 'short last page hides slot ' .. slot)
+            equal(context.meters['MeterCoreValue' .. slot].divider, -1, 'short last page idles slot ' .. slot)
+        end
+        context:event('Page', -1)
+        context:run(2)
+        threadRows(context, 5, 4, 1)
+        sensorRows(context, 5, 4)
+    end)
     test('controller never assigns tooltips', function()
         local context = newMock(cpuPath, {variables={CPUAutoRows='0', CPUCoresPerPage='4'}})
         context:run(4)

@@ -7,6 +7,7 @@ $sourceHash = (Get-FileHash -LiteralPath $sourcePath -Algorithm SHA256).Hash
 $runRoot = Join-Path ([IO.Path]::GetTempPath()) ('Parallax-SourceProvider-test-'+[Guid]::NewGuid().ToString('N'))
 if (Test-Path -LiteralPath $runRoot) { throw 'Test directory must be fresh.' }
 $script:SourceTestChecks = 0
+$script:SourceTestTimings = @()
 function Assert-Test([bool]$Condition,[string]$Message) {
     $script:SourceTestChecks++
     if (-not $Condition) { throw $Message }
@@ -20,7 +21,7 @@ function Assert-Throws([scriptblock]$Action,[string]$Message) {
 $loadOutput = @(. $sourcePath)
 Assert-Test ($loadOutput.Count -eq 0) 'Dot-source produced output.'
 Assert-Test (-not (Test-Path -LiteralPath $runRoot)) 'Dot-source created test storage.'
-Assert-Test ($null -eq $script:SourceManager -and $null -eq $script:SourceAsTask) 'Dot-source initialized native collection.'
+Assert-Test ($null -eq $script:SourceManager -and $null -eq $script:SourceAsTask -and $null -eq $script:SourceAdapter) 'Dot-source initialized native collection.'
 
 # Every Start/Resume launch is intercepted, including negative startup checks.
 # No child process or native observer can be launched by this suite.
@@ -34,6 +35,15 @@ function Start-Process {
         Assert-Test (-not [ParallaxSourceTestMutexHolder]::CanAcquireOnOtherThread($controlName)) 'Concurrent lifecycle action could enter during observer launch.'
     }
     $script:SourceTestLaunches+=@{File=$FilePath;Arguments=$ArgumentList;Style=$WindowStyle}
+}
+# Counts owner-lease walks (a CIM query each) and can return a synthetic lease;
+# otherwise the real walk runs and finds no Rainmeter ancestor here.
+$savedLease=(Get-Item Function:\Get-MediaOwnerLease).ScriptBlock
+$leaseState=[pscustomobject]@{Calls=0; Value=$null}
+function Get-MediaOwnerLease {
+    $leaseState.Calls++
+    if ($null -ne $leaseState.Value) { return $leaseState.Value }
+    & $savedLease
 }
 Invoke-SourceCommand 'Resume' $runRoot
 Assert-Test (-not (Test-Path -LiteralPath $runRoot)) 'Resume created storage without prior opt-in.'
@@ -160,6 +170,27 @@ $fixture=New-TestAdapter 1
 $fixture.State.Sessions[0].Artist="Synthetic"+[char]0+"artist"
 Assert-Test ((Get-SourceCollection -Adapter $fixture.Adapter -Observed 1000 -Elapsed $fixture.Clock).State -eq 'unavailable') 'NUL metadata did not invalidate the complete collection.'
 
+# Without an injected adapter, collection builds the native adapter once per
+# process and reuses it; a failed build is not cached and is retried next cycle.
+# A synthetic factory stands in for the WinRT adapter.
+$savedAdapterFactory=(Get-Item Function:\New-SourceNativeAdapter).ScriptBlock
+$factoryState=[pscustomobject]@{Builds=0; Failures=1}
+$factoryFixture=New-TestAdapter 1
+function New-SourceNativeAdapter {
+    $factoryState.Builds++
+    if ($factoryState.Failures -gt 0) { $factoryState.Failures--; throw 'Synthetic adapter build failure' }
+    $factoryFixture.Adapter
+}
+try {
+    Assert-Test ((Get-SourceCollection -Observed 1000 -Elapsed $factoryFixture.Clock).State -eq 'unavailable') 'Failed adapter build did not fail closed.'
+    Assert-Test ($null -eq $script:SourceAdapter) 'Failed adapter build was cached.'
+    foreach ($attempt in 1..3) {
+        Assert-Test ((Get-SourceCollection -Observed 1000 -Elapsed $factoryFixture.Clock).State -eq 'ready') 'Cached adapter did not collect.'
+    }
+    Assert-Test ($factoryState.Builds -eq 2) "Adapter was built $($factoryState.Builds) times for four collections."
+    Assert-Test ($factoryFixture.State.Enumerations -eq 9 -and $factoryFixture.State.Reads -eq 6) 'Reused adapter skipped session consistency checks.'
+} finally { Set-Item Function:\New-SourceNativeAdapter $savedAdapterFactory; $script:SourceAdapter=$null }
+
 foreach ($state in @('unavailable','stopped')) {
     $text=ConvertTo-SourceSnapshotText (New-SourceSnapshot $state)
     Assert-Test ($text -eq "PARALLAX_SOURCE_V1`nstate=$state`nobserved=0`nvalid_until=0`ncount=0`n") 'Nonready protocol is not empty.'
@@ -177,6 +208,342 @@ $fileRules=@($fileSecurity.GetAccessRules($true,$true,[Security.Principal.Securi
 Assert-Test ($fileSecurity.AreAccessRulesProtected -and $fileRules.Count -eq 1 -and $fileRules[0].IdentityReference.Value -eq $sid.Value) 'Snapshot permissions allow other identities.'
 Assert-Throws { Write-SourceAtomicFile $root 'source.snapshot' ([string][char]0x00E9) } 'Atomic writer permits non-ASCII protocol.'
 Assert-Throws { Write-SourceAtomicFile $root 'source.snapshot' ('x'*131073) } 'Atomic writer permits oversized protocol.'
+
+# The root string is validated once, but every write still rechecks the whole
+# directory chain: a junction swapped in after validation is never written through.
+$swapParent=Join-Path ([IO.Path]::GetTempPath()) ('Parallax-SourceProvider-swap-'+[Guid]::NewGuid().ToString('N'))
+$swapRoot=Initialize-SourceStorage (Join-Path $swapParent 'Source')
+Publish-SourceSnapshot $swapRoot (New-SourceSnapshot 'unavailable')
+Assert-Test ($script:SourceRootInput -eq $swapRoot) 'Validated root was not cached for later writes.'
+$swapMoved=$swapParent+'-moved'
+[IO.Directory]::Move($swapParent,$swapMoved)
+$null=New-Item -ItemType Junction -Path $swapParent -Target $swapMoved
+try {
+    Assert-Throws { Publish-SourceSnapshot $swapRoot (New-SourceSnapshot 'stopped') } 'Snapshot write followed a junction swapped into a validated root.'
+    Assert-Throws { Write-SourceAtomicFile $swapRoot 'stop.request' "stop`n" } 'Stop write followed a junction swapped into a validated root.'
+    Assert-Throws { Set-SourceEnabledIntent $swapRoot $true } 'Intent write followed a junction swapped into a validated root.'
+    $swapTarget=Join-Path $swapMoved 'Source'
+    Assert-Test ([IO.File]::ReadAllText((Join-Path $swapTarget 'source.snapshot')) -match '(?m)^state=unavailable$') 'Junction target snapshot was replaced.'
+    Assert-Test (-not [IO.File]::Exists((Join-Path $swapTarget 'stop.request')) -and -not [IO.File]::Exists((Join-Path $swapTarget 'enabled.intent'))) 'Junction target received lifecycle files.'
+    Assert-Test (@(Get-ChildItem -LiteralPath $swapTarget -Filter '*.tmp').Count -eq 0) 'Rejected writes left temporary files behind the junction.'
+} finally { [IO.Directory]::Delete($swapParent) }
+# Any entry named stop.request is a Stop for the plain existence check, so a
+# directory there ends a worker before it collects instead of being ignored.
+$dirStopRoot=Initialize-SourceStorage (Join-Path ([IO.Path]::GetTempPath()) ('Parallax-SourceProvider-dirstop-'+[Guid]::NewGuid().ToString('N')))
+$null=[IO.Directory]::CreateDirectory((Join-Path $dirStopRoot 'stop.request'))
+Assert-Test (Test-SourceStop $dirStopRoot) 'A directory named stop.request was not treated as Stop.'
+$dirStopCalls=[pscustomobject]@{Count=0}
+Assert-Test (Invoke-SourceRun $dirStopRoot { $dirStopCalls.Count++; New-SourceSnapshot 'unavailable' }.GetNewClosure()) 'Worker did not exit cleanly on a directory stop marker.'
+Assert-Test ($dirStopCalls.Count -eq 0) 'Worker collected despite a directory stop marker.'
+Assert-Throws { Write-SourceAtomicFile $dirStopRoot 'stop.request' "stop`n" } 'Stop writer replaced a directory.'
+
+# The worker waits once per cycle on the owner process and a named stop event.
+# A second runspace in this process plays the other side (Stop, a stray event),
+# so the worker below runs the real Invoke-SourceRun on this thread.
+$waitRoot=Initialize-SourceStorage (Join-Path ([IO.Path]::GetTempPath()) ('Parallax-SourceProvider-wait-'+[Guid]::NewGuid().ToString('N')))
+function Start-SourceTestPeer {
+    param([int[]]$StrayAtMs,[int]$StopAtMs,[string]$Root=$waitRoot)
+    $ready=New-Object Threading.ManualResetEvent($false)
+    $peer=[PowerShell]::Create()
+    $null=$peer.AddScript({
+        param($SourcePath,$Root,$StrayAtMs,$StopAtMs,$Ready)
+        . $SourcePath
+        # Times count from the moment the worker is released, not from load.
+        $null=$Ready.Set()
+        $clock=[Diagnostics.Stopwatch]::StartNew()
+        foreach ($at in $StrayAtMs) {
+            Start-Sleep -Milliseconds ([Math]::Max(0,$at-$clock.ElapsedMilliseconds))
+            Send-SourceStopSignal $Root
+        }
+        Start-Sleep -Milliseconds ([Math]::Max(0,$StopAtMs-$clock.ElapsedMilliseconds))
+        $stopAt=[Diagnostics.Stopwatch]::GetTimestamp()
+        Stop-SourceObserver $Root
+        $stopAt
+    }).AddArgument($sourcePath).AddArgument($Root).AddArgument($StrayAtMs).AddArgument($StopAtMs).AddArgument($ready)
+    $result=$peer.BeginInvoke()
+    if (-not $ready.WaitOne(30000)) { throw 'Synthetic Stop peer did not load.' }
+    $ready.Dispose()
+    [pscustomobject]@{Shell=$peer; Result=$result}
+}
+function Complete-SourceTestPeer {
+    param($Peer)
+    try { $output=@($Peer.Shell.EndInvoke($Peer.Result)) } finally { $Peer.Shell.Dispose() }
+    Assert-Test ($output.Count -eq 1) 'Synthetic Stop peer failed.'
+    return [long]$output[0]
+}
+$waitState=[pscustomobject]@{Calls=0; Started=@()}
+$waitCollector={ $waitState.Calls++; $waitState.Started+=[Diagnostics.Stopwatch]::GetTimestamp(); New-SourceSnapshot 'unavailable' }.GetNewClosure()
+$toMs=1000.0/[Diagnostics.Stopwatch]::Frequency
+# Stop arrives 300 ms into the first wait. The old 100 ms poll saw it within a
+# slice; a timer-only wait would take the remaining ~1.7 s; the event wakes at once.
+$peer=Start-SourceTestPeer @() 300
+Assert-Test (Invoke-SourceRun $waitRoot $waitCollector) 'Event-woken worker did not exit cleanly.'
+$returnedAt=[Diagnostics.Stopwatch]::GetTimestamp()
+$stopAt=Complete-SourceTestPeer $peer
+$stopLatency=($returnedAt-$stopAt)*$toMs
+Assert-Test ($stopLatency -ge 0 -and $stopLatency -lt 1000) "Stop took $([Math]::Round($stopLatency)) ms to end a waiting worker."
+$script:SourceTestTimings+=('Stop to worker exit: {0:N0} ms' -f $stopLatency)
+Assert-Test ($waitState.Calls -eq 1) 'Stop during the wait allowed another collection.'
+Assert-Test ([IO.File]::ReadAllText((Join-Path $waitRoot 'source.snapshot')) -match '(?m)^state=stopped$') 'Event-woken worker did not leave the stopped display.'
+# A stray event without the marker (any process in the session can set it)
+# neither stops the worker nor starts an early collection.
+[IO.File]::Delete((Join-Path $waitRoot 'stop.request'))
+$waitState.Calls=0; $waitState.Started=@()
+$peer=Start-SourceTestPeer @(300,600) 2600
+Assert-Test (Invoke-SourceRun $waitRoot $waitCollector) 'Worker woken by stray events did not exit cleanly.'
+$returnedAt=[Diagnostics.Stopwatch]::GetTimestamp()
+$stopAt=Complete-SourceTestPeer $peer
+$stopLatency=($returnedAt-$stopAt)*$toMs
+Assert-Test ($waitState.Calls -eq 2) "Stray stop events changed the two-second cycle ($($waitState.Calls) collections in 2.6 s)."
+$cycleMs=($waitState.Started[1]-$waitState.Started[0])*$toMs
+Assert-Test ($cycleMs -ge 1990 -and $cycleMs -lt 2600) "Collection cycle was $([Math]::Round($cycleMs)) ms after stray events."
+Assert-Test ($stopLatency -ge 0 -and $stopLatency -lt 1000) "Stop after stray events took $([Math]::Round($stopLatency)) ms."
+$script:SourceTestTimings+=('Cycle with two stray events: {0:N0} ms; then Stop to exit: {1:N0} ms' -f $cycleMs,$stopLatency)
+# Owner exit stays immediate: a short-lived stand-in process is the lease owner.
+[IO.File]::Delete((Join-Path $waitRoot 'stop.request'))
+$sleeperInfo=New-Object Diagnostics.ProcessStartInfo((Join-Path $env:SystemRoot 'System32\WindowsPowerShell\v1.0\powershell.exe'),'-NoLogo -NoProfile -NonInteractive -Command Start-Sleep -Milliseconds 2500')
+$sleeperInfo.UseShellExecute=$false; $sleeperInfo.CreateNoWindow=$true
+$sleeper=[Diagnostics.Process]::Start($sleeperInfo)
+try {
+    $lease='{0}:{1}' -f $sleeper.Id,$sleeper.StartTime.ToUniversalTime().Ticks
+    Assert-Test (Test-MediaOwnerLeaseText $lease) 'Stand-in owner lease is malformed.'
+    $waitState.Calls=0
+    Assert-Test (Invoke-SourceRun $waitRoot $waitCollector -Lease $lease) 'Leased worker did not exit when its owner did.'
+    $returnedUtc=[DateTime]::UtcNow
+    Assert-Test ($sleeper.WaitForExit(5000)) 'Stand-in owner did not exit.'
+    $ownerLatency=($returnedUtc-$sleeper.ExitTime.ToUniversalTime()).TotalMilliseconds
+    Assert-Test ($ownerLatency -gt -50 -and $ownerLatency -lt 500) "Worker left $([Math]::Round($ownerLatency)) ms after its owner exited."
+    $script:SourceTestTimings+=('Owner exit to worker exit: {0:N0} ms' -f $ownerLatency)
+    Assert-Test ($waitState.Calls -ge 1) 'Leased worker never collected.'
+    Assert-Test ([IO.File]::ReadAllText((Join-Path $waitRoot 'source.snapshot')) -match '(?m)^state=unavailable$') 'Owner exit published a stopped snapshot.'
+    Assert-Test (-not (Test-SourceStop $waitRoot)) 'Owner exit wrote a stop marker.'
+} finally { if (-not $sleeper.HasExited) { $sleeper.Kill() }; $sleeper.Dispose() }
+# Fallbacks: without any handle the wait is a plain timed wait; an owner whose
+# handle cannot be waited on keeps the bounded owner wait and never spins.
+$waiter=New-SourceWaiter $null $null
+$fallbackClock=[Diagnostics.Stopwatch]::StartNew()
+Assert-Test ((Wait-SourceSignal $waiter 150) -eq 'timeout' -and $fallbackClock.ElapsedMilliseconds -ge 140) 'Handle-less wait did not wait out its time.'
+$waiter=New-SourceWaiter ([pscustomobject]@{Name='not a process'}) $null
+Assert-Test ($waiter.PollOwner -and (Wait-SourceSignal $waiter 150) -eq 'owner') 'Unwaitable owner did not fall back to the bounded owner wait.'
+# A manual-reset event squatted under the stop event's name and left signaled
+# must not make the wait spin: the worker clears it after each wake. A real
+# Stop still wakes the worker at once.
+$squatRoot=Initialize-SourceStorage (Join-Path ([IO.Path]::GetTempPath()) ('Parallax-SourceProvider-squat-'+[Guid]::NewGuid().ToString('N')))
+$squatter=New-Object Threading.EventWaitHandle($true,[Threading.EventResetMode]::ManualReset,((Get-SourceMutexName $squatRoot)+'.Stop'))
+$savedWait=(Get-Item Function:\Wait-SourceSignal).ScriptBlock
+$squatState=[pscustomobject]@{Waits=0; Calls=0}
+function Wait-SourceSignal { param($Waiter,[int]$Milliseconds) $squatState.Waits++; & $savedWait $Waiter $Milliseconds }
+try {
+    $squatCollector={ $squatState.Calls++; if ($squatState.Calls -eq 2) { [IO.File]::WriteAllText((Join-Path $squatRoot 'stop.request'),"stop`n") }; New-SourceSnapshot 'unavailable' }.GetNewClosure()
+    Assert-Test (Invoke-SourceRun $squatRoot $squatCollector -CycleMilliseconds 300) 'Worker beside a squatted stop event did not exit cleanly.'
+    Assert-Test ($squatState.Calls -eq 2 -and $squatState.Waits -le 3) "A squatted, signaled stop event made the worker wait $($squatState.Waits) times in one 300 ms cycle."
+    $script:SourceTestTimings+=('Waits in one cycle beside a squatted, signaled stop event: {0}' -f $squatState.Waits)
+    [IO.File]::Delete((Join-Path $squatRoot 'stop.request'))
+    $null=$squatter.Set(); $squatState.Waits=0; $waitState.Calls=0
+    $peer=Start-SourceTestPeer @() 300 $squatRoot
+    Assert-Test (Invoke-SourceRun $squatRoot $waitCollector) 'Worker beside a squatted stop event did not exit on Stop.'
+    $returnedAt=[Diagnostics.Stopwatch]::GetTimestamp()
+    $stopLatency=($returnedAt-(Complete-SourceTestPeer $peer))*$toMs
+    Assert-Test ($stopLatency -ge 0 -and $stopLatency -lt 1000 -and $waitState.Calls -eq 1) "Stop beside a squatted stop event took $([Math]::Round($stopLatency)) ms."
+    Assert-Test ($squatState.Waits -le 3) "Stop beside a squatted stop event took $($squatState.Waits) waits."
+    $script:SourceTestTimings+=('Stop to exit beside a squatted stop event: {0:N0} ms' -f $stopLatency)
+} finally { Set-Item Function:\Wait-SourceSignal $savedWait; $squatter.Dispose() }
+
+# ACLs: the private directory's ACL is set by Initialize-SourceStorage. A
+# snapshot gets an explicit private ACL only when first created; File.Replace
+# keeps it. The lifecycle vetoes keep their explicit ACL on every write.
+$aclRoot=Initialize-SourceStorage (Join-Path ([IO.Path]::GetTempPath()) ('Parallax-SourceProvider-acl-'+[Guid]::NewGuid().ToString('N')))
+$savedPrivate=(Get-Item Function:\Set-SourcePrivateFile).ScriptBlock
+$aclState=[pscustomobject]@{Calls=@()}
+function Set-SourcePrivateFile { param([string]$Path) $aclState.Calls+=[IO.Path]::GetFileName($Path); & $savedPrivate $Path }
+function Test-SourcePrivateFile([string]$Path) {
+    $fileSecurity=[IO.File]::GetAccessControl($Path)
+    $fileRules=@($fileSecurity.GetAccessRules($true,$true,[Security.Principal.SecurityIdentifier]))
+    return ($fileSecurity.AreAccessRulesProtected -and $fileRules.Count -eq 1 -and $fileRules[0].IdentityReference.Value -eq $sid.Value -and
+        $fileRules[0].AccessControlType -eq 'Allow' -and -not $fileRules[0].IsInherited)
+}
+try {
+    $aclSnapshot=Join-Path $aclRoot 'source.snapshot'
+    Publish-SourceSnapshot $aclRoot (New-SourceSnapshot 'unavailable')
+    Assert-Test ($aclState.Calls.Count -eq 1 -and $aclState.Calls[0] -like 'source.snapshot.*.tmp') 'First snapshot creation did not get one explicit private ACL.'
+    foreach ($state in @('stopped','unavailable','stopped')) { Publish-SourceSnapshot $aclRoot (New-SourceSnapshot $state) }
+    Assert-Test ($aclState.Calls.Count -eq 1) "Routine snapshot replacements made $($aclState.Calls.Count - 1) ACL calls."
+    Assert-Test (Test-SourcePrivateFile $aclSnapshot) 'Replaced snapshot lost its protected user-only ACL.'
+    # A snapshot left with only inherited permissions is made explicit again by
+    # the next command's storage initialization, and replacements then keep it.
+    $loose=New-Object Security.AccessControl.FileSecurity
+    $loose.SetAccessRuleProtection($false,$false)
+    [IO.File]::SetAccessControl($aclSnapshot,$loose)
+    Assert-Test (-not (Test-SourcePrivateFile $aclSnapshot)) 'Synthetic inherited-only snapshot ACL was not applied.'
+    $null=Initialize-SourceStorage $aclRoot
+    Publish-SourceSnapshot $aclRoot (New-SourceSnapshot 'unavailable')
+    Assert-Test (Test-SourcePrivateFile $aclSnapshot) 'Storage initialization did not restore the explicit snapshot ACL.'
+    $aclState.Calls=@()
+    Write-SourceAtomicFile $aclRoot 'stop.request' "stop`n"
+    Write-SourceAtomicFile $aclRoot 'stop.request' "stop`n"
+    Set-SourceEnabledIntent $aclRoot $true
+    Set-SourceEnabledIntent $aclRoot $false
+    Assert-Test ($aclState.Calls.Count -eq 6) "Lifecycle vetoes made $($aclState.Calls.Count) ACL calls for four writes instead of 6."
+    Assert-Test ((Test-SourcePrivateFile (Join-Path $aclRoot 'stop.request')) -and (Test-SourcePrivateFile (Join-Path $aclRoot 'enabled.intent'))) 'Lifecycle veto lost its explicit private ACL.'
+    Assert-Test (@(Get-ChildItem -LiteralPath $aclRoot -Filter '*.tmp').Count -eq 0) 'ACL checks left temporary files.'
+} finally { Set-Item Function:\Set-SourcePrivateFile $savedPrivate }
+
+# Change-only writes. Two collections of the same sessions differ only in their
+# timestamps, which the payload key ignores; any record or state change differs.
+$keyFixture=New-TestAdapter 2
+$keyFirst=Get-SourcePayloadKey (ConvertTo-SourceSnapshotText (Get-SourceCollection -Adapter $keyFixture.Adapter -Observed 1000 -Elapsed $keyFixture.Clock))
+$later=Get-SourceCollection -Adapter $keyFixture.Adapter -Observed 1003 -Elapsed $keyFixture.Clock
+Assert-Test ($keyFirst -ceq (Get-SourcePayloadKey (ConvertTo-SourceSnapshotText $later))) 'Timestamps alone changed the payload key.'
+Assert-Test ($keyFirst -notmatch 'observed=|valid_until=' -and $keyFirst -match '(?m)^count=2$' -and $keyFirst -match '(?m)^playing2=1$') 'Payload key kept timestamps or lost records.'
+$keyFixture.State.Sessions[1].Playing=0
+Assert-Test ($keyFirst -cne (Get-SourcePayloadKey (ConvertTo-SourceSnapshotText (Get-SourceCollection -Adapter $keyFixture.Adapter -Observed 1003 -Elapsed $keyFixture.Clock)))) 'A playing-state change kept the payload key.'
+foreach ($state in @('unavailable','stopped')) {
+    Assert-Test ($keyFirst -cne (Get-SourcePayloadKey (ConvertTo-SourceSnapshotText (New-SourceSnapshot $state)))) 'A state change kept the payload key.'
+}
+# The reader accepts a ready snapshot while now < observed + 6, so an unchanged
+# one without a playing Spotify record ($later: Spotify paused, another app
+# playing) is rewritten once less than three seconds of that window remain.
+Assert-Test (-not (Test-SourcePlayingSpotify $later)) 'A paused Spotify record or a playing other app counted as playing Spotify.'
+$publishedReady=[pscustomobject]@{Key=$keyFirst; Observed=1000L; ValidUntil=1006L}
+foreach ($case in @(
+    @{Published=$null; Key=$keyFirst; Now=1003.0; Due=$true; Why='the first observation'},
+    @{Published=$publishedReady; Key=$keyFirst; Now=1002.0; Due=$false; Why='an unchanged observation with 4 s left'},
+    @{Published=$publishedReady; Key=$keyFirst; Now=1002.99; Due=$false; Why='an unchanged observation with 3.01 s left'},
+    @{Published=$publishedReady; Key=$keyFirst; Now=1003.01; Due=$true; Why='an unchanged observation with 2.99 s left'},
+    @{Published=$publishedReady; Key=$keyFirst; Now=1007.0; Due=$true; Why='an unchanged, already expired observation'},
+    @{Published=$publishedReady; Key=$keyFirst; Now=999.5; Due=$true; Why='a clock moved back before the observation'},
+    @{Published=$publishedReady; Key='changed'; Now=1000.1; Due=$true; Why='a changed observation'})) {
+    Assert-Test ((Test-SourcePublishDue $case.Published $case.Key $later $case.Now) -eq $case.Due) "Wrong publish decision for $($case.Why)."
+}
+$unavailableKey=Get-SourcePayloadKey (ConvertTo-SourceSnapshotText (New-SourceSnapshot 'unavailable'))
+Assert-Test (-not (Test-SourcePublishDue ([pscustomobject]@{Key=$unavailableKey; Observed=0L; ValidUntil=0L}) $unavailableKey (New-SourceSnapshot 'unavailable') 999999.0)) 'An unchanged unavailable observation was rewritten.'
+# A playing Spotify record is the one payload the header can show, so it is
+# rewritten every cycle, as before change-only publishing.
+$playingFixture=New-TestAdapter 2
+$playingFixture.State.Sessions[0].Playing=1
+$playingSpotify=Get-SourceCollection -Adapter $playingFixture.Adapter -Observed 1002 -Elapsed $playingFixture.Clock
+$playingKey=Get-SourcePayloadKey (ConvertTo-SourceSnapshotText $playingSpotify)
+Assert-Test (Test-SourcePlayingSpotify $playingSpotify) 'A playing Spotify record was not recognized.'
+Assert-Test (-not (Test-SourcePlayingSpotify (New-SourceSnapshot 'unavailable'))) 'An unavailable observation counted as playing Spotify.'
+$publishedPlaying=[pscustomobject]@{Key=$playingKey; Observed=1002L; ValidUntil=1008L}
+foreach ($now in @(1002.0,1003.5,1004.05,1005.0)) {
+    Assert-Test (Test-SourcePublishDue $publishedPlaying $playingKey $playingSpotify $now) "An unchanged playing Spotify observation was not rewritten with $(1008-$now) s left."
+}
+
+# The worker itself, on a simulated clock. Each collection starts two seconds
+# after the previous one (the real cadence) or, after an overrun, right after
+# the previous write, as the real loop skips its wait. A step's Stall delays
+# the collection after its observation time is taken, as a slow Windows call
+# would. A 50 ms test cycle keeps the run short; the write schedule is exact.
+$savedWriter=(Get-Item Function:\Write-SourceAtomicFile).ScriptBlock
+$simulation=[pscustomobject]@{Start=0.0; Now=0.0; Calls=0; Plan=@(); Collections=@(); Writes=@();
+    Root=(Initialize-SourceStorage (Join-Path ([IO.Path]::GetTempPath()) ('Parallax-SourceProvider-writes-'+[Guid]::NewGuid().ToString('N'))))}
+function Write-SourceAtomicFile {
+    param([string]$Root,[string]$Name,[string]$Text)
+    if ($Name -eq 'source.snapshot') {
+        $simulation.Writes+=[pscustomobject]@{Time=$simulation.Now; Call=$simulation.Calls;
+            State=[regex]::Match($Text,'(?m)^state=(\w+)$').Groups[1].Value;
+            Observed=[long][regex]::Match($Text,'(?m)^observed=(\d+)$').Groups[1].Value;
+            ValidUntil=[long][regex]::Match($Text,'(?m)^valid_until=(\d+)$').Groups[1].Value;
+            PlayingSpotify=($Text -match '(?m)^source1=spotify$' -and $Text -match '(?m)^playing1=1$')}
+    }
+    & $savedWriter $Root $Name $Text
+}
+function New-SourceSimulationPlan {
+    param([int]$Count,[int]$Playing,[int]$PlayFrom=0,[int[]]$StallAt=@(),[double]$Stall=0,[int]$TitleFrom=0)
+    for ($call=1; $call -le $Count; $call++) {
+        [pscustomobject]@{Source='spotify'; Playing=$(if ($PlayFrom -gt 0 -and $call -ge $PlayFrom) { 1 } else { $Playing });
+            Title=$(if ($TitleFrom -gt 0 -and $call -ge $TitleFrom) { 'Synthetic changed title' } else { 'Synthetic title' });
+            Stall=$(if ($StallAt -contains $call) { $Stall } else { 0.0 })}
+    }
+}
+function Invoke-SourceSimulation {
+    param([object[]]$Plan,[double]$Start)
+    $stopRequest=Join-Path $simulation.Root 'stop.request'
+    if ([IO.File]::Exists($stopRequest)) { [IO.File]::Delete($stopRequest) }
+    $simulation.Start=$Start; $simulation.Now=$Start; $simulation.Calls=0; $simulation.Plan=$Plan
+    $simulation.Collections=@(); $simulation.Writes=@()
+    $collector={
+        $simulation.Calls++
+        $step=$simulation.Plan[$simulation.Calls-1]
+        if ($simulation.Calls -gt 1) { $simulation.Start=[Math]::Max($simulation.Start+2.0,$simulation.Now) }
+        $observed=[long][Math]::Floor($simulation.Start)
+        $simulation.Now=$simulation.Start+0.02+$step.Stall
+        # The last step requests Stop: its observation is dropped and the
+        # worker publishes its stopped state.
+        if ($simulation.Calls -eq $simulation.Plan.Count) { [IO.File]::WriteAllText((Join-Path $simulation.Root 'stop.request'),"stop`n") }
+        $simulation.Collections+=[pscustomobject]@{Observed=$observed; End=$simulation.Now}
+        New-SourceSnapshot 'ready' @([pscustomobject]@{Source=$step.Source; Title=$step.Title; Artist='Synthetic artist'; Playing=$step.Playing}) $observed
+    }
+    Assert-Test (Invoke-SourceRun $simulation.Root $collector -CycleMilliseconds 50 -Clock { $simulation.Now }) 'Simulated worker did not run.'
+    Assert-Test ($simulation.Calls -eq $Plan.Count) 'Simulated worker changed the collection count.'
+    Assert-Test ($simulation.Writes[-1].State -eq 'stopped') 'Simulated worker did not end with its stopped state.'
+    # Every replacement of a ready snapshot, with the validity it had left when
+    # it was replaced (the reader calls it stale once that reaches zero), and
+    # what the old every-cycle schedule left at the same point.
+    $replacements=@()
+    for ($index=0; $index -lt $simulation.Writes.Count-1; $index++) {
+        $current=$simulation.Writes[$index]; $next=$simulation.Writes[$index+1]
+        $collection=$simulation.Collections[$current.Call-1]
+        $oldLeft=$collection.Observed+6-$simulation.Collections[$current.Call].End
+        $replacements+=[pscustomobject]@{Call=$current.Call; NextCall=$next.Call; PlayingSpotify=$current.PlayingSpotify;
+            Left=($current.ValidUntil-$next.Time); OldLeft=$oldLeft}
+    }
+    [pscustomobject]@{Schedule=(@($simulation.Writes | ForEach-Object { '{0}@{1}' -f $_.State,$_.Observed }) -join ' '); Replacements=$replacements}
+}
+function Assert-SourceHeaderTolerance {
+    param($Result,[string]$Case)
+    foreach ($replacement in @($Result.Replacements)) {
+        if ($replacement.PlayingSpotify) {
+            Assert-Test ($replacement.NextCall -eq $replacement.Call+1) "$Case skipped a write while Spotify played."
+            Assert-Test ([Math]::Abs($replacement.Left-$replacement.OldLeft) -lt 0.0001) "$Case left $($replacement.Left) s of a header-visible observation; the old schedule left $($replacement.OldLeft) s."
+            Assert-Test ($replacement.Left -gt 0) "$Case let a header-visible observation expire ($($replacement.Left) s left)."
+        }
+    }
+}
+try {
+    # Spotify paused (nothing the header can show): 1000 first; 1002 unchanged
+    # with 3.98 s left (skipped); 1004 heartbeat; 1006 changed title; 1008
+    # unchanged (skipped); then Stop's stopped state.
+    $sparse=Invoke-SourceSimulation (New-SourceSimulationPlan 6 0 -TitleFrom 4) 1000.0
+    $expectedWrites='ready@1000 ready@1004 ready@1006 stopped@0'
+    Assert-Test ($sparse.Schedule -eq $expectedWrites) "Change-only writes were '$($sparse.Schedule)', expected '$expectedWrites'."
+    $script:SourceTestTimings+=('Snapshot writes over 5 simulated cycles, Spotify paused: {0} (was 6)' -f @($sparse.Schedule -split ' ').Count)
+    # Spotify playing: every cycle is written, as before.
+    $dense=Invoke-SourceSimulation (New-SourceSimulationPlan 6 1 -TitleFrom 4) 1000.0
+    $expectedWrites='ready@1000 ready@1002 ready@1004 ready@1006 ready@1008 stopped@0'
+    Assert-Test ($dense.Schedule -eq $expectedWrites) "Writes while Spotify played were '$($dense.Schedule)', expected '$expectedWrites'."
+    Assert-SourceHeaderTolerance $dense 'Steady playback'
+    # One stalled collection while Spotify plays, at the observation-second
+    # offsets that leave the least slack: 2.0 s at .75 (the review's case) and
+    # 3.0 s at .25. Both keep the old schedule's margin; neither expires.
+    foreach ($case in @(@{Start=1000.75; Stall=2.0}, @{Start=1000.25; Stall=3.0})) {
+        $stalled=Invoke-SourceSimulation (New-SourceSimulationPlan 7 1 -StallAt 3 -Stall $case.Stall) $case.Start
+        $label='A {0:N1} s stall at +{1:N2}' -f $case.Stall,($case.Start-1000)
+        Assert-SourceHeaderTolerance $stalled $label
+        $least=(@($stalled.Replacements | ForEach-Object { $_.Left }) | Measure-Object -Minimum).Minimum
+        $script:SourceTestTimings+=('{0} while Spotify plays: least validity left {1:N2} s (old schedule the same)' -f $label,$least)
+    }
+    # Paused, then playing: the paused phase keeps its sparse heartbeat (the
+    # second collection is skipped), and its stall lets that snapshot expire
+    # for a moment, which nothing displays. From the first playing observation
+    # on, every cycle is written and a second stall keeps the old margin.
+    $mixed=Invoke-SourceSimulation (New-SourceSimulationPlan 7 0 -PlayFrom 4 -StallAt 3,5 -Stall 2.0) 1000.75
+    $mixedCalls=(@($mixed.Replacements | ForEach-Object { $_.Call }) -join ',')
+    Assert-Test ($mixedCalls -eq '1,3,4,5,6') "Paused-then-playing writes came from collections $mixedCalls, expected 1,3,4,5,6 and Stop."
+    Assert-SourceHeaderTolerance $mixed 'Paused, then playing'
+    # The same 2.0 s stall with the sparse heartbeat applied to playing Spotify
+    # too (the reviewed first version) expires the header-visible observation,
+    # so this check detects that regression.
+    $savedPlaying=(Get-Item Function:\Test-SourcePlayingSpotify).ScriptBlock
+    function Test-SourcePlayingSpotify { param($Snapshot) $false }
+    try {
+        $regressed=Invoke-SourceSimulation (New-SourceSimulationPlan 7 1 -StallAt 3 -Stall 2.0) 1000.75
+    } finally { Set-Item Function:\Test-SourcePlayingSpotify $savedPlaying }
+    $regressedLeast=(@($regressed.Replacements | ForEach-Object { $_.Left }) | Measure-Object -Minimum).Minimum
+    Assert-Test ($regressedLeast -le 0) "A sparse heartbeat during playback no longer fails the stall check ($regressedLeast s left)."
+    $script:SourceTestTimings+=('Same 2.0 s stall with a sparse heartbeat during playback: {0:N2} s left (would read Unknown)' -f $regressedLeast)
+} finally { Set-Item Function:\Write-SourceAtomicFile $savedWriter }
 
 $script:SourceTestCollections=0
 $collector={ $script:SourceTestCollections++; New-SourceSnapshot 'unavailable' }
@@ -228,6 +595,10 @@ public sealed class ParallaxSourceTestMutexHolder : IDisposable {
 }
 '@
 $holder=New-Object ParallaxSourceTestMutexHolder((Get-SourceMutexName $root))
+# Counts storage initializations (directory and file ACL rewrites).
+$savedInitialize=(Get-Item Function:\Initialize-SourceStorage).ScriptBlock
+$initializeState=[pscustomobject]@{Calls=0}
+function Initialize-SourceStorage { param([string]$Path) $initializeState.Calls++; & $savedInitialize $Path }
 try {
     Assert-Test ($holder.Acquired.WaitOne(5000)) 'Synthetic mutex holder did not acquire ownership.'
     $before=$script:SourceTestCollections
@@ -239,18 +610,34 @@ try {
     [IO.File]::Delete((Get-SourceRuntimeFile $root 'stop.request'))
     [IO.File]::Delete((Get-SourceRuntimeFile $root 'enabled.intent'))
     $beforeLaunches=$script:SourceTestLaunches.Count
+    $leaseState.Calls=0
     Start-SourceObserver $root
     Assert-Test (Test-SourceEnabledIntent $root) 'Start did not opt an already-running legacy observer into resume.'
     Resume-SourceObserver $root
     Invoke-SourceCommand 'Resume' $root
     Assert-Test ($script:SourceTestLaunches.Count -eq $beforeLaunches) 'Start or repeated Resume launched beside an active worker.'
+    # MEDIA-08: the owner-lease walk happens only once no worker holds the mutex.
+    Assert-Test ($leaseState.Calls -eq 0) "Start or Resume beside an active worker walked the owner lease $($leaseState.Calls) times."
     Assert-Test ($script:SourceTestCollections -eq $before) 'Resume collected synchronously beside an active worker.'
+    # ...and a Resume command beside a running worker leaves its storage ACLs alone.
+    $initializeState.Calls=0
+    Invoke-SourceCommand 'Resume' $root
+    Invoke-SourceCommand 'Resume' $root
+    Assert-Test ($initializeState.Calls -eq 0 -and $script:SourceTestLaunches.Count -eq $beforeLaunches) 'Resume beside an active worker rewrote storage ACLs or launched.'
 } finally { $holder.Dispose() }
+try {
+    # With no worker, Resume initializes storage and launches exactly as before.
+    $initializeState.Calls=0; $beforeLaunches=$script:SourceTestLaunches.Count
+    Invoke-SourceCommand 'Resume' $root
+    Assert-Test ($initializeState.Calls -eq 1 -and $script:SourceTestLaunches.Count -eq ($beforeLaunches+1)) 'Resume without a worker did not initialize storage and launch once.'
+} finally { Set-Item Function:\Initialize-SourceStorage $savedInitialize }
 
 # Inspect an explicit Start while holding its child launch for later execution.
 $script:SourceTestLaunches=@()
 $script:SourceCheckControlLock=$true
-Start-SourceObserver $root
+$leaseState.Calls=0; $leaseState.Value='4242:638000000000000000'
+try { Start-SourceObserver $root } finally { $leaseState.Value=$null }
+Assert-Test ($leaseState.Calls -eq 1 -and $script:SourceTestLaunches[0].Arguments.EndsWith(' -OwnerLease 4242:638000000000000000')) 'Launch did not walk the owner lease once and pass it on.'
 Assert-Test ($script:SourceTestLaunches.Count -eq 1) 'Start did not request exactly one process.'
 Assert-Test ($script:SourceTestLaunches[0].Style -eq 'Hidden') 'Worker startup was not hidden.'
 Assert-Test ($script:SourceTestLaunches[0].File -eq (Join-Path $env:SystemRoot 'System32\WindowsPowerShell\v1.0\powershell.exe')) 'Worker executable was not fixed Windows PowerShell.'
@@ -303,7 +690,7 @@ Assert-Throws { Write-SourceAtomicFile $root 'enabled.intent' "PARALLAX_AUTOSTAR
 Start-SourceObserver $root
 $beforeLaunches=$script:SourceTestLaunches.Count
 $reloadOutput=@(. $sourcePath)
-Assert-Test ($reloadOutput.Count -eq 0 -and $null -eq $script:SourceManager) 'Fresh helper load did not remain passive.'
+Assert-Test ($reloadOutput.Count -eq 0 -and $null -eq $script:SourceManager -and $null -eq $script:SourceAdapter) 'Fresh helper load did not remain passive.'
 Invoke-SourceCommand 'Resume' $root
 Assert-Test ($script:SourceTestLaunches.Count -eq ($beforeLaunches+1)) 'Previously enabled observer did not resume after a fresh helper load.'
 Assert-Test ($script:SourceTestLaunches[-1].Style -eq 'Hidden' -and $script:SourceTestLaunches[-1].Arguments.Contains('-Command Run')) 'Resume did not use the existing hidden worker launch.'
@@ -349,9 +736,10 @@ Assert-Test ((Test-SourceEnabledIntent $root) -and -not (Test-SourceStop $root))
 Assert-Test ($script:SourceTestLaunches.Count -eq ($beforeLaunches+1)) 'Later explicit Start did not request exactly one launch.'
 Stop-SourceObserver $root
 Assert-Test (@(Get-ChildItem -LiteralPath $root -Filter '*.tmp').Count -eq 0) 'Lifecycle intent updates left atomic temporary files.'
-Assert-Test ($null -eq $script:SourceManager -and $null -eq $script:SourceAsTask) 'Synthetic tests touched native session APIs.'
+Assert-Test ($null -eq $script:SourceManager -and $null -eq $script:SourceAsTask -and $null -eq $script:SourceAdapter) 'Synthetic tests touched native session APIs.'
 Assert-Test ((Get-FileHash -LiteralPath $sourcePath -Algorithm SHA256).Hash -eq $sourceHash) 'Production source changed during tests.'
-$report="PASS: $script:SourceTestChecks synthetic source-provider assertions; no native sessions, network, credentials, or live configuration used.`nSource SHA256: $sourceHash`n"
+$report="PASS: $script:SourceTestChecks synthetic source-provider assertions; no native sessions, network, credentials, or live configuration used.`n"+
+    (($script:SourceTestTimings | ForEach-Object { "  $_`n" }) -join '')+"Source SHA256: $sourceHash`n"
 [IO.File]::WriteAllText((Join-Path $root 'results.txt'),$report,[Text.UTF8Encoding]::new($false))
 Write-Output $report
 Write-Output "Synthetic evidence retained at $root"

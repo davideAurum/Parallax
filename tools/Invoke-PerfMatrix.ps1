@@ -25,7 +25,8 @@ the pooled trial spread, antagonistic below minus that, additive otherwise. It
 writes analysis.json and analysis.md into the matrix folder.
 
 -DryRun checks the builds and tools, writes the plan (matrix-plan.json) and
-prints the schedule with its estimated duration. It never starts Rainmeter.
+prints the schedule with its estimated duration. It never starts Rainmeter,
+and it refuses a matrix folder that already holds a real plan or reports.
 -AnalyzeOnly recomputes the analysis from a matrix folder's plan and reports.
 Real runs start isolated Rainmeter instances through Benchmark-Parallax.ps1;
 they are the orchestrator's to run, one matrix at a time, with nothing else
@@ -220,10 +221,19 @@ $plan = [ordered]@{
     Schedule = @($schedule | ForEach-Object { [ordered]@{ Slot = $_.Slot; Round = $_.Round; Build = $_.Build; Scenarios = @($_.Scenarios); Label = $_.Label } })
     EstimatedDuration = $estimate.ToString()
 }
+$reportsPath = Join-Path $MatrixDir 'reports'
+if ($DryRun) {
+    # A dry run may only replace another dry run's plan: replacing a real
+    # matrix's plan would orphan or mismatch its collected reports.
+    $realPlan = (Test-Path -LiteralPath $planPath) -and -not (Read-Json $planPath).DryRun
+    if ($realPlan -or (Test-Path -LiteralPath $reportsPath)) {
+        throw "Matrix folder already holds a matrix that has run or started: $MatrixDir. A dry run would replace its plan; dry-run into a new -MatrixId or -MatrixDir."
+    }
+}
 if ((Test-Path -LiteralPath $planPath) -and -not $Resume -and -not $DryRun) {
     # A dry run's plan may be replaced by the real run, as long as nothing ran.
     $previous = Read-Json $planPath
-    if (-not ($previous.DryRun -and -not (Test-Path -LiteralPath (Join-Path $MatrixDir 'reports')))) {
+    if (-not ($previous.DryRun -and -not (Test-Path -LiteralPath $reportsPath))) {
         throw "Matrix folder already has a plan: $MatrixDir. Pass -Resume to continue it, or a new -MatrixId."
     }
 }

@@ -200,6 +200,12 @@ try {
     Assert-True (-not (Get-ChildItem -LiteralPath $root -Recurse -Filter '*.json' | Where-Object { $_.FullName -like '*perf-benchmark*' })) 'no benchmark report anywhere after a dry run'
     Assert-True ((@($plan.Builds | Where-Object Role -eq 'plus' | ForEach-Object UnitKey) -join ',') -eq 'A,B') 'plus units come from the build records'
     Assert-True ((@($plan.Assumable | ForEach-Object Fix) -join ',') -eq 'C') 'the manifest marks C as assumable'
+    $replanned = & $matrix @common -MatrixId 'fx' -MatrixDir $folder -DryRun
+    Assert-True ($replanned.DryRun -and @($replanned.Schedule).Count -eq 18) "a dry run may replace a dry run's plan"
+    $started = Join-Path $fixture 'm5'
+    $null = & $matrix @common -MatrixId 'fx5' -MatrixDir $started -DryRun
+    $null = New-Item -ItemType Directory -Path (Join-Path $started 'reports')
+    Assert-Throws { & $matrix @common -MatrixId 'fx5' -MatrixDir $started -DryRun } 'would replace its plan' 'a dry run into a folder with reports is refused'
     $differing = $common.Clone(); $differing.InstrumentFiles = @('Skins\P\a.txt')
     Assert-Throws { & $matrix @differing -MatrixId 'fx2' -MatrixDir (Join-Path $fixture 'm2') -DryRun } 'differs between builds' 'builds with different measuring tools are refused'
     Put-Text '..\b\t-p-A\stray.txt' 'dirty'
@@ -224,6 +230,11 @@ try {
     $again = & $matrix @common -MatrixId 'fx' -MatrixDir $folder -Resume 6>&1 | Out-String
     Assert-True ($again -match 'already collected') 'a resumed matrix skips collected reports'
     Assert-Throws { & $matrix @common -MatrixId 'fx' -MatrixDir $folder } 'already has a plan' 'a matrix folder is not overwritten without -Resume'
+    $realPlan = Get-FileHash -LiteralPath (Join-Path $folder 'matrix-plan.json')
+    Assert-Throws { & $matrix @common -MatrixId 'fx' -MatrixDir $folder -DryRun } 'would replace its plan' 'a dry run into a matrix that ran is refused'
+    $otherSchedule = $common.Clone(); $otherSchedule.Scenario = @('suite')
+    Assert-Throws { & $matrix @otherSchedule -MatrixId 'fx' -MatrixDir $folder -DryRun -Resume } 'would replace its plan' 'also with -Resume and another schedule'
+    Assert-True ((Get-FileHash -LiteralPath (Join-Path $folder 'matrix-plan.json')).Hash -eq $realPlan.Hash -and -not (Get-Content -LiteralPath (Join-Path $folder 'matrix-plan.json') -Raw | ConvertFrom-Json).DryRun) 'the real plan is kept'
     Remove-Item -LiteralPath (Join-Path $folder 'analysis.md') -Force
     $null = & $matrix -AnalyzeOnly -MatrixDir $folder
     Assert-True (Test-Path -LiteralPath (Join-Path $folder 'analysis.md')) '-AnalyzeOnly rebuilds the analysis from the folder'

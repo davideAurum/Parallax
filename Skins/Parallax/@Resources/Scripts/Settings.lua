@@ -56,6 +56,19 @@ local profiles = {
     balanced = { MetricsInterval='1000', SensorInterval='2000', CapacityInterval='30000', VisualizerInterval='50' },
     economy = { MetricsInterval='2000', SensorInterval='4000', CapacityInterval='60000', VisualizerInterval='100' }
 }
+-- The skins that read each interval key (SHARED-02): GPU.ini and RAM.ini
+-- update at MetricsInterval, GPU's sensor dividers and helpers also read
+-- SensorInterval, the Disk Meter's capacity measures read CapacityInterval,
+-- and the Visualizer options that Visualizer and Media include read
+-- VisualizerInterval. CPU, Network and Chronometer read none of them.
+-- Visualizer and Media have no group of their own, so they are named; a
+-- named !Refresh never loads an inactive config (Rainmeter logs a warning).
+local intervalConsumers = {
+    MetricsInterval = { 'ParallaxGPU', 'ParallaxRAM' },
+    SensorInterval = { 'ParallaxGPU' },
+    CapacityInterval = { 'ParallaxIO' },
+    VisualizerInterval = { 'Parallax\\Visualizer', 'Parallax\\Media' }
+}
 
 local function variable(name)
     local value = saved[name]
@@ -185,6 +198,26 @@ local function save(values)
     if not write(values) then return false end
     refreshAll()
     return true
+end
+
+-- Refreshes only the skins that read the saved keys and shows the change here
+-- in place. A key without known consumers, or a pending arrow refresh, falls
+-- back to refreshing the whole suite.
+local function refreshConsumers(values)
+    if refreshOwed then refreshAll(); return end
+    local targets, seen = {}, {}
+    for key in pairs(values) do
+        local consumers = intervalConsumers[key]
+        if not consumers then refreshAll(); return end
+        for _, target in ipairs(consumers) do
+            if not seen[target] then seen[target] = true; targets[#targets+1] = target end
+        end
+    end
+    table.sort(targets)
+    for _, target in ipairs(targets) do
+        SKIN:Bang(target:find('\\', 1, true) and '!Refresh' or '!RefreshGroup', target)
+    end
+    refreshDisplay()
 end
 
 -- Built-in !Delay arms a skin window timer, which fires in this Update=-1
@@ -338,8 +371,9 @@ function Accent(name)
     return save({ AccentColor=accents[name] })
 end
 function Profile(name)
-    if editingKey then return false end
-    return save(profiles[name])
+    if editingKey or not write(profiles[name]) then return false end
+    refreshConsumers(profiles[name])
+    return true
 end
 function CycleProfile(direction)
     if editingKey or (direction ~= -1 and direction ~= 1) then return false end

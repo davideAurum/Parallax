@@ -337,6 +337,7 @@ function suite.run(sourcePath)
     reset(); check(env.Theme('default'), 'Default rejected with a refresh pending'); writes()
     stale(held, 'Default left its superseded timer live')
     reset(); check(env.Adjust('BorderThickness',1), 'Border arrow rejected'); held = select(2, deferred())
+    -- With an arrow refresh pending, a preset refreshes the whole suite once.
     reset(); check(env.Profile('economy'), 'Profile rejected with a refresh pending'); writes()
     stale(held, 'A profile left its superseded timer live')
     -- A timer armed before a reload survives it natively; new tokens must not match it.
@@ -440,21 +441,41 @@ function suite.run(sourcePath)
         reset(); check(env.Accent(name), 'Accent rejected'); local values = writes()
         check(values.AccentColor and not values.BackgroundColor, 'Accent changed surface')
     end
-    reset(); env.Profile('economy'); local values = writes()
+    -- SHARED-02 scope: a preset reloads only the skins that read the intervals
+    -- (GPU, RAM and IO groups; Visualizer and Media by name) and updates
+    -- Settings in place, without reloading Settings or the rest of the suite.
+    local consumers = '!RefreshGroup|ParallaxGPU,!RefreshGroup|ParallaxIO,!RefreshGroup|ParallaxRAM,!Refresh|Parallax\\Media,!Refresh|Parallax\\Visualizer'
+    local function scoped()
+        local values, targets, redraws = {}, {}, 0
+        for _, call in ipairs(calls) do
+            if call[1] == '!WriteKeyValue' then
+                check(call[2] == 'Variables' and call[5] == 'X:\\Isolated\\User\\Settings.inc', 'Unexpected persistence target')
+                values[call[3]] = call[4]
+            elseif call[1] == '!RefreshGroup' or call[1] == '!Refresh' then targets[#targets+1] = call[1]..'|'..tostring(call[2])
+            elseif call[1] == '!Redraw' then redraws = redraws + 1
+            elseif call[1] ~= '!SetOption' and call[1] ~= '!UpdateMeter' then error('Unexpected preset command: '..tostring(call[1])) end
+        end
+        check(table.concat(targets, ',') == consumers, 'A preset must refresh exactly the interval consumers, got '..table.concat(targets, ','))
+        check(redraws == 1, 'A scoped preset must redraw Settings in place')
+        return values
+    end
+    reset(); check(env.Profile('economy'), 'Economy rejected'); local values = scoped()
     check(values.MetricsInterval=='2000' and values.SensorInterval=='4000' and values.CapacityInterval=='60000' and values.VisualizerInterval=='100', 'Economy cadence incorrect')
-    reset(); env.Profile('balanced'); values = writes()
-    check(values.MetricsInterval=='1000' and values.SensorInterval=='2000' and values.CapacityInterval=='30000' and values.VisualizerInterval=='50', 'Balanced cadence incorrect')
+    check(display('MeterRefreshValue') == 'Economy' and display('MeterCadence') == 'Metrics 2s  Sensors 4s  Disk 60s  Spectrum ~10 FPS', 'Settings did not show the preset in place')
+    reset(); check(env.CycleProfile(1), 'Second preset click rejected'); values = scoped()
+    check(values.MetricsInterval=='1000' and values.SensorInterval=='2000' and values.CapacityInterval=='30000' and values.VisualizerInterval=='50', 'A second click must step from the saved preset, not the loaded one')
+    check(display('MeterRefreshValue') == 'Balanced', 'Settings did not show the second preset in place')
     local cadenceKeys = {'MetricsInterval','SensorInterval','CapacityInterval','VisualizerInterval'}
     local cadences = {balanced={'1000','2000','30000','50'}, economy={'2000','4000','60000','100'}}
     for _, current in ipairs({'balanced','economy','custom'}) do
         for index, key in ipairs(cadenceKeys) do vars[key] = (cadences[current] or cadences.balanced)[index] end
         if current == 'custom' then vars.SensorInterval='3000' end
-        reset(); env.Update()
+        reload(); reset(); env.Update()
         check(display('MeterRefreshValue') == (current == 'balanced' and 'Balanced' or current == 'economy' and 'Economy' or 'Custom'), 'Refresh choice misrepresents saved intervals')
         for _, call in ipairs(calls) do check(call[1] == '!SetOption', 'Reading a custom profile mutated settings') end
         for _, direction in ipairs({-1,1}) do
-            reset(); check(env.CycleProfile(direction), 'Valid profile direction rejected')
-            local saved = writes()
+            reload(); reset(); check(env.CycleProfile(direction), 'Valid profile direction rejected')
+            local saved = scoped()
             local target = current == 'balanced' and 'economy' or current == 'economy' and 'balanced' or (direction == -1 and 'economy' or 'balanced')
             local count = 0
             for key in pairs(saved) do count = count + 1 end

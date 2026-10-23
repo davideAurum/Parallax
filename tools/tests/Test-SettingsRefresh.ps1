@@ -275,27 +275,43 @@ try {
     Require ($applied.BackgroundColorVariable -eq '15,15,15,246') 'Reloaded Settings lost the transparency value.'
     $report.Scenarios.Add([pscustomobject]@{Name='Transparency burst';Clicks=3;Saved='15,15,15,246';RefreshesPerSkin=1;LastClickToRefreshS=[Math]::Round($delay,3)})
 
-    # 3. A profile change stays immediate: no debounce delay.
-    $id=Send-Steps @('click:MeterRefreshIncrease')
-    $applied=Await-Report (Join-Path $runRoot 'ready-4.txt')
-    foreach ($name in $parallaxWitnesses) { Await-Generation $name 4 }
-    $delay=(Get-LastLoadClock 'All')-[double]::Parse($applied.LastClick,$invariant)
-    Require ($delay -lt 0.75) "Profile refresh was delayed $delay s."
+    # 3. A refresh preset is immediate and reloads only the interval consumers;
+    #    Settings shows it in place, and Parallax-only skins are left alone.
+    $consumers=@('GPU','RAM','IO','Visualizer','Media')
+    $id=Send-Steps @('click:MeterRefreshIncrease','snap')
+    $shown=Await-Report (Join-Path $runRoot "result-$id.txt")
+    foreach ($name in $consumers) { Await-Generation $name 4 }
+    $delay=(Get-LastLoadClock 'GPU')-[double]::Parse($shown.LastClick,$invariant)
+    Require ($delay -lt 0.75) "Preset refresh was delayed $delay s."
     Start-Sleep -Milliseconds 1500
-    $expected.Settings=4; foreach ($name in $parallaxWitnesses) { $expected[$name]=4 }
-    Assert-Generations $expected 'Profile change'
-    Require ($applied.MeterRefreshValue -eq 'Economy' -and $applied.MetricsIntervalVariable -eq '2000') 'Profile change did not apply Economy.'
+    foreach ($name in $consumers) { $expected[$name]=4 }
+    Assert-Generations $expected 'Scoped preset'
+    Require ($shown.MetricsIntervalVariable -eq '1000') 'Settings reloaded for a preset.'
+    Require ($shown.MeterRefreshValue -eq 'Economy' -and $shown.MeterCadence -eq 'Metrics 2s  Sensors 4s  Disk 60s  Spectrum ~10 FPS') 'Settings did not show the preset in place.'
     foreach ($pair in @(@('MetricsInterval','2000'),@('SensorInterval','4000'),@('CapacityInterval','60000'),@('VisualizerInterval','100'))) { Expect-UserValue $pair[0] $pair[1] }
-    $report.Scenarios.Add([pscustomobject]@{Name='Profile (immediate)';Refreshed='Parallax group';LastClickToRefreshS=[Math]::Round($delay,3)})
+    $report.Scenarios.Add([pscustomobject]@{Name='Preset (scoped, immediate)';Refreshed=($consumers -join ',');NotRefreshed='Settings,All,Control';LastClickToRefreshS=[Math]::Round($delay,3)})
+
+    # 3b. A preset clicked while an arrow refresh is pending refreshes the whole suite once, at once.
+    $id=Send-Steps @('click:MeterScaleIncrease','click:MeterRefreshIncrease')
+    $applied=Await-Report (Join-Path $runRoot 'ready-4.txt')
+    foreach ($name in $parallaxWitnesses) { Await-Generation $name ($expected[$name]+1) }
+    $delay=(Get-LastLoadClock 'All')-[double]::Parse($applied.LastClick,$invariant)
+    Require ($delay -lt 0.75) "Escalated refresh was delayed $delay s."
+    Start-Sleep -Milliseconds 1500
+    $expected.Settings=4; foreach ($name in $parallaxWitnesses) { $expected[$name]=$expected[$name]+1 }
+    Assert-Generations $expected 'Preset with a pending arrow refresh'
+    Require ($applied.ScaleVariable -eq '1.06' -and $applied.MeterRefreshValue -eq 'Balanced' -and $applied.MetricsIntervalVariable -eq '1000') 'Escalated refresh lost a value.'
+    Expect-UserValue 'Scale' '1.06'; Expect-UserValue 'MetricsInterval' '1000'
+    $report.Scenarios.Add([pscustomobject]@{Name='Preset with a pending arrow';Refreshed='Parallax group, once';LastClickToRefreshS=[Math]::Round($delay,3)})
 
     # 4. Closing Settings inside the debounce window still applies the change once (OnCloseAction).
     $id=Send-Steps @('click:MeterScaleDecrease','click:MeterClose')
-    foreach ($name in $parallaxWitnesses) { Await-Generation $name 5 }
+    foreach ($name in $parallaxWitnesses) { Await-Generation $name ($expected[$name]+1) }
     Start-Sleep -Milliseconds 1500
-    foreach ($name in $parallaxWitnesses) { $expected[$name]=5 }
+    foreach ($name in $parallaxWitnesses) { $expected[$name]=$expected[$name]+1 }
     Assert-Generations $expected 'Close inside the debounce window'
-    Expect-UserValue 'Scale' '1.04'
-    $report.Scenarios.Add([pscustomobject]@{Name='Close with a pending change';Saved='1.04';RefreshesPerWitness=1;SettingsReloads=0})
+    Expect-UserValue 'Scale' '1.05'
+    $report.Scenarios.Add([pscustomobject]@{Name='Close with a pending change';Saved='1.05';RefreshesPerWitness=1;SettingsReloads=0})
 
     $logPath=Join-Path $runRoot 'Rainmeter.log'
     $errors=@(); $warnings=@()

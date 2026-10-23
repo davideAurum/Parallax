@@ -90,7 +90,7 @@ Settings form labels and numeric controls use fixed neutral editor text and 9/8 
 
 Edit settings opens the user include in Notepad. Save changes, then click Apply saved edits. The module-specific `User/<Module>.inc` is included after global values, allowing intentional overrides. A full module launcher, sensor setup wizard and theme import/export remain future milestones. Content padding defaults to 6 pixels. Module layouts must be checked for clipping across supported font sizes.
 
-The Refresh row cycles Balanced/Economy using either arrow or a forward click on its centered value. Its displayed name is derived from all four saved intervals; unmatched settings show Custom and remain untouched until a preset is chosen. From Custom, Previous chooses Economy and Next/center chooses Balanced. No additional preference key is stored. Balanced requests eligible metrics every second, sensors every two seconds, capacity every 30 seconds and spectrum every 50 ms. Economy requests 2s/4s/60s/100ms respectively. Native network remains 1s, chronometer timing remains independent, and UsageMonitor/HWiNFO may keep their own cadence. These presets are not benchmarked CPU guarantees. Unload optional skins/providers when not needed; closing the settings panel leaves other utilities running.
+The Refresh row cycles Balanced/Economy using either arrow or a forward click on its centered value. Its displayed name is derived from all four saved intervals; unmatched settings show Custom and remain untouched until a preset is chosen. From Custom, Previous chooses Economy and Next/center chooses Balanced. No additional preference key is stored. Balanced requests eligible metrics every second, sensors every two seconds, capacity every 30 seconds and spectrum every 50 ms. Economy requests 2s/4s/60s/100ms respectively. Native network remains 1s, chronometer timing remains independent, and UsageMonitor/HWiNFO may keep their own cadence. Choosing a preset reloads only the skins that read these intervals ([refresh preset scope](#refresh-preset-scope)). These presets are not benchmarked CPU guarantees. Unload optional skins/providers when not needed; closing the settings panel leaves other utilities running.
 
 The settings panel and picker are event-driven (`Update=-1`). Each of the twelve numeric fields launches `Scripts/SettingsInput.ps1` once through Rainmeter's bundled RunCommand plugin, using existing Windows PowerShell 5.1 and WinForms. The console stays hidden; only a borderless textbox appears over the field. It uses the installed Segoe UI font for editing, writes no files and exits on apply/cancel. Its output is a fixed ASCII numeric/cancel protocol. A fixed FinishAction calls Lua, which reads the measure's string value as data, revalidates it, and writes only the corresponding known setting or background alpha. There is no recurring helper process. InputText's raw action interpolation is not used. The helper is one of the exact reviewed packaging exceptions.
 
@@ -141,3 +141,24 @@ Validation on 2026-10-22, Rainmeter 4.5.28:
 - `Test-SettingsFields.ps1` (12 typed saves, 12 single refreshes), `Test-ThemeDropdown.ps1`, the 120-case geometry check and `tools/Test-Parallax.ps1` pass. A resting Global Settings preview is pixel-identical to the previous build.
 
 Not exercised: physical pointer input, the real module skins and their helper relaunch cost, and the live configuration. The saving itself is left to the suite benchmark.
+
+## Refresh preset scope
+
+A Balanced/Economy choice saves the four interval keys at once, as before, but no longer reloads the whole suite (SHARED-02). It refreshes only the skins that read them:
+
+| Key | Read by | Refreshed as |
+| --- | --- | --- |
+| `MetricsInterval` | GPU and Memory Meter `Update`; GPU dividers and helpers; RAM's PAGE host | `ParallaxGPU`, `ParallaxRAM` groups |
+| `SensorInterval` | GPU sensor dividers and helpers | `ParallaxGPU` group |
+| `CapacityInterval` | Disk Meter capacity and inventory measures | `ParallaxIO` group |
+| `VisualizerInterval` | `Modules/Visualizer/Options.inc`, included by Audio and Media | `Parallax\Visualizer`, `Parallax\Media` by name |
+
+CPU, Network, Chronometer, Welcome, ColorPicker, the utility settings panels and Global Settings itself are not reloaded. CPU uses its own `CPUUpdateInterval`/`CPUSensorInterval`. Global Settings shows the new preset name and sampling summary in place. The Disk Meter settings panel includes the capacity measures but runs at `Update=-1`, so it is not refreshed. Audio and Media have no group of their own; they are refreshed by name, and when one is not loaded Rainmeter logs a "not active" warning and loads nothing. If an arrow refresh is pending, the preset refreshes the whole suite once instead. A key with no listed consumer would also refresh the whole suite.
+
+Validation on 2026-10-22, Rainmeter 4.5.28:
+
+- `SettingsSuite.lua` checks that each preset refreshes exactly those five targets, never `Parallax` or Settings, shows the preset in place, and steps a second click from the saved preset: 1,882 assertions offline and 2,000 checks in `Test-Settings.ps1`.
+- `Test-SettingsRefresh.ps1` reloaded the GPU, RAM, IO, Visualizer and Media witnesses once each, 0.01 s after the click. Settings, the Parallax-only witness and the control did not reload, and Settings showed Economy and `Metrics 2s  Sensors 4s  Disk 60s  Spectrum ~10 FPS` from its saved values. A preset clicked 0.1 s after an arrow refreshed the whole suite once, 0.17 s after the click, with no second refresh when the arrow's timer expired.
+- `tools/Test-Parallax.ps1` passes, and the resting Global Settings preview is still pixel-identical to the build before SHARED-02.
+
+The inactive-config warning was read from the 4.5.28 bang code, not reproduced. Group membership for Audio and Media (owned by those modules) would make it silent.

@@ -69,7 +69,7 @@ function Suite.run(path)
             memoryValues = options.memoryValues or {}, missingMemory = {},
             updateFailures = {}, readFailures = {}, frozenMemory = {},
             lookups = {}, measures = {}, measureLookups = {}, bangs = options.bangs or {},
-            variables = {}}
+            variables = {}, chars = 0}
         for key, value in pairs(options.variables or {}) do f.variables[key] = value end
         for rank = 1, 5 do
             f.memory[rank] = {name = noMemory, enabled = false,
@@ -182,7 +182,10 @@ function Suite.run(path)
             if type(f.now) == 'function' then return f.now() end
             return f.now
         end}, {__index = function() return forbidden end})
-        local env = setmetatable({SKIN = skin, SELF = {}, os = fakeos, io = blocked,
+        -- Counts hex-decoded name bytes (string.char) so a test can tell when
+        -- a packet was decoded again.
+        local countedString = setmetatable({char = function(...) f.chars = f.chars + 1; return string.char(...) end}, {__index = string})
+        local env = setmetatable({SKIN = skin, SELF = {}, os = fakeos, io = blocked, string = countedString,
             package = blocked, debug = blocked, require = forbidden,
             dofile = forbidden, loadfile = forbidden, loadstring = forbidden}, {__index = _G})
         env._G = env
@@ -347,6 +350,20 @@ function Suite.run(path)
         eq(f:text('Name', 1), 'PID 11'); eq(f.nameReads, 0)
         f.missingNames = false; f.names = packet({{11, 'available.exe'}}); f:update()
         eq(f:text('Name', 1), 'available.exe'); eq(f.nameLookups, 2)
+    end)
+    test('an unchanged name packet is decoded once, still ages out, and a new packet decodes again', function()
+        local f = fixture({{name = instance(11), value = 25}}, {names = packet({{11, 'valid.exe'}})})
+        eq(f:text('Name', 1), 'valid.exe'); local decoded = f.chars; ok(decoded > 0, 'the first packet is decoded')
+        for _ = 1, 3 do f:update() end
+        eq(f.chars, decoded, 'an unchanged packet is not decoded again'); eq(f:text('Name', 1), 'valid.exe')
+        f.now = 1009; f:update(); eq(f:text('Name', 1), 'PID 11', 'an unchanged packet still ages out')
+        f.now = 1000; f:update(); eq(f:text('Name', 1), 'valid.exe'); eq(f.chars, decoded)
+        f.names = packet({{11, 'other.exe'}}); f:update(); eq(f:text('Name', 1), 'other.exe')
+        ok(f.chars > decoded, 'a new packet is decoded')
+        f.names = packet({{11, 'valid.exe'}, {11, 'duplicate.exe'}}); f:update(); eq(f:text('Name', 1), 'PID 11')
+        f:update(); eq(f:text('Name', 1), 'PID 11', 'an invalid packet stays invalid while unchanged')
+        f.env.Initialize(); f.chars = 0; f.names = packet({{11, 'valid.exe'}}); f:update()
+        eq(f:text('Name', 1), 'valid.exe'); ok(f.chars > 0, 'reinitialization decodes afresh')
     end)
     test('stale, future, malformed and duplicate maps invalidate all names but no valid counter', function()
         local prefix = 'GPU_NAMES|1|1000|'

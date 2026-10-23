@@ -7,6 +7,8 @@
 -- https://devblogs.microsoft.com/directx/gpus-in-the-task-manager/), never a
 -- sum of engines. Windows names decorate, but never merge, raw identities.
 local measures, previous, memoryBindings, recentPIDs
+-- The last name packet and its decoded PID map (empty when it was invalid).
+local namesPacket, namesDecoded
 local sources = {'MeasureGPUActivity', 'MeasureGPUProcess2',
     'MeasureGPUProcess3', 'MeasureGPUProcess4', 'MeasureGPUProcess5'}
 local namesSource = 'MeasureGPUTemperatureController'
@@ -78,15 +80,20 @@ local function processNames()
     local now = os.time()
     if not finite(now) or epoch > now + 5 or now - epoch > math.max(8, 3 * interval / 1000 + 2) then return {} end
     if entries == '?' then return {} end
+    -- The packet only changes with a new helper sample (2 s by default), so
+    -- an identical packet maps to the same names; its age is checked above
+    -- every tick, the hex decoding is not repeated. The map is read-only.
+    if packet == namesPacket then return namesDecoded end
     local result, count = {}, 0
     for entry in (entries .. ';'):gmatch('(.-);') do
         count = count + 1
         local rawPid, nameHex = entry:match('^(%d+),(%x+)$')
         local pid = integer(rawPid, 4294967295)
         local name = nameHex and basename(nameHex)
-        if count > requestLimit or not pid or not name or result[pid] then return {} end
+        if count > requestLimit or not pid or not name or result[pid] then result = {}; break end
         result[pid] = name
     end
+    namesPacket, namesDecoded = packet, result
     return result
 end
 
@@ -186,6 +193,7 @@ end
 
 function Initialize()
     measures, previous, memoryBindings, recentPIDs = {}, {}, {}, {}
+    namesPacket, namesDecoded = nil, nil
 end
 
 function Update()

@@ -481,7 +481,17 @@ The audiodg attribution question is answered: see [Live A/B](#live-ab-drawer-and
    - **Accepted trade-off:** GPU History no longer lines up in time with CPU and Memory History, which advance once a second.
    - **To align them later:** set `SensorInterval=1000`, which roughly doubles the GPU helper's sampling cost.
 
-Still open with the owner: whether Media's idle 50 ms wake-up while title animation is on is worth removing (deferred until the phase-A benchmark quantifies it).
+**Measured for decision 3 (Media's idle 50 ms tick).** Phase-A build, shipped defaults (drawer collapsed, nothing playing), hardware rendering, 3 interleaved trials. Reports `*-default-anim20-t*` and `*-default-anim0-t*`.
+
+| Title animation | Media total | UI thread | Plugin threads | UI-thread wakeups/s | Rainmeter wakeups/s |
+| --- | ---: | ---: | ---: | ---: | ---: |
+| 20 fps (default) | 0.35 [0.34-0.45] | 0.20 | 0.15 | 99 | 173 |
+| Off | 0.30 [0.30-0.35] | 0.25 | 0.05 | 46 | 118 |
+
+- **The idle tick costs about 0.05% of a core,** inside the trial spread, plus about 53 wakeups/s.
+- **Media idle cost about 9.9% before phase A** (default preferences, software rendering); it is now 0.35%.
+- **Removing the remaining tick** would need ActionTimer or a reload on play/pause, which is more code for a negligible CPU gain.
+- **Still open with the owner:** whether the 53 wakeups/s matter. They chiefly affect deep idle states overnight, which C2's idle stand-down also covers.
 
 ## Found along the way (not performance)
 

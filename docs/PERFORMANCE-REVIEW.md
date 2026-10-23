@@ -439,7 +439,12 @@ Phase A can be one workflow: six builder agents, one per package in its own work
    - **Confirmed on screen first:** two captures of the live CPU Meter 8 s apart showed every usage value changing, while all voltage, temperature, clock and fan values stayed identical to the export last written on 2026-10-01. The footer read "HWiNFO: connected" because it only checked that HWiNFO was running.
    - **With the commit:** once every bound value has been unchanged for 60 s, the footer reads "HWiNFO: export not updating" and the frozen readings are withheld. They return when values change.
 
-The audiodg attribution question is answered: see [Live A/B](#live-ab-drawer-and-spotify-2026-10-22). Still open with the owner: the GPU History time axis (`a49a440`, 1 px per real 2 s sample, about 7 min on screen) and whether Media's idle 50 ms wake-up while title animation is on is worth removing (deferred until the phase-A benchmark quantifies it).
+The audiodg attribution question is answered: see [Live A/B](#live-ab-drawer-and-spotify-2026-10-22). 7. **GPU History time axis (A4 `a49a440`): keep.**
+   - **Change:** one point per real 2 s driver sample (about 7 min across 208 px) instead of each sample plotted twice (3.5 min).
+   - **Accepted trade-off:** GPU History no longer lines up in time with CPU and Memory History, which advance once a second.
+   - **To align them later:** set `SensorInterval=1000`, which roughly doubles the GPU helper's sampling cost.
+
+Still open with the owner: whether Media's idle 50 ms wake-up while title animation is on is worth removing (deferred until the phase-A benchmark quantifies it).
 
 ## Found along the way (not performance)
 

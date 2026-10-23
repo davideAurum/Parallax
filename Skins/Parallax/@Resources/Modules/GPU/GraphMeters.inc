@@ -42,7 +42,8 @@ Scale=1
 GraphStart=Right
 GraphOrientation=Vertical
 AntiAlias=1
-DynamicVariables=1
+; Every option above is fixed until a refresh (settings and colours apply by
+; refreshing), so no DynamicVariables: an update only pushes the next point.
 UpdateDivider=-1
 
 ; Native Line starts with a zero-filled ring buffer. Cover its uncollected

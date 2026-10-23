@@ -439,6 +439,8 @@ graph = meters["MeterGPUUtilizationGraph"]
 assert graph["Meter"] == "Line" and graph["MeasureName"] == "MeasureGPUUtilizationHistory"
 assert graph["AutoScale"] == "0" and graph["LineCount"] == "1" and graph["GraphStart"] == "Right"
 assert graph["LineColor"] == "#GPUColor#" and graph["UpdateDivider"] == "-1"
+# Load-time options only: no per-update re-parse of the geometry chains.
+assert "DynamicVariables" not in graph, "the History Line meter must not re-read its options"
 uncollected = meters["MeterGPUGraphUncollected"]
 assert "[MeasureGPUGraphSamples]" in uncollected["Shape"], "the startup cover must follow the sample count"
 assert uncollected["DynamicVariables"] == "1" and uncollected["UpdateDivider"] == "1"

@@ -1157,6 +1157,30 @@ class SkinContractTests(unittest.TestCase):
         self.assertEqual(numeric(expand('#MediaLegacyDivider#')),1)
         self.assertEqual(numeric(expand(sections['MeterHeading']['UpdateDivider'])),1)
 
+    def test_periodic_transport_changes_are_forced_and_painted_on_the_provider_tick(self):
+        # The transport meters rest at UpdateDivider=-1, so Media.lua forces
+        # exactly the ones whose options change, periodic samples included (a
+        # play/pause from another app). It issues no !Redraw on that path: the
+        # measure-bound player meters share MeasureMediaUI's divider, so they
+        # are due on the same tick and the skin cycle repaints right after.
+        bound=('MeterTrackTitle','MeterArtist','MeterAlbum','MeterProgress','MeterTiming','MeterCover')
+        for drawer in DRAWER_STATES:
+            for columns in COLUMNS:
+                for animation in ('20','10','0'):
+                    with self.subTest(drawer=drawer,columns=columns,animation=animation):
+                        sections,_,_,expand=read_config('Media.ini',drawer=drawer,columns=columns,title_animation=animation)
+                        val=lambda expression: numeric(expand(expression))
+                        default=sections['Rainmeter']['DefaultUpdateDivider']
+                        ui=val(sections['MeasureMediaUI']['UpdateDivider'])
+                        self.assertGreaterEqual(ui,1)
+                        for name in ('MeterPrevious','MeterPlayPause','MeterNext'):
+                            self.assertEqual(val(resolve_style(sections,name)['UpdateDivider']),-1,name)
+                        # Hidden meters still count as due, so a hidden track
+                        # (no media) still repaints the forced change.
+                        for name in bound:
+                            style=resolve_style(sections,name)
+                            self.assertEqual(val(style.get('UpdateDivider',default)),ui,f'{name} is not due on the provider tick')
+
     def test_title_animation_setting_chooses_the_tick_and_pulse(self):
         # Owner decision 2026-10-22 (MEDIA-06): User\Media.inc
         # MediaTitleAnimation is 20 (fps, the default), 10 or 0 (a static

@@ -112,17 +112,68 @@ Maintenance convention: when a dependency changes, update this table, the setup 
 - `CPU/CPU.ini`: header, processor info, graph, table styles and independent settings action.
 - `CPU/Settings/Settings.ini`: separate event-driven settings config.
 - `CPU/Colors/Colors.ini`, `Modules/CPU/ThreadColors.lua`, `ThreadColorInput.ps1` and `ThreadColorMeters.inc`: CPU-only bounded hex/swatch editor and immediate color bridge for logical threads 1–64.
-- `Modules/CPU/CPU.lua`: adaptive section layout, core binding, process presentation, individually colored history paths and preference application.
+- `Modules/CPU/CPU.lua`: adaptive section layout, core binding, process presentation, individually colored history paths and preference application. Its periodic `Update()` only sets options, and only changed ones; event handlers repaint.
 - `Modules/CPU/Measures.inc`: 129 % Processor Time UsageMonitor measures (one total, 64 page-relative table slots and 64 absolute graph slots), two metadata measures, 10 process-ranking UsageMonitor measures, an event-only apply measure and one controller.
 - `Modules/CPU/SensorMeasures.inc`, `Sensors.lua`, `DiscoverSensors.ps1`: three native aggregate-clock measures plus 26 optional sensor/discovery/event measures, including four identity-checked fields each for CPU-wide Core Clocks, CPU fan RPM and motherboard fan RPM, validated native-read presentation, and one-shot read-only discovery.
-- `Modules/CPU/CoreMeters.inc`: 64 bounded thread slots with usage, paired voltage/temperature, and table borders.
+- `Modules/CPU/CoreMeters.inc`: 64 bounded thread slots with usage, paired voltage/temperature, and table borders. Unbound slots stay at `UpdateDivider=-1`.
 - `Modules/CPU/CoreSensorMeasures.inc`: 512 initially disabled native Registry fields; only discovered sensor fields become active. The former separate CoreSensorMeters include is removed.
 - `Modules/CPU/ProcessMeters.inc`: process heading/state and 10 bounded name/value slots.
 - `Modules/CPU/Settings.lua`, `SettingsMeters.inc` and the shared `Scripts/SettingsInput.ps1`: CPU-only display controls, conditional settings layout, bounded numeric steppers/typed entry, wrapping enums, guided sensor setup, bounded named selection, persistence and immediate event delivery.
 - `Modules/CPU/tests/validate_cpu.py`: developer-only source/startup geometry validation; Python is not a runtime dependency.
 - `Modules/CPU/tests/Test-DiscoverSensors.ps1`, `validate_sensors.lua` and `validate_sensor_setup.lua`: offline protocol/selection and controller/setup behavior tests. These fixtures are excluded from distribution.
+- `Modules/CPU/tests/validate_controller.lua`: offline `CPU.lua` suite that runs the controller against a model of Rainmeter's skin cycle built from the skin's own INI files (see Performance hygiene below).
 
 Settings events use documented SetVariableGroup and UpdateMeasureGroup bangs. An earlier implementation used an invalid CommandMeasureGroup bang; native integration exposed it and the final sender replaces it. Evidence must check each Rainmeter launch's log before a later launch replaces the log. [Bangs](https://docs.rainmeter.net/manual/bangs/)
+
+## Performance hygiene (2026-10-22)
+
+This is package A3 of step 2 in the [performance review](../PERFORMANCE-REVIEW.md), covering findings CPU-01 to CPU-04, XMOD-04 and ENGINE-05. Each change is its own commit, so each can be measured or reverted alone. None is meant to change what the skin shows.
+
+- **One repaint per tick (CPU-01, XMOD-04).** `CPU.lua`'s `Update()` and `Sensors.lua`'s periodic `render()` no longer end with `!UpdateMeterGroup CPUUI` and `!Redraw`.
+  - Both bangs ran synchronously inside the measure loop. Each tick forced an extra pass over about 368 meters and painted the window two or three times, about 2.5 paints a second.
+  - The skin now paints once per tick, after its own meter pass. That pass applies everything the scripts set, because every meter they change per tick has `UpdateDivider` 1.
+  - Settings changes, paging, discovery results, reconnects and the deferred processor details still repaint immediately.
+- **No per-tick plugin reloads (CPU-02, ENGINE-05).** The 64 table slots and 10 process slots no longer have `DynamicVariables=1`.
+  - With it, each of those 74 UsageMonitor measures re-read its options every second, disabled or not, and each re-read is a plugin Reload.
+  - A Reload that lands while UsageMonitor's worker holds its lock starts a thread.
+  - `CPU.lua` now sends a slot's `Name`, and its enable or disable, only when that value changes. Each `!SetOption` still forces the one re-read the slot needs.
+- **Change-gated bangs (CPU-04).**
+  - `set()` and `visible()` skip values they already sent.
+  - Process rows show or hide only when a rank appears or disappears.
+  - A steady tick now sends only what changed: thread values, the total and the history paths. Before, it also resent 5 process group bangs, 10 process options, the hidden state text and the visibility bangs.
+- **Idle Thread slots skip the meter pass (CPU-04).** The 320 slot meters start at `UpdateDivider=-1`.
+  - Binding a slot sets the divider to 1 and forces one update of its group. That update also applies the V/T text `Sensors.lua` kept writing while the slot was idle. Unbinding sets -1 again.
+  - With 12 threads, 260 hidden meters no longer update every tick.
+  - Never ship the `CoreMeters.inc` half without the `CPU.lua` half. A -1 meter ignores `!SetOption` until forced, so the rows would freeze.
+- **History graph (CPU-03, items 1-3).**
+  - `MeterHistory` keeps one shape slot per drawn trace: 12 in per-thread mode, 1 in total mode. Before, it also held 52 invisible placeholders, and every re-read and redraw parsed, built and filled all of them.
+  - Both history meters dropped `DynamicVariables`.
+  - The graph size is resolved once per layout, and sample x positions are precomputed. Path strings are byte-identical to before.
+  - Two parts were not done. Shortening points to 2 decimals is not pixel-identical. Changing the default graph source (item 4) is the owner's decision.
+- **Sensor list parsing.** `Sensors.lua` splits the HWiNFO value-name list once per render. Before, it split it once per bound reading, 15 times on this 6-core CPU.
+
+Validation:
+
+- **Controller suite.** The new `tests/validate_controller.lua` runs `CPU.lua` against a model of Rainmeter 4.5.28's skin cycle. The model reads groups, styles, dividers and `DynamicVariables` from the skin's own INI files.
+  - Each cycle runs the measures, then the controller, then every meter its divider allows, then one redraw.
+  - After every cycle, and after every event that repaints, no visible meter may hold an unapplied option.
+  - It passes 23 cases. Each fix's new cases fail on the code before that fix, except the history path comparison, which is meant to pass on both. Removing `layout()`'s `!UpdateMeter *`, or idling the slots without the Lua half, trips the stale-meter check.
+  - The history case compares every path string with a copy of the previous renderer at 60, 300 and 10 samples, and in total mode.
+- **Other suites.** `tests/validate_sensors.lua` passes 62 cases. The new ones check that periodic sensor reads do not repaint and that the value list is read once per render. `tests/validate_sensor_setup.lua` passes 42.
+  - The Lua suites ran in OBS's LuaJIT `lua51.dll`, not in Rainmeter's own Lua.
+  - `tests/validate_cpu.py` passes. It now also checks that none of the 141 UsageMonitor measures has `DynamicVariables`, that all 320 slot meters start at -1, and that `CPU.lua` restores and forces them.
+  - `tools/Test-Parallax.ps1 -RequireAllModules -WarningsAsErrors`: 23 configs, 99 files, 0 errors, 0 warnings.
+- **Native captures.** `tools/Preview-Parallax.ps1 -Modules CPU -SettleSeconds 30` at width 220, scale 1, 228×558, in the harness's own isolated instance. Runs were taken before the changes (`Parallax-visual-preview-20261023T014123134Z-afd13017`) and after the repaint (`…014501936Z-c1bb8eb9`), slot-divider (`…015501287Z-a2f5d87e`) and history (`…020009031Z-730d3cc9`) commits.
+  - Every capture draws all twelve Thread rows with V/T cells, the process rows, and the graph frame with 12 traces.
+  - Against the first capture, the static regions match pixel for pixel: title, processor panel, labels, table and process headers, and footer. Only live readings differ, as they must between runs.
+  - The logs have no errors or warnings. These windows are taller than about 349 px, so PrintWindow resamples them, but both sides of each comparison were resampled the same way.
+
+Not verified:
+
+- The CPU and GPU effect, which step 3 measures separately.
+- Rainmeter's own Lua runtime.
+- Long runs.
+- Manual paging and other non-default layouts, which were checked only in the offline suite.
 
 ## Tooltips removed (2026-10-18)
 

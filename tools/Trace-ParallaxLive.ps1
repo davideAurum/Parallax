@@ -99,8 +99,10 @@ function Read-Sensors {
     foreach ($property in $props.PSObject.Properties) {
         if ($property.Name -notmatch '^Label(\d+)$') { continue }
         $index = $Matches[1]
-        if ($property.Value -notmatch $SensorPattern) { continue }
         $raw = [string]$props."Value$index"
+        # Fan readings can carry a bare label (Dell's EC exports "CPU" and "Mainboard"),
+        # so a value measured in RPM counts as a match too.
+        if ($property.Value -notmatch $SensorPattern -and $raw -notmatch 'RPM') { continue }
         $sensor = [string]$props."Sensor$index"
         $device = if ($sensor -match 'GPU') { 'GPU' } elseif ($sensor -match 'CPU') { 'CPU' } else { 'SYS' }
         $name = ('{0} {1}' -f $device, $property.Value) -replace '[^A-Za-z0-9 ]', '' -replace '\s+', '_'

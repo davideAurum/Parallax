@@ -14,12 +14,13 @@ Percent=0
 RawValue=0
 
 ; Self reference starts at zero on load AND refresh; global Counter does not.
-; Match the Line meter's update cadence. This is a sample count, not telemetry,
-; and it only drives the startup cover over the History graph.
+; Counts History points: Temperature.lua forces it together with the Line
+; meter for each point it pushes (and Rainmeter updates both once at load).
+; This is a point count, not telemetry; it only drives the startup cover.
 [MeasureGPUGraphSamples]
 Measure=Calc
 Formula=Min(MeasureGPUGraphSamples+1,#ContentWidth#)
-UpdateDivider=1
+UpdateDivider=-1
 
 ; Values can remain in the registry after HWiNFO stops. This is a snapshot.
 ; List membership distinguishes a missing ValueRawN from a real numeric zero.

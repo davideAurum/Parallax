@@ -1,8 +1,10 @@
 ; GPU load history in Memory Meter's style: a History header with its fixed
 ; range at the right, then the graph. The trace is the driver's GPU busy time
 ; (the header value and the Engine table's Core row), supplied by
-; Temperature.lua through MeasureGPUUtilizationHistory. Height follows the
-; shared #GraphHeight# variable; the panel grows to fit.
+; Temperature.lua through MeasureGPUUtilizationHistory: one point per driver
+; sample (every Max(1000,MetricsInterval,SensorInterval) ms, 2 s by default),
+; so the Line meter is UpdateDivider=-1 and forced by the controller. Height
+; follows the shared #GraphHeight# variable; the panel grows to fit.
 
 [MeterGPUHistoryLabel]
 Meter=String
@@ -41,7 +43,7 @@ GraphStart=Right
 GraphOrientation=Vertical
 AntiAlias=1
 DynamicVariables=1
-UpdateDivider=1
+UpdateDivider=-1
 
 ; Native Line starts with a zero-filled ring buffer. Cover its uncollected
 ; left side; do not portray those zeros as observed GPU usage. Overlap by

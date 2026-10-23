@@ -75,7 +75,7 @@ function suite.run(sourcePath)
         check(token ~= nil and redraws == 1, 'An arrow must redraw once and arm its flush timer')
         local count, forced = 0, true
         for meter in pairs(texts) do count = count + 1; forced = forced and updated[meter] == true end
-        check(textOnly and count == 24 and forced, 'An arrow must set only text, for every summary, field and color value, forced onto its Update=-1 meter')
+        check(textOnly and count == 25 and forced, 'An arrow must set only text, for every summary, field and color value, forced onto its Update=-1 meter')
         return values, token
     end
     local function flush(token)
@@ -88,7 +88,8 @@ function suite.run(sourcePath)
         reset(); check(not env.FlushRefresh(token) and #calls == 0, message)
     end
     env.Update()
-    check(#calls == 24, 'Display update should set summaries, profile, fields and all color hex values')
+    -- 24 before the Idle pause row (2026-10-23).
+    check(#calls == 25, 'Display update should set summaries, profile, idle pause, fields and all color hex values')
     for _, call in ipairs(calls) do check(call[1] == '!SetOption', 'Display update must not persist or refresh') end
     check(display('MeterAccentValue') == '#89BEFA' and display('MeterAccent2Value') == '#B5A1E2', 'Accent hex differs from shared RGB value')
     check(display('MeterBackgroundTransparencyInput')=='0%' and display('MeterTitleSizeInput')=='10 pt', 'Initial surface/text controls differ from settings')
@@ -487,6 +488,96 @@ function suite.run(sourcePath)
         reset(); check(not env.CycleProfile(direction) and #calls == 0, 'Invalid profile direction caused an action')
     end
     reset(); check(not env.CycleProfile(nil) and #calls == 0, 'Missing profile direction caused an action')
+
+    -- Idle pause (owner decision 2): Off -> 5 -> 10 -> 30 -> Off, Custom kept
+    -- until a choice, one debounced apply per burst. On/off reloads the whole
+    -- Parallax group (the hook comes or goes); 5/10/30 reloads only the
+    -- coordinator; returning to the loaded value applies nothing.
+    local function idleWrites()
+        local values = {}
+        for _, call in ipairs(calls) do
+            if call[1] == '!WriteKeyValue' then
+                check(call[2] == 'Variables' and call[3] == 'IdlePauseMinutes' and call[5] == 'X:\\Isolated\\User\\Settings.inc', 'Idle pause writes only its key')
+                values[#values + 1] = call[4]
+            end
+        end
+        return values
+    end
+    local function idleToken()
+        local token
+        for _, call in ipairs(calls) do
+            if #call == 1 and tostring(call[1]):match('^%[!Delay ') then
+                local delay, found = call[1]:match('^%[!Delay (%d+)%]%[!CommandMeasure MeasureSettings "FlushIdlePause%((%d+)%)"%]$')
+                check(delay == '800' and found ~= nil, 'Idle pause must use the built-in 800 ms !Delay and its callback')
+                token = tonumber(found)
+            end
+            check(call[1] ~= '!RefreshGroup' and call[1] ~= '!Refresh', 'A click must not reload anything before the debounce')
+        end
+        return token
+    end
+    local function flushTargets(token)
+        reset(); check(env.FlushIdlePause(token), 'The newest idle flush did not run')
+        local targets = {}
+        for _, call in ipairs(calls) do if call[1] == '!RefreshGroup' or call[1] == '!Refresh' then targets[#targets + 1] = call[1] .. '|' .. tostring(call[2]) end end
+        return table.concat(targets, ',')
+    end
+    -- Display: loaded values and Custom.
+    for value, label in pairs({ ['0'] = 'Off', ['5'] = '5 min', ['10'] = '10 min', ['30'] = '30 min', ['7'] = 'Custom', [''] = 'Custom', ['abc'] = 'Custom' }) do
+        vars.IdlePauseMinutes = value; reload(); reset(); env.Update()
+        check(display('MeterIdlePauseValue') == label, 'Idle pause ' .. value .. ' shows ' .. label .. ', got ' .. tostring(display('MeterIdlePauseValue')))
+    end
+    -- Cycling forward and back, with wrap; each click shows the value in place.
+    local forward = { ['0'] = '5', ['5'] = '10', ['10'] = '30', ['30'] = '0' }
+    local back = { ['0'] = '30', ['5'] = '0', ['10'] = '5', ['30'] = '10' }
+    for current, nextValue in pairs(forward) do
+        vars.IdlePauseMinutes = current; reload(); reset()
+        check(env.CycleIdlePause(1), 'Forward click rejected')
+        local values = idleWrites()
+        check(#values == 1 and values[1] == nextValue, 'Forward from ' .. current .. ' must save ' .. nextValue)
+        check(display('MeterIdlePauseValue') == ({ ['0'] = 'Off', ['5'] = '5 min', ['10'] = '10 min', ['30'] = '30 min' })[nextValue], 'Shown in place')
+        vars.IdlePauseMinutes = current; reload(); reset()
+        check(env.CycleIdlePause(-1) and idleWrites()[1] == back[current], 'Back from ' .. current)
+    end
+    -- Custom is kept until a choice: forward goes to Off, back to 30 min.
+    vars.IdlePauseMinutes = '7'; reload(); reset()
+    check(env.CycleIdlePause(1) and idleWrites()[1] == '0', 'Custom forward goes to Off')
+    vars.IdlePauseMinutes = '7'; reload(); reset()
+    check(env.CycleIdlePause(-1) and idleWrites()[1] == '30', 'Custom back goes to 30 min')
+    -- Scope: Off -> on reloads the suite; 5 -> 10 only the coordinator.
+    vars.IdlePauseMinutes = '0'; reload(); reset()
+    check(env.CycleIdlePause(1), 'Off -> 5 rejected')
+    check(flushTargets(idleToken()) == '!RefreshGroup|Parallax', 'Turning Idle pause on reloads the Parallax group once')
+    vars.IdlePauseMinutes = '5'; reload(); reset()
+    check(env.CycleIdlePause(1), '5 -> 10 rejected')
+    check(flushTargets(idleToken()) == '!RefreshGroup|ParallaxIdleCoordinator', 'Changing the minutes reloads only the coordinator')
+    vars.IdlePauseMinutes = '30'; reload(); reset()
+    check(env.CycleIdlePause(1), '30 -> Off rejected')
+    check(flushTargets(idleToken()) == '!RefreshGroup|Parallax', 'Turning Idle pause off reloads the Parallax group once')
+    -- A burst: Off -> 5 -> 10 -> 30 -> Off returns to the loaded value: no reload;
+    -- only the newest timer acts, and it acts once.
+    vars.IdlePauseMinutes = '0'; reload(); reset()
+    local tokens = {}
+    for _ = 1, 4 do reset(); check(env.CycleIdlePause(1), 'Burst click rejected'); tokens[#tokens + 1] = idleToken() end
+    for index = 1, 3 do reset(); check(not env.FlushIdlePause(tokens[index]) and #calls == 0, 'A superseded idle timer acted') end
+    check(flushTargets(tokens[4]) == '', 'A burst back to the loaded value reloads nothing')
+    reset(); check(not env.FlushIdlePause(tokens[4]) and #calls == 0, 'A spent idle timer acted again')
+    -- Off -> 5 -> 10 in a burst: one suite reload (the hook is new).
+    vars.IdlePauseMinutes = '0'; reload()
+    reset(); env.CycleIdlePause(1); reset(); env.CycleIdlePause(1); local last = idleToken()
+    check(flushTargets(last) == '!RefreshGroup|Parallax', 'A burst that turns Idle pause on reloads the suite once')
+    -- Closing Settings applies a pending idle change at once.
+    vars.IdlePauseMinutes = '10'; reload(); reset(); env.CycleIdlePause(1)
+    reset(); check(env.FlushPending(), 'Closing must apply the pending idle change')
+    check(#calls == 1 and calls[1][1] == '!RefreshGroup' and calls[1][2] == 'ParallaxIdleCoordinator', 'Closing applies the minutes to the coordinator only')
+    reset(); check(not env.FlushPending() and #calls == 0, 'Nothing pending after the close flush')
+    -- An appearance save during a pending idle change covers it (one suite reload).
+    vars.IdlePauseMinutes = '5'; reload(); reset(); env.CycleIdlePause(1); local stale = idleToken()
+    reset(); check(env.Accent('amber'), 'Accent rejected')
+    reset(); check(not env.FlushIdlePause(stale) and #calls == 0, 'An idle timer superseded by a suite reload acted')
+    for _, direction in ipairs({0, 2, '1', false}) do
+        reset(); check(not env.CycleIdlePause(direction) and #calls == 0, 'Invalid idle direction caused an action')
+    end
+    vars.IdlePauseMinutes = '0'
     return passed
 end
 return suite

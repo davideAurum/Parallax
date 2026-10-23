@@ -4,7 +4,7 @@
 -- other roles: passive witnesses that count their own loads.
 -- os.clock is the CRT's wall clock since process start, shared by every skin.
 local root, role, generation, steps, sequence
-local reported = { 'MeterScaleInput', 'MeterGeometry', 'MeterBackgroundTransparencyInput', 'MeterBackgroundColorValue', 'MeterRefreshValue', 'MeterCadence' }
+local reported = { 'MeterScaleInput', 'MeterGeometry', 'MeterBackgroundTransparencyInput', 'MeterBackgroundColorValue', 'MeterRefreshValue', 'MeterCadence', 'MeterIdlePauseValue' }
 local function read(path)
     local file = io.open(path, 'rb'); if not file then return nil end
     local value = file:read('*a'); file:close(); return value
@@ -19,7 +19,7 @@ local function now() return string.format('%.3f', os.clock()) end
 local function snapshot(path)
     local ok, result = pcall(function()
         local lines = { 'PASS', 'Generation='..generation, 'Clock='..now(), 'LastClick='..(read(root..'lastclick.txt') or '') }
-        for _, name in ipairs({ 'Scale', 'BackgroundColor', 'MetricsInterval', 'SensorInterval', 'CapacityInterval', 'VisualizerInterval' }) do
+        for _, name in ipairs({ 'Scale', 'BackgroundColor', 'MetricsInterval', 'SensorInterval', 'CapacityInterval', 'VisualizerInterval', 'IdlePauseMinutes' }) do
             lines[#lines+1] = name..'Variable='..SKIN:GetVariable(name)
         end
         local bounds = assert(SKIN:GetMeter('MeterBounds'))

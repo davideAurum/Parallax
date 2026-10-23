@@ -27,6 +27,8 @@ $witnesses=[ordered]@{
     IO=@{Config='Parallax\WitnessIO';Group='Parallax|ParallaxIO'}
     Visualizer=@{Config='Parallax\Visualizer';Group='Parallax'}
     Media=@{Config='Parallax\Media';Group='Parallax'}
+    # The input-idle coordinator's config and groups (Idle pause minutes).
+    Coordinator=@{Config='Parallax\Idle';Group='Parallax | ParallaxIdleCoordinator'}
     Control=@{Config='RefreshControl';Group='RefreshTestOnly'}
 }
 foreach ($relative in @('','Skins','Skins\Parallax','Skins\Parallax\Settings','Skins\Parallax\@Resources','Skins\Parallax\@Resources\User','Skins\Parallax\@Resources\Scripts','Skins\RefreshDriver','Layouts','Plugins','Addons','captures')) {
@@ -197,7 +199,7 @@ $settings+="`r`n[SettingsProbe]`r`nMeasure=Script`r`nScriptFile=$runRoot\Harness
 Write-Isolated $settingsPath $settings
 $userPath=Join-Path $parallaxRoot '@Resources\User\Settings.inc'
 $user=Get-Content -LiteralPath $userPath -Raw
-$baseline=@{Scale='1';ColumnWidth='220';Gutter='8';BackgroundColor='15,15,15,255';MetricsInterval='1000';SensorInterval='2000';CapacityInterval='30000';VisualizerInterval='50'}
+$baseline=@{Scale='1';ColumnWidth='220';Gutter='8';BackgroundColor='15,15,15,255';MetricsInterval='1000';SensorInterval='2000';CapacityInterval='30000';VisualizerInterval='50';IdlePauseMinutes='0'}
 foreach ($key in $baseline.Keys) {
     Require ($user -match ('(?im)^'+$key+'=')) "Missing persisted default: $key"
     $user=[regex]::Replace($user,('(?im)^'+$key+'=[^\r\n]*'),($key+'='+$baseline[$key]))
@@ -222,15 +224,16 @@ Write-Isolated (Join-Path $runRoot 'TEST-ONLY.txt') "Instrumented disposable ref
 $report=[ordered]@{Status='FAIL';RainmeterVersion=(Get-Item -LiteralPath $RainmeterPath).VersionInfo.FileVersion;SourceSHA256=$sourceHashes;Scenarios=[Collections.Generic.List[object]]::new()}
 $expected=[ordered]@{Settings=1;Driver=1}
 foreach ($name in $witnesses.Keys) { $expected[$name]=1 }
-$parallaxWitnesses=@('All','GPU','RAM','IO','Visualizer','Media')
+$parallaxWitnesses=@('All','GPU','RAM','IO','Visualizer','Media','Coordinator')
 try {
     # Existing absolute private INI and SkinPath create a separate Rainmeter instance.
     # No CLI bangs are sent; the live configuration is never read or written.
     $process=Start-Process -FilePath $RainmeterPath -ArgumentList ('"{0}"' -f (Join-Path $runRoot 'Rainmeter.ini')) -WorkingDirectory $runRoot -WindowStyle Hidden -PassThru
     $ready=Await-Report (Join-Path $runRoot 'ready-1.txt')
     foreach ($name in $witnesses.Keys) { Await-Generation $name 1 }
+    Await-Generation 'driver' 1
     Assert-Generations $expected 'Initial load'
-    Require ($ready.MeterScaleInput -eq '100%' -and $ready.MeterBackgroundTransparencyInput -eq '0%' -and $ready.MeterRefreshValue -eq 'Balanced') 'Unexpected initial display.'
+    Require ($ready.MeterScaleInput -eq '100%' -and $ready.MeterBackgroundTransparencyInput -eq '0%' -and $ready.MeterRefreshValue -eq 'Balanced' -and $ready.MeterIdlePauseValue -eq 'Off') 'Unexpected initial display.'
     $idle=Capture 'idle'
 
     # 1. A burst of five Scale clicks: immediate display and file, one refresh 800 ms after the last click.
@@ -304,6 +307,46 @@ try {
     Expect-UserValue 'Scale' '1.06'; Expect-UserValue 'MetricsInterval' '1000'
     $report.Scenarios.Add([pscustomobject]@{Name='Preset with a pending arrow';Refreshed='Parallax group, once';LastClickToRefreshS=[Math]::Round($delay,3)})
 
+    # 3c. Idle pause Off -> 5 min: shown at once, saved, then (debounced) the whole
+    #    Parallax group reloads once, because every utility gains its hook.
+    Send-Steps @('click:MeterIdlePauseIncrease') | Out-Null
+    $settingsGeneration=$expected.Settings+1
+    $applied=Await-Report (Join-Path $runRoot "ready-$settingsGeneration.txt")
+    foreach ($name in $parallaxWitnesses) { Await-Generation $name ($expected[$name]+1) }
+    $delay=(Get-LastLoadClock 'All')-[double]::Parse($applied.LastClick,$invariant)
+    Require ($delay -ge 0.79 -and $delay -le 4) "Idle pause on applied $delay s after the click."
+    Start-Sleep -Milliseconds 1500
+    $expected.Settings=$settingsGeneration; foreach ($name in $parallaxWitnesses) { $expected[$name]=$expected[$name]+1 }
+    Assert-Generations $expected 'Idle pause Off -> 5 min'
+    Require ($applied.IdlePauseMinutesVariable -eq '5' -and $applied.MeterIdlePauseValue -eq '5 min') 'Reloaded Settings lost the Idle pause value.'
+    Expect-UserValue 'IdlePauseMinutes' '5'
+    $report.Scenarios.Add([pscustomobject]@{Name='Idle pause Off -> 5 min';Refreshed='Parallax group, once';LastClickToRefreshS=[Math]::Round($delay,3)})
+
+    # 3d. 5 -> 10 min: shown at once; only the coordinator reloads (debounced).
+    $id=Send-Steps @('click:MeterIdlePauseIncrease','snap')
+    $shown=Await-Report (Join-Path $runRoot "result-$id.txt")
+    Require ($shown.MeterIdlePauseValue -eq '10 min' -and $shown.IdlePauseMinutesVariable -eq '5') 'Idle pause 10 min was not shown in place.'
+    Await-Generation 'Coordinator' ($expected.Coordinator+1)
+    $delay=(Get-LastLoadClock 'Coordinator')-[double]::Parse($shown.LastClick,$invariant)
+    Require ($delay -ge 0.79 -and $delay -le 4) "Idle pause minutes applied $delay s after the click."
+    Start-Sleep -Milliseconds 1500
+    $expected.Coordinator=$expected.Coordinator+1
+    Assert-Generations $expected 'Idle pause 5 -> 10 min'
+    Expect-UserValue 'IdlePauseMinutes' '10'
+    $report.Scenarios.Add([pscustomobject]@{Name='Idle pause 5 -> 10 min';Refreshed='Parallax\Idle only';NotRefreshed='Settings and every utility';LastClickToRefreshS=[Math]::Round($delay,3)})
+
+    # 3e. A burst 10 -> 30 -> Off: one whole-group reload (the hook goes away).
+    Send-Steps @('click:MeterIdlePauseIncrease','click:MeterIdlePauseIncrease') | Out-Null
+    $settingsGeneration=$expected.Settings+1
+    $applied=Await-Report (Join-Path $runRoot "ready-$settingsGeneration.txt")
+    foreach ($name in $parallaxWitnesses) { Await-Generation $name ($expected[$name]+1) }
+    Start-Sleep -Milliseconds 1500
+    $expected.Settings=$settingsGeneration; foreach ($name in $parallaxWitnesses) { $expected[$name]=$expected[$name]+1 }
+    Assert-Generations $expected 'Idle pause burst 10 -> 30 -> Off'
+    Require ($applied.MeterIdlePauseValue -eq 'Off') 'Idle pause Off not shown after the reload.'
+    Expect-UserValue 'IdlePauseMinutes' '0'
+    $report.Scenarios.Add([pscustomobject]@{Name='Idle pause burst 10 -> 30 -> Off';Refreshed='Parallax group, once'})
+
     # 4. Closing Settings inside the debounce window still applies the change once (OnCloseAction).
     $id=Send-Steps @('click:MeterScaleDecrease','click:MeterClose')
     foreach ($name in $parallaxWitnesses) { Await-Generation $name ($expected[$name]+1) }
@@ -312,6 +355,7 @@ try {
     Assert-Generations $expected 'Close inside the debounce window'
     Expect-UserValue 'Scale' '1.05'
     $report.Scenarios.Add([pscustomobject]@{Name='Close with a pending change';Saved='1.05';RefreshesPerWitness=1;SettingsReloads=0})
+
 
     $logPath=Join-Path $runRoot 'Rainmeter.log'
     $errors=@(); $warnings=@()

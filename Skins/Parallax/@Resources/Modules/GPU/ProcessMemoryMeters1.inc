@@ -38,29 +38,29 @@ UpdateDivider=-1
 [MeterGPUProcessMemory1]
 Meter=String
 MeterStyle=GPUStyleProcessMemory
-Group=GPUProcessGraph|GPUProcessRow1
+Group=GPUProcessGraph|GPUProcessRow1|ParallaxIdleFreeze
 Y=(#Inset#+(296+#GPUBarExtra#)*#Scale#)
 
 [MeterGPUProcessMemory2]
 Meter=String
 MeterStyle=GPUStyleProcessMemory
-Group=GPUProcessGraph|GPUProcessRow2
+Group=GPUProcessGraph|GPUProcessRow2|ParallaxIdleFreeze
 Y=(#Inset#+(312+#GPUBarExtra#)*#Scale#)
 
 [MeterGPUProcessMemory3]
 Meter=String
 MeterStyle=GPUStyleProcessMemory
-Group=GPUProcessGraph|GPUProcessRow3
+Group=GPUProcessGraph|GPUProcessRow3|ParallaxIdleFreeze
 Y=(#Inset#+(328+#GPUBarExtra#)*#Scale#)
 
 [MeterGPUProcessMemory4]
 Meter=String
 MeterStyle=GPUStyleProcessMemory
-Group=GPUProcessGraph|GPUProcessRow4
+Group=GPUProcessGraph|GPUProcessRow4|ParallaxIdleFreeze
 Y=(#Inset#+(344+#GPUBarExtra#)*#Scale#)
 
 [MeterGPUProcessMemory5]
 Meter=String
 MeterStyle=GPUStyleProcessMemory
-Group=GPUProcessGraph|GPUProcessRow5
+Group=GPUProcessGraph|GPUProcessRow5|ParallaxIdleFreeze
 Y=(#Inset#+(360+#GPUBarExtra#)*#Scale#)

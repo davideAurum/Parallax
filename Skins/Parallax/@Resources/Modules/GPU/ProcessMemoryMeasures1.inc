@@ -15,6 +15,7 @@ GPUProcessMemoryColumn=1
 ; or process name. The inert name remains nonempty to avoid Index=0 totals.
 [MeasureGPUProcessMemory1]
 Measure=Plugin
+Group=ParallaxIdlePause
 Plugin=UsageMonitor
 Category=GPU Process Memory
 Counter=Local Usage
@@ -28,6 +29,7 @@ Disabled=1
 
 [MeasureGPUProcessMemory2]
 Measure=Plugin
+Group=ParallaxIdlePause
 Plugin=UsageMonitor
 Category=GPU Process Memory
 Counter=Local Usage
@@ -41,6 +43,7 @@ Disabled=1
 
 [MeasureGPUProcessMemory3]
 Measure=Plugin
+Group=ParallaxIdlePause
 Plugin=UsageMonitor
 Category=GPU Process Memory
 Counter=Local Usage
@@ -54,6 +57,7 @@ Disabled=1
 
 [MeasureGPUProcessMemory4]
 Measure=Plugin
+Group=ParallaxIdlePause
 Plugin=UsageMonitor
 Category=GPU Process Memory
 Counter=Local Usage
@@ -67,6 +71,7 @@ Disabled=1
 
 [MeasureGPUProcessMemory5]
 Measure=Plugin
+Group=ParallaxIdlePause
 Plugin=UsageMonitor
 Category=GPU Process Memory
 Counter=Local Usage

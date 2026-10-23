@@ -17,6 +17,7 @@ UpdateDivider=1
 
 [MeasureGPUTemperatureController]
 Measure=Script
+Group=ParallaxIdlePause
 ScriptFile=#@#Modules\GPU\Temperature.lua
 
 ; History source. Temperature.lua pushes exactly one point per new driver

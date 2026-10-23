@@ -45,6 +45,7 @@ Shape2=Line 0,(#DataBarThicknessPx#/2),0,(#DataBarThicknessPx#/2) | StrokeWidth 
 
 [MeterGPUEngineHeader]
 Meter=String
+Group=ParallaxIdleFreeze
 MeterStyle=StyleLabel
 Y=(#Inset#+124*#Scale#)
 W=(#ContentWidth#-#GPUEngineValueWidth#-4*#Scale#)
@@ -79,65 +80,77 @@ Shape=Line 0,(#TableHeaderBorderThickness#*#Scale#/2),#ContentWidth#,(#TableHead
 
 [MeterGPULoadLabel]
 Meter=String
+Group=ParallaxIdleFreeze
 MeterStyle=GPUStyleEngineLabel
 Y=(#Inset#+144*#Scale#)
 Text=Core
 
 [MeterGPULoadBar]
 Meter=Shape
+Group=GPUDriverReadout | ParallaxIdleFreeze
 MeterStyle=GPUStyleEngineBar
 Y=(#Inset#+144*#Scale#+((16*#Scale#-#DataBarThicknessPx#)/2))
 
 [MeterGPULoadValue]
 Meter=String
+Group=GPUDriverReadout | ParallaxIdleFreeze
 MeterStyle=GPUStyleEngineValue
 Y=(#Inset#+144*#Scale#)
 
 [MeterGPUControllerLoadLabel]
 Meter=String
+Group=ParallaxIdleFreeze
 MeterStyle=GPUStyleEngineLabel
 Y=(#Inset#+160*#Scale#)
 Text=Memory
 
 [MeterGPUControllerLoadBar]
 Meter=Shape
+Group=GPUDriverReadout | ParallaxIdleFreeze
 MeterStyle=GPUStyleEngineBar
 Y=(#Inset#+160*#Scale#+((16*#Scale#-#DataBarThicknessPx#)/2))
 
 [MeterGPUControllerLoadValue]
 Meter=String
+Group=GPUDriverReadout | ParallaxIdleFreeze
 MeterStyle=GPUStyleEngineValue
 Y=(#Inset#+160*#Scale#)
 
 [MeterGPUVideoLoadLabel]
 Meter=String
+Group=ParallaxIdleFreeze
 MeterStyle=GPUStyleEngineLabel
 Y=(#Inset#+176*#Scale#)
 Text=Video
 
 [MeterGPUVideoLoadBar]
 Meter=Shape
+Group=GPUDriverReadout | ParallaxIdleFreeze
 MeterStyle=GPUStyleEngineBar
 Y=(#Inset#+176*#Scale#+((16*#Scale#-#DataBarThicknessPx#)/2))
 
 [MeterGPUVideoLoadValue]
 Meter=String
+Group=GPUDriverReadout | ParallaxIdleFreeze
 MeterStyle=GPUStyleEngineValue
 Y=(#Inset#+176*#Scale#)
 
 [MeterGPUBusLoadLabel]
 Meter=String
+Group=ParallaxIdleFreeze
 MeterStyle=GPUStyleEngineLabel
 Y=(#Inset#+192*#Scale#)
 Text=Bus
 
 [MeterGPUBusLoadBar]
 Meter=Shape
+Group=GPUDriverReadout | ParallaxIdleFreeze
 MeterStyle=GPUStyleEngineBar
 Y=(#Inset#+192*#Scale#+((16*#Scale#-#DataBarThicknessPx#)/2))
 
 [MeterGPUBusLoadValue]
 Meter=String
+Group=GPUDriverReadout | ParallaxIdleFreeze
 MeterStyle=GPUStyleEngineValue
 Y=(#Inset#+192*#Scale#)
 
@@ -148,6 +161,7 @@ Y=(#Inset#+210*#Scale#)
 
 [MeterGPUVRAMLabel]
 Meter=String
+Group=ParallaxIdleFreeze
 MeterStyle=StyleLabel
 Y=(#Inset#+218*#Scale#)
 W=(50*#Scale#)
@@ -157,7 +171,7 @@ Text=VRAM:
 [MeterGPUVRAMValue]
 Meter=String
 MeterStyle=StyleLabel
-Group=GPUDriverReadout
+Group=GPUDriverReadout|ParallaxIdleFreeze
 X=(#ContentX#+#ContentWidth#)
 Y=(#Inset#+218*#Scale#)
 W=(#ContentWidth#-54*#Scale#)
@@ -167,7 +181,7 @@ Text=Checking...
 
 [MeterGPUVRAMBar]
 Meter=Shape
-Group=GPUDriverReadout
+Group=GPUDriverReadout|ParallaxIdleFreeze
 X=#ContentX#
 Y=(#Inset#+(218+Max(20,23-#DataBarThickness#/2))*#Scale#)
 W=#ContentWidth#
@@ -177,6 +191,7 @@ Shape2=Line 0,(#DataBarThicknessPx#/2),0,(#DataBarThicknessPx#/2) | StrokeWidth 
 
 [MeterGPUSharedLabel]
 Meter=String
+Group=ParallaxIdleFreeze
 MeterStyle=StyleLabel
 Y=(#Inset#+(250+#GPUBarExtra#)*#Scale#)
 W=(50*#Scale#)
@@ -186,7 +201,7 @@ Text=Shared:
 [MeterGPUSharedValue]
 Meter=String
 MeterStyle=StyleLabel
-Group=GPUDriverReadout
+Group=GPUDriverReadout|ParallaxIdleFreeze
 X=(#ContentX#+#ContentWidth#)
 Y=(#Inset#+(250+#GPUBarExtra#)*#Scale#)
 W=(#ContentWidth#-54*#Scale#)

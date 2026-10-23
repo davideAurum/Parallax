@@ -112,6 +112,13 @@ Register-Skin 'RAM' 'Parallax\RAM' 'RAM.ini' 1.0 {
     param($Run, $Process)
     Test-HostCycle $Run $Process 'RAM page-file host' 'ParallaxRamPageFile' 'MeterRAMPageGiB' '^Checking' 'GB$'
 } 'MeterRAMPageGiB'
+Register-Skin 'GPU' 'Parallax\GPU' 'GPU.ini' 1.0 {
+    param($Run, $Process)
+    # Readings come from the resident driver host; on a machine without one
+    # discrete GPU it runs for process names only and the temperature stays
+    # Unavailable, which this check then reports as its fresh state.
+    Test-HostCycle $Run $Process 'GPU telemetry host' 'ParallaxGpuTemperature' 'MeterTemperatureValue' '^Checking' '(C|Unavailable|Unsupported)$'
+} 'MeterTemperatureValue|MeterActivityValue'
 
 Add-Type -AssemblyName System.Drawing
 if (-not ('ParallaxStandDownNative' -as [type])) {

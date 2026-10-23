@@ -83,13 +83,24 @@ local function resetBindings()
     end
 end
 
-local function readBinding(kind, core)
+-- A hive's exported value-name list is the same for every reading in one
+-- render. Split it into a set once per render; lists caches it by measure.
+local function valueNames(lists, measure)
+    local names = lists[measure]
+    if not names then
+        names = {}
+        for key in text(measure):gmatch('[^|]+') do names[key] = true end
+        lists[measure] = names
+    end
+    return names
+end
+
+local function readBinding(kind, core, lists)
     local binding
     if core ~= nil then binding = state.coreBindings[kind][core] else binding = state.bindings[kind] end
     if not binding then return nil end
-    local list = text(binding.hive == 'HKEY_CURRENT_USER' and 'MeasureCPUSensorNamesUser' or 'MeasureCPUSensorNamesMachine')
-    local names = {}
-    for key in list:gmatch('[^|]+') do names[key] = true end
+    local names = valueNames(lists or {},
+        binding.hive == 'HKEY_CURRENT_USER' and 'MeasureCPUSensorNamesUser' or 'MeasureCPUSensorNamesMachine')
     for _, field in ipairs(fields) do
         if not names[registryNames[field] .. binding.index] then return nil end
     end
@@ -164,6 +175,7 @@ end
 local function render(paint)
     local clock, fan, motherboardFan
     local nativeClock = readNativeClock()
+    local lists = {}
     local status
     if not state.enabled then
         status = 'HWiNFO sensors: off'
@@ -174,9 +186,9 @@ local function render(paint)
         status = 'HWiNFO: not running'
     else
         -- The footer reports provider status only; readings live in their rows.
-        clock = readBinding('Clock')
-        fan = readBinding('Fan')
-        motherboardFan = readBinding('MotherboardFan')
+        clock = readBinding('Clock', nil, lists)
+        fan = readBinding('Fan', nil, lists)
+        motherboardFan = readBinding('MotherboardFan', nil, lists)
     end
     local coreReady = state.enabled and not state.pending and not state.prime
         and SKIN:GetMeasure('MeasureCPUHWiNFORunning'):GetValue() == 1
@@ -184,8 +196,8 @@ local function render(paint)
     for core = 0, 63 do
         local t, v
         if coreReady then
-            t = readBinding('Temperature', core)
-            v = readBinding('Voltage', core)
+            t = readBinding('Temperature', core, lists)
+            v = readBinding('Voltage', core, lists)
         end
         if core <= 31 and (t or v) then coreReadings = coreReadings + 1 end
         readings[core] = {temperature=t, voltage=v}

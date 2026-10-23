@@ -105,7 +105,10 @@ local function newMock(sensorPath, options)
         local item = {name=name, options={Disabled=enabled == false and '1' or '0'},
             value=0, string='', enabled=enabled ~= false, native=native}
         function item:GetValue() return self.value end
-        function item:GetStringValue() return self.string end
+        function item:GetStringValue()
+            self.stringReads = (self.stringReads or 0) + 1
+            return self.string
+        end
         function item:GetOption(key, fallback) return self.options[key] or fallback or '' end
         context.measures[name] = item
         if native then context.native[#context.native + 1] = item end
@@ -884,6 +887,23 @@ function suite.Run(sensorPath)
         context.paints = 0
         context:setEnabled(false)
         assert(context.paints >= 1, 'disabling sensors repaints')
+    end)
+    test('each render reads and splits a hive value list once', function()
+        -- Six cores bind twelve per-core readings plus clock and both fans.
+        local cores = {}
+        for id = 0, 5 do cores[#cores + 1] = {id=id, temperatureRaw=tostring(60 + id), voltageRaw='1.2' .. id .. '0'} end
+        local context = connect(sensorPath, {cores=cores})
+        local list = context.measures.MeasureCPUSensorNamesUser
+        list.stringReads = 0
+        context.now = context.now + 2
+        context:refreshNative()
+        context:call('Update')
+        equal(list.stringReads, 1, 'value-list reads per render')
+        for id = 0, 5 do coreReading(context, id + 1, tostring(60 + id), '1.2' .. id .. '0') end
+        clockReading(context, '3.91 GHz')
+        fanReading(context, '2529 RPM')
+        motherboardFanReading(context, '1049 RPM')
+        equal(context:text('MeterSensors'), 'HWiNFO: connected, 6 cores')
     end)
     test('sensor rendering never assigns tooltips', function()
         local context = connect(sensorPath, {cores={

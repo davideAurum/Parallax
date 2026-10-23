@@ -594,15 +594,16 @@ def validate():
     assert "CPUVoltageDecimals = @(0, 3)" in discovery_script
     assert "CPUTemperatureDecimals = @(0, 1)" in discovery_script
     assert "InputText" not in discovery_script
-    assert "readBinding('Clock')" in sensor_script and 'local function formatClock(value)' in sensor_script
+    # Each render shares one parsed value-name set per hive across its readings.
+    assert "readBinding('Clock', nil, lists)" in sensor_script and 'local function formatClock(value)' in sensor_script
     assert "local providerStarted = state.providerRunning == false and providerRunning" in sensor_script
     assert "state.reconnectQueued = state.reconnectQueued or parameters ~= state.arguments" in sensor_script
     assert "local function formatVoltage(value)" in sensor_script
     assert "precisionChanged" in sensor_script
     assert "set('MeterCurrentClockValue', 'Text'" in sensor_script
-    assert "readBinding('Fan')" in sensor_script and "local function formatFan(value)" in sensor_script
+    assert "readBinding('Fan', nil, lists)" in sensor_script and "local function formatFan(value)" in sensor_script
     assert "set('MeterCurrentFanValue', 'Text'" in sensor_script
-    assert "readBinding('MotherboardFan')" in sensor_script
+    assert "readBinding('MotherboardFan', nil, lists)" in sensor_script
     assert "set('MeterMotherboardFanValue', 'Text'" in sensor_script
     assert "local displayClock = clock or nativeClock" in sensor_script
     assert 'CPUClockIndex' not in sensor_script and 'CPUClockIndex' not in setup_script

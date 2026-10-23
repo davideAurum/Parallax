@@ -382,6 +382,10 @@ These touch disjoint files and can be built at the same time, each in its own wo
 - **B1 Resident helpers launched detached,** with one compile per host and the bootstrap removed (ENGINE-06, RAM-01/03, GPU-07, XMOD-05 cache). Touches GPU and RAM after A3/A4.
 - **B2 UsageMonitor registration by include variant** (T4). Touches CPU, GPU and RAM after A3/A4.
 - **B3 Shared helper kit and change-only writer** (XMOD-06a, XMOD-08). Optional.
+- **B4 HWiNFO export durability.** Added 2026-10-22 at the owner's request. HWiNFO stopped writing its registry export after the owner's update to 8.54 on 2026-10-01, although `Sensors\EnableVSB` stayed on; the fix for that is in HWiNFO's settings and is the owner's. B4 builds on A3's frozen-export detection and touches CPU and GPU files, so it runs after B2.
+  1. **An actionable stale message.** The CPU footer names the likely fix: re-enable "Report value in Gadget" in HWiNFO's sensor settings.
+  2. **CPU clock from Windows.** When HWiNFO's clock is frozen or missing, CPU Meter falls back to Windows' own processor-performance counter, labelled as a different source. Temperatures, voltages and fan speeds have no Windows source without a kernel driver, so they stay HWiNFO-only and are withheld while frozen.
+  3. **The same freshness check on GPU Meter's optional HWiNFO override** (`GPUPowerSource`/`GPUClockSource=1`). It is unused by default, but has the same weakness.
 
 ### Phase C: owner-visible behaviour (serial, after the decisions)
 

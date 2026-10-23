@@ -23,7 +23,7 @@ $outer=@"
     public static string LifecycleFixture()
     {
         string luid="00000000000000AB";
-        string token=CreateSession(luid,1000).Split('|')[2];Paths paths=new Paths(token);
+        string token=Guid.NewGuid().ToString("N");Paths paths=new Paths(token);
         Exception failure=null;
         Driver.FixtureOpenStatus="UNSUPPORTED";Driver.FixtureOpened.Reset();
         Thread worker=new Thread(delegate(){try{Run(token,luid,1000);}catch(Exception error){failure=error;}});
@@ -42,6 +42,32 @@ $outer=@"
             if(failure!=null)throw failure;
             if(File.Exists(paths.Data)||File.Exists(paths.Lease)||File.Exists(paths.Temporary))throw new Exception("Session files remain");
             return "PASS: one-host terminal-state publication, original lease expiry and session cleanup";
+        }
+        finally{Driver.FixtureOpenStatus=null;Delete(paths.Data);Delete(paths.Lease);Delete(paths.Temporary);}
+    }
+    // The detached host's stop request: the skin removes the lease on close.
+    public static string LeaseRemovalFixture()
+    {
+        string luid="00000000000000AB";
+        string token=Guid.NewGuid().ToString("N");Paths paths=new Paths(token);
+        Exception failure=null;
+        Driver.FixtureOpenStatus="UNSUPPORTED";Driver.FixtureOpened.Reset();
+        Thread worker=new Thread(delegate(){try{Run(token,luid,1000);}catch(Exception error){failure=error;}});
+        worker.IsBackground=true;
+        try
+        {
+            WriteNew(paths.Lease,token+"|"+Number(Now()));
+            worker.Start();
+            if(!Driver.FixtureOpened.WaitOne(5000))throw new Exception("Helper did not open");
+            Thread.Sleep(100);
+            if(!File.Exists(paths.Data))throw new Exception("No sample before stop request");
+            System.Diagnostics.Stopwatch watch=System.Diagnostics.Stopwatch.StartNew();
+            File.Delete(paths.Lease);
+            if(!worker.Join(2500))throw new Exception("Removed lease did not stop helper within one interval");
+            long elapsed=watch.ElapsedMilliseconds;
+            if(failure!=null)throw failure;
+            if(File.Exists(paths.Data)||File.Exists(paths.Lease)||File.Exists(paths.Temporary))throw new Exception("Session files remain after stop request");
+            return "PASS: removed lease stops the host within one interval ("+elapsed+" ms) and leaves no session file";
         }
         finally{Driver.FixtureOpenStatus=null;Delete(paths.Data);Delete(paths.Lease);Delete(paths.Temporary);}
     }
@@ -74,8 +100,8 @@ $outer=@"
         foreach(int value in new int[]{-273,0,300})check(Snapshot(token,1,1000,"OK",value,luid,"?").Split('|')[6]==Number(value),"range endpoint");
         bool overflow=false;try{Snapshot(token,MaximumSequence+1,1000,"OK",49,luid,"?");}catch(InvalidOperationException){overflow=true;}
         check(overflow,"sequence bound");
-        string generated=CreateSession(luid,1000).Split('|')[2];Paths paths=new Paths(generated);
-        check(!File.Exists(paths.Data)&&!File.Exists(paths.Lease)&&!File.Exists(paths.Temporary),"bootstrap creates no files");
+        string generated=Guid.NewGuid().ToString("N");Paths paths=new Paths(generated);
+        check(typeof(ParallaxGpuTemperature).GetMethod("CreateSession",System.Reflection.BindingFlags.Public|System.Reflection.BindingFlags.NonPublic|System.Reflection.BindingFlags.Static)==null,"no bootstrap entry point remains");check(!File.Exists(paths.Data)&&!File.Exists(paths.Lease)&&!File.Exists(paths.Temporary),"deriving session paths creates no files");
         check(Path.GetFileName(paths.Data)=="Parallax-GPU-"+generated+".dat","basename");
         check(paths.Lease==paths.Data.Substring(0,paths.Data.Length-4)+".lease","lease sibling");
         check(paths.Temporary==paths.Data.Substring(0,paths.Data.Length-4)+".tmp","tmp sibling");
@@ -239,7 +265,7 @@ $outer=@"
     // The host's first lease read can land inside Lua's truncate-then-write.
     public static string LateLeaseFixture()
     {
-        string token=CreateSession(NamesOnlyLuid,1000).Split('|')[2];Paths paths=new Paths(token);
+        string token=Guid.NewGuid().ToString("N");Paths paths=new Paths(token);
         Exception failure=null;
         Thread worker=new Thread(delegate(){try{Run(token,NamesOnlyLuid,1000);}catch(Exception error){failure=error;}});
         worker.IsBackground=true;
@@ -262,7 +288,7 @@ $outer=@"
     // Without a selected discrete GPU, Lua starts the same host for names only.
     public static string NamesOnlyLifecycleFixture()
     {
-        string token=CreateSession(NamesOnlyLuid,1000).Split('|')[2];Paths paths=new Paths(token);
+        string token=Guid.NewGuid().ToString("N");Paths paths=new Paths(token);
         Exception failure=null;int opens=Driver.FixtureOpenCalls;uint pid=GetCurrentProcessId();
         Thread worker=new Thread(delegate(){try{Run(token,NamesOnlyLuid,1000);}catch(Exception error){failure=error;}});
         worker.IsBackground=true;
@@ -300,7 +326,7 @@ $outer=@"
         check(ParseLease(token+"|253402300799|9007199254740991|4294967286,4294967287,4294967288,4294967289,4294967290,4294967291,4294967292,4294967293,4294967294,4294967295",token,253402300799L,1000,out lease)&&lease.RequestId==MaximumSequence&&lease.ProcessIds.Length==10&&lease.ProcessIds[9]==UInt32.MaxValue,"longest lease: ten 10-digit PIDs, request and timestamp endpoints");
         foreach(string bad in new string[]{"|?","-1|?","01|?","1.0|?","1e3|?","9007199254740992|?","42|","42|0","42|01","42|-1","42|1,1","42|1,2,3,4,5,6,7,8,9,10,11","42|1,","42|4294967296","42|1 2","42|1|2","42|?\n","42|1;2","42|1,?"})
             check(!ParseLease(token+"|1000|"+bad,token,1000,1000,out lease)&&lease==null,"reject malformed request without heartbeat renewal");
-        string generated=CreateSession(luid,1000).Split('|')[2];Paths paths=new Paths(generated);
+        string generated=Guid.NewGuid().ToString("N");Paths paths=new Paths(generated);
         try
         {
             WriteNew(paths.Lease,generated+"|1000|7|1,2");
@@ -713,6 +739,7 @@ Add-Type -TypeDefinition $source -Language CSharp
 [ParallaxGpuTemperature]::ProcessListingProbe()
 
 [ParallaxGpuTemperature]::LifecycleFixture()
+[ParallaxGpuTemperature]::LeaseRemovalFixture()
 [ParallaxGpuTemperature]::NamesOnlyLifecycleFixture()
 [ParallaxGpuTemperature]::ListingModeFixture()
 [ParallaxGpuTemperature]::LateLeaseFixture()

@@ -81,13 +81,23 @@ Assert-RAM ($tooltipSections.Count -eq 0) "RAM sections must not declare tooltip
 foreach ($name in 'MeasureRAMPageUsed', 'MeasureRAMPageTotal') {
     Assert-RAM (-not $measures.ContainsKey($name)) 'PAGE must not retain native commit-accounting measures.'
 }
-foreach ($name in 'MeasureRAMPageBootstrap', 'MeasureRAMPageHost') {
-    Assert-RAM ($measures[$name].Plugin -eq 'RunCommand' -and $measures[$name].State -eq 'Hide') 'PAGE setup and resident host must use hidden bundled RunCommand.'
+foreach ($name in @('MeasureRAMPageLauncher')) {
+    Assert-RAM ($measures[$name].Plugin -eq 'RunCommand' -and $measures[$name].State -eq 'Hide') 'The PAGE host launcher must use hidden bundled RunCommand.'
     Assert-RAM ($measures[$name].UpdateDivider -eq '1' -and $measures[$name].Parameter -eq '') 'PAGE helpers must await the controller rather than execute polling commands.'
     Assert-RAM (-not $measures[$name].ContainsKey('FinishAction')) 'PAGE helper completion must not relaunch a polling process.'
+    # A RunCommand child is polled by a 1 ms-timeout plugin thread for as long
+    # as it runs, so no PAGE command may stay attached to RunCommand.
+    Assert-RAM ([int]$measures[$name].Timeout -gt 0 -and [int]$measures[$name].Timeout -le 15000) "$name must have a bounded timeout."
 }
-Assert-RAM ([int]$measures.MeasureRAMPageBootstrap.Timeout -gt 0 -and [int]$measures.MeasureRAMPageBootstrap.Timeout -le 15000) 'PAGE session setup must have a bounded timeout.'
-Assert-RAM ($measures.MeasureRAMPageHost.Timeout -eq '-1') 'PAGE host must stay resident rather than restart per reading.'
+Assert-RAM (-not $measures.ContainsKey('MeasureRAMPageHost')) 'The resident PAGE host must run detached, not as a RunCommand child.'
+# One PowerShell launch and one compile per load: the launcher mints the
+# session itself, so no compiling bootstrap remains.
+Assert-RAM (-not $measures.ContainsKey('MeasureRAMPageBootstrap')) 'No separate PAGE session bootstrap may remain.'
+$launcherSource = Get-Content -LiteralPath (Join-Path $PSScriptRoot 'PageFile.lua') -Raw
+Assert-RAM ($launcherSource -match "Start-Process -FilePath \(\[IO\.Path\]::Combine\(\`$PSHOME,'powershell\.exe'\)\)" -and $launcherSource.Contains("-WindowStyle Hidden -Command '+[char]34+`$h+[char]34") -and $launcherSource.Contains('-WorkingDirectory $t -WindowStyle Hidden -PassThru')) 'The launcher must start the host hidden, outside the skin folder.'
+Assert-RAM ($launcherSource.Contains("-lt 10000") -and $launcherSource.Contains("'RAM_PAGE_SESSION|1|'+`$k+'|'")) 'The launcher must wait a bounded time and report the started host session.'
+Assert-RAM ($launcherSource.Contains("[guid]::NewGuid().ToString('N')") -and $launcherSource.Contains("'CreateNew','Write','Read'") -and $launcherSource -notmatch 'CreateSession') 'The launcher must mint a GUID session with an exclusive lease.'
+Assert-RAM ([regex]::Matches($launcherSource, 'Add-Type').Count -eq 1 -and $launcherSource.Contains("Add-Type -TypeDefinition ([IO.File]::ReadAllText('@S@'))")) 'Only the detached host may compile PageFileHost.cs.txt.'
 Assert-RAM ($measures.MeasureRAMPageView.ScriptFile -eq '#@#Modules\RAM\PageFile.lua' -and $measures.MeasureRAMPageView.UpdateDivider -eq '1') 'Missing paging-file cache and lifecycle controller.'
 Assert-RAM ($meters.MeterRAMPercent.Percentual -eq '1') 'Percentage must use native normalization.'
 foreach ($name in 'MeterRAMPercent', 'MeterRAMBar', 'MeterRAMHistory') {
@@ -153,7 +163,7 @@ Assert-RAM ($settingsScript -match '!SetVariableGroup' -and $settingsScript -mat
 Assert-RAM ($settingsScript -notmatch '!Refresh|MeasureRAMInfo|MeasureRAMPage|MeasureRAMHistory|!UpdateMeter.*,.*\*') 'Settings must not refresh RAM, launch providers, or force its history.'
 Assert-RAM ($displayScript -notmatch '!Refresh|!WriteKeyValue|ToggleMenu|RAMSettingsMenu') 'Display controller must not persist preferences or own an overlay.'
 Assert-RAM ($displayScript.Contains("SKIN:Bang('!CommandMeasure', 'MeasureRAMPageView', 'Display()')")) 'Unit changes must reformat the cached paging-file reading.'
-Assert-RAM ($displayScript -notmatch 'MeasureRAMPageBootstrap|MeasureRAMPageHost|Start\(\)|io\.open') 'Settings-driven display must not launch or query the PAGE provider.'
+Assert-RAM ($displayScript -notmatch 'MeasureRAMPageBootstrap|MeasureRAMPageLauncher|Start\(\)|io\.open') 'Settings-driven display must not launch or query the PAGE provider.'
 Assert-RAM ($displayScript.Contains("SKIN:Bang('!SetOption', name, 'UpdateDivider', visible and '1' or '-1')") -and $displayScript -match "UpdateDivider', visible and '1' or '-1'\)\r?\n\s*SKIN:Bang\('!UpdateMeter', name\)") 'The hidden RAM unit meter must idle, and each divider change must be forced.'
 Assert-RAM ($displayScript -match 'local function coverRetired\(\)' -and $displayScript -match "GetOption\('UpdateDivider'" -and $displayScript -match 'name == cover and retired') 'Showing history again must not re-show a retired zero-width cover.'
 $pageDisplay = [regex]::Match($pageScript,'(?s)function Display\([^)]*\)(.*?)\nlocal function cleanup').Groups[1].Value

@@ -101,7 +101,7 @@ foreach ($role in $copies.Keys) {
     $measures = $copied['@Resources\Modules\RAM\Measures.inc']
     $measures = Set-Section $measures 'MeasureRAMUsed' "[MeasureRAMUsed]`nMeasure=Calc`nFormula=12000000000`nMinValue=0`nMaxValue=32000000000`nUpdateDivider=1`n`n"
     $measures = Set-Section $measures 'MeasureRAMTotal' "[MeasureRAMTotal]`nMeasure=Calc`nFormula=32000000000`nMinValue=0`nMaxValue=32000000000`nUpdateDivider=1`n`n"
-    foreach ($helper in 'Bootstrap','Host') { $measures = Set-Section $measures "MeasureRAMPage$helper" "[MeasureRAMPage$helper]`nMeasure=Calc`nFormula=0`nUpdateDivider=-1`n`n" }
+    foreach ($helper in @('Launcher')) { $measures = Set-Section $measures "MeasureRAMPage$helper" "[MeasureRAMPage$helper]`nMeasure=Calc`nFormula=0`nUpdateDivider=-1`n`n" }
     $fixturePath = Join-Path $caseRoot 'PageFileFixture.lua'
     $measures = Set-Section $measures 'MeasureRAMPageView' "[MeasureRAMPageView]`nMeasure=Script`nScriptFile=$fixturePath`nFixtureWire=$pageWire`nFixtureToken=$pageToken`nFixtureNow=$pageNow`nUpdateDivider=1`n`n"
     $measures = Set-Section $measures 'MeasureRAMInfo' "[MeasureRAMInfo]`nMeasure=Calc`nFormula=1`nSubstitute=`"1`":`"$infoFixture`"`nUpdateDivider=1`n`n"

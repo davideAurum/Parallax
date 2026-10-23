@@ -64,8 +64,9 @@ public static class ParallaxRamPageFileTests
         internal readonly ParallaxRamPageFile.Paths Paths;
         internal long Time = 10000;
         internal bool Live = true;
-        internal int Waits, Limit = 3, Step = 1;
+        internal int Waits, Limit = 3, Step = 1, RemoveAt = -1, LockAt = -1;
         internal bool Renew, Corrupt;
+        private FileStream locked;
         internal readonly List<string> Samples = new List<string>();
         internal Guard(ParallaxRamPageFile.Paths paths) { Paths = paths; }
         public bool Alive { get { return Live; } }
@@ -74,10 +75,32 @@ public static class ParallaxRamPageFileTests
             Check(milliseconds == 1000, "Requested cadence unchanged");
             Samples.Add(File.ReadAllText(Paths.Data, Encoding.ASCII));
             ++Waits;
+            // A reader holding the snapshot without delete sharing for one
+            // sample makes that sample's replacement fail.
+            if (locked != null) { locked.Dispose(); locked = null; }
+            if (Waits == LockAt) locked = new FileStream(Paths.Data, FileMode.Open, FileAccess.Read, FileShare.Read);
             Time += Step;
             if (Renew) Lease(Paths, Time);
             if (Corrupt) File.WriteAllText(Paths.Lease, Paths.Token + "|", Encoding.ASCII);
+            // The skin's close/failure stop request.
+            if (Waits == RemoveAt) File.Delete(Paths.Lease);
             return Waits < Limit;
+        }
+    }
+    // Records the wait slices of one interval; optionally removes the lease
+    // after a given slice, as the skin does on close.
+    private sealed class SliceGuard : ParallaxRamPageFile.IGuard
+    {
+        private readonly ParallaxRamPageFile.Paths paths;
+        private readonly int removeAfter;
+        internal readonly List<int> Slices = new List<int>();
+        internal SliceGuard(ParallaxRamPageFile.Paths paths, int removeAfter) { this.paths = paths; this.removeAfter = removeAfter; }
+        public bool Alive { get { return true; } }
+        public bool Wait(int milliseconds)
+        {
+            Slices.Add(milliseconds);
+            if (Slices.Count == removeAfter) File.Delete(paths.Lease);
+            return true;
         }
     }
     private static void Cleaned(ParallaxRamPageFile.Paths paths)
@@ -146,8 +169,37 @@ public static class ParallaxRamPageFileTests
         ParallaxRamPageFile.RunSession(paths, 1000, guard, delegate { return guard.Time; }, delegate
         { ++calls; return new ParallaxRamPageFile.Frame("UNSUPPORTED"); });
         Check(calls == 1 && guard.Samples.Count == 3, "Unsupported is terminal for native calls");
-        Check(guard.Samples[2].Contains("|3|10002|UNSUPPORTED|?|?|?"), "Unsupported heartbeat continues");
+        Check(guard.Samples[1] == guard.Samples[0] && guard.Samples[2].Contains("|2|10002|UNSUPPORTED|?|?|?"),
+            "Unsupported state continues as a heartbeat every two seconds, not every sample");
         Cleaned(paths);
+
+        // Write on change: an unchanged reading is published only as a heartbeat
+        // (2 s at the 1 s default); a changed one at once, in either direction.
+        paths = NewPaths(); guard = new Guard(paths); guard.Limit = 6; guard.Renew = true;
+        Lease(paths, guard.Time); calls = 0;
+        ParallaxRamPageFile.RunSession(paths, 1000, guard, delegate { return guard.Time; }, delegate
+        { return ++calls == 4 ? new ParallaxRamPageFile.Frame("OK", 8192, 8192, 1) : new ParallaxRamPageFile.Frame("OK", 4096, 8192, 1); });
+        Check(calls == 6 && guard.Samples.Count == 6, "Every interval is still sampled");
+        Check(guard.Samples[0].Contains("|1|10000|OK|4096|8192|1") && guard.Samples[1] == guard.Samples[0], "An unchanged reading within the heartbeat is not rewritten");
+        Check(guard.Samples[2].Contains("|2|10002|OK|4096|8192|1"), "An unchanged reading is rewritten as a heartbeat");
+        Check(guard.Samples[3].Contains("|3|10003|OK|8192|8192|1") && guard.Samples[4].Contains("|4|10004|OK|4096|8192|1"), "A changed reading is written at once");
+        Check(guard.Samples[5] == guard.Samples[4], "Sequence and timestamp advance only with a write");
+        Cleaned(paths);
+
+        // A failed replacement (reader lock) is retried on the next sample.
+        paths = NewPaths(); guard = new Guard(paths); guard.Limit = 4; guard.Renew = true; guard.LockAt = 1;
+        Lease(paths, guard.Time); calls = 0;
+        ParallaxRamPageFile.RunSession(paths, 1000, guard, delegate { return guard.Time; }, delegate
+        { return ++calls == 1 ? new ParallaxRamPageFile.Frame("OK", 4096, 8192, 1) : new ParallaxRamPageFile.Frame("OK", 8192, 8192, 1); });
+        Check(guard.Samples[1] == guard.Samples[0], "A locked snapshot keeps its previous complete sample");
+        Check(guard.Samples[2].Contains("|3|10002|OK|8192|8192|1"), "The failed change is published on the next sample");
+        Cleaned(paths);
+
+        foreach (int[] pair in new int[][] { new int[] { 1000, 2 }, new int[] { 2000, 2 }, new int[] { 3000, 3 }, new int[] { 5000, 5 }, new int[] { 30000, 30 } })
+        {
+            long window = Math.Max(8, (3 * pair[0] + 999) / 1000 + 2);
+            Check(ParallaxRamPageFile.HeartbeatSeconds(pair[0]) == pair[1] && 3 * pair[1] <= window, "Heartbeat sits at a third of the reader's freshness window");
+        }
 
         foreach (bool corrupt in new bool[] { false, true })
         {
@@ -164,6 +216,44 @@ public static class ParallaxRamPageFileTests
         { ++calls; return new ParallaxRamPageFile.Frame("NONE", 0, 0, 0); });
         Check(calls == 6, "Valid UI renewal extends lifetime");
         Cleaned(paths);
+
+        // Detached host stop request: a removed lease ends the session at the
+        // next check, without waiting for the lease to age out.
+        paths = NewPaths(); guard = new Guard(paths); guard.Limit = 8; guard.RemoveAt = 2;
+        Lease(paths, guard.Time); calls = 0;
+        ParallaxRamPageFile.RunSession(paths, 1000, guard, delegate { return guard.Time; }, delegate
+        { ++calls; return new ParallaxRamPageFile.Frame("NONE", 0, 0, 0); });
+        Check(calls == 2 && guard.Waits == 2, "Removed lease stops the host at its next check");
+        Cleaned(paths);
+
+        // A lease removed while sampling is never followed by a snapshot write.
+        paths = NewPaths(); guard = new Guard(paths); guard.Limit = 8;
+        Lease(paths, guard.Time); calls = 0;
+        ParallaxRamPageFile.Paths removing = paths;
+        ParallaxRamPageFile.RunSession(paths, 1000, guard, delegate { return guard.Time; }, delegate
+        {
+            if (++calls == 2) File.Delete(removing.Lease);
+            // A changed reading, so only the removed lease prevents the write.
+            return new ParallaxRamPageFile.Frame("OK", calls == 1 ? 4096UL : 8192UL, 8192, 1);
+        });
+        Check(calls == 2 && guard.Samples.Count == 1 && guard.Samples[0].Contains("|1|10000|OK|4096|8192|1"),
+            "No snapshot is written after the lease is removed");
+        Cleaned(paths);
+
+        // Slow cadences wait in slices of at most five seconds and stop early
+        // when the lease is removed.
+        paths = NewPaths(); Lease(paths, 10000);
+        SliceGuard slices = new SliceGuard(paths, -1);
+        Check(ParallaxRamPageFile.WaitInterval(slices, paths, 12000) && String.Join(",", slices.Slices) == "5000,5000,2000",
+            "Slow cadence waits in five-second slices");
+        slices = new SliceGuard(paths, 1);
+        Check(!ParallaxRamPageFile.WaitInterval(slices, paths, 12000) && String.Join(",", slices.Slices) == "5000",
+            "A removed lease ends a slow wait after one slice");
+        Lease(paths, 10000);
+        slices = new SliceGuard(paths, -1);
+        Check(ParallaxRamPageFile.WaitInterval(slices, paths, 1000) && String.Join(",", slices.Slices) == "1000",
+            "Default cadence is one unsliced wait");
+        File.Delete(paths.Lease);
 
         paths = NewPaths(); guard = new Guard(paths); guard.Live = false; Lease(paths, guard.Time); calls = 0;
         ParallaxRamPageFile.RunSession(paths, 1000, guard, delegate { return guard.Time; }, delegate
@@ -190,31 +280,29 @@ public static class ParallaxRamPageFileTests
         checks = 0;
         string root = Path.GetFullPath(scratch).TrimEnd(Path.DirectorySeparatorChar) + Path.DirectorySeparatorChar;
         Check(Path.GetFullPath(Path.GetTempPath()).TrimEnd(Path.DirectorySeparatorChar) + Path.DirectorySeparatorChar == root, "Temp scope is isolated");
+        // The launcher mints the token ([guid]::NewGuid()) and writes the lease;
+        // the host keeps only token validation and its own path derivation.
+        Check(typeof(ParallaxRamPageFile).GetMethod("CreateSession") == null, "No session bootstrap entry point remains");
         int before = Directory.GetFiles(scratch).Length;
-        string session = ParallaxRamPageFile.CreateSession(1000);
-        string[] parts = session.Split('|');
-        Check(parts.Length == 4 && parts[0] == "RAM_PAGE_SESSION" && parts[1] == "1", "Bootstrap protocol");
-        Check(System.Text.RegularExpressions.Regex.IsMatch(parts[2], "^[0-9a-f]{32}$"), "Canonical token");
-        byte[] pathBytes = new byte[parts[3].Length / 2];
-        for (int i = 0; i < pathBytes.Length; ++i) pathBytes[i] = Byte.Parse(parts[3].Substring(i * 2, 2), NumberStyles.HexNumber, CultureInfo.InvariantCulture);
-        string dataPath = new UTF8Encoding(false, true).GetString(pathBytes);
-        Check(dataPath == Path.Combine(scratch, "Parallax-RAM-Page-" + parts[2] + ".dat"), "Token-derived UTF-8 path");
-        Check(Directory.GetFiles(scratch).Length == before, "Bootstrap writes no files");
-        Check(ParallaxRamPageFile.CreateSession(30000) != session, "Unique sessions");
+        string generated = Guid.NewGuid().ToString("N");
+        ParallaxRamPageFile.Paths derived = new ParallaxRamPageFile.Paths(generated);
+        string stem = Path.Combine(scratch, "Parallax-RAM-Page-" + generated);
+        Check(derived.Token == generated && derived.Data == stem + ".dat" && derived.Lease == stem + ".lease" && derived.Temporary == stem + ".tmp",
+            "Session paths derive from the token inside TEMP");
+        Check(Directory.GetFiles(scratch).Length == before, "Deriving session paths writes no files");
         string previousTemp = Environment.GetEnvironmentVariable("TEMP"), previousTmp = Environment.GetEnvironmentVariable("TMP");
         try
         {
             string unicodePath = Path.Combine(scratch, "\u00e9-\u4e2d");
             Environment.SetEnvironmentVariable("TEMP", unicodePath);
             Environment.SetEnvironmentVariable("TMP", unicodePath);
-            string[] unicodeParts = ParallaxRamPageFile.CreateSession(1000).Split('|');
-            string expectedPath = Path.Combine(unicodePath, "Parallax-RAM-Page-" + unicodeParts[2] + ".dat");
-            Check(unicodeParts[3] == BitConverter.ToString(Encoding.UTF8.GetBytes(expectedPath)).Replace("-", ""), "Unicode temporary path uses exact UTF-8 hex");
-            Check(!Directory.Exists(unicodePath), "Unicode bootstrap still writes nothing");
+            Check(new ParallaxRamPageFile.Paths(generated).Data == Path.Combine(unicodePath, "Parallax-RAM-Page-" + generated + ".dat"),
+                "A Unicode TEMP is used verbatim");
+            Check(!Directory.Exists(unicodePath), "Unicode path derivation writes nothing");
         }
         finally { Environment.SetEnvironmentVariable("TEMP", previousTemp); Environment.SetEnvironmentVariable("TMP", previousTmp); }
-        Throws(delegate { ParallaxRamPageFile.CreateSession(999); }, "Reject fast interval");
-        Throws(delegate { ParallaxRamPageFile.CreateSession(30001); }, "Reject slow interval");
+        Throws(delegate { ParallaxRamPageFile.Run(Token, 999); }, "Reject fast interval");
+        Throws(delegate { ParallaxRamPageFile.Run(Token, 30001); }, "Reject slow interval");
         foreach (string bad in new string[] { null, "", "../bad", Token + "x", Token.Substring(1), Token.ToUpperInvariant(), new String('z', 32) })
             Throws(delegate { ParallaxRamPageFile.Run(bad, 1000); }, "Reject malformed token");
         Throws(delegate { ParallaxRamPageFile.Run(Token, 0); }, "Run validates interval");

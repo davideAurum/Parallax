@@ -368,9 +368,10 @@ function Update()
         if metric then metrics[#metrics+1]=name..'='..metric:GetOption(name:find('Bar$') and 'Shape2' or 'Text','') end
     end
     write([=[$runRoot\driver-metrics-observed.txt]=],table.concat(metrics,'\n'))
-    local bootstrap=SKIN:GetMeasure('MeasureGPUTemperatureBootstrap')
-    write([=[$runRoot\temperature-session.txt]=],bootstrap:GetStringValue())
-    write([=[$runRoot\driver-status.txt]=],tostring(SKIN:GetMeasure('MeasureGPUTemperatureDriver'):GetValue()))
+    -- The one launcher prints the session of the host it started.
+    local launcher=SKIN:GetMeasure('MeasureGPUTemperatureLauncher')
+    write([=[$runRoot\temperature-session.txt]=],launcher:GetStringValue())
+    write([=[$runRoot\driver-status.txt]=],tostring(launcher:GetValue()))
     return 0
 end
 "@
@@ -744,10 +745,16 @@ try {
     Write-Output (Get-Content -LiteralPath (Join-Path $runRoot 'process-memory-audit.txt') -Raw)
     if ($memoryVisible) {Write-Output 'PASS: positive native per-process dedicated bytes reached exact PID / LUID / physical-GPU rows; labels and raw values agree.'}
     else {Write-Output 'OBSERVED: no usable positive ranked dedicated-memory reading during the bounded wait; zero, missing and idle readings remained --. Native Lua fixtures cover unavailable and replacement identities.'}
-    $hosts=@([GpuSmokeProcessTree]::Children([uint32]$process.Id))
+    # The host runs detached: its launcher reported its session and exited, so
+    # Rainmeter keeps no PowerShell child and no RunCommand thread polls it.
+    $hostSource=Join-Path $parallaxRoot '@Resources\Modules\GPU\DriverTemperature.cs.txt'
+    $hosts=@(Get-CimInstance Win32_Process -Filter "Name='powershell.exe'" | Where-Object {
+        $_.CommandLine -and $_.CommandLine.IndexOf($hostSource,[StringComparison]::OrdinalIgnoreCase) -ge 0 -and $_.CommandLine.Contains("::Run('"+$token+"'")
+    })
     if ($hosts.Count -ne 1) {throw 'Expected exactly one owned persistent temperature host.'}
-    $hostProcessId=$hosts[0]
-    if (-not (Text-Matches (Join-Path $runRoot 'driver-status.txt') '^0$')) {throw 'Native RunCommand did not report running status zero.'}
+    $hostProcessId=[int]$hosts[0].ProcessId
+    Wait-Condition {@([GpuSmokeProcessTree]::Children([uint32]$process.Id)).Count -eq 0} 'A PowerShell stayed a RunCommand child of Rainmeter.' 15
+    if (-not (Text-Matches (Join-Path $runRoot 'driver-status.txt') '^1$')) {throw 'The host launcher did not complete.'}
     if ($ControllerLifecycle -eq 'Unload') {
         Write-RunFile (Join-Path $runRoot 'main-command.txt') 'deactivate'
         Wait-Condition {-not (Get-Process -Id $hostProcessId -ErrorAction SilentlyContinue)} 'Temperature host survived GPU unload.' 12
@@ -761,7 +768,7 @@ try {
         }
         Wait-Condition {-not (Get-Process -Id $hostProcessId -ErrorAction SilentlyContinue)} 'Started host was not stopped before lease expiry.' 4
         if ((Own-Windows).Count -ne $windowsBefore) {throw 'Lifecycle test unloaded a config and could be masked by plugin finalization.'}
-        Write-Output "PASS: $ControllerLifecycle stops running-status-0 host with GPU still loaded, before the minimum 15-second lease expiry."
+        Write-Output "PASS: $ControllerLifecycle stops the detached host by removing its lease, with GPU still loaded, before the minimum 15-second lease expiry."
     }
     Wait-Condition {-not (Test-Path -LiteralPath ($snapshotBase+'.dat')) -and -not (Test-Path -LiteralPath ($snapshotBase+'.lease')) -and -not (Test-Path -LiteralPath ($snapshotBase+'.tmp'))} 'Temperature session files survived GPU unload.' 12
     Write-Output 'PASS: one persistent direct host; sample sequence advances; selected lifecycle stops the host and removes its session files.'

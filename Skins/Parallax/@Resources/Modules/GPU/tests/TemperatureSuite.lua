@@ -167,8 +167,11 @@ function Suite.run(path)
                         f.statusOnRefresh[args[1]] = nil
                     end
                 end
-            elseif command == '!UpdateMeterGroup' then assert(#args == 1 and args[1] == 'GPUDriverReadout')
-            elseif command == '!Redraw' then assert(#args == 0)
+            elseif command == '!UpdateMeterGroup' or command == '!Redraw' then
+                -- Every GPUDriverReadout meter keeps UpdateDivider=1, so the normal
+                -- end-of-cycle redraw paints changes; Update must not force an
+                -- extra mid-cycle frame.
+                error('Update forced a mid-cycle paint: ' .. command)
             else error('unexpected write/action ' .. tostring(command)) end
         end
         local fakeio = {}
@@ -269,6 +272,18 @@ function Suite.run(path)
         f:clear(); for _ = 1, 4 do f:update() end
         eq(#f.calls, 0, 'deduplicated unchanged view'); eq(f.leaseWrites, 1); eq(f.reads[info], 1)
         eq(f.launches[bootstrap], 1); eq(f.launches[driver], 1)
+    end)
+    test('changed readings are written as options without a forced mid-cycle paint', function()
+        local f = fixture(); f:live(); f:clear()
+        for sequence = 2, 5 do
+            f.now = f.now + 2; f:sample({[4] = tostring(sequence), [23] = tostring(50000 + sequence * 1000)}); f:update()
+        end
+        local writes = 0
+        for _, call in ipairs(f.calls) do
+            eq(call[1] ~= '!Redraw' and call[1] ~= '!UpdateMeterGroup', true, 'no forced paint: ' .. tostring(call[1]))
+            if call[1] == '!SetOption' and call[2] == 'MeterPowerValue' then writes = writes + 1 end
+        end
+        eq(writes, 4, 'each changed power reading is written once'); eq(f:text('MeterPowerValue'), '55.0 W')
     end)
     test('interval follows slower collection cadence and bounded integer limits', function()
         local cases = {{{MetricsInterval = '5000', SensorInterval = '2000'}, 5000},

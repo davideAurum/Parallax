@@ -139,6 +139,8 @@ def check_drive_bank():
             options = resolved_options(name, meters)
             expected_meters.add(name)
             assert options["Hidden"] == "1" and options["Y"] == "0", (name, "hidden runtime row must start at Y=0")
+            # Hidden rows ship idle; IO.lua switches the whole row through its group.
+            assert options["Group"] == "IORow" + letter and options["UpdateDivider"] == "-1", (name, "idle per-letter row group")
             if field == "Used":
                 assert options["Meter"] == "Bar" and options["MeasureName"] == "MeasureIOUsed" + letter
                 assert options["H"] == "#DataBarThicknessPx#", (name, "shared bar thickness")

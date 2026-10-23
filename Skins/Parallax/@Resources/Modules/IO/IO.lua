@@ -53,6 +53,20 @@ local function visible(meter, show)
     end
 end
 
+-- Each letter's eight bank meters share Group=IORow<letter> and ship idle at
+-- UpdateDivider=-1. A shown row updates every tick; a hidden row does no
+-- per-tick work. A -1 meter ignores !SetOption until forced, so each change
+-- of divider is followed by one forced group update, which applies every
+-- option set so far (positions, visibility) and the new divider.
+local function rowActive(letter, active)
+    local id = 'IORow' .. letter
+    if cache[id] ~= active then
+        SKIN:Bang('!SetOptionGroup', id, 'UpdateDivider', active and '1' or '-1')
+        SKIN:Bang('!UpdateMeterGroup', id)
+        cache[id] = active
+    end
+end
+
 local function scaled(value, base, units)
     if not finite(value) or value < 0 then return '--' end
     local unit = 1
@@ -256,6 +270,7 @@ local function layout()
             option(legend, 'Y', 0)
             visible(legend, false)
         end
+        rowActive(letter, shown)
     end
     text('MeterIOEmpty', selectionKind == 'all' and 'No drives found' or 'No drives selected')
     option('MeterIOEmpty', 'Y', inset + 42 * scale)
@@ -489,6 +504,8 @@ end
 
 function Initialize()
     cache = {}
+    -- DriveMeters.inc ships every row idle; only rows that layout shows change.
+    for _, letter in ipairs(letters) do cache['IORow' .. letter] = false end
     history, lastObservationTime, shapeCount = {}, nil, 0
     selected, selectedKey, graphMode, graphDrives, selectionKind = {}, nil, nil, {}, 'C'
     capacityEnabled, ratesEnabled, layoutKey = {}, {}, nil

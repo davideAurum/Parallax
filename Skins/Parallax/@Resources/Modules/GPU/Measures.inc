@@ -21,6 +21,12 @@ RawValue=0
 Measure=Calc
 Formula=Min(MeasureGPUGraphSamples+1,#ContentWidth#)
 UpdateDivider=-1
+; Once the graph is full the startup cover has nothing left to cover: hide it
+; and end its per-update re-read for the rest of the load. The cover's
+; SetOption forces one last re-read, which takes the new divider; hiding
+; alone would not stop its updates. A refresh restores the INI values.
+IfCondition=MeasureGPUGraphSamples>=#ContentWidth#
+IfTrueAction=[!SetOption MeterGPUGraphUncollected DynamicVariables 0][!SetOption MeterGPUGraphUncollected UpdateDivider -1][!HideMeter MeterGPUGraphUncollected]
 
 ; Values can remain in the registry after HWiNFO stops. This is a snapshot.
 ; List membership distinguishes a missing ValueRawN from a real numeric zero.

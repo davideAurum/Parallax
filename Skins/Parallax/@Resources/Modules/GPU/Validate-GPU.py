@@ -373,6 +373,10 @@ assert sections["MeasureGPUUtilizationHistory"] == {
 samples = sections["MeasureGPUGraphSamples"]
 assert samples["Measure"] == "Calc" and samples["UpdateDivider"] == "-1"
 assert samples["Formula"] == "Min(MeasureGPUGraphSamples+1,#ContentWidth#)"
+# A full graph retires the startup cover: hidden, and no further re-reads.
+assert samples["IfCondition"] == "MeasureGPUGraphSamples>=#ContentWidth#"
+assert samples["IfTrueAction"] == ("[!SetOption MeterGPUGraphUncollected DynamicVariables 0]"
+                                   "[!SetOption MeterGPUGraphUncollected UpdateDivider -1][!HideMeter MeterGPUGraphUncollected]")
 
 meters = {name: effective(name) for name, options in sections.items() if "Meter" in options}
 assert all("Meter" in options for name, options in sections.items() if name.startswith("Meter"))

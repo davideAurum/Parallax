@@ -54,8 +54,12 @@ Meter=Shape
 X=#ContentX#
 Y=(#Inset#+(406+#GPUBarExtra#)*#Scale#)
 Shape=Rectangle 0,0,(Min(#ContentWidth#,Max(0,(#ContentWidth#-[MeasureGPUGraphSamples]+2*#Scale#)*([MeasureGPUGraphSamples]<#ContentWidth#)))),(#GraphHeight#*#Scale#) | Fill Color #GraphBackgroundColor#,255 | StrokeWidth 0
-; DynamicVariables is required: without it [MeasureGPUGraphSamples] is read once
-; at load (0 samples), leaving this cover at full width over the whole graph.
+; DynamicVariables is required while the graph fills: without it
+; [MeasureGPUGraphSamples] is read once at load (0 samples), leaving this cover
+; at full width over the whole graph. When the count reaches the graph width,
+; MeasureGPUGraphSamples' IfTrueAction hides this meter and sets
+; DynamicVariables 0 and UpdateDivider -1, so it stops re-reading for the rest
+; of the load.
 DynamicVariables=1
 UpdateDivider=1
 

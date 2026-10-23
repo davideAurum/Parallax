@@ -269,9 +269,15 @@ local function render(paint)
             status = 'HWiNFO: connected, ' .. coreReadings .. (coreReadings == 1 and ' core' or ' cores')
         end
     end
-    -- The HWiNFO Core Clocks export takes precedence over the Windows aggregate.
-    local displayClock = clock or nativeClock
+    -- The HWiNFO Core Clocks export takes precedence. When it is frozen,
+    -- missing, unsupported or HWiNFO is off, Windows' own aggregate
+    -- (Processor Frequency x % Processor Performance) is shown instead. It is a
+    -- different measurement, so its source is named beside it and the two are
+    -- never mixed silently; value and source change in the same render.
+    local displayClock, clockSource = clock, ''
+    if not displayClock and nativeClock then displayClock, clockSource = nativeClock, 'Windows' end
     set('MeterCurrentClockValue', 'Text', displayClock and formatClock(displayClock) or 'Unavailable')
+    set('MeterCurrentClockSource', 'Text', clockSource)
     set('MeterCurrentFanValue', 'Text', fan and formatFan(fan) or 'Unavailable')
     set('MeterMotherboardFanValue', 'Text', motherboardFan and formatFan(motherboardFan) or 'Unavailable')
     set('MeterSensors', 'Text', status)

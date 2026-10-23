@@ -205,6 +205,7 @@ local function layout()
         cursor = top + infoHeight + 8
         y('MeterCurrentClockLabel', cursor)
         y('MeterCurrentClockValue', cursor)
+        y('MeterCurrentClockSource', cursor)
         cursor = cursor + 16
         SKIN:Bang(state.showFan and '!ShowMeterGroup' or '!HideMeterGroup', 'CPUFan')
         if state.showFan then
@@ -228,6 +229,7 @@ local function layout()
     else
         y('MeterCurrentClockLabel', 0)
         y('MeterCurrentClockValue', 0)
+        y('MeterCurrentClockSource', 0)
         y('MeterCurrentFanLabel', 0)
         y('MeterCurrentFanValue', 0)
         y('MeterMotherboardFanLabel', 0)

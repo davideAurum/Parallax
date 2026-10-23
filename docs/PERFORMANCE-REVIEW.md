@@ -421,6 +421,34 @@ Phase A can be one workflow: six builder agents, one per package in its own work
 - **Quiet-state and overnight evidence.** The owner runs `Trace-ParallaxLive.ps1` overnight once before installing the release (baseline) and once after. Compared: Parallax share, audiodg, wakeups, CPU temperature and the spike contributor list.
 - **Functional guard.** Each fix's module suites and a preview capture. A gain that breaks honest state or displayed values does not count.
 
+## Phase A result (first measurement, 2026-10-22)
+
+This is not the full step-3 protocol. It compares baseline `916c9ab` with all of phase A merged at `dfe55b8`.
+
+**How it was measured:**
+- Each build was staged from its own temporary worktree under `C:\pxab`, using that commit's own tools.
+- The isolated benchmark ran with the live preferences (drawer open, per-thread history, sensors) and hardware rendering.
+- 3 trials per build were interleaved build by build. Reports: `*-live-baseline-t*` and `*-live-phaseA-t*`.
+- A WINCH session was reading files during part of the run. The interleaving spreads that load over both builds.
+
+CPU in % of one core; median [min-max].
+
+| Scenario | Baseline | Phase A | Change | UI thread | Plugin threads | Helpers | p95 second | Rainmeter wakeups/s |
+| --- | ---: | ---: | ---: | ---: | ---: | ---: | ---: | ---: |
+| Six live skins | 25.54 [25.42-31.15] | **10.28** [9.45-12.59] | **−15.26 (−60%)** | 16.89 → 4.65 | 6.97 → 4.80 | 1.97 → 0.97 | 37.9 → 17.2 | 1,172 → 808 |
+| Media (drawer open, silent) | 11.91 [11.27-13.42] | **2.23** [1.69-2.98] | **−9.67 (−81%)** | 11.01 → 1.74 | 0.89 → 0.10 | — | 20.9 → 6.2 | 461 → 164 |
+| Visualizer | 5.30 [5.07-6.30] | **1.34** [1.29-2.13] | **−3.96 (−75%)** | 4.66 → 1.29 | 0.74 → 0.05 | — | 13.7 → 4.6 | 458 → 172 |
+| CPU | 5.90 [5.71-7.18] | **4.43** [4.38-4.87] | **−1.47 (−25%)** | 2.28 → 1.59 | 3.62 → 2.98 | — | 9.4 → 6.2 | 196 → 166 |
+| GPU | 2.94 [2.72-3.22] | **1.90** [1.42-2.10] | **−1.05 (−35%)** | 0.79 → 0.45 | 0.89 → 1.04 | 1.26 → 0.37 | 7.0 → 5.4 | 252 → 252 |
+| RAM | 3.94 [3.81-4.35] | 3.97 [3.75-4.21] | +0.04 (no change) | 0.40 → 0.20 | 3.08 → 3.47 | 0.36 → 0.28 | 7.7 → 6.2 | 248 → 256 |
+
+Reading it:
+- **The six-skin total fell by 60%, and the shared UI thread by 72%.** Spikes roughly halved.
+- **Every change beyond the trial spread is a reduction.** Only RAM stayed flat: its cost is the shared UsageMonitor Process reader, which phase B (B2) addresses.
+- **GPU's helper fell from 1.26% to 0.37% of a core.** That is GPU-02's once-per-frame identity check.
+- **A hint of synergy, not yet a claim.** The six-skin gain (15.3) exceeds the sum of the measured solo gains (Media 9.7 + CPU 1.5 + GPU 1.1 + RAM 0 = 12.2; IO and Chronometer were not measured solo). But the difference (3.1) is about the baseline's wide spread (±2.9). Step 3's per-fix builds decide it.
+- **What this run cannot show.** A2's Source-helper gain needs the live trace after a release; isolated profiles keep Media's providers inert. audiodg, kept alive by the open drawer's capture, is phase C1.
+
 ## Owner decisions (2026-10-22)
 
 1. **Drawer capture when silent (T2): release it.**

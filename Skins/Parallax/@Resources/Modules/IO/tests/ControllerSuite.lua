@@ -81,14 +81,17 @@ function Suite.run(productionPath)
         -- forced group update has applied (an idle meter ignores !SetOption
         -- until forced); pending: bank meter options set while idle and not
         -- yet applied by a forced update; rowUpdates counts forced updates.
+        -- reads counts GetMeasure calls by name and parses ParseFormula calls.
         local state = { vars = vars, values = values, options = {}, shown = {}, calls = {}, now = 1000,
-            groups = {}, variableWrites = {}, queryRuns = 0, rows = {}, effective = {}, pending = {}, rowUpdates = {} }
+            groups = {}, variableWrites = {}, queryRuns = 0, rows = {}, effective = {}, pending = {}, rowUpdates = {},
+            reads = {}, parses = 0 }
         local skin = {}
         function skin:GetVariable(key, default)
             if vars[key] == nil then return default end
             return vars[key]
         end
         function skin:GetMeasure(key)
+            state.reads[key] = (state.reads[key] or 0) + 1
             local letter = key:match('^MeasureIOTotal([A-Z])$') or key:match('^MeasureIOFree([A-Z])$')
             if letter then assert(state.groups['IOCapacity' .. letter], 'read from a disabled capacity bank') end
             letter = key:match('^MeasureIODiskRead([A-Z])$') or key:match('^MeasureIODiskWrite([A-Z])$')
@@ -101,6 +104,7 @@ function Suite.run(productionPath)
             return value:gsub('#([%w]+)#', function(key) return vars[key] or '' end)
         end
         function skin:ParseFormula(value)
+            state.parses = state.parses + 1
             if not value:match('^[%d%s%.%+%-%*/%(%)]+$') then return nil end
             local expression = assert(loadstring('return ' .. value))
             setfenv(expression, {})
@@ -654,6 +658,80 @@ function Suite.run(productionPath)
             local letter = string.char(code)
             equal(every.effective[letter], letter == 'C' and '1' or '-1')
         end
+    end)
+
+    test('slow selection, name and capacity work runs only on ticks whose inputs can change', function()
+        -- Inventory, label and capacity measures update on their first tick,
+        -- then every Max(5,Ceil(CapacityInterval/1000)) ticks; a forced update
+        -- restarts a measure's count. Rates and the graph stay per tick.
+        local function slowReads(f)
+            local count = 0
+            for key, n in pairs(f.reads) do
+                if key:match('^MeasureIOType') or key:match('^MeasureIOName') or key:match('^MeasureIOTotal')
+                    or key:match('^MeasureIOFree') then count = count + n end
+            end
+            return count
+        end
+        local function step(f)
+            f.reads = {}
+            f:tick()
+            return slowReads(f) > 0
+        end
+        local f = fixture({ CapacityInterval = '30000', IODriveNames = 'volume' }, {
+            MeasureIONameC = 'System', MeasureIOTypeD = 4, MeasureIOTotalD = 1e9, MeasureIOFreeD = 5e8,
+            MeasureIODiskReadC = 1e6 })
+        equal(f:text('MeterIOCapacityC'), '26.8/107.4 GB')
+        equal(f:text('MeterIODriveC'), 'C: System')
+        local slow = {}
+        for t = 1, 61 do
+            if t == 5 then f.values.MeasureIOFreeC = 50 * GiB end
+            if t == 31 then f.vars.IODiskDrives = 'C,D' end
+            if step(f) then slow[#slow + 1] = t end
+            truth((f.reads.MeasureIODiskReadC or 0) > 0, 'rates must still be read every tick')
+            if t == 29 then equal(f:text('MeterIOCapacityC'), '26.8/107.4 GB', 'capacity text follows its measure cadence') end
+            if t == 30 then equal(f:text('MeterIOCapacityC'), '53.7/107.4 GB') end
+            if t == 31 then equal(f.shown.MeterIODriveD, true, 'a selection variable change applies on the next tick') end
+        end
+        -- Ticks 0/30/60 follow load; 31 follows the selection change and starts
+        -- the D bank's count, so 61 follows that bank.
+        equal(table.concat(slow, ','), '30,31,60,61')
+        local before = #slow
+        for t = 62, 70 do if step(f) then slow[#slow + 1] = t end end
+        f:refreshNamesInventory()
+        for t = 71, 101 do if step(f) then slow[#slow + 1] = t end end
+        -- 71 reconciles the forced inventory update, whose count restarts so
+        -- that it next updates at 100; 90/91 continue the load and D phases.
+        equal(table.concat(slow, ',', before + 1), '71,90,91,100')
+        local fast = fixture({ CapacityInterval = '1000' })
+        local fastSlow = {}
+        for t = 1, 10 do if step(fast) then fastSlow[#fastSlow + 1] = t end end
+        equal(table.concat(fastSlow, ','), '5,10', 'short intervals keep the five-tick minimum')
+        local odd = fixture({ CapacityInterval = '45500' })
+        local oddSlow = {}
+        for t = 1, 46 do if step(odd) then oddSlow[#oddSlow + 1] = t end end
+        equal(table.concat(oddSlow, ','), '46', 'the divider rounds the interval up to whole seconds')
+        for _, bad in ipairs({'', 'not a number', '(1/0)'}) do
+            local every = fixture({ CapacityInterval = bad })
+            for _ = 1, 3 do truth(step(every), 'without a usable interval the slow state updates every tick') end
+        end
+    end)
+
+    test('parsed geometry formulas are reused until their text changes', function()
+        local plain = fixture(nil, { MeasureIODiskReadC = 1e6 })
+        local formula = fixture({ ContentWidth = '(216-8)', ContentX = '(4+6)', Scale = '(2/2)', Inset = '(8/2)' },
+            { MeasureIODiskReadC = 1e6 })
+        for _, key in ipairs({'MeterIODriveC', 'MeterIOCapacityC', 'MeterIODiskReadC', 'MeterIODiskGraph'}) do
+            for option, value in pairs(plain.options[key]) do
+                equal(formula.options[key][option], value, key .. ' ' .. option .. ' differs with formula geometry')
+            end
+        end
+        local parses = formula.parses
+        formula:tick(); formula:tick()
+        equal(formula.parses, parses, 'unchanged formula variables must not be parsed again')
+        formula.vars.ContentWidth = '(220-8)'
+        formula:tick()
+        truth(formula.parses > parses, 'changed formula text must be parsed again')
+        equal(tonumber(formula.options.MeterIODriveC.W), 212)
     end)
 
     test('malformed or noncanonical drive lists fall back to C without persisting a replacement', function()

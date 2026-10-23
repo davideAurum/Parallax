@@ -426,6 +426,12 @@ def validate():
             assert number("#Inset#") * 2 == number("#Gap#")
             if (column_width, scale, columns) == (220, 1, 1):
                 assert number("#PanelWidth#") == 220 and width == 228
+            # The not-updating footer "HWiNFO: open Sensors" is 141.90 px (10.64 em) in bundled
+            # IBM Plex Sans Medium at the 10 pt body maximum (Pillow advance, pt*96/72). The
+            # footer's StyleLabel clip box must hold it at every width and scale.
+            footer = effective('MeterSensors')
+            assert footer['FontSize'] == '(#FontSize#*#Scale#)' and footer.get('FontWeight') == '500'
+            assert number(footer['W']) >= 141.90 * scale
             # Runtime table Y positions vary, but its source column widths do not.
             label, bar = effective('MeterCoreLabel1'), effective('MeterCoreBar1')
             assert number(label['X']) + number(label['W']) <= number(bar['X'])
@@ -624,7 +630,10 @@ def validate():
     assert "local displayClock = clock or nativeClock" in sensor_script
     # A running HWiNFO whose export stopped updating must not read as live.
     assert "local exportStaleSeconds = 60" in sensor_script
-    assert "status = 'HWiNFO: export not updating'" in sensor_script
+    # The footer names the fix: HWiNFO writes its export only while its Sensors window is open.
+    assert "local exportStaleStatus = 'HWiNFO: open Sensors'" in sensor_script
+    assert "status = exportStaleStatus" in sensor_script
+    assert "export not updating'" not in sensor_script
     assert "local coreReady = not frozen and" in sensor_script
     assert 'CPUClockIndex' not in sensor_script and 'CPUClockIndex' not in setup_script
     assert "parts[1] == 'CLOCK'" in setup_script and "normalizedLabel ~= 'Core Clocks'" in setup_script

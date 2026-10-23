@@ -177,7 +177,12 @@ end
 -- legitimately constant cannot trip this while any other bound reading
 -- moves. A frozen export is only recognisable after that window, so it still
 -- shows as connected for up to a minute after load, reconnect or restart.
+-- HWiNFO polls its sensors, and writes this export, only while its Sensors
+-- window is open (minimised is fine), so the footer names that fix. The text
+-- is 10.64 em in IBM Plex Sans Medium and fits the narrowest footer (12.5 em
+-- at width 180) at the 10 pt body maximum and every scale.
 local exportStaleSeconds = 60
+local exportStaleStatus = 'HWiNFO: open Sensors'
 local exportKinds = {'Temperature', 'Voltage', 'Clock', 'Fan', 'MotherboardFan'}
 
 local function exportFrozen()
@@ -224,7 +229,7 @@ local function render(paint)
     elseif exportFrozen() then
         -- Values from an export that stopped updating are suppressed the same way.
         frozen = true
-        status = 'HWiNFO: export not updating'
+        status = exportStaleStatus
     else
         -- The footer reports provider status only; readings live in their rows.
         clock = readBinding('Clock', nil, lists)

@@ -1235,6 +1235,8 @@ public static class ParallaxGpuTemperature
         }
 
         private uint powerDomain;
+        // Open-time only: proves the bound NVML device still has the selected
+        // NVAPI GPU's PCI identity once the complete inventories matched.
         private string PowerIdentityMatches()
         {
             if (!IdentityMatches()) return "DEVICE_CHANGED";
@@ -1259,13 +1261,15 @@ public static class ParallaxGpuTemperature
             try
             {
                 if (powerSupport != "OK") return powerSupport;
-                if (nvmlPower == null || nvmlPci == null || nvmlDevice == IntPtr.Zero) return "UNSUPPORTED";
-                string status = PowerIdentityMatches();
-                if (status != "OK") return status;
+                if (nvmlPower == null || nvmlDevice == IntPtr.Zero) return "UNSUPPORTED";
+                // The unique NVAPI/NVML PCI association was proven once at open
+                // (MatchNvmlPowerInventory) and is reused for every sample. NVML
+                // keeps a device handle bound to its GPU for the whole session; a
+                // removed GPU reports GPU_IS_LOST, which NvmlResult maps to
+                // DEVICE_CHANGED, and ReadFrame's identity bracket guards the
+                // selected adapter itself.
                 uint value;
                 int result = nvmlPower(nvmlDevice, out value);
-                status = PowerIdentityMatches();
-                if (status != "OK") return status;
                 if (result != 0) return NvmlResult(result);
                 milliwatts = value;
                 return "OK";

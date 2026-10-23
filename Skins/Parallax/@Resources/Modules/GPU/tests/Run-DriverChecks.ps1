@@ -452,7 +452,7 @@ $inner=@"
 
         internal static int PowerClockFixtures()
         {
-            int count=0,clockCalls=0,powerCalls=0;
+            int count=0,clockCalls=0,powerCalls=0,pciReads=0,nvmlPciReads=0;
             Action<bool,string> check=delegate(bool ok,string label){++count;if(!ok)throw new Exception(label);};
             Action resetIdentity=delegate(){FixtureIdentity=new Queue<bool>();for(int i=0;i<96;++i)FixtureIdentity.Enqueue(true);};
             Driver driver=new Driver(1);driver.opened=true;driver.nvidiaStatus="OK";driver.physical=new IntPtr(1);
@@ -487,8 +487,8 @@ $inner=@"
 
             uint inventoryCount=2,nvmlCount=2,bus=1,domain=0,function=0,mw=13299;
             int inventoryStatus=0,nvmlCountStatus=0,nvmlHandleStatus=0,nvmlPciStatus=0,powerStatus=0,pciStatus=0;
-            bool nvidiaCollision=false,nvmlCollision=false,duplicateNvidia=false,duplicateNvml=false,badBusId=false,mutatePci=false,mutateDomain=false;
-            driver.pciBus=delegate(IntPtr gpu,out uint value){value=gpu==new IntPtr(1)?bus:nvidiaCollision?bus:2u;return pciStatus;};
+            bool nvidiaCollision=false,nvmlCollision=false,duplicateNvidia=false,duplicateNvml=false,badBusId=false;
+            driver.pciBus=delegate(IntPtr gpu,out uint value){++pciReads;value=gpu==new IntPtr(1)?bus:nvidiaCollision?bus:2u;return pciStatus;};
             driver.pciSlot=delegate(IntPtr gpu,out uint value){value=0;return 0;};
             driver.pciIdentifiers=delegate(IntPtr gpu,out uint device,out uint subsystem,out uint revision,out uint external)
             {device=0x1b8010de;subsystem=0x33661028;revision=0xa1;external=0x1b80;return 0;};
@@ -505,12 +505,12 @@ $inner=@"
             NvmlHandle getHandle=delegate(uint index,out IntPtr device){device=new IntPtr(20+(duplicateNvml?0:(int)index));return index==1?nvmlHandleStatus:0;};
             driver.nvmlPci=delegate(IntPtr device,ref NvmlPci data)
             {
-                data.Domain=domain;data.Bus=device==new IntPtr(20)?1u:nvmlCollision?1u:2u;data.Slot=0;data.Device=0x1b8010de;data.Subsystem=0x33661028;
+                ++nvmlPciReads;data.Domain=domain;data.Bus=device==new IntPtr(20)?1u:nvmlCollision?1u:2u;data.Slot=0;data.Device=0x1b8010de;data.Subsystem=0x33661028;
                 string id=badBusId?"00000000:FF:00.0":data.Domain.ToString("X8")+":"+data.Bus.ToString("X2")+":00."+function.ToString();
                 byte[] encoded=Encoding.ASCII.GetBytes(id);Array.Copy(encoded,data.BusId,encoded.Length);return nvmlPciStatus;
             };
             driver.nvmlPower=delegate(IntPtr device,out uint value)
-            {++powerCalls;check(device==new IntPtr(20),"bound NVML power handle");value=mw;if(mutatePci)bus=2;if(mutateDomain)domain=1;return powerStatus;};
+            {++powerCalls;check(device==new IntPtr(20),"bound NVML power handle");value=mw;return powerStatus;};
             resetIdentity();check(driver.MatchNvmlPowerInventory(getCount,getHandle)=="OK"&&driver.nvmlDevice==new IntPtr(20),"unique complete NVML match");
             nvmlCollision=true;resetIdentity();check(driver.MatchNvmlPowerInventory(getCount,getHandle)=="UNSUPPORTED","NVML duplicate tuple rejected");nvmlCollision=false;
             duplicateNvml=true;resetIdentity();check(driver.MatchNvmlPowerInventory(getCount,getHandle)=="UNAVAILABLE","duplicate NVML handle rejected");duplicateNvml=false;
@@ -525,9 +525,14 @@ $inner=@"
             {mw=value;resetIdentity();check(driver.ReadPower(out scalar)=="OK"&&scalar==value,"native mW returned exactly, including zero");}
             foreach(int error in new int[]{3,4,15,999})
             {powerStatus=error;resetIdentity();check(driver.ReadPower(out scalar)==(error==3?"UNSUPPORTED":error==15?"DEVICE_CHANGED":"UNAVAILABLE")&&!scalar.HasValue,"NVML power error status");}
-            powerStatus=0;mw=13299;mutatePci=true;resetIdentity();
-            check(driver.ReadPower(out scalar)=="DEVICE_CHANGED"&&!scalar.HasValue,"PCI mutation after power clears reading");mutatePci=false;bus=1;
-            mutateDomain=true;resetIdentity();check(driver.ReadPower(out scalar)=="DEVICE_CHANGED"&&!scalar.HasValue,"NVML domain mutation after power clears reading");mutateDomain=false;domain=0;
+            // The unique PCI association is proven once at open (above); a sample
+            // reads power alone, inside the frame's two identity checks.
+            powerStatus=0;mw=13299;int pciBefore=pciReads,nvmlPciBefore=nvmlPciReads;before=powerCalls;
+            FixtureIdentity=new Queue<bool>(new bool[]{true,true,true});Frame sampled=driver.ReadFrame();
+            check(sampled.PowerStatus=="OK"&&sampled.PowerMilliwatts==13299&&powerCalls==before+1&&FixtureIdentity.Count==1,"a power frame makes one NVML call inside exactly two identity checks");
+            check(pciReads==pciBefore&&nvmlPciReads==nvmlPciBefore,"a power sample reuses the open-time PCI match without any PCI query");
+            FixtureIdentity=new Queue<bool>(new bool[]{true,false});sampled=driver.ReadFrame();
+            check(sampled.PowerStatus=="DEVICE_CHANGED"&&!sampled.PowerMilliwatts.HasValue&&powerCalls==before+2,"identity lost after the power call voids the reading");
             FixtureIdentity=new Queue<bool>(new bool[]{false});before=powerCalls;framed=driver.ReadFrame();
             check(framed.PowerStatus=="DEVICE_CHANGED"&&powerCalls==before,"frame identity before power query");
             driver.powerSupport="UNSUPPORTED";resetIdentity();check(driver.ReadPower(out scalar)=="UNSUPPORTED"&&!scalar.HasValue,"missing NVML power provider");

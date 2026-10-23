@@ -491,7 +491,7 @@ The audiodg attribution question is answered: see [Live A/B](#live-ab-drawer-and
 - **The idle tick costs about 0.05% of a core,** inside the trial spread, plus about 53 wakeups/s.
 - **Media idle cost about 9.9% before phase A** (default preferences, software rendering); it is now 0.35%.
 - **Removing the remaining tick** would need ActionTimer or a reload on play/pause, which is more code for a negligible CPU gain.
-- **Still open with the owner:** whether the 53 wakeups/s matter. They chiefly affect deep idle states overnight, which C2's idle stand-down also covers.
+- **Owner decision (2026-10-22): leave the tick as it is.** No ActionTimer pulse. The owner can set Title animation to Off to halve those wakeups, and C2's idle stand-down covers nights.
 
 ## Found along the way (not performance)
 

@@ -14,6 +14,9 @@
 #   of every build's trials in that scenario and metric,
 #   s = sqrt( sum((n_b - 1) * var_b) / sum(n_b - 1) ).
 # A unit whose g_k and m_k differ by more than 2 s is flagged as interacting.
+# No class is stated from partial data: when a plus build has no trial for a
+# scenario and metric, sum(g_k) misses its gain, so the class reads
+# 'incomplete: no trials for <builds>' (the numbers are still reported).
 
 Set-StrictMode -Version Latest
 
@@ -177,9 +180,13 @@ function Invoke-ParallaxPerfMatrixAnalysis {
             $allCost = if ($all -and $cost.ContainsKey($all)) { $cost[$all] } else { $null }
             $units = [Collections.Generic.List[object]]::new()
             $sumG = 0.0; $gCount = 0
+            # Plus builds without a cost here: their g_k is missing from sum(g_k).
+            $noTrials = [Collections.Generic.List[string]]::new()
+            $noTrialFixes = [Collections.Generic.List[string]]::new()
             foreach ($key in $unitKeys) {
                 $p = @($plus | Where-Object UnitKey -eq $key) | Select-Object -First 1
                 $m = @($minus | Where-Object UnitKey -eq $key) | Select-Object -First 1
+                if ($p -and -not $cost.ContainsKey($p.Name)) { $noTrials.Add($p.Name); foreach ($fix in @($p.Fixes)) { $noTrialFixes.Add($fix) } }
                 $g = if ($p -and $null -ne $baseCost -and $cost.ContainsKey($p.Name)) { $baseCost - $cost[$p.Name] } else { $null }
                 $mk = if ($m -and $null -ne $allCost -and $cost.ContainsKey($m.Name)) { $cost[$m.Name] - $allCost } else { $null }
                 if ($null -ne $g) { $sumG += $g; $gCount++ }
@@ -199,6 +206,7 @@ function Invoke-ParallaxPerfMatrixAnalysis {
             $class = if ($null -eq $combined) { 'undetermined: baseline or all build not measured' }
                 elseif ($gCount -eq 0) { 'undetermined: no baseline + k build measured' }
                 elseif ($null -eq $threshold) { 'undetermined: fewer than 2 trials per build' }
+                elseif ($noTrials.Count) { "incomplete: no trials for $($noTrials -join ', ')" }
                 elseif (-not $coverage.Complete) { 'incomplete: the measured units do not cover every fix in all' }
                 elseif ($interaction -gt $threshold) { 'synergistic' }
                 elseif ($interaction -lt -$threshold) { 'antagonistic' }
@@ -206,13 +214,14 @@ function Invoke-ParallaxPerfMatrixAnalysis {
             $metricResults[$metric] = [ordered]@{
                 Baseline = Round-Value $baseCost; All = Round-Value $allCost; G = Round-Value $combined; SumG = Round-Value $(if ($gCount) { $sumG } else { $null })
                 Interaction = Round-Value $interaction; PooledSd = Round-Value $pooled; Threshold = Round-Value $threshold; Class = $class
+                NoTrials = @($noTrials); UnmeasuredFixes = @($noTrialFixes)
                 Units = @($units.ToArray())
             }
         }
         $result[$scenario] = [ordered]@{ Builds = $buildStats; Metrics = $metricResults }
     }
     [ordered]@{
-        Rule = 'I = G - sum(g_k); synergistic if I > 2s, antagonistic if I < -2s, additive otherwise; s = pooled sample SD of all builds'' trials (per scenario and metric). Units with |g_k - m_k| > 2s are flagged as interacting.'
+        Rule = 'I = G - sum(g_k); synergistic if I > 2s, antagonistic if I < -2s, additive otherwise; s = pooled sample SD of all builds'' trials (per scenario and metric). No class while a plus build has no trials or the units do not cover every fix (incomplete). Units with |g_k - m_k| > 2s are flagged as interacting.'
         Baseline = $baseline; All = $all; Coverage = $coverage; Metrics = @($Metrics); Scenarios = $result
     }
 }
@@ -261,6 +270,11 @@ function ConvertTo-ParallaxPerfMatrixMarkdown {
         $lines.Add('')
         $lines.Add('### Combined gain and interaction')
         $lines.Add('')
+        $absent = @($data.Metrics.Values | ForEach-Object { @($_.NoTrials) } | Where-Object { $_ } | Select-Object -Unique)
+        if ($absent.Count) {
+            $lines.Add("**No trials in this scenario for $($absent -join ', ').** Sum g leaves their gain out, so no metric that misses them is classified.")
+            $lines.Add('')
+        }
         $lines.Add('| Metric | Baseline | All | G | Sum g | I = G - Sum g | 2s | Class |')
         $lines.Add('| --- | ---: | ---: | ---: | ---: | ---: | ---: | --- |')
         foreach ($metric in $data.Metrics.Keys) {

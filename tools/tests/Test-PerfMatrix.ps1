@@ -94,6 +94,23 @@ Assert-True ((@($analysis.Coverage.AssumedZero) -join ',') -eq 'C' -and $analysi
 $partial = Invoke-ParallaxPerfMatrixAnalysis -Builds $builds -Trials $trials -Metrics $metrics -AllFixes @('A', 'B', 'C')
 Assert-True ($partial.Scenarios['suite'].Metrics['TotalCpuPct'].Class -like 'incomplete*') 'an unmeasured expected fix leaves the class incomplete'
 Assert-Near $partial.Scenarios['suite'].Metrics['TotalCpuPct'].Interaction 1 'while still reporting the numbers'
+# A plus build with no trials leaves sum g partial: the additive Main model
+# would read I = 1.5 > 2s, a false synergy. No class may be stated.
+$gap = Invoke-ParallaxPerfMatrixAnalysis -Builds $builds -Trials @($trials | Where-Object Build -ne 'p-B') -Metrics $metrics -AllFixes @('A', 'B', 'C') -Assumable @{ C = 'isolatedEffect interactive' }
+$gapMain = $gap.Scenarios['suite'].Metrics['MainCpuPct']
+Assert-True $gap.Coverage.Complete 'the build list alone still covers every fix'
+Assert-True ($gapMain.Class -eq 'incomplete: no trials for p-B') "a plus build without trials is not classified (got $($gapMain.Class))"
+Assert-True (@($gap.Scenarios['suite'].Metrics.Values | Where-Object { $_.Class -ne 'incomplete: no trials for p-B' }).Count -eq 0) 'no metric is classified from the partial sum'
+Assert-Near $gapMain.G 3 'G is still reported'
+Assert-Near $gapMain.SumG 1.5 'the partial sum g is still reported'
+Assert-Near $gapMain.Interaction 1.5 'and so is I'
+Assert-True ((@($gapMain.NoTrials) -join ',') -eq 'p-B' -and (@($gapMain.UnmeasuredFixes) -join ',') -eq 'B') 'the unmeasured build and its fixes are named'
+$gapMarkdown = ConvertTo-ParallaxPerfMatrixMarkdown -Analysis $gap -CostMetrics $metrics -UnitMetrics $metrics
+Assert-True ($gapMarkdown -match '\*\*No trials in this scenario for p-B\.\*\*' -and $gapMarkdown -match '\| UI thread \|[^\n]*\| incomplete: no trials for p-B \|') 'the markdown names the missing build and gives no class'
+$metricGap = @($trials | ForEach-Object { if ($_.Build -eq 'p-A') { [pscustomobject]@{ Build = $_.Build; Scenario = $_.Scenario; TotalCpuPct = $_.TotalCpuPct; MainCpuPct = $_.MainCpuPct; OtherCpuPct = $null } } else { $_ } })
+$metricGapAnalysis = Invoke-ParallaxPerfMatrixAnalysis -Builds $builds -Trials $metricGap -Metrics $metrics -AllFixes @('A', 'B')
+Assert-True ($metricGapAnalysis.Scenarios['suite'].Metrics['OtherCpuPct'].Class -eq 'incomplete: no trials for p-A') 'a metric a plus build did not report is not classified'
+Assert-True ($metricGapAnalysis.Scenarios['suite'].Metrics['TotalCpuPct'].Class -eq 'synergistic') 'the metrics it did report still are'
 $single = Invoke-ParallaxPerfMatrixAnalysis -Builds $builds -Trials @($trials | Where-Object { $_.TotalCpuPct -eq [math]::Round($_.TotalCpuPct, 0) }) -Metrics $metrics -AllFixes @('A', 'B')
 Assert-True ($single.Scenarios['suite'].Metrics['TotalCpuPct'].Class -like 'undetermined: fewer than 2*') 'single trials cannot be classified'
 $overlap = @($builds) + @([pscustomobject]@{ Name = 'p-AB'; Role = 'plus'; UnitKey = 'A+B'; Fixes = @('A', 'B') })
@@ -135,12 +152,13 @@ $stage = $StageRoot
 if (-not $stage) { $stage = Join-Path $root ('build\stage-' + [Guid]::NewGuid().ToString('N').Substring(0, 6)); $null = New-Item -ItemType Directory -Path $stage }
 $rows = foreach ($s in ($Scenario -join ',').Split(',')) {
     if ($s -eq 'broken') { continue }
+    if ($env:PXPM_FAKE_NO_ROWS -and (Split-Path -Leaf $root) -eq $env:PXPM_FAKE_NO_ROWS) { continue }
     [pscustomobject]@{ Scenario = $s; Trial = 1; TotalCpuPct = 10 - 3 * $a - 2 * $b - $a * $b + $noise; MainCpuPct = 5 - 1.5 * $a - 1.5 * $b + $noise }
 }
 $out = Join-Path $root 'build\perf-benchmark'
 if (-not (Test-Path -LiteralPath $out)) { $null = New-Item -ItemType Directory -Path $out -Force }
 $report = [ordered]@{ Label = $Label; Preferences = $Preferences; HardwareAcceleration = $HardwareAcceleration; StageRoot = $stage; ReceivedStageRoot = $StageRoot
-    Settle = $SettleSeconds; Window = $MeasureSeconds; Trials = $Trials; Trialwise = @($rows) }
+    Settle = $SettleSeconds; Window = $MeasureSeconds; Trials = $Trials; Trialwise = @($rows | Where-Object { $_ }) }
 [IO.File]::WriteAllText((Join-Path $out ('{0}-{1}-{2}.json' -f [DateTime]::UtcNow.ToString('yyyyMMddTHHmmssfff'), $Preferences, $Label)), ($report | ConvertTo-Json -Depth 5))
 Write-Host "fake benchmark $Label"
 '@
@@ -223,6 +241,20 @@ try {
     $brokenResult = Get-Content -LiteralPath (Join-Path $broken 'analysis.json') -Raw | ConvertFrom-Json
     Assert-True (@($brokenResult.MissingTrials).Count -eq 12) 'missing trials are listed'
     Assert-True ($brokenResult.Scenarios.PSObject.Properties.Name -notcontains 'broken') 'and no numbers appear for them'
+
+    # A plus build whose benchmark wrote no rows: no class from the partial sum.
+    $gapFolder = Join-Path $fixture 'mg'
+    $env:PXPM_FAKE_NO_ROWS = 't-p-B'
+    try { $null = & $matrix -BuildRoot $root -Prefix 't' -Scenario @('suite') -Trials 2 -BenchmarkRelativePath 'tools\Fake-Benchmark.ps1' -InstrumentFiles @('tools\Fake-Benchmark.ps1') -MatrixId 'fg' -MatrixDir $gapFolder 3>$null }
+    finally { Remove-Item -LiteralPath Env:PXPM_FAKE_NO_ROWS -ErrorAction SilentlyContinue }
+    $gapResult = Get-Content -LiteralPath (Join-Path $gapFolder 'analysis.json') -Raw | ConvertFrom-Json
+    Assert-True ((@($gapResult.MissingTrials | Sort-Object) -join ',') -eq 'fg-t-p-B-r1:suite,fg-t-p-B-r2:suite') "end to end: the plus build's missing trials are listed (got $(@($gapResult.MissingTrials) -join ','))"
+    Assert-True $gapResult.Coverage.Complete 'end to end: the build list alone covers every fix'
+    foreach ($metric in 'TotalCpuPct', 'MainCpuPct') {
+        Assert-True ($gapResult.Scenarios.suite.Metrics.$metric.Class -eq 'incomplete: no trials for t-p-B') "end to end: $metric is not classified (got $($gapResult.Scenarios.suite.Metrics.$metric.Class))"
+    }
+    Assert-Near $gapResult.Scenarios.suite.Metrics.MainCpuPct.SumG 1.5 'end to end: the partial sum is still reported'
+    Assert-True ((Get-Content -LiteralPath (Join-Path $gapFolder 'analysis.md') -Raw) -match 'No trials in this scenario for t-p-B') 'end to end: the markdown names the build'
 
     Write-Host "Test-PerfMatrix: $script:assertions assertions passed." -ForegroundColor Green
 }

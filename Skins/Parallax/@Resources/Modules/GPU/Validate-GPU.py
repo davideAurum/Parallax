@@ -330,11 +330,15 @@ for field in ("Temperature", "Power", "Clock"):
     assert sections["Variables"][f"GPU{field}Index"] == "-1"
     assert sections["Variables"][f"GPU{field}Sensor"] == ""
     assert sections["Variables"][f"GPU{field}Label"] == ""
-for name, timeout in (("MeasureGPUTemperatureBootstrap", "12000"), ("MeasureGPUTemperatureDriver", "-1")):
+for name, timeout in (("MeasureGPUTemperatureBootstrap", "12000"), ("MeasureGPUTemperatureLauncher", "15000")):
     options = sections[name]
     assert options["Measure"] == "Plugin" and options["Plugin"] == "RunCommand", name
     assert options["Timeout"] == timeout and options["State"] == "Hide", name
     assert "FinishAction" not in options and options["Parameter"] == "", name
+# RunCommand polls a running child with a 1 ms wait on a plugin thread until
+# it exits, so the resident host runs detached and no GPU command is unbounded.
+assert "MeasureGPUTemperatureDriver" not in sections
+assert not any(opts.get("Plugin") == "RunCommand" and opts.get("Timeout", "-1") == "-1" for opts in sections.values())
 assert not any(name.startswith("MeasureGPUTemperature") and opts.get("Measure") == "Registry" for name, opts in sections.items())
 assert sections["MeasureGPUTemperatureController"]["Measure"] == "Script"
 assert sections["MeasureGPUTemperatureController"]["ScriptFile"] == "#@#Modules\\GPU\\Temperature.lua"

@@ -21,7 +21,8 @@ function Suite.run(path)
     local base = tempRoot .. '\\Parallax-GPU-' .. token
     local dataPath, leasePath, tmpPath = base .. '.dat', base .. '.lease', base .. '.tmp'
     local foreignPath = tempRoot .. '\\Parallax-GPU-another-session.dat'
-    local info, bootstrap, driver = 'MeasureGPUInfo', 'MeasureGPUTemperatureBootstrap', 'MeasureGPUTemperatureDriver'
+    -- 'driver' names the RunCommand launcher that starts the detached driver host.
+    local info, bootstrap, driver = 'MeasureGPUInfo', 'MeasureGPUTemperatureBootstrap', 'MeasureGPUTemperatureLauncher'
     local metadata = 'OK|' .. adapter .. '|8589934592|GDDR6|Vendor|PHYSICAL|1600000|1900000\nGPU_ADAPTER|1|' .. luid
     local function sessionOutput(overrides)
         local f = {'GPU_TEMP_SESSION', '1', token, hex(dataPath), luid}
@@ -133,7 +134,15 @@ function Suite.run(path)
                     f.historyFormula = args[3]
                 else
                     assert((args[1] == bootstrap or args[1] == driver) and args[2] == 'Parameter', 'unexpected helper option')
-                    assert(args[3]:find("ReadAllText('DriverTemperature.cs.txt')", 1, true), 'fixed source only')
+                    if args[1] == bootstrap then
+                        assert(args[3]:find("ReadAllText('DriverTemperature.cs.txt')", 1, true), 'fixed source only')
+                    else
+                        -- The launcher compiles nothing; the host reads the fixed
+                        -- source by the absolute path the launcher substitutes.
+                        assert(args[3]:find("[IO.Directory]::GetCurrentDirectory(),'DriverTemperature.cs.txt')", 1, true)
+                            and args[3]:find("ReadAllText(''@S@'')", 1, true)
+                            and not args[3]:find("ReadAllText('DriverTemperature", 1, true), 'fixed source only')
+                    end
                     f.parameters[args[1]] = args[3]
                 end
             elseif command == '!CommandMeasure' then
@@ -293,6 +302,35 @@ function Suite.run(path)
         f:clear(); for _ = 1, 4 do f:update() end
         eq(#f.calls, 0, 'deduplicated unchanged view'); eq(f.leaseWrites, 1); eq(f.reads[info], 1)
         eq(f.launches[bootstrap], 1); eq(f.launches[driver], 1)
+        -- The launcher starts the host hidden and detached, then exits.
+        local launch = f.parameters[driver]
+        local _, quotes = launch:gsub('"', '')
+        eq(quotes, 2, 'one quoted -Command argument'); eq(launch:sub(-1), '"')
+        contains(launch, '-Command "'); contains(launch, 'Start-Process'); contains(launch, '-WorkingDirectory $t -WindowStyle Hidden -PassThru')
+        contains(launch, "'-NoLogo -NoProfile -NonInteractive -WindowStyle Hidden -Command '")
+        contains(launch, "[ParallaxGpuTemperature]::Run(''" .. token .. "'',''" .. luid .. "'',2000)")
+        contains(launch, "'Parallax-GPU-" .. token .. ".dat'"); contains(launch, '-lt 10000')
+    end)
+    test('the detached host counts as stopped after twice the freshness window without a sample', function()
+        local f = fixture(); f:live(); f.statuses[driver] = 1; f.outputs[driver] = 'GPU_TEMP_STARTED'
+        f.now = 1001; f:update(); eq(f.meter.Text, '42 °C')
+        f.now = 1008; f:update(); eq(f.meter.Text, '42 °C', 'current through its whole freshness window')
+        f.now = 1009; f:update(); eq(f.meter.Text, 'Unavailable', 'a late sample is hidden at once')
+        f.now = 1030; f:update(); eq(f.meter.Text, 'Unavailable'); eq(next(f.removed), nil, 'a late host may still resume')
+        f.now = 1031; f:update(); eq(f.meter.Text, 'Unavailable'); f:ownedClean()
+        eq(f.kills[driver], nil, 'a completed launcher is never killed'); eq(f.launches[driver], 1, 'no relaunch')
+        f.now = 1100; f:update(); eq(f.launches[driver], 1); eq(f.launches[bootstrap], 1)
+        f = fixture(); f:live(); f.statuses[driver] = 1; f.outputs[driver] = 'GPU_TEMP_STARTED'
+        f.now = 1025; f:update(); eq(f.meter.Text, 'Unavailable')
+        f:sample({[4] = '2'}); f:update(); eq(f.meter.Text, '42 °C', 'a late host resumes within the grace')
+        f.now = 1055; f:update(); eq(next(f.removed), nil); f.now = 1056; f:update(); f:ownedClean()
+    end)
+    test('a launcher that does not report a started host ends the session without Kill', function()
+        for _, output in ipairs({'', 'GPU_TEMP_FAILED', 'GPU_TEMP_STARTED extra'}) do
+            local f = fixture(); f:live(); f.statuses[driver] = 1; f.outputs[driver] = output
+            f:update(); eq(f.meter.Text, 'Unavailable'); f:ownedClean(); eq(f.kills[driver], nil)
+            f:update(); eq(f.launches[driver], 1); eq(f.launches[bootstrap], 1)
+        end
     end)
     test('changed readings are written as options without a forced mid-cycle paint', function()
         local f = fixture(); f:live(); f:clear()
@@ -427,7 +465,7 @@ function Suite.run(path)
         end
         local f = fixture({metadata = 'NONE', bootstrapStatus = -1, driverStatus = -1})
         eq(f.meter.Text, 'Unavailable'); namesOnlyBootstrap(f); eq(f.kills[bootstrap], nil)
-        f.env.Stop(); namesOnlyBootstrap(f); eq(f.kills[bootstrap], 1, 'owned running bootstrap is stopped')
+        f.env.Stop(); namesOnlyBootstrap(f); eq(f.kills[bootstrap], nil, 'a running bootstrap is left to RunCommand unload termination')
         for _, statusValue in ipairs({0, -1}) do
             f = fixture({infoStatus = statusValue, bootstrapStatus = -1, driverStatus = -1})
             eq(f.meter.Text, 'Checking...'); untouched(f)
@@ -538,14 +576,17 @@ function Suite.run(path)
         f.statuses[driver] = -1; f:update(); eq(f.meter.Text, 'Unavailable'); eq(f.launches[driver], 1)
     end)
     test('Stop removes owned lease/snapshot/temp files and never restarts helpers', function()
+        -- Removing the lease is the detached host's stop request. Stop sends no
+        -- Kill: RunCommand's unload terminates a running setup command once.
         local f = fixture(); f:live(); f.files[tmpPath] = 'partial'; f.env.Stop(); f:ownedClean()
-        eq(f.kills[bootstrap], nil, 'finished bootstrap need not be killed'); eq(f.kills[driver], 1)
+        eq(f.kills[bootstrap], nil, 'finished bootstrap need not be killed'); eq(f.kills[driver], nil)
         f:clear(); f.now = 2000; f:update(); eq(#f.calls, 0); eq(f.launches[driver], 1)
-        f = fixture(); f.env.Stop(); eq(next(f.removed), nil, 'no files removed before session accepted')
-        eq(f.kills[bootstrap], 1); eq(f.kills[driver], nil)
+        f = fixture(); f:clear(); f.env.Stop(); eq(next(f.removed), nil, 'no files removed before session accepted')
+        eq(f.kills[bootstrap], nil, 'a running bootstrap is left to RunCommand unload'); eq(f.kills[driver], nil)
+        eq(#f.calls, 0, 'Stop neither commands nor refreshes a provider')
         f:start(); eq(f.launches[driver], nil); eq(f.leaseWrites, 0)
     end)
-    test('failure and Stop kill owned native RUN state zero exactly once', function()
+    test('failure kills owned native RUN state zero exactly once; Stop never kills', function()
         for _, name in ipairs({bootstrap, driver}) do
             for _, action in ipairs({'failure', 'Stop'}) do
                 local f = fixture(); if name == driver then f:live() end
@@ -553,10 +594,11 @@ function Suite.run(path)
                 if action == 'Stop' then f.env.Stop()
                 elseif name == bootstrap then f.now = 1020; f:update()
                 else f.failOpen = true; f.now = 1005; f:update() end
-                eq(f.kills[name], 1)
+                local expected = action == 'failure' and 1 or nil
+                eq(f.kills[name], expected)
                 eq(f.kills[name == bootstrap and driver or bootstrap], nil)
                 eq(f.statuses[name], 0, 'asynchronous Kill may retain RUN until the plugin updates')
-                f.env.Stop(); f.env.Stop(); eq(f.kills[name], 1, 'repeated shutdown cannot send a second Kill')
+                f.env.Stop(); f.env.Stop(); eq(f.kills[name], expected, 'repeated shutdown cannot send another Kill')
                 if name == driver then f:ownedClean() else eq(next(f.removed), nil) end
             end
         end
@@ -587,16 +629,20 @@ function Suite.run(path)
             eq(f.kills[bootstrap], nil); eq(f.kills[driver], nil)
         end
     end)
-    test('shutdown refreshes stale plugin status before deciding whether a helper is live', function()
+    test('failure refreshes stale plugin status before deciding whether a helper is live', function()
+        local function failNow(f, name)
+            if name == bootstrap then f.now = 1020 else f.failOpen = true; f.now = 1005 end
+            f:update()
+        end
         for _, name in ipairs({bootstrap, driver}) do
             for _, stateValue in ipairs({1, 101, 102, 103}) do
                 local f = fixture(); if name == driver then f:live() end
                 eq(f.statuses[name], 0)
-                f.statusOnRefresh = {[name] = stateValue}; f.env.Stop()
+                f.statusOnRefresh = {[name] = stateValue}; failNow(f, name)
                 eq(f.statuses[name], stateValue); eq(f.kills[name], nil, 'completed/error status supersedes cached RUN')
             end
             local f = fixture(); if name == driver then f:live() end
-            f.statuses[name] = -1; f.statusOnRefresh = {[name] = 0}; f.env.Stop()
+            f.statuses[name] = -1; f.statusOnRefresh = {[name] = 0}; failNow(f, name)
             eq(f.kills[name], 1, 'fresh RUN status supersedes cached initial state for an owned helper')
         end
     end)
@@ -957,7 +1003,7 @@ function Suite.run(path)
             local f = fixture({metadata = output, pids = '7,42'})
             eq(f.meter.Text, 'Unavailable')
             f:start(sessionOutput({[5] = namesOnlyLuid}))
-            eq(f.launches[driver], 1); contains(f.parameters[driver], "','" .. namesOnlyLuid .. "',2000)")
+            eq(f.launches[driver], 1); contains(f.parameters[driver], "'',''" .. namesOnlyLuid .. "'',2000)")
             eq(f.files[leasePath], token .. '|1000|1|7,42')
             f:update(); eq(f.meter.Text, 'Unavailable', 'no Checking state before the first reply')
             -- GPU readings in a names-only reply (here a plausible 42 C) are never shown.

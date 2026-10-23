@@ -45,6 +45,32 @@ $outer=@"
         }
         finally{Driver.FixtureOpenStatus=null;Delete(paths.Data);Delete(paths.Lease);Delete(paths.Temporary);}
     }
+    // The detached host's stop request: the skin removes the lease on close.
+    public static string LeaseRemovalFixture()
+    {
+        string luid="00000000000000AB";
+        string token=CreateSession(luid,1000).Split('|')[2];Paths paths=new Paths(token);
+        Exception failure=null;
+        Driver.FixtureOpenStatus="UNSUPPORTED";Driver.FixtureOpened.Reset();
+        Thread worker=new Thread(delegate(){try{Run(token,luid,1000);}catch(Exception error){failure=error;}});
+        worker.IsBackground=true;
+        try
+        {
+            WriteNew(paths.Lease,token+"|"+Number(Now()));
+            worker.Start();
+            if(!Driver.FixtureOpened.WaitOne(5000))throw new Exception("Helper did not open");
+            Thread.Sleep(100);
+            if(!File.Exists(paths.Data))throw new Exception("No sample before stop request");
+            System.Diagnostics.Stopwatch watch=System.Diagnostics.Stopwatch.StartNew();
+            File.Delete(paths.Lease);
+            if(!worker.Join(2500))throw new Exception("Removed lease did not stop helper within one interval");
+            long elapsed=watch.ElapsedMilliseconds;
+            if(failure!=null)throw failure;
+            if(File.Exists(paths.Data)||File.Exists(paths.Lease)||File.Exists(paths.Temporary))throw new Exception("Session files remain after stop request");
+            return "PASS: removed lease stops the host within one interval ("+elapsed+" ms) and leaves no session file";
+        }
+        finally{Driver.FixtureOpenStatus=null;Delete(paths.Data);Delete(paths.Lease);Delete(paths.Temporary);}
+    }
     public static string PureFixtures()
     {
         int count=0;Action<bool,string> check=delegate(bool ok,string label){++count;if(!ok)throw new Exception(label);};
@@ -713,6 +739,7 @@ Add-Type -TypeDefinition $source -Language CSharp
 [ParallaxGpuTemperature]::ProcessListingProbe()
 
 [ParallaxGpuTemperature]::LifecycleFixture()
+[ParallaxGpuTemperature]::LeaseRemovalFixture()
 [ParallaxGpuTemperature]::NamesOnlyLifecycleFixture()
 [ParallaxGpuTemperature]::ListingModeFixture()
 [ParallaxGpuTemperature]::LateLeaseFixture()

@@ -70,8 +70,11 @@ public static class ParallaxGpuTemperature
         throw new IOException("Unable to create a unique GPU temperature session.");
     }
 
-    // One resident loop inside the caller's process. A lost lease or retained
-    // Rainmeter process handle stops work; there are no child processes to orphan.
+    // One resident loop inside the caller's process, run detached from
+    // RunCommand: a short launcher starts it and exits once it holds its
+    // Rainmeter ancestor. A lost or removed lease (the skin's stop request) or
+    // the retained Rainmeter process handle stops work; there are no child
+    // processes to orphan.
     public static void Run(string token, string luidHex, int intervalMs)
     {
         token = ValidateToken(token);
@@ -104,6 +107,8 @@ public static class ParallaxGpuTemperature
             long sequence = 0;
             while (parent.Alive)
             {
+                // The skin removes the lease to stop this host (close or failure).
+                if (!File.Exists(paths.Lease)) break;
                 long now = Now();
                 Lease observedLease;
                 if (ReadLease(paths.Lease, token, now, intervalMs, out observedLease)) validLease = observedLease;
@@ -125,12 +130,14 @@ public static class ParallaxGpuTemperature
                 if (sequence == MaximumSequence) break;
                 string processMap = processNames.Read(validLease.ProcessIds);
                 string sample = Snapshot(token, ++sequence, Now(), frame, luid, nameHex, validLease.RequestId, processMap);
+                // Never recreate session files after the skin's cleanup.
+                if (!File.Exists(paths.Lease)) break;
                 try { WriteSnapshot(paths, sample, false); }
                 catch (IOException) { /* A reader may temporarily deny replacement; retry next interval. */ }
                 catch (UnauthorizedAccessException) { /* Keep the last closed sample; its timestamp will age. */ }
                 // Terminal states stay observable while leased, without any more
                 // GPU calls. The UI can show the reason instead of missing a file.
-                if (!parent.Wait(intervalMs)) break;
+                if (!WaitInterval(parent, paths, intervalMs)) break;
             }
         }
         finally
@@ -142,6 +149,20 @@ public static class ParallaxGpuTemperature
             Delete(paths.Data);
             Delete(paths.Lease);
         }
+    }
+
+    // Waits one sampling interval in slices of at most five seconds, so a
+    // removed lease ends even a slow cadence promptly.
+    private static bool WaitInterval(ParentGuard parent, Paths paths, int intervalMs)
+    {
+        for (int remaining = intervalMs; remaining > 0; )
+        {
+            int slice = Math.Min(remaining, 5000);
+            if (!parent.Wait(slice)) return false;
+            remaining -= slice;
+            if (remaining > 0 && !File.Exists(paths.Lease)) return false;
+        }
+        return true;
     }
 
     private static string ValidateToken(string token)

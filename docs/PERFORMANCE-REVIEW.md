@@ -210,6 +210,11 @@ That keeps the CPU package out of its deep idle states. The periodic peaks above
 
 The largest single contributor found was outside Parallax. A long-running, paused Spotify session had a renderer process using about 116% of a core. Closing it gave back more than all of Parallax costs. A fresh Spotify session uses 1-3%. On nights when Spotify was left open in that state, it is likely the main fan driver. Parallax, together with the drawer's audio engine at about 40% of a core, sits on top of it. [tools/Trace-ParallaxLive.ps1](../tools/Trace-ParallaxLive.ps1) is built to settle this. It is a read-only overnight trace that records the Parallax share, audiodg, dwm, HWiNFO temperatures and GPU fan, and the top processes in every spike. HWiNFO currently exports no CPU or case fan speed, so CPU temperature is the available proxy.
 
+**Update 2026-10-23: the overnight trace answered this.**
+- **The regular fan peaks,** about every 50 s, come with bursts in explorer and NVIDIA's display container, not in Parallax. That fits display re-detection while the screens are off.
+- **Parallax is a steady floor** of about a quarter of the night-time load. The fan speeds turned out to be exported under labels that do not say "fan"; the trace now records them.
+- See [Overnight trace](#overnight-trace-2026-102223-what-drives-the-night-time-fan).
+
 ## Findings by theme
 
 Each theme combines findings from several reviewers. Severity is the verifier's corrected rating. IDs refer to the [finding index](#appendix-finding-index).
@@ -488,6 +493,47 @@ The stale doc lines the reviewers flagged (ARCHITECTURE, PACKAGING, DEPENDENCIES
 - Baseline `916c9ab`, phase A `dfe55b8` and phase B, interleaved, with live preferences and hardware rendering.
 - B1's wakeup reduction.
 - B2's gains, which show only in opt-out scenarios.
+
+## Overnight trace (2026-10-22/23): what drives the night-time fan
+
+**Setup.**
+- `Trace-ParallaxLive.ps1` ran from 23:31:53 to 08:31:50 at a 5 s interval, giving 6,275 samples (`build/perf-trace/20261022T233145-overnight-baseline*`).
+- The live skin was the installed build, from before phase A. The drawer was open.
+- HWiNFO's sensors window was open, so CPU temperatures and both fan speeds are live.
+- PowerToys Awake was on.
+- The screens were off all night except two 5-minute wakes, at 23:44 and 03:49. Both were logged as mouse input and ended by the idle timeout.
+- Kernel-Power logged no other screen transitions. So the monitors' "half-wakes" the owner saw were not Windows waking the display.
+
+**The night splits into three windows:**
+- **W1, 23:31-03:58:** my phase B builders were running, and so was a stuck Adobe Desktop Service. One of its threads was busy-waiting at 13,000 context switches/s, 83% in the kernel, with no I/O. The Creative Cloud tree was ended at 03:58:40, logged in `build/perf-trace/overnight-events.csv`.
+- **W2, 03:58-04:50:** the builders were finishing; Adobe was gone.
+- **W3, 04:50-08:31:** nothing of mine and no Adobe. This is the clean overnight record.
+
+Screen-off figures. CPU in % of one core; "busy" is % of all cores.
+
+| Window | Busy | CPU °C mean / p95 / max | CPU fan RPM mean / p95 / max | Board fan mean | Parallax total | Rainmeter main | audiodg | Largest others |
+| --- | ---: | ---: | ---: | ---: | ---: | ---: | ---: | --- |
+| W1 (249 min) | 30.1% | 75.5 / 83 / 92 | 3,371 / 3,794 / 4,032 | 1,869 | 30.7 | 15.1 | 8.7 | Adobe 60, TextInputHost 34, Defender 28, my PowerShell 22 |
+| W2 (50 min) | 24.9% | 71.3 / 82 / 88 | 3,090 / 3,629 / 4,069 | 1,618 | 27.9 | 13.5 | 8.0 | TextInputHost 61, explorer 30, NVIDIA display 25 |
+| **W3 (214 min)** | **22.5%** | **68.7 / 79 / 86** | **2,872 / 3,354 / 3,938** | **1,448** | **26.6** | **12.3** | **7.7** | TextInputHost 60, explorer 30, NVIDIA display 21, SearchIndexer 19 |
+
+**The regular fan peaks (symptom c) are not Parallax.**
+- **How often:** in W3 the CPU fan crossed its 90th percentile (3,292 RPM) upward 173 times in 3.7 hours. The median gap between peaks was 52 s; half the gaps fell between 32 and 104 s.
+- **What rises into a peak:** in the 15 s leading into a peak, explorer rose from 30% to 67% of a core and NVIDIA's display container from 21% to 50%. dwm and Steam's web helper roughly doubled.
+- **What does not:** Parallax and Rainmeter's UI thread are unchanged into a peak.
+- **Correlation with the fan:** 0.02 for Parallax and −0.02 for Rainmeter's main thread, against 0.71 for total machine load and 0.54 for CPU temperature.
+
+Explorer, the NVIDIA display container and dwm bursting together is how display re-detection work shows up. With the screens off, that is consistent with the monitors cycling their inputs or DisplayPort links, which matches the one-monitor-then-the-other half-wakes the owner saw. It is consistent, not proven. The test is to turn off the monitors' Auto Source Switch (and DisplayPort deep sleep, if needed) and trace another night.
+
+**What Parallax contributes is a steady floor, not the peaks.**
+- **Size:** about 27% of a core all night, about a quarter of the steady load. That is 12% on Rainmeter's UI thread, 9% in helpers and 8% in audiodg, which the open drawer keeps running.
+- **Phase A and B:** these reduce that floor; the next section measures by how much.
+- **C1:** releases audiodg after silence.
+- **C2:** opt-in; would stop Parallax entirely while idle.
+
+**Other findings:**
+- **TextInputHost**, the Windows touch-keyboard, emoji and input-method host, is the largest steady consumer: about 60% of a core from 04:00 onwards, up from 34% earlier in the night. Nobody was typing, so this is not normal. It is the owner's call whether to end it; Windows restarts it on demand.
+- **Search indexing** climbed from 5% to 22% of a core over the night.
 
 ## Owner decisions (2026-10-22)
 

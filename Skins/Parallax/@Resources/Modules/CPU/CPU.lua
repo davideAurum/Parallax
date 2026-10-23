@@ -164,6 +164,7 @@ end
 local function configureHistoryTrack()
     state.graphFirst, state.graphRows = graphThreadRange()
     state.graphHeight = graphHeight()
+    state.graphSize = nil
     set('MeterHistoryTrack', 'H', '(' .. state.graphHeight .. '*#Scale#)')
     set('MeterHistory', 'H', '(' .. state.graphHeight .. '*#Scale#)')
 
@@ -417,8 +418,22 @@ local function clearHistoryPath(index)
     state.renderedThreadPath[index] = false
 end
 
+-- MeterHistory disposes and re-parses Shape, Shape2, ... up to the first empty
+-- one on every re-read. Keep one slot per drawable trace (each logical thread
+-- in per-thread mode, one in total mode); a slot without a trace holds the
+-- invisible placeholder, so the chain stays unbroken up to that count. Slots
+-- past it are deleted so the chain stops there. renderHistory only writes
+-- slots inside the count, and every source change clears the graph here.
 local function clearHistoryShape()
-    for index = 1, 64 do clearHistoryPath(index) end
+    local slots = state.historySource == 1 and math.max(1, math.min(64, state.count or 0)) or 1
+    for index = 1, slots do clearHistoryPath(index) end
+    -- The INI defines Shape only; later slots exist once this script set them.
+    for index = slots + 1, state.historyChain or 1 do
+        set('MeterHistory', 'HistoryPath' .. index, '')
+        set('MeterHistory', shapeName(index), '')
+        state.renderedThreadPath[index] = false
+    end
+    state.historyChain = slots
 end
 
 local function clearHistory()
@@ -429,11 +444,30 @@ local function clearHistory()
     visible('MeterHistoryTrack', state.showHistory)
 end
 
+-- The graph size changes only with layout (configureHistoryTrack clears this
+-- cache), so resolve it once there instead of once per trace per tick.
 local function graphDimensions()
-    local width = SKIN:ParseFormula('(' .. SKIN:ReplaceVariables('#ContentWidth#') .. ')')
-    local height = (state.graphHeight or graphTotalHeight) * state.scale
-    if not width or width <= 0 or not height or height <= 0 then return nil end
-    return width, height
+    local size = state.graphSize
+    if not size then
+        local width = SKIN:ParseFormula('(' .. SKIN:ReplaceVariables('#ContentWidth#') .. ')')
+        local height = (state.graphHeight or graphTotalHeight) * state.scale
+        size = {valid = width and width > 0 and height and height > 0, width = width, height = height}
+        state.graphSize = size
+    end
+    if not size.valid then return nil end
+    return size.width, size.height
+end
+
+-- Sample slot x positions for this width and capacity, computed exactly as the
+-- per-point expression inset + (slot - 1) * step did.
+local function sampleX(width, inset, step)
+    local cache = state.sampleX
+    if not cache or cache.width ~= width or cache.inset ~= inset or cache.step ~= step or cache.samples ~= state.samples then
+        cache = {width = width, inset = inset, step = step, samples = state.samples}
+        for slot = 1, state.samples do cache[slot] = inset + (slot - 1) * step end
+        state.sampleX = cache
+    end
+    return cache
 end
 
 local function tracePoints(history, width, top, height)
@@ -447,11 +481,12 @@ local function tracePoints(history, width, top, height)
     local maximum = math.max(2, math.floor(usableWidth) + 1)
     local stride = math.max(1, math.ceil(#history / maximum))
     local step = usableWidth / (state.samples - 1)
+    local xs = sampleX(width, inset, step)
     local points = {}
     local function add(index)
         local sample = history[index]
         points[#points + 1] = {
-            x = inset + (state.samples - #history + index - 1) * step,
+            x = xs[state.samples - #history + index],
             y = top + height - inset - sample / 100 * usableHeight
         }
     end

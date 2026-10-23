@@ -184,6 +184,12 @@ local function newMock(cpuPath, options)
         meter.updates = meter.updates + 1
     end
 
+    -- A test may override one thread's fixture reading, e.g. with an invalid one.
+    function context:reading(thread)
+        local override = self.override and self.override(thread, self.tick)
+        if override ~= nil then return override end
+        return threadReading(thread, self.tick)
+    end
     local function provide(measure)
         local name = measure.name
         if name == 'MeasureCPUTotal' then
@@ -192,7 +198,7 @@ local function newMock(cpuPath, options)
             measure.value = sum / context.threads
         elseif name:match('^MeasureCPU%d+$') or name:match('^MeasureCPUHistory%d+$') then
             local index = tonumber((measure.appliedName or ''):match('^0,(%d+)$'))
-            measure.value = index and index < context.threads and threadReading(index + 1, context.tick) or 0
+            measure.value = index and index < context.threads and context:reading(index + 1) or 0
         elseif name:match('^MeasureCPUProcess%d+$') then
             local entry = context.processes[tonumber(measure.appliedIndex)]
             measure.string = entry and entry.name or ''
@@ -733,6 +739,103 @@ function suite.Run(cpuPath)
         context:run(2)
         threadRows(context, 5, 4, 1)
         sensorRows(context, 5, 4)
+    end)
+    test('history keeps one shape slot per drawable trace', function()
+        -- CPU-03: no invisible placeholders past the drawn traces.
+        local context = newMock(cpuPath)
+        assert(not context.meters.MeterHistory.dynamic and not context.meters.MeterHistoryTrack.dynamic,
+            'history meters have no DynamicVariables')
+        context:run(6)
+        equal(context:shapeCount('MeterHistory', true), 12, 'per-thread shape slots')
+        local stats = context:cycle()
+        equal(stats.rereads.MeterHistoryTrack, 0, 'static frame re-reads per cycle')
+        equal(stats.rereads.MeterHistory, 1, 'trace meter re-reads per cycle')
+        context:event('ApplySetting', 'CPUHistorySource', 0)
+        context:run(3)
+        equal(context:shapeCount('MeterHistory', true), 1, 'total shape slots')
+        equal(context:appliedOption('MeterHistory', 'HistoryPath2'), '', 'unused path deleted')
+        context:event('ApplySetting', 'CPUHistorySource', 1)
+        context:run(5)
+        equal(context:shapeCount('MeterHistory', true), 12, 'per-thread shape slots again')
+        context:event('ApplySetting', 'CPUShowHistory', 0)
+        context:run(1)
+        assert(not context:visible('MeterHistory') and not context:visible('MeterHistoryTrack'), 'graph hidden')
+        context:event('ApplySetting', 'CPUShowHistory', 1)
+        context:run(5)
+        assert(context:visible('MeterHistory') and context:visible('MeterHistoryTrack'), 'graph shown')
+        equal(context:shapeCount('MeterHistory', true), 12, 'per-thread shape slots after show')
+    end)
+    test('an invalid thread sample keeps its placeholder mid-chain', function()
+        local context = newMock(cpuPath)
+        context:run(6)
+        local broken = context.tick + 1
+        context.override = function(thread, tick) if thread == 5 and tick == broken then return 150 end end
+        context:cycle()
+        equal(context:appliedOption('MeterHistory', 'Shape5'), 'Rectangle 0,0,0,0 | Fill Color 0,0,0,0 | StrokeWidth 0', 'placeholder')
+        equal(context:shapeCount('MeterHistory', true), 12, 'chain unbroken')
+        assert(context:appliedOption('MeterHistory', 'Shape6'):find('^Path HistoryPath6 '), 'later trace kept')
+        context:run(2)
+        assert(context:appliedOption('MeterHistory', 'Shape5'):find('^Path HistoryPath5 '), 'trace resumes')
+    end)
+    -- The renderer as it was before the CPU-03 caching, kept as the reference.
+    local function referencePath(history, samples, width, height, scale)
+        if #history < 2 then return nil end
+        local top, inset = 0, math.max(1, scale)
+        local usableWidth, usableHeight = width - 2 * inset, height - 2 * inset
+        local maximum = math.max(2, math.floor(usableWidth) + 1)
+        local stride = math.max(1, math.ceil(#history / maximum))
+        local step = usableWidth / (samples - 1)
+        local points = {}
+        local function add(index)
+            points[#points + 1] = string.format('%.3f,%.3f', inset + (samples - #history + index - 1) * step,
+                top + height - inset - history[index] / 100 * usableHeight)
+        end
+        for index = 1, #history, stride do add(index) end
+        if (#history - 1) % stride ~= 0 then add(#history) end
+        if #points < 2 then return nil end
+        local path = {points[1]}
+        for index = 2, #points do path[#path + 1] = 'LineTo ' .. points[index] end
+        path[#path + 1] = 'ClosePath 0'
+        return table.concat(path, ' | ')
+    end
+    test('history paths are byte-identical to the reference renderer', function()
+        local context = newMock(cpuPath)
+        local histories, samples = {}, 60
+        local function reset() for thread = 1, 12 do histories[thread] = {} end end
+        local function cycles(count)
+            for _ = 1, count do
+                context:cycle()
+                for thread = 1, 12 do
+                    local history = histories[thread]
+                    history[#history + 1] = threadReading(thread, context.tick)
+                    if #history > samples then table.remove(history, 1) end
+                end
+            end
+            for thread = 1, 12 do
+                equal(context:appliedOption('MeterHistory', 'HistoryPath' .. thread),
+                    referencePath(histories[thread], samples, 208, 62, 1), samples .. '-sample path ' .. thread)
+            end
+        end
+        reset()
+        context:run(2)
+        cycles(70)
+        samples = 300
+        context:event('ApplySetting', 'CPUHistorySamples', samples)
+        reset()
+        cycles(215)
+        samples = 10
+        context:event('ApplySetting', 'CPUHistorySamples', samples)
+        reset()
+        cycles(14)
+        local total = newMock(cpuPath, {variables={CPUHistorySource='0'}})
+        local history = {}
+        total:run(1)
+        for _ = 1, 65 do
+            total:cycle()
+            history[#history + 1] = total.measures.MeasureCPUTotal.value
+            if #history > 60 then table.remove(history, 1) end
+        end
+        equal(total:appliedOption('MeterHistory', 'HistoryPath1'), referencePath(history, 60, 208, 62, 1), 'total path')
     end)
     test('controller never assigns tooltips', function()
         local context = newMock(cpuPath, {variables={CPUAutoRows='0', CPUCoresPerPage='4'}})

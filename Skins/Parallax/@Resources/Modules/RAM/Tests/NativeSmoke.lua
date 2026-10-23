@@ -291,6 +291,63 @@ local function checkPageController()
     check(next(kills) == nil, 'Lease failure must not kill the completed launcher')
     check(removed[path] == 1 and removed[lease] == 1 and removed[temporary] == 1 and options.MeterRAMPageGiB.Text == 'Unavailable',
         'Lease failure must clean its own session once')
+
+    -- Recovery. Reproduced owner symptom: Rainmeter suspended past the lease
+    -- window, the host exits, and PAGE stayed Unavailable with no host until
+    -- refresh. A failed session now retries after 10 s, 60 s and 300 s, then
+    -- stays Unavailable; a session healthy for 10 minutes resets the count.
+    local function complete()
+        providers.MeasureRAMPageLauncher.value = 1; providers.MeasureRAMPageLauncher.text = sessionLine
+    end
+    reset(); startHost()
+    files[path] = 'RAM_PAGE|1|'..token..'|1|'..now..'|OK|3000000000|12000000000|2'
+    env.Update()
+    local t0 = now
+    files[path] = nil; now = t0 + 31; env.Update()
+    check(removed[lease] == 1 and options.MeterRAMPageGiB.Text == 'Unavailable', 'A stopped host fails its session honestly')
+    now = t0 + 40; env.Update()
+    check(launches.MeasureRAMPageLauncher == 1 and options.MeterRAMPageGiB.Text == 'Unavailable', 'No retry before 10 s')
+    now = t0 + 41; env.Update()
+    check(launches.MeasureRAMPageLauncher == 2 and options.MeterRAMPageGiB.Text == 'Checking...', 'The first retry starts after 10 s and shows Checking...')
+    complete(); env.Update()
+    check(files[lease] == token..'|'..now, 'A retried session renews its own lease')
+    files[path] = 'RAM_PAGE|1|'..token..'|1|'..now..'|OK|2000000000|12000000000|2'
+    env.Update()
+    check(options.MeterRAMPageGiB.Text == '2.00/12.00 GB', 'A retried session restarts its sequence and shows a current reading')
+    -- That session was short, so its failure is the second in a row: the
+    -- attempts escalate to 60 s and 300 s, then stop.
+    local t1 = now
+    files[path] = nil; now = t1 + 31; env.Update()
+    for _, step in ipairs({{60, 3}, {300, 4}}) do
+        local failedAt = now
+        now = failedAt + step[1] - 1; env.Update()
+        check(launches.MeasureRAMPageLauncher == step[2] - 1, 'No retry before its delay')
+        now = failedAt + step[1]; env.Update()
+        check(launches.MeasureRAMPageLauncher == step[2], 'Retry after its delay')
+        now = now + 20; env.Update()   -- the launcher never reports
+        check(options.MeterRAMPageGiB.Text == 'Unavailable', 'A failed retry shows Unavailable')
+    end
+    now = now + 100000; env.Update()
+    check(launches.MeasureRAMPageLauncher == 4 and options.MeterRAMPageGiB.Text == 'Unavailable',
+        'After three retries PAGE stays Unavailable without a launch loop')
+    -- A session healthy for 10 minutes resets the count.
+    reset(); startHost()
+    local healthyStart = now
+    for second = 0, 600, 2 do
+        now = healthyStart + second
+        files[path] = 'RAM_PAGE|1|'..token..'|'..(second + 1)..'|'..now..'|OK|3000000000|12000000000|2'
+        env.Update()
+    end
+    files[path] = nil; now = now + 31; env.Update()
+    now = now + 10; env.Update()
+    check(launches.MeasureRAMPageLauncher == 2, 'After a long healthy session the first retry is again after 10 s')
+    complete(); env.Update(); now = now + 21; env.Update()
+    now = now + 60; env.Update()
+    check(launches.MeasureRAMPageLauncher == 3, 'A failure soon after resets nothing: the next retry waits 60 s')
+    -- Stop cancels a pending retry.
+    reset(); env.Start(); providers.MeasureRAMPageLauncher.value = 103; env.Update(); env.Stop()
+    now = now + 1000; env.Update()
+    check(launches.MeasureRAMPageLauncher == 1, 'Stop cancels pending retries')
 end
 
 local function checkProcessController()

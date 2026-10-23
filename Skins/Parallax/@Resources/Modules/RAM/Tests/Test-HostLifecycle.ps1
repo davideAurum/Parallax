@@ -13,7 +13,8 @@
 #   - Unload: !DeactivateConfig stops the host within one interval and removes
 #     its session files; the module is then activated again;
 #   - Suspend (optional): the Rainmeter process is suspended past the lease
-#     window, then resumed; records whether the reading and a host come back;
+#     window, then resumed; the reading and a new host must come back within
+#     -RecoverySeconds (the skin retries a failed session after 10 s);
 #   - Finish Exit (!Quit) or Kill (Stop-Process): the host exits on its own.
 # Rainmeter.log must contain no errors (Error 105 included). The live
 # Rainmeter profile and installed skins are never read or changed.
@@ -22,7 +23,7 @@ param(
     [ValidateSet('RAM','GPU')][string]$Module = 'RAM',
     [switch]$Suspend,
     [ValidateRange(16,120)][int]$SuspendSeconds = 20,
-    [ValidateRange(10,180)][int]$RecoverySeconds = 45,
+    [ValidateRange(10,180)][int]$RecoverySeconds = 60,
     [ValidateSet('Exit','Kill')][string]$Finish = 'Exit',
     [switch]$SkipUnload,
     # Seconds to watch after the first reading: every skin update must keep
@@ -312,6 +313,9 @@ try {
         } else {
             $result.SuspendOutcome = 'host exited on its lease; no host and no reading came back'
         }
+        # Before the recovery fix this was the owner's live symptom: the
+        # reading stayed Unavailable with no host until a refresh.
+        Check ($null -eq $hostGoneAfter -or $null -ne $recovered) "Suspend: a reading and a new host came back after resume ($($result.SuspendOutcome))"
     }
 
     $hosts = @(Get-Hosts)

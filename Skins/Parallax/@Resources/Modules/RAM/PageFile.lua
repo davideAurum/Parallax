@@ -6,6 +6,16 @@ local lastSequence, lastEpoch, lastLease, lastWire, launched
 -- aliveUntil: the detached host counts as running while its newest accepted
 -- sample is recent enough (see readFrame).
 local aliveUntil
+-- Recovery. A failed session (a launch that fails, a lease that cannot be
+-- renewed, or a host that stops publishing, for example after its lease
+-- lapsed while Rainmeter was suspended or its main thread was blocked) is
+-- retried after 10 s, 60 s and 300 s, then left Unavailable until refresh.
+-- A session that has delivered samples for 10 minutes resets the count, so a
+-- later incident is retried again, while a host that keeps dying cannot cause
+-- a launch loop. failures: consecutive failed sessions; retryAt: when the
+-- next attempt starts; healthySince: first accepted sample of this session.
+local retryDelays, healthyAfter = {10, 60, 300}, 600
+local failures, retryAt, healthySince
 local launcher = 'MeasureRAMPageLauncher'
 local targets = {'MeterRAMPageGiB', 'MeterRAMPageMiB', 'MeterRAMPageBar'}
 
@@ -83,6 +93,10 @@ local function fail()
     state, cached = 'failed', nil
     stopProcesses()
     cleanup()
+    local now = os.time()
+    if healthySince and now - healthySince >= healthyAfter then failures = 0 end
+    healthySince, failures = nil, failures + 1
+    retryAt = retryDelays[failures] and now + retryDelays[failures] or nil
     Display()
 end
 
@@ -149,15 +163,24 @@ function Initialize()
     state, session, cached, previous, measures = 'idle', nil, {status = 'STARTING'}, {}, {}
     lastSequence, lastEpoch, lastLease, lastWire = -1, 0, -1, nil
     launched, aliveUntil = {}, 0
+    failures, retryAt, healthySince = 0, nil, nil
     interval = tonumber(SKIN:GetVariable('MetricsInterval')) or 1000
     if interval ~= interval or interval == math.huge or interval == -math.huge then interval = 1000 end
     interval = math.max(1000, math.min(30000, math.floor(interval)))
 end
 
+-- Starts one session: a fresh launch with nothing carried over.
+local function begin(now)
+    session, cached = nil, {status = 'STARTING'}
+    lastSequence, lastEpoch, lastLease, lastWire = -1, 0, -1, nil
+    aliveUntil, healthySince = 0, nil
+    state, deadline = 'launching', now + 20
+    launch(launcher, launcherParameter())
+end
+
 function Start()
     if state ~= 'idle' then return end
-    state, deadline = 'launching', os.time() + 20
-    launch(launcher, launcherParameter())
+    begin(os.time())
     Display()
 end
 
@@ -175,6 +198,7 @@ local function readFrame(now)
         return
     end
     cached, lastSequence, lastEpoch, lastWire = frame, frame.sequence, frame.epoch, wire
+    healthySince = healthySince or now
     -- A late host is shown Unavailable after the freshness window but may
     -- still resume; with no sample for twice that window (at least 30 s) it
     -- counts as stopped. Accepted epochs never regress, so this only moves
@@ -209,6 +233,9 @@ function Update()
         if not heartbeat(now) then fail(); return 0 end
         readFrame(now)
         if now > aliveUntil then fail(); return 0 end
+    elseif state == 'failed' and retryAt and now >= retryAt then
+        retryAt = nil
+        begin(now)
     end
     if state ~= 'stopped' then Display(false) end
     return 0
@@ -217,7 +244,8 @@ end
 -- Close only: removing the lease stops the detached host. RunCommand's own
 -- unload terminates any setup command still running; a Kill sent here first
 -- made that a second termination of the same process (logged Error 105).
+-- Pending retries end with it.
 function Stop()
-    state, launched = 'stopped', {}
+    state, launched, retryAt = 'stopped', {}, nil
     cleanup()
 end

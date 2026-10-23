@@ -45,6 +45,7 @@ CONSUMERS = OrderedDict([
     ('GPU/GPU.ini', [{}, {'GPUShowProcesses': '0'}, {'GPUShowProcessMemory': '0'}]),
     ('CPU/CPU.ini', [{}, {'CPUShowProcesses': '0'}]),
     ('IO/IO-Disk.ini', [{}]),
+    ('Network/Network.ini', [{}]),
 ])
 
 # Every utility entrypoint, wired or not yet (all ten once C2 is complete).

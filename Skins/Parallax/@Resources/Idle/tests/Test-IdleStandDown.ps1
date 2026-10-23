@@ -121,6 +121,19 @@ Register-Skin 'GPU' 'Parallax\GPU' 'GPU.ini' 1.0 {
 } 'MeterTemperatureValue|MeterActivityValue'
 Register-Skin 'CPU' 'Parallax\CPU' 'CPU.ini' 1.0
 Register-Skin 'IO' 'Parallax\IO' 'IO-Disk.ini' 1.0
+Register-Skin 'Network' 'Parallax\Network' 'Network.ini' 1.0 {
+    param($Run, $Process)
+    # NetIn/NetOut report bytes accumulated over the pause on their first
+    # update; Core.lua must show 'sampling...' for two ticks, then 1 s samples.
+    $records = @(Read-Probe $Run.Probe)
+    $enter = @($records | Where-Object { $_.Kind -eq 'H' -and $_.Rest[0] -eq '0' } | Select-Object -First 1)
+    $leave = @(if ($enter.Count) { $records | Where-Object { $_.Kind -eq 'H' -and $_.Rest[0] -eq '1' -and $_.Clock -gt $enter[0].Clock } | Select-Object -First 1 })
+    if (-not $leave.Count) { Check $false 'Network: a first leave was recorded'; return }
+    $texts = @($records | Where-Object { $_.Kind -eq 'T' -and $_.Rest[0] -eq 'MeterNetworkStatus' -and $_.Clock -ge $leave[0].Clock -and $_.Clock -le $leave[0].Clock + 6 })
+    Write-Output ("     status after the first resume: {0}" -f (($texts | ForEach-Object { '{0:N1}s {1}' -f ($_.Clock - $leave[0].Clock), $_.Rest[1] }) -join ' -> '))
+    Check ($texts.Count -ge 2 -and $texts[0].Rest[1] -match 'sampling') 'Network: the first status after resume reads sampling..., not a pause-long delta'
+    Check (@($texts | Where-Object { $_.Rest[1] -match '1 s samples' }).Count -ge 1) 'Network: valid 1 s samples follow within 6 s'
+} 'MeterNetworkStatus'
 
 Add-Type -AssemblyName System.Drawing
 if (-not ('ParallaxStandDownNative' -as [type])) {

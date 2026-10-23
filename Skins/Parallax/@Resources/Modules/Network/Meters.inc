@@ -37,6 +37,7 @@ UpdateDivider=-1
 ; Shared padding adds 6 px width / 2 px height: 44x18 and 28x18 totals.
 [MeterNetworkUnits]
 Meter=String
+Group=ParallaxIdleFreeze
 MeterStyle=StyleButton
 X=(#ContentX#+#ContentWidth#-76*#Scale#)
 Y=#TitleRowCenterY#
@@ -48,6 +49,7 @@ LeftMouseUpAction=[!CommandMeasure MeasureNetworkController "ToggleUnits()"]
 
 [MeterNetworkWidth]
 Meter=String
+Group=ParallaxIdleFreeze
 MeterStyle=StyleButton | StyleSecondaryButton
 X=(#ContentX#+#ContentWidth#-28*#Scale#)
 Y=#TitleRowCenterY#
@@ -64,6 +66,7 @@ Y=(#Inset#+242*#Scale#+#DataBarThicknessPx#)
 
 [MeterNetworkStatus]
 Meter=String
+Group=ParallaxIdleFreeze
 MeterStyle=StyleLabel
 Y=(#Inset#+246*#Scale#+#DataBarThicknessPx#)
 H=(18*#Scale#)
@@ -83,6 +86,7 @@ UpdateDivider=-1
 
 [MeterNetworkInRate]
 Meter=String
+Group=ParallaxIdleFreeze
 MeterStyle=StyleLabel
 X=(#ContentX#+#ContentWidth#)
 Y=(#Inset#+266*#Scale#+#DataBarThicknessPx#)
@@ -94,6 +98,7 @@ Text=--
 
 [MeterNetworkInCeiling]
 Meter=String
+Group=ParallaxIdleFreeze
 MeterStyle=StyleLabel
 Y=(#Inset#+284*#Scale#+#DataBarThicknessPx#)
 H=(18*#Scale#)
@@ -114,6 +119,7 @@ AntiAlias=1
 
 [MeterNetworkInGraph]
 Meter=Shape
+Group=ParallaxIdleFreeze
 X=#ContentX#
 Y=(#Inset#+304*#Scale#+#DataBarThicknessPx#)
 W=#ContentWidth#
@@ -138,6 +144,7 @@ UpdateDivider=-1
 
 [MeterNetworkOutRate]
 Meter=String
+Group=ParallaxIdleFreeze
 MeterStyle=StyleLabel
 X=(#ContentX#+#ContentWidth#)
 Y=(#Inset#+352*#Scale#+#DataBarThicknessPx#)
@@ -149,6 +156,7 @@ Text=--
 
 [MeterNetworkOutCeiling]
 Meter=String
+Group=ParallaxIdleFreeze
 MeterStyle=StyleLabel
 Y=(#Inset#+370*#Scale#+#DataBarThicknessPx#)
 H=(18*#Scale#)
@@ -169,6 +177,7 @@ AntiAlias=1
 
 [MeterNetworkOutGraph]
 Meter=Shape
+Group=ParallaxIdleFreeze
 X=#ContentX#
 Y=(#Inset#+390*#Scale#+#DataBarThicknessPx#)
 W=#ContentWidth#
@@ -181,6 +190,7 @@ AntiAlias=1
 
 [MeterNetworkFooter]
 Meter=String
+Group=ParallaxIdleFreeze
 MeterStyle=StyleLabel
 Y=(#Inset#+436*#Scale#+#DataBarThicknessPx#)
 H=(18*#Scale#)

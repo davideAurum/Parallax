@@ -1,0 +1,1664 @@
+{
+  "schema": 1,
+  "title": "Performance step 2, phase A: one entry per measurable fix",
+  "derivedFrom": "First-parent history 916c9ab..191a1cd (merges 17ba69a A2, 297c108 A3, c34a3d6 A4, ca237b3 A1, d0f30c2 A5, 92c10a4 A6; every package branch starts at 916c9ab), the builders' commit bodies (finding ids, fixup-of trailers, expected effects) and trial builds with tools/New-PerfBuild.ps1 for the requires lists.",
+  "baseline": {
+    "commit": "916c9abe1f25a9829a3eed76dfbacb9262f88e8d",
+    "note": "Review baseline. Its Skins tree is identical to 71bfcdc (0.1.0-alpha.6 plus the WebNowPlaying placeholder fix), which the review names; 916c9ab adds the measurement tools that each build runs."
+  },
+  "all": {
+    "commit": "dfe55b8b797f7df2413427da7c17f91e961e8a50",
+    "note": "All of phase A, as measured in the review's \"Phase A result\". Its Skins tree equals the last merge 92c10a4 and 191a1cd; later commits on that line are docs only."
+  },
+  "scope": {
+    "include": [
+      "Skins/"
+    ],
+    "exclude": [
+      "(?i)(^|/)(tests?|qa|fixtures)/",
+      "(?i)\\.(py|mjs|luatest)$",
+      "(?i)/Validate-[^/]*\\.ps1$"
+    ],
+    "note": "Builds apply only runtime files: Skins/, without the test, QA and validator files that tools/Stage-Parallax.ps1 never stages. Docs and tools stay as the start commit has them, so every build runs the same measuring tools. Excluding the tests also keeps single-fix picks free of test-file conflicts that have nothing to do with runtime."
+  },
+  "fields": {
+    "commits": "Applied in this order. role fix = the change; fixup = a later review correction of that change (fixup-of trailer).",
+    "requires": "Earlier fixes this fix needs: it does not apply without them (textual) or does not work without them (functional). New-PerfBuild refuses a unit without them unless -IncludeRequired, and refuses all-minus-a-unit while other fixes still require it unless -IncludeDependents.",
+    "revertWith": "Later fixes that must leave together with this one when it is reverted from the all tip, beyond those that require it (revert direction only).",
+    "isolatedScenarios": "Benchmark-Parallax.ps1 scenarios where the fix can show; empty when the isolated benchmark cannot see it.",
+    "isolatedEffect": "expected = visible in a standard isolated window; live-only = needs the live trace; load = load or refresh time only; interactive = settings clicks only; after-fill = acts only minutes after load, beyond a standard window. Invoke-PerfMatrix.ps1 treats an unmeasured unit whose fixes are all non-expected as zero, and says so.",
+    "kind": "fix, or honesty for a runtime change made for honest state rather than performance.",
+    "support": "Commits with no runtime file inside the scope (tests, docs). policy excluded: never applied by a pick build (the scope drops them); a tip build contains them unchanged. Neither affects anything measured.",
+    "units": "Suggested step-3 units: every fix alone unless requires/revertWith tie it to others, in which case the tied fixes form one unit. They partition the fixes, so plus and minus builds need no -IncludeRequired or -IncludeDependents and sum(g) is well defined. isolated false: no fix in the unit can show in the isolated benchmark."
+  },
+  "packages": [
+    {
+      "id": "A2",
+      "title": "Source helper waits instead of polling",
+      "branch": "perf/A2-media-source",
+      "merge": "17ba69ab86939209cf69e48ebe46c9b3a2bd6b9a",
+      "tip": "b4bf426510fde6535cede8702f514a4f1712d5d3",
+      "mergeOrder": 1
+    },
+    {
+      "id": "A3",
+      "title": "CPU Meter hygiene",
+      "branch": "perf/A3-cpu",
+      "merge": "297c108d70b7fc7efdcdb55b8c11cc90d7a58c3f",
+      "tip": "1cb1bc715daf4ab24027ac962ff66bda02eaa6c1",
+      "mergeOrder": 2
+    },
+    {
+      "id": "A4",
+      "title": "GPU hygiene",
+      "branch": "perf/A4-gpu",
+      "merge": "c34a3d6c32826acfa4e5cad5589c0841928f1319",
+      "tip": "3f390c3e3e8cc6a1e1e8fd2e46d1c073bc82283d",
+      "mergeOrder": 3
+    },
+    {
+      "id": "A1",
+      "title": "Media and Visualizer paint-on-change",
+      "branch": "perf/A1-media-visualizer",
+      "merge": "ca237b308dbd7299c779b7d3fd9183557da68ed6",
+      "tip": "48e251b2f271be11a2498c6f731543147e7797bc",
+      "mergeOrder": 4
+    },
+    {
+      "id": "A5",
+      "title": "Settings refresh debounce and scope",
+      "branch": "perf/A5-settings",
+      "merge": "d0f30c2963efe795e5196f1b95af3da369d7e8f2",
+      "tip": "80ba806606674ffd966340cbde07649b445f7f72",
+      "mergeOrder": 5
+    },
+    {
+      "id": "A6",
+      "title": "Small-module hygiene (RAM, Disk Meter, Network)",
+      "branch": "perf/A6-small-modules",
+      "merge": "92c10a4a2ce26074c1dc74bd9d2a40bd8fc3b155",
+      "tip": "ba06d645e504b7b0b91f0f74d6ba1550e1a0e9cd",
+      "mergeOrder": 6
+    }
+  ],
+  "fixes": [
+    {
+      "id": "A2-1",
+      "package": "A2",
+      "title": "Validate the Source root once and guard writes with .NET calls",
+      "kind": "fix",
+      "findings": [
+        "MEDIA-02",
+        "XMOD-01"
+      ],
+      "commits": [
+        {
+          "sha": "41dbd50b4a3743f98704594d176ea71d2af8f4a0",
+          "role": "fix",
+          "subject": "Validate the Source root once and guard writes with .NET calls"
+        }
+      ],
+      "requires": [],
+      "requiresNote": "",
+      "revertWith": [],
+      "revertWithNote": "",
+      "isolatedEffect": "live-only",
+      "isolatedScenarios": [],
+      "note": "Item 1 of MEDIA-02/XMOD-01. Isolated benchmark profiles keep Media's providers inert, so the Source helper never runs there; measure with the live trace (Trace-ParallaxLive.ps1) after a release."
+    },
+    {
+      "id": "A2-2",
+      "package": "A2",
+      "title": "Wait on the owner and a stop event instead of polling Stop",
+      "kind": "fix",
+      "findings": [
+        "MEDIA-02",
+        "XMOD-01",
+        "ENGINE-10"
+      ],
+      "commits": [
+        {
+          "sha": "cf6454da053dce94cc2b1fde0483e60b73f0a133",
+          "role": "fix",
+          "subject": "Wait on the owner and a stop event instead of polling Stop"
+        },
+        {
+          "sha": "656d61fe646b3b0687efb86cea7e74b16293176d",
+          "role": "fixup",
+          "subject": "Clear the Source stop event after each wake"
+        }
+      ],
+      "requires": [
+        "A2-1"
+      ],
+      "requiresNote": "Textual: without A2-1, its cherry-pick onto the baseline conflicts; both change @Resources/Modules/Media/Source/SourceProvider.ps1 (trial builds with tools/New-PerfBuild.ps1, 2026-10-22).",
+      "revertWith": [],
+      "revertWithNote": "",
+      "isolatedEffect": "live-only",
+      "isolatedScenarios": [],
+      "note": "656d61f is a review fixup (fixup-of cf6454d): resets the stop event after each wake. ENGINE-10 covers only the WaitAny part. Isolated benchmark profiles keep Media's providers inert, so the Source helper never runs there; measure with the live trace (Trace-ParallaxLive.ps1) after a release."
+    },
+    {
+      "id": "A2-3",
+      "package": "A2",
+      "title": "Build the Source WinRT adapter once per worker",
+      "kind": "fix",
+      "findings": [
+        "MEDIA-02",
+        "XMOD-01"
+      ],
+      "commits": [
+        {
+          "sha": "286d567e4de773796b1ba45913aa67e2da695d3f",
+          "role": "fix",
+          "subject": "Build the Source WinRT adapter once per worker"
+        }
+      ],
+      "requires": [],
+      "requiresNote": "",
+      "revertWith": [],
+      "revertWithNote": "",
+      "isolatedEffect": "live-only",
+      "isolatedScenarios": [],
+      "note": "MEDIA-02 item 3; XMOD-01 verifier note (a). Isolated benchmark profiles keep Media's providers inert, so the Source helper never runs there; measure with the live trace (Trace-ParallaxLive.ps1) after a release."
+    },
+    {
+      "id": "A2-4",
+      "package": "A2",
+      "title": "Stop re-ACLing the Source snapshot on every publish",
+      "kind": "fix",
+      "findings": [
+        "MEDIA-02",
+        "XMOD-01",
+        "XMOD-08"
+      ],
+      "commits": [
+        {
+          "sha": "921de7797b0fa6c87589005cffe03226b208ffd3",
+          "role": "fix",
+          "subject": "Stop re-ACLing the Source snapshot on every publish"
+        }
+      ],
+      "requires": [],
+      "requiresNote": "",
+      "revertWith": [],
+      "revertWithNote": "",
+      "isolatedEffect": "live-only",
+      "isolatedScenarios": [],
+      "note": "XMOD-08 for the Source ACL part only. Isolated benchmark profiles keep Media's providers inert, so the Source helper never runs there; measure with the live trace (Trace-ParallaxLive.ps1) after a release."
+    },
+    {
+      "id": "A2-5",
+      "package": "A2",
+      "title": "Write the Source snapshot only on change, with a heartbeat",
+      "kind": "fix",
+      "findings": [
+        "MEDIA-02",
+        "XMOD-01",
+        "XMOD-08"
+      ],
+      "commits": [
+        {
+          "sha": "fbb63a68a119f2213f8f247d60243b4cdfd9c610",
+          "role": "fix",
+          "subject": "Write the Source snapshot only on change, with a heartbeat"
+        },
+        {
+          "sha": "ef1baa1245fbe21c6ac23304200ab0049b7c5c2a",
+          "role": "fixup",
+          "subject": "Write the Source snapshot every cycle while Spotify plays"
+        },
+        {
+          "sha": "1a08c6647eca821f0068ec24bc48c4c756d088b2",
+          "role": "fixup",
+          "subject": "Force Source snapshot writes to disk again, as before"
+        }
+      ],
+      "requires": [
+        "A2-2"
+      ],
+      "requiresNote": "Textual: without A2-2, its cherry-pick onto the baseline conflicts; both change @Resources/Modules/Media/Source/SourceProvider.ps1 (trial builds with tools/New-PerfBuild.ps1, 2026-10-22).",
+      "revertWith": [
+        "A2-6"
+      ],
+      "revertWithNote": "Revert direction only: 1a08c66 restored the forced flush that A2-6 (0a0c853) removes again, so at the all tip reverting 1a08c66 is empty and reverting fbb63a6 would also undo A2-6. All minus A2-5 therefore removes A2-6 as well. A2-6 still picks cleanly onto the baseline alone.",
+      "isolatedEffect": "live-only",
+      "isolatedScenarios": [],
+      "note": "Change-only snapshot publishing with a heartbeat. ef1baa1 (fixup-of fbb63a6) writes every cycle again while Spotify plays; 1a08c66 (fixup-of fbb63a6) restores the forced flush that fbb63a6 also dropped, so this unit is change-only publishing alone. Isolated benchmark profiles keep Media's providers inert, so the Source helper never runs there; measure with the live trace (Trace-ParallaxLive.ps1) after a release."
+    },
+    {
+      "id": "A2-6",
+      "package": "A2",
+      "title": "Stop forcing the Source snapshot to disk on every write",
+      "kind": "fix",
+      "findings": [
+        "MEDIA-02",
+        "XMOD-08"
+      ],
+      "commits": [
+        {
+          "sha": "0a0c853527af21f51542857b103147ab02b0a0cb",
+          "role": "fix",
+          "subject": "Stop forcing the Source snapshot to disk on every write"
+        }
+      ],
+      "requires": [],
+      "requiresNote": "",
+      "revertWith": [],
+      "revertWithNote": "",
+      "isolatedEffect": "live-only",
+      "isolatedScenarios": [],
+      "note": "The forced-flush removal, split out of fbb63a6 after review so it can be measured alone. Isolated benchmark profiles keep Media's providers inert, so the Source helper never runs there; measure with the live trace (Trace-ParallaxLive.ps1) after a release."
+    },
+    {
+      "id": "A2-7",
+      "package": "A2",
+      "title": "Walk the Source owner lease only after the worker probe",
+      "kind": "fix",
+      "findings": [
+        "MEDIA-08"
+      ],
+      "commits": [
+        {
+          "sha": "c1b36384d922e50e141c4d9d46f096ba93fd4455",
+          "role": "fix",
+          "subject": "Walk the Source owner lease only after the worker probe"
+        }
+      ],
+      "requires": [],
+      "requiresNote": "",
+      "revertWith": [],
+      "revertWithNote": "",
+      "isolatedEffect": "load",
+      "isolatedScenarios": [],
+      "note": "Load-time only: one fewer CIM walk per Media refresh beside a running worker. No steady-state cost; Source is inert in isolated profiles."
+    },
+    {
+      "id": "A2-8",
+      "package": "A2",
+      "title": "Skip Source storage setup on a Resume beside a running worker",
+      "kind": "fix",
+      "findings": [
+        "MEDIA-08"
+      ],
+      "commits": [
+        {
+          "sha": "7ce88c19e473eb954d9d3b69bf6a762473a2d7be",
+          "role": "fix",
+          "subject": "Skip Source storage setup on a Resume beside a running worker"
+        }
+      ],
+      "requires": [],
+      "requiresNote": "",
+      "revertWith": [],
+      "revertWithNote": "",
+      "isolatedEffect": "load",
+      "isolatedScenarios": [],
+      "note": "Load-time only: no storage setup on a Resume beside a running worker. No steady-state cost; Source is inert in isolated profiles."
+    },
+    {
+      "id": "A3-1",
+      "package": "A3",
+      "title": "Stop CPU Meter repainting from its periodic update paths",
+      "kind": "fix",
+      "findings": [
+        "CPU-01",
+        "XMOD-04"
+      ],
+      "commits": [
+        {
+          "sha": "d403c519c59333e0e84e717fe34982c31ffb3977",
+          "role": "fix",
+          "subject": "Stop CPU Meter repainting from its periodic update paths"
+        }
+      ],
+      "requires": [],
+      "requiresNote": "",
+      "revertWith": [],
+      "revertWithNote": "",
+      "isolatedEffect": "expected",
+      "isolatedScenarios": [
+        "solo:CPU",
+        "suite"
+      ],
+      "note": "XMOD-04 for the CPU part."
+    },
+    {
+      "id": "A3-2",
+      "package": "A3",
+      "title": "Drop DynamicVariables from CPU's UsageMonitor slots",
+      "kind": "fix",
+      "findings": [
+        "CPU-02",
+        "ENGINE-05"
+      ],
+      "commits": [
+        {
+          "sha": "ff72d3e75383237298c1768eec40876325d0e366",
+          "role": "fix",
+          "subject": "Drop DynamicVariables from CPU's UsageMonitor slots"
+        }
+      ],
+      "requires": [],
+      "requiresNote": "",
+      "revertWith": [],
+      "revertWithNote": "",
+      "isolatedEffect": "expected",
+      "isolatedScenarios": [
+        "solo:CPU",
+        "suite"
+      ],
+      "note": ""
+    },
+    {
+      "id": "A3-3",
+      "package": "A3",
+      "title": "Send CPU Meter option and visibility bangs only on change",
+      "kind": "fix",
+      "findings": [
+        "CPU-04"
+      ],
+      "commits": [
+        {
+          "sha": "828ae16fedf03d09edd75ac0932e761b16199a08",
+          "role": "fix",
+          "subject": "Send CPU Meter option and visibility bangs only on change"
+        }
+      ],
+      "requires": [
+        "A3-2"
+      ],
+      "requiresNote": "Textual: without A3-2, its cherry-pick onto the baseline conflicts; both change @Resources/Modules/CPU/CPU.lua (trial builds with tools/New-PerfBuild.ps1, 2026-10-22).",
+      "revertWith": [],
+      "revertWithNote": "",
+      "isolatedEffect": "expected",
+      "isolatedScenarios": [
+        "solo:CPU",
+        "suite"
+      ],
+      "note": "Change-gating part of CPU-04."
+    },
+    {
+      "id": "A3-4",
+      "package": "A3",
+      "title": "Keep idle CPU Thread slots out of the meter pass",
+      "kind": "fix",
+      "findings": [
+        "CPU-04"
+      ],
+      "commits": [
+        {
+          "sha": "e1c841a8d7001c108b34c506b5d8bda7dcb0d3ec",
+          "role": "fix",
+          "subject": "Keep idle CPU Thread slots out of the meter pass"
+        }
+      ],
+      "requires": [],
+      "requiresNote": "",
+      "revertWith": [],
+      "revertWithNote": "",
+      "isolatedEffect": "expected",
+      "isolatedScenarios": [
+        "solo:CPU",
+        "suite"
+      ],
+      "note": "Slot-divider part of CPU-04. The CoreMeters.inc and CPU.lua halves are one commit and must not be split: an idle divider never restored freezes the Thread rows."
+    },
+    {
+      "id": "A3-5",
+      "package": "A3",
+      "title": "Trim CPU history placeholders and per-tick graph work",
+      "kind": "fix",
+      "findings": [
+        "CPU-03"
+      ],
+      "commits": [
+        {
+          "sha": "856551ad00a83924b8b9ebcbbafd49cd9f3cacb0",
+          "role": "fix",
+          "subject": "Trim CPU history placeholders and per-tick graph work"
+        }
+      ],
+      "requires": [],
+      "requiresNote": "",
+      "revertWith": [],
+      "revertWithNote": "",
+      "isolatedEffect": "expected",
+      "isolatedScenarios": [
+        "solo:CPU",
+        "suite"
+      ],
+      "note": "CPU-03 items 1-3; item 4 and 2-decimal points not done."
+    },
+    {
+      "id": "A3-6",
+      "package": "A3",
+      "title": "Parse the HWiNFO value list once per sensor render",
+      "kind": "fix",
+      "findings": [],
+      "commits": [
+        {
+          "sha": "0913e299e25e3c4425edc5a2b18e4fd6d219df5e",
+          "role": "fix",
+          "subject": "Parse the HWiNFO value list once per sensor render"
+        }
+      ],
+      "requires": [],
+      "requiresNote": "",
+      "revertWith": [],
+      "revertWithNote": "",
+      "isolatedEffect": "expected",
+      "isolatedScenarios": [
+        "solo:CPU",
+        "suite"
+      ],
+      "note": "A3 verifier missed note on Sensors.lua readBinding (no finding id). Only visible while HWiNFO exports sensors."
+    },
+    {
+      "id": "A3-7",
+      "package": "A3",
+      "title": "Report a frozen HWiNFO export instead of showing it as live",
+      "kind": "honesty",
+      "findings": [],
+      "commits": [
+        {
+          "sha": "1cb1bc715daf4ab24027ac962ff66bda02eaa6c1",
+          "role": "fix",
+          "subject": "Report a frozen HWiNFO export instead of showing it as live"
+        }
+      ],
+      "requires": [
+        "A3-1"
+      ],
+      "requiresNote": "Textual: without A3-1, its cherry-pick onto the baseline conflicts; both change @Resources/Modules/CPU/Sensors.lua (trial builds with tools/New-PerfBuild.ps1, 2026-10-22).",
+      "revertWith": [],
+      "revertWithNote": "",
+      "isolatedEffect": "expected",
+      "isolatedScenarios": [
+        "solo:CPU",
+        "suite"
+      ],
+      "note": "Separate honesty commit, not a performance fix (frozen HWiNFO export reported, not shown as live). Owner decision 6: keep. Its cost or gain is expected to be near zero."
+    },
+    {
+      "id": "A4-1",
+      "package": "A4",
+      "title": "Check GPU identity once before and once after each driver frame",
+      "kind": "fix",
+      "findings": [
+        "GPU-02"
+      ],
+      "commits": [
+        {
+          "sha": "11649ca3b018068bd2785bc76ca369069acea997",
+          "role": "fix",
+          "subject": "Check GPU identity once before and once after each driver frame"
+        }
+      ],
+      "requires": [],
+      "requiresNote": "",
+      "revertWith": [],
+      "revertWithNote": "",
+      "isolatedEffect": "expected",
+      "isolatedScenarios": [
+        "solo:GPU",
+        "suite"
+      ],
+      "note": "GPU-02 part a (helper identity checks)."
+    },
+    {
+      "id": "A4-2",
+      "package": "A4",
+      "title": "Verify the GPU power PCI match once when the helper opens",
+      "kind": "fix",
+      "findings": [
+        "GPU-02"
+      ],
+      "commits": [
+        {
+          "sha": "190f5eeba285c5d31f6c8099ecc011755c95da5e",
+          "role": "fix",
+          "subject": "Verify the GPU power PCI match once when the helper opens"
+        }
+      ],
+      "requires": [],
+      "requiresNote": "",
+      "revertWith": [],
+      "revertWithNote": "",
+      "isolatedEffect": "expected",
+      "isolatedScenarios": [
+        "solo:GPU",
+        "suite"
+      ],
+      "note": "GPU-02 part b (power PCI match once at open)."
+    },
+    {
+      "id": "A4-3",
+      "package": "A4",
+      "title": "Let the normal cycle paint GPU driver readouts",
+      "kind": "fix",
+      "findings": [
+        "GPU-03",
+        "XMOD-04"
+      ],
+      "commits": [
+        {
+          "sha": "cae8b11b3adf33b7e2d0ca7ebd27e52559c8ade5",
+          "role": "fix",
+          "subject": "Let the normal cycle paint GPU driver readouts"
+        }
+      ],
+      "requires": [],
+      "requiresNote": "",
+      "revertWith": [],
+      "revertWithNote": "",
+      "isolatedEffect": "expected",
+      "isolatedScenarios": [
+        "solo:GPU",
+        "suite"
+      ],
+      "note": "XMOD-04 for the GPU part. Temperature.lua is UTF-16LE (binary to git)."
+    },
+    {
+      "id": "A4-4",
+      "package": "A4",
+      "title": "Skip re-parsing an unchanged GPU driver snapshot",
+      "kind": "fix",
+      "findings": [
+        "GPU-04"
+      ],
+      "commits": [
+        {
+          "sha": "26b6757871a9d98882be9f2b7d057f7b0afb9efc",
+          "role": "fix",
+          "subject": "Skip re-parsing an unchanged GPU driver snapshot"
+        }
+      ],
+      "requires": [],
+      "requiresNote": "",
+      "revertWith": [],
+      "revertWithNote": "",
+      "isolatedEffect": "expected",
+      "isolatedScenarios": [
+        "solo:GPU",
+        "suite"
+      ],
+      "note": "GPU-04 part a. Temperature.lua is UTF-16LE (binary to git)."
+    },
+    {
+      "id": "A4-5",
+      "package": "A4",
+      "title": "Resolve GPU bar geometry once per load",
+      "kind": "fix",
+      "findings": [
+        "GPU-04"
+      ],
+      "commits": [
+        {
+          "sha": "593b98955828f026b11c32a7222770562242b219",
+          "role": "fix",
+          "subject": "Resolve GPU bar geometry once per load"
+        }
+      ],
+      "requires": [],
+      "requiresNote": "",
+      "revertWith": [],
+      "revertWithNote": "",
+      "isolatedEffect": "expected",
+      "isolatedScenarios": [
+        "solo:GPU",
+        "suite"
+      ],
+      "note": "GPU-04 part b. Temperature.lua is UTF-16LE (binary to git)."
+    },
+    {
+      "id": "A4-6",
+      "package": "A4",
+      "title": "Plot one GPU History point per driver sample",
+      "kind": "fix",
+      "findings": [
+        "GPU-04"
+      ],
+      "commits": [
+        {
+          "sha": "a49a440a56ffb01f1ec17f3693d784f109d5f72f",
+          "role": "fix",
+          "subject": "Plot one GPU History point per driver sample"
+        }
+      ],
+      "requires": [],
+      "requiresNote": "",
+      "revertWith": [],
+      "revertWithNote": "",
+      "isolatedEffect": "expected",
+      "isolatedScenarios": [
+        "solo:GPU",
+        "suite"
+      ],
+      "note": "GPU-04 part c. Owner-visible: one History point per 2 s driver sample; owner decision 7 keeps it. Temperature.lua is UTF-16LE (binary to git)."
+    },
+    {
+      "id": "A4-7",
+      "package": "A4",
+      "title": "Reuse decoded GPU process names while the packet is unchanged",
+      "kind": "fix",
+      "findings": [
+        "GPU-04"
+      ],
+      "commits": [
+        {
+          "sha": "4d425379817a986c140f7dda0554bc6028b8eabf",
+          "role": "fix",
+          "subject": "Reuse decoded GPU process names while the packet is unchanged"
+        }
+      ],
+      "requires": [],
+      "requiresNote": "",
+      "revertWith": [],
+      "revertWithNote": "",
+      "isolatedEffect": "expected",
+      "isolatedScenarios": [
+        "solo:GPU",
+        "suite"
+      ],
+      "note": "GPU-04 part d (process-name decode cache)."
+    },
+    {
+      "id": "A4-8",
+      "package": "A4",
+      "title": "Send GPU process row visibility only when a row changes",
+      "kind": "fix",
+      "findings": [
+        "GPU-05"
+      ],
+      "commits": [
+        {
+          "sha": "fd4877fcde1759a625d7e1be571c312ba52381f1",
+          "role": "fix",
+          "subject": "Send GPU process row visibility only when a row changes"
+        }
+      ],
+      "requires": [],
+      "requiresNote": "",
+      "revertWith": [],
+      "revertWithNote": "",
+      "isolatedEffect": "expected",
+      "isolatedScenarios": [
+        "solo:GPU",
+        "suite"
+      ],
+      "note": ""
+    },
+    {
+      "id": "A4-9",
+      "package": "A4",
+      "title": "Stop the GPU History graph re-reading its options",
+      "kind": "fix",
+      "findings": [
+        "GPU-06"
+      ],
+      "commits": [
+        {
+          "sha": "f00e90b40dceb289392ceec4c7093813221eaafe",
+          "role": "fix",
+          "subject": "Stop the GPU History graph re-reading its options"
+        }
+      ],
+      "requires": [
+        "A4-6"
+      ],
+      "requiresNote": "Textual: without A4-6, its cherry-pick onto the baseline conflicts; both change @Resources/Modules/GPU/GraphMeters.inc (trial builds with tools/New-PerfBuild.ps1, 2026-10-22).",
+      "revertWith": [],
+      "revertWithNote": "",
+      "isolatedEffect": "expected",
+      "isolatedScenarios": [
+        "solo:GPU",
+        "suite"
+      ],
+      "note": "GPU-06 part a."
+    },
+    {
+      "id": "A4-10",
+      "package": "A4",
+      "title": "Retire the GPU History startup cover once the graph is full",
+      "kind": "fix",
+      "findings": [
+        "GPU-06"
+      ],
+      "commits": [
+        {
+          "sha": "d99bd6161765fc06a1b435517dc93d8bbc60031e",
+          "role": "fix",
+          "subject": "Retire the GPU History startup cover once the graph is full"
+        }
+      ],
+      "requires": [
+        "A4-9"
+      ],
+      "requiresNote": "Textual: without A4-9, its cherry-pick onto the baseline conflicts; both change @Resources/Modules/GPU/GraphMeters.inc (trial builds with tools/New-PerfBuild.ps1, 2026-10-22).",
+      "revertWith": [],
+      "revertWithNote": "",
+      "isolatedEffect": "after-fill",
+      "isolatedScenarios": [
+        "solo:GPU",
+        "suite"
+      ],
+      "note": "GPU-06 part b. Acts only once the History graph is full (about 208 driver samples, about 7 minutes after load), so a standard 15 s settle and 30-60 s window cannot see it."
+    },
+    {
+      "id": "A1-1",
+      "package": "A1",
+      "title": "Hold Media's meters to the provider cadence instead of the animation tick",
+      "kind": "fix",
+      "findings": [
+        "MEDIA-01",
+        "XMOD-03",
+        "ENGINE-01"
+      ],
+      "commits": [
+        {
+          "sha": "6edbbb38da0b41286ef4ed7ffba995c0b26a2e51",
+          "role": "fix",
+          "subject": "Hold Media's meters to the provider cadence instead of the animation tick"
+        }
+      ],
+      "requires": [],
+      "requiresNote": "",
+      "revertWith": [],
+      "revertWithNote": "",
+      "isolatedEffect": "expected",
+      "isolatedScenarios": [
+        "solo:Media",
+        "suite"
+      ],
+      "note": "The declarative part of XMOD-03 and ENGINE-01."
+    },
+    {
+      "id": "A1-2",
+      "package": "A1",
+      "title": "Stop Media meters re-reading geometry formulas on every update",
+      "kind": "fix",
+      "findings": [
+        "MEDIA-03"
+      ],
+      "commits": [
+        {
+          "sha": "ecc49eac6ef950b90ae1e73eeefb0746b90e1993",
+          "role": "fix",
+          "subject": "Stop Media meters re-reading geometry formulas on every update"
+        }
+      ],
+      "requires": [
+        "A1-1"
+      ],
+      "requiresNote": "Textual: without A1-1, its cherry-pick onto the baseline conflicts; both change @Resources/Modules/Media/Common.inc, @Resources/Modules/Media/Header.inc, @Resources/Modules/Media/MediaPulse.lua, @Resources/Modules/Media/PlayerMeters.inc (trial builds with tools/New-PerfBuild.ps1, 2026-10-22).",
+      "revertWith": [],
+      "revertWithNote": "",
+      "isolatedEffect": "expected",
+      "isolatedScenarios": [
+        "solo:Media",
+        "suite"
+      ],
+      "note": ""
+    },
+    {
+      "id": "A1-3",
+      "package": "A1",
+      "title": "Park the hidden spectrum mask outside periodic updates",
+      "kind": "fix",
+      "findings": [
+        "MEDIA-04",
+        "VIS-02"
+      ],
+      "commits": [
+        {
+          "sha": "02779b23ba05df69d9152d7dad29004ed33402d2",
+          "role": "fix",
+          "subject": "Park the hidden spectrum mask outside periodic updates"
+        }
+      ],
+      "requires": [],
+      "requiresNote": "",
+      "revertWith": [],
+      "revertWithNote": "",
+      "isolatedEffect": "expected",
+      "isolatedScenarios": [
+        "solo:Media",
+        "solo:Visualizer",
+        "suite"
+      ],
+      "note": "VIS-02 part a. The Media drawer is open only with the live preferences."
+    },
+    {
+      "id": "A1-4",
+      "package": "A1",
+      "title": "Repaint the spectrum output row and overlay only when they change",
+      "kind": "fix",
+      "findings": [
+        "VIS-03",
+        "MEDIA-04"
+      ],
+      "commits": [
+        {
+          "sha": "3fe9ffa5704bc46f7adf9bb19862f35e8610cad6",
+          "role": "fix",
+          "subject": "Repaint the spectrum output row and overlay only when they change"
+        }
+      ],
+      "requires": [
+        "A1-3"
+      ],
+      "requiresNote": "Textual: without A1-3, its cherry-pick onto the baseline conflicts; both change @Resources/Modules/Visualizer/Capture.inc (trial builds with tools/New-PerfBuild.ps1, 2026-10-22).",
+      "revertWith": [],
+      "revertWithNote": "",
+      "isolatedEffect": "expected",
+      "isolatedScenarios": [
+        "solo:Media",
+        "solo:Visualizer",
+        "suite"
+      ],
+      "note": "MEDIA-04 output-row part."
+    },
+    {
+      "id": "A1-5",
+      "package": "A1",
+      "title": "Read Win7Audio volume and device status once a second",
+      "kind": "fix",
+      "findings": [
+        "VIS-04",
+        "ENGINE-07"
+      ],
+      "commits": [
+        {
+          "sha": "982e867e27901440c13c8ce53a7b2aa1bf343f25",
+          "role": "fix",
+          "subject": "Read Win7Audio volume and device status once a second"
+        }
+      ],
+      "requires": [],
+      "requiresNote": "",
+      "revertWith": [],
+      "revertWithNote": "",
+      "isolatedEffect": "expected",
+      "isolatedScenarios": [
+        "solo:Media",
+        "solo:Visualizer",
+        "suite"
+      ],
+      "note": "Visible change: volume shows within about 1 s (was 250 ms)."
+    },
+    {
+      "id": "A1-6",
+      "package": "A1",
+      "title": "Add a Title animation setting and pick Media's tick from it",
+      "kind": "fix",
+      "findings": [
+        "MEDIA-06",
+        "XMOD-03"
+      ],
+      "commits": [
+        {
+          "sha": "48e251b2f271be11a2498c6f731543147e7797bc",
+          "role": "fix",
+          "subject": "Add a Title animation setting and pick Media's tick from it"
+        }
+      ],
+      "requires": [
+        "A1-2",
+        "A1-5"
+      ],
+      "requiresNote": "Textual: without A1-2 and A1-5, its cherry-pick onto the baseline conflicts; both change @Resources/Modules/Media/Header.inc, @Resources/Modules/Media/MediaPulse.lua, @Resources/Modules/Media/VisualizerDrawer2.inc (trial builds with tools/New-PerfBuild.ps1, 2026-10-22).",
+      "revertWith": [],
+      "revertWithNote": "",
+      "isolatedEffect": "expected",
+      "isolatedScenarios": [
+        "solo:Media",
+        "suite"
+      ],
+      "note": "Owner decision 3: Title animation setting, default 20 fps (as before). XMOD-03 base-Update step."
+    },
+    {
+      "id": "A5-1",
+      "package": "A5",
+      "title": "Debounce the Global Settings arrow refresh",
+      "kind": "fix",
+      "findings": [
+        "SHARED-02"
+      ],
+      "commits": [
+        {
+          "sha": "010bf8f8aca2371e09ff1550f922d639d40368b9",
+          "role": "fix",
+          "subject": "Debounce the Global Settings arrow refresh"
+        }
+      ],
+      "requires": [],
+      "requiresNote": "",
+      "revertWith": [],
+      "revertWithNote": "",
+      "isolatedEffect": "interactive",
+      "isolatedScenarios": [],
+      "note": "SHARED-02 part 1. Settings commits only: no steady-state cost to measure; measure refresh counts when a setting is stepped."
+    },
+    {
+      "id": "A5-2",
+      "package": "A5",
+      "title": "Refresh only interval consumers for a refresh preset",
+      "kind": "fix",
+      "findings": [
+        "SHARED-02"
+      ],
+      "commits": [
+        {
+          "sha": "80ba806606674ffd966340cbde07649b445f7f72",
+          "role": "fix",
+          "subject": "Refresh only interval consumers for a refresh preset"
+        }
+      ],
+      "requires": [
+        "A5-1"
+      ],
+      "requiresNote": "Textual: without A5-1, its cherry-pick onto the baseline conflicts; both change @Resources/Scripts/Settings.lua (trial builds with tools/New-PerfBuild.ps1, 2026-10-22).",
+      "revertWith": [],
+      "revertWithNote": "",
+      "isolatedEffect": "interactive",
+      "isolatedScenarios": [],
+      "note": "SHARED-02 part 2. Settings commits only: no steady-state cost to measure; measure refresh counts when a setting is stepped."
+    },
+    {
+      "id": "A6-1",
+      "package": "A6",
+      "title": "Retire the RAM history cover once the plot is full",
+      "kind": "fix",
+      "findings": [
+        "RAM-05"
+      ],
+      "commits": [
+        {
+          "sha": "aa4d344481e4c00e55212f2226fe30aa2f7e49c0",
+          "role": "fix",
+          "subject": "Retire the RAM history cover once the plot is full"
+        }
+      ],
+      "requires": [],
+      "requiresNote": "",
+      "revertWith": [],
+      "revertWithNote": "",
+      "isolatedEffect": "after-fill",
+      "isolatedScenarios": [
+        "solo:RAM",
+        "suite"
+      ],
+      "note": "RAM-05 sub-fix 1. Acts only once the history plot is full (ContentWidth samples, about 3.5 minutes after load), so a standard window cannot see it."
+    },
+    {
+      "id": "A6-2",
+      "package": "A6",
+      "title": "Make the RAM PAGE meters event-only",
+      "kind": "fix",
+      "findings": [
+        "RAM-05"
+      ],
+      "commits": [
+        {
+          "sha": "c6cc47c2843ae1371abccdca6bd4a823f6400698",
+          "role": "fix",
+          "subject": "Make the RAM PAGE meters event-only"
+        }
+      ],
+      "requires": [],
+      "requiresNote": "",
+      "revertWith": [],
+      "revertWithNote": "",
+      "isolatedEffect": "expected",
+      "isolatedScenarios": [
+        "solo:RAM",
+        "suite"
+      ],
+      "note": "RAM-05 sub-fix 2 (event-only PAGE meters)."
+    },
+    {
+      "id": "A6-3",
+      "package": "A6",
+      "title": "Idle the hidden RAM unit reading",
+      "kind": "fix",
+      "findings": [
+        "RAM-05"
+      ],
+      "commits": [
+        {
+          "sha": "8c54a2ee0a9055416225993181c3311ffbda9832",
+          "role": "fix",
+          "subject": "Idle the hidden RAM unit reading"
+        }
+      ],
+      "requires": [],
+      "requiresNote": "",
+      "revertWith": [],
+      "revertWithNote": "",
+      "isolatedEffect": "expected",
+      "isolatedScenarios": [
+        "solo:RAM",
+        "suite"
+      ],
+      "note": "RAM-05: hidden unit meter idled."
+    },
+    {
+      "id": "A6-4",
+      "package": "A6",
+      "title": "Update only changed RAM process rows",
+      "kind": "fix",
+      "findings": [
+        "RAM-05"
+      ],
+      "commits": [
+        {
+          "sha": "2dfb883decc9b53f9bf5cac178954857b009973b",
+          "role": "fix",
+          "subject": "Update only changed RAM process rows"
+        }
+      ],
+      "requires": [],
+      "requiresNote": "",
+      "revertWith": [],
+      "revertWithNote": "",
+      "isolatedEffect": "expected",
+      "isolatedScenarios": [
+        "solo:RAM",
+        "suite"
+      ],
+      "note": "RAM-05 sub-fix 4 (changed process rows only)."
+    },
+    {
+      "id": "A6-5",
+      "package": "A6",
+      "title": "Idle Disk Meter rows that are not shown",
+      "kind": "fix",
+      "findings": [
+        "IO-01"
+      ],
+      "commits": [
+        {
+          "sha": "b16f3d0fde545a4fe07b2b49f18e7bd29859a27a",
+          "role": "fix",
+          "subject": "Idle Disk Meter rows that are not shown"
+        }
+      ],
+      "requires": [],
+      "requiresNote": "",
+      "revertWith": [],
+      "revertWithNote": "",
+      "isolatedEffect": "expected",
+      "isolatedScenarios": [
+        "solo:IO",
+        "suite"
+      ],
+      "note": "IO-01 tier A."
+    },
+    {
+      "id": "A6-6",
+      "package": "A6",
+      "title": "Recompute Disk Meter slow state only when it can change",
+      "kind": "fix",
+      "findings": [
+        "IO-05"
+      ],
+      "commits": [
+        {
+          "sha": "de6b4a6987ccd8a9ef4fc628dec949f7a507723f",
+          "role": "fix",
+          "subject": "Recompute Disk Meter slow state only when it can change"
+        }
+      ],
+      "requires": [],
+      "requiresNote": "",
+      "revertWith": [],
+      "revertWithNote": "",
+      "isolatedEffect": "expected",
+      "isolatedScenarios": [
+        "solo:IO",
+        "suite"
+      ],
+      "note": "Done after IO-01 per the verifier."
+    },
+    {
+      "id": "A6-7",
+      "package": "A6",
+      "title": "Read Network connection identity from the traffic bank",
+      "kind": "fix",
+      "findings": [
+        "NET-03"
+      ],
+      "commits": [
+        {
+          "sha": "6fc34d8c8d77c2304c0564aa43d9a106519c3020",
+          "role": "fix",
+          "subject": "Read Network connection identity from the traffic bank"
+        }
+      ],
+      "requires": [],
+      "requiresNote": "",
+      "revertWith": [],
+      "revertWithNote": "",
+      "isolatedEffect": "expected",
+      "isolatedScenarios": [
+        "solo:Network",
+        "suite"
+      ],
+      "note": "NET-03 sub-fix 1 (shared identity bank)."
+    },
+    {
+      "id": "A6-8",
+      "package": "A6",
+      "title": "Skip Network connection work on ticks with no new data",
+      "kind": "fix",
+      "findings": [
+        "NET-03"
+      ],
+      "commits": [
+        {
+          "sha": "a76bf9788443588395f2a02a196a6b9015726b7b",
+          "role": "fix",
+          "subject": "Skip Network connection work on ticks with no new data"
+        }
+      ],
+      "requires": [
+        "A6-7"
+      ],
+      "requiresNote": "Textual: without A6-7, its cherry-pick onto the baseline conflicts; both change @Resources/Modules/Network/Connection.lua, @Resources/Modules/Network/ConnectionMeasures.inc (trial builds with tools/New-PerfBuild.ps1, 2026-10-22).",
+      "revertWith": [],
+      "revertWithNote": "",
+      "isolatedEffect": "expected",
+      "isolatedScenarios": [
+        "solo:Network",
+        "suite"
+      ],
+      "note": "NET-03 sub-fix 2. ba06d64 corrects its message: with Wi-Fi on the controller works on 6 of every 10 ticks."
+    },
+    {
+      "id": "A6-9",
+      "package": "A6",
+      "title": "Rebuild Network graph and signal shapes only on change",
+      "kind": "fix",
+      "findings": [
+        "NET-03"
+      ],
+      "commits": [
+        {
+          "sha": "382d074f2c1bf6f0a83182e41bcf3fa17f19184a",
+          "role": "fix",
+          "subject": "Rebuild Network graph and signal shapes only on change"
+        }
+      ],
+      "requires": [],
+      "requiresNote": "",
+      "revertWith": [],
+      "revertWithNote": "",
+      "isolatedEffect": "expected",
+      "isolatedScenarios": [
+        "solo:Network",
+        "suite"
+      ],
+      "note": "NET-03 sub-fix 3."
+    },
+    {
+      "id": "A6-10",
+      "package": "A6",
+      "title": "Stop updating Network's static labels",
+      "kind": "fix",
+      "findings": [
+        "NET-03"
+      ],
+      "commits": [
+        {
+          "sha": "2d7df23de51943e0586f2b7d704c306cd2c0e98d",
+          "role": "fix",
+          "subject": "Stop updating Network's static labels"
+        }
+      ],
+      "requires": [],
+      "requiresNote": "",
+      "revertWith": [],
+      "revertWithNote": "",
+      "isolatedEffect": "expected",
+      "isolatedScenarios": [
+        "solo:Network",
+        "suite"
+      ],
+      "note": "NET-03 sub-fix 4 (static labels)."
+    }
+  ],
+  "support": [
+    {
+      "commit": "7910c3c8d9b0351eaa359f24f7c8a325dfa857d0",
+      "package": "A2",
+      "kind": "docs",
+      "policy": "excluded",
+      "subject": "Document the Source observer rework in the Media notes",
+      "note": ""
+    },
+    {
+      "commit": "42c80fea7bf5121ae3f9157cec0f99e2d04a5d9e",
+      "package": "A2",
+      "kind": "docs",
+      "policy": "excluded",
+      "subject": "Evaluate replacing the Source observer with WebNowPlaying",
+      "note": "Owner decision 4b evaluation document."
+    },
+    {
+      "commit": "b4bf426510fde6535cede8702f514a4f1712d5d3",
+      "package": "A2",
+      "kind": "docs",
+      "policy": "excluded",
+      "subject": "Regroup the Source review notes in the Media validation entry",
+      "note": "Docs fixup (fixup-of 1a08c66 and 656d61f)."
+    },
+    {
+      "commit": "ab159bd52b0b57bfab40ec31e992812354f1b3e4",
+      "package": "A3",
+      "kind": "test",
+      "policy": "excluded",
+      "subject": "Add an offline CPU.lua controller suite",
+      "note": "Offline CPU.lua controller suite; later fix commits extend it."
+    },
+    {
+      "commit": "90c810bd9114a3d91f55657640e3ca3156023cf3",
+      "package": "A3",
+      "kind": "docs",
+      "policy": "excluded",
+      "subject": "Record the CPU performance hygiene pass in the module doc",
+      "note": ""
+    },
+    {
+      "commit": "355fe2c290192b63e87f13a82ae4bd18ae21b380",
+      "package": "A4",
+      "kind": "test",
+      "policy": "excluded",
+      "subject": "Add a native check of the GPU History cadence and startup cover",
+      "note": "Native GPU History check."
+    },
+    {
+      "commit": "3f390c3e3e8cc6a1e1e8fd2e46d1c073bc82283d",
+      "package": "A4",
+      "kind": "docs",
+      "policy": "excluded",
+      "subject": "Record the GPU performance hygiene changes and their validation",
+      "note": ""
+    },
+    {
+      "commit": "ba06d645e504b7b0b91f0f74d6ba1550e1a0e9cd",
+      "package": "A6",
+      "kind": "docs",
+      "policy": "excluded",
+      "subject": "Record the RAM, Disk Meter and Network hygiene changes",
+      "note": "Also corrects a76bf97's message."
+    },
+    {
+      "commit": "dfe55b8b797f7df2413427da7c17f91e961e8a50",
+      "package": null,
+      "kind": "docs",
+      "policy": "excluded",
+      "subject": "Bring shared docs in line with the phase A changes",
+      "note": "Shared docs after the six merges (first-parent line)."
+    }
+  ],
+  "units": [
+    {
+      "id": "A2-1+A2-2+A2-5+A2-6",
+      "fixes": [
+        "A2-1",
+        "A2-2",
+        "A2-5",
+        "A2-6"
+      ],
+      "isolated": false,
+      "isolatedScenarios": [],
+      "note": "Joined because A2-2 requires A2-1; A2-5 requires A2-2; A2-5 reverts with A2-6."
+    },
+    {
+      "id": "A2-3",
+      "fixes": [
+        "A2-3"
+      ],
+      "isolated": false,
+      "isolatedScenarios": [],
+      "note": ""
+    },
+    {
+      "id": "A2-4",
+      "fixes": [
+        "A2-4"
+      ],
+      "isolated": false,
+      "isolatedScenarios": [],
+      "note": ""
+    },
+    {
+      "id": "A2-7",
+      "fixes": [
+        "A2-7"
+      ],
+      "isolated": false,
+      "isolatedScenarios": [],
+      "note": ""
+    },
+    {
+      "id": "A2-8",
+      "fixes": [
+        "A2-8"
+      ],
+      "isolated": false,
+      "isolatedScenarios": [],
+      "note": ""
+    },
+    {
+      "id": "A3-1+A3-7",
+      "fixes": [
+        "A3-1",
+        "A3-7"
+      ],
+      "isolated": true,
+      "isolatedScenarios": [
+        "solo:CPU",
+        "suite"
+      ],
+      "note": "Joined because A3-7 requires A3-1."
+    },
+    {
+      "id": "A3-2+A3-3",
+      "fixes": [
+        "A3-2",
+        "A3-3"
+      ],
+      "isolated": true,
+      "isolatedScenarios": [
+        "solo:CPU",
+        "suite"
+      ],
+      "note": "Joined because A3-3 requires A3-2."
+    },
+    {
+      "id": "A3-4",
+      "fixes": [
+        "A3-4"
+      ],
+      "isolated": true,
+      "isolatedScenarios": [
+        "solo:CPU",
+        "suite"
+      ],
+      "note": ""
+    },
+    {
+      "id": "A3-5",
+      "fixes": [
+        "A3-5"
+      ],
+      "isolated": true,
+      "isolatedScenarios": [
+        "solo:CPU",
+        "suite"
+      ],
+      "note": ""
+    },
+    {
+      "id": "A3-6",
+      "fixes": [
+        "A3-6"
+      ],
+      "isolated": true,
+      "isolatedScenarios": [
+        "solo:CPU",
+        "suite"
+      ],
+      "note": ""
+    },
+    {
+      "id": "A4-1",
+      "fixes": [
+        "A4-1"
+      ],
+      "isolated": true,
+      "isolatedScenarios": [
+        "solo:GPU",
+        "suite"
+      ],
+      "note": ""
+    },
+    {
+      "id": "A4-2",
+      "fixes": [
+        "A4-2"
+      ],
+      "isolated": true,
+      "isolatedScenarios": [
+        "solo:GPU",
+        "suite"
+      ],
+      "note": ""
+    },
+    {
+      "id": "A4-3",
+      "fixes": [
+        "A4-3"
+      ],
+      "isolated": true,
+      "isolatedScenarios": [
+        "solo:GPU",
+        "suite"
+      ],
+      "note": ""
+    },
+    {
+      "id": "A4-4",
+      "fixes": [
+        "A4-4"
+      ],
+      "isolated": true,
+      "isolatedScenarios": [
+        "solo:GPU",
+        "suite"
+      ],
+      "note": ""
+    },
+    {
+      "id": "A4-5",
+      "fixes": [
+        "A4-5"
+      ],
+      "isolated": true,
+      "isolatedScenarios": [
+        "solo:GPU",
+        "suite"
+      ],
+      "note": ""
+    },
+    {
+      "id": "A4-6+A4-9+A4-10",
+      "fixes": [
+        "A4-6",
+        "A4-9",
+        "A4-10"
+      ],
+      "isolated": true,
+      "isolatedScenarios": [
+        "solo:GPU",
+        "suite"
+      ],
+      "note": "Joined because A4-9 requires A4-6; A4-10 requires A4-9."
+    },
+    {
+      "id": "A4-7",
+      "fixes": [
+        "A4-7"
+      ],
+      "isolated": true,
+      "isolatedScenarios": [
+        "solo:GPU",
+        "suite"
+      ],
+      "note": ""
+    },
+    {
+      "id": "A4-8",
+      "fixes": [
+        "A4-8"
+      ],
+      "isolated": true,
+      "isolatedScenarios": [
+        "solo:GPU",
+        "suite"
+      ],
+      "note": ""
+    },
+    {
+      "id": "A1-1+A1-2+A1-5+A1-6",
+      "fixes": [
+        "A1-1",
+        "A1-2",
+        "A1-5",
+        "A1-6"
+      ],
+      "isolated": true,
+      "isolatedScenarios": [
+        "solo:Media",
+        "suite",
+        "solo:Visualizer"
+      ],
+      "note": "Joined because A1-2 requires A1-1; A1-6 requires A1-2, A1-5."
+    },
+    {
+      "id": "A1-3+A1-4",
+      "fixes": [
+        "A1-3",
+        "A1-4"
+      ],
+      "isolated": true,
+      "isolatedScenarios": [
+        "solo:Media",
+        "solo:Visualizer",
+        "suite"
+      ],
+      "note": "Joined because A1-4 requires A1-3."
+    },
+    {
+      "id": "A5-1+A5-2",
+      "fixes": [
+        "A5-1",
+        "A5-2"
+      ],
+      "isolated": false,
+      "isolatedScenarios": [],
+      "note": "Joined because A5-2 requires A5-1."
+    },
+    {
+      "id": "A6-1",
+      "fixes": [
+        "A6-1"
+      ],
+      "isolated": false,
+      "isolatedScenarios": [
+        "solo:RAM",
+        "suite"
+      ],
+      "note": ""
+    },
+    {
+      "id": "A6-2",
+      "fixes": [
+        "A6-2"
+      ],
+      "isolated": true,
+      "isolatedScenarios": [
+        "solo:RAM",
+        "suite"
+      ],
+      "note": ""
+    },
+    {
+      "id": "A6-3",
+      "fixes": [
+        "A6-3"
+      ],
+      "isolated": true,
+      "isolatedScenarios": [
+        "solo:RAM",
+        "suite"
+      ],
+      "note": ""
+    },
+    {
+      "id": "A6-4",
+      "fixes": [
+        "A6-4"
+      ],
+      "isolated": true,
+      "isolatedScenarios": [
+        "solo:RAM",
+        "suite"
+      ],
+      "note": ""
+    },
+    {
+      "id": "A6-5",
+      "fixes": [
+        "A6-5"
+      ],
+      "isolated": true,
+      "isolatedScenarios": [
+        "solo:IO",
+        "suite"
+      ],
+      "note": ""
+    },
+    {
+      "id": "A6-6",
+      "fixes": [
+        "A6-6"
+      ],
+      "isolated": true,
+      "isolatedScenarios": [
+        "solo:IO",
+        "suite"
+      ],
+      "note": ""
+    },
+    {
+      "id": "A6-7+A6-8",
+      "fixes": [
+        "A6-7",
+        "A6-8"
+      ],
+      "isolated": true,
+      "isolatedScenarios": [
+        "solo:Network",
+        "suite"
+      ],
+      "note": "Joined because A6-8 requires A6-7."
+    },
+    {
+      "id": "A6-9",
+      "fixes": [
+        "A6-9"
+      ],
+      "isolated": true,
+      "isolatedScenarios": [
+        "solo:Network",
+        "suite"
+      ],
+      "note": ""
+    },
+    {
+      "id": "A6-10",
+      "fixes": [
+        "A6-10"
+      ],
+      "isolated": true,
+      "isolatedScenarios": [
+        "solo:Network",
+        "suite"
+      ],
+      "note": ""
+    }
+  ]
+}

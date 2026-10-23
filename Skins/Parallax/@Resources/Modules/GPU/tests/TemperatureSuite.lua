@@ -84,6 +84,7 @@ function Suite.run(path)
             return '(Max(1,Round(' .. f.vars.DataBarThickness .. '*' .. f.vars.Scale .. ')))'
         end
         function skin:ParseFormula(raw)
+            f.formulas = f.formulas + 1
             if raw == '((220-2*10))' then return 200 end
             if raw == '((' .. expandedWidth() .. '-102*' .. f.vars.Scale .. '))' then
                 local width = f.vars.ContentWidth == panelFormula and 200 or tonumber(f.vars.ContentWidth)
@@ -212,7 +213,11 @@ function Suite.run(path)
                 f.removed[filename] = (f.removed[filename] or 0) + 1; f.files[filename] = nil; return true
             end
         }
-        local env = setmetatable({SKIN = skin, SELF = {}, io = fakeio, os = setmetatable(fakeos, {__index = function() return forbidden end}),
+        -- Counts hex-decoded bytes (string.char) so tests can tell when a
+        -- snapshot's names or adapter field were decoded again.
+        f.chars, f.formulas = 0, 0
+        local countedString = setmetatable({char = function(...) f.chars = f.chars + 1; return string.char(...) end}, {__index = string})
+        local env = setmetatable({SKIN = skin, SELF = {}, io = fakeio, string = countedString, os = setmetatable(fakeos, {__index = function() return forbidden end}),
             package = blocked, debug = blocked, require = forbidden, dofile = forbidden, loadfile = forbidden, loadstring = forbidden}, {__index = _G})
         env._G = env
         local chunk = assert(loadfile(path)); setfenv(chunk, env); chunk(); f.env = env
@@ -284,6 +289,38 @@ function Suite.run(path)
             if call[1] == '!SetOption' and call[2] == 'MeterPowerValue' then writes = writes + 1 end
         end
         eq(writes, 4, 'each changed power reading is written once'); eq(f:text('MeterPowerValue'), '55.0 W')
+    end)
+    test('an unchanged snapshot is not parsed, decoded or written again but still ages out', function()
+        local map = '7,' .. hex('game.exe')
+        local f = fixture({pids = '7'}); f:live({[27] = map})
+        local names, vram = f.names, f:text('MeterGPUVRAMValue')
+        contains(names, 'GPU_NAMES|1|1000|7,'); f:clear(); f.chars, f.formulas = 0, 0
+        for _ = 1, 3 do f:update() end
+        eq(#f.calls, 0, 'no option writes'); eq(f.chars, 0, 'no hex decoding'); eq(f.formulas, 0, 'no geometry parsing')
+        eq(f.names, names, 'names kept'); eq(f:text('MeterGPUVRAMValue'), vram); eq(f.meter.Text, '42 °C')
+        eq((f:update()), 25, 'Core load kept')
+        f:sample({[4] = '2'}); f:update(); eq(f.chars > 0, true, 'a new snapshot is decoded')
+        f.now = 1009; f:update(); f:allUnavailable(); eq(f.names, '', 'an unchanged snapshot still ages out')
+        local n = fixture({metadata = 'NONE', pids = '7'}); n:start(sessionOutput({[5] = namesOnlyLuid}))
+        n:sample({[8] = namesOnlyLuid, [9] = '?', [27] = map}); n:update(); contains(n.names, 'GPU_NAMES|1|1000|7,')
+        n:clear(); n.chars = 0; n:update(); n:update()
+        eq(#n.calls, 0, 'names only: no writes'); eq(n.chars, 0, 'names only: no decoding')
+        contains(n.names, 'GPU_NAMES|1|1000|7,'); n:allUnavailable()
+    end)
+    test('an unchanged snapshot is re-filtered at once when the name request changes', function()
+        local map = '7,' .. hex('game.exe')
+        local f = fixture({pids = '7'}); f:live({[27] = map}); contains(f.names, 'GPU_NAMES|1|1000|7,')
+        f.outputs.MeasureGPUProcessController = '8'; f.now = 1001; f:update()
+        eq(f.names, '', 'a PID dropped from the request loses its name at once')
+        f.outputs.MeasureGPUProcessController = '7'; f.now = 1002; f:update()
+        eq(f.names, '', 'a re-entered PID waits for a reply at or after its re-entry')
+        eq(f.meter.Text, '42 °C', 'readings stay valid throughout')
+    end)
+    test('a snapshot shown unavailable in between is validated and shown again in full', function()
+        local f = fixture(); f:live(); local saved = f.files[dataPath]
+        f.files[dataPath] = nil; f:update(); eq(f.meter.Text, 'Checking...'); eq(f:text('MeterActivityValue'), '--')
+        f.files[dataPath] = saved; f:update()
+        eq(f.meter.Text, '42 °C'); eq(f:text('MeterActivityValue'), '25%'); eq(f:text('MeterGPUVRAMValue'), '2.1/8.6 GB')
     end)
     test('interval follows slower collection cadence and bounded integer limits', function()
         local cases = {{{MetricsInterval = '5000', SensorInterval = '2000'}, 5000},

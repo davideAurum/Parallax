@@ -58,11 +58,11 @@ LeftMouseUpAction=[!CommandMeasure MeasureMediaOptions "ToggleVisualizer()"]
 ; Tab contents, printed on the sheet: defined before MeterPanel so the panel
 ; occludes everything but the notch. Clicking still runs ToggleQueue().
 ; Static: its geometry changes only with a refresh, so it never takes part in
-; periodic updates (a due meter repaints the whole window).
+; periodic updates (a due meter repaints the whole window) and needs no
+; DynamicVariables (its Shape expands to about 18 KB of formula text).
 [MeterQueueDrawer]
 Meter=Shape
 AntiAlias=1
-DynamicVariables=1
 UpdateDivider=-1
 X=#MediaSurfaceX#
 Y=#MediaQueueDrawerTop#

@@ -183,8 +183,10 @@ Hidden=1
 
 ; Auto-size the time text inside a bounded, single-line area. Its measured left
 ; edge supplies the transport centering boundary; no hidden width probe needed.
+; No DynamicVariables: these options change only with a refresh, and Media's
+; pre-expanded geometry chains made each re-read about 23 KB of formula text
+; (docs/PERFORMANCE-REVIEW.md MEDIA-03). The time itself comes from measures.
 [MediaTimingStyle]
-DynamicVariables=1
 FontFace=#FontFace#
 FontSize=(#FontSize#*#Scale#)
 FontWeight=500
@@ -198,6 +200,10 @@ X=(#MediaProgressX#+#MediaProgressWidth#)
 Y=(#MediaProgressY#+#DataBarThicknessPx#+2*#Scale#)
 StringAlign=Right
 
+; Neither timing meter calls Media.lua's LayoutTransport() while that layout
+; is disabled (TEMPORARY there): an OnUpdateAction ran a no-op Lua call on
+; every update. When the transport x-axis returns, call it from Media.lua's
+; change path instead of per meter update.
 [MeterTiming]
 Meter=String
 MeterStyle=MediaTimingStyle
@@ -206,7 +212,6 @@ MeasureName=MeasurePosition
 MeasureName2=MeasureDuration
 Text=%1 / %2
 Hidden=1
-OnUpdateAction=[!CommandMeasure MeasureMediaUI "LayoutTransport('MeterTiming')"]
 
 [MeterTimingUnavailable]
 Meter=String
@@ -214,7 +219,6 @@ MeterStyle=MediaTimingStyle
 Text=-- / --
 Group=MediaDynamic
 UpdateDivider=-1
-OnUpdateAction=[!CommandMeasure MeasureMediaUI "LayoutTransport('MeterTimingUnavailable')"]
 
 [MediaTransportInclude]
 @Include17=#@#Modules\Media\TransportIcons.inc

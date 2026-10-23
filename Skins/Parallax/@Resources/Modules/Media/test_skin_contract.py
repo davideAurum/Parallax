@@ -1122,8 +1122,20 @@ class SkinContractTests(unittest.TestCase):
                         if 'Measure' in section:
                             self.assertIn('UpdateDivider',section,f'{name} relies on DefaultUpdateDivider')
                         elif 'Meter' in section:
-                            divider=val(resolve_style(sections,name).get('UpdateDivider',rainmeter['DefaultUpdateDivider']))
+                            style=resolve_style(sections,name)
+                            divider=val(style.get('UpdateDivider',rainmeter['DefaultUpdateDivider']))
                             self.assertTrue(divider==-1 or divider>=legacy,f'{name} is due every {divider} ticks')
+                            if divider>=0:
+                                # A periodic meter must not re-read Media's pre-expanded
+                                # geometry chains on every update, nor run an action
+                                # per update (MEDIA-03); !SetOption already forces one
+                                # re-read where a script changes an option.
+                                self.assertNotEqual(style.get('DynamicVariables','0'),'1',f'{name} re-reads every update')
+                                self.assertNotIn('OnUpdateAction',style,name)
+                    for name in ('MeterTiming','MeterTimingUnavailable','MeterQueueDrawer','MeterPlayerIcon'):
+                        style=resolve_style(sections,name)
+                        self.assertNotIn('DynamicVariables',style,name)
+                        self.assertNotIn('OnUpdateAction',style,name)
                     for name in static:
                         self.assertEqual(val(resolve_style(sections,name)['UpdateDivider']),-1,name)
         # Setup ticks at MediaInterval itself: its shared meters keep divider 1.

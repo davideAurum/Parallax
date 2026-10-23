@@ -135,7 +135,9 @@ end
 function LayoutTransport(timingName)
     -- TEMPORARY: the transport row now straddles the panel's lower border and
     -- is centred statically by #MediaTransportGroupX#, so there is nothing to
-    -- lay out against the timing text. Restore with the queue footer.
+    -- lay out against the timing text. Restore with the queue footer. The
+    -- timing meters no longer call this from OnUpdateAction (a no-op Lua call
+    -- per update); when restored, call it from this adapter's change path.
     do return false end
     -- Only the active String meter calls this after its current text is measured.
     if timingName ~= activeTiming or (timingName ~= 'MeterTiming' and timingName ~= 'MeterTimingUnavailable') then return false end

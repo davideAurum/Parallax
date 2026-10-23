@@ -991,6 +991,29 @@ its own commit so it can be measured alone.
   observer and probes at divider 1); their captures are pixel-identical to the
   same runs on the parent commit outside the animated title icon, and the Setup
   preview capture is pixel-identical.
+- **MEDIA-03, no per-update formula re-reads.** Rainmeter stores `[Variables]`
+  pre-expanded, so a `DynamicVariables=1` meter re-parses Media's whole
+  geometry chain on each update: about 23 KB for each timing meter, 18 KB for
+  the queue sheet and 5 KB for the playing icon. `MediaTimingStyle` and
+  `MeterQueueDrawer` drop `DynamicVariables` (their options change only with
+  a refresh). The two timing meters lose the `OnUpdateAction` that called
+  `Media.lua`'s disabled `LayoutTransport()` on every update; when that layout
+  returns it should run from the adapter's change path. `MeterPlayerIcon`
+  drops `DynamicVariables` too: each `!SetOption` already forces exactly one
+  re-read, and `MediaPulse.lua` now writes the shared box's X and Y back as
+  literal numbers once per load (in parentheses, so Rainmeter converts them
+  through the same formula path), as `SpectrumPaths.lua` does for the band
+  paths. Checked: the cadence contract test now also rejects
+  `DynamicVariables=1` or an `OnUpdateAction` on any periodically updated
+  meter; the pulse suite adds the literal box (written once, exact for
+  fractions, skipped for unresolved or failing text; 556 assertions); the
+  native identity suite now requires the two title icons' X and Y to be
+  pixel-equal and passes all 25 `-IdentityFocused` cases (widths 180/220,
+  scales 0.75/1/2, one and two columns, default and maximum fonts) in 27.6 s.
+  The same 25 cases on the tree before this series (916c9ab) produced 1 of 25
+  reports in 53 s: 24 Media windows repainting at 20 Hz starve the isolated
+  instance (an observation, not a benchmark). Captures shared with the
+  baseline run are pixel-identical outside the animated icon.
 
 ### Cover without the WNP plugin (2026-10-20)
 

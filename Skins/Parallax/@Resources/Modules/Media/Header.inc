@@ -40,7 +40,9 @@ LucideMonitorPlayPath=(15.033*#MediaHeaderLucideScale#),(9.44*#MediaHeaderLucide
 [MeterPlayerIcon]
 Meter=Shape
 MeterStyle=MediaHeaderIconStyle
-DynamicVariables=1
+; No DynamicVariables: each !SetOption already makes Rainmeter re-read this
+; meter once, on its next update. MediaPulse.lua also writes the style's X and
+; Y back as literal numbers once per load, so those re-reads stay small.
 ; While a track is playing, MediaPulse.lua rewrites each bar (Shape..Shape6)
 ; every tick via !SetOption, matching the audio-lines equalizer pulse at
 ; https://lucide-animated.com/. It shares the style's box with MeterMediaIcon

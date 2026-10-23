@@ -54,6 +54,44 @@ local function shape(bar, half)
         bar.x, bar.center - half, bar.x, bar.center + half)
 end
 
+local function finite(value)
+    return type(value) == 'number' and value == value and value ~= math.huge and value ~= -math.huge
+end
+
+-- The shortest decimal that parses back to the same double, never in exponent
+-- form (Rainmeter's formula parser does not read exponents); as SpectrumPaths.lua.
+local function literal(value)
+    if not finite(value) then return nil end
+    if value == math.floor(value) and math.abs(value) < 2 ^ 53 then return string.format('%.0f', value) end
+    for digits = 1, 17 do
+        local text = string.format('%.' .. digits .. 'g', value)
+        if not text:find('[eE]') and tonumber(text) == value then return text end
+    end
+    return nil
+end
+
+-- Once per load, as SpectrumPaths.lua does for the band paths: Media's
+-- [Variables] are stored pre-expanded, so the shared icon box's X=#ContentX#
+-- alone is about 4 KB of formula text, and every !SetOption that animates the
+-- bars makes the meter re-read it (docs/PERFORMANCE-REVIEW.md MEDIA-03).
+-- Evaluate the style's own X and Y once and write them back as literal
+-- numbers, kept in parentheses so Rainmeter converts them exactly as it did
+-- the formulas. If either fails to evaluate, the style's text stays; a failed
+-- ParseFormula returns 0, and the icon box always lies inside the panel.
+local function place()
+    local icon = SKIN:GetMeter('MeterPlayerIcon')
+    if not icon then return end
+    for _, key in ipairs({ 'X', 'Y' }) do
+        local text = icon:GetOption(key, '')
+        local value = nil
+        if type(text) == 'string' and text ~= '' and not text:find('[#%[]') then
+            value = SKIN:ParseFormula('(' .. text .. ')')
+        end
+        local number = finite(value) and value > 0 and literal(value)
+        if number then SKIN:Bang('!SetOption', 'MeterPlayerIcon', key, '(' .. number .. ')') end
+    end
+end
+
 function Update()
     -- Playing means connected, reporting Playing (state 1) and holding a track.
     -- MediaHeader.lua applies the identical test to the title text, so the
@@ -66,6 +104,8 @@ function Update()
     -- unconditionally, so it never depends on the ini defaults agreeing.
     local first = applied.playing == nil
     local transition = applied.playing ~= playing
+    -- The load tick's forced update reads the literal box with everything else.
+    if first then place() end
     if transition then
         applied.playing = playing
         SKIN:Bang(playing and '!ShowMeter' or '!HideMeter', 'MeterPlayerIcon')

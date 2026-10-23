@@ -218,7 +218,9 @@ local function header_row(state)
         check(icon:GetOption('Meter')=='Shape' and icon:GetOption('Group')=='MediaPlayerIcons','Title icon escaped its Shape group')
         check(math.abs(icon:GetX(true)-content_x)<=1,'Title icon slot is not at ContentX')
     end
-    check(media:GetY(true)==player:GetY(true),'Title icons do not share one slot')
+    -- MediaPulse.lua rewrites the player icon's X/Y as literals once per load;
+    -- they must land on exactly the style formula's pixels.
+    check(media:GetY(true)==player:GetY(true) and media:GetX(true)==player:GetX(true),'Title icons do not share one slot')
     check(math.abs(shown:GetW()-icon_size)<=1 and math.abs(shown:GetH()-icon_size)<=1,'Title icon ignores TitleIconSize')
     -- Native boxes are whole pixels, so compare rendered centers with each
     -- other; the title anchor itself was checked against the model above.

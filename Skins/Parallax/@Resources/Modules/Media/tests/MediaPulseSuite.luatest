@@ -24,11 +24,30 @@ function suite.run(sourcePath)
         Shape5 = 'Line (18*#MediaPlayerLucideScale#),(5.000*#MediaPlayerLucideScale#),(18*#MediaPlayerLucideScale#),(18.000*#MediaPlayerLucideScale#) | Extend LucideAudioLinesStroke',
         Shape6 = 'Line (22*#MediaPlayerLucideScale#),(10.000*#MediaPlayerLucideScale#),(22*#MediaPlayerLucideScale#),(13.000*#MediaPlayerLucideScale#) | Extend LucideAudioLinesStroke'
     }
-    local function fixture(variables, playing)
+    -- The icon box as Rainmeter hands it to Lua: variables already expanded.
+    local box = { X = '((4+6)+(168+8))', Y = '(4+12+15-4-14/2)' }
+    local function fixture(variables, playing, geometry)
         local values = { MeasureConnection = { value = 1 }, MeasureState = { value = playing and 1 or 2 },
             MeasureTitle = { text = 'Synthetic fixture title' } }
         local log, options = {}, {}
         local mock = {}
+        geometry = geometry or box
+        function mock:GetMeter(name)
+            assert(name == 'MeterPlayerIcon', 'Unexpected meter lookup: ' .. tostring(name))
+            return { GetOption = function(_, key, default)
+                assert(key == 'X' or key == 'Y', 'Unexpected icon option read: ' .. tostring(key))
+                local value = geometry[key]
+                if value == nil then return default end
+                return value
+            end }
+        end
+        -- Rainmeter's ParseFormula: a number, or 0 when the text fails.
+        function mock:ParseFormula(text)
+            local chunk = loadstring('return ' .. text)
+            local ok, value = pcall(chunk or error)
+            if ok and type(value) == 'number' then return value end
+            return 0
+        end
         function mock:GetMeasure(name)
             local value = values[name]
             assert(value ~= nil, 'Unexpected measure lookup: ' .. tostring(name))
@@ -198,6 +217,30 @@ function suite.run(sourcePath)
         f.play(true)
         _, bangs = f.tick()
         check(divider(bangs) == '1' and count(bangs, '!UpdateMeter', 'MeterPlayerIcon') == 1, 'Resuming raises it again')
+    end)
+
+    scenario('the load writes the icon box once as literal numbers', function()
+        local f = fixture()
+        local _, bangs = f.tick()
+        check(f.options.X == '(186)' and f.options.Y == '(20)', 'Box not literal: ' .. tostring(f.options.X) .. ' ' .. tostring(f.options.Y))
+        check(count(bangs, '!SetOption', 'MeterPlayerIcon', 'X') == 1 and count(bangs, '!SetOption', 'MeterPlayerIcon', 'Y') == 1,
+            'The box is written exactly once on the load tick')
+        f.play(true)
+        for _ = 1, 30 do
+            _, bangs = f.tick()
+            check(count(bangs, '!SetOption', 'MeterPlayerIcon', 'X') == 0 and count(bangs, '!SetOption', 'MeterPlayerIcon', 'Y') == 0,
+                'The box must not be rewritten while animating')
+        end
+        -- Fractions keep their exact value, in parentheses for Rainmeter's formula path.
+        f = fixture(nil, false, { X = '(10.5+0.25)', Y = '(1/3)' })
+        f.tick()
+        check(f.options.X == '(10.75)' and tonumber(f.options.Y:match('^%((.*)%)$')) == 1 / 3, 'Fractional box not exact')
+        -- Unresolved or failing text leaves the style's own option in place.
+        for _, geometry in ipairs({ { X = '(#ContentX#)', Y = '([MeasureState]+1)' }, { X = '', Y = 'nonsense' }, { X = '(0)', Y = '(-4)' }, {} }) do
+            f = fixture(nil, false, geometry)
+            f.tick()
+            check(f.options.X == nil and f.options.Y == nil, 'An unusable box must not be written')
+        end
     end)
 
     scenario('playing at load needs no forced update', function()

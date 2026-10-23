@@ -2,7 +2,8 @@
 ; Used by the standalone Visualizer and by Media's expanded spectrum drawer,
 ; which is the only Media state that includes this file. The host defines
 ; VisualizerCaptureDivider (1 standalone; Media maps the Visualizer cadence onto
-; its own 50 ms tick) and the MeterVisualizerUnavailable overlay plus the
+; its own 50 ms tick), VisualizerDeviceNameDivider (about one second, for the
+; device status) and the MeterVisualizerUnavailable overlay plus the
 ; VisualizerSpectrum meter group that MeasureVisualizerState drives.
 
 ; Rainmeter's bundled AudioLevel: one loopback capture / FFT parent.
@@ -25,12 +26,16 @@ RMSDecay=500
 RMSGain=1
 UpdateDivider=#VisualizerCaptureDivider#
 
+; Endpoint state (IMMDevice::GetState) about once a second, the host's
+; device-name cadence, rather than every capture tick: the state Calc keeps
+; its last value between reads, and AudioLevel still drops a failed device
+; through its own buffer errors (docs/PERFORMANCE-REVIEW.md VIS-04).
 [MeasureVisualizerDevice]
 Measure=Plugin
 Plugin=AudioLevel
 Parent=MeasureVisualizerAudio
 Type=DeviceStatus
-UpdateDivider=#VisualizerCaptureDivider#
+UpdateDivider=#VisualizerDeviceNameDivider#
 
 [MeasureVisualizerFormat]
 Measure=Plugin
@@ -54,19 +59,31 @@ UpdateDivider=#VisualizerCaptureDivider#
 ; DeviceStatus is endpoint availability, not a freshness timestamp.
 ; States: 0 = unavailable, 1 = below threshold, 2 = signal, 3 = invalid format.
 ; On silence, hide bands: AudioLevel can retain its last FFT arrays.
+; The hidden mask would still re-read its 24 paths and count as a due meter,
+; and any due meter repaints the whole window, so the non-signal states also
+; take it out of periodic updates (UpdateDivider -1). The signal state gives
+; it back the capture cadence (quoted: Media's divider is a formula with
+; spaces) and forces one update, because a -1 meter ignores !SetOption until
+; it is forced (docs/PERFORMANCE-REVIEW.md MEDIA-04, VIS-02).
+; IfConditionMode=0 runs each action once per transition. OnChangeAction then
+; paints the transition: the overlay is -1 in both hosts, so in a quiet window
+; no meter is due to repaint it (VIS-03). It runs after the actions above and,
+; unlike them, not on the load's first update, where a redraw would paint
+; meters that have not had their first update yet.
 [MeasureVisualizerState]
 Measure=Calc
 Formula=(MeasureVisualizerDevice<=0 ? 0 : (#VisualizerFormatInvalid#=1 ? 3 : (MeasureVisualizerRMS>#VisualizerIdleFloor# ? 2 : 1)))
 DynamicVariables=1
 IfCondition=MeasureVisualizerState=0
-IfTrueAction=[!SetOption MeterVisualizerUnavailable Text "Output unavailable"][!SetOption MeterVisualizerUnavailable FontColor "#WarningColor#"][!HideMeterGroup VisualizerSpectrum][!ShowMeter MeterVisualizerUnavailable][!UpdateMeter MeterVisualizerUnavailable]
+IfTrueAction=[!SetOption MeterVisualizerSpectrumMask UpdateDivider -1][!SetOption MeterVisualizerUnavailable Text "Output unavailable"][!SetOption MeterVisualizerUnavailable FontColor "#WarningColor#"][!HideMeterGroup VisualizerSpectrum][!ShowMeter MeterVisualizerUnavailable][!UpdateMeter MeterVisualizerUnavailable]
 IfCondition2=MeasureVisualizerState=1
-IfTrueAction2=[!SetOption MeterVisualizerUnavailable Text "Idle - quiet"][!SetOption MeterVisualizerUnavailable FontColor "#MutedColor#"][!HideMeterGroup VisualizerSpectrum][!ShowMeter MeterVisualizerUnavailable][!UpdateMeter MeterVisualizerUnavailable]
+IfTrueAction2=[!SetOption MeterVisualizerSpectrumMask UpdateDivider -1][!SetOption MeterVisualizerUnavailable Text "Idle - quiet"][!SetOption MeterVisualizerUnavailable FontColor "#MutedColor#"][!HideMeterGroup VisualizerSpectrum][!ShowMeter MeterVisualizerUnavailable][!UpdateMeter MeterVisualizerUnavailable]
 IfCondition3=MeasureVisualizerState=2
-IfTrueAction3=[!ShowMeterGroup VisualizerSpectrum][!HideMeter MeterVisualizerUnavailable]
+IfTrueAction3=[!SetOption MeterVisualizerSpectrumMask UpdateDivider "#VisualizerCaptureDivider#"][!UpdateMeter MeterVisualizerSpectrumMask][!ShowMeterGroup VisualizerSpectrum][!HideMeter MeterVisualizerUnavailable]
 IfCondition4=MeasureVisualizerState=3
-IfTrueAction4=[!SetOption MeterVisualizerUnavailable Text "Unsupported format"][!SetOption MeterVisualizerUnavailable FontColor "#WarningColor#"][!HideMeterGroup VisualizerSpectrum][!ShowMeter MeterVisualizerUnavailable][!UpdateMeter MeterVisualizerUnavailable]
+IfTrueAction4=[!SetOption MeterVisualizerSpectrumMask UpdateDivider -1][!SetOption MeterVisualizerUnavailable Text "Unsupported format"][!SetOption MeterVisualizerUnavailable FontColor "#WarningColor#"][!HideMeterGroup VisualizerSpectrum][!ShowMeter MeterVisualizerUnavailable][!UpdateMeter MeterVisualizerUnavailable]
 IfConditionMode=0
+OnChangeAction=[!Redraw]
 UpdateDivider=#VisualizerCaptureDivider#
 
 [MeasureVisualizerBand0]

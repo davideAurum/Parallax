@@ -6,7 +6,11 @@
 VisualizerPanelHeight=#PanelHeight#
 ; Runtime-only provider evidence. Never written to the user's settings.
 VisualizerVolumeAvailable=0
-VisualizerVolumeDivider=(Max(1,Round(250/#VisualizerEffectiveInterval#)))
+; About once a second each: Win7Audio sets up and tears down its whole COM
+; device enumeration on every read, and its availability check reads it twice
+; (docs/PERFORMANCE-REVIEW.md VIS-04). A volume change shows within a second.
+; Device status (Capture.inc) uses the device-name cadence.
+VisualizerVolumeDivider=(Max(1,Round(1000/#VisualizerEffectiveInterval#)))
 VisualizerDeviceNameDivider=(Max(1,Round(1000/#VisualizerEffectiveInterval#)))
 VisualizerPlotTop=(43+#VisualizerTopShift#)
 VisualizerPlotHeight=(#VisualizerPlotHeightPx#/#Scale#)

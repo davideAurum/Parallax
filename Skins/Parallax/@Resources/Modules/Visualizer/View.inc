@@ -37,6 +37,8 @@ W=(#ContentWidth#-#TitleIconSize#-#TitleIconGap#-66*#Scale#)
 Text=Audio
 UpdateDivider=-1
 
+; Event-driven, like the device name and overlay below: Audio.inc updates it
+; when the readout changes, so a quiet window has no meter due to repaint it.
 [MeterVisualizerVolume]
 Meter=String
 MeterStyle=StyleVisualizerSmall
@@ -48,8 +50,7 @@ StringAlign=RightCenter
 FontColor=#TextColor#
 Text=--
 NumOfDecimals=0
-DynamicVariables=1
-UpdateDivider=#VisualizerVolumeDivider#
+UpdateDivider=-1
 
 ; Original Parallax gear, matching the other utility headers and hover behavior.
 [MeterVisualizerOptions]
@@ -92,8 +93,7 @@ Y=(#Inset#+(24+#VisualizerTopShift#)*#Scale#)
 W=(#ContentWidth#-18*#Scale#)
 H=(18*#Scale#)
 Text=%1
-DynamicVariables=1
-UpdateDivider=(Max(1,Round(1000/#VisualizerEffectiveInterval#)))
+UpdateDivider=-1
 
 ; One transparent hit target keeps icon and text on a single interactive row.
 ; Switching changes the Windows default output, clears a custom capture ID and
@@ -127,6 +127,9 @@ Shape3=Line 1,(Floor(#VisualizerBarHeight#/2)+1.5),(#VisualizerPlotWidth#-1),(Fl
 Shape4=Line 1,(Floor(3*#VisualizerBarHeight#/4)+1.5),(#VisualizerPlotWidth#-1),(Floor(3*#VisualizerBarHeight#/4)+1.5) | Stroke Color #GridColor# | StrokeWidth 1
 UpdateDivider=-1
 
+; The single non-live overlay. MeasureVisualizerState (Capture.inc) sets its
+; text and color, forces its update and repaints on each transition, as in
+; Media's drawer, so it never repaints the window on its own.
 [MeterVisualizerUnavailable]
 Meter=String
 MeterStyle=StyleVisualizerSmall
@@ -137,6 +140,7 @@ StringAlign=CenterCenter
 Text=Output unavailable
 FontColor=#WarningColor#
 SolidColor=#GraphBackgroundColor#
+UpdateDivider=-1
 
 [MeterVisualizerLow]
 Meter=String

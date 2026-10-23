@@ -35,7 +35,7 @@ local function preferences()
     check(tonumber(values.Scale)==SELF:GetNumberOption('ExpectedScale'),'Scale preference changed')
     check(tonumber(values.ColumnWidth)==SELF:GetNumberOption('ExpectedWidth'),'ColumnWidth preference changed')
     local allowed={Columns=true,PanelHeight=true,MediaInterval=true,QueueExpanded=true,QueueRowLimit=true,
-        QueueShowDetails=true,QueuePollSeconds=true,Scale=true,ColumnWidth=true,VisualizerDrawer=true,UnrelatedSentinel=true}
+        QueueShowDetails=true,QueuePollSeconds=true,Scale=true,ColumnWidth=true,VisualizerDrawer=true,MediaTitleAnimation=true,UnrelatedSentinel=true}
     for key in pairs(values) do check(allowed[key],'Unexpected preference written: '..key) end
     return values
 end
@@ -156,7 +156,7 @@ local function dimensions(expanded, rows)
     local columns=is_settings() and 2 or SELF:GetNumberOption('ExpectedColumns')
     local gap=2*math.floor(tonumber(SKIN:GetVariable('Gutter'))*scale/2+0.5)
     local expected_w=columns*(math.floor(width*scale+0.5)+gap)
-    local expected_h=is_settings() and math.floor((expanded and 786 or 730)*scale+0.5)+gap or media_geometry(expanded,rows).window
+    local expected_h=is_settings() and math.floor((expanded and 814 or 758)*scale+0.5)+gap or media_geometry(expanded,rows).window
     local detail=''
     if is_settings() and SKIN:GetH()~=expected_h then
         local bounds,panel=SKIN:GetMeter('MeterBounds'),SKIN:GetMeter('MeterPanel')
@@ -196,7 +196,11 @@ local function header_row(state)
     check(SKIN:GetMeasure('MeasureMediaHeader'):GetStringValue()==expected,'Header value '..SKIN:GetMeasure('MeasureMediaHeader'):GetStringValue()..' expected '..expected)
     check(title:GetOption('MeasureName')=='MeasureMediaHeader' and title:GetOption('Text')=='%1','Title does not bind the header measure as data')
     check(title:GetOption('ToolTipText','')=='','Title must not repeat its visible text in a tooltip')
-    check(title:GetOption('ClipString')=='1' and title:GetOption('UpdateDivider')=='1','Title must clip and follow every header update')
+    -- Every header update reaches the title: it shares MeasureMediaHeader's
+    -- divider rather than repainting on every animation tick.
+    check(title:GetOption('ClipString')=='1' and formula(title:GetOption('UpdateDivider'))==formula('#MediaLegacyDivider#')
+        and formula(SKIN:GetMeasure('MeasureMediaHeader'):GetOption('UpdateDivider'))==formula('#MediaLegacyDivider#'),
+        'Title must clip and follow every header update')
     check(title:GetOption('FontColor')==SKIN:GetVariable('TitleTextColor'),'Title ignores title color')
     local size=tonumber(title:GetOption('FontSize')) or SKIN:ParseFormula(title:GetOption('FontSize'))
     check(math.abs(size-tonumber(SKIN:GetVariable('TitleFontSize'))*scale)<0.001,'Title ignores title font size')
@@ -214,7 +218,9 @@ local function header_row(state)
         check(icon:GetOption('Meter')=='Shape' and icon:GetOption('Group')=='MediaPlayerIcons','Title icon escaped its Shape group')
         check(math.abs(icon:GetX(true)-content_x)<=1,'Title icon slot is not at ContentX')
     end
-    check(media:GetY(true)==player:GetY(true),'Title icons do not share one slot')
+    -- MediaPulse.lua rewrites the player icon's X/Y as literals once per load;
+    -- they must land on exactly the style formula's pixels.
+    check(media:GetY(true)==player:GetY(true) and media:GetX(true)==player:GetX(true),'Title icons do not share one slot')
     check(math.abs(shown:GetW()-icon_size)<=1 and math.abs(shown:GetH()-icon_size)<=1,'Title icon ignores TitleIconSize')
     -- Native boxes are whole pixels, so compare rendered centers with each
     -- other; the title anchor itself was checked against the model above.
@@ -428,19 +434,20 @@ local function settings_bounds(expanded)
     if expanded==nil then expanded=SKIN:GetVariable('QueueExpanded','0')=='1' end
     local width,height=dimensions(expanded,0)
     for _,name in ipairs({'MeterBounds','MeterPanel','MeterTitle','MeterClose','MeterWidthLabel','MeterWidthValue',
-        'MeterVisualizerDrawerLabel','MeterVisualizerDrawerValue','MeterQueueExpandedLabel','MeterQueueExpandedValue','MeterQueueRowsLabel','MeterQueueRowsValue','MeterQueueDetailsLabel',
+        'MeterVisualizerDrawerLabel','MeterVisualizerDrawerValue','MeterTitleAnimationLabel','MeterTitleAnimationValue','MeterQueueExpandedLabel','MeterQueueExpandedValue','MeterQueueRowsLabel','MeterQueueRowsValue','MeterQueueDetailsLabel',
         'MeterQueueDetailsValue','MeterQueuePollLabel','MeterQueuePollValue','MeterStatus','MeterQueueRule','MeterQueueHeading',
         'MeterSourceLabel','MeterSourceStart','MeterSourceStop','MeterSignIn','MeterStart','MeterStop','MeterRestart','MeterDisconnect','MeterLinksRule','MeterOpenQueue','MeterPlayerSetup','MeterHelp',
         'MeterUtilitySettingsNote','MeterUtilitySettingsGlobalLink','MeterDisplayHeading','MeterDisplayRule','MeterSamplingHeading',
         'MeterSamplingRule','MeterSourceRule','MeterSourceGuidance','MeterQueueGuidance','MeterLinksHeading'}) do inside(name,width,height) end
     local scale=SELF:GetNumberOption('ExpectedScale')
     local inset=math.floor(tonumber(SKIN:GetVariable('Gutter'))*scale/2+0.5)
-    for _,stem in ipairs({'Width','VisualizerDrawer','QueueExpanded','QueueRows','QueueDetails','QueuePoll'}) do
+    for _,stem in ipairs({'Width','VisualizerDrawer','TitleAnimation','QueueExpanded','QueueRows','QueueDetails','QueuePoll'}) do
         local label,value=SKIN:GetMeter('Meter'..stem..'Label'),SKIN:GetMeter('Meter'..stem..'Value')
         local numeric=stem=='Width' or stem=='QueueRows' or stem=='QueuePoll'
-        -- The three-way Spectrum drawer choice uses the same previous/value/next
-        -- group as the numbers, with a 76px field so Collapsed/Expanded fit.
-        local stepper=numeric or stem=='VisualizerDrawer'
+        -- The three-way Spectrum drawer and Title animation choices use the
+        -- same previous/value/next group as the numbers; the drawer's field is
+        -- 76px so Collapsed/Expanded fit, Off / 10 fps / 20 fps keep 56.
+        local stepper=numeric or stem=='VisualizerDrawer' or stem=='TitleAnimation'
         local field=stem=='VisualizerDrawer' and 76 or 56
         local hidden=not expanded and (stem=='QueueRows' or stem=='QueueDetails')
         local meters={label,value}
@@ -474,24 +481,28 @@ local function settings_bounds(expanded)
         check(label:GetOption('SolidColor','')=='','Settings label should not have a row background')
         check(label:GetOption('LeftMouseUpAction')==value:GetOption('LeftMouseUpAction'),'Settings label action differs from field')
     end
-    -- The Spectrum drawer row sits above the collapsible queue rows, so the
-    -- queue section moved down one 28px row and only the rows below it reflow.
+    -- The Spectrum drawer and Title animation rows sit above the collapsible
+    -- queue rows, so the queue section moved down two 28px rows and only the
+    -- rows below it reflow.
     for name,y in pairs({MeterVisualizerDrawerLabel=130,MeterVisualizerDrawerDecrease=129,MeterVisualizerDrawerFrame=128,
-        MeterVisualizerDrawerValue=129,MeterVisualizerDrawerIncrease=129,MeterQueueExpandedLabel=158,MeterQueueExpandedValue=156}) do
+        MeterVisualizerDrawerValue=129,MeterVisualizerDrawerIncrease=129,MeterTitleAnimationLabel=158,MeterTitleAnimationDecrease=157,
+        MeterTitleAnimationFrame=156,MeterTitleAnimationValue=157,MeterTitleAnimationIncrease=157,
+        MeterQueueExpandedLabel=186,MeterQueueExpandedValue=184}) do
         check(math.abs(SKIN:GetMeter(name):GetY(true)-(inset+y*scale))<=1,'Display row moved: '..name)
     end
     -- The wider drawer group shares the numeric groups' left column.
     for _,part in ipairs({'Decrease','Frame'}) do
         check(SKIN:GetMeter('MeterVisualizerDrawer'..part):GetX()==SKIN:GetMeter('MeterWidth'..part):GetX(),'Spectrum drawer stepper left column differs: '..part)
+        check(SKIN:GetMeter('MeterTitleAnimation'..part):GetX()==SKIN:GetMeter('MeterWidth'..part):GetX(),'Title animation stepper left column differs: '..part)
     end
     local shift=expanded and 0 or 56
     -- The shared Spectrum steppers (Visualizer\SettingsShared.inc) follow the
     -- queue rows; every later section sits 204 lower than before them.
-    for name,y in pairs({MeterVisualizerSettingsAppearance=246,MeterVisualizerSettingsHeightRow=272,
-        MeterVisualizerSettingsBaselineRow=384,MeterVisualizerSettingsQualityRow=272,MeterVisualizerSettingsAnimation=334,
-        MeterVisualizerSettingsDecayRow=416,
-        MeterSamplingHeading=450,MeterQueuePollValue=477,MeterStatus=504,
-        MeterSourceLabel=534,MeterSourceStart=571,MeterQueueHeading=618,MeterSignIn=655,MeterLinksHeading=730}) do
+    for name,y in pairs({MeterVisualizerSettingsAppearance=274,MeterVisualizerSettingsHeightRow=300,
+        MeterVisualizerSettingsBaselineRow=412,MeterVisualizerSettingsQualityRow=300,MeterVisualizerSettingsAnimation=362,
+        MeterVisualizerSettingsDecayRow=444,
+        MeterSamplingHeading=478,MeterQueuePollValue=505,MeterStatus=532,
+        MeterSourceLabel=562,MeterSourceStart=599,MeterQueueHeading=646,MeterSignIn=683,MeterLinksHeading=758}) do
         local meter=SKIN:GetMeter(name)
         check(meter:GetW()>0 and meter:GetH()>0,'Recovery/sampling control hidden: '..name)
         check(math.abs(meter:GetY(true)-(inset+(y-shift)*scale))<=1,'Dependent settings did not reflow: '..name)
@@ -541,6 +552,7 @@ local function settings_stage()
             for _,action in ipairs({"StepNumber('Columns',1)","StepNumber('QueuePollSeconds',-1)","StepNumber('QueueRowLimit',-1)",
                 "BeginNumberInput('QueueRowLimit')","StepNumber('Scale',1)","StepNumber('Columns',2)","StepNumber('Columns','1')",'CommitNumberInput()',
                 "StepChoice('VisualizerDrawer',2)","StepChoice('VisualizerDrawer',0)","StepChoice('VisualizerDrawer','1')",
+                "StepChoice('MediaTitleAnimation',2)","StepChoice('MediaTitleAnimation',0)","StepChoice('MediaTitleAnimation','1')",
                 "StepChoice('QueueExpanded',1)","StepChoice('Columns',-1)"}) do settings_action(action) end
         end,'Bounds/hidden/invalid action')
         check(settings_count('FixtureInputRuns')==0,'Hidden field opened input')
@@ -583,6 +595,38 @@ local function settings_stage()
             check(settings_count('FixtureDrawerApplies')==applies+step,'Drawer save did not hand Media its anchor placement exactly once: click '..step)
             check(settings_count('FixtureSettingsWrites')==writes+step and settings_count('FixtureSettingsRefreshes')==refreshes+step,'Drawer save wrote or refreshed more than once: click '..step)
             check(settings_count('FixtureMediaRefreshes')==media_refreshes,'Drawer save refreshed Media directly: click '..step)
+        end
+        -- Title animation (owner decision 2026-10-22): the fixture omits the
+        -- key, so the entrypoint fallback reads 20 fps. The same wrapping
+        -- stepper over Off / 10 fps / 20 fps; a saved number that is not 0 or
+        -- 10 steps as 20 fps, as InlineQueueGeometry.inc reads it, and text that
+        -- is no number as Off (Media keeps a static icon). Every click saves
+        -- once and refreshes Media, which picks its tick
+        -- and pulse cadence on load, and Queue, as the other display keys do.
+        check(prefs.MediaTitleAnimation==nil and text('MeterTitleAnimationValue')=='20 fps','Title animation fallback label wrong')
+        check(text('MeterTitleAnimationLabel')=='Title animation','Title animation label changed')
+        local animation_forward='[!CommandMeasure MeasureMediaSettings "StepChoice(\'MediaTitleAnimation\',1)"]'
+        for _,part in ipairs({'Label','Frame','Value','Increase'}) do
+            check(SKIN:GetMeter('MeterTitleAnimation'..part):GetOption('LeftMouseUpAction')==animation_forward,'Title animation forward wiring changed: '..part)
+        end
+        check(SKIN:GetMeter('MeterTitleAnimationDecrease'):GetOption('LeftMouseUpAction')=='[!CommandMeasure MeasureMediaSettings "StepChoice(\'MediaTitleAnimation\',-1)"]',
+            'Title animation previous wiring changed')
+        writes,refreshes=settings_count('FixtureSettingsWrites'),settings_count('FixtureSettingsRefreshes')
+        media_refreshes,applies=settings_count('FixtureMediaRefreshes'),settings_count('FixtureDrawerApplies')
+        local animation_clicks={{'Value','0','Off'},{'Increase','10','10 fps'},{'Label','20','20 fps'},
+            {'Decrease','10','10 fps'},{'Decrease','0','Off'},{'Decrease','20','20 fps'},
+            {'Frame','0','Off','15'},{'Decrease','20','20 fps','abc'},{'Value','0','Off'},{'Value','10','10 fps'},
+            {'Value','20','20 fps'}}
+        for step,click in ipairs(animation_clicks) do
+            if click[4] then SKIN:Bang('!WriteKeyValue','Variables','MediaTitleAnimation',click[4],SELF:GetOption('PreferencesPath')) end
+            SKIN:Bang(SKIN:GetMeter('MeterTitleAnimation'..click[1]):GetOption('LeftMouseUpAction'))
+            local saved=preferences().MediaTitleAnimation
+            check(saved==click[2] and text('MeterTitleAnimationValue')==click[3],
+                string.format('Title animation %s click %d saved %s/%s expected %s/%s',click[1],step,tostring(saved),text('MeterTitleAnimationValue'),click[2],click[3]))
+            check(settings_count('FixtureSettingsWrites')==writes+step and settings_count('FixtureSettingsRefreshes')==refreshes+2*step,
+                'Title animation save must write once and refresh Media and Queue: click '..step)
+            check(settings_count('FixtureMediaRefreshes')==media_refreshes+step and settings_count('FixtureDrawerApplies')==applies,
+                'Title animation save must refresh Media itself, not the drawer path: click '..step)
         end
         settle(2)
     elseif stage==2 then
@@ -710,7 +754,7 @@ local function probe_names()
     if is_settings() then return {'MeterTitle','MeterQueueHeading','MeterQueuePollLabel','MeterQueuePollValue',
         'MeterStatus','MeterDisconnect','MeterPlayerSetup','MeterClose','MeterSourceLabel','MeterSourceStart','MeterSourceStop',
         'MeterUtilitySettingsNote','MeterUtilitySettingsGlobalLink','MeterSourceGuidance','MeterQueueGuidance',
-        'MeterVisualizerDrawerValue'} end
+        'MeterVisualizerDrawerValue','MeterTitleAnimationLabel','MeterTitleAnimationValue'} end
     local names={'MeterHeading','MeterQueueHeading','MeterQueueHeaderTrack','MeterQueueRow1'}
     local other=kind:find('Player',1,true) and {'MeterTrackTitle','MeterArtist','MeterAlbum','MeterTiming'} or
         {'MeterSetupInstructions','MeterDesktopNote','MeterWNPDocs','MeterLoadPlayer'}
@@ -803,8 +847,9 @@ local function typography()
     end
     for _,name in ipairs(probe_names()) do
         local target,probe=assert(SKIN:GetMeter(name)),assert(SKIN:GetMeter('Probe'..name))
-        -- Every Spectrum drawer state must fit the drawer's stepper field.
-        local states=name=='MeterVisualizerDrawerValue' and {'Hidden','Collapsed','Expanded'} or {false}
+        -- Every Spectrum drawer and Title animation state must fit its field.
+        local states=name=='MeterVisualizerDrawerValue' and {'Hidden','Collapsed','Expanded'}
+            or name=='MeterTitleAnimationValue' and {'Off','10 fps','20 fps'} or {false}
         local w,h
         for _,state in ipairs(states) do
             if state then
@@ -837,7 +882,7 @@ local function typography()
     color('MeterQueueHeading',is_settings() and 'AccentColor' or 'HeaderTextColor')
     if is_settings() then
         color('MeterQueuePollLabel','TextColor'); color('MeterStatus','TextColor')
-        for _,name in ipairs({'MeterWidthValue','MeterVisualizerDrawerValue','MeterQueueExpandedValue','MeterQueueRowsValue','MeterQueueDetailsValue','MeterQueuePollValue'}) do color(name,'TextColor') end
+        for _,name in ipairs({'MeterWidthValue','MeterVisualizerDrawerValue','MeterTitleAnimationValue','MeterQueueExpandedValue','MeterQueueRowsValue','MeterQueueDetailsValue','MeterQueuePollValue'}) do color(name,'TextColor') end
         color('MeterStart','AccentColor'); color('MeterStop','AccentColor2'); color('MeterPlayerSetup','AccentColor2')
         for _,name in ipairs({'MeterDisplayHeading','MeterSamplingHeading','MeterSourceLabel','MeterLinksHeading'}) do color(name,'AccentColor') end
         color('MeterSourceStart','AccentColor'); color('MeterSourceStop','AccentColor2')
@@ -1406,6 +1451,7 @@ local function drawer_stage()
         check((SKIN:GetMeter(name)~=nil)==open,name..(open and ' missing from the open drawer' or ' loaded while the drawer is closed'))
     end
     spectrum_tab(g,width,height)
+    local mask_note=''
     if open then
         check(SKIN:GetMeasure('MeasureVisualizerAudio'):GetOption('Port')=='Output','Drawer does not capture the output device')
         -- The plot and its 19px frequency row hang 4px above the player; the
@@ -1433,6 +1479,14 @@ local function drawer_stage()
         check(math.abs(hit:GetY(true)+hit:GetH()-(plot_y-scale))<=1 and math.abs(hit:GetX(true)+hit:GetW()-(plot_x+meter:GetW()))<=1,
             string.format('Output row %g,%g %gx%g does not sit on the plot',hit:GetX(true),hit:GetY(true),hit:GetW(),hit:GetH()))
         check(SKIN:GetMeasure('MeasureVisualizerVolume')~=nil,'Open drawer has no Win7Audio volume measure')
+        -- The hidden mask stays out of periodic updates, so a quiet drawer
+        -- repaints nothing on its own (MEDIA-04, VIS-02). This observer runs
+        -- after MeasureVisualizerState in the same tick.
+        local capture_state=SKIN:GetMeasure('MeasureVisualizerState'):GetValue()
+        local mask_divider=formula(SKIN:GetMeter('MeterVisualizerSpectrumMask'):GetOption('UpdateDivider'))
+        check(mask_divider==(capture_state==2 and formula('#VisualizerCaptureDivider#') or -1),
+            string.format('Mask divider %s in capture state %s',tostring(mask_divider),tostring(capture_state)))
+        mask_note=string.format(' capture=%d mask=%d',capture_state,mask_divider)
         -- Grid lines on pixel centres: Floor(k/4 of the bar height)+1.5.
         for k=1,3 do
             local expression=meter:GetOption('Shape'..(k+1)):match('^Line 1,(%b()),')
@@ -1446,7 +1500,7 @@ local function drawer_stage()
     local anchor_x,anchor_y,marker=config_anchor()
     local custom=kind=='DrawerPlayerAnchored'
     local entry=string.format('stage=%d w=%d h=%d x=%d y=%d panel=%d anchorx=%s anchory=%s marker=%s audio=%d lift=%d',stage,SKIN:GetW(),SKIN:GetH(),
-        SKIN:GetX(),SKIN:GetY(),SKIN:GetY()+panel:GetY(true),anchor_x or 'absent',anchor_y or 'absent',marker or 'absent',open and 1 or 0,lift)
+        SKIN:GetX(),SKIN:GetY(),SKIN:GetY()+panel:GetY(true),anchor_x or 'absent',anchor_y or 'absent',marker or 'absent',open and 1 or 0,lift)..mask_note
     local history,lines=drawer_history()
     if custom then
         -- Never the drawer's: no write and no ownership record at any stage.

@@ -1,9 +1,9 @@
 ; Optional external plugin, installed by the user. Requires WebNowPlaying 2.x+.
 ; Reference: https://wnp.keifufu.dev/rainmeter/usage
 ; UpdateDivider=#MediaLegacyDivider# below keeps every plugin poll at the
-; original #MediaInterval# cadence even though the skin's own Update now ticks
-; much faster (#MediaAnimationInterval#) to animate the player icon smoothly;
-; see InlineQueueGeometry.inc for both variables.
+; original #MediaInterval# cadence even when the skin's own Update ticks much
+; faster (#MediaTickInterval#) to animate the player icon or the open spectrum
+; drawer smoothly; see InlineQueueGeometry.inc for the variables.
 [MeasureConnection]
 Measure=Plugin
 Plugin=WebNowPlaying
@@ -108,13 +108,17 @@ ScriptFile=#@#Modules\Media\Source\SourceReader.lua
 UpdateDivider=#MediaLegacyDivider#
 
 ; Title icon: swaps monitor-play for audio-lines while a track plays, and
-; pulses the bars. Runs every fast tick (no divider) so the animation is
-; smooth; it only reads three measures' last-cached values between their own
-; slower refreshes, so it adds no extra plugin polling. Kept out of Media.lua
-; because that adapter must stay a pure function of the current sample.
+; pulses the bars. Runs once per animation frame (every tick at 20 fps, every
+; other tick at 10 fps; the provider cadence with animation off), explicitly,
+; because Media.ini's DefaultUpdateDivider would otherwise hold it to the
+; provider cadence. It only reads three measures' last-cached values between
+; their own slower refreshes, so it adds no extra plugin polling, and it
+; returns at once while nothing animates. Kept out of Media.lua because that
+; adapter must stay a pure function of the current sample.
 [MeasureMediaPulse]
 Measure=Script
 ScriptFile=#@#Modules\Media\MediaPulse.lua
+UpdateDivider=#MediaPulseDivider#
 
 ; Last measure: reads this update's provider values and guards every command.
 [MeasureMediaUI]

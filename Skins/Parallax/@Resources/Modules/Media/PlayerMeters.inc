@@ -1,3 +1,7 @@
+; Fixed text and shapes below use UpdateDivider=-1: Media.lua only shows and
+; hides them, and a due meter would repaint the whole window on every tick
+; (docs/PERFORMANCE-REVIEW.md MEDIA-01). Measure-bound text keeps Media.ini's
+; DefaultUpdateDivider, the provider cadence of the measures it shows.
 [MeterNoMedia]
 Meter=String
 MeterStyle=StyleLabel
@@ -6,6 +10,7 @@ Y=#MediaMetadataY#
 H=(44*#Scale#)
 ClipString=2
 Text=No active media.#CRLF#Open a player or use Setup.
+UpdateDivider=-1
 
 [MeterCoverPlaceholder]
 Meter=Shape
@@ -17,6 +22,7 @@ W=#MediaCoverSize#
 H=#MediaCoverSize#
 Shape=Rectangle 0,0,#MediaCoverSize#,#MediaCoverSize#,#MediaCoverRadius# | Fill Color #GraphBackgroundColor# | StrokeWidth 0
 Hidden=1
+UpdateDivider=-1
 
 [MeterCoverLabel]
 Meter=String
@@ -28,6 +34,7 @@ W=(#MediaCoverSize#-6*#Scale#)
 StringAlign=Center
 Text=N/A
 Hidden=1
+UpdateDivider=-1
 
 ; The opaque rounded Shape masks child images; it paints no rectangle itself.
 ; Keep the container outside visibility groups and hide the image child instead.
@@ -176,8 +183,10 @@ Hidden=1
 
 ; Auto-size the time text inside a bounded, single-line area. Its measured left
 ; edge supplies the transport centering boundary; no hidden width probe needed.
+; No DynamicVariables: these options change only with a refresh, and Media's
+; pre-expanded geometry chains made each re-read about 23 KB of formula text
+; (docs/PERFORMANCE-REVIEW.md MEDIA-03). The time itself comes from measures.
 [MediaTimingStyle]
-DynamicVariables=1
 FontFace=#FontFace#
 FontSize=(#FontSize#*#Scale#)
 FontWeight=500
@@ -191,6 +200,10 @@ X=(#MediaProgressX#+#MediaProgressWidth#)
 Y=(#MediaProgressY#+#DataBarThicknessPx#+2*#Scale#)
 StringAlign=Right
 
+; Neither timing meter calls Media.lua's LayoutTransport() while that layout
+; is disabled (TEMPORARY there): an OnUpdateAction ran a no-op Lua call on
+; every update. When the transport x-axis returns, call it from Media.lua's
+; change path instead of per meter update.
 [MeterTiming]
 Meter=String
 MeterStyle=MediaTimingStyle
@@ -199,14 +212,13 @@ MeasureName=MeasurePosition
 MeasureName2=MeasureDuration
 Text=%1 / %2
 Hidden=1
-OnUpdateAction=[!CommandMeasure MeasureMediaUI "LayoutTransport('MeterTiming')"]
 
 [MeterTimingUnavailable]
 Meter=String
 MeterStyle=MediaTimingStyle
 Text=-- / --
 Group=MediaDynamic
-OnUpdateAction=[!CommandMeasure MeasureMediaUI "LayoutTransport('MeterTimingUnavailable')"]
+UpdateDivider=-1
 
 [MediaTransportInclude]
 @Include17=#@#Modules\Media\TransportIcons.inc

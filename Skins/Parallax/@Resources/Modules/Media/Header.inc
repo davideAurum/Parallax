@@ -14,7 +14,8 @@ UpdateDivider=#MediaLegacyDivider#
 ; One title-icon slot, two drawings, exactly one shown. Lucide monitor-play is
 ; the default and stands whenever nothing is playing; Setup, which has no
 ; player, never leaves it. While a track plays, MediaPulse.lua hides it and
-; shows the animated Lucide audio-lines in the same box, then swaps back.
+; shows the Lucide audio-lines in the same box (animated unless the title
+; animation is off), then swaps back.
 ; SVG source and license: Icons\Lucide\README.md.
 [MediaHeaderIconStyle]
 X=#ContentX#
@@ -40,15 +41,20 @@ LucideMonitorPlayPath=(15.033*#MediaHeaderLucideScale#),(9.44*#MediaHeaderLucide
 [MeterPlayerIcon]
 Meter=Shape
 MeterStyle=MediaHeaderIconStyle
-DynamicVariables=1
-; Overrides the style's UpdateDivider=-1: while a track is playing,
-; MediaPulse.lua rewrites each bar (Shape..Shape6) every tick via !SetOption,
-; matching the audio-lines equalizer pulse at https://lucide-animated.com/.
-; This meter must take part in normal updates for that to repaint. It shares
-; the style's box with MeterMediaIcon and starts hidden; the same script shows
-; it only while a track plays, and settles the bars back to the static values
-; below whenever it is hidden again.
-UpdateDivider=1
+; No DynamicVariables: each !SetOption already makes Rainmeter re-read this
+; meter once, on its next update. MediaPulse.lua also writes the style's X and
+; Y back as literal numbers once per load, so those re-reads stay small.
+; While a track is playing, MediaPulse.lua rewrites each bar (Shape..Shape6)
+; every tick via !SetOption, matching the audio-lines equalizer pulse at
+; https://lucide-animated.com/. It shares the style's box with MeterMediaIcon
+; and starts hidden; the same script shows it only while a track plays, and
+; settles the bars back to the static values below whenever it is hidden
+; again. It keeps the style's UpdateDivider=-1 at rest, so nothing repaints
+; while nothing plays: when playback starts the script raises it to one
+; update per animation frame (every tick at 20 fps, every other at 10 fps;
+; User\Media.inc MediaTitleAnimation) with one forced update, and returns it
+; to -1 with the settled bars. With animation off it shows the bars below,
+; static, and never leaves -1.
 Hidden=1
 Shape=Line (2*#MediaPlayerLucideScale#),(10*#MediaPlayerLucideScale#),(2*#MediaPlayerLucideScale#),(13*#MediaPlayerLucideScale#) | Extend LucideAudioLinesStroke
 Shape2=Line (6*#MediaPlayerLucideScale#),(6*#MediaPlayerLucideScale#),(6*#MediaPlayerLucideScale#),(17*#MediaPlayerLucideScale#) | Extend LucideAudioLinesStroke

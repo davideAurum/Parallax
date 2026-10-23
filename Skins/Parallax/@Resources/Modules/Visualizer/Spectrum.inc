@@ -145,6 +145,11 @@ UpdateDivider=-1
 
 ; One fully opaque native path mask; measured heights update with the spectrum.
 ; Only top corners are rounded. Fixed bounds retain the full plot at silence.
+; Out of periodic updates until there is signal: Capture.inc's state actions
+; set #VisualizerCaptureDivider# (with one forced update) on signal and -1
+; again in every non-signal state, so a hidden mask neither re-reads its
+; paths nor repaints the window. The load's first update still reads it once,
+; after SpectrumPaths.lua has compiled the paths.
 [MeterVisualizerSpectrumMask]
 Meter=Shape
 X=#VisualizerSpectrumX#
@@ -155,7 +160,7 @@ SolidColor=0,0,0,0
 AntiAlias=1
 DynamicVariables=1
 Group=VisualizerSpectrum
-UpdateDivider=#VisualizerCaptureDivider#
+UpdateDivider=-1
 Hidden=1
 Shape=Path BandPath0 | Fill Color 255,255,255,255 | StrokeWidth 0
 BandPath0=#VisualizerBandLeft0#,#VisualizerBarHeight# | LineTo #VisualizerBandLeft0#,(#VisualizerBandTop0#+#VisualizerBandRadius0#) | CurveTo (#VisualizerBandLeft0#+#VisualizerBandRadius0#),#VisualizerBandTop0#,#VisualizerBandLeft0#,(#VisualizerBandTop0#+0.44771525*#VisualizerBandRadius0#),(#VisualizerBandLeft0#+0.44771525*#VisualizerBandRadius0#),#VisualizerBandTop0# | LineTo ((#VisualizerBandLeft0#+#VisualizerBandWidth0#)-#VisualizerBandRadius0#),#VisualizerBandTop0# | CurveTo (#VisualizerBandLeft0#+#VisualizerBandWidth0#),(#VisualizerBandTop0#+#VisualizerBandRadius0#),((#VisualizerBandLeft0#+#VisualizerBandWidth0#)-0.44771525*#VisualizerBandRadius0#),#VisualizerBandTop0#,(#VisualizerBandLeft0#+#VisualizerBandWidth0#),(#VisualizerBandTop0#+0.44771525*#VisualizerBandRadius0#) | LineTo (#VisualizerBandLeft0#+#VisualizerBandWidth0#),#VisualizerBarHeight# | ClosePath 1

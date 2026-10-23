@@ -212,7 +212,8 @@ foreach ($script in Get-ChildItem -LiteralPath $SkinRoot -Recurse -File | Where-
 # !UpdateMeterGroup or !UpdateMeter * there paints or re-runs meters a second
 # time each tick; the engine's own end-of-cycle redraw already shows options set
 # during Update. Only direct, unconditional statements of Update() are flagged:
-# bangs inside if/loop blocks, behind and/or, or in helpers are left alone.
+# bangs inside if/loop blocks, behind and/or, after an early return, or in
+# helpers are left alone, and Update() inside comments or strings is ignored.
 # UTF-16 sources are decoded by their byte-order mark.
 Import-Module (Join-Path $PSScriptRoot 'Parallax.LuaScan.psm1') -Force
 foreach ($script in @($files | Where-Object { $_.Extension -ieq '.lua' })) {

@@ -7,9 +7,13 @@
 # a full-window paint before the engine's own end-of-cycle redraw, every tick.
 # Find-ParallaxUpdateRepaint reports such a bang only when it is a direct,
 # unconditional statement of the global Update() body: not inside if/for/while
-# blocks, not inside nested or helper functions (event paths call those), and
-# not behind an 'and'/'or' short circuit. do...end and repeat...until blocks
-# run unconditionally and do not hide a call.
+# blocks, not inside nested or helper functions (event paths call those), not
+# behind an 'and'/'or' short circuit, and not after a 'return' of Update()
+# that sits inside a block (an early-return guard such as
+# 'if not dirty then return 0 end' makes every later statement conditional).
+# do...end and repeat...until blocks run unconditionally and do not hide a
+# call. Update() definitions are found outside comments and strings only, so
+# commented-out or quoted code is never scanned.
 
 Set-StrictMode -Version Latest
 
@@ -103,13 +107,27 @@ function Get-ParallaxRepaintBangs([string]$First, [string]$Second) {
     $found
 }
 
-# Each global Update() definition: 'function Update(' or 'Update = function'
-# at the start of a line (not 'local'), tokenized to its own end.
+# Comments and strings (as in $script:LuaToken), or an Update() definition:
+# 'function Update(' or 'Update = function' at the start of a line. Scanning
+# left to right consumes every comment and string whole, so an 'anchor' match
+# is always code. Only the matches are enumerated, not every token.
+$script:UpdateAnchor = [regex]::new(@'
+(?<skip>--\[(?<lce>=*)\[[\s\S]*?\]\k<lce>\]
+|--[^\r\n]*
+|\[(?<lse>=*)\[[\s\S]*?\]\k<lse>\]
+|"(?:\\z\s*|\\\r?\n|\\[\s\S]|[^"\\\r\n])*"|'(?:\\z\s*|\\\r?\n|\\[\s\S]|[^'\\\r\n])*')
+|(?<anchor>(?m:^)[\t\x20]*(?:function[\t\x20]+Update[\t\x20]*\(|Update[\t\x20]*=[\t\x20]*function\b))
+'@, [Text.RegularExpressions.RegexOptions]::IgnorePatternWhitespace)
+
+# Each global Update() definition outside comments and strings (not 'local'),
+# tokenized to its own end.
 function Find-ParallaxUpdateRepaint {
     param([Parameter(Mandatory)][AllowEmptyString()][string]$Text)
     $findings = [Collections.Generic.List[object]]::new()
-    foreach ($anchor in [regex]::Matches($Text, '(?m)^[ \t]*(?:function[ \t]+Update[ \t]*\(|Update[ \t]*=[ \t]*function\b)')) {
-        $tokens = @(Get-ParallaxLuaTokens -Text $Text -Start $anchor.Index -OneBlock)
+    $anchors = [Collections.Generic.List[int]]::new()
+    foreach ($match in $script:UpdateAnchor.Matches($Text)) { if ($match.Groups['anchor'].Success) { $anchors.Add($match.Index) } }
+    foreach ($anchor in $anchors) {
+        $tokens = @(Get-ParallaxLuaTokens -Text $Text -Start $anchor -OneBlock)
         foreach ($finding in (Find-ParallaxRepaintInTokens -Text $Text -Tokens $tokens)) { $findings.Add($finding) }
     }
     $findings
@@ -123,7 +141,8 @@ function Find-ParallaxRepaintInTokens {
     for ($i = $Text.IndexOf("`n"); $i -ge 0; $i = $Text.IndexOf("`n", $i + 1)) { $lineStarts.Add($i + 1) }
     $starts = $lineStarts.ToArray()
     $findings = [Collections.Generic.List[object]]::new()
-    # Frames: Kind function|if|loop|do|repeat; Update marks the global Update().
+    # Frames: Kind function|if|loop|do|repeat; Update marks the global Update(),
+    # Guarded that it has passed a 'return' of its own inside a block.
     $stack = [Collections.Generic.List[object]]::new()
     for ($i = 0; $i -lt $tokens.Count; $i++) {
         $token = $tokens[$i]
@@ -140,18 +159,30 @@ function Find-ParallaxRepaintInTokens {
                             -not ($i -ge 3 -and $tokens[$i - 3].Text -in '.', ':', 'local'))
                         $isUpdate = $declared -or $assigned
                     }
-                    $stack.Add([pscustomobject]@{ Kind = 'function'; Update = $isUpdate; PendingDo = $false })
+                    $stack.Add([pscustomobject]@{ Kind = 'function'; Update = $isUpdate; Guarded = $false; PendingDo = $false })
                 }
-                'if' { $stack.Add([pscustomobject]@{ Kind = 'if'; Update = $false; PendingDo = $false }) }
-                'for' { $stack.Add([pscustomobject]@{ Kind = 'loop'; Update = $false; PendingDo = $true }) }
-                'while' { $stack.Add([pscustomobject]@{ Kind = 'loop'; Update = $false; PendingDo = $true }) }
+                'if' { $stack.Add([pscustomobject]@{ Kind = 'if'; Update = $false; Guarded = $false; PendingDo = $false }) }
+                'for' { $stack.Add([pscustomobject]@{ Kind = 'loop'; Update = $false; Guarded = $false; PendingDo = $true }) }
+                'while' { $stack.Add([pscustomobject]@{ Kind = 'loop'; Update = $false; Guarded = $false; PendingDo = $true }) }
                 'do' {
                     if ($stack.Count -and $stack[$stack.Count - 1].Kind -eq 'loop' -and $stack[$stack.Count - 1].PendingDo) { $stack[$stack.Count - 1].PendingDo = $false }
-                    else { $stack.Add([pscustomobject]@{ Kind = 'do'; Update = $false; PendingDo = $false }) }
+                    else { $stack.Add([pscustomobject]@{ Kind = 'do'; Update = $false; Guarded = $false; PendingDo = $false }) }
                 }
-                'repeat' { $stack.Add([pscustomobject]@{ Kind = 'repeat'; Update = $false; PendingDo = $false }) }
+                'repeat' { $stack.Add([pscustomobject]@{ Kind = 'repeat'; Update = $false; Guarded = $false; PendingDo = $false }) }
                 'until' { if ($stack.Count) { $stack.RemoveAt($stack.Count - 1) } }
                 'end' { if ($stack.Count) { $stack.RemoveAt($stack.Count - 1) } }
+                'return' {
+                    # A return of Update() itself (not of a nested function).
+                    # Lua allows return only as a block's last statement, so a
+                    # return directly in Update() ends it; one inside an if, a
+                    # loop or a block is an early exit that every later
+                    # statement depends on.
+                    for ($f = $stack.Count - 1; $f -ge 0; $f--) {
+                        if ($stack[$f].Kind -ne 'function') { continue }
+                        if ($stack[$f].Update) { $stack[$f].Guarded = $true }
+                        break
+                    }
+                }
                 'SKIN' {
                     if ($i + 3 -ge $tokens.Count -or $tokens[$i + 1].Text -ne ':' -or $tokens[$i + 2].Text -cne 'Bang' -or $tokens[$i + 3].Text -ne '(') { break }
                     if ($i -ge 1 -and $tokens[$i - 1].Text -cin 'and', 'or') { break }
@@ -162,7 +193,7 @@ function Find-ParallaxRepaintInTokens {
                         if ($stack[$f].Kind -in 'do', 'repeat') { continue }
                         $owner = $stack[$f]; break
                     }
-                    if ($null -eq $owner -or -not $owner.Update) { break }
+                    if ($null -eq $owner -or -not $owner.Update -or $owner.Guarded) { break }
                     $first = if ($i + 4 -lt $tokens.Count) { Get-ParallaxLuaStringValue $tokens[$i + 4] } else { $null }
                     if ($null -eq $first) { break }   # a computed bang cannot be judged statically
                     $second = $null

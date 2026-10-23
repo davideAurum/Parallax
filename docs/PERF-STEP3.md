@@ -221,9 +221,13 @@ Here s, the pooled trial spread, is the pooled sample standard deviation of ever
 
 **What is ignored:**
 - bangs inside `if`/`for`/`while`, or behind `and`/`or`;
+- bangs after an early `return` of `Update()` that sits inside an `if`, a loop or a block, such as `if not dirty then return 0 end`; every later statement depends on it;
 - bangs in nested or helper functions, which event paths also call;
+- `Update()` definitions inside comments or strings, which are found by a scan that consumes every comment and string first;
 - a single named `!UpdateMeter`;
 - computed bang strings.
+
+The rule does not follow other early exits (an `error()` call inside an `if`, for example); a bang after one is still reported.
 
 **Results:**
 - **The current tree passes with 0 findings,** and the validator's run time is unchanged within noise (about 7 s either way).
@@ -236,7 +240,7 @@ Here s, the pooled trial spread, is the pooled sample standard deviation of ever
 | `python -I tools/tests/test_merge_utf16.py` | Decoding and refusals, byte-exact merges with mixed endings and big-endian files, conflicts, BOM mismatch. Also cherry-pick and revert conflicts in a scratch repository, modify/delete refusal, non-UTF-16 refusal (15 tests) |
 | `powershell -File tools/tests/Test-PerfBuild.ps1` | Scratch-repository builds: plus with a UTF-16 merge, byte-exact result, scope drops, requires and dependents, revert with a UTF-16 merge, scope digest of tip vs. picks, `-Within`, `+` units, kept and removed failures, text conflict, empty pick, merge commits, `-Force`, path budget (49 assertions) |
 | `powershell -File tools/tests/Test-PerfMatrix.ps1` | Schedule rotation, statistics, all three classes on known data, coverage rules, no class while a plus build lacks trials, plus/minus pairs with different fixes, markdown. Also a full run loop with a stand-in benchmark (no Rainmeter): stage reuse, collection, resume, analysis, missing scenarios, a plus build whose benchmark wrote no rows, sub-matrices, the mismatched-pair warning, refusals, including a dry run into a matrix that has run (107 assertions) |
-| `powershell -File tools/tests/Test-RepaintRule.ps1` | 27 flagged and not-flagged Lua forms, UTF-16LE/BE and UTF-8 sources with mixed endings, and the validator end to end on a minimal skin (37 assertions) |
+| `powershell -File tools/tests/Test-RepaintRule.ps1` | 39 flagged and not-flagged Lua forms, among them early-return guards and `Update()` inside comments and strings; UTF-16LE/BE and UTF-8 sources with mixed endings; and the validator end to end on a minimal skin (50 assertions) |
 
 ## Not verified
 

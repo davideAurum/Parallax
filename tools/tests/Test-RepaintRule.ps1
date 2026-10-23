@@ -53,6 +53,11 @@ function Update()
 end
 '@ @('!Redraw')
 $null = Expect 'one-line Update' "function Update() SKIN:Bang('!Redraw'); return 0 end" @('!Redraw')
+$null = Expect 'a bang before a later early return' "function Update()`n  SKIN:Bang('!Redraw')`n  if x then return 1 end`n  return 0`nend" @('!Redraw')
+$null = Expect 'a return of a nested function guards nothing' "function Update()`n  local f = function() if x then return end end`n  SKIN:Bang('!Redraw')`nend" @('!Redraw')
+$hit = Expect 'the real Update after a commented-out one' "--[[`nfunction Update()`n  return 0`nend`n]]`nfunction Update()`n  SKIN:Bang('!Redraw')`nend" @('!Redraw')
+Assert-True ($hit[0].Line -eq 7) "the commented-out Update is skipped, the real one found on line 7 (got $($hit[0].Line))"
+$null = Expect 'a string that looks like a comment opener' "local s = '--[['`nfunction Update()`n  SKIN:Bang('!Redraw')`nend`nlocal t = ']]'" @('!Redraw')
 
 # Not flagged.
 $null = Expect 'inside if' "function Update()`n  if changed then`n    SKIN:Bang('!Redraw')`n  end`nend" @()
@@ -69,6 +74,17 @@ $null = Expect 'other bangs' "function Update()`n  SKIN:Bang('!SetOption', 'A', 
 $null = Expect 'a local Update is not the skin entry point' "local function Update()`n  SKIN:Bang('!Redraw')`nend" @()
 $null = Expect 'code after Update ends' "function Update()`n  return 0`nend`nSKIN:Bang('!Redraw')" @()
 $null = Expect 'a method named Update' "function M:Update()`n  SKIN:Bang('!Redraw')`nend" @()
+$null = Expect 'after an early-return guard (one line)' "function Update() if not dirty then return 0 end SKIN:Bang('!Redraw') end" @()
+$null = Expect 'after an early-return guard' "function Update()`n  if not dirty then`n    return 0`n  end`n  SKIN:Bang('!UpdateMeterGroup', 'Rows')`n  SKIN:Bang('!Redraw')`nend" @()
+$null = Expect 'after a return in an else branch' "function Update()`n  if dirty then x() else return 0 end`n  SKIN:Bang('!Redraw')`nend" @()
+$null = Expect 'after a return inside a loop' "function Update()`n  for i = 1, n do if t[i] then return i end end`n  SKIN:Bang('!UpdateMeter *')`nend" @()
+$null = Expect 'Update inside a block comment' "--[[`nfunction Update()`n  SKIN:Bang('!Redraw')`nend`n]]`nfunction Update() return 0 end" @()
+$null = Expect 'Update inside a level-2 block comment' "--[==[`nfunction Update()`n  SKIN:Bang('!Redraw')`nend`n]==]" @()
+$null = Expect 'Update inside a long string' "local doc = [[`nfunction Update()`n  SKIN:Bang('!Redraw')`nend`n]]" @()
+$null = Expect 'Update inside a quoted string continued over lines' @'
+local s = "x\
+function Update() SKIN:Bang('!Redraw') end"
+'@ @()
 
 # Encodings: UTF-16LE with mixed line endings, UTF-16BE, UTF-8 with BOM.
 $fixture = Join-Path ([IO.Path]::GetTempPath()) ('pxrr-' + [Guid]::NewGuid().ToString('N').Substring(0, 8))

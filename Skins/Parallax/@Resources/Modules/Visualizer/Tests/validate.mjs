@@ -384,11 +384,13 @@ const companionCallbacks = [...sections].flatMap(([name, section]) =>
 assert.deepEqual(companionCallbacks, ['Rainmeter.OnRefreshAction', 'Rainmeter.OnCloseAction']);
 const companionScript = readFileSync(resolve(skinRoot, '@Resources/Modules/Visualizer/Companion.lua'), 'utf8');
 // The two silent group bangs, and the idle stand-down's single write of its
-// own state file with one reload of this skin.
+// own state file with one reload of this skin, plus the same-skin variable
+// that tells the stand-down hook whether that reload is posted.
 assert.deepEqual([...companionScript.matchAll(/SKIN:Bang\(([^)]*)\)/g)].map((match) => match[1]),
   ["'!SetVariableGroup', 'ParallaxCompanionCheck', '1', 'Parallax'", "'!UpdateMeasureGroup', 'ParallaxMediaCompanion', '*'",
-   "'!WriteKeyValue', 'Variables', 'VisualizerStandby', level, statePath(", "'!Refresh'"],
-  'Companion.lua sends the two silent group bangs and its own standby write and reload only');
+   "'!WriteKeyValue', 'Variables', 'VisualizerStandby', level, statePath(", "'!Refresh'",
+   "'!SetVariable', 'ParallaxIdleStandbyPending', standbyRefreshed and '1' or '0'"],
+  'Companion.lua sends the two silent group bangs, its own standby write and reload, and the reload-pending notice only');
 assert.ok(!/io\.open\([^)]*'w|os\.(execute|remove|rename)|!CommandMeasure|!ActivateConfig/.test(companionScript),
   'Companion.lua writes nothing, launches nothing and commands no other skin');
 const paletteCallbacks = [...sections].flatMap(([name, section]) =>

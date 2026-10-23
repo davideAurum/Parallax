@@ -21,6 +21,8 @@ ParallaxIdleAway=0
 ParallaxIdlePaused=0
 ParallaxIdleSync=0
 ParallaxIdleBeat=0
+; Refresh standby only: 1 once this load's single writer has posted its reload.
+ParallaxIdleStandbyPending=0
 ; Appended to the skin's hover actions before their !Redraw: while paused, a
 ; hover-out that shows the frozen headline value has it hidden again.
 ParallaxIdleHoverAction=[!CommandMeasure MeasureParallaxStandDown "Hover()"]

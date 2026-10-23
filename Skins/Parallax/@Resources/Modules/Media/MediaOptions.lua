@@ -257,7 +257,10 @@ end
 -- "Capture paused"); level 0 takes a parked drawer back to live, since input
 -- is what ends standby and the capture lease would unpark on input anyway. A
 -- deferred drawer stays deferred. The lease stamp skips the provider resume
--- on that reload (MEDIA-08).
+-- on that reload (MEDIA-08). ParallaxIdleStandbyPending tells the hook, which
+-- reads it right after this call, whether this load's reload is now posted
+-- (this write's or an earlier one's): without one, a skin frozen in standby
+-- leaves in place instead of staying frozen while the user is active.
 function IdleStandby(level, reason)
     level = tonumber(level) == 1 and 1 or 0
     local capture = tonumber(SKIN:GetVariable('MediaDrawerCapture', '0')) or 0
@@ -265,7 +268,9 @@ function IdleStandby(level, reason)
     if level == 1 and capture == 0 and open then capture = 1 end
     if level == 0 and capture == 1 then capture = 0 end
     if reason ~= 'fail-live' then reason = 'standby' end
-    return ApplyLease(capture, level, reason)
+    local changed = ApplyLease(capture, level, reason)
+    SKIN:Bang('!SetVariable', 'ParallaxIdleStandbyPending', leaseRefreshed and '1' or '0')
+    return changed
 end
 
 -- One capture at a time (XMOD-02): an opening drawer starts deferred while

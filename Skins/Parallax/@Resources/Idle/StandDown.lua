@@ -24,7 +24,10 @@
 --     load was built with (ParallaxIdleStandbyState), one request to the
 --     module's single writer (ParallaxIdleStandbyWriter "IdleStandby(n,
 --     'reason')"), which saves the state and reloads the skin once. A load
---     built in standby then freezes in place as above.
+--     built in standby then freezes in place as above. If the writer posted
+--     no reload (ParallaxIdleStandbyPending stays 0), a frozen standby load
+--     that should be live leaves in place at once and the request is
+--     retried at most every 30 s.
 --
 -- Paints happen only in enter and leave (XMOD-04). Never trusted blindly:
 --   * nothing happens until the coordinator has synced this load;
@@ -34,7 +37,8 @@
 --   * a load built in standby with no sync 10 s after the load fails live.
 -- Joining (Link.lua) happens once per load after the load's own first update,
 -- as the last statement; a broadcast that re-enters during the join is
--- evaluated again once the outer pass finishes, never dropped.
+-- evaluated again once the outer pass finishes, never dropped (after three
+-- passes the next evaluation runs from a delayed group update instead).
 --
 -- Headline (C.6: frozen values stay visible, the headline is hidden, never
 -- merely covered: the line has no fill, so a translucent background could not
@@ -67,7 +71,7 @@ local link
 local controllers, refreshMode, persisted, writer
 local headline, hoverGear, hoverValue, shown, gearHiddenAtEnter
 local entered, loadAt, lastRun, rearmAt, requestedAt
-local updates, busy, rerun
+local updates, busy, rerun, deferrals
 local staleSeconds, unsyncedSeconds, gapSeconds
 
 local function variable(name, default)
@@ -185,13 +189,23 @@ function Hover()
     end
 end
 
--- Refresh standby: one request per load to the module's single writer, which
--- saves the level and reloads this skin (ending this load).
+-- Refresh standby: a request to the module's single writer, which saves the
+-- level and posts one reload of this skin (ending this load). The writer
+-- sets ParallaxIdleStandbyPending to 1 once this load's reload is posted, so
+-- nothing more is asked while it is pending. Without one (an unreadable state
+-- file, a failed read-back, nothing to change) the request is retried at most
+-- every 30 s. Returns whether a reload is pending.
+local function reloadPending()
+    return variable('ParallaxIdleStandbyPending', '0') == '1'
+end
+
 local function request(level, reason, now)
-    if writer == '' then return end
-    if requestedAt ~= nil and now - requestedAt >= 0 and now - requestedAt < RETRY_SECONDS then return end
+    if writer == '' then return false end
+    if reloadPending() then return true end
+    if requestedAt ~= nil and now - requestedAt >= 0 and now - requestedAt < RETRY_SECONDS then return false end
     requestedAt = now
     SKIN:Bang('!CommandMeasure', writer, string.format("IdleStandby(%d, '%s')", level, reason))
+    return reloadPending()
 end
 
 local function join(now)
@@ -212,7 +226,7 @@ function Initialize()
     entered = false
     loadAt = os.time()
     lastRun, rearmAt, requestedAt = nil, nil, nil
-    updates, busy, rerun = 0, false, false
+    updates, busy, rerun, deferrals = 0, false, false, 0
     staleSeconds = hook('ParallaxIdleTestStaleSeconds', 5, STALE_SECONDS) or STALE_SECONDS
     unsyncedSeconds = hook('ParallaxIdleTestUnsyncedSeconds', 2, UNSYNCED_SECONDS) or UNSYNCED_SECONDS
     -- About twice this measure's own nominal period (ParallaxIdleHookMs, 60 s;
@@ -241,7 +255,11 @@ local function evaluate()
     local stale = now - math.max(beat, rearmAt or loadAt) > staleSeconds
     local want = variable('ParallaxIdlePaused', '0') == '1' and not stale
     if refreshMode and want ~= persisted then
-        request(want and 1 or 0, stale and 'fail-live' or 'standby', now)
+        local reloading = request(want and 1 or 0, stale and 'fail-live' or 'standby', now)
+        -- A standby load frozen in place never stays frozen while the user
+        -- is active: with no reload coming, it leaves in place (still the
+        -- standby variant, live at its slow tick) and asks again later.
+        if not want and entered and not reloading then leave() end
     elseif want and not entered then
         enter()
     elseif not want and entered then
@@ -267,6 +285,17 @@ function Update()
     -- Always leave the guard open: a script error in one pass must not stop
     -- every later update of this load. Rainmeter still logs the error.
     busy = false
+    if ok and rerun then
+        -- Re-entered during the last allowed pass: never drop it. A fresh
+        -- update shortly after (a window timer; a reload in between leaves
+        -- the group request silent) evaluates the latest state. Bounded, so
+        -- a pathological broadcast loop cannot keep re-arming itself.
+        rerun = false
+        deferrals = deferrals + 1
+        if deferrals <= 3 then SKIN:Bang('[!Delay 100][!UpdateMeasureGroup ParallaxIdleHook]') end
+    elseif ok then
+        deferrals = 0
+    end
     if not ok then error(message, 0) end
     return entered and 1 or 0
 end

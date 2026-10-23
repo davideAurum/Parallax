@@ -57,8 +57,7 @@ local function savedStandby()
     return values.visualizerstandby or '0'
 end
 
-function IdleStandby(level, reason)
-    level = tonumber(level) == 1 and '1' or '0'
+local function writeStandby(level)
     local saved = savedStandby()
     if not saved or saved == level then return false end
     SKIN:Bang('!WriteKeyValue', 'Variables', 'VisualizerStandby', level, statePath())
@@ -68,6 +67,15 @@ function IdleStandby(level, reason)
         SKIN:Bang('!Refresh')
     end
     return true
+end
+
+-- ParallaxIdleStandbyPending tells the hook, which reads it right after this
+-- call, whether this load's reload is now posted: without one, a skin frozen
+-- in standby leaves in place instead of staying frozen while the user is active.
+function IdleStandby(level, reason)
+    local changed = writeStandby(tonumber(level) == 1 and '1' or '0')
+    SKIN:Bang('!SetVariable', 'ParallaxIdleStandbyPending', standbyRefreshed and '1' or '0')
+    return changed
 end
 
 function Announce()

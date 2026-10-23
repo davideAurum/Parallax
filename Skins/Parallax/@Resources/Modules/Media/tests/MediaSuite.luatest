@@ -817,6 +817,27 @@ function suite.run(sourcePath, optionsPath)
             check(failLive.writes('MediaLeaseRefreshAt') == 1 and failLive.selfRefreshes() == 1, 'Fail-live stamps and reloads once')
         end)
 
+        scenario('IdleStandby tells the stand-down hook whether this load\'s reload is posted', function()
+            local function pending(o)
+                for index = #o.bangs, 1, -1 do
+                    local call = o.bangs[index]
+                    if call[1] == '!SetVariable' and call[2] == 'ParallaxIdleStandbyPending' then return call[3] end
+                end
+                return nil
+            end
+            local enter = options({ variables = { VisualizerDrawer = '2', MediaDrawerCapture = '0' } })
+            enter.env.IdleStandby(1, 'standby')
+            check(pending(enter) == '1' and enter.selfRefreshes() == 1, 'A posted reload: pending 1')
+            enter.env.IdleStandby(1, 'standby')
+            check(pending(enter) == '1' and enter.selfRefreshes() == 1, 'Nothing new to write, the earlier reload is still pending: 1')
+            local same = options({ state = '[Variables]\r\nMediaDrawerCapture=0\r\nMediaStandby=0\r\nMediaLeaseRefreshAt=0\r\nMediaLeaseRefreshClock=0\r\n' })
+            check(same.env.IdleStandby(0, 'standby') == false and pending(same) == '0' and same.selfRefreshes() == 0, 'Nothing to change and no reload: 0')
+            local stuck = options({ variables = { VisualizerDrawer = '2', MediaDrawerCapture = '0' }, readOnly = { [statePath] = true } })
+            check(stuck.env.IdleStandby(1, 'standby') == false and pending(stuck) == '0' and stuck.selfRefreshes() == 0, 'A write that does not read back: no reload, 0')
+            local unreadable = options({ files = { [statePath] = false } })
+            check(unreadable.env.IdleStandby(1, 'standby') == false and pending(unreadable) == '0', 'An unreadable state file: 0')
+        end)
+
         scenario('Load validation: a standby Media.ini load with Idle pause Off returns to live once', function()
             local standby = '[Variables]\r\nMediaDrawerCapture=1\r\nMediaStandby=1\r\nMediaLeaseRefreshAt=0\r\nMediaLeaseRefreshClock=0\r\n'
             for _, minutes in ipairs({ '0', '7', '' }) do

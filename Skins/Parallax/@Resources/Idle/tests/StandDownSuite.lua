@@ -105,6 +105,11 @@ function Suite.Run(standDownPath, linkPath)
             local args = { ... }
             for _, value in ipairs(args) do assert(type(value) == 'string', 'Bang arguments are strings') end
             state.bangs[#state.bangs + 1] = table.concat(args, ' ')
+            -- The single writer: a working one posts this load's reload and
+            -- says so (options.writerReloads = false: it cannot).
+            if args[1] == '!CommandMeasure' and args[2] == variables.ParallaxIdleStandbyWriter and options.writerReloads ~= false then
+                variables.ParallaxIdleStandbyPending = '1'
+            end
             if (args[1] == '!ShowMeter' or args[1] == '!HideMeter') and state.meters[args[2]] then
                 state.meters[args[2]].Hidden = args[1] == '!ShowMeter' and '0' or '1'
             end
@@ -361,10 +366,22 @@ function Suite.Run(standDownPath, linkPath)
         state.reset()
         state.now = state.now + 5
         state.broadcast('1')
-        equal(#state.bangs, 0, 'No repeat within 30 s (the reload ends this load)')
-        state.now = state.now + 30
+        equal(#state.bangs, 0, 'No repeat while the posted reload is pending')
+        state.now = state.now + 60
         state.broadcast('1')
-        equal(#state.bangs, 1, 'A retry after 30 s if the reload never came')
+        equal(#state.bangs, 0, 'Still pending a minute later: a posted reload always comes')
+        -- A writer that posts no reload: retried at most every 30 s; the
+        -- live load never freezes in place (it stays live).
+        local stuck = live({ variables = writer, writerReloads = false })
+        stuck.broadcast('1')
+        expectSequence(stuck, { "!CommandMeasure MeasureMediaOptions IdleStandby(1, 'standby')" }, 'Failing writer: one request')
+        stuck.reset()
+        stuck.now = stuck.now + 5
+        stuck.broadcast('1')
+        equal(#stuck.bangs, 0, 'No repeat within 30 s')
+        stuck.now = stuck.now + 30
+        stuck.broadcast('1')
+        expectSequence(stuck, { "!CommandMeasure MeasureMediaOptions IdleStandby(1, 'standby')" }, 'A retry after 30 s, and no in-place freeze of a live load')
         -- The reload built in standby.
         local standby = { ParallaxIdleStandbyMode = 'refresh', ParallaxIdleStandbyWriter = 'MeasureMediaOptions', ParallaxIdleStandbyState = '1' }
         local reloaded = fixture({ idleActive = 1, variables = standby })
@@ -429,6 +446,82 @@ function Suite.Run(standDownPath, linkPath)
         old.now = old.now + 100
         old.broadcast('1', old.now - 400)
         equal(old.count('!PauseMeasureGroup'), 0, 'A stale beat never freezes')
+    end)
+
+    scenario('refresh standby without a reload: a frozen standby load leaves in place, then asks again', function()
+        local standby = { ParallaxIdleStandbyMode = 'refresh', ParallaxIdleStandbyWriter = 'MeasureMediaOptions', ParallaxIdleStandbyState = '1' }
+        local state = fixture({ idleActive = 1, variables = standby, writerReloads = false })
+        state.load()
+        state.env.Update()
+        state.broadcast('1')
+        expectSequence(state, ENTER, 'A wanted standby load freezes in place')
+        state.reset()
+        state.broadcast('0')
+        local expected = { "!CommandMeasure MeasureMediaOptions IdleStandby(0, 'standby')" }
+        for _, bang in ipairs(LEAVE) do expected[#expected + 1] = bang end
+        expectSequence(state, expected, 'Input and no reload posted: the request, then an in-place leave at once')
+        state.reset()
+        state.now = state.now + 5
+        state.broadcast('0')
+        equal(#state.bangs, 0, 'Live in place: no repeat within 30 s')
+        state.now = state.now + 30
+        state.broadcast('0')
+        expectSequence(state, { "!CommandMeasure MeasureMediaOptions IdleStandby(0, 'standby')" }, 'Asked again after 30 s; already live, nothing else')
+        state.reset()
+        state.broadcast('1')
+        expectSequence(state, ENTER, 'Idle again in the same standby load: freezes in place again')
+        -- A reload already pending (posted by an earlier request in this load):
+        -- nothing is asked and nothing is done; the reload ends this load.
+        local pending = fixture({ idleActive = 1, variables = standby })
+        pending.load()
+        pending.env.Update()
+        pending.broadcast('1')
+        pending.variables.ParallaxIdleStandbyPending = '1'
+        pending.reset()
+        pending.broadcast('0')
+        equal(#pending.bangs, 0, 'Reload pending: no second request and no in-place leave')
+        -- The stale-beat fail-live path with no reload also leaves in place.
+        local stale = fixture({ idleActive = 1, variables = standby, writerReloads = false })
+        stale.load()
+        stale.env.Update()
+        stale.broadcast('1')
+        stale.reset()
+        for _ = 1, 4 do stale.now = stale.now + 60; stale.env.Update() end
+        equal(stale.bangs[1], "!CommandMeasure MeasureMediaOptions IdleStandby(0, 'fail-live')", 'Stale: the fail-live request')
+        equal(stale.count('!UnpauseMeasureGroup'), 1, 'No reload posted: leaves in place')
+        equal(stale.bangs[#stale.bangs], '!UpdateMeasureGroup ParallaxIdleSyncRequest *', 'Then re-joins')
+    end)
+
+    scenario('a re-entry during the last allowed pass is re-run from a delayed update, bounded', function()
+        local DELAYED = '[!Delay 100][!UpdateMeasureGroup ParallaxIdleHook]'
+        local state = live()
+        -- Every enter and leave triggers a nested broadcast with the opposite level.
+        state.onBang = function(args)
+            if args[1] == '!PauseMeasureGroup' or args[1] == '!UnpauseMeasureGroup' then
+                state.variables.ParallaxIdlePaused = args[1] == '!PauseMeasureGroup' and '0' or '1'
+                state.env.Update()
+            end
+        end
+        state.broadcast('1')
+        equal(state.count('!PauseMeasureGroup'), 2, 'Passes 1 and 3 entered')
+        equal(state.count('!UnpauseMeasureGroup'), 1, 'Pass 2 left')
+        equal(state.bangs[#state.bangs], DELAYED, 'The re-entry in pass 3 is not dropped: a delayed update is armed')
+        state.onBang = nil
+        state.reset()
+        state.env.Update()                 -- the delayed group update
+        equal(state.count('!UnpauseMeasureGroup'), 1, 'The delayed update reconciles the latest level (live)')
+        equal(state.count(DELAYED), 0, 'A clean pass arms nothing')
+        -- Bounded: a loop that never settles arms at most three in a row.
+        local loop = live()
+        loop.onBang = function(args)
+            if args[1] == '!PauseMeasureGroup' or args[1] == '!UnpauseMeasureGroup' then
+                loop.variables.ParallaxIdlePaused = args[1] == '!PauseMeasureGroup' and '0' or '1'
+                loop.env.Update()
+            end
+        end
+        loop.broadcast('1')
+        for _ = 1, 4 do loop.env.Update() end
+        equal(loop.count(DELAYED), 3, 'At most three delayed updates in a row')
     end)
 
     -- The headline: hidden on enter (not covered), restored on leave exactly

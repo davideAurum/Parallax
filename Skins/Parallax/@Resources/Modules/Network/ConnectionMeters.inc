@@ -3,6 +3,8 @@ MeterStyle=StyleLabel
 X=#ContentX#
 W=(80*#Scale#)
 H=(18*#Scale#)
+; Static row labels: drawn from the refresh update, never changed afterwards.
+UpdateDivider=-1
 
 [StyleConnectionValue]
 MeterStyle=StyleLabel

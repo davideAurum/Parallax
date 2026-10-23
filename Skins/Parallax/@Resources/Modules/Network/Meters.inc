@@ -30,6 +30,8 @@ MeterStyle=StyleTitle | StyleTitleRow
 X=(#ContentX#+#TitleIconSize#+#TitleIconGap#)
 W=(#ContentWidth#-#TitleIconSize#-#TitleIconGap#-78*#Scale#)
 Text=Network
+; Static text: drawn from the refresh update, never changed afterwards.
+UpdateDivider=-1
 
 ; Native glyph layout needs room beyond visible ink, especially at Scale=0.75.
 ; Shared padding adds 6 px width / 2 px height: 44x18 and 28x18 totals.
@@ -77,6 +79,7 @@ FontSize=(#HeaderFontSize#*#Scale#)
 FontWeight=600
 FontColor=#HeaderTextColor#
 Text=IN
+UpdateDivider=-1
 
 [MeterNetworkInRate]
 Meter=String
@@ -131,6 +134,7 @@ FontSize=(#HeaderFontSize#*#Scale#)
 FontWeight=600
 FontColor=#HeaderTextColor#
 Text=OUT
+UpdateDivider=-1
 
 [MeterNetworkOutRate]
 Meter=String

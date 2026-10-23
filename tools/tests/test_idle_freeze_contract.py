@@ -41,6 +41,7 @@ JOIN = 'PARALLAXIDLEJOIN'
 # separately. Every utility entrypoint is listed once it carries the hook.
 CONSUMERS = OrderedDict([
     ('Chronometer/Chronometer.ini', [{}]),
+    ('RAM/RAM.ini', [{}, {'RAMShowProcesses': '0'}]),
 ])
 
 # Every utility entrypoint, wired or not yet (all ten once C2 is complete).
@@ -62,7 +63,10 @@ RESTORED = {}
 # Lua files that set a meter's UpdateDivider at runtime, with the controller
 # whose ReapplyDividers covers it (its module suite checks that). Paths are
 # relative to @Resources/Modules. StandDown.lua is the mechanism itself.
-LUA_DIVIDER_OWNERS = {}
+LUA_DIVIDER_OWNERS = {
+    'RAM/Display.lua': 'MeasureRAMSettings ReapplyDividers: Used GB/MB by unit, history cover (Tests/DisplayIdleTests.lua)',
+    'RAM/Process.lua': 'its own measure MeasureRAMProcessView only (not a meter); paused with the skin and re-idled by its own Update',
+}
 
 # Shipped runtime state files that must stay all zero (a release install
 # resets them; a non-zero value would ship a paused or parked state).
@@ -271,7 +275,7 @@ def hooked(overrides):
 
 
 def survey(overrides):
-    for relative in CONSUMERS:
+    for relative in UTILITY_ENTRYPOINTS:
         config = Config(relative, overrides)
         default = config.default_divider()
         print('=' * 72)

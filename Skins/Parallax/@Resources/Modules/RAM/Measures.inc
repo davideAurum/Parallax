@@ -2,10 +2,12 @@
 ; PhysicalMemory supplies bytes with a native 0..total physical RAM range.
 [MeasureRAMUsed]
 Measure=PhysicalMemory
+Group=ParallaxIdlePause
 UpdateDivider=1
 
 [MeasureRAMTotal]
 Measure=PhysicalMemory
+Group=ParallaxIdlePause
 Total=1
 UpdateDivider=1
 
@@ -29,6 +31,7 @@ UpdateDivider=1
 
 [MeasureRAMPageView]
 Measure=Script
+Group=ParallaxIdlePause
 ScriptFile=#@#Modules\RAM\PageFile.lua
 UpdateDivider=1
 
@@ -48,6 +51,7 @@ UpdateDivider=-1
 ; this count (UpdateDivider=-1 keeps the full count). Refresh restarts both.
 [MeasureRAMHistorySamples]
 Measure=Calc
+Group=ParallaxIdlePause
 Formula=Min(MeasureRAMHistorySamples+1,#ContentWidth#)
 IfCondition=MeasureRAMHistorySamples >= #ContentWidth#
 IfTrueAction=[!HideMeter MeterRAMHistoryUncollected][!SetOption MeterRAMHistoryUncollected UpdateDivider -1][!SetOption MeasureRAMHistorySamples UpdateDivider -1]
@@ -77,6 +81,7 @@ FinishAction=[!UpdateMeasure MeasureRAMInfo][!CommandMeasure MeasureRAMInfoView 
 ; Watches cached command status, settles wrapped layout, then disables updates.
 [MeasureRAMInfoView]
 Measure=Script
+Group=ParallaxIdlePause
 ScriptFile=#@#Modules\RAM\Info.lua
 UpdateDivider=1
 
@@ -91,5 +96,6 @@ UpdateDivider=1
 ; Runs after the ranked measures; preferences reformat its cached sample only.
 [MeasureRAMProcessView]
 Measure=Script
+Group=ParallaxIdlePause
 ScriptFile=#@#Modules\RAM\Process.lua
 UpdateDivider=1

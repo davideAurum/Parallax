@@ -7,6 +7,7 @@
 
 [MeasureRAMProcess1]
 Measure=Plugin
+Group=ParallaxIdlePause
 Plugin=UsageMonitor
 Alias=RAM
 Index=1
@@ -17,6 +18,7 @@ UpdateDivider=1
 
 [MeasureRAMProcess2]
 Measure=Plugin
+Group=ParallaxIdlePause
 Plugin=UsageMonitor
 Alias=RAM
 Index=2
@@ -27,6 +29,7 @@ UpdateDivider=1
 
 [MeasureRAMProcess3]
 Measure=Plugin
+Group=ParallaxIdlePause
 Plugin=UsageMonitor
 Alias=RAM
 Index=3
@@ -37,6 +40,7 @@ UpdateDivider=1
 
 [MeasureRAMProcess4]
 Measure=Plugin
+Group=ParallaxIdlePause
 Plugin=UsageMonitor
 Alias=RAM
 Index=4
@@ -47,6 +51,7 @@ UpdateDivider=1
 
 [MeasureRAMProcess5]
 Measure=Plugin
+Group=ParallaxIdlePause
 Plugin=UsageMonitor
 Alias=RAM
 Index=5

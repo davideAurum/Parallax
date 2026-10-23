@@ -88,3 +88,37 @@ function Update()
     ApplyPreferences()
     return 0
 end
+
+-- Idle stand-down (Global Settings Idle pause; @Resources\Idle\StandDown.lua).
+-- While paused every repainting meter sits at UpdateDivider -1; on resume the
+-- hook deletes that key (the skin default, 1, applies again) and calls
+-- ReapplyDividers, which sets every divider this script and the history
+-- retirement manage from the stored preferences, ignoring any cache: the
+-- shown Used unit samples, the hidden one idles, and the restarted history
+-- cover updates. The headline percentage is only covered while paused (the
+-- hook's line); Hover's Show/Hide state survives, so nothing to restore.
+function ReapplyDividers()
+    if values.RAMUseMiB ~= nil then
+        for _, unit in ipairs({'GiB', 'MiB'}) do
+            local visible = (unit == 'MiB') == (values.RAMUseMiB == 1)
+            SKIN:Bang('!SetOption', 'MeterRAMUsed' .. unit, 'UpdateDivider', visible and '1' or '-1')
+        end
+    end
+    SKIN:Bang('!SetOption', cover, 'UpdateDivider', '1')
+end
+
+-- The paused Line meter added no samples, but its ring buffer still holds the
+-- pre-pause history. Restart the uncollected cover and its sample count, as a
+-- refresh would, so only samples taken after the resume are shown: nothing is
+-- joined across the pause. Runs before the hook's forced measure update, which
+-- then counts the first new sample.
+function IdleLeave()
+    local samples = SKIN:GetMeasure('MeasureRAMHistorySamples')
+    if not samples then return end
+    local formula = samples:GetOption('Formula', '')
+    SKIN:Bang('!SetOption', 'MeasureRAMHistorySamples', 'Formula', '0')
+    SKIN:Bang('!SetOption', 'MeasureRAMHistorySamples', 'UpdateDivider', '1')
+    SKIN:Bang('!UpdateMeasure', 'MeasureRAMHistorySamples')
+    if formula ~= '' then SKIN:Bang('!SetOption', 'MeasureRAMHistorySamples', 'Formula', formula) end
+    show(cover, tonumber(values.RAMShowHistory or SKIN:GetVariable('RAMShowHistory')) == 1)
+end

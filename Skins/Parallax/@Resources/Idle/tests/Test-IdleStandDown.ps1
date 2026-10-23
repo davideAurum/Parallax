@@ -59,11 +59,59 @@ function Check([bool]$Condition, [string]$Message) {
 # seconds (the paused line is observed by the probe on that tick). Extra: a
 # module check run after the shared steps (later commits add them).
 $skins = [ordered]@{}
-function Register-Skin([string]$Key, [string]$Config, [string]$File, [double]$Tick, [scriptblock]$Extra = $null) {
-    $script:skins[$Key] = [pscustomobject]@{ Key = $Key; Config = $Config; File = $File; Tick = $Tick; Extra = $Extra
+function Register-Skin([string]$Key, [string]$Config, [string]$File, [double]$Tick, [scriptblock]$Extra = $null, [string]$Texts = '') {
+    $script:skins[$Key] = [pscustomobject]@{ Key = $Key; Config = $Config; File = $File; Tick = $Tick; Extra = $Extra; Texts = $Texts
         Relative = ($Config.Substring('Parallax\'.Length) + '\' + $File).Replace('\', '/') }
 }
+
+# Resident PowerShell hosts started by this run's instance (created after it
+# started, so the live profile's own hosts never count), by a marker in their
+# command line. Read-only process listing.
+function Get-RunHosts($Process, [string]$Marker) {
+    $since = $Process.StartTime
+    @(Get-CimInstance Win32_Process -Filter "Name='powershell.exe'" | Where-Object {
+        $_.CommandLine -and $_.CommandLine.Contains($Marker) -and $_.CreationDate -gt $since
+    } | ForEach-Object { [pscustomobject]@{ Id = [int]$_.ProcessId; Created = $_.CreationDate } })
+}
+function Wait-Until([scriptblock]$Condition, [int]$Milliseconds) {
+    $clock = [Diagnostics.Stopwatch]::StartNew()
+    while ($clock.ElapsedMilliseconds -lt $Milliseconds) {
+        if (& $Condition) { return $clock.ElapsedMilliseconds }
+        Start-Sleep -Milliseconds 200
+    }
+    return -1
+}
+# A helper-backed module: its host stops while paused and a new one starts on
+# resume; the watched meter shows a starting state, then a fresh reading.
+function Test-HostCycle($Run, $Process, [string]$Label, [string]$Marker, [string]$Meter, [string]$StartingPattern, [string]$FreshPattern) {
+    $before = @(Get-RunHosts $Process $Marker | Where-Object { -not (Get-Process -Id $_.Id -ErrorAction SilentlyContinue).HasExited })
+    Check ($before.Count -ge 1) "${Label}: a host is running before the pause ($($before.Count))"
+    $written = Send $Run 'idle 10'
+    $enter = Wait-Hidden $Run '0' $written 15000
+    Check ($null -ne $enter) "${Label}: paused"
+    $gone = Wait-Until { @($before | Where-Object { Get-Process -Id $_.Id -ErrorAction SilentlyContinue }).Count -eq 0 } 15000
+    Write-Output ("     {0}: host exited {1} ms after the pause" -f $Label, $gone)
+    Check ($gone -ge 0 -and $gone -le 8000) "${Label}: the host exits within about 5 s of the pause"
+    Start-Sleep -Seconds 2
+    $stray = @(Get-RunHosts $Process $Marker | Where-Object { Get-Process -Id $_.Id -ErrorAction SilentlyContinue })
+    Check ($stray.Count -eq 0) "${Label}: no host runs while paused"
+    $resumedAt = Send $Run 'idle 0'
+    $leave = Wait-Hidden $Run '1' $resumedAt 15000
+    Check ($null -ne $leave) "${Label}: resumed"
+    $fresh = Wait-Until { @(Read-Probe $Run.Probe | Where-Object { $_.Kind -eq 'T' -and $_.Clock -ge $resumedAt -and $_.Rest[0] -eq $Meter -and $_.Rest[1] -match $FreshPattern }).Count -gt 0 } 30000
+    $texts = @(Read-Probe $Run.Probe | Where-Object { $_.Kind -eq 'T' -and $_.Clock -ge $resumedAt -and $_.Rest[0] -eq $Meter })
+    Write-Output ("     {0}: after resume {1}: {2}" -f $Label, $Meter, (($texts | ForEach-Object { '{0:N1}s {1}' -f ($_.Clock - $resumedAt), $_.Rest[1] }) -join ' -> '))
+    Check ($texts.Count -ge 1 -and $texts[0].Rest[1] -match $StartingPattern) "${Label}: the first resumed reading is a starting state, not the frozen value"
+    Check ($fresh -ge 0) "${Label}: a fresh reading follows within 30 s"
+    $after = @(Get-RunHosts $Process $Marker | Where-Object { Get-Process -Id $_.Id -ErrorAction SilentlyContinue })
+    Check ($after.Count -eq 1 -and @($after | Where-Object { $_.Id -in @($before | ForEach-Object Id) }).Count -eq 0) "${Label}: exactly one new host after the resume"
+}
+
 Register-Skin 'Chronometer' 'Parallax\Chronometer' 'Chronometer.ini' 1.0
+Register-Skin 'RAM' 'Parallax\RAM' 'RAM.ini' 1.0 {
+    param($Run, $Process)
+    Test-HostCycle $Run $Process 'RAM page-file host' 'ParallaxRamPageFile' 'MeterRAMPageGiB' '^Checking' 'GB$'
+} 'MeterRAMPageGiB'
 
 Add-Type -AssemblyName System.Drawing
 if (-not ('ParallaxStandDownNative' -as [type])) {
@@ -299,7 +347,7 @@ function New-StandDownRun($Entry, [string]$LayoutName) {
     $match = [regex]::Match($entryText, '(?m)^DefaultUpdateDivider=([^\r\n]*)')
     if ($match.Success) { $default = $match.Groups[1].Value }
     Copy-Item -LiteralPath (Join-Path $PSScriptRoot 'DividerProbe.lua') -Destination "$root\DividerProbe.lua"
-    $entryText = $entryText.TrimEnd() + "`r`n`r`n[MeasureParallaxDividerProbe]`r`nMeasure=Script`r`nScriptFile=$root\DividerProbe.lua`r`nUpdateDivider=1`r`nProbeMeters=$root\meters.txt`r`nProbeMeasures=$root\measures.txt`r`nProbeLog=$root\probe.log`r`nProbeDefault=$default`r`n"
+    $entryText = $entryText.TrimEnd() + "`r`n`r`n[MeasureParallaxDividerProbe]`r`nMeasure=Script`r`nScriptFile=$root\DividerProbe.lua`r`nUpdateDivider=1`r`nProbeMeters=$root\meters.txt`r`nProbeMeasures=$root\measures.txt`r`nProbeLog=$root\probe.log`r`nProbeDefault=$default`r`nProbeTexts=$($Entry.Texts)`r`n"
     [IO.File]::WriteAllText($entryPath, $entryText, $encoding)
     Put $root "$root\idle.txt" '0'
     Put $root "$root\Driver.lua" $driverLua
@@ -401,6 +449,7 @@ function Invoke-StandDown($Entry, [string]$LayoutName, [bool]$Full) {
         $resumed = @(Read-Probe $run.Probe | Where-Object { $_.Kind -eq 'V' -and $_.Clock -ge $leave.Clock -and [int]$_.Rest[2] -gt 0 })
         Write-Output "     after leave: $($resumed.Count) ticks with changed measure values in 3 s"
         Check ($resumed.Count -gt 0) "$($Entry.Key): measure values move again after leave"
+        Capture $run $process 'resumed'
 
         # Restart while paused: the reload starts live, joins, and re-enters.
         $written = Send $run 'idle 10'

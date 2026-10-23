@@ -79,6 +79,7 @@ LeftMouseUpAction=[!ActivateConfig "Parallax\RAM\Settings" "Settings.ini"]
 
 [MeterRAMPercent]
 Meter=String
+Group=ParallaxIdleFreeze
 MeterStyle=StyleTitle | StyleTitleRow
 FontSize=((#FontSize#+1)*#Scale#)
 FontColor=#TextColor#
@@ -97,7 +98,7 @@ Meter=Bar
 MeasureName=MeasureRAMUsed
 X=#ContentX#
 Y=(#Inset#+(#RAMInfoHeight#+Max(54,57-#DataBarThickness#/2))*#Scale#)
-Group=RAMLayout
+Group=RAMLayout|ParallaxIdleFreeze
 DynamicVariables=1
 W=#ContentWidth#
 H=#DataBarThicknessPx#
@@ -131,6 +132,7 @@ Text=RAM:
 
 [MeterRAMUsedGiB]
 Meter=String
+Group=RAMLayout | ParallaxIdleFreeze
 MeterStyle=StyleLabel | StyleRAMRowValue
 MeasureName=MeasureRAMUsed
 MeasureName2=MeasureRAMTotal
@@ -141,6 +143,7 @@ Hidden=#RAMUseMiB#
 
 [MeterRAMUsedMiB]
 Meter=String
+Group=RAMLayout | ParallaxIdleFreeze
 MeterStyle=StyleLabel | StyleRAMRowValue
 MeasureName=MeasureRAMUsed
 MeasureName2=MeasureRAMTotal
@@ -202,6 +205,7 @@ UpdateDivider=-1
 
 [MeterRAMHistory]
 Meter=Line
+Group=ParallaxIdleFreeze
 MeasureName=MeasureRAMUsed
 X=#ContentX#
 Y=(#Inset#+(#RAMInfoHeight#+236+2*Max(0,#DataBarThickness#-6))*#Scale#)
@@ -231,7 +235,7 @@ X=#ContentX#
 Y=(#Inset#+(#RAMInfoHeight#+236+2*Max(0,#DataBarThickness#-6))*#Scale#)
 Shape=Rectangle 0,0,(Min(#ContentWidth#,Max(0,(#ContentWidth#-[MeasureRAMHistorySamples]+2*#Scale#)*([MeasureRAMHistorySamples]<#ContentWidth#)))),(#GraphHeight#*#Scale#) | Fill Color #RAMHistoryEmptyColor#,255 | StrokeWidth 0
 Hidden=(1-#RAMShowHistory#)
-Group=RAMLayout
+Group=RAMLayout|ParallaxIdleFreeze
 DynamicVariables=1
 UpdateDivider=1
 

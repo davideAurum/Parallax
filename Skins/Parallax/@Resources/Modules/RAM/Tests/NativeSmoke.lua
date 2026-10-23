@@ -348,6 +348,51 @@ local function checkPageController()
     reset(); env.Start(); providers.MeasureRAMPageLauncher.value = 103; env.Update(); env.Stop()
     now = now + 1000; env.Update()
     check(launches.MeasureRAMPageLauncher == 1, 'Stop cancels pending retries')
+
+    -- Idle stand-down (StandDown on enter, StandUp on resume). A running host
+    -- is stopped by removing its lease, without a Kill, a failure or a retry;
+    -- the resume launches one fresh session that shows Checking... first.
+    reset(); startHost()
+    files[path] = 'RAM_PAGE|1|'..token..'|1|'..now..'|OK|3000000000|12000000000|2'
+    env.Update()
+    check(env.StandDown() == true, 'A running session stands down')
+    check(removed[lease] == 1 and next(kills) == nil, 'Stand-down removes the lease (the host exits) and kills nothing')
+    check(env.StandDown() == false, 'A second stand-down does nothing')
+    local pausedAt = now
+    now = pausedAt + 3600; env.Update()
+    check(launches.MeasureRAMPageLauncher == 1, 'No retry or launch while standing down, even long after')
+    check(env.StandUp() == true and env.StandUp() == false, 'StandUp arms one resume')
+    env.Update()
+    check(launches.MeasureRAMPageLauncher == 2 and options.MeterRAMPageGiB.Text == 'Checking...',
+        'The resume update launches one fresh session and shows Checking...')
+    complete(); env.Update()
+    files[path] = 'RAM_PAGE|1|'..token..'|1|'..now..'|OK|2500000000|12000000000|2'
+    env.Update()
+    check(options.MeterRAMPageGiB.Text == '2.50/12.00 GB', 'A fresh sample follows the resumed session')
+    -- The resumed session's failure is the first in a row (none was consumed).
+    files[path] = nil; local failAt = now + 31; now = failAt; env.Update()
+    now = failAt + 10; env.Update()
+    check(launches.MeasureRAMPageLauncher == 3, 'Stand-down consumed no retry: the next failure retries after 10 s')
+    -- A launch in progress is killed once at stand-down.
+    reset(); env.Start()
+    check(env.StandDown() == true and kills.MeasureRAMPageLauncher == 1, 'A launch in progress is killed at stand-down')
+    env.StandUp(); env.Update()
+    check(launches.MeasureRAMPageLauncher == 2, 'And relaunched on resume')
+    -- A failed state keeps its schedule; a given-up state stays Unavailable.
+    reset(); env.Start(); providers.MeasureRAMPageLauncher.value = 103; env.Update()
+    check(env.StandDown() == false and env.StandUp() == false, 'A failed state does not stand down')
+    now = now + 9; env.Update()
+    check(launches.MeasureRAMPageLauncher == 1, 'Its retry still waits for its own 10 s')
+    now = now + 1; env.Update()
+    check(launches.MeasureRAMPageLauncher == 2, 'Then retries on schedule')
+    -- Stop after a stand-down stays terminal.
+    reset(); startHost(); env.StandDown(); env.Stop(); env.StandUp(); env.Update()
+    check(launches.MeasureRAMPageLauncher == 1, 'Stop after a stand-down is terminal')
+    -- The hook's controller entry points map to StandDown and StandUp.
+    reset(); startHost(); env.IdleEnter()
+    check(removed[lease] == 1, 'IdleEnter stands the host down')
+    env.IdleLeave(); env.Update()
+    check(launches.MeasureRAMPageLauncher == 2, 'IdleLeave resumes it')
 end
 
 local function checkProcessController()

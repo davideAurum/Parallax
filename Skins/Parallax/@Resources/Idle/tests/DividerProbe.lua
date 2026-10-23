@@ -16,9 +16,12 @@
 --                                          of every listed measure's string
 --                                          value, and how many changed
 --   ProbeDefault   formula for the skin's DefaultUpdateDivider (default 1)
+--   ProbeTexts     optional, meter names separated by |: each one's Text
+--                  option is logged when it changes:
+--     T|clock|meter|text
 -- Snapshot(tag) can also be called with !CommandMeasure.
 local meters, measures, logPath, defaultDivider
-local lastHidden, synced, last
+local lastHidden, synced, last, texts, lastText
 
 local function lines(path)
     local list = {}
@@ -59,6 +62,8 @@ function Initialize()
     logPath = SELF:GetOption('ProbeLog', '')
     defaultDivider = tonumber(SKIN:ParseFormula(SELF:GetOption('ProbeDefault', '1'))) or 1
     lastHidden, synced, last = nil, false, {}
+    texts, lastText = {}, {}
+    for name in SELF:GetOption('ProbeTexts', ''):gmatch('[^|]+') do texts[#texts + 1] = name end
     log('L|load')
 end
 
@@ -83,5 +88,13 @@ function Update()
         for at = 1, #value do digest = (digest * 31 + value:byte(at)) % 2147483647 end
     end
     log(string.format('V|%s|%d|%d', hidden, digest, changed))
+    for _, name in ipairs(texts) do
+        local meter = SKIN:GetMeter(name)
+        local text = meter and meter:GetOption('Text', '') or 'missing'
+        if text ~= lastText[name] then
+            lastText[name] = text
+            log('T|' .. name .. '|' .. text:gsub('[|\r\n]', ' '))
+        end
+    end
     return 0
 end

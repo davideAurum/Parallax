@@ -89,6 +89,19 @@ powershell -File tools\Invoke-PerfMatrix.ps1 -BuildRoot C:\pxab -Prefix s3 -Scen
 - **Every suggested unit builds both ways.** Every suggested unit, and every package, builds as plus and as minus with no flags.
 - **The UTF-16 merges carry exactly their commits' lines.** A4-3/A4-4/A4-5 minus builds and A4-4/A4-5/A4-6 plus builds needed the UTF-16 merge on `GPU/Temperature.lua`. For baseline + `26b6757` + `a49a440`, the decoded diff from the baseline adds and removes exactly the lines those two commits add and remove (61 added, 2 removed), BOM and CRLF intact.
 
+**Re-checking the manifest.** `tools/tests/Test-PerfManifest.ps1` repeats these checks from the repository; run it whenever the manifest changes (phase B and C will extend it). It is opt-in, because a full run makes every unit's builds.
+- **History, in seconds** (`-SkipBuilds` runs only this part):
+  - every package tip is its merge's second parent, and the merges are exactly the first-parent merges from the baseline to the all tip;
+  - every non-merge commit on a package branch is listed exactly once, as a fix or support commit of that package;
+  - every first-parent non-merge commit is listed as support without a package;
+  - no support commit changes a file inside the scope;
+  - the units partition the fixes.
+- **Builds,** in a temporary `git clone --shared` under `%TEMP%\pxmc-*`, removed afterwards unless `-Keep`. The shared repository gains no worktree, ref or object.
+  - `New-PerfBuild -Set` over every unit (or `-Unit`) must make every build with no include flag, each holding exactly its unit's fixes.
+  - Baseline + every fix picked must have the all tip's scope digest.
+  - `-CompareMinusByPick` also checks that each unit's minus build by revert has the digest of baseline + every other fix picked.
+- **Run on 2026-10-23 with `-CompareMinusByPick`:** 464 assertions, 0 failures, 33 minutes. All 93 builds were made, every one holding exactly its unit's fixes. Baseline + every fix picked gave the tip's digest (`e6351544…`), and for all 30 units the minus build by revert equalled the one by pick.
+
 ## Builds: New-PerfBuild.ps1
 
 **Modes:**
@@ -240,6 +253,7 @@ The rule does not follow other early exits (an `error()` call inside an `if`, fo
 | `python -I tools/tests/test_merge_utf16.py` | Decoding and refusals, byte-exact merges with mixed endings and big-endian files, conflicts, BOM mismatch. Also cherry-pick and revert conflicts in a scratch repository, modify/delete refusal, non-UTF-16 refusal (15 tests) |
 | `powershell -File tools/tests/Test-PerfBuild.ps1` | Scratch-repository builds: plus with a UTF-16 merge, byte-exact result, scope drops, requires and dependents, revert with a UTF-16 merge, scope digest of tip vs. picks, `-Within`, `+` units, kept and removed failures, text conflict, empty pick, merge commits, `-Force`, path budget (49 assertions) |
 | `powershell -File tools/tests/Test-PerfMatrix.ps1` | Schedule rotation, statistics, all three classes on known data, coverage rules, no class while a plus build lacks trials, plus/minus pairs with different fixes, markdown. Also a full run loop with a stand-in benchmark (no Rainmeter): stage reuse, collection, resume, analysis, missing scenarios, a plus build whose benchmark wrote no rows, sub-matrices, the mismatched-pair warning, refusals, including a dry run into a matrix that has run (107 assertions) |
+| `powershell -File tools/tests/Test-PerfManifest.ps1 [-SkipBuilds] [-CompareMinusByPick]` | Opt-in check of `tools/perf-fixes.json` against the repository: history and units, then every unit's builds in a temporary shared clone and the all-by-pick digest (see "Re-checking the manifest") |
 | `powershell -File tools/tests/Test-RepaintRule.ps1` | 39 flagged and not-flagged Lua forms, among them early-return guards and `Update()` inside comments and strings; UTF-16LE/BE and UTF-8 sources with mixed endings; and the validator end to end on a minimal skin (50 assertions) |
 
 ## Not verified

@@ -22,7 +22,11 @@ OutputType=UTF8
 Timeout=12000
 UpdateDivider=1
 
-[MeasureRAMPageHost]
+; Bounded launcher: starts the resident host hidden and detached, waits until
+; it has captured its Rainmeter ancestor, then exits, so no RunCommand thread
+; stays attached to it. The host's lifetime then rests on the session lease,
+; that retained ancestor handle and the skin removing the lease on close.
+[MeasureRAMPageLauncher]
 Measure=Plugin
 Plugin=RunCommand
 Program=%SystemRoot%\System32\WindowsPowerShell\v1.0\powershell.exe
@@ -30,7 +34,7 @@ StartInFolder=#@#Modules\RAM\
 Parameter=
 State=Hide
 OutputType=UTF8
-Timeout=-1
+Timeout=15000
 UpdateDivider=1
 
 [MeasureRAMPageView]

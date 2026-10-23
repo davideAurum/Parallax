@@ -34,6 +34,7 @@ $result = [ordered]@{
     continuedBeyondInitialLease = $false
     renewedLease = $false
     stoppedAfterLeaseRemoval = $false
+    secondsToStopAfterLeaseRemoval = $null
     sessionFilesCleaned = $false
     stdoutEmpty = $false
     stderrEmpty = $false
@@ -173,12 +174,14 @@ try {
     }
     Check-Resident $result.successiveFramesObserved 'Two successive valid paging-file frames were not observed.'
     Check-Resident ($result.renewedLease -and $result.continuedBeyondInitialLease) 'The renewed lease did not demonstrably extend the real host lifetime.'
-    # The final observation is at least one epoch second after renewal, leaving
-    # at most the documented 15-second freshness window plus one sample interval.
+    # Removing the lease is the skin's stop request for the detached host: it
+    # must exit at its next check, within one sample interval plus scheduling
+    # slack, not after the 15-second lease window.
     [IO.File]::Delete($leasePath)
     $stopWatch = [Diagnostics.Stopwatch]::StartNew()
-    while (-not $resident.HasExited -and $stopWatch.Elapsed.TotalSeconds -lt 16) { Start-Sleep -Milliseconds 100 }
-    Check-Resident $resident.HasExited 'Resident host exceeded its lease expiry and sample interval.'
+    while (-not $resident.HasExited -and $stopWatch.Elapsed.TotalSeconds -lt 3) { Start-Sleep -Milliseconds 50 }
+    $result.secondsToStopAfterLeaseRemoval = [Math]::Round($stopWatch.Elapsed.TotalSeconds, 2)
+    Check-Resident $resident.HasExited 'Resident host did not stop within one interval of its lease being removed.'
     $resident.WaitForExit()
     $result.exitCode = $resident.ExitCode
     Check-Resident ($resident.ExitCode -eq 0) 'Resident host did not exit cleanly.'
@@ -210,5 +213,5 @@ finally {
     $result.assertions = $script:checks
     [IO.File]::WriteAllText($resultPath, ($result | ConvertTo-Json), [Text.Encoding]::UTF8)
 }
-Write-Output ('PASS: ' + $script:checks + ' end-to-end resident assertions; one hidden host, successive valid atomic native frames, five-second renewal beyond the initial lease, self-exit within TTL plus interval, and own-session cleanup. No sampled totals or paging-file names retained; Rainmeter UI unload remains untested.')
+Write-Output ('PASS: ' + $script:checks + ' end-to-end resident assertions; one hidden host, successive valid atomic native frames, five-second renewal beyond the initial lease, self-exit within one interval of lease removal (' + $result.secondsToStopAfterLeaseRemoval + ' s), and own-session cleanup. No sampled totals or paging-file names retained; Rainmeter unload is covered by Test-RAMPageLifecycle.ps1.')
 Write-Output ('Evidence: ' + $resultPath)

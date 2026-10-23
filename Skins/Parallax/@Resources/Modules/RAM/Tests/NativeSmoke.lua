@@ -35,7 +35,7 @@ local function checkPageController()
     local files, removed, options, actions = {}, {}, {}, {}
     local variables = {['@']='fixture-resource\\', MetricsInterval='1000', RAMUseMiB='0', RAMDecimals='2', RAMShowBar='1', RAMShowPageBar='1'}
     local providers = {}
-    for _, name in ipairs({'MeasureRAMPageBootstrap','MeasureRAMPageHost'}) do
+    for _, name in ipairs({'MeasureRAMPageBootstrap','MeasureRAMPageLauncher'}) do
         providers[name] = {value=-1, text=''}
         providers[name].GetValue = function(self) return self.value end
         providers[name].GetStringValue = function(self) return self.text end
@@ -112,19 +112,33 @@ local function checkPageController()
         providers.MeasureRAMPageBootstrap.value = 1
         providers.MeasureRAMPageBootstrap.text = 'RAM_PAGE_SESSION|1|'..token..'|'..path:gsub('.',function(c) return string.format('%02X',c:byte()) end)
         env.Update()
-        check(launches.MeasureRAMPageHost == 1 and providers.MeasureRAMPageHost.value == 0,
-            'Completed bootstrap must launch one host with RunCommand running value zero')
+        check(launches.MeasureRAMPageLauncher == 1 and providers.MeasureRAMPageLauncher.value == 0,
+            'Completed bootstrap must start one host launcher with RunCommand running value zero')
     end
     reset()
     check(#actions == 0 and opens == 0, 'PAGE initialization must not launch or read a provider')
     env.Display()
     check(options.MeterRAMPageGiB.Text == 'Checking...' and opens == 0, 'PAGE must start with an honest cached checking state')
     env.Start(); env.Start()
-    check(launches.MeasureRAMPageBootstrap == 1 and not launches.MeasureRAMPageHost, 'PAGE Start must launch bootstrap only once')
+    check(launches.MeasureRAMPageBootstrap == 1 and not launches.MeasureRAMPageLauncher, 'PAGE Start must launch bootstrap only once')
     providers.MeasureRAMPageBootstrap.value = 1
     providers.MeasureRAMPageBootstrap.text = 'RAM_PAGE_SESSION|1|'..token..'|'..path:gsub('.',function(c) return string.format('%02X',c:byte()) end)
     env.Update()
-    check(launches.MeasureRAMPageHost == 1 and files[lease] == token..'|'..now, 'PAGE must start one resident host with its own lease')
+    check(launches.MeasureRAMPageLauncher == 1 and files[lease] == token..'|'..now, 'PAGE must start one resident host with its own lease')
+    -- The launcher is plain PowerShell that starts the host hidden and
+    -- detached, then exits; it is the only command carrying the session.
+    local launchParameter = options.MeasureRAMPageLauncher.Parameter
+    local _, quotes = launchParameter:gsub('"', '')
+    check(quotes == 2 and launchParameter:find('-Command "', 1, true) and launchParameter:sub(-1) == '"',
+        'Launcher command must keep a single quoted -Command argument')
+    check(launchParameter:find('Start-Process', 1, true) and launchParameter:find('-WindowStyle Hidden -PassThru', 1, true)
+        and launchParameter:find("'-NoLogo -NoProfile -NonInteractive -WindowStyle Hidden -Command '", 1, true),
+        'Launcher must start the host hidden')
+    check(not launchParameter:find('Add-Type -TypeDefinition ([IO.File]::ReadAllText(\'PageFileHost', 1, true)
+        and launchParameter:find("ReadAllText(''@S@'')", 1, true) and launchParameter:find("[ParallaxRamPageFile]::Run(''"..token.."'',1000)", 1, true),
+        'Only the detached host compiles, from the absolute source path, for this session')
+    check(launchParameter:find("'Parallax-RAM-Page-"..token..".dat'", 1, true) and launchParameter:find('-lt 10000', 1, true),
+        'Launcher waits a bounded time for this session\'s first frame')
     files[path] = 'RAM_PAGE|1|'..token..'|1|'..now..'|OK|3000000000|12000000000|2'
     local periodicStart = #actions
     env.Update()
@@ -152,7 +166,7 @@ local function checkPageController()
     local beforeReads, beforeActions = opens, #actions
     variables.RAMUseMiB, variables.RAMDecimals = '1','0'
     env.Display()
-    check(opens == beforeReads and launches.MeasureRAMPageHost == 1 and launches.MeasureRAMPageBootstrap == 1,
+    check(opens == beforeReads and launches.MeasureRAMPageLauncher == 1 and launches.MeasureRAMPageBootstrap == 1,
         'Cached PAGE setting changes must not read files or relaunch helpers')
     check(options.MeterRAMPageMiB.Text == '3000/12000 MB' and options.MeterRAMPageMiB.Hidden == '0'
         and options.MeterRAMPageGiB.Hidden == '1', 'Cached PAGE units/precision did not apply immediately')
@@ -184,56 +198,84 @@ local function checkPageController()
     files[path] = 'RAM_PAGE|1|'..token..'|4|'..now..'|OK|0|0|1'
     env.Update()
     check(options.MeterRAMPageBar.Hidden == '1' and ratioValue == 0, 'Zero allocated PAGE capacity must not produce a ratio or visible bar')
+    -- Close: removing the lease is the detached host's stop request. No Kill:
+    -- RunCommand's own unload terminates a still-running setup command, and a
+    -- Kill first made that a second termination (logged Error 105).
+    local stopActions = #actions
     env.Stop(); env.Stop()
-    check(kills.MeasureRAMPageHost == 1 and not kills.MeasureRAMPageBootstrap, 'Stop must kill only its running resident helper')
+    check(next(kills) == nil, 'Stop must not kill anything; the detached host stops on its removed lease')
+    for index = stopActions + 1, #actions do
+        check(actions[index][1] ~= '!CommandMeasure' and actions[index][1] ~= '!UpdateMeasure', 'Stop must not command or refresh providers')
+    end
     check(removed[path] == 1 and removed[lease] == 1 and removed[temporary] == 1, 'Stop must clean only its three session files once')
     env.Start()
-    check(launches.MeasureRAMPageHost == 1 and launches.MeasureRAMPageBootstrap == 1, 'Stopped controller must not restart from incidental actions')
+    check(launches.MeasureRAMPageLauncher == 1 and launches.MeasureRAMPageBootstrap == 1, 'Stopped controller must not restart from incidental actions')
 
     reset(); env.Stop(); env.Stop()
     check(next(kills) == nil and next(launches) == nil and #actions == 0,
         'Stop before Start must not kill an unlaunched minus-one-status helper')
 
-    reset(); providers.MeasureRAMPageBootstrap.value=0; providers.MeasureRAMPageHost.value=0
+    reset(); providers.MeasureRAMPageBootstrap.value=0; providers.MeasureRAMPageLauncher.value=0
     env.Stop(); env.Stop()
     check(next(kills) == nil and next(launches) == nil and #actions == 0,
         'Stop before Start must not mistake an unupdated zero cache for a running helper')
 
     reset(); env.Start(); env.Stop(); env.Stop()
-    check(kills.MeasureRAMPageBootstrap == 1 and not kills.MeasureRAMPageHost,
-        'Stop must kill the tracked running bootstrap at zero exactly once')
+    check(next(kills) == nil, 'Stop leaves a running bootstrap to RunCommand\'s single unload termination')
     check(next(removed) == nil, 'Stopping bootstrap before session creation must not remove files')
 
     reset(); env.Start(); providers.MeasureRAMPageBootstrap.value=1; env.Stop(); env.Stop()
     check(next(kills) == nil, 'Stop must not kill a completed bootstrap')
 
-    reset(); startHost(); providers.MeasureRAMPageHost.value=1; env.Stop(); env.Stop()
-    check(next(kills) == nil, 'Stop must not kill a completed host or completed bootstrap')
+    reset(); startHost(); providers.MeasureRAMPageLauncher.value=1; providers.MeasureRAMPageLauncher.text='RAM_PAGE_STARTED'
+    env.Update(); env.Stop(); env.Stop()
+    check(next(kills) == nil, 'Stop must not kill a completed launcher or completed bootstrap')
     check(removed[path] == 1 and removed[lease] == 1 and removed[temporary] == 1,
-        'Completed host still requires idempotent session cleanup')
+        'Completed launcher still requires idempotent session cleanup')
 
-    reset(); startHost()
-    local hostUpdates = providers.MeasureRAMPageHost.updates
-    providers.MeasureRAMPageHost.refreshValue = 1
-    env.Stop(); env.Stop()
-    check(providers.MeasureRAMPageHost.updates == hostUpdates+1 and next(kills) == nil,
-        'Stop must refresh tracked status once so cached zero cannot kill a completed host')
+    -- A launcher that reports anything but a started host ends the session.
+    reset(); startHost(); providers.MeasureRAMPageLauncher.value=1; providers.MeasureRAMPageLauncher.text='RAM_PAGE_FAILED'
+    env.Update()
+    check(next(kills) == nil and options.MeterRAMPageGiB.Text == 'Unavailable' and removed[lease] == 1,
+        'A failed launch must show Unavailable and remove its lease without Kill')
+    env.Update(); env.Stop()
+    check(launches.MeasureRAMPageLauncher == 1 and launches.MeasureRAMPageBootstrap == 1 and removed[lease] == 1,
+        'A failed launch must not relaunch or clean twice')
+
+    -- The detached host's liveness rests on its samples: one that stops
+    -- publishing ends the session when its last sample leaves the window.
+    reset(); startHost(); providers.MeasureRAMPageLauncher.value=1; providers.MeasureRAMPageLauncher.text='RAM_PAGE_STARTED'
+    files[path] = 'RAM_PAGE|1|'..token..'|1|'..now..'|OK|3000000000|12000000000|2'
+    env.Update()
+    check(options.MeterRAMPageGiB.Text == '3.00/12.00 GB' and not removed[lease], 'A started host publishes a current reading')
+    local sampled = now
+    now = sampled + 8; env.Update()
+    check(not removed[lease] and options.MeterRAMPageGiB.Text == '3.00/12.00 GB', 'A sample is current through its whole freshness window')
+    now = sampled + 9; env.Update()
+    check(removed[lease] == 1 and removed[path] == 1 and options.MeterRAMPageGiB.Text == 'Unavailable',
+        'A host with no current sample past the window must end the session honestly')
+    check(next(kills) == nil and launches.MeasureRAMPageLauncher == 1, 'A silent host is not killed or relaunched by this controller')
+
+    -- A launcher that never reports: the 20-second startup guard still ends it.
+    reset(); startHost(); now=now+21; env.Update()
+    check(kills.MeasureRAMPageLauncher == 1 and options.MeterRAMPageGiB.Text == 'Unavailable',
+        'A launcher that never reports must be stopped at the startup guard')
 
     reset(); env.Start(); now=now+20; env.Update(); env.Stop(); env.Stop()
-    check(kills.MeasureRAMPageBootstrap == 1 and not kills.MeasureRAMPageHost,
+    check(kills.MeasureRAMPageBootstrap == 1 and not kills.MeasureRAMPageLauncher,
         'Bootstrap timeout must kill only its tracked running zero-status helper once')
     check(options.MeterRAMPageGiB.Text == 'Unavailable', 'Bootstrap timeout must expose unavailable PAGE data')
 
     reset(); env.Start(); providers.MeasureRAMPageBootstrap.value=103; env.Update(); env.Stop()
-    check(next(kills) == nil and not launches.MeasureRAMPageHost,
+    check(next(kills) == nil and not launches.MeasureRAMPageLauncher,
         'Terminal bootstrap launch failure must not receive Kill or launch the host')
 
-    reset(); startHost(); providers.MeasureRAMPageHost.value=103; env.Update(); env.Stop()
-    check(next(kills) == nil, 'Terminal host failure must not receive Kill')
+    reset(); startHost(); providers.MeasureRAMPageLauncher.value=103; env.Update(); env.Stop()
+    check(next(kills) == nil, 'Terminal launcher failure must not receive Kill')
 
     reset(); startHost(); now=now+5; rejectLease=true; env.Update(); env.Stop(); env.Stop()
-    check(kills.MeasureRAMPageHost == 1 and not kills.MeasureRAMPageBootstrap,
-        'Lease failure must kill only its tracked running zero-status host once')
+    check(kills.MeasureRAMPageLauncher == 1 and not kills.MeasureRAMPageBootstrap,
+        'Lease failure must kill only its tracked running zero-status launcher once')
     check(removed[path] == 1 and removed[lease] == 1 and removed[temporary] == 1,
         'Lease failure must clean its own session once')
 end
@@ -587,7 +629,7 @@ local function checkPage()
     local frame = pageModel.Parse(SELF:GetOption('PageFixture', '', false), SELF:GetOption('PageToken'), SELF:GetNumberOption('PageNow'), 1000)
     local view = assert(SKIN:GetMeasure('MeasureRAMPageView'))
     check(view:GetValue() == 1, 'PAGE fixture must parse once and retain its cache through settings actions')
-    for _, name in ipairs({'MeasureRAMPageBootstrap','MeasureRAMPageHost'}) do
+    for _, name in ipairs({'MeasureRAMPageBootstrap','MeasureRAMPageLauncher'}) do
         equalOption(assert(SKIN:GetMeasure(name)), 'Measure', 'Calc')
     end
     check(SKIN:GetMeasure('MeasureRAMPageUsed') == nil and SKIN:GetMeasure('MeasureRAMPageTotal') == nil,

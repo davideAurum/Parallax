@@ -64,7 +64,7 @@ public static class ParallaxRamPageFileTests
         internal readonly ParallaxRamPageFile.Paths Paths;
         internal long Time = 10000;
         internal bool Live = true;
-        internal int Waits, Limit = 3, Step = 1;
+        internal int Waits, Limit = 3, Step = 1, RemoveAt = -1;
         internal bool Renew, Corrupt;
         internal readonly List<string> Samples = new List<string>();
         internal Guard(ParallaxRamPageFile.Paths paths) { Paths = paths; }
@@ -77,7 +77,25 @@ public static class ParallaxRamPageFileTests
             Time += Step;
             if (Renew) Lease(Paths, Time);
             if (Corrupt) File.WriteAllText(Paths.Lease, Paths.Token + "|", Encoding.ASCII);
+            // The skin's close/failure stop request.
+            if (Waits == RemoveAt) File.Delete(Paths.Lease);
             return Waits < Limit;
+        }
+    }
+    // Records the wait slices of one interval; optionally removes the lease
+    // after a given slice, as the skin does on close.
+    private sealed class SliceGuard : ParallaxRamPageFile.IGuard
+    {
+        private readonly ParallaxRamPageFile.Paths paths;
+        private readonly int removeAfter;
+        internal readonly List<int> Slices = new List<int>();
+        internal SliceGuard(ParallaxRamPageFile.Paths paths, int removeAfter) { this.paths = paths; this.removeAfter = removeAfter; }
+        public bool Alive { get { return true; } }
+        public bool Wait(int milliseconds)
+        {
+            Slices.Add(milliseconds);
+            if (Slices.Count == removeAfter) File.Delete(paths.Lease);
+            return true;
         }
     }
     private static void Cleaned(ParallaxRamPageFile.Paths paths)
@@ -164,6 +182,43 @@ public static class ParallaxRamPageFileTests
         { ++calls; return new ParallaxRamPageFile.Frame("NONE", 0, 0, 0); });
         Check(calls == 6, "Valid UI renewal extends lifetime");
         Cleaned(paths);
+
+        // Detached host stop request: a removed lease ends the session at the
+        // next check, without waiting for the lease to age out.
+        paths = NewPaths(); guard = new Guard(paths); guard.Limit = 8; guard.RemoveAt = 2;
+        Lease(paths, guard.Time); calls = 0;
+        ParallaxRamPageFile.RunSession(paths, 1000, guard, delegate { return guard.Time; }, delegate
+        { ++calls; return new ParallaxRamPageFile.Frame("NONE", 0, 0, 0); });
+        Check(calls == 2 && guard.Waits == 2, "Removed lease stops the host at its next check");
+        Cleaned(paths);
+
+        // A lease removed while sampling is never followed by a snapshot write.
+        paths = NewPaths(); guard = new Guard(paths); guard.Limit = 8;
+        Lease(paths, guard.Time); calls = 0;
+        ParallaxRamPageFile.Paths removing = paths;
+        ParallaxRamPageFile.RunSession(paths, 1000, guard, delegate { return guard.Time; }, delegate
+        {
+            if (++calls == 2) File.Delete(removing.Lease);
+            return new ParallaxRamPageFile.Frame("OK", 4096, 8192, 1);
+        });
+        Check(calls == 2 && guard.Samples.Count == 1 && guard.Samples[0].Contains("|1|10000|OK|4096|8192|1"),
+            "No snapshot is written after the lease is removed");
+        Cleaned(paths);
+
+        // Slow cadences wait in slices of at most five seconds and stop early
+        // when the lease is removed.
+        paths = NewPaths(); Lease(paths, 10000);
+        SliceGuard slices = new SliceGuard(paths, -1);
+        Check(ParallaxRamPageFile.WaitInterval(slices, paths, 12000) && String.Join(",", slices.Slices) == "5000,5000,2000",
+            "Slow cadence waits in five-second slices");
+        slices = new SliceGuard(paths, 1);
+        Check(!ParallaxRamPageFile.WaitInterval(slices, paths, 12000) && String.Join(",", slices.Slices) == "5000",
+            "A removed lease ends a slow wait after one slice");
+        Lease(paths, 10000);
+        slices = new SliceGuard(paths, -1);
+        Check(ParallaxRamPageFile.WaitInterval(slices, paths, 1000) && String.Join(",", slices.Slices) == "1000",
+            "Default cadence is one unsliced wait");
+        File.Delete(paths.Lease);
 
         paths = NewPaths(); guard = new Guard(paths); guard.Live = false; Lease(paths, guard.Time); calls = 0;
         ParallaxRamPageFile.RunSession(paths, 1000, guard, delegate { return guard.Time; }, delegate

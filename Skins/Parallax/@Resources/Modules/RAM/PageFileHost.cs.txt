@@ -1,5 +1,8 @@
 // Original Parallax paging-file sampler. Compiled inside the existing hidden
 // Windows PowerShell host; no child processes, installed services or downloads.
+// The host runs detached from RunCommand: a short launcher starts it and exits
+// once it holds its Rainmeter ancestor. It stops when that ancestor exits,
+// when its lease ages out, or at once when the skin removes the lease.
 // Enumerated usage/allocated size are paging-file pages, not system commit.
 // https://learn.microsoft.com/windows/win32/api/psapi/nf-psapi-enumpagefilesw
 // https://learn.microsoft.com/windows/win32/api/psapi/ns-psapi-enum_page_file_information
@@ -82,6 +85,8 @@ public static class ParallaxRamPageFile
             bool unsupported = false;
             while (parent.Alive)
             {
+                // The skin removes the lease to stop this host (close or failure).
+                if (!File.Exists(paths.Lease)) break;
                 long now = clock(), observedLease;
                 if (ReadLease(paths, now, intervalMs, out observedLease)) validLease = observedLease;
                 // A transient truncate/read failure does not renew the lease.
@@ -90,10 +95,12 @@ public static class ParallaxRamPageFile
                 unsupported = frame.Status == "UNSUPPORTED";
                 if (sequence == MaximumInteger) break;
                 string text = Snapshot(paths.Token, ++sequence, clock(), frame);
+                // Never recreate session files after the skin's cleanup.
+                if (!File.Exists(paths.Lease)) break;
                 try { WriteSnapshot(paths, text, false); }
                 catch (IOException) { /* Reader lock: the old timestamp ages normally. */ }
                 catch (UnauthorizedAccessException) { /* Retry next interval while leased. */ }
-                if (!parent.Wait(intervalMs)) break;
+                if (!WaitInterval(parent, paths, intervalMs)) break;
             }
         }
         finally
@@ -102,6 +109,20 @@ public static class ParallaxRamPageFile
             Delete(paths.Lease);
             // WriteSnapshot deletes only the temporary file it created.
         }
+    }
+
+    // Waits one sampling interval in slices of at most five seconds, so a
+    // removed lease ends even a slow cadence promptly.
+    internal static bool WaitInterval(IGuard parent, Paths paths, int intervalMs)
+    {
+        for (int remaining = intervalMs; remaining > 0; )
+        {
+            int slice = Math.Min(remaining, 5000);
+            if (!parent.Wait(slice)) return false;
+            remaining -= slice;
+            if (remaining > 0 && !File.Exists(paths.Lease)) return false;
+        }
+        return true;
     }
 
     internal sealed class Frame

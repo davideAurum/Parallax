@@ -10,9 +10,18 @@ local choices = {
 }
 local historyMeters = {'MeterRAMHistoryLabel', 'MeterRAMHistoryRange',
     'MeterRAMHistory', 'MeterRAMHistoryUncollected', 'MeterRAMHistoryFrame'}
+local cover = 'MeterRAMHistoryUncollected'
 
 local function show(name, visible)
     SKIN:Bang(visible and '!ShowMeter' or '!HideMeter', name)
+end
+
+-- MeasureRAMHistorySamples retires the startup cover once the plot is full:
+-- it hides the zero-width cover and sets its UpdateDivider to -1 until the
+-- next refresh. A retired cover stays hidden when history is shown again.
+local function coverRetired()
+    local meter = SKIN:GetMeter(cover)
+    return meter ~= nil and tonumber(meter:GetOption('UpdateDivider', '1')) == -1
 end
 
 local function option(key, spec)
@@ -61,7 +70,10 @@ function ApplyPreferences()
     end
     if changed.RAMShowBar then show('MeterRAMBar', values.RAMShowBar == 1) end
     if changed.RAMShowHistory then
-        for _, name in ipairs(historyMeters) do show(name, values.RAMShowHistory == 1) end
+        local retired = values.RAMShowHistory == 1 and coverRetired()
+        for _, name in ipairs(historyMeters) do
+            show(name, values.RAMShowHistory == 1 and not (name == cover and retired))
+        end
     end
     -- Visibility bangs do not append samples. Never force-update the Line meter.
     SKIN:Bang('!Redraw')

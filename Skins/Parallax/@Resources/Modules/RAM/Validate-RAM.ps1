@@ -102,6 +102,10 @@ Assert-RAM ($meters.MeterRAMHistory.GraphStart -eq 'Right') 'History startup cov
 Assert-RAM ($meters.MeterRAMHistory.UpdateDivider -eq $measures.MeasureRAMHistorySamples.UpdateDivider) 'History and collected-sample cadence differ.'
 Assert-RAM ($measures.MeasureRAMHistorySamples.Formula -eq 'Min(MeasureRAMHistorySamples+1,#ContentWidth#)') 'History count must reset with the measure on refresh.'
 Assert-RAM ($meters.MeterRAMHistoryUncollected.DynamicVariables -eq '1') 'History cover must follow the sample count.'
+# A full plot leaves a zero-width cover. Retire it (and the count) for the rest of the load.
+Assert-RAM ($measures.MeasureRAMHistorySamples.IfCondition -eq 'MeasureRAMHistorySamples >= #ContentWidth#') 'History cover must retire exactly when the plot is full.'
+Assert-RAM ($measures.MeasureRAMHistorySamples.IfTrueAction -eq '[!HideMeter MeterRAMHistoryUncollected][!SetOption MeterRAMHistoryUncollected UpdateDivider -1][!SetOption MeasureRAMHistorySamples UpdateDivider -1]') 'A full history must hide and idle its zero-width cover and stop the count without resetting it.'
+Assert-RAM (-not $measures.MeasureRAMHistorySamples.ContainsKey('IfFalseAction') -and -not $measures.MeasureRAMHistorySamples.ContainsKey('IfConditionMode')) 'Cover retirement must run once per load.'
 Assert-RAM ($measures.MeasureRAMSettings.UpdateDivider -eq '-1') 'Settings must be event-driven.'
 Assert-RAM ($measures.MeasureRAMSettings.ScriptFile -eq '#@#Modules\RAM\Display.lua') 'Main RAM must use its display-only controller.'
 Assert-RAM ($measures.MeasureRAMSettings.Group -eq 'ParallaxRAMApply') 'Main RAM must expose its preference application group.'
@@ -147,6 +151,7 @@ Assert-RAM ($settingsScript -notmatch '!Refresh|MeasureRAMInfo|MeasureRAMPage|Me
 Assert-RAM ($displayScript -notmatch '!Refresh|!WriteKeyValue|ToggleMenu|RAMSettingsMenu') 'Display controller must not persist preferences or own an overlay.'
 Assert-RAM ($displayScript.Contains("SKIN:Bang('!CommandMeasure', 'MeasureRAMPageView', 'Display()')")) 'Unit changes must reformat the cached paging-file reading.'
 Assert-RAM ($displayScript -notmatch 'MeasureRAMPageBootstrap|MeasureRAMPageHost|Start\(\)|io\.open') 'Settings-driven display must not launch or query the PAGE provider.'
+Assert-RAM ($displayScript -match 'local function coverRetired\(\)' -and $displayScript -match "GetOption\('UpdateDivider'" -and $displayScript -match 'name == cover and retired') 'Showing history again must not re-show a retired zero-width cover.'
 $pageDisplay = [regex]::Match($pageScript,'(?s)function Display\([^)]*\)(.*?)\nlocal function cleanup').Groups[1].Value
 $pageProviderDisplay = $pageDisplay.Replace("SKIN:Bang('!UpdateMeasure', 'MeasureRAMPageRatio')", '')
 Assert-RAM ($pageDisplay.Length -gt 0 -and $pageProviderDisplay -notmatch 'io\.|launch\(|!CommandMeasure|!UpdateMeasure') 'PAGE Display may update its cached ratio without provider or session IO.'

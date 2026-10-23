@@ -217,6 +217,8 @@ UpdateDivider=1
 ; Native Line starts with a zero-filled ring buffer. Cover its uncollected
 ; left side; do not portray those zeros as observed memory usage. Until full,
 ; overlap by 2 logical pixels to cover the antialiased startup transition.
+; When full, MeasureRAMHistorySamples hides this zero-width cover and sets its
+; UpdateDivider to -1; Display.lua then never re-shows it before a refresh.
 [MeterRAMHistoryUncollected]
 Meter=Shape
 X=#ContentX#

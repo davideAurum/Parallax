@@ -108,13 +108,16 @@ ScriptFile=#@#Modules\Media\Source\SourceReader.lua
 UpdateDivider=#MediaLegacyDivider#
 
 ; Title icon: swaps monitor-play for audio-lines while a track plays, and
-; pulses the bars. Runs every fast tick (no divider) so the animation is
-; smooth; it only reads three measures' last-cached values between their own
-; slower refreshes, so it adds no extra plugin polling. Kept out of Media.lua
-; because that adapter must stay a pure function of the current sample.
+; pulses the bars. Runs every fast tick, explicitly, because Media.ini's
+; DefaultUpdateDivider would otherwise hold it to the provider cadence. It
+; only reads three measures' last-cached values between their own slower
+; refreshes, so it adds no extra plugin polling, and it returns at once while
+; nothing plays. Kept out of Media.lua because that adapter must stay a pure
+; function of the current sample.
 [MeasureMediaPulse]
 Measure=Script
 ScriptFile=#@#Modules\Media\MediaPulse.lua
+UpdateDivider=1
 
 ; Last measure: reads this update's provider values and guards every command.
 [MeasureMediaUI]

@@ -9,7 +9,10 @@
 ;
 ; Every meter sits in the QueueRows group so the drawer shows and hides them
 ; together; QueueReader.lua hides rows past the queue's length and positions
-; them from #MediaQueueRowsY# / #MediaQueueRowPitch#.
+; them from #MediaQueueRowsY# / #MediaQueueRowPitch#. None takes part in
+; periodic updates (UpdateDivider=-1): QueueReader.lua forces
+; [!UpdateMeterGroup QueueRows][!Redraw] whenever it changes a row, and the
+; header text is fixed.
 
 ; Position column. Right aligned so the digit sits against the title, and so a
 ; two-digit position would still line up if QueueRowLimit ever grows.
@@ -20,6 +23,7 @@ H=(18*#Scale#)
 StringAlign=Right
 Group=QueueRows
 Hidden=1
+UpdateDivider=-1
 
 ; TRIAL: the artist is accented. InlinePattern is rewritten per row by Lua.
 [MediaInlineQueueRowStyle]
@@ -31,6 +35,7 @@ InlineSetting=Color | #MediaQueueArtistColor#
 InlinePattern=$^
 Group=QueueRows
 Hidden=1
+UpdateDivider=-1
 
 ; One segment per row, inset top and bottom so the column reads as a dashed
 ; delimiter rather than a single line. QueueReader.lua places and hides these
@@ -62,6 +67,7 @@ Hidden=1
 InlineSetting=Color | #MediaQueueArtistColor#
 InlinePattern=Artist$
 Text=Song / Artist
+UpdateDivider=-1
 
 [MeterQueueHeaderDivider]
 Meter=Shape

@@ -196,7 +196,11 @@ local function header_row(state)
     check(SKIN:GetMeasure('MeasureMediaHeader'):GetStringValue()==expected,'Header value '..SKIN:GetMeasure('MeasureMediaHeader'):GetStringValue()..' expected '..expected)
     check(title:GetOption('MeasureName')=='MeasureMediaHeader' and title:GetOption('Text')=='%1','Title does not bind the header measure as data')
     check(title:GetOption('ToolTipText','')=='','Title must not repeat its visible text in a tooltip')
-    check(title:GetOption('ClipString')=='1' and title:GetOption('UpdateDivider')=='1','Title must clip and follow every header update')
+    -- Every header update reaches the title: it shares MeasureMediaHeader's
+    -- divider rather than repainting on every animation tick.
+    check(title:GetOption('ClipString')=='1' and formula(title:GetOption('UpdateDivider'))==formula('#MediaLegacyDivider#')
+        and formula(SKIN:GetMeasure('MeasureMediaHeader'):GetOption('UpdateDivider'))==formula('#MediaLegacyDivider#'),
+        'Title must clip and follow every header update')
     check(title:GetOption('FontColor')==SKIN:GetVariable('TitleTextColor'),'Title ignores title color')
     local size=tonumber(title:GetOption('FontSize')) or SKIN:ParseFormula(title:GetOption('FontSize'))
     check(math.abs(size-tonumber(SKIN:GetVariable('TitleFontSize'))*scale)<0.001,'Title ignores title font size')

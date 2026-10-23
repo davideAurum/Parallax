@@ -63,7 +63,7 @@ user-selected Lucide metadata and playback icons are attributed below.
 
 | Feature | Dependencies | Cadence and fallback |
 | --- | --- | --- |
-| Base UI and Setup — required | Windows, Rainmeter, built-in measures/meters and bundled Lua/includes. | The player updates every 50 ms (`MediaAnimationInterval`) for its title-icon animation; `MediaLegacyDivider` keeps provider polling and queue/options reads at `MediaInterval` (1 second). Setup updates at `MediaInterval` and loads without external plugins. |
+| Base UI and Setup — required | Windows, Rainmeter, built-in measures/meters and bundled Lua/includes. | The player updates every 50 ms (`MediaAnimationInterval`) for its title-icon animation; `MediaLegacyDivider` keeps provider polling and queue/options reads at `MediaInterval` (1 second). Meters repaint on change, not on that tick: Media.ini's `DefaultUpdateDivider` holds every meter without its own divider to the 1-second cadence, static meters use `UpdateDivider=-1`, and the title icon joins periodic updates only while a track plays (see [Paint on change](#paint-on-change-2026-10-22)). Setup updates at `MediaInterval` and loads without external plugins. |
 | Spectrum drawer — optional, plugins bundled with Rainmeter | Rainmeter's bundled AudioLevel and Win7AudioPlugin plugins, a Windows output endpoint, and the Visualizer module's shared `Modules/Visualizer/{Fallbacks,Options,Capture,Audio,Spectrum}.inc`, `HeightPresets/*.inc`, `Color.lua`, `SpectrumPaths.lua` and `User/Visualizer.inc`. Media settings' Spectrum section adds `Modules/Visualizer/SettingsShared.inc` and `Settings.lua` (event-only; its numeric input is the shared one-shot helper, launched only by a click). Writes `AnchorY` and its `ParallaxDrawerAnchorY` record in this config's own Rainmeter.ini section on tab clicks, Media settings saves and any load whose drawer-owned anchor does not match (that load-time repair's `!SetAnchor` also rewrites `AnchorX` with its existing value); a user-set anchor is never changed. | Capture and Win7Audio exist only while `VisualizerDrawer=2`; collapsed, hidden and Setup load no AudioLevel or Win7Audio measure. Open, it runs on Media's 50 ms tick (100 ms for the Visualizer's 100 ms choice); volume about every 250 ms, device name once a second. Win7Audio errors show `--`, mute shows `Muted`; a failed numeric getter can leave an old volume. The output row's click/wheel switches the system default output (no volume or mute command). A missing or unavailable endpoint shows `Output unavailable`; quiet output shows `Idle - quiet`; an invalid format shows `Unsupported format`. Loading the standalone Visualizer too runs a second, independent capture. |
 | Fonts and icons — bundled | Private IBM Plex Sans fonts ([license](../../Skins/Parallax/@Resources/Licenses/IBM-Plex-OFL.txt)); native Shape adaptations of Lucide artwork ([provenance and licenses](../../Skins/Parallax/@Resources/Modules/Media/Icons/Lucide/README.md)). | No download, system font installation or SVG-rendering plugin required. |
 | Typed numeric settings — bundled | Rainmeter's bundled RunCommand plugin, Windows PowerShell/.NET WinForms and the shared `Scripts/SettingsInput.ps1` overlay. | An explicit numeric-field click starts one temporary editor. Fixed numeric/cancel output is revalidated before saving; invalid, cancelled, unrequested or hidden-field results do not save. No polling or provider starts. |
@@ -948,6 +948,49 @@ Sources: [quota modes](https://developer.spotify.com/documentation/web-api/conce
 [rate limits](https://developer.spotify.com/documentation/web-api/concepts/rate-limits).
 
 ## Validation report
+
+### Paint on change (2026-10-22)
+
+Rainmeter 4.5 repaints a skin's whole window whenever any meter's update
+divider elapses; it never checks whether anything changed, and hidden meters
+count. Media ticks every 50 ms for its title-icon pulse, and 26 meters were
+due on every tick, so the 456 px window was rendered and recomposited 20 times
+a second in every state, idle and screen-off included
+([performance review](../PERFORMANCE-REVIEW.md) MEDIA-01). Each change below is
+its own commit so it can be measured alone.
+
+- **MEDIA-01, redraw follows the provider cadence.** `Media.ini` sets
+  `DefaultUpdateDivider=#MediaLegacyDivider#`, so a section without its own
+  divider follows the 1-second provider cadence. The default also applies to
+  measures; every Media measure already stated its divider except
+  `MeasureMediaPulse`, which now says `UpdateDivider=1`. Meters whose content
+  only changes by a refresh or an explicit bang use `UpdateDivider=-1`:
+  the queue sheet, tab label and inline queue rows (QueueReader already forces
+  `!UpdateMeterGroup QueueRows` and `!Redraw` on every change), *No active
+  media*, the cover placeholder and its N/A label, and `-- / --`.
+  `MeterHeading` takes `MeasureMediaHeader`'s own divider instead of 1.
+  `MeterPlayerIcon` keeps its style's `-1` at rest: `MediaPulse.lua` raises it
+  to 1 with one forced update when playback starts, and on stopping settles the
+  bars, returns it to `-1`, forces that last update and redraws once. While
+  nothing plays the script returns at once and issues no bang. With the drawer
+  collapsed the fastest due meter is now on the 1-second cadence (from every
+  tick), so the window repaints at most once a second while nothing plays.
+  Measure-bound text, progress and cover still update every second; a meter
+  forced out of phase with its measure can show a value up to a second late.
+  Checked: `test_skin_contract.py` (29 tests, new
+  `test_media_repaints_on_change_not_on_the_animation_tick`: every measure
+  states a divider, no meter is due more often than once a second in drawer
+  states 0 and 1, and the static meters are `-1`); new
+  `tests/MediaPulseSuite.luatest` (7 scenarios, 513 assertions, run natively by
+  `Test-MediaHeader.ps1`: no work while idle, divider and forced update on each
+  transition, no paint on the load tick, the 1100 ms period), which fails
+  against the previous script; `Test-MediaHeader.ps1` also asserts the icon's
+  divider at every native stage (1093 assertions pass);
+  `Test-MediaSettings.ps1 -IdentityIconsFocused` and `-QueueTogglePlayersOnly`
+  pass (their harness now copies the production pulse divider and keeps its
+  observer and probes at divider 1); their captures are pixel-identical to the
+  same runs on the parent commit outside the animated title icon, and the Setup
+  preview capture is pixel-identical.
 
 ### Cover without the WNP plugin (2026-10-20)
 

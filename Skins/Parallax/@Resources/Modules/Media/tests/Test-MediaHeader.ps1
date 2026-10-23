@@ -9,12 +9,13 @@ $sourcePath = [IO.Path]::GetFullPath((Join-Path $PSScriptRoot '..\MediaHeader.lu
 $headerSourcePath = [IO.Path]::GetFullPath((Join-Path $PSScriptRoot '..\Header.inc'))
 $pulseSourcePath = [IO.Path]::GetFullPath((Join-Path $PSScriptRoot '..\MediaPulse.lua'))
 $suiteSourcePath = Join-Path $PSScriptRoot 'MediaHeaderSuite.luatest'
+$pulseSuiteSourcePath = Join-Path $PSScriptRoot 'MediaPulseSuite.luatest'
 $tempParent = [IO.Path]::GetFullPath([IO.Path]::GetTempPath())
 $runRoot = [IO.Path]::GetFullPath((Join-Path $tempParent ('Parallax-MediaHeader-test-' + [Guid]::NewGuid().ToString('N'))))
 if (-not $runRoot.StartsWith($tempParent.TrimEnd('\') + '\', [StringComparison]::OrdinalIgnoreCase)) { throw 'Run path must remain inside the temp parent.' }
 if ((Get-Item -LiteralPath $tempParent).Attributes -band [IO.FileAttributes]::ReparsePoint) { throw 'Temp parent must not be a junction.' }
 if (Test-Path -LiteralPath $runRoot) { throw 'Test run root must be fresh.' }
-foreach ($required in @($RainmeterPath, $sourcePath, $headerSourcePath, $pulseSourcePath, $suiteSourcePath)) {
+foreach ($required in @($RainmeterPath, $sourcePath, $headerSourcePath, $pulseSourcePath, $suiteSourcePath, $pulseSuiteSourcePath)) {
     if (-not (Test-Path -LiteralPath $required -PathType Leaf)) { throw "Required installed executable or source is missing: $required. Nothing is installed by this runner." }
 }
 
@@ -34,10 +35,11 @@ $nativePath = Join-Path $runRoot 'Production\NativeMediaHeader.lua'
 $nativeHeaderPath = Join-Path $runRoot 'Production\NativeHeader.inc'
 $nativePulsePath = Join-Path $runRoot 'Production\NativeMediaPulse.lua'
 $suitePath = Join-Path $runRoot 'MediaHeaderSuite.lua'
+$pulseSuitePath = Join-Path $runRoot 'MediaPulseSuite.lua'
 $iniPath = Join-Path $runRoot 'Rainmeter.ini'
 $resultPath = Join-Path $runRoot 'results.txt'
 $nativeName = 'Caf' + [char]0xE9 + ' ' + [char]0x6F22 + ' ' + [char]::ConvertFromUtf32(0x1F3B5)
-foreach ($path in @($productionPath, $suitePath, $resultPath, $runRoot)) {
+foreach ($path in @($productionPath, $suitePath, $pulseSuitePath, $nativePulsePath, $resultPath, $runRoot)) {
     if ($path.Contains(']=]') -or $path.Contains('"') -or $path.Contains("`r") -or $path.Contains("`n")) { throw 'Unsupported test path delimiter.' }
 }
 # Rainmeter performs this UTF-16 to UTF-8 decoding for its Lua chunks. loadfile
@@ -50,6 +52,7 @@ Copy-Item -LiteralPath $sourcePath -Destination $nativePath
 Copy-Item -LiteralPath $headerSourcePath -Destination $nativeHeaderPath
 Copy-Item -LiteralPath $pulseSourcePath -Destination $nativePulsePath
 Copy-Item -LiteralPath $suiteSourcePath -Destination $suitePath
+Copy-Item -LiteralPath $pulseSuiteSourcePath -Destination $pulseSuitePath
 $sourceHash = (Get-FileHash -LiteralPath $sourcePath -Algorithm SHA256).Hash
 $headerHash = (Get-FileHash -LiteralPath $headerSourcePath -Algorithm SHA256).Hash
 $pulseHash = (Get-FileHash -LiteralPath $pulseSourcePath -Algorithm SHA256).Hash
@@ -194,6 +197,10 @@ function AuditAndQuit()
     local ok, report = pcall(function()
         local suite = dofile([=[$suitePath]=])
         local count, cases = suite.run([=[$productionPath]=])
+        -- MediaPulse.lua's paint-on-change contract, against the copied script.
+        local pulseCount, pulseCases = dofile([=[$pulseSuitePath]=]).run([=[$nativePulsePath]=])
+        count = count + pulseCount
+        for _, name in ipairs(pulseCases) do cases[#cases+1] = 'pulse: '..name end
         local function equal(actual, expected)
             count = count + 1
             assert(actual == expected, 'native binding: '..tostring(actual)..' ~= '..tostring(expected))
@@ -216,6 +223,8 @@ function AuditAndQuit()
             equal(SKIN:GetMeasure('MeasureMediaPulse'):GetValue(), playing and 1 or 0)
             shown('MeterMediaIcon', not playing)
             shown('MeterPlayerIcon', playing)
+            -- Only a playing track keeps the icon in periodic updates.
+            equal(SKIN:GetMeter('MeterPlayerIcon'):GetOption('UpdateDivider'), playing and '1' or '-1')
         end
         stage(0, 'Spotify')
         stage(1, 'YouTube')
@@ -242,7 +251,8 @@ function AuditAndQuit()
         equal(SKIN:GetMeter('MeterMediaIcon'):GetOption('UpdateDivider'), '-1')
         equal(SKIN:GetMeter('MeterMediaIcon'):GetOption('Shape'), 'Path LucideMonitorPlayPath | Extend LucideMonitorPlayStroke')
         equal(SKIN:GetMeter('MeterPlayerIcon'):GetOption('Hidden'), '1')
-        equal(SKIN:GetMeter('MeterPlayerIcon'):GetOption('UpdateDivider'), '1')
+        -- The last stage is paused: the icon rests outside periodic updates.
+        equal(SKIN:GetMeter('MeterPlayerIcon'):GetOption('UpdateDivider'), '-1')
         equal(SKIN:GetMeter('MeterPlayerIcon'):GetX(), SKIN:GetMeter('MeterMediaIcon'):GetX())
         equal(SKIN:GetMeter('MeterPlayerIcon'):GetY(), SKIN:GetMeter('MeterMediaIcon'):GetY())
         -- MediaHeaderY + TitleRowCenterY - Inset - TitleIconSize/2 = 108 + 10 - 4 - 7.
@@ -274,6 +284,7 @@ try {
         TestedPulseSha256 = $pulseHash
         SourceEncoding = 'UTF-16LE BOM; same text decoded to UTF-8 for Lua loadfile mock tests'
         SuiteSha256 = (Get-FileHash -LiteralPath $suitePath -Algorithm SHA256).Hash
+        PulseSuiteSha256 = (Get-FileHash -LiteralPath $pulseSuitePath -Algorithm SHA256).Hash
         Provider = 'None; injected synthetic measures only'
     }
     Write-TestFile (Join-Path $runRoot 'run-evidence.json') ($evidence | ConvertTo-Json)

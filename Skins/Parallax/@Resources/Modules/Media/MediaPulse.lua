@@ -5,6 +5,12 @@
 -- current provider sample, and its suite asserts an identical sample produces
 -- no display work. This pulse changes every tick by design while a track
 -- plays, so it cannot live behind the same contract.
+--
+-- Paint on change (docs/PERFORMANCE-REVIEW.md MEDIA-01): Rainmeter repaints
+-- the whole window whenever any meter's divider elapses, so MeterPlayerIcon
+-- rests at UpdateDivider=-1 and a tick with nothing playing does no work.
+-- Playback raises it to every tick for the pulse; stopping settles the bars,
+-- returns it to -1 and paints that last frame explicitly.
 local measures, applied, tick, step
 -- MeterPlayerIcon's rest bars (Lucide audio-lines, 24-unit viewBox) as
 -- key/x/center/half-height. Header.inc holds the same values statically.
@@ -53,10 +59,14 @@ function Update()
     -- MediaHeader.lua applies the identical test to the title text, so the
     -- icon and "Media Player: <name>" always switch together.
     local playing = number('MeasureConnection') == 1 and number('MeasureState') == 1 and nonblank('MeasureTitle')
+    -- Still not playing, and the rest frame is already applied: nothing to do.
+    if applied.playing == false and not playing then return 0 end
     tick = playing and (tick + 1) or 0
     -- Exactly one title icon is visible. The first tick applies this
     -- unconditionally, so it never depends on the ini defaults agreeing.
-    if applied.playing ~= playing then
+    local first = applied.playing == nil
+    local transition = applied.playing ~= playing
+    if transition then
         applied.playing = playing
         SKIN:Bang(playing and '!ShowMeter' or '!HideMeter', 'MeterPlayerIcon')
         SKIN:Bang(playing and '!HideMeter' or '!ShowMeter', 'MeterMediaIcon')
@@ -72,11 +82,27 @@ function Update()
             half = math.min(bar.half * (0.3 + 0.9 * wave), bar.center - 1.2)
         end
         local value = shape(bar, half)
-        -- No redraw bang: MeterPlayerIcon runs at UpdateDivider=1, so the
-        -- normal skin cycle repaints it, as periodic changes must.
+        -- No redraw bang while playing: MeterPlayerIcon then runs at
+        -- UpdateDivider=1, so the normal skin cycle repaints it, as periodic
+        -- changes must.
         if applied[bar.key] ~= value then
             applied[bar.key] = value
             SKIN:Bang('!SetOption', 'MeterPlayerIcon', bar.key, value)
+        end
+    end
+    if transition then
+        -- Measures update before meters, so the bars and the divider set
+        -- here reach the icon together. A -1 meter ignores !SetOption until it
+        -- is forced, hence the explicit update. The first tick after a load
+        -- updates every meter and repaints anyway, and a redraw from here
+        -- would paint meters that have not had their first update yet.
+        SKIN:Bang('!SetOption', 'MeterPlayerIcon', 'UpdateDivider', playing and '1' or '-1')
+        if not first then
+            SKIN:Bang('!UpdateMeter', 'MeterPlayerIcon')
+            -- Back at -1, nothing else is due to repaint the settled icon or
+            -- the swap back to Monitor Play; while playing, the icon's own
+            -- update repaints this tick.
+            if not playing then SKIN:Bang('!Redraw') end
         end
     end
     return playing and 1 or 0

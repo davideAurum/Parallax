@@ -41,14 +41,14 @@ LucideMonitorPlayPath=(15.033*#MediaHeaderLucideScale#),(9.44*#MediaHeaderLucide
 Meter=Shape
 MeterStyle=MediaHeaderIconStyle
 DynamicVariables=1
-; Overrides the style's UpdateDivider=-1: while a track is playing,
-; MediaPulse.lua rewrites each bar (Shape..Shape6) every tick via !SetOption,
-; matching the audio-lines equalizer pulse at https://lucide-animated.com/.
-; This meter must take part in normal updates for that to repaint. It shares
-; the style's box with MeterMediaIcon and starts hidden; the same script shows
-; it only while a track plays, and settles the bars back to the static values
-; below whenever it is hidden again.
-UpdateDivider=1
+; While a track is playing, MediaPulse.lua rewrites each bar (Shape..Shape6)
+; every tick via !SetOption, matching the audio-lines equalizer pulse at
+; https://lucide-animated.com/. It shares the style's box with MeterMediaIcon
+; and starts hidden; the same script shows it only while a track plays, and
+; settles the bars back to the static values below whenever it is hidden
+; again. It keeps the style's UpdateDivider=-1 at rest, so nothing repaints
+; while nothing plays: the script raises it to every tick (with one forced
+; update) when playback starts, and returns it to -1 with the settled bars.
 Hidden=1
 Shape=Line (2*#MediaPlayerLucideScale#),(10*#MediaPlayerLucideScale#),(2*#MediaPlayerLucideScale#),(13*#MediaPlayerLucideScale#) | Extend LucideAudioLinesStroke
 Shape2=Line (6*#MediaPlayerLucideScale#),(6*#MediaPlayerLucideScale#),(6*#MediaPlayerLucideScale#),(17*#MediaPlayerLucideScale#) | Extend LucideAudioLinesStroke

@@ -366,8 +366,13 @@ function Tripwire() SKIN:Bang('!SetVariable','IdentitySentinel','escaped'); retu
             $synthetic=[regex]::Replace($synthetic,'(?ms)\[MeasureTitle\]\r?\nMeasure=String\r?\nString=[^\r\n]*\r?\n\r?\n',"[MeasureTitle]`nMeasure=Script`nScriptFile=$titlePath`n`n")
         }
         # The production title-icon swap: pure, no file/process access, and it
-        # reads only the synthetic Connection/State/Title measures above.
-        $synthetic+="[MeasureMediaPulse]`nMeasure=Script`nScriptFile=#@#Modules\Media\MediaPulse.lua`n`n"
+        # reads only the synthetic Connection/State/Title measures above. Its
+        # divider is copied from production: Media.ini's DefaultUpdateDivider
+        # would otherwise hold it to the provider cadence.
+        $productionProvider=[IO.File]::ReadAllText((Join-Path $moduleRoot 'WebNowPlaying.inc'))
+        $pulseDivider=[regex]::Match($productionProvider,'(?m)^\[MeasureMediaPulse\]\r?\n(?:[^\[\r\n][^\r\n]*\r?\n)*?UpdateDivider=([^\r\n]+)\r?$')
+        if (-not $pulseDivider.Success) { throw 'Production MeasureMediaPulse must state its own UpdateDivider.' }
+        $synthetic+="[MeasureMediaPulse]`nMeasure=Script`nScriptFile=#@#Modules\Media\MediaPulse.lua`nUpdateDivider=$($pulseDivider.Groups[1].Value)`n`n"
         $synthetic+="[MeasureMediaUI]`nMeasure=Script`nScriptFile=#@#Modules\Media\Media.lua`n"
         Write-TestFile (Join-Path $caseRoot '@Resources\Modules\Media\WebNowPlaying.inc') $synthetic
         if (($IdentityFocused -or $QueueToggleFocused) -and $isPlayer) {
@@ -424,6 +429,8 @@ end
 [MeasureMediaSettingsTest]
 Measure=Script
 ScriptFile=$harnessPath
+; The observer counts skin ticks; Media.ini's DefaultUpdateDivider must not slow it.
+UpdateDivider=1
 Kind=$kind
 EmptyQueueTransition=$([int]$QueueEmptyFocused.IsPresent)
 TypographyProfile=$profile
@@ -468,13 +475,15 @@ ExpectedBarThickness=$(([double]$barThickness).ToString([Globalization.CultureIn
     foreach ($probe in $probes) {
         # Measure binding keeps player names literal, exactly as in MeterHeading.
         $bound=if ($probe[1].Contains('%1')) { "MeasureName=MeasureMediaHeader`n" } else { '' }
-        $entry+="`n[Probe$($probe[0])]`nMeter=String`nGroup=TypographyProbes`nX=0`nY=0`n${bound}Text=$($probe[1])`nClipString=0`nHidden=1`nFontColor=0,0,0,0`nPadding=0,0,0,0`nAntiAlias=1`n"
+        # Test-only probes keep every-tick updates whatever the entrypoint's
+        # DefaultUpdateDivider, as before it existed.
+        $entry+="`n[Probe$($probe[0])]`nMeter=String`nGroup=TypographyProbes`nX=0`nY=0`n${bound}Text=$($probe[1])`nClipString=0`nHidden=1`nFontColor=0,0,0,0`nPadding=0,0,0,0`nAntiAlias=1`nUpdateDivider=1`n"
     }
     if (-not $isSettings) {
         $statusIndex=0
         foreach ($label in @('Storage unavailable','Spotify unavailable','Queue unavailable','App quota reached','Provider stopped')) {
             $statusIndex++
-            $entry+="`n[ProbeStatus$statusIndex]`nMeter=String`nGroup=TypographyProbes`nX=0`nY=0`nText=$label`nClipString=0`nHidden=1`nFontColor=0,0,0,0`nPadding=0,0,0,0`nAntiAlias=1`n"
+            $entry+="`n[ProbeStatus$statusIndex]`nMeter=String`nGroup=TypographyProbes`nX=0`nY=0`nText=$label`nClipString=0`nHidden=1`nFontColor=0,0,0,0`nPadding=0,0,0,0`nAntiAlias=1`nUpdateDivider=1`n"
         }
     }
     Write-TestFile $entryPath $entry
@@ -563,6 +572,8 @@ function Test-LabelSync {
 [MeasureMediaSettingsTest]
 Measure=Script
 ScriptFile=$harnessPath
+; The observer counts skin ticks; Media.ini's DefaultUpdateDivider must not slow it.
+UpdateDivider=1
 Kind=$kind
 SyntheticCachePath=$syncCache
 ResultFile=$syncReport

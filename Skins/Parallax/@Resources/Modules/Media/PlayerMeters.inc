@@ -1,3 +1,7 @@
+; Fixed text and shapes below use UpdateDivider=-1: Media.lua only shows and
+; hides them, and a due meter would repaint the whole window on every tick
+; (docs/PERFORMANCE-REVIEW.md MEDIA-01). Measure-bound text keeps Media.ini's
+; DefaultUpdateDivider, the provider cadence of the measures it shows.
 [MeterNoMedia]
 Meter=String
 MeterStyle=StyleLabel
@@ -6,6 +10,7 @@ Y=#MediaMetadataY#
 H=(44*#Scale#)
 ClipString=2
 Text=No active media.#CRLF#Open a player or use Setup.
+UpdateDivider=-1
 
 [MeterCoverPlaceholder]
 Meter=Shape
@@ -17,6 +22,7 @@ W=#MediaCoverSize#
 H=#MediaCoverSize#
 Shape=Rectangle 0,0,#MediaCoverSize#,#MediaCoverSize#,#MediaCoverRadius# | Fill Color #GraphBackgroundColor# | StrokeWidth 0
 Hidden=1
+UpdateDivider=-1
 
 [MeterCoverLabel]
 Meter=String
@@ -28,6 +34,7 @@ W=(#MediaCoverSize#-6*#Scale#)
 StringAlign=Center
 Text=N/A
 Hidden=1
+UpdateDivider=-1
 
 ; The opaque rounded Shape masks child images; it paints no rectangle itself.
 ; Keep the container outside visibility groups and hide the image child instead.
@@ -206,6 +213,7 @@ Meter=String
 MeterStyle=MediaTimingStyle
 Text=-- / --
 Group=MediaDynamic
+UpdateDivider=-1
 OnUpdateAction=[!CommandMeasure MeasureMediaUI "LayoutTransport('MeterTimingUnavailable')"]
 
 [MediaTransportInclude]

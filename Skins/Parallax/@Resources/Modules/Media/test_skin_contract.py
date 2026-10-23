@@ -1007,7 +1007,10 @@ class SkinContractTests(unittest.TestCase):
             self.assertEqual(header['MeasureName'],'MeasureMediaHeader')
             self.assertEqual(header['Text'],'%1')
             self.assertNotIn('ToolTipText',header)
-            self.assertEqual(header['UpdateDivider'],'1')
+            # The title follows every header-measure update, on that measure's
+            # own divider rather than every animation tick.
+            self.assertEqual(header['UpdateDivider'],'#MediaLegacyDivider#')
+            self.assertEqual(header['UpdateDivider'],sections['MeasureMediaHeader']['UpdateDivider'])
             self.assertNotIn('MeterPlayerName',sections)
             self.assertEqual(visited[-1].name,'Header.inc')
             actual={name for name,section in sections.items() if 'Meter' in section and resolve_style(sections,name).get('Group')=='MediaPlayerIcons'}
@@ -1026,7 +1029,13 @@ class SkinContractTests(unittest.TestCase):
             if config=='Media.ini':
                 pulse=sections['MeasureMediaPulse']
                 self.assertEqual(pulse['ScriptFile'],'#@#Modules\\Media\\MediaPulse.lua')
-                self.assertNotIn('UpdateDivider',pulse)
+                # Explicit: Media.ini's DefaultUpdateDivider also applies to
+                # measures and would hold the pulse to the provider cadence.
+                self.assertEqual(pulse['UpdateDivider'],'1')
+                # At rest the playing icon takes no part in periodic updates;
+                # MediaPulse.lua raises it only while a track plays.
+                self.assertNotIn('UpdateDivider',sections['MeterPlayerIcon'])
+                self.assertEqual(resolve_style(sections,'MeterPlayerIcon')['UpdateDivider'],'-1')
             else:
                 self.assertNotIn('MeasureMediaPulse',sections)
             if config=='Media.ini':
@@ -1089,6 +1098,38 @@ class SkinContractTests(unittest.TestCase):
                                 self.assertLessEqual(box(control).bottom,val('#MediaQueueRowsY#')+EPSILON)
                                 self.assertEqual(val('#WindowHeight#'),
                                                  media_drawer_geometry(width,scale,columns,0,5)[3])
+
+    def test_media_repaints_on_change_not_on_the_animation_tick(self):
+        # Rainmeter 4.5 repaints the whole window whenever any meter's divider
+        # elapses, with no change check (docs/PERFORMANCE-REVIEW.md MEDIA-01).
+        # Media.ini's DefaultUpdateDivider holds every section without its own
+        # divider to the 1-second provider cadence. It also applies to
+        # measures, so every measure states its own divider.
+        static = ('MeterQueueDrawer','MeterQueueHeading','MeterQueueRule','MeterNoMedia','MeterCoverPlaceholder',
+                  'MeterCoverLabel','MeterTimingUnavailable','MeterQueueHeaderNumber','MeterQueueHeaderTrack',
+                  'MeterPlayerIcon','MeterMediaIcon')+tuple(f'MeterQueue{kind}{row}' for kind in ('Number','Row') for row in range(1,6))
+        for drawer in (0,1):
+            for columns in COLUMNS:
+                with self.subTest(drawer=drawer,columns=columns):
+                    sections,_,_,expand=read_config('Media.ini',drawer=drawer,columns=columns)
+                    val=lambda expression: numeric(expand(expression))
+                    rainmeter=sections['Rainmeter']
+                    self.assertEqual(rainmeter['DefaultUpdateDivider'],'#MediaLegacyDivider#')
+                    legacy=val('#MediaLegacyDivider#')
+                    # The shipped MediaInterval is one second.
+                    self.assertEqual(legacy*val(rainmeter['Update']),1000)
+                    for name,section in sections.items():
+                        if 'Measure' in section:
+                            self.assertIn('UpdateDivider',section,f'{name} relies on DefaultUpdateDivider')
+                        elif 'Meter' in section:
+                            divider=val(resolve_style(sections,name).get('UpdateDivider',rainmeter['DefaultUpdateDivider']))
+                            self.assertTrue(divider==-1 or divider>=legacy,f'{name} is due every {divider} ticks')
+                    for name in static:
+                        self.assertEqual(val(resolve_style(sections,name)['UpdateDivider']),-1,name)
+        # Setup ticks at MediaInterval itself: its shared meters keep divider 1.
+        sections,_,_,expand=read_config('Setup.ini')
+        self.assertEqual(numeric(expand('#MediaLegacyDivider#')),1)
+        self.assertEqual(numeric(expand(sections['MeterHeading']['UpdateDivider'])),1)
 
     def test_title_rows_scale_and_center_across_supported_extremes(self):
         for config in CONFIGS:

@@ -1,0 +1,217 @@
+-- Developer-only synthetic tests for MediaPulse.lua; excluded from skin packaging.
+-- Mocked SKIN only: every bang the script issues is recorded, none is run.
+-- The native runner (Test-MediaHeader.ps1) also loads the real script beside
+-- Header.inc; this suite pins the paint-on-change contract tick by tick.
+local suite = {}
+
+function suite.run(sourcePath)
+    local passed, cases = 0, {}
+    local function check(condition, message)
+        assert(condition, message)
+        passed = passed + 1
+    end
+    local function scenario(name, test)
+        local before = passed
+        test()
+        cases[#cases + 1] = name .. ': ' .. (passed - before) .. ' assertions'
+    end
+    -- Rest bars as the script writes them; Header.inc holds the same geometry.
+    local rest = {
+        Shape = 'Line (2*#MediaPlayerLucideScale#),(10.000*#MediaPlayerLucideScale#),(2*#MediaPlayerLucideScale#),(13.000*#MediaPlayerLucideScale#) | Extend LucideAudioLinesStroke',
+        Shape2 = 'Line (6*#MediaPlayerLucideScale#),(6.000*#MediaPlayerLucideScale#),(6*#MediaPlayerLucideScale#),(17.000*#MediaPlayerLucideScale#) | Extend LucideAudioLinesStroke',
+        Shape3 = 'Line (10*#MediaPlayerLucideScale#),(3.000*#MediaPlayerLucideScale#),(10*#MediaPlayerLucideScale#),(21.000*#MediaPlayerLucideScale#) | Extend LucideAudioLinesStroke',
+        Shape4 = 'Line (14*#MediaPlayerLucideScale#),(8.000*#MediaPlayerLucideScale#),(14*#MediaPlayerLucideScale#),(15.000*#MediaPlayerLucideScale#) | Extend LucideAudioLinesStroke',
+        Shape5 = 'Line (18*#MediaPlayerLucideScale#),(5.000*#MediaPlayerLucideScale#),(18*#MediaPlayerLucideScale#),(18.000*#MediaPlayerLucideScale#) | Extend LucideAudioLinesStroke',
+        Shape6 = 'Line (22*#MediaPlayerLucideScale#),(10.000*#MediaPlayerLucideScale#),(22*#MediaPlayerLucideScale#),(13.000*#MediaPlayerLucideScale#) | Extend LucideAudioLinesStroke'
+    }
+    local function fixture(variables, playing)
+        local values = { MeasureConnection = { value = 1 }, MeasureState = { value = playing and 1 or 2 },
+            MeasureTitle = { text = 'Synthetic fixture title' } }
+        local log, options = {}, {}
+        local mock = {}
+        function mock:GetMeasure(name)
+            local value = values[name]
+            assert(value ~= nil, 'Unexpected measure lookup: ' .. tostring(name))
+            return { GetValue = function() return value.value end, GetStringValue = function() return value.text end }
+        end
+        function mock:GetVariable(name, default)
+            local value = (variables or {})[name]
+            if value == nil then return default end
+            return value
+        end
+        function mock:Bang(...)
+            local args = { ... }
+            log[#log + 1] = args
+            if args[1] == '!SetOption' then
+                assert(args[2] == 'MeterPlayerIcon', 'Only the player icon takes options: ' .. tostring(args[2]))
+                options[args[3]] = args[4]
+            end
+        end
+        local env = setmetatable({ SKIN = mock }, { __index = _G })
+        local chunk = assert(loadfile(sourcePath))
+        setfenv(chunk, env)
+        chunk()
+        env.Initialize()
+        check(#log == 0, 'Initialize must not issue bangs')
+        local f = { env = env, values = values, options = options }
+        function f.play(on)
+            values.MeasureState.value = on and 1 or 2
+        end
+        -- One skin tick: returns the measure value and this tick's bangs.
+        function f.tick()
+            for index = #log, 1, -1 do log[index] = nil end
+            local result = env.Update()
+            local bangs = {}
+            for index, args in ipairs(log) do bangs[index] = args end
+            return result, bangs
+        end
+        return f
+    end
+    local function count(bangs, name, second, third)
+        local found = 0
+        for _, args in ipairs(bangs) do
+            if args[1] == name and (second == nil or args[2] == second) and (third == nil or args[3] == third) then
+                found = found + 1
+            end
+        end
+        return found
+    end
+    local function divider(bangs)
+        for _, args in ipairs(bangs) do
+            if args[1] == '!SetOption' and args[3] == 'UpdateDivider' then return args[4] end
+        end
+        return nil
+    end
+    local function shapes(f)
+        return table.concat({ f.options.Shape, f.options.Shape2, f.options.Shape3, f.options.Shape4,
+            f.options.Shape5, f.options.Shape6 }, '\n')
+    end
+    -- Two frames agree when every bar coordinate is within 0.0011 units.
+    local function same(a, b)
+        local first, second = {}, {}
+        for number in a:gmatch('%((%-?[%d%.]+)%*') do first[#first + 1] = tonumber(number) end
+        for number in b:gmatch('%((%-?[%d%.]+)%*') do second[#second + 1] = tonumber(number) end
+        if #first ~= #second or #first ~= 24 then return false end
+        for index = 1, #first do
+            if math.abs(first[index] - second[index]) > 0.0011 then return false end
+        end
+        return true
+    end
+    local function at_rest(f)
+        for key, value in pairs(rest) do
+            if f.options[key] ~= value then return false end
+        end
+        return true
+    end
+
+    scenario('first tick applies the face without forcing or painting', function()
+        local f = fixture()
+        local result, bangs = f.tick()
+        check(result == 0, 'Not playing reads 0')
+        check(count(bangs, '!HideMeter', 'MeterPlayerIcon') == 1 and count(bangs, '!ShowMeter', 'MeterMediaIcon') == 1,
+            'First tick shows Monitor Play')
+        check(divider(bangs) == '-1', 'First tick leaves the icon out of periodic updates')
+        check(at_rest(f), 'First tick writes the rest bars')
+        -- The load's own first update forces and paints every meter.
+        check(count(bangs, '!UpdateMeter') == 0 and count(bangs, '!Redraw') == 0,
+            'First tick must not paint meters before their first update')
+    end)
+
+    scenario('idle ticks issue nothing', function()
+        local f = fixture()
+        f.tick()
+        for _ = 1, 200 do
+            local result, bangs = f.tick()
+            check(result == 0 and #bangs == 0, 'An idle tick issued work')
+        end
+        f.values.MeasureConnection.value = 0
+        f.play(true)
+        local _, bangs = f.tick()
+        check(#bangs == 0, 'Disconnected Playing is not playing')
+        f.values.MeasureConnection.value = 1
+        f.values.MeasureTitle.text = ' \t'
+        _, bangs = f.tick()
+        check(#bangs == 0, 'A blank title is not playing')
+    end)
+
+    scenario('playback raises the divider and forces one update', function()
+        local f = fixture()
+        f.tick()
+        f.play(true)
+        local result, bangs = f.tick()
+        check(result == 1, 'Playing reads 1')
+        check(count(bangs, '!ShowMeter', 'MeterPlayerIcon') == 1 and count(bangs, '!HideMeter', 'MeterMediaIcon') == 1,
+            'Playback shows Audio Lines')
+        check(divider(bangs) == '1', 'Playback runs the icon every tick')
+        check(count(bangs, '!UpdateMeter', 'MeterPlayerIcon') == 1, 'A -1 icon needs one forced update')
+        check(count(bangs, '!Redraw') == 0, 'The icon\'s own update repaints this tick')
+        check(not at_rest(f), 'The first frame moves the bars')
+        local last = #bangs
+        check(bangs[last][1] == '!UpdateMeter', 'The forced update follows every option it must read')
+    end)
+
+    scenario('playing ticks only rewrite bars', function()
+        local f = fixture(nil, true)
+        f.tick()
+        for _ = 1, 60 do
+            local before = shapes(f)
+            local result, bangs = f.tick()
+            check(result == 1, 'Still playing')
+            check(count(bangs, '!SetOption') == #bangs and #bangs <= 6, 'A playing tick only sets bars')
+            check(divider(bangs) == nil, 'A playing tick never touches the divider')
+            check(shapes(f) ~= before, 'Every 20 fps tick moves the pulse')
+        end
+    end)
+
+    scenario('the pulse keeps its 1100 ms period at 50 ms', function()
+        local f = fixture(nil, true)
+        f.tick()
+        local frames = { shapes(f) }
+        for index = 2, 45 do
+            f.tick()
+            frames[index] = shapes(f)
+        end
+        -- 1100 ms / 50 ms = 22 ticks per cycle. Bars are written to three
+        -- decimals, so a full turn may differ by one unit in the last place.
+        check(same(frames[1], frames[23]) and same(frames[2], frames[24]) and same(frames[1], frames[45]),
+            'The wave does not repeat every 22 ticks')
+        check(not same(frames[1], frames[12]), 'Half a period must differ')
+    end)
+
+    scenario('stopping settles the bars, returns to -1 and paints once', function()
+        local f = fixture(nil, true)
+        f.tick()
+        f.tick()
+        f.play(false)
+        local result, bangs = f.tick()
+        check(result == 0, 'Paused reads 0')
+        check(count(bangs, '!HideMeter', 'MeterPlayerIcon') == 1 and count(bangs, '!ShowMeter', 'MeterMediaIcon') == 1,
+            'Stopping shows Monitor Play')
+        check(at_rest(f), 'Stopping settles the bars')
+        check(divider(bangs) == '-1', 'Stopping takes the icon out of periodic updates')
+        check(count(bangs, '!UpdateMeter', 'MeterPlayerIcon') == 1, 'The settle needs one forced update')
+        check(count(bangs, '!Redraw') == 1 and bangs[#bangs][1] == '!Redraw', 'Nothing else paints the settled icon')
+        for _ = 1, 40 do
+            local _, idle = f.tick()
+            check(#idle == 0, 'Idle after stopping issued work')
+        end
+        f.play(true)
+        _, bangs = f.tick()
+        check(divider(bangs) == '1' and count(bangs, '!UpdateMeter', 'MeterPlayerIcon') == 1, 'Resuming raises it again')
+    end)
+
+    scenario('playing at load needs no forced update', function()
+        local f = fixture(nil, true)
+        local result, bangs = f.tick()
+        check(result == 1 and divider(bangs) == '1', 'Load while playing runs the icon every tick')
+        check(count(bangs, '!UpdateMeter') == 0 and count(bangs, '!Redraw') == 0, 'The load update covers the first frame')
+        f.env.Initialize()
+        f.play(false)
+        result, bangs = f.tick()
+        check(result == 0 and divider(bangs) == '-1' and count(bangs, '!Redraw') == 0, 'Refresh restarts from a first tick')
+    end)
+
+    return passed, cases
+end
+
+return suite

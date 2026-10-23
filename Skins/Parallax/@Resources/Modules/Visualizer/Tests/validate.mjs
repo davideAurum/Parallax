@@ -259,15 +259,21 @@ for (const override of [-100, 0, 1, 33, 50, 100, 999999]) {
     assert.equal(interval, selected === 33 ? 33 : selected === 100 ? 100 : 50);
   }
 }
-// Plugin, numeric binding, and meter must share the slower volume cadence.
+// Plugin and both Calc bindings share the slower volume cadence: about once a
+// second, since every Win7Audio read is a full COM device enumeration
+// (VIS-04). Device status follows the device-name cadence, also about 1 s.
 // This is the configured schedule, not a benchmark of actual update timing.
-for (const [interval, expectedMs] of [[50, 250], [33, 264], [100, 300]]) {
+for (const [interval, expectedMs] of [[50, 1000], [33, 990], [100, 1000]]) {
   const vars = { VisualizerUpdateOverride: String(interval) };
   const divider = formula(volume.UpdateDivider, vars);
   assert.ok(Number.isInteger(divider) && divider > 0);
   assert.equal(divider * formula(rainmeter.Update, vars), expectedMs);
   assert.equal(formula(volumeValue.UpdateDivider, vars), divider);
   assert.equal(formula(volumeShown.UpdateDivider, vars), divider);
+  const status = sections.get('MeasureVisualizerDevice');
+  assert.equal(status.UpdateDivider, '#VisualizerDeviceNameDivider#');
+  assert.equal(formula(status.UpdateDivider, vars) * formula(rainmeter.Update, vars), expectedMs);
+  assert.equal(formula(status.UpdateDivider, vars), formula(sections.get('MeasureVisualizerDeviceName').UpdateDivider, vars));
 }
 const volumeError = new RegExp(volume.IfMatch);
 for (const [description, expected] of [
@@ -892,7 +898,7 @@ for (const selected of [-100, 0, 10, 20, 35, 50, 65, 80, 999]) {
   }
 }
 assert.equal(effective('MeterVisualizerDbMax').Text, '0 dB');
-console.log('PASS: includes; one output parent; 24 band/path mappings; setting bounds; volume numeric/mute/error/recovery states and 250/264/300ms schedules; four-state visibility; alternating gear/readout; context reconnect/unload; semantic typography/colors; ' + dimensions.length + ' title/width/scale/column/surface cases; ' + appearanceCases + ' height/gap/radius/baseline cases with ' + gridCases + ' pixel-centred grid lines and ' + pathCases + ' bounded cubic paths including six narrow amplitude edges; zero height/radius;54px axis clearance; nine sensitivity clamps/dB endpoints; one fixed container fill; refresh-only palette binding (ColorSuite.lua validates behavior separately); preserved device row.');
+console.log('PASS: includes; one output parent; 24 band/path mappings; setting bounds; volume numeric/mute/error/recovery states and 1000/990/1000ms volume and device-status schedules; four-state visibility; alternating gear/readout; context reconnect/unload; semantic typography/colors; ' + dimensions.length + ' title/width/scale/column/surface cases; ' + appearanceCases + ' height/gap/radius/baseline cases with ' + gridCases + ' pixel-centred grid lines and ' + pathCases + ' bounded cubic paths including six narrow amplitude edges; zero height/radius;54px axis clearance; nine sensitivity clamps/dB endpoints; one fixed container fill; refresh-only palette binding (ColorSuite.lua validates behavior separately); preserved device row.');
 console.table(dimensions.filter(row => row.border === (titleFocus ? '4' : '1') && row.Columns === 1 && [0.75, 1, 2].includes(row.Scale) && [180, 220].includes(row.ColumnWidth)));
 console.log('Checked ' + readFiles.length + ' files: ' + readFiles.map(p => relative(skinRoot, p)).join(', '));
 console.log('Offline checks do not verify Rainmeter rendering, audio capture, timing, DPI, persistence, or CPU cost.');

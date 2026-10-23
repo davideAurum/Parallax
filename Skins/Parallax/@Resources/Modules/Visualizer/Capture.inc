@@ -2,7 +2,8 @@
 ; Used by the standalone Visualizer and by Media's expanded spectrum drawer,
 ; which is the only Media state that includes this file. The host defines
 ; VisualizerCaptureDivider (1 standalone; Media maps the Visualizer cadence onto
-; its own 50 ms tick) and the MeterVisualizerUnavailable overlay plus the
+; its own 50 ms tick), VisualizerDeviceNameDivider (about one second, for the
+; device status) and the MeterVisualizerUnavailable overlay plus the
 ; VisualizerSpectrum meter group that MeasureVisualizerState drives.
 
 ; Rainmeter's bundled AudioLevel: one loopback capture / FFT parent.
@@ -25,12 +26,16 @@ RMSDecay=500
 RMSGain=1
 UpdateDivider=#VisualizerCaptureDivider#
 
+; Endpoint state (IMMDevice::GetState) about once a second, the host's
+; device-name cadence, rather than every capture tick: the state Calc keeps
+; its last value between reads, and AudioLevel still drops a failed device
+; through its own buffer errors (docs/PERFORMANCE-REVIEW.md VIS-04).
 [MeasureVisualizerDevice]
 Measure=Plugin
 Plugin=AudioLevel
 Parent=MeasureVisualizerAudio
 Type=DeviceStatus
-UpdateDivider=#VisualizerCaptureDivider#
+UpdateDivider=#VisualizerDeviceNameDivider#
 
 [MeasureVisualizerFormat]
 Measure=Plugin

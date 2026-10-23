@@ -2597,11 +2597,15 @@ class SkinContractTests(unittest.TestCase):
                 self.assertEqual(len(capture),1+len(CAPTURE_CHILDREN)+len(OUTPUT_ROW_CHILDREN))
                 for name in CAPTURE_CHILDREN+OUTPUT_ROW_CHILDREN:
                     self.assertEqual(sections[name]['Parent'],'MeasureVisualizerAudio')
-                # The output row: device name once a second, list on load only,
-                # Win7Audio volume about every 250 ms on Media's 50 ms tick.
+                # The output row: device name and status once a second, list on
+                # load only, and Win7Audio volume once a second on Media's 50 ms
+                # tick: every Win7Audio read is a full COM enumeration (VIS-04).
                 self.assertEqual(val(sections['MeasureVisualizerDeviceName']['UpdateDivider']),20)
                 self.assertEqual(sections['MeasureVisualizerDeviceList']['UpdateDivider'],'-1')
-                self.assertEqual(val(sections['MeasureVisualizerVolume']['UpdateDivider']),5)
+                self.assertEqual(val(sections['MeasureVisualizerVolume']['UpdateDivider']),20)
+                self.assertEqual(sections['MeasureVisualizerDevice']['UpdateDivider'],'#VisualizerDeviceNameDivider#')
+                for name in ('MeasureVisualizerVolumeValue','MeasureVisualizerVolumeShown'):
+                    self.assertEqual(sections[name]['UpdateDivider'],'#VisualizerVolumeDivider#',name)
                 for key in ('LeftMouseUpAction','MouseScrollDownAction','MouseScrollUpAction'):
                     action=sections['MeterVisualizerDeviceHit'][key]
                     self.assertRegex(action,r'^\[!CommandMeasure MeasureVisualizerVolume "Toggle(Next|Previous)"\]')
@@ -2612,7 +2616,7 @@ class SkinContractTests(unittest.TestCase):
                 self.assertEqual(sections['MeasureVisualizerState']['Measure'],'Calc')
                 # Every capture measure runs on Media's 50 ms tick at the
                 # Visualizer's default 50 ms cadence.
-                for name in [name for name in capture if name not in OUTPUT_ROW_CHILDREN]+['MeasureVisualizerState']:
+                for name in [name for name in capture if name not in OUTPUT_ROW_CHILDREN+('MeasureVisualizerDevice',)]+['MeasureVisualizerState']:
                     self.assertEqual(sections[name]['UpdateDivider'],'#VisualizerCaptureDivider#',name)
                 self.assertEqual(val('#VisualizerCaptureDivider#'),1)
                 # The mask is out of periodic updates until there is signal: the

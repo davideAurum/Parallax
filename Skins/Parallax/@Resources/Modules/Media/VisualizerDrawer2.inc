@@ -15,9 +15,10 @@ VisualizerPlotInnerWidth=(#MediaVisualizerPlotWidth#-2)
 VisualizerPlotInnerHeight=(#MediaVisualizerPlotHeight#-2)
 VisualizerSpectrumX=(#MediaVisualizerPlotX#+1)
 VisualizerSpectrumY=(#MediaVisualizerPlotY#+1)
-; Output-row cadence on Media's tick: volume about every 250 ms, the device
-; name every second, as in the standalone at its 50 ms cadence.
-VisualizerVolumeDivider=(Max(1,Round(250/#MediaAnimationInterval#)))
+; Output-row cadence on Media's tick: Win7Audio volume and the device name
+; and status once a second each, as in the standalone. Every Win7Audio read
+; is a full COM device enumeration (docs/PERFORMANCE-REVIEW.md VIS-04).
+VisualizerVolumeDivider=(Max(1,Round(1000/#MediaAnimationInterval#)))
 VisualizerDeviceNameDivider=(Max(1,Round(1000/#MediaAnimationInterval#)))
 VisualizerVolumeAvailable=0
 

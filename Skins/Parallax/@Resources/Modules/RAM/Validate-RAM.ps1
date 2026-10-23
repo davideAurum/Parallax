@@ -154,6 +154,7 @@ Assert-RAM ($settingsScript -notmatch '!Refresh|MeasureRAMInfo|MeasureRAMPage|Me
 Assert-RAM ($displayScript -notmatch '!Refresh|!WriteKeyValue|ToggleMenu|RAMSettingsMenu') 'Display controller must not persist preferences or own an overlay.'
 Assert-RAM ($displayScript.Contains("SKIN:Bang('!CommandMeasure', 'MeasureRAMPageView', 'Display()')")) 'Unit changes must reformat the cached paging-file reading.'
 Assert-RAM ($displayScript -notmatch 'MeasureRAMPageBootstrap|MeasureRAMPageHost|Start\(\)|io\.open') 'Settings-driven display must not launch or query the PAGE provider.'
+Assert-RAM ($displayScript.Contains("SKIN:Bang('!SetOption', name, 'UpdateDivider', visible and '1' or '-1')") -and $displayScript -match "UpdateDivider', visible and '1' or '-1'\)\r?\n\s*SKIN:Bang\('!UpdateMeter', name\)") 'The hidden RAM unit meter must idle, and each divider change must be forced.'
 Assert-RAM ($displayScript -match 'local function coverRetired\(\)' -and $displayScript -match "GetOption\('UpdateDivider'" -and $displayScript -match 'name == cover and retired') 'Showing history again must not re-show a retired zero-width cover.'
 $pageDisplay = [regex]::Match($pageScript,'(?s)function Display\([^)]*\)(.*?)\nlocal function cleanup').Groups[1].Value
 $pageProviderDisplay = $pageDisplay.Replace("SKIN:Bang('!UpdateMeasure', 'MeasureRAMPageRatio')", '')

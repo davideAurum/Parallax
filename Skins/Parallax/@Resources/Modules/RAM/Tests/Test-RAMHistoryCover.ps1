@@ -6,7 +6,8 @@ RAM skin at a fast test cadence, with every provider (including physical
 memory) replaced by constant Calc fixtures, so the plot fills in seconds and
 draws deterministically. HistoryCoverNative.lua asserts the cover hides and
 idles exactly when the plot is full, the count stops at ContentWidth, and
-showing history again keeps the retired cover hidden.
+showing history again keeps the retired cover hidden. It then switches units
+to MB, checking that only the shown unit meter keeps updating.
 
 -CompareSkinRoot optionally names another Skins\Parallax tree (for example an
 exported pre-change commit). Its RAM copy runs beside the current one with the

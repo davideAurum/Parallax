@@ -736,6 +736,7 @@ local function run()
             check(tonumber(item:GetOption('Scale')) == (unit == 'GiB' and 1000000000 or 1000000), 'Decimal byte divisor and suffix mismatch')
             local expectedHidden = (unit == 'GiB') and useMiB or (1 - useMiB)
             check(number(item:GetOption('Hidden')) == expectedHidden, 'Wrong unit meter visible')
+            check(number(item:GetOption('UpdateDivider')) == (expectedHidden == 1 and -1 or 1), 'Only the shown unit meter may update every second')
             equalOption(item, 'ClipString', '1')
         end
     end

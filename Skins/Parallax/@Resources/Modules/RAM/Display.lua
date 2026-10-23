@@ -53,8 +53,13 @@ function ApplyPreferences()
         for _, kind in ipairs({'Used'}) do
             for _, unit in ipairs({'GiB','MiB'}) do
                 local name = 'MeterRAM'..kind..unit
-                show(name, (unit == 'MiB') == (values.RAMUseMiB == 1))
+                local visible = (unit == 'MiB') == (values.RAMUseMiB == 1)
+                show(name, visible)
                 SKIN:Bang('!SetOption', name, 'NumOfDecimals', tostring(values.RAMDecimals))
+                -- Only the shown unit samples every update; the hidden one idles
+                -- instead of re-reading its dynamic options each second. The
+                -- forced update below applies the divider and draws current values.
+                SKIN:Bang('!SetOption', name, 'UpdateDivider', visible and '1' or '-1')
                 SKIN:Bang('!UpdateMeter', name)
             end
         end

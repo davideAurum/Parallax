@@ -1,8 +1,9 @@
 -- Test-only: runs in a copied RAM skin owned by Test-RAMHistoryCover.ps1.
 -- It follows the startup history cover from load past a full plot at a fast
--- test cadence. Role=New asserts the production retirement; Role=Old (an
--- optional pre-change copy) performs the same actions so both windows can be
--- compared pixel for pixel. It writes only its own report and progress files.
+-- test cadence, then switches units to MB. Role=New asserts the production
+-- behaviour (cover retirement, idle hidden unit meter); Role=Old (an optional
+-- pre-change copy) performs the same actions so both windows can be compared
+-- pixel for pixel. It writes only its own report and progress files.
 local ticks, done, checks = 0, false, 0
 local role, width, fullTick, probe
 local coverName, countName = 'MeterRAMHistoryUncollected', 'MeasureRAMHistorySamples'
@@ -99,6 +100,14 @@ local function step()
                 else check(not hidden(name), 'History on after full must show ' .. name) end
             end
             note('history toggled off/on after full; retired cover stayed hidden: ' .. tostring(hidden(coverName)))
+        elseif after == 10 then
+            -- Switch units so the final capture also covers newly shown
+            -- event-only and idle meters (RAM, PAGE and process values in MB).
+            SKIN:Bang('!SetVariable', 'RAMUseMiB', '1')
+            SKIN:Bang('!UpdateMeasure', 'MeasureRAMSettings')
+            check(not hidden('MeterRAMUsedMiB') and hidden('MeterRAMUsedGiB'), 'Units switch did not show the MB reading')
+            strict(divider('MeterRAMUsedMiB') == 1 and divider('MeterRAMUsedGiB') == -1, 'Only the shown unit meter may update every second')
+            note('units switched to MB')
         elseif after == 14 then
             local report = string.format('PASS role=%s: %d checks; ContentWidth=%g; full at tick %d; %s',
                 role, checks, width, fullTick, table.concat(log, '; '))

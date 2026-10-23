@@ -15,6 +15,9 @@ $script:SourceManager = $null
 $script:SourcePendingTask = $null
 $script:SourceAsTask = $null
 $script:SourceStrictUtf8 = New-Object Text.UTF8Encoding($false, $true)
+# The last root string accepted by Resolve-SourceDataRoot and its resolved form.
+$script:SourceRootInput = $null
+$script:SourceRoot = $null
 
 function Get-SourceUnixTime { [long][Math]::Floor(([DateTime]::UtcNow - [DateTime]'1970-01-01').TotalSeconds) }
 
@@ -38,19 +41,36 @@ function Resolve-SourceDataRoot {
         throw 'Source storage must use its private default directory or a dedicated temp directory.'
     }
     if ($resolved -match '(?i)(^|[\\/])skins([\\/]|$)') { throw 'Source storage cannot be inside skins.' }
-    $probe = $resolved
+    Assert-SourceOrdinaryAncestors $resolved
+    return $resolved
+}
+
+# Anti-junction guard: every existing component of $Path, up to its drive root,
+# must be an ordinary directory, never a file, junction or symbolic link. .NET
+# calls only, because it runs before every runtime-file write.
+function Assert-SourceOrdinaryAncestors {
+    param([string]$Path)
+    $probe = $Path
     while ($probe) {
-        if (Test-Path -LiteralPath $probe) {
-            $item = Get-Item -LiteralPath $probe -Force -ErrorAction Stop
-            if (-not $item.PSIsContainer -or ($item.Attributes -band [IO.FileAttributes]::ReparsePoint)) {
-                throw 'Source storage ancestors must be ordinary directories.'
-            }
+        if ([IO.File]::Exists($probe) -or ([IO.Directory]::Exists($probe) -and
+            ([IO.File]::GetAttributes($probe) -band [IO.FileAttributes]::ReparsePoint))) {
+            throw 'Source storage ancestors must be ordinary directories.'
         }
         $parent = [IO.Path]::GetDirectoryName($probe)
         if ($parent -eq $probe) { break }
         $probe = $parent
     }
-    return $resolved
+}
+
+# The same guard for one runtime file: its directory chain, and the file itself
+# when present, which must be an ordinary file.
+function Assert-SourceRuntimePath {
+    param([string]$Path)
+    Assert-SourceOrdinaryAncestors ([IO.Path]::GetDirectoryName($Path))
+    if ([IO.Directory]::Exists($Path) -or ([IO.File]::Exists($Path) -and
+        ([IO.File]::GetAttributes($Path) -band [IO.FileAttributes]::ReparsePoint))) {
+        throw 'Source runtime files must be ordinary files.'
+    }
 }
 
 function Set-SourcePrivateFile {
@@ -85,14 +105,15 @@ function Initialize-SourceStorage {
 
 function Get-SourceRuntimeFile {
     param([string]$Root, [ValidateSet('source.snapshot','stop.request','enabled.intent')][string]$Name)
-    $root = Resolve-SourceDataRoot $Root
-    $path = Join-Path $root $Name
-    if (Test-Path -LiteralPath $path) {
-        $item = Get-Item -LiteralPath $path -Force -ErrorAction Stop
-        if ($item.PSIsContainer -or ($item.Attributes -band [IO.FileAttributes]::ReparsePoint)) {
-            throw 'Source runtime files must be ordinary files.'
-        }
+    # The root string (location, length, characters) is validated once per value;
+    # it cannot change. The file-system guard runs on every call, so every write
+    # still rechecks the whole directory chain for junctions.
+    if (-not [string]::Equals($Root, $script:SourceRootInput, [StringComparison]::Ordinal)) {
+        $resolved = Resolve-SourceDataRoot $Root
+        $script:SourceRootInput = $Root; $script:SourceRoot = $resolved
     }
+    $path = [IO.Path]::Combine($script:SourceRoot, $Name)
+    Assert-SourceRuntimePath $path
     return $path
 }
 
@@ -300,9 +321,17 @@ function Get-SourceCollection {
     finally { $timer.Stop() }
 }
 
+# A plain existence check on a root already validated by Resolve-SourceDataRoot
+# (every caller passes one). Reading the marker writes nothing, so it needs no
+# junction guard; any entry named stop.request, file or not, counts as Stop.
+function Test-SourceStopPath {
+    param([string]$Path)
+    [IO.File]::Exists($Path) -or [IO.Directory]::Exists($Path)
+}
+
 function Test-SourceStop {
     param([string]$Root)
-    [IO.File]::Exists((Get-SourceRuntimeFile $Root 'stop.request'))
+    Test-SourceStopPath ([IO.Path]::Combine($Root, 'stop.request'))
 }
 
 function Test-SourceEnabledIntent {
@@ -349,14 +378,17 @@ function Invoke-SourceRun {
     try {
         $owned = Enter-SourceMutex $mutex
         if (-not $owned) { return $false }
+        # The root was validated by the caller; the stop marker's path is fixed
+        # for the whole run, so polling it is a single .NET existence check.
+        $stopPath = [IO.Path]::Combine($Root, 'stop.request')
         # Only an explicit Start clears a previous Stop. A delayed child must
         # preserve a Stop that completed after the launch was requested.
-        while (-not (Test-SourceStop $Root)) {
+        while (-not (Test-SourceStopPath $stopPath)) {
             $cycle = [Diagnostics.Stopwatch]::StartNew()
             try { $snapshot = & $Collector } catch { $snapshot = New-SourceSnapshot 'unavailable' }
-            if (Test-SourceStop $Root) { break }
+            if (Test-SourceStopPath $stopPath) { break }
             Publish-SourceSnapshot $Root $snapshot
-            while ($cycle.ElapsedMilliseconds -lt 2000 -and -not (Test-SourceStop $Root)) {
+            while ($cycle.ElapsedMilliseconds -lt 2000 -and -not (Test-SourceStopPath $stopPath)) {
                 # The launching Rainmeter is gone. Exit without a 'stopped'
                 # snapshot: resume intent is unchanged, and the next Rainmeter's
                 # skin load starts a fresh worker.

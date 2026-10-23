@@ -178,6 +178,34 @@ Assert-Test ($fileSecurity.AreAccessRulesProtected -and $fileRules.Count -eq 1 -
 Assert-Throws { Write-SourceAtomicFile $root 'source.snapshot' ([string][char]0x00E9) } 'Atomic writer permits non-ASCII protocol.'
 Assert-Throws { Write-SourceAtomicFile $root 'source.snapshot' ('x'*131073) } 'Atomic writer permits oversized protocol.'
 
+# The root string is validated once, but every write still rechecks the whole
+# directory chain: a junction swapped in after validation is never written through.
+$swapParent=Join-Path ([IO.Path]::GetTempPath()) ('Parallax-SourceProvider-swap-'+[Guid]::NewGuid().ToString('N'))
+$swapRoot=Initialize-SourceStorage (Join-Path $swapParent 'Source')
+Publish-SourceSnapshot $swapRoot (New-SourceSnapshot 'unavailable')
+Assert-Test ($script:SourceRootInput -eq $swapRoot) 'Validated root was not cached for later writes.'
+$swapMoved=$swapParent+'-moved'
+[IO.Directory]::Move($swapParent,$swapMoved)
+$null=New-Item -ItemType Junction -Path $swapParent -Target $swapMoved
+try {
+    Assert-Throws { Publish-SourceSnapshot $swapRoot (New-SourceSnapshot 'stopped') } 'Snapshot write followed a junction swapped into a validated root.'
+    Assert-Throws { Write-SourceAtomicFile $swapRoot 'stop.request' "stop`n" } 'Stop write followed a junction swapped into a validated root.'
+    Assert-Throws { Set-SourceEnabledIntent $swapRoot $true } 'Intent write followed a junction swapped into a validated root.'
+    $swapTarget=Join-Path $swapMoved 'Source'
+    Assert-Test ([IO.File]::ReadAllText((Join-Path $swapTarget 'source.snapshot')) -match '(?m)^state=unavailable$') 'Junction target snapshot was replaced.'
+    Assert-Test (-not [IO.File]::Exists((Join-Path $swapTarget 'stop.request')) -and -not [IO.File]::Exists((Join-Path $swapTarget 'enabled.intent'))) 'Junction target received lifecycle files.'
+    Assert-Test (@(Get-ChildItem -LiteralPath $swapTarget -Filter '*.tmp').Count -eq 0) 'Rejected writes left temporary files behind the junction.'
+} finally { [IO.Directory]::Delete($swapParent) }
+# Any entry named stop.request is a Stop for the plain existence check, so a
+# directory there ends a worker before it collects instead of being ignored.
+$dirStopRoot=Initialize-SourceStorage (Join-Path ([IO.Path]::GetTempPath()) ('Parallax-SourceProvider-dirstop-'+[Guid]::NewGuid().ToString('N')))
+$null=[IO.Directory]::CreateDirectory((Join-Path $dirStopRoot 'stop.request'))
+Assert-Test (Test-SourceStop $dirStopRoot) 'A directory named stop.request was not treated as Stop.'
+$dirStopCalls=[pscustomobject]@{Count=0}
+Assert-Test (Invoke-SourceRun $dirStopRoot { $dirStopCalls.Count++; New-SourceSnapshot 'unavailable' }.GetNewClosure()) 'Worker did not exit cleanly on a directory stop marker.'
+Assert-Test ($dirStopCalls.Count -eq 0) 'Worker collected despite a directory stop marker.'
+Assert-Throws { Write-SourceAtomicFile $dirStopRoot 'stop.request' "stop`n" } 'Stop writer replaced a directory.'
+
 $script:SourceTestCollections=0
 $collector={ $script:SourceTestCollections++; New-SourceSnapshot 'unavailable' }
 Assert-Test (Invoke-SourceOnce $root $collector) 'Once could not publish a synthetic observation.'

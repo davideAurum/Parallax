@@ -209,7 +209,7 @@ Phase B package B2 of the [performance review](../PERFORMANCE-REVIEW.md), theme 
 - CPU Settings now refreshes CPU Meter when the list is toggled, as it does for the two rates, so the include follows the choice. That restarts CPU history, which a live toggle did not; Process count and every other setting still apply without a refresh.
 - `CPU.lua` checks at load whether the slots exist. If the list is shown without them (only possible when the variable changes without the refresh), it binds nothing, so no bang names an absent measure, and the state line reads `Refresh CPU Meter to load processes`.
 
-**Expected effect.** None at the default (`CPUShowProcesses=1`): the same ten measures load in the same order. With the list hidden, CPU Meter no longer registers the Process category. The Process reader stops only if no other loaded measure names it; Memory Meter's process ranks do while Memory Meter is loaded. Measured gains are left to step 3; the verifier's estimate for CPU alone is small, because the reader is shared.
+**Expected effect.** None at the default (`CPUShowProcesses=1`): the same ten measures load in the same order. With the list hidden, CPU Meter no longer registers the Process category. The Process reader stops only if no other loaded measure names it; Memory Meter's process ranks do while Memory Meter is loaded with `RAMShowProcesses=1` (see [RAM](RAM.md#top-processes)). Measured gains are left to step 3; the verifier's estimate for CPU alone is small, because the reader is shared.
 
 | Check | Result |
 | --- | --- |

@@ -79,7 +79,12 @@ foreach ($role in $copies.Keys) {
     $caseName = 'RAMCover' + $role
     $caseRoot = Join-Path $skinRoot $caseName
     $copied = @{}
-    foreach ($relative in $relatives) {
+    # Since 2026-10-23 the five process ranks are a load-time include; an
+    # older -CompareSkinRoot tree still keeps them in Measures.inc.
+    $rankFile = '@Resources\Modules\RAM\ProcessMeasures1.inc'
+    $caseRelatives = @($relatives)
+    if (Test-Path -LiteralPath (Join-Path $copies[$role] $rankFile) -PathType Leaf) { $caseRelatives += $rankFile } else { $rankFile = '@Resources\Modules\RAM\Measures.inc' }
+    foreach ($relative in $caseRelatives) {
         $text = [IO.File]::ReadAllText((Join-Path $copies[$role] $relative))
         $copied[$relative] = $text.Replace('ParallaxRAMApply', ($caseName + 'Apply')).Replace('ParallaxRAM', $caseName).Replace('"Parallax\RAM\Settings"', ('"' + $caseName + '\RAM\Settings"'))
     }
@@ -107,12 +112,14 @@ foreach ($role in $copies.Keys) {
     $measures = Set-Section $measures 'MeasureRAMInfo' "[MeasureRAMInfo]`nMeasure=Calc`nFormula=1`nSubstitute=`"1`":`"$infoFixture`"`nUpdateDivider=1`n`n"
     $names = @('Fixture Browser','Fixture Renderer','Fixture Editor','Fixture Explorer','Fixture Service')
     $bytes = @(4500000000,3000000000,1500000000,750000000,125000000)
-    foreach ($rank in 1..5) {
-        $measures = Set-Section $measures "MeasureRAMProcess$rank" "[MeasureRAMProcess$rank]`nMeasure=Calc`nFormula=$($bytes[$rank-1])`nSubstitute=`"$($bytes[$rank-1])`":`"$($names[$rank-1])`"`nUpdateDivider=1`n`n"
-    }
-    if ($measures -match '(?im)^(Plugin=(RunCommand|UsageMonitor)|Measure=PhysicalMemory)\s*$') { throw 'Fixture copy still contains a provider; refusing launch.' }
     $copied['@Resources\Modules\RAM\Measures.inc'] = $measures
-    foreach ($relative in $relatives) { Write-RunText (Join-Path $caseRoot $relative) $copied[$relative] }
+    $ranks = $copied[$rankFile]
+    foreach ($rank in 1..5) {
+        $ranks = Set-Section $ranks "MeasureRAMProcess$rank" "[MeasureRAMProcess$rank]`nMeasure=Calc`nFormula=$($bytes[$rank-1])`nSubstitute=`"$($bytes[$rank-1])`":`"$($names[$rank-1])`"`nUpdateDivider=1`n`n"
+    }
+    $copied[$rankFile] = $ranks
+    if (($copied['@Resources\Modules\RAM\Measures.inc'] + $ranks) -match '(?im)^(Plugin=(RunCommand|UsageMonitor)|Measure=PhysicalMemory)\s*$') { throw 'Fixture copy still contains a provider; refusing launch.' }
+    foreach ($relative in $caseRelatives) { Write-RunText (Join-Path $caseRoot $relative) $copied[$relative] }
     Write-RunText $fixturePath $fixtureSource
     $harnessPath = Join-Path $caseRoot 'HistoryCoverNative.lua'
     Write-RunText $harnessPath $harnessSource

@@ -1,5 +1,8 @@
 -- Read only UsageMonitor's cached ranks. No shell launches or file writes.
 local model, samples, lastDisplay, waitUntil, shown, texts
+-- RAMShowProcesses=0 loads ProcessMeasures0.inc: no rank measure exists, so
+-- the table states that it is off instead of waiting for data.
+local off
 
 function Initialize()
     model = dofile(SKIN:GetVariable('@') .. 'Modules\\RAM\\ProcessModel.lua')
@@ -10,6 +13,7 @@ function Initialize()
     -- UsageMonitor's worker needs about a second after load before its first
     -- ranking; keep the startup label briefly rather than report no data.
     waitUntil = os.time() + 3
+    off = SKIN:GetMeasure('MeasureRAMProcess1') == nil
 end
 
 local function apply(meter, visible, text, changed)
@@ -27,7 +31,8 @@ end
 function Display(immediate)
     if not model then return end
     local result = model.Format(samples, SKIN:GetVariable('RAMUseMiB'), SKIN:GetVariable('RAMDecimals'))
-    if #result.rows == 0 and os.time() < waitUntil then result.state = 'Waiting for process data...' end
+    if off then result.state = 'Processes off'
+    elseif #result.rows == 0 and os.time() < waitUntil then result.state = 'Waiting for process data...' end
     -- Avoid unchanged meter updates while preserving periodic provider reads.
     local parts = {result.state}
     for _, row in ipairs(result.rows) do
@@ -53,6 +58,12 @@ function Display(immediate)
 end
 
 function Update()
+    if off then
+        -- Nothing to read: show the off state once, then stop updating.
+        Display(false)
+        SKIN:Bang('!SetOption', 'MeasureRAMProcessView', 'UpdateDivider', '-1')
+        return 0
+    end
     samples = {}
     for rank=1,5 do
         local measure = SKIN:GetMeasure('MeasureRAMProcess'..rank)

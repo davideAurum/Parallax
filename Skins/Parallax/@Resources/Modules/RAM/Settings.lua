@@ -9,7 +9,8 @@ local choices = {
     RAMPercentDecimals = {default=0, count=3, kind='number', meter='MeterRAMSettingsPercentDecimals'},
     RAMShowBar = {default=1, count=2, kind='toggle', meter='MeterRAMSettingsBar'},
     RAMShowPageBar = {default=1, count=2, kind='toggle', meter='MeterRAMSettingsPageBar'},
-    RAMShowHistory = {default=1, count=2, kind='toggle', meter='MeterRAMSettingsHistory'}
+    RAMShowHistory = {default=1, count=2, kind='toggle', meter='MeterRAMSettingsHistory'},
+    RAMShowProcesses = {default=1, count=2, kind='toggle', meter='MeterRAMSettingsProcesses'}
 }
 
 local function finite(value)
@@ -54,8 +55,15 @@ local function save(key, value)
     SKIN:Bang('!SetVariable', key, tostring(value))
     SKIN:Bang('!WriteKeyValue', 'Variables', key, tostring(value), userFile)
     SKIN:Bang('!SetVariableGroup', key, tostring(value), 'ParallaxRAM')
-    -- Reformat/apply cached main values without refresh, resampling or history loss.
-    SKIN:Bang('!UpdateMeasureGroup', 'ParallaxRAMApply', '*')
+    if key == 'RAMShowProcesses' then
+        -- The table's UsageMonitor ranks are an include chosen at load (a
+        -- loaded one keeps the Process reader running even while disabled),
+        -- so only this choice reloads Memory Meter, restarting its history.
+        SKIN:Bang('!Refresh', 'Parallax\\RAM')
+    else
+        -- Reformat/apply cached main values without refresh, resampling or history loss.
+        SKIN:Bang('!UpdateMeasureGroup', 'ParallaxRAMApply', '*')
+    end
     hint = defaultHint
     render()
     return true

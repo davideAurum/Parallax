@@ -80,58 +80,13 @@ Measure=Script
 ScriptFile=#@#Modules\RAM\Info.lua
 UpdateDivider=1
 
-; Bundled UsageMonitor ranks private resident memory in bytes. All five
-; measures share its Process category worker, which samples independently at 1 Hz.
-
-[MeasureRAMProcess1]
-Measure=Plugin
-Plugin=UsageMonitor
-Alias=RAM
-Index=1
-Rollup=1
-Percent=0
-Blacklist=_Total|Idle
-UpdateDivider=1
-
-[MeasureRAMProcess2]
-Measure=Plugin
-Plugin=UsageMonitor
-Alias=RAM
-Index=2
-Rollup=1
-Percent=0
-Blacklist=_Total|Idle
-UpdateDivider=1
-
-[MeasureRAMProcess3]
-Measure=Plugin
-Plugin=UsageMonitor
-Alias=RAM
-Index=3
-Rollup=1
-Percent=0
-Blacklist=_Total|Idle
-UpdateDivider=1
-
-[MeasureRAMProcess4]
-Measure=Plugin
-Plugin=UsageMonitor
-Alias=RAM
-Index=4
-Rollup=1
-Percent=0
-Blacklist=_Total|Idle
-UpdateDivider=1
-
-[MeasureRAMProcess5]
-Measure=Plugin
-Plugin=UsageMonitor
-Alias=RAM
-Index=5
-Rollup=1
-Percent=0
-Blacklist=_Total|Idle
-UpdateDivider=1
+; The top-process table's five UsageMonitor ranks, or a comment-only stub
+; while RAMShowProcesses=0 (ProcessMeasures0.inc). UsageMonitor reads a whole
+; counter category once a second for as long as any loaded measure names it,
+; Disabled or not, so the opt-out leaves the measures out. Changing
+; RAMShowProcesses refreshes Memory Meter to swap them.
+[RAMProcessMeasureInclude]
+@Include10=#@#Modules\RAM\ProcessMeasures#RAMShowProcesses#.inc
 
 ; Runs after the ranked measures; preferences reformat its cached sample only.
 [MeasureRAMProcessView]

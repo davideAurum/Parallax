@@ -200,10 +200,12 @@ assert.equal(spectrumFill.UpdateDivider, '-1');
 assert.equal(spectrumFill.Shape, 'Rectangle 0,0,#VisualizerPlotInnerWidth#,#VisualizerBarHeight# | Fill Color #MediaColor# | StrokeWidth 0');
 assert.equal(spectrumFill.SpectrumGradient, '180 | #AccentColor# ; 0 | #AccentColor2# ; 1');
 assert.deepEqual(meters.filter(([, meter]) => meter.Container).map(([name]) => name), ['MeterVisualizerFill']);
+// The mask can repaint once capture has signal, so the idle stand-down's
+// freeze group covers it too (tools/tests/test_idle_freeze_contract.py); the
+// contained fill never repaints on its own and stays in VisualizerSpectrum only.
+assert.equal(spectrumMask.Group, 'VisualizerSpectrum|ParallaxIdleFreeze');
+assert.equal(spectrumFill.Group, 'VisualizerSpectrum');
 for (const meter of [spectrumMask, spectrumFill]) {
-  // The mask can repaint once capture has signal, so the idle stand-down's
-  // freeze group covers it too (tools/tests/test_idle_freeze_contract.py).
-  assert.ok(meter.Group.split('|').map((group) => group.trim()).includes('VisualizerSpectrum'));
   assert.equal(meter.Hidden, '1');
   assert.equal(meter.W, '#VisualizerPlotInnerWidth#');
   assert.equal(meter.H, '#VisualizerPlotInnerHeight#');

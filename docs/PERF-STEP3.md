@@ -109,7 +109,7 @@ powershell -File tools\Invoke-PerfMatrix.ps1 -BuildRoot C:\pxab -Prefix s3 -Scen
 - **Revert:** `-Tip <commit> -Revert <commits or fix ids>`.
 - **Role, with `-Manifest`:**
   - `baseline`: the baseline itself.
-  - `plus -Fix <unit>`: baseline + the unit's commits, in history order.
+  - `plus -Fix <unit>`: baseline + the unit's commits, in manifest order (fix order, then each fix's commits as listed). In the A2 unit, for example, A2-2's fixup `656d61f` is applied right after `cf6454d`, before the A2-5 and A2-6 commits it follows in history.
   - `all`: the tip.
   - `minus -Fix <unit>`: the tip with the unit reverted, newest commit first.
 - **`-Set -Fix <units> -Prefix s3`:** makes `s3-base`, `s3-all`, `s3-p-<unit>` and `s3-m-<unit>` (`+` becomes `_` in names).

@@ -1,10 +1,16 @@
 -- Parallax\Idle coordinator: the suite's one input-idle signal.
 --
--- Any SysInfo measure makes its whole skin poll Windows' network interface
--- table on every tick (Rainmeter 4.5.28 Skin.cpp, MeasureNet::UpdateIFTable),
--- so the only IDLE_TIME measure lives here, in a hidden config on a slow tick
--- (docs/PERFORMANCE-REVIEW.md T6). Consumers start this config when they need
--- it (@Resources\Idle\Link.lua) and it unloads itself when nothing does.
+-- The only input-idle source is the SysInfo IDLE_TIME measure, and Rainmeter
+-- 4.5.28 reads Windows' network interface table (MeasureNet::UpdateIFTable,
+-- GetIfTable2) before every update of a skin that holds any SysInfo measure,
+-- and for every !UpdateMeasure of one (Skin.cpp Update, UpdateMeasure): about
+-- 2 ms and 30 context switches of Rainmeter's UI thread per reading on the
+-- owner's PC (docs/PERFORMANCE-REVIEW.md T6 and phase C). So the measure lives
+-- in this hidden config, and the config never runs Rainmeter's own skin update
+-- (Idle.ini Update=-1): its tick is a self-rearming [!Delay] chain started by
+-- Start(), and the measure is updated only when a reading could change what is
+-- broadcast (Reads, below). Consumers start this config when they need it
+-- (@Resources\Idle\Link.lua) and it unloads itself when nothing does.
 --
 -- Protocol, sent to the Parallax group:
 --   !SetVariableGroup ParallaxIdleAway  0|1        Parallax
@@ -19,6 +25,18 @@
 -- minutes without input (User\Settings.inc IdlePauseMinutes 5, 10 or 30;
 -- anything else is Off): the idle stand-down (@Resources\Idle\StandDown.lua).
 --
+-- Reads. A tick reads the measure while away or paused (input is seen at the
+-- next tick), at Start(), on every heartbeat tick and after a tick gap.
+-- Otherwise it skips the reading while the last reading, plus the time since
+-- (the larger of os.time() and os.clock() differences), plus 3 s for rounding,
+-- is still short of the nearest threshold (away, or the Idle pause): idle time
+-- can only grow by the time that passed, so the state is still "not away, not
+-- paused" and the broadcasts are the ones a reading on every tick would send,
+-- at the same ticks. While you are at the computer that is one reading a
+-- minute instead of one every 2 s. A test idle file is read on every tick (its
+-- values may jump), and the measure is still updated on the real schedule, so
+-- a test run costs what a real one does.
+--
 -- Update() does nothing until Start() has run from OnRefreshAction: the load's
 -- forced first update, and the request Calcs' load-time OnUpdateAction, come
 -- before it. The config deactivates itself only from a regular tick, tick 2
@@ -30,14 +48,19 @@ local GAP_SECONDS = 10
 local AWAY_SECONDS = 300
 local HEARTBEAT_SECONDS = 60
 local REEVALUATE_TICKS = 300
+-- IDLE_TIME is floored to whole seconds and the wrap guard can read up to a
+-- second low; os.time() has whole-second steps. 3 s covers both with room.
+local READ_MARGIN = 3
 local PAUSE_MINUTES = { ['5'] = 5, ['10'] = 10, ['30'] = 30 }
 -- Configs whose skins carry the idle stand-down hook while it is on.
 local UTILITY_CONFIGS = { 'Chronometer', 'CPU', 'GPU', 'RAM', 'IO', 'Network', 'Media', 'Media\\Queue', 'Visualizer' }
 
 local Link
-local started, ticks, lastTick, requested
+local started, closing, ticks, lastTick, requested
 local lastAway, lastPaused
-local awaySeconds, pauseSeconds, heartbeatTicks, reevaluateTicks, testFile, tickSeconds, gapSeconds
+local sampleIdle, sampleTime, sampleClock
+local loadId, serial, token
+local awaySeconds, pauseSeconds, heartbeatTicks, reevaluateTicks, testFile, tickMs, tickSeconds, gapSeconds
 
 -- A test hook: a whole number inside [low, high], otherwise nil. Shipped
 -- files leave every hook empty; test harnesses set them in staged copies.
@@ -61,16 +84,46 @@ function Wrap(raw)
     return value
 end
 
-local function readIdle()
-    local raw
-    if testFile then
-        local text = Link.readText(testFile, 32)
-        raw = text and text:match('^%s*(%d+)%s*$') and tonumber(text:match('^%s*(%d+)%s*$')) or nil
-    else
-        local measure = SKIN:GetMeasure('MeasureParallaxIdleRaw')
-        raw = measure and measure:GetValue() or nil
-    end
-    return Wrap(raw)
+-- Wall-clock seconds since Rainmeter started (MSVC clock()); nil when
+-- unusable (it stops at -1 after 24.8 days). Only ever widens an estimate.
+local function clockNow()
+    local ok, value = pcall(os.clock)
+    if ok and type(value) == 'number' and value == value and value >= 0 and value < math.huge then return value end
+    return nil
+end
+
+local function measuredIdle()
+    local measure = SKIN:GetMeasure('MeasureParallaxIdleRaw')
+    return measure and measure:GetValue() or nil
+end
+
+local function fileIdle()
+    local text = Link.readText(testFile, 32)
+    local digits = text and text:match('^%s*(%d+)%s*$')
+    return digits and tonumber(digits) or nil
+end
+
+-- Whether a reading could change the state last broadcast (Reads, above).
+local function due(now, clock)
+    if lastAway or lastPaused or sampleIdle == nil or sampleTime == nil or now < sampleTime then return true end
+    local elapsed = now - sampleTime
+    if clock and sampleClock and clock >= sampleClock and clock - sampleClock > elapsed then elapsed = clock - sampleClock end
+    local nearest = pauseSeconds and math.min(awaySeconds, pauseSeconds) or awaySeconds
+    return sampleIdle + elapsed + READ_MARGIN >= nearest
+end
+
+-- This tick's idle seconds, or nil when no reading was taken or it was
+-- invalid (the state then stays as last broadcast). force: Start, heartbeat
+-- or a tick gap. The !UpdateMeasure is where Rainmeter reads the network
+-- table; Update=-1 keeps every other path from doing so.
+local function sample(force)
+    local now, clock = os.time(), clockNow()
+    local read = force or due(now, clock)
+    if read then SKIN:Bang('!UpdateMeasure', 'MeasureParallaxIdleRaw') end
+    local idle
+    if testFile then idle = Wrap(fileIdle()) elseif read then idle = Wrap(measuredIdle()) end
+    if read then sampleIdle, sampleTime, sampleClock = idle, now, clock end
+    return idle
 end
 
 local function broadcast(away, paused)
@@ -80,6 +133,12 @@ local function broadcast(away, paused)
     SKIN:Bang('!SetVariableGroup', 'ParallaxIdleBeat', string.format('%d', os.time()), 'Parallax')
     SKIN:Bang('!SetVariableGroup', 'ParallaxIdleSync', '1', 'Parallax')
     SKIN:Bang('!UpdateMeasureGroup', 'ParallaxIdleHook', '*')
+end
+
+-- The next tick of this Start's chain. Delayed commands outlive a refresh of
+-- this config, so each one carries the token of the Start that armed it.
+local function arm()
+    SKIN:Bang(string.format('[!Delay %d][!CommandMeasure MeasureParallaxIdle "Tick(\'%s\')"]', tickMs, token))
 end
 
 -- Something that needs this coordinator, read from files only. Unreadable
@@ -116,10 +175,15 @@ end
 
 function Initialize()
     Link = dofile(SKIN:GetVariable('@') .. 'Idle\\Link.lua')
-    started, ticks, lastTick, requested = false, 0, nil, false
+    started, closing, ticks, lastTick, requested = false, false, 0, nil, false
     lastAway, lastPaused = false, false
-    local tickMs = tonumber(SKIN:ParseFormula(SKIN:ReplaceVariables('#ParallaxIdleTickMs#')))
-    if not tickMs or tickMs ~= tickMs or tickMs < 500 or tickMs > 10000 then tickMs = 2000 end
+    sampleIdle, sampleTime, sampleClock = nil, nil, nil
+    -- Unique to this load: its Lua state's address, the second and the clock.
+    loadId = string.format('%s%x%x', (tostring({}):gsub('[^%w]', '')), os.time() % 2147483647, math.floor((clockNow() or 0) * 1000) % 2147483647)
+    serial, token = 0, nil
+    local ms = tonumber(SKIN:ParseFormula(SKIN:ReplaceVariables('#ParallaxIdleTickMs#')))
+    if not ms or ms ~= ms or ms < 500 or ms > 10000 then ms = 2000 end
+    tickMs = math.floor(ms + 0.5)
     tickSeconds = tickMs / 1000
     -- A gap longer than 10 s means sleep or resume; a slow hand-set tick
     -- (up to 10 s) needs room for its own jitter.
@@ -137,19 +201,25 @@ function Initialize()
     testFile = (type(file) == 'string' and file:match('^%a:\\[^%c"*?<>|]+$')) and file or nil
 end
 
+-- One coordinator tick. Rainmeter runs it for the chain's !UpdateMeasure
+-- (Tick), so a paused or disabled measure does not tick, as with a skin timer,
+-- and for the load's forced first update, which comes before Start and does
+-- nothing. Returns this tick's reading, or -1 when none was taken.
 function Update()
-    if not started then return 0 end
+    if not started or closing then return 0 end
     ticks = ticks + 1
     local now = os.time()
-    local idle = readIdle()
-    local away, paused = lastAway, lastPaused
-    if idle ~= nil then away, paused = idle >= awaySeconds, pauseSeconds ~= nil and idle >= pauseSeconds end
     local gap = lastTick ~= nil and (now - lastTick > gapSeconds or now < lastTick)
     lastTick = now
-    if away ~= lastAway or paused ~= lastPaused or ticks % heartbeatTicks == 0 or gap then broadcast(away, paused) end
+    local heartbeat = ticks % heartbeatTicks == 0
+    local idle = sample(heartbeat or gap)
+    local away, paused = lastAway, lastPaused
+    if idle ~= nil then away, paused = idle >= awaySeconds, pauseSeconds ~= nil and idle >= pauseSeconds end
+    if away ~= lastAway or paused ~= lastPaused or heartbeat or gap then broadcast(away, paused) end
     if ticks >= 2 and (requested or ticks % reevaluateTicks == 0) then
         requested = false
         if not needed() then
+            closing = true
             SKIN:Bang('!DeactivateConfig')
             return -1
         end
@@ -157,12 +227,27 @@ function Update()
     return idle or -1
 end
 
--- OnRefreshAction: the first broadcast, after the load has finished.
+-- A tick of this config's [!Delay] chain. The next one is armed first, so a
+-- script error in one tick cannot end the chain, and the chain outlives a
+-- pause of this measure; a tick armed by an earlier Start or an earlier load
+-- of this config carries another token and is dropped, so there is only ever
+-- one chain. The tick itself goes through Rainmeter's own measure update.
+function Tick(id)
+    if closing or not started or id ~= token then return end
+    arm()
+    SKIN:Bang('!UpdateMeasure', 'MeasureParallaxIdle')
+end
+
+-- OnRefreshAction: the first reading and broadcast, after the load has
+-- finished, and the start of the tick chain.
 function Start()
-    local idle = readIdle()
-    lastTick = os.time()
+    serial = serial + 1
+    token = loadId .. serial
+    started, closing = true, false
     ticks = 0
-    started = true
+    lastTick = os.time()
+    arm()
+    local idle = sample(true)
     broadcast(idle ~= nil and idle >= awaySeconds or false, idle ~= nil and pauseSeconds ~= nil and idle >= pauseSeconds or false)
 end
 
@@ -181,8 +266,10 @@ end
 
 -- OnCloseAction. Rainmeter has already recorded Active=0 when this config is
 -- unloaded, so tell every consumer to stop waiting; at Rainmeter exit or a
--- game-mode unload Active is unchanged and nothing is sent.
+-- game-mode unload Active is unchanged and nothing is sent. No tick runs
+-- after this.
 function Closing()
+    closing = true
     if not Link then return end
     local settings = SKIN:GetVariable('SETTINGSPATH', '') .. 'Rainmeter.ini'
     local active = Link.activeOf(settings, SKIN:GetVariable('ROOTCONFIG', 'Parallax') .. '\\Idle')

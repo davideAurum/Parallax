@@ -642,8 +642,20 @@ standalone goes.
 stream, so the Windows audio engine can stop (live A/B on 2026-10-22: audiodg not
 running with the drawer collapsed, 9.8% of a core with it open). A paused or
 deferred drawer also drops Media's 50 ms drawer tick (the title animation
-keeps its own). While the drawer is open the coordinator adds about 0.1% of a
-core and 2.5 wakeups/s. Measuring audiodg and power requests is step 3's.
+keeps its own). While the drawer is open the `Parallax\Idle` coordinator is
+loaded, and it costs more than the 2.5 wakeups/s first estimated. Measured
+2026-10-23 (isolated, live preferences, hardware rendering, interleaved
+trials), Media's UI thread woke about 102 times a second without it and 175
+with it (test idle file 0, you at the computer). About 57 of those come
+from its hidden window alone: every skin window beyond the first adds a DXGI
+message hook that each message on Rainmeter's UI thread passes through (see
+the coordinator's Cost in ARCHITECTURE.md). That part is irreducible while the
+coordinator is a separate config. The rest was its network-table reading
+every 2 s, which since phase C3 happens about once a minute while you are at
+the computer (about 175 to 162 wakeups/s); while you are away it still reads
+every 2 s, so the lease sees your input at the next tick. CPU stays within
+noise (about 1.4-2.7% of a core in all three). Measuring audiodg and power
+requests is step 3's.
 
 **Checks (2026-10-23).** `tests/CaptureLeaseSuite.luatest` (123 assertions in
 11 scenarios, offline and inside Rainmeter; 19/19 mutations caught) covers the

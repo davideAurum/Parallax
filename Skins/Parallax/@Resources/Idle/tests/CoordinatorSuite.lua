@@ -12,7 +12,7 @@ local function utf16le(text)
 end
 
 function Suite.Run(coordinatorPath, linkPath)
-    local passed, cases = 0, {}
+    local passed, cases, notes = 0, {}, {}
     local function check(ok, message) if not ok then error(message, 2) end passed = passed + 1 end
     local function equal(actual, expected, message)
         if actual ~= expected then
@@ -37,10 +37,14 @@ function Suite.Run(coordinatorPath, linkPath)
 
     -- A fresh coordinator or link environment. options.files: path -> text
     -- (or false for an unreadable file); options.variables override SKIN
-    -- variables; options.idle is the raw IDLE_TIME value.
+    -- variables; options.idle is the raw IDLE_TIME value; options.clock is
+    -- os.clock() (nil: unusable). Bangs are recorded in three lists: reads
+    -- (!UpdateMeasure of the raw measure, where Rainmeter reads the network
+    -- table), arms (the coordinator's own [!Delay] tick chain) and everything
+    -- else (bangs).
     local function fixture(options)
         options = options or {}
-        local state = { bangs = {}, now = options.now or 1000000, idle = options.idle, files = {} }
+        local state = { bangs = {}, reads = {}, arms = {}, updates = 0, now = options.now or 1000000, clock = options.clock, idle = options.idle, files = {} }
         for path, text in pairs(options.files or {}) do state.files[path] = text end
         local variables = {
             ['@'] = resources, ROOTCONFIG = 'Parallax', SETTINGSPATH = settingsPath, SKINSPATH = skins,
@@ -68,7 +72,18 @@ function Suite.Run(coordinatorPath, linkPath)
         function skin:Bang(...)
             local args = { ... }
             for _, value in ipairs(args) do assert(type(value) == 'string', 'Bang arguments are strings') end
-            state.bangs[#state.bangs + 1] = table.concat(args, ' ')
+            local bang = table.concat(args, ' ')
+            -- Rainmeter's own update of the coordinator measure: skipped while
+            -- the measure is paused (state.paused), like a skin timer's.
+            if bang == '!UpdateMeasure MeasureParallaxIdle' then
+                state.updates = state.updates + 1
+                if not state.paused then state.env.Update() end
+                return
+            end
+            local list = state.bangs
+            if bang == '!UpdateMeasure MeasureParallaxIdleRaw' then list = state.reads
+            elseif bang:sub(1, 8) == '[!Delay ' then list = state.arms end
+            list[#list + 1] = bang
         end
         local fakeIo = { open = function(path, mode)
             assert(mode == 'rb', 'Files are opened read-only')
@@ -81,7 +96,7 @@ function Suite.Run(coordinatorPath, linkPath)
             }
         end }
         setmetatable(fakeIo, { __index = function(_, key) error('Unexpected io.' .. tostring(key)) end })
-        local fakeOs = { time = function() return state.now end }
+        local fakeOs = { time = function() return state.now end, clock = function() return state.clock end }
         setmetatable(fakeOs, { __index = function(_, key) error('Unexpected os.' .. tostring(key)) end })
         local env = setmetatable({ SKIN = skin, io = fakeIo, os = fakeOs }, { __index = _G })
         env.dofile = function(path)
@@ -96,14 +111,21 @@ function Suite.Run(coordinatorPath, linkPath)
             setfenv(chunk, env)
             chunk()
             env.Initialize()
-            equal(#state.bangs, 0, 'Initialize sends nothing')
+            equal(#state.bangs + #state.reads + #state.arms, 0, 'Initialize sends nothing')
         end
         function state.link()
             local chunk = assert(loadfile(linkPath))
             setfenv(chunk, env)
             return chunk().new(skin)
         end
-        function state.reset() state.bangs = {} end
+        function state.reset() state.bangs, state.reads, state.arms = {}, {}, {} end
+        -- One tick dt seconds later with the raw idle (or the test file) at idle.
+        function state.step(dt, idle, path)
+            state.now = state.now + dt
+            if state.clock then state.clock = state.clock + math.max(dt, 0) end
+            if path then state.files[path] = tostring(idle) else state.idle = idle end
+            return state.env.Update()
+        end
         function state.count(prefix)
             local count = 0
             for _, bang in ipairs(state.bangs) do if bang:sub(1, #prefix) == prefix then count = count + 1 end end
@@ -158,7 +180,7 @@ function Suite.Run(coordinatorPath, linkPath)
     end)
 
     scenario('NaN, negative and missing raw values are rejected', function()
-        local state = fixture({ idle = 0 })
+        local state = fixture({ idle = 600 })
         state.load()
         equal(state.env.Wrap(0 / 0), nil, 'NaN')
         equal(state.env.Wrap(-1), nil, 'Negative')
@@ -166,18 +188,31 @@ function Suite.Run(coordinatorPath, linkPath)
         equal(state.env.Wrap(nil), nil, 'Missing')
         state.env.Start()
         state.reset()
-        state.idle = 0 / 0
-        state.now = state.now + 2
-        state.env.Update()
+        -- Away, so every tick reads.
+        state.step(2, 0 / 0)
+        equal(#state.reads, 1, 'Away: the tick reads')
         equal(#state.bangs, 0, 'An invalid sample keeps the last state and sends nothing')
-        state.idle = -5
-        state.now = state.now + 2
-        state.env.Update()
+        state.step(2, -5)
         equal(#state.bangs, 0, 'A negative sample keeps the last state')
-        state.idle = false
-        state.now = state.now + 2
-        state.env.Update()
+        state.step(2, false)
         equal(#state.bangs, 0, 'A missing measure keeps the last state')
+        equal(#state.reads, 3, 'One reading per tick while away')
+        -- Not away: an invalid reading leaves no estimate, so the next tick reads again.
+        local active = fixture({ idle = 0 })
+        active.load()
+        active.env.Start()
+        active.reset()
+        active.step(2, 1)
+        equal(#active.reads, 0, 'Not away and far from 300 s: no reading')
+        active.now = active.now + 11
+        active.step(0, 0 / 0)
+        equal(#active.reads, 1, 'A tick gap forces a reading')
+        active.reset()
+        active.step(2, 2)
+        equal(#active.reads, 1, 'After an invalid reading the next tick reads')
+        active.reset()
+        active.step(2, 4)
+        equal(#active.reads, 0, 'A valid reading resumes the skipping')
     end)
 
     scenario('nothing is sent before Start, and Sync before Start is ignored', function()
@@ -188,7 +223,8 @@ function Suite.Run(coordinatorPath, linkPath)
         for _ = 1, 5 do state.now = state.now + 2; equal(state.env.Update(), 0, 'Update waits for Start') end
         state.env.Sync()
         state.env.RequestReevaluate()
-        equal(#state.bangs, 0, 'No bang before Start')
+        state.env.Tick('anything')
+        equal(#state.bangs + #state.reads + #state.arms, 0, 'No bang, reading or tick before Start')
         state.env.Start()
         expectBroadcast(state, '1', 'Start broadcasts the current state once')
         -- The request Calcs also fire during the load, before Start: a
@@ -199,52 +235,60 @@ function Suite.Run(coordinatorPath, linkPath)
         equal(state.count('!DeactivateConfig'), 0, 'A request made before Start is dropped')
     end)
 
+    -- The away flag of the broadcast this tick sent, or nil.
+    local function awayOf(state)
+        return state.bangs[1] and state.bangs[1]:match('^!SetVariableGroup ParallaxIdleAway (%d) Parallax$') or nil
+    end
+
     scenario('broadcast only on change, heartbeat and tick gap, with the exact bangs', function()
         local state = fixture({ idle = 0 })
         state.load()
         state.env.Start()
         expectBroadcast(state, '0', 'Start')
+        equal(#state.reads, 1, 'Start reads the measure')
         state.reset()
-        -- 29 quiet ticks: heartbeat every 30 ticks of 2 s.
-        for tick = 1, 29 do
-            state.now = state.now + 2
-            state.idle = tick
-            state.env.Update()
-        end
+        -- 29 ticks of work (input every few seconds): heartbeat every 30 ticks of 2 s.
+        for tick = 1, 29 do state.step(2, tick % 3) end
         equal(#state.bangs, 0, 'An unchanged state sends nothing between heartbeats')
-        state.now = state.now + 2
-        state.env.Update()
+        equal(#state.reads, 0, 'Far from 300 s no tick reads the measure')
+        state.step(2, 1)
         expectBroadcast(state, '0', 'Heartbeat on tick 30 (about 60 s)')
+        equal(#state.reads, 1, 'The heartbeat tick reads')
+        -- Then no input: idle time grows with the clock from that reading.
+        local idle, tick, crossed, reads = 1, 30, nil, 0
+        while not crossed and tick < 400 do
+            tick, idle = tick + 1, idle + 2
+            state.reset()
+            state.step(2, idle)
+            reads = reads + #state.reads
+            if idle < 300 then
+                local away = awayOf(state)
+                check(away == nil or (away == '0' and tick % 30 == 0), 'Below 300 s only heartbeats broadcast (tick ' .. tick .. ')')
+            else
+                crossed = tick
+                expectBroadcast(state, '1', 'Away at the first tick at or past 300 s')
+            end
+        end
+        equal(idle, 301, 'Crossed at 301 s, the first tick at or past 300 s')
+        check(reads <= 8, 'About one reading a minute until the crossing comes near (' .. reads .. ' readings in ' .. (crossed - 30) .. ' ticks)')
         state.reset()
-        state.idle = 299
-        state.now = state.now + 2
-        state.env.Update()
-        equal(#state.bangs, 0, 'Below 300 s is not away')
-        state.idle = 300
-        state.now = state.now + 2
-        state.env.Update()
-        expectBroadcast(state, '1', 'Away at 300 s')
-        state.reset()
-        state.idle = 302
-        state.now = state.now + 2
-        state.env.Update()
+        state.step(2, 303)
         equal(#state.bangs, 0, 'Still away sends nothing')
-        state.idle = 0
-        state.now = state.now + 2
-        state.env.Update()
+        equal(#state.reads, 1, 'Away: every tick reads')
+        state.step(2, 0)
         expectBroadcast(state, '0', 'Input clears away at the next tick')
         state.reset()
-        state.idle = 1
-        state.now = state.now + 11
-        state.env.Update()
+        state.step(11, 1)
         expectBroadcast(state, '0', 'A tick gap over 10 s (sleep) re-broadcasts')
+        equal(#state.reads, 1, 'A tick gap reads')
         state.reset()
-        state.now = state.now - 30
-        state.env.Update()
+        state.step(-30, 1)
         expectBroadcast(state, '0', 'A clock moved backwards re-broadcasts')
+        equal(#state.reads, 1, 'A clock moved backwards reads')
         state.reset()
         state.env.Sync()
         expectBroadcast(state, '0', 'Sync after Start repeats the state')
+        equal(#state.reads, 0, 'Sync repeats without reading')
     end)
 
     scenario('bounded test hooks and tick', function()
@@ -370,33 +414,32 @@ function Suite.Run(coordinatorPath, linkPath)
             state.load()
             state.env.Start()
             expectBroadcast(state, '0', minutes .. ' min: Start', '0')
-            state.reset()
-            state.idle = threshold - 1
-            state.now = state.now + 2
-            state.env.Update()
-            if threshold - 1 >= 300 then
-                -- Away already flipped at 300 s; nothing new just below the pause.
+            -- No input from 1 s idle on, 2 s ticks: idle time is 1, 3, 5, ...
+            local idle, tick, awayAt, pausedAt = 1, 0, nil, nil
+            while idle < threshold + 4 do
+                tick = tick + 1
                 state.reset()
-                state.idle = threshold - 1
-                state.now = state.now + 2
-                state.env.Update()
-                equal(#state.bangs, 0, minutes .. ' min: one second short of the pause sends nothing new')
-            else
-                equal(#state.bangs, 0, minutes .. ' min: one second short of the pause sends nothing')
+                state.step(2, idle)
+                local away = awayOf(state)
+                local paused = state.bangs[2] and state.bangs[2]:match('^!SetVariableGroup ParallaxIdlePaused (%d) Parallax$') or nil
+                if away == '1' and not awayAt then awayAt = idle; equal(paused, idle >= threshold and '1' or '0', minutes .. ' min: away broadcast carries the pause flag') end
+                if paused == '1' and not pausedAt then pausedAt = idle end
+                if away and idle ~= awayAt and idle ~= pausedAt then
+                    check(tick % 30 == 0, minutes .. ' min: no broadcast but changes and heartbeats (idle ' .. idle .. ')')
+                end
+                if idle == threshold - 1 then
+                    equal(paused == nil or paused == '0', true, minutes .. ' min: one second short of the pause sends no pause')
+                end
+                idle = idle + 2
             end
+            equal(awayAt, 301, minutes .. ' min: away at the first tick past 300 s')
+            equal(pausedAt, threshold + 1, minutes .. ' min: paused at the first tick past ' .. threshold .. ' s')
             state.reset()
-            state.idle = threshold
-            state.now = state.now + 2
-            state.env.Update()
-            expectBroadcast(state, '1', minutes .. ' min: paused at ' .. threshold .. ' s', '1')
+            state.step(2, idle)
+            check(#state.bangs == 0 or tick % 30 == 29, minutes .. ' min: still paused sends nothing')
+            equal(#state.reads, 1, minutes .. ' min: paused, every tick reads')
             state.reset()
-            state.idle = threshold + 2
-            state.now = state.now + 2
-            state.env.Update()
-            equal(#state.bangs, 0, minutes .. ' min: still paused sends nothing')
-            state.idle = 0
-            state.now = state.now + 2
-            state.env.Update()
+            state.step(2, 0)
             expectBroadcast(state, '0', minutes .. ' min: input clears away and paused in one broadcast', '0')
             state.reset()
             state.env.Sync()
@@ -413,28 +456,25 @@ function Suite.Run(coordinatorPath, linkPath)
         local state = fixture({ idle = 0, variables = { IdlePauseMinutes = '5' } })
         state.load()
         state.env.Start()
+        -- No input for 300 s: idle 3, 5, ... 297 (heartbeats in between), 299, 301.
+        for idle = 3, 297, 2 do state.step(2, idle) end
         state.reset()
-        state.idle = 299
-        state.now = state.now + 2
-        state.env.Update()
+        state.step(2, 299)
         equal(#state.bangs, 0, 'Below 300 s neither flag is set')
-        state.idle = 300
-        state.now = state.now + 2
-        state.env.Update()
+        state.step(2, 301)
         expectBroadcast(state, '1', 'Both flags in the same broadcast', '1')
         equal(state.count('!UpdateMeasureGroup'), 1, 'One hook update for both flags')
     end)
 
     scenario('idle pause: invalid minutes act as Off; the test hook only shortens a setting that is on', function()
         for _, bad in ipairs({ '0', '7', '15', '', 'abc', '5.0', '-5', '60' }) do
-            local state = fixture({ idle = 0, variables = { IdlePauseMinutes = bad, ParallaxIdleTestPauseSeconds = '4' } })
+            local state = fixture({ idle = 4000, variables = { IdlePauseMinutes = bad, ParallaxIdleTestPauseSeconds = '4' } })
             state.load()
             state.env.Start()
-            state.reset()
-            state.idle = 4000
-            state.now = state.now + 2
-            state.env.Update()
             expectBroadcast(state, '1', 'IdlePauseMinutes=' .. bad .. ' never pauses', '0')
+            state.reset()
+            state.step(2, 4002)
+            equal(#state.bangs, 0, 'IdlePauseMinutes=' .. bad .. ' still away, still not paused')
         end
         local spaced = fixture({ idle = 600, variables = { IdlePauseMinutes = ' 10 ' } })
         spaced.load()
@@ -484,6 +524,202 @@ function Suite.Run(coordinatorPath, linkPath)
         unreadable.now = unreadable.now + 2; unreadable.env.Update()
         unreadable.now = unreadable.now + 2; unreadable.env.Update()
         equal(unreadable.count('!DeactivateConfig'), 0, 'Unreadable Rainmeter.ini with the pause on keeps the coordinator')
+    end)
+
+    scenario('reads: the same broadcasts as a reading on every tick, for realistic input traces', function()
+        -- The reference is a test-file coordinator, which reads its source on
+        -- every tick; the real one reads the measure only when due. Real time
+        -- runs in fractions of a second; os.time() and IDLE_TIME floor it, as
+        -- Windows does. Input restarts idle time somewhere in the last tick;
+        -- ticks jitter, the computer sleeps and, with os.clock, the system
+        -- clock is set back.
+        local seed = 20261023
+        local function random(n) seed = (seed * 1103515245 + 12345) % 2147483648; return math.floor(seed / 65536) % n end
+        local path = 'C:\\Fixture\\idle.txt'
+        local farTicks, farReads, changes = 0, 0, 0
+        local setups = {
+            { IdlePauseMinutes = '0' }, { IdlePauseMinutes = '5' }, { IdlePauseMinutes = '10' }, { IdlePauseMinutes = '30' },
+            { IdlePauseMinutes = '10', ParallaxIdleTestPauseSeconds = '200' }, { IdlePauseMinutes = '0', ParallaxIdleTestAwaySeconds = '20' },
+        }
+        for index, variables in ipairs(setups) do
+            local nearest = tonumber(variables.ParallaxIdleTestAwaySeconds) or 300
+            for _, withClock in ipairs({ false, true }) do
+                local start = random(400)
+                local real = fixture({ idle = start, variables = variables, clock = withClock and 5000 or nil })
+                local filedVariables = { ParallaxIdleTestFile = path }
+                for key, value in pairs(variables) do filedVariables[key] = value end
+                local filed = fixture({ idle = 0, variables = filedVariables, files = { [path] = tostring(start) } })
+                real.load()
+                filed.load()
+                real.env.Start()
+                filed.env.Start()
+                local label = 'setup ' .. index .. (withClock and ' with os.clock' or '')
+                -- One transcript line per tick; compared once per trace, with
+                -- the first differing tick named.
+                local realLines, filedLines = {}, {}
+                local function same(tick)
+                    realLines[#realLines + 1] = tick .. ': ' .. table.concat(real.bangs, ' ; ')
+                    filedLines[#filedLines + 1] = tick .. ': ' .. table.concat(filed.bangs, ' ; ')
+                end
+                same(0)
+                local working = random(2) == 0
+                local lastFlags = nil
+                local base, time, back = real.now, 0.37, 0
+                local input = time - start
+                for tick = 1, 3000 do
+                    real.reset()
+                    filed.reset()
+                    if random(250) == 0 then working = not working end
+                    local dt, roll = 2, random(100)
+                    if roll < 8 then dt = 1 elseif roll < 16 then dt = 3 elseif roll == 99 then dt = 12 + random(60) end
+                    dt = dt + (random(121) - 60) / 1000
+                    time = time + dt
+                    if withClock and random(150) == 0 then back = back + 1 + random(30) end
+                    if working and random(4) == 0 then input = time - random(1000) / 1000 * dt end
+                    local idle = math.floor(time - input)
+                    local far = nearest >= 300 and idle + 2 * dt < nearest / 2
+                    real.now = base + math.floor(time) - back
+                    filed.now = real.now
+                    if real.clock then real.clock = 5000 + time end
+                    real.idle, filed.files[path] = idle, tostring(idle)
+                    real.env.Update()
+                    filed.env.Update()
+                    same(tick)
+                    if far then farTicks, farReads = farTicks + 1, farReads + #real.reads end
+                    local flags = filed.bangs[1] and (filed.bangs[1]:match('Away (%d)') .. filed.bangs[2]:match('Paused (%d)'))
+                    if flags and flags ~= (lastFlags or '00') then changes = changes + 1 end
+                    lastFlags = flags or lastFlags
+                end
+                local differs = nil
+                for i = 1, #filedLines do if realLines[i] ~= filedLines[i] then differs = i; break end end
+                equal(differs and realLines[differs] or 'same', differs and filedLines[differs] or 'same', label .. ': first differing tick')
+            end
+        end
+        check(changes > 50, 'The traces cross the thresholds often (' .. changes .. ' changes)')
+        notes[#notes + 1] = string.format('equivalence traces: %d state changes; readings far from the thresholds: %d of %d ticks', changes, farReads, farTicks)
+        check(farTicks > 5000, 'The traces spend time far from the thresholds (' .. farTicks .. ' ticks)')
+        check(farReads < farTicks * 0.08, 'Far from the thresholds about one tick in 30 reads (' .. farReads .. ' of ' .. farTicks .. ')')
+    end)
+
+    scenario('reads: a test idle file is read on every tick, the measure on the real schedule', function()
+        local path = 'C:\\Fixture\\idle.txt'
+        local state = fixture({ idle = 0, variables = { ParallaxIdleTestFile = path }, files = { [path] = '0' } })
+        state.load()
+        state.env.Start()
+        equal(#state.reads, 1, 'Start updates the measure')
+        state.reset()
+        for _ = 1, 29 do state.step(2, 0, path) end
+        equal(#state.reads, 0, 'Far from a threshold the measure is not updated')
+        equal(#state.bangs, 0, 'Nothing changes')
+        state.step(2, 0, path)
+        equal(#state.reads, 1, 'The heartbeat tick updates the measure')
+        state.reset()
+        state.step(2, 400, path)
+        expectBroadcast(state, '1', 'A jump in the file is seen at the next tick')
+        equal(#state.reads, 0, 'The measure follows the real schedule, not the file')
+        state.reset()
+        state.step(2, 402, path)
+        equal(#state.reads, 1, 'Away: the measure is updated every tick')
+        equal(#state.bangs, 0, 'Still away')
+        state.step(2, 0, path)
+        expectBroadcast(state, '0', 'Input in the file is seen at the next tick')
+    end)
+
+    scenario('reads: os.clock widens the estimate when the system clock lags', function()
+        -- The system clock gains only 1 s per 2 s tick (set back a second at a
+        -- time); os.clock and idle time gain 2 s. Away must still be seen at
+        -- the first tick at or past 300 s, not at the next heartbeat.
+        for _, clock in ipairs({ 5000, false }) do
+            local state = fixture({ idle = 11, clock = clock or nil })
+            state.load()
+            state.env.Start()
+            local idle, awayAt, tick = 11, nil, 0
+            while not awayAt and tick < 200 do
+                tick, idle = tick + 1, idle + 2
+                state.reset()
+                state.now = state.now + 1
+                if state.clock then state.clock = state.clock + 2 end
+                state.idle = idle
+                state.env.Update()
+                if awayOf(state) == '1' then awayAt = idle end
+            end
+            if clock then
+                equal(awayAt, 301, 'With os.clock: away at the first tick past 300 s')
+            else
+                -- Without a usable os.clock the heartbeat's forced reading bounds the delay.
+                check(awayAt ~= nil and awayAt <= 301 + 60, 'Without os.clock: away by the next heartbeat (' .. tostring(awayAt) .. ')')
+            end
+        end
+    end)
+
+    scenario('tick chain: one per Start, other tokens dropped, nothing after closing', function()
+        local state = fixture({ idle = 0 })
+        state.load()
+        state.env.Start()
+        equal(#state.arms, 1, 'Start arms one tick')
+        local first = state.arms[1]:match('^%[!Delay 2000%]%[!CommandMeasure MeasureParallaxIdle "Tick%(\'(%w+)\'%)"%]$')
+        check(first ~= nil, 'A 2 s [!Delay] into this measure with a token: ' .. state.arms[1])
+        state.reset()
+        state.now = state.now + 2
+        state.env.Tick(first)
+        equal(#state.arms, 1, 'A tick arms the next one')
+        equal(state.arms[1]:match("Tick%('(%w+)'%)"), first, 'With the same token')
+        for _ = 2, 29 do state.now = state.now + 2; state.env.Tick(first) end
+        state.reset()
+        state.now = state.now + 2
+        state.env.Tick(first)
+        expectBroadcast(state, '0', 'Thirty chained ticks make a heartbeat')
+        equal(state.updates, 30, 'Each tick is one Rainmeter update of the measure')
+        -- Test drivers pause the measure to stop the beat: the chain goes on,
+        -- the ticks do not, as with a skin timer.
+        state.paused = true
+        state.reset()
+        for _ = 1, 40 do state.now = state.now + 2; state.env.Tick(first) end
+        equal(#state.arms, 40, 'Paused: the chain goes on')
+        equal(#state.bangs + #state.reads, 0, 'Paused: no tick, reading or heartbeat')
+        state.paused = false
+        state.reset()
+        state.now = state.now + 2
+        state.env.Tick(first)
+        expectBroadcast(state, '0', 'Unpaused after 82 s: the first tick sees the gap and broadcasts')
+        state.reset()
+        state.env.Tick('stale')
+        state.env.Tick(first .. '0')
+        state.env.Tick(nil)
+        equal(#state.arms + #state.bangs + #state.reads, 0, 'A tick with another token does nothing')
+        state.env.Start()
+        local second = state.arms[1]:match("Tick%('(%w+)'%)")
+        check(second ~= nil and second ~= first, 'A new Start arms a chain with a new token')
+        state.reset()
+        state.env.Tick(first)
+        equal(#state.arms + #state.bangs + #state.reads, 0, 'The earlier chain ends')
+        local other = fixture({ idle = 0 })
+        other.load()
+        other.env.Start()
+        check(other.arms[1]:match("Tick%('(%w+)'%)") ~= first, 'Another load has another token')
+        local slow = fixture({ idle = 0, tick = '10000' })
+        slow.load()
+        slow.env.Start()
+        check(slow.arms[1]:match('^%[!Delay 10000%]') ~= nil, 'The chain follows the clamped tick')
+        state.env.Closing()
+        state.reset()
+        state.env.Tick(second)
+        equal(state.env.Update(), 0, 'Update does nothing after OnCloseAction')
+        equal(#state.arms + #state.bangs + #state.reads, 0, 'No tick after OnCloseAction')
+        local unneeded = needFixture(0, '2', '0')
+        unneeded.env.Start()
+        local token = unneeded.arms[1]:match("Tick%('(%w+)'%)")
+        unneeded.env.RequestReevaluate()
+        unneeded.reset()
+        unneeded.now = unneeded.now + 2
+        unneeded.env.Tick(token)
+        unneeded.now = unneeded.now + 2
+        unneeded.env.Tick(token)
+        equal(unneeded.count('!DeactivateConfig'), 1, 'The second tick unloads a needless coordinator')
+        unneeded.reset()
+        unneeded.now = unneeded.now + 2
+        unneeded.env.Tick(token)
+        equal(#unneeded.arms + #unneeded.bangs + #unneeded.reads, 0, 'No tick after the coordinator unloaded itself')
     end)
 
     scenario('Closing broadcasts only after a real unload', function()
@@ -541,7 +777,7 @@ function Suite.Run(coordinatorPath, linkPath)
         equal(request.bangs[1], '!UpdateMeasureGroup ParallaxIdleReevaluateRequest *', 'Re-evaluation is a silent group request')
     end)
 
-    return 'PASS: ' .. passed .. ' assertions in ' .. #cases .. ' coordinator scenarios; ' .. _VERSION .. '.\n' .. table.concat(cases, '\n')
+    return 'PASS: ' .. passed .. ' assertions in ' .. #cases .. ' coordinator scenarios; ' .. _VERSION .. '.\n' .. table.concat(cases, '\n') .. (#notes > 0 and ('\n' .. table.concat(notes, '\n')) or '')
 end
 
 return Suite

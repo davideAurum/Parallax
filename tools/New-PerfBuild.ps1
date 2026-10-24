@@ -61,7 +61,7 @@ a build with: git worktree remove --force <path>.
 param(
     [ValidatePattern('^[A-Za-z0-9][A-Za-z0-9._-]{0,39}$')][string]$Name,
     [string]$Root = 'C:\pxab',
-    [string]$RepoRoot = (Join-Path $PSScriptRoot '..'),
+    [string]$RepoRoot = '',
     [string]$Base = '',
     [string[]]$Pick = @(),
     [string]$Tip = '',
@@ -85,6 +85,9 @@ param(
 
 Set-StrictMode -Version Latest
 $ErrorActionPreference = 'Stop'
+# Windows PowerShell 5.1 leaves $PSScriptRoot empty while it evaluates
+# parameter defaults, so the default repository root is resolved here.
+if (-not $RepoRoot) { $RepoRoot = Join-Path $PSScriptRoot '..' }
 Import-Module (Join-Path $PSScriptRoot 'Parallax.PerfBuild.psm1') -Force
 
 $helper = Join-Path $PSScriptRoot 'Merge-Utf16Text.py'

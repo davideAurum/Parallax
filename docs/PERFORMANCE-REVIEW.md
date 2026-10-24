@@ -8,8 +8,22 @@ CPU figures are **percent of one logical core** unless stated otherwise. 100% me
 
 - **Six live skins:** 20.5% of a core at baseline, 9.0 after phase A, 7.7 after phase B (−63%). With the CPU, RAM and GPU process lists hidden: 4.7 (−77%). Measured in an isolated benchmark with live preferences, 3 interleaved trials. See [Phase B result](#phase-b-result-merged-and-measured-2026-10-23).
 - **The overnight fan peaks are not Parallax.** They come with bursts of display re-detection work in explorer and NVIDIA's display service, about every 50 s, with the screens off. Parallax is a steady floor of about a quarter of the night-time load. See [Overnight trace](#overnight-trace-2026-102223-what-drives-the-night-time-fan).
+- **Phase C is merged.**
+  - **Idle pause (C2):** off by default; when on, it takes the six skins from 8.5 to 3.65% while paused.
+  - **The drawer (C1):** releases its audio capture after silence while you are away.
+  - **Its idle coordinator** costs about 57 UI-thread wakeups/s beside the open drawer, a Rainmeter per-window cost on this machine. The fix C3 removed the avoidable part. See [Phase C result](#phase-c-result-merged-and-measured-2026-10-23).
+- **Step 3: are the gains additive? It depends on where you look.**
+  - **Inside Media, synergistic:** the two halves of A1 save 4.5 points alone and 8.5 together.
+  - **Across the six skins, antagonistic:** the packages save 21 points when each is added alone, 12.7 together.
+  - **In the standalone Visualizer, additive.**
+  - The likely shared cause of the overlap is Rainmeter's single, contended UI thread. See [Step 3 result](#step-3-result-2026-10-24-are-the-gains-additive).
 - **Nothing has reached the desktop yet.** The live skin changes only when a release is installed.
-- **Next:** phase C (releasing the drawer's capture after silence, and the idle stand-down), then step 3's per-fix evidence.
+- **Open for the owner:**
+  - TextInputHost's runaway, which probably inflates Rainmeter's lock waits;
+  - the monitors' Auto Source Switch (the night-time display re-detection);
+  - whether to hide the process lists (the largest remaining cost);
+  - the C3 options (a lazy coordinator for the drawer);
+  - the stand-down helper kill race.
 
 ## Bottom line
 
@@ -639,6 +653,87 @@ CPU time is unchanged within noise.
 - **Sleep and resume, and graceful-exit paths,** natively.
 - **The audio engine stopping on this machine after a park.** Only the drawer's own render session was seen disappearing.
 - **Behaviour after a real release install** on the live profile.
+
+## Step 3 result (2026-10-24): are the gains additive?
+
+**What was measured.** One build matrix for the phase A packages.
+- **Builds:** baseline `916c9ab` and all `dfe55b8`. For each of A1, A2, A3, A4 and A6, one plus build (the package alone on the baseline) and one minus build (the package removed from all).
+- **A5 is counted as zero.** It acts only when settings are clicked.
+- **Setup:** live preferences, hardware rendering, 5 rounds with rotated order, a 60 s window after a 15 s settle, 60 invocations, finished at 03:10.
+- **The rule, declared before measuring:**
+  - G is the combined gain: cost at baseline minus cost with all fixes.
+  - gₖ is package k's gain added alone to the baseline; mₖ is its gain measured by removing it from all.
+  - I = G − Σgₖ is the interaction. It counts as synergistic or antagonistic when beyond 2s, where s is the pooled sample standard deviation of the trials.
+- **Analysis:** `build/perf-matrix/s3-pkg-live/analysis.md`, with every trial in `analysis.json`.
+
+**Six live skins.** % of one core, medians of 5 trials.
+
+| Package | What it fixed | g, alone on the baseline | m, inside all |
+| --- | --- | ---: | ---: |
+| A1 | Media and Visualizer repaint cadence | 9.38 | 7.91 |
+| A2 | Media Source helper (live only) | 1.55 | −0.23 |
+| A3 | CPU Meter | 1.49 | 0.87 |
+| A4 | GPU Meter | 5.40 | 2.39 |
+| A6 | RAM, Disk, Network | 3.28 | 0.47 |
+| **Sum** |  | **21.09** | **11.41** |
+
+**The combined gain is G = 12.68** (21.77 → 9.09, −58%). I = −8.41 against 2s = 2.73, so by the declared rule **the gains are antagonistic**: they overlap.
+- **Each package saves more alone than together.** Added alone to the original build, each saves more than it does once the others are in place. The gap is largest for GPU (5.4 alone, 2.4 together) and the small modules (3.3 against 0.5).
+- **Wakeups overlap even more.** Rainmeter's wakeups fall by 260/s in total, but the packages alone add up to 733/s. Inside all, removing any single package changes wakeups by almost nothing (Σm ≈ 0).
+- **The split by thread is mixed.** By medians, UI-thread, plugin-thread and helper time are each additive. By means, the UI thread is also sub-additive (I = −4.35).
+
+**How robust the classification is:**
+- **Consistent across statistics and rounds.** Means give the same verdict as medians (I = −8.06). Four of the 5 rounds have I between −9 and −17; one has +5.5.
+- **The noise floor of a single g is about 1-1.5 points.** A2, which cannot change anything in an isolated profile, reads 1.55.
+- **The rule has a built-in weakness.** It subtracts the baseline once per package, so the baseline's noise counts five times, and the 2s threshold does not scale for that. The rule was declared beforehand and is kept. The size of the overlap (about 8 points, against a per-g noise of about 1.5) is well beyond what that weakness explains.
+- **Inside all, the marginal gains add up.** G − Σm = 1.27, within 2s. Once the others are in place, each package's remaining gain adds up to the whole.
+
+**Media alone is additive.** G = 8.22, Σg = 7.62, I = 0.60 against 2s = 1.58. A1 accounts for all of it: 8.14 alone, 9.43 inside all. The wakeup and p95 metrics read "synergistic" by medians. That comes from two-level wakeup readings (about 400 or about 440/s from run to run) in the builds that A1 does not touch; by means it is additive (I = 11 against 2s = 41).
+
+**Why the gains overlap: a hypothesis, consistent with C3's finding.**
+- Every skin shares one Rainmeter UI thread.
+- On this machine, each window message that thread handles waits on a contended win32k lock, once per extra skin window.
+- The original build keeps that thread far busier, so removing any one skin's work also shortens every other skin's waits. Alone, a package gets credit for both.
+- A cost that grows faster than the load behaves exactly like this.
+- This is not proven. A re-run after TextInputHost is restarted, if that is what holds the lock, would show how much of the overlap is this machine's state.
+
+**The protocol's expected interactions:**
+- **A1 with C1 (expected synergistic):** not testable here; C1 needs minutes of silence and absence.
+- **A3 with B2 (expected antagonistic):** phase B was not in the matrix.
+- **The surprise:** antagonism where none was expected, between A1 and the GPU and small-module packages, through the shared thread.
+
+**Not in the matrix:**
+- **Phase B.** At the defaults only B1's wakeup cut is visible, and it was measured directly.
+- **Phase C.** Its gains need idle minutes, and the paused benchmark above measures C2.
+- **Each package's single fixes,** except A1 (below).
+
+**Inside A1: the two halves of Media's fix are synergistic.** A second matrix (`build/perf-matrix/s3-a1-live`) split A1 into its two units:
+- **U1 = A1-1, A1-2, A1-5, A1-6:** Media's meters held to the provider cadence, no per-tick geometry formulas, the volume read once a second, and the Title animation setting.
+- **U2 = A1-3, A1-4:** the hidden spectrum mask parked, and the output row repainted only on change.
+
+The setup was the same (5 rounds, 60 s, live preferences, hardware rendering). With two units, "baseline + U1" and "all − U2" are the same tree, as are "baseline + U2" and "all − U1". Their measured differences (0.04-0.85 points) show the noise floor directly.
+
+| Unit | Media (drawer open): alone / inside A1 | Audio Visualizer: alone / inside A1 |
+| --- | ---: | ---: |
+| U1, Media cadence | 4.27 / 7.42 | −0.03 / 0.52 |
+| U2, spectrum repaint | 0.21 / 3.60 | 2.17 / 3.25 |
+| **G (all of A1)** | **8.48** (Σg 4.48, I = +4.00, 2s = 1.48: **synergistic**) | **2.74** (Σg 2.14, I = +0.59, 2s = 0.72: additive) |
+
+**For Media, neither half helps much alone, and together they remove 82% of its cost.**
+- **Why: Rainmeter 4.5 repaints the whole window whenever any meter is due** (T1).
+- **U1 alone** stops Media's own meters, but the drawer's spectrum meters still fire 20 times a second, so the window still repaints at 20 Hz.
+- **U2 alone** quiets the spectrum, but Media's own meters still fire at 20 Hz.
+- **Only both together** stop the 20 Hz repaint.
+- **Wakeups show it most clearly:** −5 and −33/s for each half alone, 225/s together.
+
+This is the mechanism the protocol predicted for A1 with C1 (the parked capture removes the rest of the drawer's work). It is confirmed here, one level down. In the standalone Audio Visualizer, U2 does almost all the work and the CPU gain is additive.
+
+**Answer to the step-3 question.** Phase A's suite-wide gain is not one class:
+- **Inside Media it is synergistic:** fixes that each remove one of several 20 Hz repaint triggers only pay off together.
+- **Across the six live skins it is antagonistic:** each package removes load from one shared, contended UI thread, so their gains overlap. Together they still deliver 58% (this matrix) to 63% (phase B benchmark).
+- **Within Audio Visualizer it is additive.**
+
+## Overnight trace (2026-10-22/23): what drives the night-time fan
 
 ## Overnight trace (2026-10-22/23): what drives the night-time fan
 

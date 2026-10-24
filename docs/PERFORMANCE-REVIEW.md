@@ -529,6 +529,117 @@ CPU in % of one core, median [min-max].
 - **One outlier.** Baseline's first six-skin trial read 11.5, about half the other two (21.6 and 20.5), and its UI-thread time was half as well. The median uses all three trials.
 - **Why these differ from yesterday's run** (25.5 at baseline, 10.3 after phase A): that ran under different background load. Today's numbers come from one interleaved session, so they compare like with like.
 
+## Phase C result (merged and measured 2026-10-23)
+
+**How it was built.**
+- **Design first.** A designer agent wrote the design from the Rainmeter 4.5.28 source, with line references.
+- **Then an adversarial review of the design.** It found 1 blocking and 6 major problems, all corrected before any code was written. Examples: meters whose dividers modules change at runtime would have stayed frozen after a pause; a stand-down could stick after a missed broadcast; a coordinator started inside a skin's load could deactivate itself mid-refresh.
+- **C1 and C2 were then built in sequence, each reviewed by an independent agent.** C1 was approved directly (7 commits). C2 needed one round of fixes and a second review (23 commits, 10 of them review fixes).
+- **Merged** as `6406612` (C1) and `67e83c5` (C2). `95331f9` then fixes a Windows PowerShell 5.1 default-parameter bug in the new variants test, and `4e1d711` merges the wakeup follow-up C3 (below).
+
+**The shared idle signal: a hidden coordinator config, `Parallax\Idle`.**
+- **Why a separate config.** Windows' "time since last keyboard or mouse input" reaches a skin only through the SysInfo `IDLE_TIME` measure. Any SysInfo measure turns its skin into a network-table poller: `GetIfTable2` runs on every tick of that skin, about 2 ms per call on this machine (`Skin.cpp`, `NetworkUtil.cpp`). Inside Media's 50 ms tick that would cost about 0.8% of a core. So the suite's only SysInfo measure lives in a separate hidden skin that ticks every 2 s.
+- **When it runs.** It loads only while something needs it: an open drawer, or Idle pause set to 5, 10 or 30 minutes. It unloads itself otherwise.
+- **The 49.7-day wrap** of Windows' input clock is handled.
+- **A safety net.** The coordinator re-broadcasts every minute. A skin that hears nothing for 3 minutes resumes by itself, so a lost broadcast can never leave a skin frozen.
+
+**C1, the drawer's capture lease (owner decision 1).**
+- **When it parks.** After 2 minutes of silence, plus 5 minutes without keyboard or mouse input, while no WebNowPlaying player reports Playing.
+- **What parking does.** Media reloads into a variant with no AudioLevel measure, so Windows' audio engine can stop. Wednesday's live A/B measured that engine at 9.8% of a core with the drawer open, and not running with it collapsed. The drawer shows "Capture paused".
+- **How it resumes.** On input, on playback, or on a click.
+- **One capture at a time.** While the standalone Audio Visualizer is loaded, the drawer shows "Spectrum is shown in Audio Visualizer" instead of opening a second capture.
+- **No extra helper launches.** Media's own lease reloads skip the provider-resume launches (MEDIA-08).
+- **VIS-04** (the volume readout) was already done in A1.
+
+**C2, Idle pause (owner decision 2).**
+- **The setting.** Global Settings → Refresh → Idle pause: Off / 5 / 10 / 30 min, **default Off**.
+- **While paused:**
+  - Title rows read "Paused (idle)", and the headline value is hidden rather than covered. Meters stop repainting and measures pause.
+  - Media and the standalone Visualizer reload into a 1 s variant with no audio capture.
+  - The RAM page-file host and the GPU telemetry host stop.
+- **On resume (first keyboard or mouse input):** histories restart, and the helpers show Checking... for a few seconds.
+
+**Measured 2026-10-23, 18:37-19:33.** Same setup as phase B (live preferences, hardware rendering, 3 interleaved trials). "Paused" is phase C with Idle pause on and every skin stood down, forced through the coordinator's test hooks in a staged copy. Reports: `*-live-pc-*`.
+
+CPU in % of one core, median [min-max].
+
+| Scenario | Phase B `08ecb9f` | Phase C `95331f9` | Phase C, paused |
+| --- | ---: | ---: | ---: |
+| **Six live skins** | 8.47 [7.78-8.96] | 8.50 [8.40-9.02] | **3.65** [3.63-4.12] |
+| UI thread | 4.07 | 4.08 | **0.50** |
+| Plugin threads | 3.42 | 3.69 | 3.13 |
+| Rainmeter wakeups/s | 718 | 830 | 425 |
+| Media (drawer open) | 1.89 | 1.89 | 0.20 |
+| Visualizer | 1.84 | 1.74 | 0.20 |
+| CPU | 3.80 | 4.28 | 2.74 |
+| GPU | 1.61 | 1.74 | 0.94 |
+| RAM | 3.19 | 2.99 | 2.74 |
+
+**Reading it:**
+- **With Idle pause off, phase C costs what phase B did** (8.5 against 8.5). C1's lease cannot act inside a 45 s isolated trial, because it needs 2 minutes of silence and 5 minutes away. Its gain is the audio engine's ~10% of a core once parked, taken from Wednesday's live A/B, not from this run.
+- **Paused, the six skins fall by 57% and the UI thread by 88%.** What remains is mostly UsageMonitor's process-wide readers (3.1 points), which keep running by design. Unloading them while paused would mean reloading CPU, RAM and GPU each time: a "deep stand-down", listed as a later option.
+- **Wakeups went the wrong way where the coordinator runs.** With the drawer open, Media's UI thread wakes about 72 more times a second than in phase B (101 → 173). With Idle pause on, CPU, GPU and RAM each wake about 30 more times a second while paused than while active. The design expected about 2.5 a second from the coordinator. The diagnosis follows below.
+
+**Diagnosis and fix: C3, `e11f6a6`, merged as `4e1d711` on 2026-10-24.**
+
+A follow-up agent isolated the cause with staged variants that each differed in one thing (3 trials each). An independent reviewer confirmed the cause in the Rainmeter source and re-measured. Two costs add up.
+
+1. **The coordinator's window: about 57 of the 72 extra wakeups beside Media's open drawer, 31 beside CPU Meter, and 15 on its own.**
+   - **Any hidden window does it.** A bare hidden 1x1 skin with no measures costs the same, whether hidden or shown, ticking or not, and with hardware or software rendering. Each further hidden window adds about as much again.
+   - **Where the time goes.** Stack samples show a `CallNextHookEx` call from `dxgi.dll` inside `GetMessage`. It appears only once a second skin window exists, and it blocks on a win32k lock, most likely the session's USER lock, two to three times per message. That is why it scales with the other skins' message rate.
+   - **It cannot be removed in Rainmeter 4.5.28** while the coordinator is a separate config.
+   - **This machine makes it worse.** TextInputHost running away at about 90% of a core is the probable lock holder; that is not proven.
+2. **The SysInfo reading: 13-15 wakeups/s.** The fix reads it only when a reading could change the state: about once a minute while you are at the computer. It still reads every 2 s while you are away or skins are paused, so input is seen within one tick.
+
+**Result.** UI-thread wakeups/s from the reviewer's clean re-measure:
+
+| Scenario | Before the fix | After | Without the coordinator | A bare hidden window |
+| --- | ---: | ---: | ---: | ---: |
+| Media, drawer open | 174 | 160 | 104 | 161 |
+| CPU Meter, Idle pause on | 92 | 78 | 47 | — |
+
+CPU time is unchanged within noise.
+
+**Open options, not built:**
+- **A lazy coordinator for the drawer.** It would join only after 2 minutes of drawer silence, or while parked. That saves about 57 wakeups/s while music plays, but it needs a protocol change.
+- **Read IDLE_TIME inside Network when Network is loaded.** Network already reads the interface table every tick, so the reading would cost nothing extra there.
+- **Restart TextInputHost and re-measure.** The per-window cost may largely disappear.
+
+**Suite-wide lesson.** Every extra Rainmeter window, including a Settings window left open and Media's Queue or Setup, adds this per-message hook call. Weigh that before splitting the UI into more configs.
+
+**Minor review notes:**
+- **A rare tick-token collision** is possible on a quick double refresh after 24.8 days of uptime.
+- **The re-armed tick drifts a few milliseconds per tick,** so the heartbeat comes about every 60.5 s.
+- **Unexplained RAM double hosts.** Two of 5 combined native runs of the fixed code started two RAM hosts, both during display re-detection, against 0 of 2 runs at the base. The cause was not found.
+
+**Owner choices the build made (the behaviour-preserving option, or one the design required):**
+- **A new hidden config.** `Parallax\Idle` appears in Rainmeter's Manage list (not as a Welcome row) whenever the drawer is open or Idle pause is on.
+- **Idle counts keyboard and mouse only.** Watching a video or playing with a gamepad counts as idle. That matters only for Idle pause, which is off by default; the drawer additionally needs silence and no player reporting Playing.
+- **Media pauses on input idleness even while music plays,** when Idle pause is on.
+- **The standalone Audio Visualizer has no silence lease.** Decision 1 named the drawer. It does stand down under Idle pause.
+- **Chronometer hides its clock face while paused,** because a frozen time reads as current.
+- **Some background work keeps running while paused:** UsageMonitor's readers, Network's interface polling, and Media's Source and Queue helpers.
+- **Resume costs a little:** about 1 s of UI-thread work with all nine skins loaded, plus one PowerShell start and compile for each of the RAM and GPU hosts.
+
+**Known issue, not fixed: a helper-launch kill race (only with Idle pause on).**
+- **What happens.** If a stand-down lands within milliseconds of a RAM or GPU helper launch, RunCommand logs "Error 102: Program not running" and the launch carries on.
+- **What it costs.** Nobody renews the stranded host's lease, so it exits when the lease lapses, about 15 s later.
+- **Why it is open.** Each clean fix needs a design decision; the options are written up in `docs/modules/RAM.md` and `docs/modules/GPU.md`.
+
+**Checks on the merged tree:**
+- `Test-Parallax.ps1 -RequireAllModules -WarningsAsErrors`: 24 configs, 122 files, 0 errors, 0 warnings.
+- `Test-ParallaxVariants.ps1`: 9 variant sets, 8,449 static bang targets resolved.
+- `test_idle_freeze_contract.py`: 10 tests.
+- `Test-RepaintRule`: 50 assertions. `Test-PackagingTools`: passed.
+- The builders' native runs (coordinator, capture lease, stand-down across all skins, hover and headline matrices) passed in isolated instances.
+
+**Not verified:**
+- **Real input.** Transitions were driven by a test idle file, not physical keyboard and mouse input.
+- **Real WebNowPlaying** playback.
+- **Sleep and resume, and graceful-exit paths,** natively.
+- **The audio engine stopping on this machine after a park.** Only the drawer's own render session was seen disappearing.
+- **Behaviour after a real release install** on the live profile.
+
 ## Overnight trace (2026-10-22/23): what drives the night-time fan
 
 **Setup.**

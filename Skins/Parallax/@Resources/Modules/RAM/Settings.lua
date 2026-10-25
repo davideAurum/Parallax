@@ -10,7 +10,8 @@ local choices = {
     RAMShowBar = {default=1, count=2, kind='toggle', meter='MeterRAMSettingsBar'},
     RAMShowPageBar = {default=1, count=2, kind='toggle', meter='MeterRAMSettingsPageBar'},
     RAMShowHistory = {default=1, count=2, kind='toggle', meter='MeterRAMSettingsHistory'},
-    RAMShowProcesses = {default=1, count=2, kind='toggle', meter='MeterRAMSettingsProcesses'}
+    RAMShowProcesses = {default=1, count=2, kind='toggle', meter='MeterRAMSettingsProcesses'},
+    RAMHistoryScale = {default=0, count=2, kind='scale', meter='MeterRAMSettingsHistoryScale'}
 }
 
 local function finite(value)
@@ -26,7 +27,8 @@ local function render()
     for key, spec in pairs(choices) do
         local label = tostring(values[key])
         if spec.kind == 'units' then label = values[key] == 1 and 'MB' or 'GB'
-        elseif spec.kind == 'toggle' then label = values[key] == 1 and 'On' or 'Off' end
+        elseif spec.kind == 'toggle' then label = values[key] == 1 and 'On' or 'Off'
+        elseif spec.kind == 'scale' then label = values[key] == 1 and 'Auto' or 'Full' end
         SKIN:Bang('!SetOption', spec.meter, 'Text', label)
     end
     SKIN:Bang('!SetOption', 'MeterRAMSettingsHint', 'Text', hint or defaultHint)
@@ -55,10 +57,11 @@ local function save(key, value)
     SKIN:Bang('!SetVariable', key, tostring(value))
     SKIN:Bang('!WriteKeyValue', 'Variables', key, tostring(value), userFile)
     SKIN:Bang('!SetVariableGroup', key, tostring(value), 'ParallaxRAM')
-    if key == 'RAMShowProcesses' then
-        -- The table's UsageMonitor ranks are an include chosen at load (a
-        -- loaded one keeps the Process reader running even while disabled),
-        -- so only this choice reloads Memory Meter, restarting its history.
+    if key == 'RAMShowProcesses' or key == 'RAMHistoryScale' then
+        -- The table's UsageMonitor ranks (a loaded one keeps the Process reader
+        -- running even while disabled) and the history range controller are
+        -- includes chosen at load, so only these choices reload Memory Meter,
+        -- restarting its history.
         SKIN:Bang('!Refresh', 'Parallax\\RAM')
     else
         -- Reformat/apply cached main values without refresh, resampling or history loss.

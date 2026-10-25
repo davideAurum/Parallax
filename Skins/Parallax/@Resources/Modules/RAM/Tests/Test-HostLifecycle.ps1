@@ -12,9 +12,12 @@
 #   - no console window becomes visible while helpers start;
 #   - Unload: !DeactivateConfig stops the host within one interval and removes
 #     its session files; the module is then activated again;
-#   - Suspend (optional): the Rainmeter process is suspended past the lease
-#     window, then resumed; the reading and a new host must come back within
-#     -RecoverySeconds (the skin retries a failed session after 10 s);
+#   - Suspend (optional): the Rainmeter process is suspended, then resumed. The
+#     host's lease window is 60 s, so the default 20 s suspension must leave
+#     the same host running with a current reading afterwards, and a longer
+#     one (-SuspendSeconds 70) lets the lease lapse, after which a reading and
+#     a new host must come back within -RecoverySeconds (the skin retries a
+#     failed session after 10 s);
 #   - Finish Exit (!Quit) or Kill (Stop-Process): the host exits on its own.
 # Rainmeter.log must contain no errors (Error 105 included). The live
 # Rainmeter profile and installed skins are never read or changed.
@@ -296,7 +299,9 @@ try {
             $reading = Get-Reading
             if ($reading) { $samples.Add($reading.Text) }
             $hosts = @(Get-Hosts)
-            if ($reading -and $reading.Text -match $spec.Reading -and $hosts.Count -eq 1 -and $hosts[0].ProcessId -ne $hostProcess.ProcessId) {
+            # A host that outlived the suspension counts once it shows a current
+            # reading; a lapsed one must have been replaced by a new host.
+            if ($reading -and $reading.Text -match $spec.Reading -and $hosts.Count -eq 1 -and ($null -eq $hostGoneAfter -or $hosts[0].ProcessId -ne $hostProcess.ProcessId)) {
                 $recovered = [Math]::Round(($RecoverySeconds - ($recoverDeadline - [DateTime]::UtcNow).TotalSeconds), 1)
                 $hostProcess = $hosts[0]; $token = Get-Token $hostProcess
                 break
@@ -315,7 +320,7 @@ try {
         }
         # Before the recovery fix this was the owner's live symptom: the
         # reading stayed Unavailable with no host until a refresh.
-        Check ($null -eq $hostGoneAfter -or $null -ne $recovered) "Suspend: a reading and a new host came back after resume ($($result.SuspendOutcome))"
+        Check ($null -ne $recovered) "Suspend: a current reading came back after resume ($($result.SuspendOutcome))"
     }
 
     $hosts = @(Get-Hosts)

@@ -83,6 +83,9 @@ foreach ($role in $copies.Keys) {
     # older -CompareSkinRoot tree still keeps them in Measures.inc.
     $rankFile = '@Resources\Modules\RAM\ProcessMeasures1.inc'
     $caseRelatives = @($relatives)
+    # The history-scale include (2026-10-25) is absent from older compare trees.
+    $scaleFile = '@Resources\Modules\RAM\HistoryScale0.inc'
+    if (Test-Path -LiteralPath (Join-Path $copies[$role] $scaleFile) -PathType Leaf) { $caseRelatives += $scaleFile }
     if (Test-Path -LiteralPath (Join-Path $copies[$role] $rankFile) -PathType Leaf) { $caseRelatives += $rankFile } else { $rankFile = '@Resources\Modules\RAM\Measures.inc' }
     foreach ($relative in $caseRelatives) {
         $text = [IO.File]::ReadAllText((Join-Path $copies[$role] $relative))

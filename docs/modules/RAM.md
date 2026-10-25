@@ -161,6 +161,15 @@ The native Line buffer stores one sample per horizontal pixel, newest at right. 
 
 Rainmeter zero-fills the initial Line buffer. An opaque shape covers uncollected slots with a two-logical-pixel overlap to hide the antialiased startup transition. A self-referencing Calc count resets on refresh and reveals collected samples; the cover vanishes at capacity. At that point a one-shot `IfCondition` on the count hides the zero-width cover and sets both the cover and the count to `UpdateDivider=-1`, so neither re-reads or rebuilds every second for the rest of the load; showing history again does not re-show a retired cover. Refresh restarts both. Grid and border render above the cover so blank history retains guides. The first few samples can be covered by the conservative overlap.
 
+**A flat-looking history is expected (checked 2026-10-25).** The plot uses a fixed 0–100% scale of OS-usable RAM. On the owner's 34.15 GB (31.8 GiB) machine, with the default 48 px graph, the line spans 47 px, so 1 px is about 742 MB. A 0.51 GB swing over 5 minutes moved the line 0.69 px. The check was a read-only, 300 s capture of the live v0.1.0-alpha.6 window: 150 `PrintWindow` captures, one every 2 s, compared against `GlobalMemoryStatusEx` and `\Memory\Available Bytes`. Results:
+
+- The plot changed in every capture.
+- It scrolled 2 columns per 2.01 s in 149/149 consecutive pairs.
+- Its 206 columns matched the logged values with correlation 0.978 and 24 MB (0.033 px) RMS residual, after removing a constant −0.54 px offset that comes from the analysis's centroid model.
+- The RAM text passed through the same 6 values as the log rounded to 0.1 GB.
+
+Nothing was stuck and nothing was changed. A tighter or auto-ranged scale is an owner decision.
+
 History is not saved. Refresh, reload or geometry changes applied by refresh restart it. Avoid graph-only `!UpdateMeter` actions, including `!UpdateMeter *`, unless sample counting is coordinated; normal full updates keep them aligned. Cached overview reflow and Settings changes do not append graph samples.
 
 The overview reports unavailable inventory explicitly. PAGE has the provider status and freshness checks described above. Native PhysicalMemory exposes no freshness/status display here, so this skin cannot independently detect stalled physical-RAM values or OS query failures. It invents no freshness timestamp for physical RAM.

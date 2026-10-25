@@ -4,10 +4,15 @@ Review date 2026-10-22, against commit 71bfcdc (0.1.0-alpha.6 plus the WebNowPla
 
 CPU figures are **percent of one logical core** unless stated otherwise. 100% means one of the 12 hardware threads is fully busy; the whole machine is 1200%.
 
-## Where it stands (2026-10-23)
+## Where it stands (2026-10-25)
 
 - **Six live skins:** 20.5% of a core at baseline, 9.0 after phase A, 7.7 after phase B (−63%). With the CPU, RAM and GPU process lists hidden: 4.7 (−77%). Measured in an isolated benchmark with live preferences, 3 interleaved trials. See [Phase B result](#phase-b-result-merged-and-measured-2026-10-23).
 - **The overnight fan peaks are not Parallax.** They come with bursts of display re-detection work in explorer and NVIDIA's display service, about every 50 s, with the screens off. Parallax is a steady floor of about a quarter of the night-time load. See [Overnight trace](#overnight-trace-2026-102223-what-drives-the-night-time-fan).
+- **Cause found and fixed (2026-10-25): the left monitor's DisplayPort link was dropping.** With the screens off, it disconnected and reconnected 70-100 times an hour.
+  - **The fan.** That is the display re-detection behind the fan peaks.
+  - **The slowdown over days.** Each reconnect also made Windows leak a kernel copy of every Parallax skin's image, about 2.2 MB, which explains the slowdown that only a restart cleared.
+  - **The fix.** Swapping the two DisplayPort cables stopped it: 0 dropouts in 25 dark minutes, against 11-17 in 5-6 minutes before.
+  - See [Display dropouts and the kernel memory leak](#display-dropouts-and-the-kernel-memory-leak-2026-102425).
 - **Phase C is merged.**
   - **Idle pause (C2):** off by default; when on, it takes the six skins from 8.5 to 3.65% while paused.
   - **The drawer (C1):** releases its audio capture after silence while you are away.
@@ -19,8 +24,8 @@ CPU figures are **percent of one logical core** unless stated otherwise. 100% me
   - The likely shared cause of the overlap is Rainmeter's single, contended UI thread. See [Step 3 result](#step-3-result-2026-10-24-are-the-gains-additive).
 - **Nothing has reached the desktop yet.** The live skin changes only when a release is installed.
 - **Open for the owner:**
-  - TextInputHost's runaway, which probably inflates Rainmeter's lock waits;
-  - the monitors' Auto Source Switch (the night-time display re-detection);
+  - **TextInputHost** was ended on 2026-10-24. The "after" re-measure of the coordinator's window cost has not run yet; it is best run now that the display is fixed.
+  - **The cable fix** still needs an overnight confirmation;
   - whether to hide the process lists (the largest remaining cost);
   - the C3 options (a lazy coordinator for the drawer);
   - the stand-down helper kill race.
@@ -735,8 +740,6 @@ This is the mechanism the protocol predicted for A1 with C1 (the parked capture 
 
 ## Overnight trace (2026-10-22/23): what drives the night-time fan
 
-## Overnight trace (2026-10-22/23): what drives the night-time fan
-
 **Setup.**
 - `Trace-ParallaxLive.ps1` ran from 23:31:53 to 08:31:50 at a 5 s interval, giving 6,275 samples (`build/perf-trace/20261022T233145-overnight-baseline*`).
 - The live skin was the installed build, from before phase A. The drawer was open.
@@ -764,7 +767,7 @@ Screen-off figures. CPU in % of one core; "busy" is % of all cores.
 - **What does not:** Parallax and Rainmeter's UI thread are unchanged into a peak.
 - **Correlation with the fan:** 0.02 for Parallax and −0.02 for Rainmeter's main thread, against 0.71 for total machine load and 0.54 for CPU temperature.
 
-Explorer, the NVIDIA display container and dwm bursting together is how display re-detection work shows up. With the screens off, that is consistent with the monitors cycling their inputs or DisplayPort links, which matches the one-monitor-then-the-other half-wakes the owner saw. It is consistent, not proven. The test is to turn off the monitors' Auto Source Switch (and DisplayPort deep sleep, if needed) and trace another night.
+Explorer, the NVIDIA display container and dwm bursting together is how display re-detection work shows up. With the screens off, that is consistent with the monitors cycling their inputs or DisplayPort links, which matches the one-monitor-then-the-other half-wakes the owner saw. It is consistent, not proven. The test is to turn off the monitors' Auto Source Switch (and DisplayPort deep sleep, if needed) and trace another night. **Update 2026-10-25:** confirmed and fixed; Auto Source Switch was not the cause. See [Display dropouts and the kernel memory leak](#display-dropouts-and-the-kernel-memory-leak-2026-102425).
 
 **What Parallax contributes is a steady floor, not the peaks.**
 - **Size:** about 27% of a core all night, about a quarter of the steady load. That is 12% on Rainmeter's UI thread, 9% in helpers and 8% in audiodg, which the open drawer keeps running.
@@ -775,6 +778,68 @@ Explorer, the NVIDIA display container and dwm bursting together is how display 
 **Other findings:**
 - **TextInputHost**, the Windows touch-keyboard, emoji and input-method host, is the largest steady consumer: about 60% of a core from 04:00 onwards, up from 34% earlier in the night. Nobody was typing, so this is not normal. It is the owner's call whether to end it; Windows restarts it on demand.
 - **Search indexing** climbed from 5% to 22% of a core over the night.
+
+## Display dropouts and the kernel memory leak (2026-10-24/25)
+
+**Symptom.** The machine slowed over days, and only a restart helped. At 2.9 days uptime (2026-10-24):
+- kernel paged pool was 13.8 GB and nonpaged 1.3 GB;
+- commit was 48.3 of 51.8 GB, with 2.8 GB of RAM free;
+- Intel's igfxEM held 147,488 handles and NVIDIA's display container 35,431.
+
+**Method.** Everything was read-only except the steps marked as owner-approved.
+- **Leak logger.** `build/leak-watch/Watch-Leak.ps1` is a diagnostic, not part of Parallax. Every 10 min it records pool, commit and handle samples. It also logs each display-settings change with the screen layout, and screen on/off comes from Kernel-Power event 566.
+- **Pool by tag.** `NtQuerySystemInformation` gave pool usage per tag (class 22) and per large allocation (class 66).
+- **GDI objects per process.** `GetGuiResources`, run elevated once with the owner's OK.
+- **The scripts** are in the session scratchpad, not the repo.
+
+**Finding 1: the left monitor keeps dropping its DisplayPort link.**
+- **How often.** The left monitor (Samsung U32J59x, `DISPLAY2`) disappeared from Windows' screen list and came back 1,383 times in the 20 hours after the 2026-10-24 restart. That is 70-100 an hour in bursts, each outage about 1.5 s.
+- **When.** Only while Windows had blanked the screens: the first drop came 10-45 s after blanking, then pairs about 8 s apart, repeating every 30-80 s.
+- **Invisible.** The backlight stays off throughout, so it can only be seen in the logs.
+- **The fan.** This is the display re-detection behind the overnight fan peaks above.
+
+**Finding 2: each reconnect leaks one kernel copy of every Parallax skin's image.**
+- **Growth.** Paged pool grew 150-220 MB an hour while the drops continued, from 974 MB after boot to 4.5 GB.
+- **Which tag.** Almost all of the growth is pool tag `Gpbm`, GDI bitmap memory in `win32kbase.sys`/`win32kfull.sys`: 3.1 GB in about 11,600 large allocations.
+- **Owned by no process.** Every process in the session together held only 3,713 GDI objects.
+- **The sizes give it away.** Six sizes recur about 1,300-1,366 times each, about once per reconnect. Each matches one of the six Parallax skins on that monitor, as `width × height × 4` bytes rounded up to whole 4 KB pages, at the size Rainmeter draws it.
+- **Why ⅔.** Rainmeter 4.5.28 runs DPI-unaware, and both monitors are 3840×2160 at 150%, so Windows stretches each skin 1.5×. The leaked copies are the unstretched images.
+
+| Skin | On screen (px) | Rainmeter draws (px) | Bytes, page-rounded | Leaked allocations of that size |
+| --- | --- | --- | ---: | ---: |
+| Media | 684×474 | 456×316 | 577,536 | 1,362 |
+| CPU | 342×837 | 228×558 | 512,000 | 1,366 |
+| GPU | 342×705 | 228×470 | 430,080 | 1,345 |
+| RAM | 342×509 | 228×339 | 311,296 | 1,308 |
+| IO | 342×398 | 228×265 | 245,760 | 1,301 |
+| Chronometer | 342×240 | 228×160 | 147,456 | 1,308 |
+
+- **Who holds it.** The copies are allocated by Windows' kernel graphics code when it rebuilds the display layout. They are never freed and belong to no process, so ending a process cannot release them; only a restart does.
+  - **Ending igfxEM** (owner-approved, 2026-10-25 13:02:15) freed 5 MB. igfxEM does leak about 29 handles per reconnect, and NVIDIA's container about 6, but those are side leaks.
+  - **Ending Razer's app** (owner-approved, 13:12:50) freed its 10,000 GDI objects, the per-process cap, but none of the `Gpbm` memory.
+- **Parallax's part.** Parallax does not cause the dropouts. Its windows are what gets copied, so its size and skin count set the cost per dropout. The leak is a Windows defect; there is nothing to change in the skins.
+
+**Finding 3: the fix.** Each test ran the screens dark with a 1-minute timeout and counted dropouts with the logger.
+
+| Left monitor | Dark | Dropouts |
+| --- | --- | ---: |
+| DP 1.2, input source changed from Auto to Manual | 6 min | 17 |
+| DP 1.1 (NVIDIA kept 4K 60 Hz by switching to YCbCr 4:2:2, limited range) | 4 min | 2, then none |
+| DP 1.2, straight after the switch back (a power-cycle) | 5 min | 11 |
+| **DP 1.2, both DisplayPort cables swapped end to end, same GPU ports** | **24¾ min** | **0** |
+
+- **The leak stopped.** During the last test paged pool stayed at 4,693-4,695 MB. The only event was one resync 2 s after the screens woke.
+- **Likely cause.** The old left cable did not fail on the right monitor either, so a poorly seated plug, or a cable that is marginal at DP 1.2 speed with the left monitor, is the likely cause.
+- **Still to confirm:** a full night with the logger.
+
+**TextInputHost.**
+- **What happened.** It had run at about 85-90% of a core since 2026-10-21 17:54 (97,205 CPU-seconds). It was ended with the owner's OK on 2026-10-24 at 16:14:27, and Windows restarted it as a quiet instance.
+- **The "before" re-measure** gave a coordinator window cost of +55-60 UI wakeups/s beside Media and +109 across the six skins.
+- **The "after" run** was cancelled by the restart and is still to do.
+
+**Not verified.**
+- Whether skins on the steady monitor, or a DPI-aware Rainmeter, would also leak per reconnect.
+- How much of the fan's night-time pattern remains after the fix. The overnight trace in the evidence protocol should be re-run.
 
 ## Owner decisions (2026-10-22)
 

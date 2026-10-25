@@ -94,9 +94,9 @@ function Update(immediate)
     changed = meter('MeterArtworkLabel', not track and tonumber(SKIN:GetVariable('Columns')) == 2) or changed
     for name, command in pairs(commands) do
         local enabled = online and number(command.measure) == 1
-        -- PROVISIONAL: the face is #AccentColor#, so an accent glyph would be
-        -- invisible. Reads against the face until the colour pass.
-        local color = SKIN:GetVariable(enabled and 'BackgroundColor' or 'MutedColor')
+        -- The face is #AccentColor#, so an accent glyph would be invisible;
+        -- enabled glyphs use #MediaTransportGlyphColor# (white) against it.
+        local color = SKIN:GetVariable(enabled and 'MediaTransportGlyphColor' or 'MutedColor')
         local fill = enabled and transportHovered[name] and color or '0,0,0,0'
         changed = option(command.meter, 'LucideTransportStroke', 'Fill Color ' .. fill .. ' | Stroke Color ' .. color
             .. ' | StrokeWidth (2*#Scale#) | StrokeStartCap Round | StrokeEndCap Round | StrokeLineJoin Round | Offset (#MediaTransportGlyphOffset#' .. command.nudge .. '),#MediaTransportGlyphOffset#') or changed

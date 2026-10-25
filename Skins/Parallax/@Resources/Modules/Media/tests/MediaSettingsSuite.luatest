@@ -69,10 +69,10 @@ local function plot_inset(scale)
     return math.max(padding,math.ceil(b/2+r-frame-(r-b/2-frame-(padding-b))*math.sqrt(0.5)))
 end
 -- The open drawer's plot and lift: the standalone Visualizer's plot height for
--- the Audio settings Height preset, its 19px output row above and 19px
--- frequency-label row below, plus the
--- queue sheet's spacing mirrored (the plot inset at the far edge, 4px section
--- gap), whole pixels. Also
+-- the Audio settings Height preset and its 19px output row above, plus the
+-- plot inset at the far edge and the 5px origin buffer under the plot, whole
+-- pixels; the plot ends 5px above the player's top and its frequency labels
+-- sit in the strip below that. Also
 -- returns the inset and the spectrum's bar height (plot interior less the
 -- baseline gap), which places the drawer's grid lines.
 local function drawer_lift(scale)
@@ -82,7 +82,7 @@ local function drawer_lift(scale)
     local shift=math.max(0,tonumber(SKIN:GetVariable('BorderThickness'))-2)
     local plot=math.max(math.floor((preset-66-shift)*scale+0.5),math.ceil(54*scale)+baseline+2)
     local inset=plot_inset(scale)
-    return math.ceil(inset+19*scale+plot+19*scale+4*scale),plot,inset,plot-2-baseline
+    return math.ceil(inset+19*scale+plot+5*scale),plot,inset,plot-2-baseline
 end
 -- Independent model of the drawer layout. It mirrors media_body_geometry and
 -- media_drawer_geometry in test_skin_contract.py from the same primitives,
@@ -132,18 +132,20 @@ local function media_geometry(expanded, rows)
     local overhang=math.max(cover_y+cover,body+(size+2*pad)/2)
     local window=math.max(lift+body+gap,math.ceil(lift+overhang+2*inset),math.ceil(lift+drawer_bottom+2*inset))
     -- Spectrum tab: the gear's 18px column unless the corner radius exceeds
-    -- the padding; collapsed it fills the strip, open it also takes the 4px
-    -- gap under the plot. Both tab edges snap down to whole pixels (the inset
-    -- is whole), so at 0.75 and 1.25 the tab is 14 or 23px wide. The open
-    -- sheet and plot share the queue sheet's x-bounds; the plot sits the plot
-    -- inset in from both sides.
+    -- the padding; it fills the strip in both states. Both tab edges snap
+    -- down to whole pixels (the inset is whole), so at 0.75 and 1.25 the tab
+    -- is 14 or 23px wide. The open sheet shares the queue sheet's x-bounds.
+    -- The plot ends the plot inset in from the right; its origin sits 5px
+    -- right of the wide art's right edge, but never so far left that the 40px
+    -- dB gutter leaves the left plot inset (always the case when compact).
     local tab_right=math.floor(math.min(panel_width-padding,panel_width-tonumber(SKIN:GetVariable('CornerRadius'))*scale))
     local tab_x=math.floor(tab_right-18*scale)
     local inset_plot=plot_inset(scale)
+    local plot_x=math.max((wide and 96*scale or 0)+inset_plot+40*scale,wide and cover+5*scale or 0)
     return {scale=scale,wide=wide,inset=inset,padding=padding,offset=offset,bar=bar,progress=progress,body=body,
         lift=lift,top=inset+lift,open=open,spectrum_tab=shown and hosted(),spectrum_x=tab_x,spectrum_w=tab_right-tab_x,
-        spectrum_toggle_y=open and -4*scale or 0,spectrum_plot_inset=inset_plot,spectrum_plot_x=(wide and 96*scale or 0)+inset_plot+40*scale,
-        spectrum_plot_width=panel_width-padding-(wide and 96*scale or 0)-2*inset_plot-40*scale,
+        spectrum_toggle_y=0,spectrum_plot_inset=inset_plot,spectrum_plot_x=plot_x,
+        spectrum_plot_width=panel_width-padding-inset_plot-plot_x,
         cover=cover,cover_x=cover_x,cover_y=cover_y,content_x=content_x,content_right=panel_width-padding,
         surface_x=wide and 96*scale or 0,transport_x=transport_x,transport_size=size,transport_pad=pad,
         transport_box=size+2*pad,transport_step=size+button_gap,tab_y=progress+bar+padding,
@@ -203,7 +205,10 @@ local function header_row(state)
     local icon_size=14*scale*tonumber(SKIN:GetVariable('TitleFontSize'))/10
     check(math.abs(title:GetY(true)-(surface+15*scale))<=1,'Title is not on the shared row center')
     check(math.abs(title:GetX(true)-(content_x+icon_size+4*scale))<=1,'Title does not follow the icon slot and gap')
-    check(math.abs(title:GetW()-(g.content_right-g.content_x-icon_size-28*scale))<=1,'Title does not end 24px before the content edge')
+    -- 24px before the content edge (gear and gap), or 40px while the open
+    -- spectrum drawer puts the output volume in the gear's spot.
+    local reserve=g.open and 40 or 24
+    check(math.abs(title:GetW()-(g.content_right-g.content_x-icon_size-(reserve+4)*scale))<=1,'Title does not end '..reserve..'px before the content edge')
     check(title:GetX(true)+title:GetW()<=SKIN:GetMeter('MeterMediaOptions'):GetX(true),'Title overlaps the gear')
     local media,player=SKIN:GetMeter('MeterMediaIcon'),SKIN:GetMeter('MeterPlayerIcon')
     -- Only a playing track swaps in Audio Lines; paused keeps Monitor Play.
@@ -281,6 +286,26 @@ local function spectrum_tab(g, width, height)
         return
     end
     check(toggle:GetOption('LeftMouseUpAction')=='[!CommandMeasure MeasureMediaOptions "ToggleVisualizer()"]','Spectrum tab action wiring changed')
+    if g.open then
+        -- Open, the chevron holds the output row's last 18S column in the
+        -- sheet's top-right corner, 7S in from the plot's right edge.
+        local icon,hit=SKIN:GetMeter('MeterVisualizerOutputIcon'),SKIN:GetMeter('MeterVisualizerDeviceHit')
+        local row_x=g.inset+g.spectrum_plot_x-40*scale
+        local row_right=g.inset+g.spectrum_plot_x+g.spectrum_plot_width
+        check(math.abs(toggle:GetX(true)-(row_right-18*scale))<=1 and math.abs(icon:GetX(true)-row_x)<=1,
+            string.format('Open chevron x=%g icon x=%g expected %g,%g',toggle:GetX(true),icon:GetX(true),row_right-18*scale,row_x))
+        check(math.abs(toggle:GetY(true)-hit:GetY(true))<=1 and math.abs(toggle:GetH()-18*scale)<=1,
+            string.format('Open chevron band %g+%g expected %g+%g',toggle:GetY(true),toggle:GetH(),hit:GetY(true),18*scale))
+        check(hit:GetX(true)+hit:GetW()<=toggle:GetX(true)+1,'Open chevron overlaps the output row target')
+        local glyph_center=toggle:GetX(true)+formula('#MediaVisualizerGlyphX#+12*#MediaVisualizerGlyphScale#')
+        check(math.abs(glyph_center-(row_right-7*scale))<=1,string.format('Open chevron centre %g expected %g',glyph_center,row_right-7*scale))
+        local sheet_x=g.inset+g.spectrum_plot_x-40*scale-g.spectrum_plot_inset
+        check(math.abs(sheet:GetX(true)-sheet_x)<=1 and math.abs(sheet:GetY(true)-g.inset)<=1,
+            string.format('Spectrum sheet origin %g,%g expected %g,%g',sheet:GetX(true),sheet:GetY(true),sheet_x,g.inset))
+        inside('MeterVisualizerSheet',width,height)
+        inside('MeterVisualizerToggle',width,height)
+        return
+    end
     -- Whole-pixel tab: exact X and width.
     local x,y=g.inset+g.spectrum_x,g.top+g.spectrum_toggle_y
     check(toggle:GetX(true)==x and toggle:GetW()==g.spectrum_w,
@@ -291,8 +316,9 @@ local function spectrum_tab(g, width, height)
     check(math.abs(glyph_center-9*scale)<0.001,string.format('Spectrum chevron centre %g expected %g',glyph_center,9*scale))
     check(math.abs(toggle:GetY(true)-y)<=1 and math.abs(toggle:GetY(true)+toggle:GetH()-(g.top+g.offset))<=1,
         string.format('Spectrum toggle band %g..%g expected %g..%g',toggle:GetY(true),toggle:GetY(true)+toggle:GetH(),y,g.top+g.offset))
-    -- The open sheet spans the queue sheet's x-bounds; collapsed, just the tab.
-    local sheet_x=g.inset+(g.open and g.surface_x or g.spectrum_x)
+    -- The open sheet starts the plot inset left of the dB gutter and ends at
+    -- the queue sheet's right edge; collapsed, it is just the tab.
+    local sheet_x=g.inset+(g.open and g.spectrum_plot_x-40*scale-g.spectrum_plot_inset or g.spectrum_x)
     check(math.abs(sheet:GetX(true)-sheet_x)<=1 and math.abs(sheet:GetY(true)-g.inset)<=1,
         string.format('Spectrum sheet origin %g,%g expected %g,%g',sheet:GetX(true),sheet:GetY(true),sheet_x,g.inset))
     if tonumber(SKIN:GetVariable('CornerRadius'))*scale<=g.padding then
@@ -849,7 +875,7 @@ local function typography()
             -- Accent faces carry background-colored glyphs (Media.lua, provisional).
             local previous=SKIN:GetMeter('MeterPrevious')
             check(previous:GetOption('Shape3'):find('Fill Color '..SKIN:GetVariable('AccentColor'),1,true)~=nil,'Transport face ignores AccentColor')
-            check(previous:GetOption('LucideTransportStroke'):find('Stroke Color '..SKIN:GetVariable('BackgroundColor'),1,true)~=nil,'Transport glyph ignores BackgroundColor')
+            check(previous:GetOption('LucideTransportStroke'):find('Stroke Color '..SKIN:GetVariable('MediaTransportGlyphColor'),1,true)~=nil,'Transport glyph ignores MediaTransportGlyphColor')
         else
             color('MeterSetupStatus','WarningColor'); color('MeterDesktopNote','TextColor')
             color('MeterLoadPlayer','AccentColor'); color('MeterWNPDocs','AccentColor2')
@@ -1037,8 +1063,10 @@ local function header_stage()
     local gear=assert(SKIN:GetMeter('MeterMediaOptions'))
     check(gear:GetW()==0,'Header gear must begin hidden')
     local enter,leave=SELF:GetOption('HoverEnter'),SELF:GetOption('HoverLeave')
-    check(enter=='[!ShowMeter MeterMediaOptions][!Redraw]','Unexpected hover entry command')
-    check(leave=='[!HideMeter MeterMediaOptions][!Redraw]','Unexpected hover leave command')
+    -- Media.ini also swaps the open drawer's volume out of the gear's spot.
+    local swap=hosted()
+    check(enter==(swap and '[!HideMeterGroup MediaHeaderValue][!ShowMeter MeterMediaOptions][!Redraw]' or '[!ShowMeter MeterMediaOptions][!Redraw]'),'Unexpected hover entry command')
+    check(leave==(swap and '[!HideMeter MeterMediaOptions][!ShowMeterGroup MediaHeaderValue][!Redraw]' or '[!HideMeter MeterMediaOptions][!Redraw]'),'Unexpected hover leave command')
     SKIN:Bang(enter)
     check(gear:GetW()==18*scale and gear:GetH()==18*scale,'Hover did not reveal the expected gear bounds')
     local expected_y=inset+offset+6*scale
@@ -1062,7 +1090,7 @@ local function identity_transport()
     local playing=online and stage~=3
     local center=SKIN:GetMeter('MeterPlayPause')
     -- Shape..Shape3 are the shadow and accent face; the art starts at Shape4.
-    -- Enabled glyphs use BackgroundColor against the face, disabled MutedColor.
+    -- Enabled glyphs use MediaTransportGlyphColor (white) against the face, disabled MutedColor.
     local function mode(expected,enabled)
         local art=center:GetOption('Shape4')
         if expected=='pause' then
@@ -1075,7 +1103,7 @@ local function identity_transport()
             check(center:GetOption('Shape5')=='Path LucideTransportPlayOffLowerPath | Extend LucideTransportStroke','Play-off lower path missing')
             check(center:GetOption('Shape6')=='Path LucideTransportPlayOffSlashPath | Extend LucideTransportStroke','Play-off slash missing')
         else check(art=='Path LucideTransportPlayPath | Extend LucideTransportStroke','Play state or fallback must show play') end
-        check(center:GetOption('LucideTransportStroke'):find('Stroke Color '..SKIN:GetVariable(enabled and 'BackgroundColor' or 'MutedColor'),1,true)~=nil,'Center transport stroke ignores capability')
+        check(center:GetOption('LucideTransportStroke'):find('Stroke Color '..SKIN:GetVariable(enabled and 'MediaTransportGlyphColor' or 'MutedColor'),1,true)~=nil,'Center transport stroke ignores capability')
         check(center:GetOption('MouseActionCursor')==(enabled and '1' or '0'),'Center transport cursor ignores capability')
     end
     local first=SKIN:GetMeter('MeterPrevious')
@@ -1084,7 +1112,7 @@ local function identity_transport()
         check(meter:GetOption('Meter')=='Shape','Transport is not a vector Shape')
         check(math.abs(meter:GetW()-44*scale)<=1 and math.abs(meter:GetH()-44*scale)<=1,'Transport target dimensions changed')
         check(math.abs(meter:GetX(true)-first:GetX(true)-(index-1)*38*scale)<=1,'Transport spacing changed')
-        check(meter:GetOption('LucideTransportStroke'):find('Stroke Color '..SKIN:GetVariable(online and 'BackgroundColor' or 'MutedColor'),1,true)~=nil,'Transport stroke ignores connection')
+        check(meter:GetOption('LucideTransportStroke'):find('Stroke Color '..SKIN:GetVariable(online and 'MediaTransportGlyphColor' or 'MutedColor'),1,true)~=nil,'Transport stroke ignores connection')
     end
     mode(online and not playing and 'pause' or 'play',online)
     local enter,leave=center:GetOption('MouseOverAction'),center:GetOption('MouseLeaveAction')
@@ -1161,7 +1189,7 @@ queue_transport_checks=function()
         check(leave=='[!CommandMeasure "MeasureMediaUI" "HoverTransport(\''..command_name..'\',false)"]','Unexpected transport leave action')
         check(meter:GetOption('LucideTransportStroke'):find('Fill Color 0,0,0,0',1,true)~=nil,'Normal skip control is filled')
         SKIN:Bang(enter)
-        check(meter:GetOption('LucideTransportStroke'):find('Fill Color '..SKIN:GetVariable('BackgroundColor'),1,true)~=nil,'Supported skip hover is not filled')
+        check(meter:GetOption('LucideTransportStroke'):find('Fill Color '..SKIN:GetVariable('MediaTransportGlyphColor'),1,true)~=nil,'Supported skip hover is not filled')
         SKIN:Bang(leave)
         check(meter:GetOption('LucideTransportStroke'):find('Fill Color 0,0,0,0',1,true)~=nil,'Skip hover fill did not clear')
     end
@@ -1408,29 +1436,36 @@ local function drawer_stage()
     spectrum_tab(g,width,height)
     if open then
         check(SKIN:GetMeasure('MeasureVisualizerAudio'):GetOption('Port')=='Output','Drawer does not capture the output device')
-        -- The plot and its 19px frequency row hang 4px above the player; the
-        -- far padding takes the slack.
+        -- The plot's bottom edge is 5px above the player's top (the wide
+        -- art's top); the far padding takes the slack.
         local meter=SKIN:GetMeter('MeterVisualizerPlot')
-        local x,y=g.inset+g.spectrum_plot_x,g.top-4*scale-19*scale-plot
+        local x,y=g.inset+g.spectrum_plot_x,g.top-5*scale-plot
         check(math.abs(meter:GetX(true)-x)<=1 and math.abs(meter:GetY(true)-y)<=1,
             string.format('Spectrum plot origin %g,%g expected %g,%g',meter:GetX(true),meter:GetY(true),x,y))
         check(math.abs(meter:GetW()-g.spectrum_plot_width)<=1 and math.abs(meter:GetH()-plot)<=1,
             string.format('Spectrum plot %gx%g expected %gx%d',meter:GetW(),meter:GetH(),g.spectrum_plot_width,plot))
         check(meter:GetY(true)>=g.inset+g.spectrum_plot_inset+19*scale-1,'Spectrum plot crosses the output row')
         inside('MeterVisualizerPlot',width,height)
-        -- Axis labels: dB scale in the 40px gutter, range row under the plot.
+        -- Axis labels: dB scale in the 40px gutter, range labels centred in
+        -- the strip between the plot and the panel's top border.
         local plot_x,plot_y=meter:GetX(true),meter:GetY(true)
         for _,name in ipairs(axis_labels) do inside(name,width,height) end
         local low,high=SKIN:GetMeter('MeterVisualizerLow'),SKIN:GetMeter('MeterVisualizerHigh')
-        check(math.abs(low:GetX(true)-plot_x)<=1 and math.abs(low:GetY(true)-(plot_y+plot+scale))<=1,
-            string.format('40 Hz label at %g,%g expected %g,%g',low:GetX(true),low:GetY(true),plot_x,plot_y+plot+scale))
-        -- Right-aligned String meters report their anchor (right edge) as X.
-        check(math.abs(high:GetX(true)-(plot_x+meter:GetW()))<=1,'16 kHz label does not end at the plot edge')
-        check(math.abs(low:GetY(true)+low:GetH()-(g.top-4*scale))<=1,'Frequency row does not end 4px above the player')
+        -- Centre-aligned String meters report their anchor (the box centre)
+        -- as Y: 1px above the strip's centre, an optical correction.
+        local label_y=g.top+g.offset/2-scale
+        check(math.abs(low:GetX(true)-plot_x)<=1 and math.abs(low:GetY(true)-label_y)<=1,
+            string.format('40 Hz label at %g,%g expected %g,%g',low:GetX(true),low:GetY(true),plot_x,label_y))
+        check(math.abs(high:GetY(true)-label_y)<=1,'16 kHz label is not centred in the strip')
+        -- Right-aligned String meters report their anchor (right edge) as X:
+        -- the plot's right edge (the open chevron is in the top-right corner).
+        check(math.abs(high:GetX(true)-(plot_x+meter:GetW()))<=1,
+            string.format('16 kHz label ends at %g expected %g',high:GetX(true),plot_x+meter:GetW()))
         check(math.abs(SKIN:GetMeter('MeterVisualizerDbMax'):GetX(true)-(plot_x-4*scale))<=1,'0 dB label does not end 4px left of the plot')
-        -- Output row: an 18px box ending 1px above the plot, out to its right edge.
+        -- Output row: an 18px box ending 1px above the plot, out to the
+        -- chevron's 18S column at its right edge.
         local hit=SKIN:GetMeter('MeterVisualizerDeviceHit')
-        check(math.abs(hit:GetY(true)+hit:GetH()-(plot_y-scale))<=1 and math.abs(hit:GetX(true)+hit:GetW()-(plot_x+meter:GetW()))<=1,
+        check(math.abs(hit:GetY(true)+hit:GetH()-(plot_y-scale))<=1 and math.abs(hit:GetX(true)+hit:GetW()-(plot_x+meter:GetW()-18*scale))<=1,
             string.format('Output row %g,%g %gx%g does not sit on the plot',hit:GetX(true),hit:GetY(true),hit:GetW(),hit:GetH()))
         check(SKIN:GetMeasure('MeasureVisualizerVolume')~=nil,'Open drawer has no Win7Audio volume measure')
         -- Grid lines on pixel centres: Floor(k/4 of the bar height)+1.5.

@@ -319,18 +319,27 @@ the tab's base, the way a folder's front cover crosses the back sheet's tab, so
 neither the title nor the gear moves. The tab's right edge is
 `Min(ContentX+ContentWidth, panel right − CornerRadius)`: the gear's right
 edge, unless a corner radius larger than the padding would put the tab on the
-corner's curve. Open, the sheet takes the queue sheet's x-bounds
-(`MediaSurfaceX` to `ContentX+ContentWidth`) and the same `MediaDrawerPadding`;
-its only object is the spectrum plot with its axes. The sheet's square bottom is tucked
+corner's curve. Open, the sheet ends at the queue sheet's right edge
+(`ContentX+ContentWidth`) and starts the plot inset left of the dB gutter
+(`MediaVisualizerOpenSheetX`, user request 2026-10-25: no unused margin left of
+the scale; at the default double width x 129 rather than the panel's x 100,
+compact unchanged at the panel's edge); its only object is the spectrum plot
+with its axes. The sheet's square bottom is tucked
 `Max(8, CornerRadius)` logical px behind the panel, so the panel always hides it.
 
 **Control.** An original three-point chevron (24-unit points 6,15 / 12,9 /
 18,15, the same form as Lucide's chevron-up; no source bytes are copied) in
 `HeaderTextColor`, at the queue icon's 14/24 Lucide scale and 2-unit round
 stroke. It points up while collapsed and flips down while open, the way List
-Plus/Minus swaps below. The whole band above the panel in the gear's column is
-the hit target: 18×12 px collapsed, 18×16 px open at scale 1, so it overlaps
-neither the gear nor the title. The tab's edges snap to whole
+Plus/Minus swaps below. Collapsed, the whole 12S strip above the panel in the
+gear's column is the hit target (18×12 px at scale 1), so it overlaps neither
+the gear nor the title. Open (user requests 2026-10-25: first tried top-left,
+then top-right), the control is in the sheet's top-right corner: the output
+row's last 18S column (`MediaVisualizerToggleX/Y/Width/Height`, an 18×18S
+target at `Floor(MediaVisualizerRowRight − 18S)`), its chevron mirroring the
+speaker icon's 14S box — centred 7S in from the row's right edge (the plot's)
+and 9S below its top. The device name and the device-switch target end at the
+target's x. The tab's edges snap to whole
 pixels, as Rainmeter truncates the gear's own position; where 18×Scale is
 fractional the tab is 14 px (scale 0.75) or 23 px (1.25) wide and the chevron,
 kept on the gear's centre, sits 0.25 px left of the tab's own centre. The
@@ -340,9 +349,10 @@ not apply; its round end caps put its ink centroid 0.267 units (0.156×Scale px)
 toward the open ends. Measured on the native captures with linear coverage
 weights, the ink centroid is at x 437.0 (double) and 209.0 (compact), the
 gear's centre column, and vertically 10.60 px collapsed (band centre 10.5) and
-99.90 px open (band centre 100). Since the 2026-10-11 axis labels and output
-row the open band sits 38 px lower (centre 138 at scale 1); the open centroid
-was not re-measured.
+99.90 px open (band centre 100). Since the 2026-10-25 plot move the open band
+was the strip under the plot; in the top-right corner the open chevron's ink
+spans x 427–434, y 19–22 (centroid 431.00, 20.86) double-width and x 199–206
+(centroid 203.00) compact, level with the speaker icon's ink (centroid y 21.38).
 
 **Preference.** `VisualizerDrawer` in `User\Media.inc`: `0` hidden, `1`
 collapsed (default), `2` open. The tab toggles between collapsed and open,
@@ -360,26 +370,50 @@ panel's flush top.
 **Geometry** (`InlineQueueGeometry.inc`; S is `#Scale#`). Everything vertical in
 the player is now measured from one origin, `MediaTop = Inset + Lift`, where
 `Lift = Open × OpenLift` and
-`OpenLift = Ceil(PlotInset + DeviceRow + PlotHeight + AxisRow + MediaSectionGap)`
-— the queue sheet's spacing mirrored: the inset at the far edge, 4S between the
-frequency labels and the player. **Output row** (user request, 2026-10-11):
-`DeviceRow = 19S` above the plot (`MediaVisualizerDeviceRow`: an 18S row, then
-1S to the frame) carries the standalone's output row — the 14S Lucide Speaker
-in `MediaColor`, the clipped device name 18S to its right, and the read-only
-Windows output volume right-aligned at the plot's right edge (60S box; the name
-stops 64S short of it). One transparent target spans the row from the inset to
-the plot's right edge and switches the Windows default output exactly as the
-standalone's row does (see Capture and cadence). **Axes** (user request, 2026-10-11) match the
+`OpenLift = Ceil(PlotInset + DeviceRow + PlotHeight + OriginGap)`
+— the queue sheet's inset at the far edge, and the plot's bottom edge
+`OriginGap` above `MediaTop`. **Plot origin** (user requests, 2026-10-25): the
+plot's lower-left corner sits north-east of the double-width artwork's
+top-right corner with a 5S buffer both ways (`MediaVisualizerOriginGap`) — its
+bottom edge 5S above the art's top (`MediaTop`) and its left edge 5S right of
+the art's right edge (`MediaCoverX + MediaCoverSize`), so the plot is 29 px
+narrower than the original layout at the default. `MediaVisualizerPlotX` takes
+the larger of that and `MediaSurfaceX + PlotInset + AxisWidth`, so the dB
+gutter can never leave the inset; the compact layout (art below the title)
+always uses the latter, and keeps the 5S buffer above the strip. **Output
+row** (user request, 2026-10-11): `DeviceRow = 19S` above the plot
+(`MediaVisualizerDeviceRow`: an 18S row, then 1S to the frame) carries the
+standalone's output row — the 14S Lucide Speaker in `MediaColor` and the
+clipped device name 18S to its right, out to the plot's right edge. It starts
+at the dB gutter's left edge (`MediaVisualizerRowX`), which the trimmed sheet
+moves right with the plot. One transparent target spans the row and switches
+the Windows default output exactly as the standalone's row does (see Capture
+and cadence). **Volume** (user request, 2026-10-25): the read-only Windows
+output volume is the panel's headline value in the gear's spot, like CPU's
+total — body font in `TextColor`, right-aligned to the gear's right edge and
+centred on the title row, so it shares the title's baseline. Media.ini's
+`MouseOverAction` hides it (group `MediaHeaderValue`) and shows the gear;
+`MouseLeaveAction` reverses that. Group bangs on a closed drawer, which has no
+volume meter, log nothing. While the drawer is open the title reserves 40S for
+it instead of the gear's 24S (`MediaHeadingWidth`); closed, nothing changes. **Axes** (user request, 2026-10-11) match the
 standalone Visualizer's: a 40S gutter left of the plot
 (`MediaVisualizerAxisWidth`) holds the relative dB scale — `0 dB` top-aligned,
 minus half the sensitivity centred, minus the sensitivity bottom-aligned on
-the bar baseline, each right-aligned 4S from the frame — and
-`AxisRow = 19S` under the plot (`MediaVisualizerAxisRow`: 1S clearance and an
-18S label box) holds `40 Hz` flush with the plot's left edge and `16 kHz`
-flush with its right. Labels use the body font in `MutedColor`. The gutter
-sits inside the left inset, so the inset still governs corner clearance; the
-frequency row ends exactly where the open toggle band begins, so it never
-meets the chevron. `PlotHeight` is the standalone Visualizer's own plot height for the
+the bar baseline, each right-aligned 4S from the frame. The frequency labels
+have no row of their own (2026-10-25; it was a 19S row plus the 4S section gap
+under the plot): they sit in the 12S strip between the plot and the panel's
+top border, beside the art. Their boxes are
+centred 1S above the strip's centre (`MediaVisualizerAxisLabelY`), an optical
+correction: a centred box put the digits' ink 1 px low. `40 Hz` starts at the
+origin's x (`MediaVisualizerLowLabelX`), which the 5S buffer keeps clear of the
+art's white border; `16 kHz` ends at the plot's right edge
+(`MediaVisualizerHighLabelRight`) again, now that the open chevron is in the
+top-right corner (it briefly ended 4S short of a chevron in the strip). The user
+first asked for `40 Hz`'s right edge to be flush with the title icon's; that
+would start the label left of the origin, over the art's corner, so at the
+default its ink (x 177–207) ends 11 px past the icon's (x 181–196). Labels
+use the body font in `MutedColor`. The gutter sits inside the left inset, so
+the inset still governs corner clearance. `PlotHeight` is the standalone Visualizer's own plot height for the
 Audio settings Height preset (`VisualizerPlotHeightPx` in the shared
 `Options.inc`), so the drawer's spectrum is the same size as the standalone's.
 `PlotInset` is the queue sheet's `MediaDrawerPadding` (8S) unless the open
@@ -401,25 +435,29 @@ positions and already include it.
 | Hidden (`0`) window | 456×186 | 228×174 |
 | Collapsed (`1`) window | 456×186 (unchanged) | 228×186 |
 | Tab box, radius | x428–446, y4–16, r6 | x200–218, y4–16, r6 |
-| Open (`2`) window, Normal preset | 456×316 | 228×316 |
-| Open sheet x-range | 100–446 | 4–218 |
-| Output row (x-range, y-range) | 108–438, 12–30 | 12–210, 12–30 |
-| Open plot (x, y, w×h) | 148, 31, 290×80 | 52, 31, 158×80 |
-| dB label boxes (x-range) | 108–144 | 12–48 |
-| Frequency row (y-range) | 112–130 | 112–130 |
-| Panel top in window, collapsed → open | 16 → 146 | 16 → 146 |
+| Open (`2`) window, Normal preset | 456×298 | 228×298 |
+| Open sheet x-range | 129–446 | 4–218 |
+| Output row (x-range, y-range): icon/name/target, then chevron column | 137–420, 420–438; y 12–30 | 12–192, 192–210; y 12–30 |
+| Open plot (x, y, w×h) | 177, 31, 261×80 | 52, 31, 158×80 |
+| Art top-right corner, open (clear columns/rows to the plot) | (172, 116); x 172–176, y 111–115 | — |
+| dB label boxes (x-range) | 137–173 | 12–48 |
+| Frequency labels: 40 Hz left, 16 kHz right, box centre y | 177, 438, 121 | 52, 210, 121 |
+| Measured label ink (x, y) | 177–207 and 400–437, y 117–125 | 52–82 and 172–209, y 117–125 |
+| Open toggle (top-right corner) | x420–438, y12–30 | x192–210, y12–30 |
+| Volume (title row): right edge, measured ink | 446; x 420–445, y 140–147 | 218; x 192–217, y 140–147 |
+| Panel top in window, collapsed → open | 16 → 128 | 16 → 128 |
 
 | Height preset (Audio settings) | Plot | Lift, open window growth |
 | --- | --- | --- |
-| Small 126 | 60 | 110 |
-| Normal 146 | 80 | 130 |
-| Tall 186 | 120 | 170 |
+| Small 126 | 60 | 92 |
+| Normal 146 | 80 | 112 |
+| Tall 186 | 120 | 152 |
 
 The plot keeps the Visualizer's 54 logical px minimum of usable bars, so a
 large axis gap can raise these numbers as it raises the standalone's. A border
 thicker than 2 px lowers the plot by up to 2 logical px (`VisualizerTopShift`):
-BorderThickness 4 on Normal gives a 78 px plot, a lift of 128 and an open
-456×314 window. The grid lines sit on pixel centres (`Floor(BarHeight×k/4) + 1.5`,
+BorderThickness 4 on Normal gives a 78 px plot, a lift of 110 and an open
+456×296 window. The grid lines sit on pixel centres (`Floor(BarHeight×k/4) + 1.5`,
 within half a pixel of each quarter), so each renders as one crisp row; the
 standalone Visualizer's plot uses the same rule.
 
@@ -741,8 +779,9 @@ clicking does not fabricate a playback state. Stopped, unknown and disconnected
 states retain the existing Play fallback and capability checks. Previous and
 Next fill their glyph interior when hovered and retain their existing track
 commands. The circular face carries `AccentColor`, so an accent glyph would be
-invisible on it; enabled glyphs are drawn in `BackgroundColor` instead, which is
-provisional until the color pass. All controls keep their capability checks,
+invisible on it; enabled glyphs (stroke, and fill while hovered) are drawn in
+`MediaTransportGlyphColor`, white (`255,255,255`) since 2026-10-25, set in
+`InlineQueueGeometry.inc`; disabled glyphs keep `MutedColor`. All controls keep their capability checks,
 muted unavailable state and their 34-pixel circular hit regions.
 
 The thirteen source SVGs, pinned revision, adaptation notes and the complete
@@ -948,6 +987,52 @@ Sources: [quota modes](https://developer.spotify.com/documentation/web-api/conce
 [rate limits](https://developer.spotify.com/documentation/web-api/concepts/rate-limits).
 
 ## Validation report
+
+### Open chevron in the top-right corner (2026-10-25)
+
+The open drawer's collapse chevron moved from the strip right of `16 kHz` to
+the sheet's corner — first top-left (the output row's first column, tried and
+replaced the same day), then top-right (the row's last column); `16 kHz` ends
+at the plot's right edge again. Contract tests (28) and the native
+`-VisualizerDrawerFocused` (4 cases) and `-HeaderFocused` (12) runs pass; the
+Lua suite checks the open chevron's column, band and centre against the plot's
+right edge and the output target. At fractional scales the name and target end
+at the target's whole-pixel x, so they never overlap it. Captures at scale 1:
+chevron ink centroid 431.00, 20.86 (double) and 203.00, 20.86 (compact);
+`16 kHz` ink ends at x 437 and 209, each plot's last column. Not captured:
+other scales; clicks were dispatched by the native harness, not physically.
+
+### White transport glyphs (2026-10-25)
+
+Enabled transport glyphs switched from `BackgroundColor` (near-black) to the new
+`MediaTransportGlyphColor=255,255,255`. `Test-Media.ps1` passes (431 assertions,
+19 scenarios), including the renamed scenario that drives the new variable; the
+synthetic open-drawer capture reads pure white (255) inside the play face.
+Hover fill and other scales were not captured.
+
+### Spectrum plot origin, volume in the title row (2026-10-25)
+
+The open plot now starts 5 px north-east of the double-width art's top-right
+corner, its frequency labels sit in the strip beside the art, the open sheet
+starts at the dB gutter instead of the panel's left edge, and the output volume
+moved from the output row to the gear's spot on the title row (see
+[Spectrum drawer](#spectrum-drawer)). The open window is 18 px shorter at
+every preset (Normal 316 → 298). Checked:
+
+- `test_skin_contract.py`: 28 tests pass, with the lift model, plot origin and
+  buffer (art corner when wide, gutter-limited otherwise), sheet left edge,
+  label positions, chevron clearance, the volume's position against the gear,
+  the open-state title width and Media.ini's hover swap updated.
+- `Test-MediaSettings.ps1 -VisualizerDrawerFocused`: 4 native cases pass with
+  zero Rainmeter errors; windows 186 → 298 → 186 (Tall 186 → 338 → 186), panel
+  screen Y unchanged. `-HeaderFocused`: 12 gear/hover cases pass (drawer
+  closed, so the volume swap's group bangs run with no member meter).
+- Open-state captures (the harness stopped at its open stage for a scratch run,
+  then restored) at width 220, scale 1, both widths: measurements in the
+  geometry table above, including 5 clear columns and rows between the art
+  corner and the plot frame.
+- Not verified: the hover swap with the drawer open (no native case hovers an
+  open drawer), and captures at other scales and widths (contract model only).
 
 ### Cover without the WNP plugin (2026-10-20)
 

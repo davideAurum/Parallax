@@ -414,10 +414,11 @@ def media_visualizer_plot_inset(scale, corner=6, border=1):
 
 
 def media_visualizer_lift(scale, preset=146, border=1, corner=6):
-    """MediaVisualizerOpenLift: plot inset + the 19S output row + plot + the
-    19S frequency-label row (each an 18S label box and 1S clearance, as in the
-    standalone) + section gap, whole px."""
-    return math.ceil(media_visualizer_plot_inset(scale,corner,border)+19*scale+visualizer_plot_height(scale,preset,border)+19*scale+4*scale)
+    """MediaVisualizerOpenLift: plot inset + the 19S output row (an 18S label
+    box and 1S clearance, as in the standalone) + plot + the 5S origin buffer,
+    whole px. The plot ends 5S above the player's top; its frequency labels sit
+    in the strip below that, so they add nothing."""
+    return math.ceil(media_visualizer_plot_inset(scale,corner,border)+19*scale+visualizer_plot_height(scale,preset,border)+5*scale)
 
 
 def media_body_geometry(width, scale, columns, bar_thickness=6, drawer=1):
@@ -1312,8 +1313,14 @@ class SkinContractTests(unittest.TestCase):
                     action = config[f'ContextAction{index}']
                     self.assertIn(f'"Columns" "{columns}" "#@#User\\Media.inc"', action)
                     self.assertTrue(action.endswith('[!Refresh]'))
-                self.assertEqual(config['MouseOverAction'], '[!ShowMeter MeterMediaOptions][!Redraw]')
-                self.assertEqual(config['MouseLeaveAction'], '[!HideMeter MeterMediaOptions][!Redraw]')
+                # Media.ini also swaps the open drawer's volume (group
+                # MediaHeaderValue) out of the gear's spot while hovered.
+                if name == 'Media.ini':
+                    self.assertEqual(config['MouseOverAction'], '[!HideMeterGroup MediaHeaderValue][!ShowMeter MeterMediaOptions][!Redraw]')
+                    self.assertEqual(config['MouseLeaveAction'], '[!HideMeter MeterMediaOptions][!ShowMeterGroup MediaHeaderValue][!Redraw]')
+                else:
+                    self.assertEqual(config['MouseOverAction'], '[!ShowMeter MeterMediaOptions][!Redraw]')
+                    self.assertEqual(config['MouseLeaveAction'], '[!HideMeter MeterMediaOptions][!Redraw]')
                 self.assertEqual(sections['MeterMediaOptions']['Hidden'], '1')
                 self.assertEqual(sections['MeterMediaOptions']['LeftMouseUpAction'],
                                  '[!ActivateConfig "Parallax\\Media\\Settings" "Settings.ini"]')
@@ -2113,9 +2120,12 @@ class SkinContractTests(unittest.TestCase):
                             self.assertEqual(val('#WindowHeight#'),val1('#WindowHeight#')+lift)
                             self.assertEqual(val('#WindowHeight#'),
                                              media_drawer_geometry(width,scale,columns,expanded,5,drawer=2)[3])
-                            for variable in ('ContentX','ContentWidth','MediaHeadingWidth','MediaSurfaceX','MediaSurfaceWidth',
+                            for variable in ('ContentX','ContentWidth','MediaSurfaceX','MediaSurfaceWidth',
                                              'MediaSurfaceOffset','MediaBodyHeightPx','MediaCoverSize','WindowWidth'):
                                 self.assertEqual(val(f'#{variable}#'),val1(f'#{variable}#'),variable)
+                            # The open drawer's volume takes the gear's spot while
+                            # not hovered, so the title ends 16S sooner.
+                            self.assertEqual(val('#MediaHeadingWidth#'),val1('#MediaHeadingWidth#')-16*scale)
                             for variable in ('MediaTop','MediaSurfaceY','MediaCoverY','MediaProgressY','MediaTransportCenterY',
                                              'MediaQueueTabY','MediaQueueTop','MediaQueueRowsY','MediaQueueDrawerBottom'):
                                 self.assertEqual(val(f'#{variable}#'),val1(f'#{variable}#')+lift,variable)
@@ -2129,42 +2139,60 @@ class SkinContractTests(unittest.TestCase):
                                     self.assertEqual(after,before,name)
                                 else:
                                     self.assertAlmostEqual(after.left,before.left,msg=name)
-                                    self.assertAlmostEqual(after.right,before.right,msg=name)
+                                    self.assertAlmostEqual(after.right,before.right-(16*scale if name=='MeterHeading' else 0),msg=name)
                                     self.assertAlmostEqual(after.top,before.top+lift,msg=name)
                                     self.assertAlmostEqual(after.bottom,before.bottom+lift,msg=name)
-                            # Mirrored queue spacing: the plot and its 19S frequency
-                            # row hang MediaSectionGap above the player, and the Ceil
-                            # slack lands in the far pad.
+                            # The plot's bottom edge is 5S above the player's top
+                            # (the wide art's top), and the Ceil slack lands in the
+                            # far pad.
                             plot,sheet,panel=box('MeterVisualizerPlot'),box('MeterVisualizerSheet'),box('MeterPanel')
-                            row=19*scale
+                            buffer=5*scale
                             self.assertEqual(val('#MediaVisualizerPlotHeight#'),visualizer_plot_height(scale))
-                            self.assertAlmostEqual(val('#MediaVisualizerPlotY#')+val('#MediaVisualizerPlotHeight#')+row+gap,val('#MediaTop#'))
-                            self.assertAlmostEqual(plot.bottom+row+gap,val('#MediaTop#'))
+                            self.assertAlmostEqual(val('#MediaVisualizerPlotY#')+val('#MediaVisualizerPlotHeight#')+buffer,val('#MediaTop#'))
+                            self.assertAlmostEqual(plot.bottom+buffer,val('#MediaTop#'))
+                            if columns==2:
+                                # Origin north-east of the art's corner, 5S clear both ways.
+                                self.assertAlmostEqual(plot.left,val('#MediaCoverX#')+val('#MediaCoverSize#')+buffer)
+                                self.assertAlmostEqual(plot.bottom+buffer,val('#MediaCoverY#'))
                             self.assertAlmostEqual(plot.height,val('#MediaVisualizerPlotHeight#'))
                             self.assertAlmostEqual(sheet.top,inset)
-                            self.assertAlmostEqual(sheet.left,val('#MediaSurfaceX#'))
+                            # The sheet starts the plot inset left of the dB gutter,
+                            # inside the panel's x-range.
+                            self.assertAlmostEqual(sheet.left,val('#MediaVisualizerPlotX#')-40*scale-val('#MediaVisualizerPlotInset#'))
+                            self.assertGreaterEqual(sheet.left,val('#MediaSurfaceX#')-EPSILON)
                             self.assertAlmostEqual(sheet.right,val('#MediaQueueDrawerRight#'))
                             # At the default CornerRadius the plot's inset is the
                             # queue sheet's padding (larger radii: see the corner test).
                             plot_inset=val('#MediaVisualizerPlotInset#')
                             self.assertEqual(plot_inset,pad)
-                            self.assertAlmostEqual(plot.left-sheet.left,plot_inset+40*scale)
+                            self.assertGreaterEqual(plot.left-sheet.left,plot_inset+40*scale-EPSILON)
                             self.assertAlmostEqual(sheet.right-plot.right,plot_inset)
+                            row=19*scale
                             self.assertGreaterEqual(plot.top-sheet.top,plot_inset+row-EPSILON)
                             self.assertLess(plot.top-sheet.top,plot_inset+row+1)
                             self.assertTrue(plot.inside(sheet))
                             # Axis labels stay inside the sheet's padding and clear
-                            # of the open toggle band and the panel.
+                            # of the toggle (the output row's last column) and the
+                            # panel; the frequency labels sit in the strip beside
+                            # the art, 16 kHz ending at the plot's right edge.
                             toggle=box('MeterVisualizerToggle')
                             for name in ('MeterVisualizerDbMax','MeterVisualizerDbMid','MeterVisualizerDbMin',
                                          'MeterVisualizerLow','MeterVisualizerHigh','MeterVisualizerOutputIcon',
-                                         'MeterVisualizerDeviceName','MeterVisualizerVolume','MeterVisualizerDeviceHit'):
+                                         'MeterVisualizerDeviceName','MeterVisualizerDeviceHit'):
                                 label=box(name)
                                 self.assertGreaterEqual(label.left,sheet.left+plot_inset-EPSILON,name)
                                 self.assertLessEqual(label.right,sheet.right-plot_inset+EPSILON,name)
                                 self.assertGreaterEqual(label.top,sheet.top+plot_inset-EPSILON,name)
-                                self.assertLessEqual(label.bottom,toggle.top+EPSILON,name)
-                                self.assertLess(label.bottom,panel.top,name)
+                                if name in ('MeterVisualizerLow','MeterVisualizerHigh'):
+                                    self.assertGreater((label.top+label.bottom)/2,plot.bottom,name)
+                                    self.assertLess((label.top+label.bottom)/2,panel.top,name)
+                                else:
+                                    self.assertLess(label.bottom,panel.top,name)
+                                    if name.startswith('MeterVisualizerDb'):
+                                        self.assertGreaterEqual(label.top,toggle.bottom-EPSILON,name)
+                                    else:
+                                        self.assertLessEqual(label.right,toggle.left+EPSILON,name)
+                            self.assertAlmostEqual(box('MeterVisualizerHigh').right,plot.right)
                             # The sheet's square lower edge tucks behind the panel,
                             # past the panel's own top corner curve.
                             self.assertGreaterEqual(sheet.bottom,panel.top+val('(#CornerRadius#*#Scale#)')-EPSILON)
@@ -2175,9 +2203,13 @@ class SkinContractTests(unittest.TestCase):
                                 self.assertTrue(box(name).inside(plot),name)
                             self.assertGreater(list(sections).index('MeterVisualizerSpectrumMask'),
                                                list(sections).index('MeterVisualizerPlot'))
-                            # Toggle: the clear band between the frequency row and the panel.
-                            self.assertAlmostEqual(toggle.top,plot.bottom+row)
-                            self.assertAlmostEqual(toggle.bottom,panel.top)
+                            # Toggle: the output row's last 18S column, in the
+                            # sheet's top-right corner, ending by the plot's edge.
+                            self.assertEqual(toggle.left,math.floor(plot.right-18*scale))
+                            self.assertLessEqual(toggle.right,plot.right+EPSILON)
+                            self.assertAlmostEqual(toggle.top,val('#MediaVisualizerRowY#'))
+                            self.assertAlmostEqual(toggle.bottom-toggle.top,18*scale)
+                            self.assertAlmostEqual(box('MeterVisualizerOutputIcon').left,val('#MediaVisualizerRowX#'))
                             # Every drawer meter stays inside the window, off the gutter.
                             window=Bounds(0,0,val('#WindowWidth#'),val('#WindowHeight#'))
                             surface=Bounds(inset,inset,window.right-inset,window.bottom-inset)
@@ -2209,19 +2241,31 @@ class SkinContractTests(unittest.TestCase):
                             self.assertEqual(toggle,Bounds(x,y,x+w,y+h))
                             # Whole-pixel tab edges: Rainmeter truncates meter X, so
                             # a fractional 18*Scale rounds the tab out to 14/23 px.
+                            self.assertAlmostEqual(sheet.top,inset)
+                            chevron=path_points(toggle_style['MediaVisualizerChevron'],val)
+                            self.assertEqual(len(chevron),3)
+                            self.assertAlmostEqual(chevron[0][0]+chevron[2][0],2*chevron[1][0])
+                            apex_x=math.trunc(x)+chevron[1][0]
+                            if drawer==2:
+                                # Open, the chevron moves to the sheet's top-right
+                                # corner: 7S in from the output row's right edge,
+                                # centred 9S below the row's top, like the icon.
+                                row_right,row_y=val('#MediaVisualizerRowRight#'),val('#MediaVisualizerRowY#')
+                                self.assertEqual(x,math.floor(row_right-18*scale))
+                                self.assertAlmostEqual(w,18*scale)
+                                self.assertAlmostEqual(apex_x,row_right-7*scale)
+                                self.assertAlmostEqual(y+(chevron[0][1]+chevron[1][1])/2,row_y+9*scale)
+                                self.assertTrue(toggle.inside(sheet))
+                                self.assertGreater(chevron[1][1],chevron[0][1])
+                                continue
                             self.assertTrue(float(x).is_integer() and float(x+w).is_integer(),(x,w))
                             self.assertEqual(w,math.ceil(18*scale))
                             self.assertEqual(w,{0.75:14,1:18,1.25:23,1.5:27,2:36}[scale])
                             self.assertEqual((x,x+w),(val('#MediaVisualizerTabX#'),val('#MediaVisualizerTabRight#')))
                             self.assertAlmostEqual(toggle.bottom,panel.top)
                             self.assertTrue(toggle.above(gear))
-                            self.assertAlmostEqual(sheet.top,inset)
                             # Centres are measured on the drawn art: the chevron's
                             # apex, and the gear's hub at its truncated origin.
-                            chevron=path_points(toggle_style['MediaVisualizerChevron'],val)
-                            self.assertEqual(len(chevron),3)
-                            self.assertAlmostEqual(chevron[0][0]+chevron[2][0],2*chevron[1][0])
-                            apex_x=math.trunc(x)+chevron[1][0]
                             hub=gear_style['Shape2'].split('|')[0].strip()
                             self.assertTrue(hub.startswith('Ellipse '),hub)
                             hub_x=val(split_arguments(hub[len('Ellipse '):])[0])
@@ -2344,43 +2388,56 @@ class SkinContractTests(unittest.TestCase):
                         inset=val('#MediaVisualizerPlotInset#')
                         self.assertEqual(inset,media_visualizer_plot_inset(scale,corner,border))
                         self.assertGreaterEqual(inset,padding)
-                        # The plot hangs from the inset on both sides, past the
-                        # 40S dB gutter on the left; the lift follows it and
-                        # the 19S frequency row under it.
+                        # The plot hangs from the inset on the right and sits
+                        # past the 40S dB gutter on the left (compact; wide art
+                        # can push its origin further right); its bottom edge
+                        # is the player's top, and the lift follows it.
                         axis=40*scale
-                        self.assertEqual(val('#MediaVisualizerPlotX#'),val('#MediaSurfaceX#')+inset+axis)
+                        wide_origin=val('#MediaWide#')*(val('#MediaCoverX#')+val('#MediaCoverSize#')+5*scale)
+                        self.assertEqual(val('#MediaVisualizerPlotX#'),max(val('#MediaSurfaceX#')+inset+axis,wide_origin))
                         self.assertEqual(val('#MediaVisualizerPlotWidth#'),
-                                         val('#MediaQueueDrawerRight#')-val('#MediaSurfaceX#')-2*inset-axis)
+                                         val('#MediaQueueDrawerRight#')-inset-val('#MediaVisualizerPlotX#'))
                         self.assertEqual(val('#MediaVisualizerOpenLift#'),
-                                         math.ceil(inset+19*scale+val('#MediaVisualizerPlotHeight#')+19*scale+val('#MediaSectionGap#')))
+                                         math.ceil(inset+19*scale+val('#MediaVisualizerPlotHeight#')+5*scale))
                         self.assertEqual(val('#MediaVisualizerLift#'),media_visualizer_lift(scale,146,border,corner))
-                        self.assertAlmostEqual(plot.left-sheet.left,inset+axis)
+                        self.assertGreaterEqual(plot.left-sheet.left,inset+axis-EPSILON)
                         self.assertAlmostEqual(sheet.right-plot.right,inset)
                         self.assertGreaterEqual(plot.top-sheet.top,inset+19*scale-EPSILON)
-                        self.assertAlmostEqual(plot.bottom+19*scale+val('#MediaSectionGap#'),val('#MediaTop#'))
+                        self.assertAlmostEqual(plot.bottom+5*scale,val('#MediaTop#'))
                         # Output row: from the inset to the plot's right edge,
-                        # its 18S box ending 1S above the plot frame.
+                        # its 18S box ending 1S above the plot frame; the open
+                        # drawer's chevron holds its last 18S column.
                         hit=box('MeterVisualizerDeviceHit')
                         self.assertAlmostEqual(hit.left,sheet.left+inset)
-                        self.assertAlmostEqual(hit.right,plot.right)
+                        self.assertAlmostEqual(hit.right,math.floor(plot.right-18*scale))
                         self.assertAlmostEqual(hit.bottom,plot.top-scale)
                         self.assertGreaterEqual(hit.top,sheet.top+inset-EPSILON)
-                        for name in ('MeterVisualizerOutputIcon','MeterVisualizerDeviceName','MeterVisualizerVolume'):
+                        for name in ('MeterVisualizerOutputIcon','MeterVisualizerDeviceName'):
                             self.assertTrue(box(name).inside(hit),name)
-                        self.assertLessEqual(box('MeterVisualizerDeviceName').right,box('MeterVisualizerVolume').left+EPSILON)
-                        # Axis labels: the dB boxes fill the gutter from the
-                        # inset; the frequency row ends on the toggle band's
-                        # top, so neither touches the sheet edge or the chevron.
+                        # The device name stops at the chevron's column; the
+                        # volume sits in the gear's spot on the title row.
+                        self.assertAlmostEqual(box('MeterVisualizerDeviceName').right,math.floor(plot.right-18*scale))
+                        # The sheet starts the inset left of the dB gutter.
+                        self.assertAlmostEqual(sheet.left,plot.left-40*scale-inset)
+                        volume,gear,heading=box('MeterVisualizerVolume'),box('MeterMediaOptions'),box('MeterHeading')
+                        self.assertAlmostEqual(volume.right,gear.right)
+                        self.assertAlmostEqual((volume.top+volume.bottom)/2,(gear.top+gear.bottom)/2)
+                        self.assertLessEqual(heading.right,volume.left+EPSILON)
+                        # Axis labels: the dB boxes end 4S left of the plot,
+                        # inside the inset; the frequency labels sit in the
+                        # strip under the plot, centred 1S above its middle,
+                        # 40 Hz at the origin's x and 16 kHz ending at the
+                        # plot's right edge (the chevron is in the top-right).
                         for name in ('MeterVisualizerDbMax','MeterVisualizerDbMid','MeterVisualizerDbMin'):
                             label=box(name)
-                            self.assertAlmostEqual(label.left,sheet.left+inset,msg=name)
+                            self.assertGreaterEqual(label.left,sheet.left+inset-EPSILON,msg=name)
                             self.assertAlmostEqual(label.right,plot.left-4*scale,msg=name)
                         low,high=box('MeterVisualizerLow'),box('MeterVisualizerHigh')
                         self.assertAlmostEqual(low.left,plot.left)
                         self.assertAlmostEqual(high.right,plot.right)
+                        strip_centre=(val('#MediaTop#')+val('#MediaSurfaceY#'))/2
                         for label in (low,high):
-                            self.assertAlmostEqual(label.top,plot.bottom+scale)
-                            self.assertAlmostEqual(label.bottom,val('#MediaVisualizerToggleY#'))
+                            self.assertAlmostEqual((label.top+label.bottom)/2,strip_centre-scale)
                         # Sheet: inner stroke edge from the drawn path.
                         sheet_style=resolve_style(sections,'MeterVisualizerSheet')
                         stroke=val(modifier(sheet_style['Shape'],'StrokeWidth'))
@@ -2596,7 +2653,7 @@ class SkinContractTests(unittest.TestCase):
         # Media.ini captures the Audio settings Height preset by include NAME;
         # the lift follows Options.inc's plot height for it.
         self.assertEqual({preset:media_visualizer_lift(1,preset) for preset in HEIGHT_PRESETS},
-                         {126:110,146:130,186:170})
+                         {126:92,146:112,186:152})
         for preset in HEIGHT_PRESETS:
             for scale in SCALES:
                 for surface in (1,4):
@@ -2618,7 +2675,7 @@ class SkinContractTests(unittest.TestCase):
                             self.assertEqual(plot,val('#VisualizerPlotHeightPx#'))
                             # The default CornerRadius keeps the plot at the padding.
                             self.assertEqual(val('#MediaVisualizerPlotInset#'),val('#MediaDrawerPadding#'))
-                            self.assertEqual(lift,math.ceil(val('#MediaVisualizerPlotInset#')+val('#MediaVisualizerDeviceRow#')+plot+val('#MediaVisualizerAxisRow#')+val('#MediaSectionGap#')))
+                            self.assertEqual(lift,math.ceil(val('#MediaVisualizerPlotInset#')+val('#MediaVisualizerDeviceRow#')+plot+val('#MediaVisualizerOriginGap#')))
                             self.assertEqual(lift,media_visualizer_lift(scale,preset,surface))
                             self.assertTrue(float(lift).is_integer())
                             self.assertEqual(heights[2]-heights[1],lift)

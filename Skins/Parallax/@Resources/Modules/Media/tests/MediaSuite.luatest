@@ -32,6 +32,7 @@ function suite.run(sourcePath)
             MutedColor = '111,112,113',
             AccentColor = '137,190,250',
             BackgroundColor = '24,25,26',
+            MediaTransportGlyphColor = '255,255,255',
             Columns = '2',
             Scale = '1'
         }
@@ -144,7 +145,7 @@ function suite.run(sourcePath)
         check(f.visible('MeterArtworkPlaceholder') == false, 'Idle border must not double-paint behind a track')
         check(f.symbol() == 'play', 'Playing must display the current-state Lucide Play path')
         for _, meter in ipairs({ 'MeterPrevious', 'MeterPlayPause', 'MeterNext' }) do
-            check(f.strokeColor(meter) == '24,25,26', 'Enabled glyph must use BackgroundColor against its AccentColor face')
+            check(f.strokeColor(meter) == '255,255,255', 'Enabled glyph must use MediaTransportGlyphColor against its AccentColor face')
             check(f.option(meter, 'MouseActionCursor') == '1', 'Supported control must have active cursor')
             check(f.option(meter, 'ToolTipText') == nil, 'Transport controls must not set a tooltip')
         end
@@ -194,7 +195,7 @@ function suite.run(sourcePath)
             check(f.env.Update() == 'WNP idle', 'Blank title must report idle')
             check(f.visible('MediaTrack', true) == false and f.visible('MeterNoMedia') == true, 'Idle fallback incorrect')
             check(f.visible('MediaTimeline', true) == false and f.visible('MeterCover') == false, 'Idle state leaked timing or cover')
-            check(f.strokeColor('MeterPlayPause') == '24,25,26', 'Independent capability should remain usable while idle')
+            check(f.strokeColor('MeterPlayPause') == '255,255,255', 'Independent capability should remain usable while idle')
         end
     end)
 
@@ -353,7 +354,7 @@ function suite.run(sourcePath)
         end
     end)
 
-    scenario('BackgroundColor updates supported glyphs independently of MediaColor', function()
+    scenario('MediaTransportGlyphColor updates supported glyphs independently of MediaColor', function()
         local f = fixture()
         f.values.MeasureCanNext.value = 0
         f.env.Update()
@@ -361,11 +362,11 @@ function suite.run(sourcePath)
         f.variables.MediaColor = '9,88,177'
         f.env.Update()
         check(#f.calls() == 0, 'Metric MediaColor must not change transport controls')
-        f.variables.BackgroundColor = '181,161,226'
+        f.variables.MediaTransportGlyphColor = '181,161,226'
         f.env.Update()
-        check(f.strokeColor('MeterPrevious') == '181,161,226', 'Previous failed to follow BackgroundColor')
-        check(f.strokeColor('MeterPlayPause') == '181,161,226', 'PlayPause failed to follow BackgroundColor')
-        check(f.strokeColor('MeterNext') == nil, 'BackgroundColor changed unsupported control')
+        check(f.strokeColor('MeterPrevious') == '181,161,226', 'Previous failed to follow MediaTransportGlyphColor')
+        check(f.strokeColor('MeterPlayPause') == '181,161,226', 'PlayPause failed to follow MediaTransportGlyphColor')
+        check(f.strokeColor('MeterNext') == nil, 'MediaTransportGlyphColor changed unsupported control')
         check(f.variables.MediaColor == '9,88,177', 'Action accent update must preserve the independent metric MediaColor')
         check(f.count('!SetOption') == 2, 'Color update changed unrelated options')
         f.assertRefresh()
@@ -454,7 +455,7 @@ function suite.run(sourcePath)
         check(f.env.Control('PlayPause') == false and #f.calls() == 0, 'Paused state must not bypass capability gating')
         f.values.MeasureCanPlayPause.value = 1
         f.env.Update()
-        check(f.strokeColor('MeterPlayPause') == '24,25,26' and f.symbol() == 'stepForward', 'Restored support should enable the requested paused hover artwork')
+        check(f.strokeColor('MeterPlayPause') == '255,255,255' and f.symbol() == 'stepForward', 'Restored support should enable the requested paused hover artwork')
     end)
 
     scenario('hover input and refresh preserve the fixed action surface', function()
@@ -488,7 +489,7 @@ function suite.run(sourcePath)
         for _, spec in ipairs({ { 'Previous', 'MeterPrevious', 'MeasureCanPrevious' }, { 'Next', 'MeterNext', 'MeasureCanNext' } }) do
             f.reset()
             check(f.env.HoverTransport(spec[1], true) == true, 'Supported skip hover should enter')
-            check(f.option(spec[2], 'LucideTransportStroke'):find('Fill Color 24,25,26 | Stroke Color 24,25,26', 1, true) == 1, 'Skip hover must fill and retain the glyph stroke')
+            check(f.option(spec[2], 'LucideTransportStroke'):find('Fill Color 255,255,255 | Stroke Color 255,255,255', 1, true) == 1, 'Skip hover must fill and retain the glyph stroke')
             check(f.count('!SetOption') == 1, 'Skip hover should change only its stroke recipe')
             f.assertRefresh(true)
             f.reset()
@@ -506,9 +507,9 @@ function suite.run(sourcePath)
         end
         f.env.HoverTransport('Previous', true)
         f.reset()
-        f.variables.BackgroundColor = '181,161,226'
+        f.variables.MediaTransportGlyphColor = '181,161,226'
         f.env.Update()
-        check(f.option('MeterPrevious', 'LucideTransportStroke'):find('Fill Color 181,161,226 | Stroke Color 181,161,226', 1, true) == 1, 'Hovered fill must follow current BackgroundColor')
+        check(f.option('MeterPrevious', 'LucideTransportStroke'):find('Fill Color 181,161,226 | Stroke Color 181,161,226', 1, true) == 1, 'Hovered fill must follow current MediaTransportGlyphColor')
         f.reset()
         f.values.MeasureConnection.value = 0
         f.env.Update()

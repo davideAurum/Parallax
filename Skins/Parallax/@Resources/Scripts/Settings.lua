@@ -2,6 +2,13 @@
 local settingsPath
 local themeMenuOpen = false
 local editingKey
+-- Stepper arrows save at once but defer the suite refresh until clicks stop
+-- (SHARED-02). SKIN:GetVariable only changes when this skin reloads, so keys
+-- saved since then are read from here: a second click inside the delay must
+-- step from the saved value, not from the stale loaded one.
+local saved = {}
+local refreshOwed, refreshToken = false, 0
+local refreshDelay = 800
 local ranges = {
     Scale = { low=0.75, high=2, meter='MeterScaleInput' },
     ColumnWidth = { low=180, high=320, integer=true, meter='MeterWidthInput' },
@@ -26,6 +33,16 @@ local colorTargets = {
     BackgroundColor='MeterBackgroundColorValue', BorderColor='MeterBorderColorValue', DividerColor='MeterDividerColorValue',
     TableHeaderBorderColor='MeterTableHeaderBorderColorValue'
 }
+-- Every meter whose Text Update() sets; forced after an in-place change.
+local displayMeters = { 'MeterGeometry', 'MeterCadence', 'MeterRefreshValue', 'MeterIdlePauseValue' }
+-- Idle pause (owner decision 2): Off or 5, 10, 30 minutes without input. Any
+-- other saved value shows Custom and acts as Off; it is kept until a choice
+-- is made here.
+local idleChoices = { '0', '5', '10', '30' }
+local idleLabels = { ['0'] = 'Off', ['5'] = '5 min', ['10'] = '10 min', ['30'] = '30 min' }
+local idleOwed, idleToken = false, 0
+for _, range in pairs(ranges) do displayMeters[#displayMeters+1] = range.meter end
+for _, meter in pairs(colorTargets) do displayMeters[#displayMeters+1] = meter end
 local themes = {
     default = {
         Theme='default', FontFace='IBM Plex Sans', FontSize='9', TitleFontSize='10', HeaderFontSize='8', PanelPadding='6', CornerRadius='3',
@@ -45,12 +62,31 @@ local profiles = {
     balanced = { MetricsInterval='1000', SensorInterval='2000', CapacityInterval='30000', VisualizerInterval='50' },
     economy = { MetricsInterval='2000', SensorInterval='4000', CapacityInterval='60000', VisualizerInterval='100' }
 }
+-- The skins that read each interval key (SHARED-02): GPU.ini and RAM.ini
+-- update at MetricsInterval, GPU's sensor dividers and helpers also read
+-- SensorInterval, the Disk Meter's capacity measures read CapacityInterval,
+-- and the Visualizer options that Visualizer and Media include read
+-- VisualizerInterval. CPU, Network and Chronometer read none of them.
+-- Visualizer and Media have no group of their own, so they are named; a
+-- named !Refresh never loads an inactive config (Rainmeter logs a warning).
+local intervalConsumers = {
+    MetricsInterval = { 'ParallaxGPU', 'ParallaxRAM' },
+    SensorInterval = { 'ParallaxGPU' },
+    CapacityInterval = { 'ParallaxIO' },
+    VisualizerInterval = { 'Parallax\\Visualizer', 'Parallax\\Media' }
+}
+
+local function variable(name)
+    local value = saved[name]
+    if value ~= nil then return value end
+    return SKIN:GetVariable(name)
+end
 
 local function currentProfile()
     for name, values in pairs(profiles) do
         local matches = true
         for key, value in pairs(values) do
-            if tonumber(SKIN:GetVariable(key)) ~= tonumber(value) then matches = false; break end
+            if tonumber(variable(key)) ~= tonumber(value) then matches = false; break end
         end
         if matches then return name end
     end
@@ -61,6 +97,18 @@ function Initialize()
     settingsPath = SKIN:GetVariable('@') .. 'User\\Settings.inc'
     themeMenuOpen = false
     editingKey = nil
+    saved = {}
+    refreshOwed = false
+    -- Seeded per load: a flush timer armed before a refresh survives it, and
+    -- must not match a token issued after it. Bounded so '%d' (a 32-bit long
+    -- on Windows) never overflows; the CRT clock reads -1 after 24.8 days.
+    refreshToken = math.floor(os.clock() * 1000) % 1000000000
+    idleOwed, idleToken = false, refreshToken
+end
+
+local function idleChoice(value)
+    value = tostring(value or ''):match('^%s*(.-)%s*$')
+    return idleLabels[value] and value or nil
 end
 
 local function showThemeMenu(open)
@@ -75,7 +123,7 @@ function ToggleThemeMenu() showThemeMenu(not themeMenuOpen) end
 function CloseThemeMenu() showThemeMenu(false) end
 
 local function number(name, fallback)
-    return tonumber(SKIN:GetVariable(name)) or fallback
+    return tonumber(variable(name)) or fallback
 end
 
 local function colorChannels(value)
@@ -104,7 +152,7 @@ local function accentHex(value)
 end
 
 local function transparency()
-    local channels = colorChannels(SKIN:GetVariable('BackgroundColor'))
+    local channels = colorChannels(variable('BackgroundColor'))
     return channels and tonumber(string.format('%.2f',100 * (1 - (channels[4] or 255)/255))) or nil
 end
 
@@ -116,12 +164,14 @@ function Update()
     SKIN:Bang('!SetOption', 'MeterCadence', 'Text', string.format('Metrics %gs  Sensors %gs  Disk %gs  Spectrum ~%g FPS', number('MetricsInterval',1000)/1000, number('SensorInterval',2000)/1000, number('CapacityInterval',30000)/1000, math.floor(1000/math.max(1,number('VisualizerInterval',50)) + 0.5)))
     local profile = currentProfile()
     SKIN:Bang('!SetOption', 'MeterRefreshValue', 'Text', profile == 'balanced' and 'Balanced' or profile == 'economy' and 'Economy' or 'Custom')
+    local idle = idleChoice(variable('IdlePauseMinutes'))
+    SKIN:Bang('!SetOption', 'MeterIdlePauseValue', 'Text', idle and idleLabels[idle] or 'Custom')
     SKIN:Bang('!SetOption', 'MeterScaleInput', 'Text', string.format('%g%%', scale * 100))
     SKIN:Bang('!SetOption', 'MeterWidthInput', 'Text', string.format('%g px', number('ColumnWidth',220)))
     SKIN:Bang('!SetOption', 'MeterGapInput', 'Text', string.format('%g px', number('Gutter',8)))
     SKIN:Bang('!SetOption', 'MeterRoundingInput', 'Text', string.format('%g px', number('CornerRadius',3)))
     for key, meter in pairs(colorTargets) do
-        SKIN:Bang('!SetOption', meter, 'Text', accentHex(SKIN:GetVariable(key)))
+        SKIN:Bang('!SetOption', meter, 'Text', accentHex(variable(key)))
     end
     for key, fallback in pairs({TitleFontSize=10, HeaderFontSize=8, FontSize=9}) do
         SKIN:Bang('!SetOption', ranges[key].meter, 'Text', string.format('%g pt', number(key,fallback)))
@@ -133,36 +183,162 @@ function Update()
     return 0
 end
 
-local function save(values)
+-- Update=-1 never redraws on its own; show saved values without reloading.
+local function refreshDisplay()
+    Update()
+    for _, meter in ipairs(displayMeters) do SKIN:Bang('!UpdateMeter', meter) end
+    SKIN:Bang('!Redraw')
+end
+
+local function write(values)
     if not values or not settingsPath then return false end
     -- Values are static theme/profile values or strictly validated numeric data.
     for key, value in pairs(values) do
         SKIN:Bang('!WriteKeyValue', 'Variables', key, value, settingsPath)
+        saved[key] = value
     end
-    SKIN:Bang('!RefreshGroup', 'Parallax')
     return true
 end
 
-function Set(key, value)
+-- Reloads every loaded Parallax skin, this one included, so a pending
+-- debounced refresh is satisfied and its timer becomes stale.
+local function refreshAll()
+    refreshOwed, idleOwed = false, false
+    refreshToken = refreshToken + 1
+    idleToken = idleToken + 1
+    SKIN:Bang('!RefreshGroup', 'Parallax')
+end
+
+local function save(values)
+    if not write(values) then return false end
+    refreshAll()
+    return true
+end
+
+-- Refreshes only the skins that read the saved keys and shows the change here
+-- in place. A key without known consumers, or a pending arrow refresh, falls
+-- back to refreshing the whole suite.
+local function refreshConsumers(values)
+    if refreshOwed then refreshAll(); return end
+    local targets, seen = {}, {}
+    for key in pairs(values) do
+        local consumers = intervalConsumers[key]
+        if not consumers then refreshAll(); return end
+        for _, target in ipairs(consumers) do
+            if not seen[target] then seen[target] = true; targets[#targets+1] = target end
+        end
+    end
+    table.sort(targets)
+    for _, target in ipairs(targets) do
+        SKIN:Bang(target:find('\\', 1, true) and '!Refresh' or '!RefreshGroup', target)
+    end
+    refreshDisplay()
+end
+
+-- Built-in !Delay arms a skin window timer, which fires in this Update=-1
+-- skin. Each click issues a new token and only the newest flushes, so a burst
+-- of clicks costs one refresh, refreshDelay ms after the last click.
+local function scheduleRefresh()
+    refreshOwed = true
+    refreshToken = refreshToken + 1
+    SKIN:Bang(string.format('[!Delay %d][!CommandMeasure MeasureSettings "FlushRefresh(%d)"]', refreshDelay, refreshToken))
+end
+
+function FlushRefresh(token)
+    if not refreshOwed or token ~= refreshToken then return false end
+    -- Reloading this skin would kill an open numeric editor's helper. Its
+    -- commit refreshes anyway; its cancel path schedules the refresh again.
+    if editingKey then return false end
+    refreshAll()
+    return true
+end
+
+-- Idle pause apply scope, decided when the clicks stop (the same debounce):
+-- turning it on or off adds or removes the stand-down hook in every utility,
+-- so the whole Parallax group reloads; 5 <-> 10 <-> 30 only changes the
+-- coordinator's threshold, so only Parallax\Idle reloads (silent when it is
+-- not loaded). Back to the loaded value: nothing. This skin's own loaded value
+-- is what the loaded utilities use, since every whole-suite apply reloads it.
+local function applyIdlePause()
+    idleOwed = false
+    idleToken = idleToken + 1
+    local loaded = idleChoice(SKIN:GetVariable('IdlePauseMinutes')) or '0'
+    local wanted = idleChoice(variable('IdlePauseMinutes')) or '0'
+    if (loaded == '0') ~= (wanted == '0') then
+        refreshAll()
+    elseif loaded ~= wanted then
+        SKIN:Bang('!RefreshGroup', 'ParallaxIdleCoordinator')
+    end
+end
+
+function FlushIdlePause(token)
+    if not idleOwed or token ~= idleToken then return false end
+    if editingKey then return false end
+    if refreshOwed then refreshAll() else applyIdlePause() end
+    return true
+end
+
+-- OnCloseAction: unloading Settings destroys its pending timer, so apply a
+-- debounced change now rather than leave it saved but unapplied.
+function FlushPending()
+    if refreshOwed then
+        refreshAll()
+        return true
+    end
+    if idleOwed then
+        applyIdlePause()
+        return true
+    end
+    return false
+end
+
+-- The Idle pause row: wraps Off -> 5 -> 10 -> 30 -> Off. A Custom value steps
+-- to Off going forward and to 30 min going back, and is otherwise kept.
+function CycleIdlePause(direction)
+    if editingKey or (direction ~= -1 and direction ~= 1) then return false end
+    local current = idleChoice(variable('IdlePauseMinutes'))
+    local index
+    for position, value in ipairs(idleChoices) do if value == current then index = position end end
+    local nextValue
+    if index then
+        nextValue = idleChoices[(index - 1 + direction) % #idleChoices + 1]
+    else
+        nextValue = direction == 1 and idleChoices[1] or idleChoices[#idleChoices]
+    end
+    CloseThemeMenu()
+    if not write({ IdlePauseMinutes = nextValue }) then return false end
+    idleOwed = true
+    idleToken = idleToken + 1
+    SKIN:Bang(string.format('[!Delay %d][!CommandMeasure MeasureSettings "FlushIdlePause(%d)"]', refreshDelay, idleToken))
+    refreshDisplay()
+    return true
+end
+
+-- Validates a field value and returns the single setting it persists.
+local function fieldValues(key, value)
     value = tostring(value)
     local range, numeric = ranges[key], tonumber(value)
-    if not range or not value:match('^%d+%.?%d*$') or not numeric or numeric ~= numeric then return false end
+    if not range or not value:match('^%d+%.?%d*$') or not numeric or numeric ~= numeric then return nil end
     local fraction = value:match('%.(%d*)$')
-    if range.decimals and fraction and #fraction > range.decimals then return false end
-    if numeric < range.low or numeric > range.high or (range.integer and numeric % 1 ~= 0) then return false end
+    if range.decimals and fraction and #fraction > range.decimals then return nil end
+    if numeric < range.low or numeric > range.high or (range.integer and numeric % 1 ~= 0) then return nil end
     if key == 'BackgroundTransparency' then
-        local channels = colorChannels(SKIN:GetVariable('BackgroundColor'))
-        if not channels then return false end
+        local channels = colorChannels(variable('BackgroundColor'))
+        if not channels then return nil end
         local alpha = math.floor(255 * (1 - numeric/100) + 0.5)
-        return save({BackgroundColor=string.format('%d,%d,%d,%d',channels[1],channels[2],channels[3],alpha)})
+        return {BackgroundColor=string.format('%d,%d,%d,%d',channels[1],channels[2],channels[3],alpha)}
     end
-    return save({ [key] = string.format('%.4f', numeric):gsub('0+$',''):gsub('%.$','') })
+    return { [key] = string.format('%.4f', numeric):gsub('0+$',''):gsub('%.$','') }
+end
+
+function Set(key, value)
+    return save(fieldValues(key, value))
 end
 
 function Adjust(key, direction)
     local range = ranges[key]
     if editingKey or not range or (direction ~= -1 and direction ~= 1) then return false end
-    local raw = key == 'BackgroundTransparency' and transparency() or SKIN:GetVariable(key)
+    local raw = key == 'BackgroundTransparency' and transparency() or variable(key)
     if raw == nil then return false end
     local literal = tostring(raw)
     if not literal:match('^%d+%.?%d*$') then return false end
@@ -174,7 +350,10 @@ function Adjust(key, direction)
     local nextValue = math.max(range.low, math.min(range.high, value + direction * steps[key]))
     if nextValue == value then return false end
     CloseThemeMenu()
-    return Set(key, string.format(key == 'Scale' and '%.4f' or '%.2f', nextValue):gsub('0+$',''):gsub('%.$',''))
+    if not write(fieldValues(key, string.format(key == 'Scale' and '%.4f' or '%.2f', nextValue):gsub('0+$',''):gsub('%.$',''))) then return false end
+    refreshDisplay()
+    scheduleRefresh()
+    return true
 end
 
 function CycleTheme(direction)
@@ -207,9 +386,10 @@ function BeginEdit(key)
     inputStatus('Enter to apply. Esc to cancel.', false)
     -- Only fixed names, a quoted installed path and canonical numbers enter this command.
     -- User input returns through RunCommand stdout as data, never as a Rainmeter action.
+    -- The textbox matches the drawn panel, so it uses the loaded scale, not a pending one.
     local args = string.format('-NoProfile -NonInteractive -STA -WindowStyle Hidden -ExecutionPolicy Bypass -File "%sScripts\\SettingsInput.ps1" -Key %s -Initial "%s" -X %d -Y %d -Width %d -Height %d -Scale %.4f',
         SKIN:GetVariable('@'), key, initial, math.floor(SKIN:GetX()+meter:GetX()), math.floor(SKIN:GetY()+meter:GetY()),
-        math.max(40, math.floor(meter:GetW())), math.max(20, math.floor(meter:GetH())), number('Scale',1))
+        math.max(40, math.floor(meter:GetW())), math.max(20, math.floor(meter:GetH())), tonumber(SKIN:GetVariable('Scale')) or 1)
     SKIN:Bang('!SetOption', 'MeasureSettingsInput', 'Parameter', args)
     SKIN:Bang('!UpdateMeasure', 'MeasureSettingsInput')
     SKIN:Bang('!CommandMeasure', 'MeasureSettingsInput', 'Run')
@@ -223,13 +403,17 @@ function CommitInput()
     local measure = SKIN:GetMeasure('MeasureSettingsInput')
     local output = measure and measure:GetStringValue() or ''
     output = output:gsub('[\r\n]+$', '')
-    if output == 'PARALLAX_INPUT_V1|cancel|' then return false end
+    if output == 'PARALLAX_INPUT_V1|cancel|' then
+        if refreshOwed then scheduleRefresh() end
+        return false
+    end
     local value = output:match('^PARALLAX_INPUT_V1|ok|(%d+%.?%d*)$')
     if value then
         if key == 'Scale' then value = string.format('%.4f', tonumber(value)/100) end
         if Set(key, value) then return true end
     end
     inputStatus('Value was not applied. Click the field to try again.', true)
+    if refreshOwed then scheduleRefresh() end
     return false
 end
 
@@ -237,6 +421,15 @@ function Theme(name) return save(themes[name]) end
 function OpenColor(key)
     if editingKey or not colorTargets[key] then return false end
     CloseThemeMenu()
+    if refreshOwed then
+        -- Apply the pending change first. The picker opens on a delayed timer:
+        -- WM_TIMER is the lowest-priority message, so it runs after every
+        -- posted refresh, including an open picker's, which would otherwise
+        -- reset the new target.
+        refreshAll()
+        SKIN:Bang('[!Delay 1][!ActivateConfig "Parallax\\ColorPicker" "ColorPicker.ini"][!CommandMeasure MeasureColorPicker "OpenTarget(\'' .. key .. '\')" "Parallax\\ColorPicker"]')
+        return true
+    end
     SKIN:Bang('!ActivateConfig', 'Parallax\\ColorPicker', 'ColorPicker.ini')
     SKIN:Bang('!CommandMeasure', 'MeasureColorPicker', "OpenTarget('"..key.."')", 'Parallax\\ColorPicker')
     return true
@@ -246,8 +439,9 @@ function Accent(name)
     return save({ AccentColor=accents[name] })
 end
 function Profile(name)
-    if editingKey then return false end
-    return save(profiles[name])
+    if editingKey or not write(profiles[name]) then return false end
+    refreshConsumers(profiles[name])
+    return true
 end
 function CycleProfile(direction)
     if editingKey or (direction ~= -1 and direction ~= 1) then return false end

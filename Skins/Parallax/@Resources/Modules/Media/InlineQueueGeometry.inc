@@ -1,12 +1,31 @@
 [Variables]
-; Media.ini/Setup.ini both tick at this fast, fixed rate (matching the
-; Visualizer module's own default cadence) so Media.lua can animate the
-; player icon smoothly; MediaLegacyDivider throttles every measure that only
-; ever needs the original #MediaInterval# cadence (WebNowPlaying polling,
-; queue/options refresh) back down to it, so nothing polls more often than
-; before this animation existed.
+; The fast animation tick (matching the Visualizer module's own default
+; cadence) for the title-icon pulse and the open spectrum drawer.
 MediaAnimationInterval=50
-MediaLegacyDivider=(Max(1,Round(#MediaInterval#/#MediaAnimationInterval#)))
+; Title icon animation (User\Media.inc MediaTitleAnimation: 20, 10 or 0 for a
+; static icon; any other number means 20) as skin ticks per animation frame.
+MediaTitleFrameTicks=(#MediaTitleAnimation#=0 ? 0 : (#MediaTitleAnimation#=10 ? 2 : 1))
+; Media's own tick (Media.ini/Setup.ini Update): the fast tick only where
+; something can move, Media.ini's animated title icon (MediaPlayerHost, set by
+; the entrypoint before its includes) or its open spectrum drawer while it
+; captures (MediaDrawerCapture=0, Modules\Media\CaptureState.inc; a paused or
+; deferred drawer draws nothing that moves), and otherwise the provider
+; cadence itself. Chosen here, BEFORE MediaLegacyDivider
+; derives from it, from values the entrypoint and User\Media.inc settle before
+; this file (docs/PERFORMANCE-REVIEW.md XMOD-03: a later override of the tick
+; would be the wrong place to choose it). While Media is stood down for the
+; idle pause (MediaStandby=1, CaptureState.inc) the title icon does not
+; animate either, so the standby load ticks at the provider cadence.
+MediaTickInterval=((#MediaPlayerHost#*(#MediaTitleFrameTicks#>0)*(1-#MediaStandby#)+#MediaVisualizerHost#*(#VisualizerDrawer#=2)*(#MediaDrawerCapture#=0))>0 ? #MediaAnimationInterval# : #MediaInterval#)
+; MediaLegacyDivider holds every measure that only ever needs the original
+; #MediaInterval# cadence (WebNowPlaying polling, queue/options refresh) to it
+; on the faster tick, so nothing polls more often than before the animation
+; existed. Media.ini's DefaultUpdateDivider holds every meter without its own
+; divider to it too, so the window repaints on change, not on every tick.
+MediaLegacyDivider=(Max(1,Round(#MediaInterval#/#MediaTickInterval#)))
+; MediaPulse.lua's cadence: one animation frame, or with animation off the
+; provider cadence of the play state it watches.
+MediaPulseDivider=(#MediaTitleFrameTicks#>0 ? #MediaTitleFrameTicks# : #MediaLegacyDivider#)
 ; Two columns retain the shared outer pitch while the cover overhangs the
 ; narrower surface, sized from its fixed top-left by the rule below.
 MediaWide=(#Columns#-1)

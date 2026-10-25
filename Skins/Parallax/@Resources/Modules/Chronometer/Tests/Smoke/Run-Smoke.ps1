@@ -82,6 +82,10 @@ try {
                     foreach ($name in @('Defaults.inc', 'Geometry.inc', 'Styles.inc')) {
                         Copy-IntoRun (Join-Path $resourceRoot $name) (Join-Path $resources $name)
                     }
+                    # Idle pause is Off in the staged settings: the entrypoint's last include is
+                    # the comment-only Idle hook variant.
+                    New-Item -ItemType Directory -Path (Join-Path $resources 'Idle') -Force | Out-Null
+                    Copy-IntoRun (Join-Path $resourceRoot 'Idle\Hook0.inc') (Join-Path $resources 'Idle\Hook0.inc')
                     # Stage only already-bundled fonts. Never install or download fonts.
                     $sourceFonts = Join-Path $resourceRoot 'Fonts'
                     if (Test-Path -LiteralPath $sourceFonts -PathType Container) {

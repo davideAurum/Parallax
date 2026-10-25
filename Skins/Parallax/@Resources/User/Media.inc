@@ -16,3 +16,8 @@ QueuePollSeconds=30
 ; Rainmeter's AudioLevel plugin captures the Windows output device. Its height,
 ; colors and sensitivity follow Audio settings (User\Visualizer.inc).
 VisualizerDrawer=1
+; Title icon animation while a WebNowPlaying player reports Playing: 20 (frames
+; per second, the default), 10, or 0 for a static icon. Literal digits; any
+; other number means 20. With 0 and the spectrum drawer closed, Media updates
+; once per MediaInterval instead of every 50 ms.
+MediaTitleAnimation=20

@@ -136,6 +136,11 @@ def run() -> None:
     arrow_names.update(theme_arrows)
     for name, direction in (("meterrefreshdecrease", -1), ("meterrefreshincrease", 1), ("meterrefreshvalue", 1), ("meterrefreshframe", 1)):
         assert options(name, sections).get("leftmouseupaction") == f'[!CommandMeasure MeasureSettings "CycleProfile({direction})"]', (name, "Refresh must use the validated cycling action")
+    # Idle pause (owner decision 2): the same cycling control, one row below Refresh.
+    for name, direction in (("meteridlepausedecrease", -1), ("meteridlepauseincrease", 1), ("meteridlepausevalue", 1), ("meteridlepauseframe", 1)):
+        assert options(name, sections).get("leftmouseupaction") == f'[!CommandMeasure MeasureSettings "CycleIdlePause({direction})"]', (name, "Idle pause must use its cycling action")
+    assert sections["meteridlepauselabel"]["text"] == "Idle pause", "Idle pause row label"
+    assert not any(key.startswith("tooltip") for name in sections if name.startswith("meteridlepause") for key in sections[name]), "No tooltips"
     for heading, rule, title in (("meterappearancesection", "meterappearancerule", "Appearance"), ("meterperformancesection", "meterperformancerule", "Performance")):
         assert sections[heading]["text"] == title, f"Missing settings section: {title}"
         assert sections[rule]["meterstyle"] == "StyleRule", f"{title} must use section divider styling."
@@ -156,7 +161,8 @@ def run() -> None:
             return number(f"#{name}#", variables)
 
         assert var("Columns") == 2, "Settings must use double-column geometry after include overrides."
-        assert var("PanelHeight") == 758, "Settings' local height was lost to default precedence."
+        # 758 before the Idle pause row (one 28 px row, 2026-10-23).
+        assert var("PanelHeight") == 786, "Settings' local height was lost to default precedence."
         for thickness in (1, 1.25, 1.5, 2, 2.5, 6, 8.75, 12):
             scaled = dict(variables, databarthickness=str(thickness))
             expected = max(1, math.floor(thickness * scale + 0.5))
@@ -206,8 +212,8 @@ def run() -> None:
                     assert resolved.get("group") == "ThemeMenu", "Option must dismiss with the menu"
                 if "leftmouseupaction" in resolved:
                     minimum_button_margin = min(minimum_button_margin, var("ContentX") + var("ContentWidth") - x - w)
-        for base in (*NUMERIC_CONTROLS, "MeterRefresh"):
-            left, value, right = (control_boxes[(base + suffix).lower()] for suffix in ("Decrease", "Value" if base == "MeterRefresh" else "Input", "Increase"))
+        for base in (*NUMERIC_CONTROLS, "MeterRefresh", "MeterIdlePause"):
+            left, value, right = (control_boxes[(base + suffix).lower()] for suffix in ("Decrease", "Value" if base in ("MeterRefresh", "MeterIdlePause") else "Input", "Increase"))
             resolved_frame = options((base + "Frame").lower(), sections)
             frame = tuple(number(resolved_frame.get(key, "0"), variables) for key in ("x", "y", "w", "h"))
             assert frame[0] >= var("ContentX") and frame[1] >= 0 and min(frame[2:]) > 0, (base, label, "Invalid frame bounds")

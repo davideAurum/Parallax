@@ -222,6 +222,22 @@ function suite.Run(settingsPath)
         local slow = newMock(settingsPath, {CPUUpdateInterval='2000', CPUSensorInterval='500'})
         equal(slow:text('MeterSettingsSensorRateValue'), '500')
     end)
+    -- CPU Meter's process slots are an include chosen at load (a loaded
+    -- UsageMonitor measure keeps the Process reader alive even when disabled),
+    -- so toggling the list reloads CPU Meter like a rate change. Other
+    -- visibility toggles stay immediate.
+    test('the process list toggle refreshes only CPU Meter; other toggles apply live', function()
+        local c = newMock(settingsPath)
+        c:call('Toggle', 'CPUShowProcesses')
+        equal(c.persisted.CPUShowProcesses, '0'); equal(c.groupWrites.CPUShowProcesses, '0')
+        equal(c.refreshes, 1); equal(c.applies, 0)
+        c:call('Toggle', 'CPUShowProcesses')
+        equal(c.persisted.CPUShowProcesses, '1'); equal(c.refreshes, 2); equal(c.applies, 0)
+        c:call('Toggle', 'CPUShowHistory')
+        equal(c.refreshes, 2); equal(c.applies, 1)
+        c:call('AdjustNumber', 'CPUProcessCount', 1)
+        equal(c.persisted.CPUProcessCount, '6'); equal(c.refreshes, 2); equal(c.applies, 2)
+    end)
     test('decimal arrows change by one, clamp at bounds and apply immediately', function()
         local c = newMock(settingsPath)
         equal(c:text('MeterSettingsDecimalsValue'), '0')

@@ -5,7 +5,7 @@ Drive=A:
 Total=1
 IgnoreRemovable=0
 DiskQuota=#IODiskQuota#
-Group=IOCapacityA
+Group=IOCapacityA|ParallaxIdlePause
 Disabled=1
 UpdateDivider=(Max(5,Ceil(#CapacityInterval#/1000)))
 
@@ -14,7 +14,7 @@ Measure=FreeDiskSpace
 Drive=A:
 IgnoreRemovable=0
 DiskQuota=#IODiskQuota#
-Group=IOCapacityA
+Group=IOCapacityA|ParallaxIdlePause
 Disabled=1
 UpdateDivider=(Max(5,Ceil(#CapacityInterval#/1000)))
 
@@ -23,7 +23,7 @@ Measure=Calc
 Formula=(Max(0,Min(100,100*(1-MeasureIOFreeA/Max(1,MeasureIOTotalA)))))
 MinValue=0
 MaxValue=100
-Group=IOCapacityA
+Group=IOCapacityA|ParallaxIdlePause
 Disabled=1
 
 [MeasureIOTotalB]
@@ -32,7 +32,7 @@ Drive=B:
 Total=1
 IgnoreRemovable=0
 DiskQuota=#IODiskQuota#
-Group=IOCapacityB
+Group=IOCapacityB|ParallaxIdlePause
 Disabled=1
 UpdateDivider=(Max(5,Ceil(#CapacityInterval#/1000)))
 
@@ -41,7 +41,7 @@ Measure=FreeDiskSpace
 Drive=B:
 IgnoreRemovable=0
 DiskQuota=#IODiskQuota#
-Group=IOCapacityB
+Group=IOCapacityB|ParallaxIdlePause
 Disabled=1
 UpdateDivider=(Max(5,Ceil(#CapacityInterval#/1000)))
 
@@ -50,7 +50,7 @@ Measure=Calc
 Formula=(Max(0,Min(100,100*(1-MeasureIOFreeB/Max(1,MeasureIOTotalB)))))
 MinValue=0
 MaxValue=100
-Group=IOCapacityB
+Group=IOCapacityB|ParallaxIdlePause
 Disabled=1
 
 [MeasureIOTotalC]
@@ -59,7 +59,7 @@ Drive=C:
 Total=1
 IgnoreRemovable=0
 DiskQuota=#IODiskQuota#
-Group=IOCapacityC
+Group=IOCapacityC|ParallaxIdlePause
 Disabled=1
 UpdateDivider=(Max(5,Ceil(#CapacityInterval#/1000)))
 
@@ -68,7 +68,7 @@ Measure=FreeDiskSpace
 Drive=C:
 IgnoreRemovable=0
 DiskQuota=#IODiskQuota#
-Group=IOCapacityC
+Group=IOCapacityC|ParallaxIdlePause
 Disabled=1
 UpdateDivider=(Max(5,Ceil(#CapacityInterval#/1000)))
 
@@ -77,7 +77,7 @@ Measure=Calc
 Formula=(Max(0,Min(100,100*(1-MeasureIOFreeC/Max(1,MeasureIOTotalC)))))
 MinValue=0
 MaxValue=100
-Group=IOCapacityC
+Group=IOCapacityC|ParallaxIdlePause
 Disabled=1
 
 [MeasureIOTotalD]
@@ -86,7 +86,7 @@ Drive=D:
 Total=1
 IgnoreRemovable=0
 DiskQuota=#IODiskQuota#
-Group=IOCapacityD
+Group=IOCapacityD|ParallaxIdlePause
 Disabled=1
 UpdateDivider=(Max(5,Ceil(#CapacityInterval#/1000)))
 
@@ -95,7 +95,7 @@ Measure=FreeDiskSpace
 Drive=D:
 IgnoreRemovable=0
 DiskQuota=#IODiskQuota#
-Group=IOCapacityD
+Group=IOCapacityD|ParallaxIdlePause
 Disabled=1
 UpdateDivider=(Max(5,Ceil(#CapacityInterval#/1000)))
 
@@ -104,7 +104,7 @@ Measure=Calc
 Formula=(Max(0,Min(100,100*(1-MeasureIOFreeD/Max(1,MeasureIOTotalD)))))
 MinValue=0
 MaxValue=100
-Group=IOCapacityD
+Group=IOCapacityD|ParallaxIdlePause
 Disabled=1
 
 [MeasureIOTotalE]
@@ -113,7 +113,7 @@ Drive=E:
 Total=1
 IgnoreRemovable=0
 DiskQuota=#IODiskQuota#
-Group=IOCapacityE
+Group=IOCapacityE|ParallaxIdlePause
 Disabled=1
 UpdateDivider=(Max(5,Ceil(#CapacityInterval#/1000)))
 
@@ -122,7 +122,7 @@ Measure=FreeDiskSpace
 Drive=E:
 IgnoreRemovable=0
 DiskQuota=#IODiskQuota#
-Group=IOCapacityE
+Group=IOCapacityE|ParallaxIdlePause
 Disabled=1
 UpdateDivider=(Max(5,Ceil(#CapacityInterval#/1000)))
 
@@ -131,7 +131,7 @@ Measure=Calc
 Formula=(Max(0,Min(100,100*(1-MeasureIOFreeE/Max(1,MeasureIOTotalE)))))
 MinValue=0
 MaxValue=100
-Group=IOCapacityE
+Group=IOCapacityE|ParallaxIdlePause
 Disabled=1
 
 [MeasureIOTotalF]
@@ -140,7 +140,7 @@ Drive=F:
 Total=1
 IgnoreRemovable=0
 DiskQuota=#IODiskQuota#
-Group=IOCapacityF
+Group=IOCapacityF|ParallaxIdlePause
 Disabled=1
 UpdateDivider=(Max(5,Ceil(#CapacityInterval#/1000)))
 
@@ -149,7 +149,7 @@ Measure=FreeDiskSpace
 Drive=F:
 IgnoreRemovable=0
 DiskQuota=#IODiskQuota#
-Group=IOCapacityF
+Group=IOCapacityF|ParallaxIdlePause
 Disabled=1
 UpdateDivider=(Max(5,Ceil(#CapacityInterval#/1000)))
 
@@ -158,7 +158,7 @@ Measure=Calc
 Formula=(Max(0,Min(100,100*(1-MeasureIOFreeF/Max(1,MeasureIOTotalF)))))
 MinValue=0
 MaxValue=100
-Group=IOCapacityF
+Group=IOCapacityF|ParallaxIdlePause
 Disabled=1
 
 [MeasureIOTotalG]
@@ -167,7 +167,7 @@ Drive=G:
 Total=1
 IgnoreRemovable=0
 DiskQuota=#IODiskQuota#
-Group=IOCapacityG
+Group=IOCapacityG|ParallaxIdlePause
 Disabled=1
 UpdateDivider=(Max(5,Ceil(#CapacityInterval#/1000)))
 
@@ -176,7 +176,7 @@ Measure=FreeDiskSpace
 Drive=G:
 IgnoreRemovable=0
 DiskQuota=#IODiskQuota#
-Group=IOCapacityG
+Group=IOCapacityG|ParallaxIdlePause
 Disabled=1
 UpdateDivider=(Max(5,Ceil(#CapacityInterval#/1000)))
 
@@ -185,7 +185,7 @@ Measure=Calc
 Formula=(Max(0,Min(100,100*(1-MeasureIOFreeG/Max(1,MeasureIOTotalG)))))
 MinValue=0
 MaxValue=100
-Group=IOCapacityG
+Group=IOCapacityG|ParallaxIdlePause
 Disabled=1
 
 [MeasureIOTotalH]
@@ -194,7 +194,7 @@ Drive=H:
 Total=1
 IgnoreRemovable=0
 DiskQuota=#IODiskQuota#
-Group=IOCapacityH
+Group=IOCapacityH|ParallaxIdlePause
 Disabled=1
 UpdateDivider=(Max(5,Ceil(#CapacityInterval#/1000)))
 
@@ -203,7 +203,7 @@ Measure=FreeDiskSpace
 Drive=H:
 IgnoreRemovable=0
 DiskQuota=#IODiskQuota#
-Group=IOCapacityH
+Group=IOCapacityH|ParallaxIdlePause
 Disabled=1
 UpdateDivider=(Max(5,Ceil(#CapacityInterval#/1000)))
 
@@ -212,7 +212,7 @@ Measure=Calc
 Formula=(Max(0,Min(100,100*(1-MeasureIOFreeH/Max(1,MeasureIOTotalH)))))
 MinValue=0
 MaxValue=100
-Group=IOCapacityH
+Group=IOCapacityH|ParallaxIdlePause
 Disabled=1
 
 [MeasureIOTotalI]
@@ -221,7 +221,7 @@ Drive=I:
 Total=1
 IgnoreRemovable=0
 DiskQuota=#IODiskQuota#
-Group=IOCapacityI
+Group=IOCapacityI|ParallaxIdlePause
 Disabled=1
 UpdateDivider=(Max(5,Ceil(#CapacityInterval#/1000)))
 
@@ -230,7 +230,7 @@ Measure=FreeDiskSpace
 Drive=I:
 IgnoreRemovable=0
 DiskQuota=#IODiskQuota#
-Group=IOCapacityI
+Group=IOCapacityI|ParallaxIdlePause
 Disabled=1
 UpdateDivider=(Max(5,Ceil(#CapacityInterval#/1000)))
 
@@ -239,7 +239,7 @@ Measure=Calc
 Formula=(Max(0,Min(100,100*(1-MeasureIOFreeI/Max(1,MeasureIOTotalI)))))
 MinValue=0
 MaxValue=100
-Group=IOCapacityI
+Group=IOCapacityI|ParallaxIdlePause
 Disabled=1
 
 [MeasureIOTotalJ]
@@ -248,7 +248,7 @@ Drive=J:
 Total=1
 IgnoreRemovable=0
 DiskQuota=#IODiskQuota#
-Group=IOCapacityJ
+Group=IOCapacityJ|ParallaxIdlePause
 Disabled=1
 UpdateDivider=(Max(5,Ceil(#CapacityInterval#/1000)))
 
@@ -257,7 +257,7 @@ Measure=FreeDiskSpace
 Drive=J:
 IgnoreRemovable=0
 DiskQuota=#IODiskQuota#
-Group=IOCapacityJ
+Group=IOCapacityJ|ParallaxIdlePause
 Disabled=1
 UpdateDivider=(Max(5,Ceil(#CapacityInterval#/1000)))
 
@@ -266,7 +266,7 @@ Measure=Calc
 Formula=(Max(0,Min(100,100*(1-MeasureIOFreeJ/Max(1,MeasureIOTotalJ)))))
 MinValue=0
 MaxValue=100
-Group=IOCapacityJ
+Group=IOCapacityJ|ParallaxIdlePause
 Disabled=1
 
 [MeasureIOTotalK]
@@ -275,7 +275,7 @@ Drive=K:
 Total=1
 IgnoreRemovable=0
 DiskQuota=#IODiskQuota#
-Group=IOCapacityK
+Group=IOCapacityK|ParallaxIdlePause
 Disabled=1
 UpdateDivider=(Max(5,Ceil(#CapacityInterval#/1000)))
 
@@ -284,7 +284,7 @@ Measure=FreeDiskSpace
 Drive=K:
 IgnoreRemovable=0
 DiskQuota=#IODiskQuota#
-Group=IOCapacityK
+Group=IOCapacityK|ParallaxIdlePause
 Disabled=1
 UpdateDivider=(Max(5,Ceil(#CapacityInterval#/1000)))
 
@@ -293,7 +293,7 @@ Measure=Calc
 Formula=(Max(0,Min(100,100*(1-MeasureIOFreeK/Max(1,MeasureIOTotalK)))))
 MinValue=0
 MaxValue=100
-Group=IOCapacityK
+Group=IOCapacityK|ParallaxIdlePause
 Disabled=1
 
 [MeasureIOTotalL]
@@ -302,7 +302,7 @@ Drive=L:
 Total=1
 IgnoreRemovable=0
 DiskQuota=#IODiskQuota#
-Group=IOCapacityL
+Group=IOCapacityL|ParallaxIdlePause
 Disabled=1
 UpdateDivider=(Max(5,Ceil(#CapacityInterval#/1000)))
 
@@ -311,7 +311,7 @@ Measure=FreeDiskSpace
 Drive=L:
 IgnoreRemovable=0
 DiskQuota=#IODiskQuota#
-Group=IOCapacityL
+Group=IOCapacityL|ParallaxIdlePause
 Disabled=1
 UpdateDivider=(Max(5,Ceil(#CapacityInterval#/1000)))
 
@@ -320,7 +320,7 @@ Measure=Calc
 Formula=(Max(0,Min(100,100*(1-MeasureIOFreeL/Max(1,MeasureIOTotalL)))))
 MinValue=0
 MaxValue=100
-Group=IOCapacityL
+Group=IOCapacityL|ParallaxIdlePause
 Disabled=1
 
 [MeasureIOTotalM]
@@ -329,7 +329,7 @@ Drive=M:
 Total=1
 IgnoreRemovable=0
 DiskQuota=#IODiskQuota#
-Group=IOCapacityM
+Group=IOCapacityM|ParallaxIdlePause
 Disabled=1
 UpdateDivider=(Max(5,Ceil(#CapacityInterval#/1000)))
 
@@ -338,7 +338,7 @@ Measure=FreeDiskSpace
 Drive=M:
 IgnoreRemovable=0
 DiskQuota=#IODiskQuota#
-Group=IOCapacityM
+Group=IOCapacityM|ParallaxIdlePause
 Disabled=1
 UpdateDivider=(Max(5,Ceil(#CapacityInterval#/1000)))
 
@@ -347,7 +347,7 @@ Measure=Calc
 Formula=(Max(0,Min(100,100*(1-MeasureIOFreeM/Max(1,MeasureIOTotalM)))))
 MinValue=0
 MaxValue=100
-Group=IOCapacityM
+Group=IOCapacityM|ParallaxIdlePause
 Disabled=1
 
 [MeasureIOTotalN]
@@ -356,7 +356,7 @@ Drive=N:
 Total=1
 IgnoreRemovable=0
 DiskQuota=#IODiskQuota#
-Group=IOCapacityN
+Group=IOCapacityN|ParallaxIdlePause
 Disabled=1
 UpdateDivider=(Max(5,Ceil(#CapacityInterval#/1000)))
 
@@ -365,7 +365,7 @@ Measure=FreeDiskSpace
 Drive=N:
 IgnoreRemovable=0
 DiskQuota=#IODiskQuota#
-Group=IOCapacityN
+Group=IOCapacityN|ParallaxIdlePause
 Disabled=1
 UpdateDivider=(Max(5,Ceil(#CapacityInterval#/1000)))
 
@@ -374,7 +374,7 @@ Measure=Calc
 Formula=(Max(0,Min(100,100*(1-MeasureIOFreeN/Max(1,MeasureIOTotalN)))))
 MinValue=0
 MaxValue=100
-Group=IOCapacityN
+Group=IOCapacityN|ParallaxIdlePause
 Disabled=1
 
 [MeasureIOTotalO]
@@ -383,7 +383,7 @@ Drive=O:
 Total=1
 IgnoreRemovable=0
 DiskQuota=#IODiskQuota#
-Group=IOCapacityO
+Group=IOCapacityO|ParallaxIdlePause
 Disabled=1
 UpdateDivider=(Max(5,Ceil(#CapacityInterval#/1000)))
 
@@ -392,7 +392,7 @@ Measure=FreeDiskSpace
 Drive=O:
 IgnoreRemovable=0
 DiskQuota=#IODiskQuota#
-Group=IOCapacityO
+Group=IOCapacityO|ParallaxIdlePause
 Disabled=1
 UpdateDivider=(Max(5,Ceil(#CapacityInterval#/1000)))
 
@@ -401,7 +401,7 @@ Measure=Calc
 Formula=(Max(0,Min(100,100*(1-MeasureIOFreeO/Max(1,MeasureIOTotalO)))))
 MinValue=0
 MaxValue=100
-Group=IOCapacityO
+Group=IOCapacityO|ParallaxIdlePause
 Disabled=1
 
 [MeasureIOTotalP]
@@ -410,7 +410,7 @@ Drive=P:
 Total=1
 IgnoreRemovable=0
 DiskQuota=#IODiskQuota#
-Group=IOCapacityP
+Group=IOCapacityP|ParallaxIdlePause
 Disabled=1
 UpdateDivider=(Max(5,Ceil(#CapacityInterval#/1000)))
 
@@ -419,7 +419,7 @@ Measure=FreeDiskSpace
 Drive=P:
 IgnoreRemovable=0
 DiskQuota=#IODiskQuota#
-Group=IOCapacityP
+Group=IOCapacityP|ParallaxIdlePause
 Disabled=1
 UpdateDivider=(Max(5,Ceil(#CapacityInterval#/1000)))
 
@@ -428,7 +428,7 @@ Measure=Calc
 Formula=(Max(0,Min(100,100*(1-MeasureIOFreeP/Max(1,MeasureIOTotalP)))))
 MinValue=0
 MaxValue=100
-Group=IOCapacityP
+Group=IOCapacityP|ParallaxIdlePause
 Disabled=1
 
 [MeasureIOTotalQ]
@@ -437,7 +437,7 @@ Drive=Q:
 Total=1
 IgnoreRemovable=0
 DiskQuota=#IODiskQuota#
-Group=IOCapacityQ
+Group=IOCapacityQ|ParallaxIdlePause
 Disabled=1
 UpdateDivider=(Max(5,Ceil(#CapacityInterval#/1000)))
 
@@ -446,7 +446,7 @@ Measure=FreeDiskSpace
 Drive=Q:
 IgnoreRemovable=0
 DiskQuota=#IODiskQuota#
-Group=IOCapacityQ
+Group=IOCapacityQ|ParallaxIdlePause
 Disabled=1
 UpdateDivider=(Max(5,Ceil(#CapacityInterval#/1000)))
 
@@ -455,7 +455,7 @@ Measure=Calc
 Formula=(Max(0,Min(100,100*(1-MeasureIOFreeQ/Max(1,MeasureIOTotalQ)))))
 MinValue=0
 MaxValue=100
-Group=IOCapacityQ
+Group=IOCapacityQ|ParallaxIdlePause
 Disabled=1
 
 [MeasureIOTotalR]
@@ -464,7 +464,7 @@ Drive=R:
 Total=1
 IgnoreRemovable=0
 DiskQuota=#IODiskQuota#
-Group=IOCapacityR
+Group=IOCapacityR|ParallaxIdlePause
 Disabled=1
 UpdateDivider=(Max(5,Ceil(#CapacityInterval#/1000)))
 
@@ -473,7 +473,7 @@ Measure=FreeDiskSpace
 Drive=R:
 IgnoreRemovable=0
 DiskQuota=#IODiskQuota#
-Group=IOCapacityR
+Group=IOCapacityR|ParallaxIdlePause
 Disabled=1
 UpdateDivider=(Max(5,Ceil(#CapacityInterval#/1000)))
 
@@ -482,7 +482,7 @@ Measure=Calc
 Formula=(Max(0,Min(100,100*(1-MeasureIOFreeR/Max(1,MeasureIOTotalR)))))
 MinValue=0
 MaxValue=100
-Group=IOCapacityR
+Group=IOCapacityR|ParallaxIdlePause
 Disabled=1
 
 [MeasureIOTotalS]
@@ -491,7 +491,7 @@ Drive=S:
 Total=1
 IgnoreRemovable=0
 DiskQuota=#IODiskQuota#
-Group=IOCapacityS
+Group=IOCapacityS|ParallaxIdlePause
 Disabled=1
 UpdateDivider=(Max(5,Ceil(#CapacityInterval#/1000)))
 
@@ -500,7 +500,7 @@ Measure=FreeDiskSpace
 Drive=S:
 IgnoreRemovable=0
 DiskQuota=#IODiskQuota#
-Group=IOCapacityS
+Group=IOCapacityS|ParallaxIdlePause
 Disabled=1
 UpdateDivider=(Max(5,Ceil(#CapacityInterval#/1000)))
 
@@ -509,7 +509,7 @@ Measure=Calc
 Formula=(Max(0,Min(100,100*(1-MeasureIOFreeS/Max(1,MeasureIOTotalS)))))
 MinValue=0
 MaxValue=100
-Group=IOCapacityS
+Group=IOCapacityS|ParallaxIdlePause
 Disabled=1
 
 [MeasureIOTotalT]
@@ -518,7 +518,7 @@ Drive=T:
 Total=1
 IgnoreRemovable=0
 DiskQuota=#IODiskQuota#
-Group=IOCapacityT
+Group=IOCapacityT|ParallaxIdlePause
 Disabled=1
 UpdateDivider=(Max(5,Ceil(#CapacityInterval#/1000)))
 
@@ -527,7 +527,7 @@ Measure=FreeDiskSpace
 Drive=T:
 IgnoreRemovable=0
 DiskQuota=#IODiskQuota#
-Group=IOCapacityT
+Group=IOCapacityT|ParallaxIdlePause
 Disabled=1
 UpdateDivider=(Max(5,Ceil(#CapacityInterval#/1000)))
 
@@ -536,7 +536,7 @@ Measure=Calc
 Formula=(Max(0,Min(100,100*(1-MeasureIOFreeT/Max(1,MeasureIOTotalT)))))
 MinValue=0
 MaxValue=100
-Group=IOCapacityT
+Group=IOCapacityT|ParallaxIdlePause
 Disabled=1
 
 [MeasureIOTotalU]
@@ -545,7 +545,7 @@ Drive=U:
 Total=1
 IgnoreRemovable=0
 DiskQuota=#IODiskQuota#
-Group=IOCapacityU
+Group=IOCapacityU|ParallaxIdlePause
 Disabled=1
 UpdateDivider=(Max(5,Ceil(#CapacityInterval#/1000)))
 
@@ -554,7 +554,7 @@ Measure=FreeDiskSpace
 Drive=U:
 IgnoreRemovable=0
 DiskQuota=#IODiskQuota#
-Group=IOCapacityU
+Group=IOCapacityU|ParallaxIdlePause
 Disabled=1
 UpdateDivider=(Max(5,Ceil(#CapacityInterval#/1000)))
 
@@ -563,7 +563,7 @@ Measure=Calc
 Formula=(Max(0,Min(100,100*(1-MeasureIOFreeU/Max(1,MeasureIOTotalU)))))
 MinValue=0
 MaxValue=100
-Group=IOCapacityU
+Group=IOCapacityU|ParallaxIdlePause
 Disabled=1
 
 [MeasureIOTotalV]
@@ -572,7 +572,7 @@ Drive=V:
 Total=1
 IgnoreRemovable=0
 DiskQuota=#IODiskQuota#
-Group=IOCapacityV
+Group=IOCapacityV|ParallaxIdlePause
 Disabled=1
 UpdateDivider=(Max(5,Ceil(#CapacityInterval#/1000)))
 
@@ -581,7 +581,7 @@ Measure=FreeDiskSpace
 Drive=V:
 IgnoreRemovable=0
 DiskQuota=#IODiskQuota#
-Group=IOCapacityV
+Group=IOCapacityV|ParallaxIdlePause
 Disabled=1
 UpdateDivider=(Max(5,Ceil(#CapacityInterval#/1000)))
 
@@ -590,7 +590,7 @@ Measure=Calc
 Formula=(Max(0,Min(100,100*(1-MeasureIOFreeV/Max(1,MeasureIOTotalV)))))
 MinValue=0
 MaxValue=100
-Group=IOCapacityV
+Group=IOCapacityV|ParallaxIdlePause
 Disabled=1
 
 [MeasureIOTotalW]
@@ -599,7 +599,7 @@ Drive=W:
 Total=1
 IgnoreRemovable=0
 DiskQuota=#IODiskQuota#
-Group=IOCapacityW
+Group=IOCapacityW|ParallaxIdlePause
 Disabled=1
 UpdateDivider=(Max(5,Ceil(#CapacityInterval#/1000)))
 
@@ -608,7 +608,7 @@ Measure=FreeDiskSpace
 Drive=W:
 IgnoreRemovable=0
 DiskQuota=#IODiskQuota#
-Group=IOCapacityW
+Group=IOCapacityW|ParallaxIdlePause
 Disabled=1
 UpdateDivider=(Max(5,Ceil(#CapacityInterval#/1000)))
 
@@ -617,7 +617,7 @@ Measure=Calc
 Formula=(Max(0,Min(100,100*(1-MeasureIOFreeW/Max(1,MeasureIOTotalW)))))
 MinValue=0
 MaxValue=100
-Group=IOCapacityW
+Group=IOCapacityW|ParallaxIdlePause
 Disabled=1
 
 [MeasureIOTotalX]
@@ -626,7 +626,7 @@ Drive=X:
 Total=1
 IgnoreRemovable=0
 DiskQuota=#IODiskQuota#
-Group=IOCapacityX
+Group=IOCapacityX|ParallaxIdlePause
 Disabled=1
 UpdateDivider=(Max(5,Ceil(#CapacityInterval#/1000)))
 
@@ -635,7 +635,7 @@ Measure=FreeDiskSpace
 Drive=X:
 IgnoreRemovable=0
 DiskQuota=#IODiskQuota#
-Group=IOCapacityX
+Group=IOCapacityX|ParallaxIdlePause
 Disabled=1
 UpdateDivider=(Max(5,Ceil(#CapacityInterval#/1000)))
 
@@ -644,7 +644,7 @@ Measure=Calc
 Formula=(Max(0,Min(100,100*(1-MeasureIOFreeX/Max(1,MeasureIOTotalX)))))
 MinValue=0
 MaxValue=100
-Group=IOCapacityX
+Group=IOCapacityX|ParallaxIdlePause
 Disabled=1
 
 [MeasureIOTotalY]
@@ -653,7 +653,7 @@ Drive=Y:
 Total=1
 IgnoreRemovable=0
 DiskQuota=#IODiskQuota#
-Group=IOCapacityY
+Group=IOCapacityY|ParallaxIdlePause
 Disabled=1
 UpdateDivider=(Max(5,Ceil(#CapacityInterval#/1000)))
 
@@ -662,7 +662,7 @@ Measure=FreeDiskSpace
 Drive=Y:
 IgnoreRemovable=0
 DiskQuota=#IODiskQuota#
-Group=IOCapacityY
+Group=IOCapacityY|ParallaxIdlePause
 Disabled=1
 UpdateDivider=(Max(5,Ceil(#CapacityInterval#/1000)))
 
@@ -671,7 +671,7 @@ Measure=Calc
 Formula=(Max(0,Min(100,100*(1-MeasureIOFreeY/Max(1,MeasureIOTotalY)))))
 MinValue=0
 MaxValue=100
-Group=IOCapacityY
+Group=IOCapacityY|ParallaxIdlePause
 Disabled=1
 
 [MeasureIOTotalZ]
@@ -680,7 +680,7 @@ Drive=Z:
 Total=1
 IgnoreRemovable=0
 DiskQuota=#IODiskQuota#
-Group=IOCapacityZ
+Group=IOCapacityZ|ParallaxIdlePause
 Disabled=1
 UpdateDivider=(Max(5,Ceil(#CapacityInterval#/1000)))
 
@@ -689,7 +689,7 @@ Measure=FreeDiskSpace
 Drive=Z:
 IgnoreRemovable=0
 DiskQuota=#IODiskQuota#
-Group=IOCapacityZ
+Group=IOCapacityZ|ParallaxIdlePause
 Disabled=1
 UpdateDivider=(Max(5,Ceil(#CapacityInterval#/1000)))
 
@@ -698,5 +698,5 @@ Measure=Calc
 Formula=(Max(0,Min(100,100*(1-MeasureIOFreeZ/Max(1,MeasureIOTotalZ)))))
 MinValue=0
 MaxValue=100
-Group=IOCapacityZ
+Group=IOCapacityZ|ParallaxIdlePause
 Disabled=1

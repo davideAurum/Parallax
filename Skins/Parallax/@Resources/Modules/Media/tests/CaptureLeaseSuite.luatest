@@ -1,0 +1,397 @@
+-- Developer-only timeline checks for the drawer capture lease
+-- (Modules\Media\CaptureLease.lua) with the real idle link (@Resources\Idle\
+-- Link.lua). Clock, files, measures, variables and Bangs are injected; nothing
+-- reaches Rainmeter, a file or a process. Lua 5.1 (Rainmeter's own, or OBS's
+-- LuaJIT through ctypes). Suite.Run(leasePath, linkPath) returns a report and
+-- raises on the first failure.
+local Suite = {}
+
+function Suite.Run(leasePath, linkPath)
+    local passed, cases = 0, {}
+    local function check(ok, message) if not ok then error(message, 2) end passed = passed + 1 end
+    local function equal(actual, expected, message)
+        if actual ~= expected then error((message or 'value') .. ': expected ' .. tostring(expected) .. ', got ' .. tostring(actual), 2) end
+        passed = passed + 1
+    end
+    local function scenario(name, body)
+        local before = passed
+        local ok, message = pcall(body)
+        if not ok then error(name .. ': ' .. tostring(message), 0) end
+        cases[#cases + 1] = name .. ': ' .. (passed - before) .. ' assertions'
+    end
+
+    local resources = 'C:\\Fixture\\Skins\\Parallax\\@Resources\\'
+    local skins = 'C:\\Fixture\\Skins\\'
+    local settings = 'C:\\Fixture\\Settings\\'
+    local T0 = 1800000000
+
+    -- One Media load with the given persisted state. options: capture,
+    -- standby, idleActive (Rainmeter.ini Active for Parallax\Idle; nil means
+    -- the coordinator is not installed), wnp (MeasureState value), signal
+    -- (MeasureVisualizerState value or nil when absent), hooks.
+    local function load(options)
+        options = options or {}
+        local state = { now = options.now or T0, bangs = {}, applies = {}, joins = {}, wnp = options.wnp or 0,
+            signal = options.signal, coordinator = options.coordinator }
+        local variables = {
+            ['@'] = resources, SKINSPATH = skins, SETTINGSPATH = settings, ROOTCONFIG = 'Parallax', MediaInterval = '1000',
+            MediaDrawerCapture = tostring(options.capture or 0), MediaStandby = tostring(options.standby or 0),
+            ParallaxIdleAway = '0', ParallaxIdlePaused = '0', ParallaxIdleSync = '0', ParallaxIdleBeat = '0',
+        }
+        for key, value in pairs(options.hooks or {}) do variables[key] = value end
+        state.variables = variables
+        local files = { [resources .. 'Idle\\Link.lua'] = '-- link' }
+        if options.idleActive ~= nil then files[skins .. 'Parallax\\Idle\\Idle.ini'] = '[Rainmeter]\r\n' end
+        if options.noLink then files[resources .. 'Idle\\Link.lua'] = nil end
+        state.files = files
+        -- Rainmeter.ini from the recorded Active values (nil omits a section);
+        -- tests change state.idleActive / state.visualizer and call it again.
+        state.idleActive, state.visualizer = options.idleActive, options.visualizer
+        function state.writeSettings()
+            local text = '[Rainmeter]\r\n'
+            if state.idleActive ~= nil then text = text .. '[Parallax\\Idle]\r\nActive=' .. state.idleActive .. '\r\n' end
+            if state.visualizer ~= nil then text = text .. '[Parallax\\Visualizer]\r\nActive=' .. state.visualizer .. '\r\n' end
+            if options.unreadable then files[settings .. 'Rainmeter.ini'] = nil else files[settings .. 'Rainmeter.ini'] = text end
+        end
+        state.writeSettings()
+        state.reevaluations = 0
+        local skin = {}
+        local env
+        function skin:GetVariable(name, default)
+            local value = variables[name]
+            if value == nil then return default end
+            return value
+        end
+        function skin:GetMeasure(name)
+            if state.throwOnce then
+                state.throwOnce = false
+                error('synthetic script error')
+            end
+            if name == 'MeasureVisualizerState' then
+                if state.signal == nil then return nil end
+                return { GetValue = function() return state.signal end }
+            elseif name == 'MeasureState' then
+                if state.wnp == nil then return nil end
+                return { GetValue = function() return state.wnp end }
+            end
+            error('Unexpected measure ' .. tostring(name))
+        end
+        function skin:Bang(...)
+            local args = { ... }
+            state.bangs[#state.bangs + 1] = table.concat(args, ' ')
+            if args[1] == '!CommandMeasure' then
+                assert(args[2] == 'MeasureMediaOptions', 'The lease commands only MediaOptions')
+                local capture, reason = args[3]:match("^ApplyLease%((%d), nil, '([%w-]+)'%)$")
+                assert(capture, 'Unexpected lease command ' .. tostring(args[3]))
+                state.applies[#state.applies + 1] = { capture = capture, reason = reason, at = state.now }
+            elseif args[1] == '!SetVariable' then
+                assert(args[2] == 'ParallaxCompanionCheck' and args[3] == '0' and #args == 3, 'Only the companion flag is cleared, in this skin')
+                variables.ParallaxCompanionCheck = args[3]
+            elseif args[1] == '!UpdateMeasureGroup' and args[2] == 'ParallaxIdleReevaluateRequest' then
+                assert(args[3] == '*', 'Silent group request')
+                state.reevaluations = state.reevaluations + 1
+            elseif args[1] == '!ActivateConfig' or (args[1] == '!UpdateMeasureGroup' and args[2] == 'ParallaxIdleSyncRequest') then
+                state.joins[#state.joins + 1] = { bang = args[1], at = state.now }
+                -- A loaded coordinator answers inside the call (Start's or
+                -- Sync's broadcast), re-entering this script.
+                if state.coordinator then state.broadcast(state.coordinator.away) end
+            else
+                error('Unexpected bang ' .. table.concat(args, ' '))
+            end
+        end
+        local fakeIo = { open = function(path, mode)
+            assert(mode == 'rb', 'Read-only')
+            local text = files[path]
+            if text == nil then return nil end
+            return { read = function(_, limit) return text:sub(1, limit) end, close = function() return true end }
+        end }
+        local fakeOs = { time = function() return state.now end }
+        env = setmetatable({ SKIN = skin, io = fakeIo, os = fakeOs }, { __index = _G })
+        env.dofile = function(path)
+            assert(path == resources .. 'Idle\\Link.lua', 'Only the idle link is loaded')
+            local chunk = assert(loadfile(linkPath))
+            setfenv(chunk, env)
+            return chunk()
+        end
+        local chunk = assert(loadfile(leasePath))
+        setfenv(chunk, env)
+        chunk()
+        env.Initialize()
+        state.env = env
+        -- The coordinator's broadcast: variables, then the hook group update.
+        function state.broadcast(away)
+            variables.ParallaxIdleAway = away and '1' or '0'
+            variables.ParallaxIdlePaused = '0'
+            variables.ParallaxIdleBeat = string.format('%d', state.now)
+            variables.ParallaxIdleSync = '1'
+            env.Update()
+        end
+        -- Advance the clock by whole seconds, updating once a second.
+        function state.run(seconds, each)
+            for _ = 1, seconds do
+                state.now = state.now + 1
+                if each then each(state) end
+                env.Update()
+            end
+        end
+        return state
+    end
+    local function onlyApply(state, capture, reason, message)
+        equal(#state.applies, 1, message .. ': one lease request')
+        equal(state.applies[1].capture, capture, message .. ': capture')
+        equal(state.applies[1].reason, reason, message .. ': reason')
+    end
+    -- A synced live drawer whose coordinator heartbeats every 60 s.
+    local function heartbeat(away) return function(s) if (s.now - T0) % 60 == 0 then s.broadcast(away(s)) end end end
+
+    scenario('parks at the later of 2 min quiet and the away flag (away last)', function()
+        local s = load({ idleActive = 1, signal = 1 })
+        s.env.Update()                          -- the load's own update: never joins
+        equal(#s.joins, 0, 'No join inside the load update')
+        s.run(1)                                -- the delayed join update
+        equal(#s.joins, 1, 'Joined once after the load')
+        s.broadcast(false)
+        -- Away flips at 150 s; quiet has been 120 s since 120 s.
+        s.run(148, heartbeat(function() return false end))
+        equal(#s.applies, 0, 'No park before the away flag')
+        s.now = s.now + 1
+        s.broadcast(true)
+        onlyApply(s, '1', 'park', 'Away at 150 s with quiet since load')
+        equal(s.applies[1].at - T0, 150, 'Parked when the later threshold (away) was met')
+        s.run(20)
+        equal(#s.applies, 1, 'No second request while the reload is pending')
+    end)
+
+    scenario('parks at the later of 2 min quiet and the away flag (quiet last)', function()
+        local s = load({ idleActive = 1, signal = 1 })
+        s.env.Update()
+        s.run(5)
+        s.broadcast(true)                       -- already away at 5 s
+        s.run(113, heartbeat(function() return true end))
+        equal(#s.applies, 0, 'No park before 120 s of quiet')
+        s.run(5, heartbeat(function() return true end))
+        onlyApply(s, '1', 'park', 'Quiet reached 120 s while away')
+        equal(s.applies[1].at - T0, 120, 'Parked when the later threshold (quiet) was met')
+    end)
+
+    scenario('no park while playing, unsynced, stale or after any signal sample', function()
+        local playing = load({ idleActive = 1, signal = 1, wnp = 1 })
+        playing.env.Update(); playing.run(1); playing.broadcast(true)
+        playing.run(300, heartbeat(function() return true end))
+        equal(#playing.applies, 0, 'A WebNowPlaying player reports Playing')
+        local unsynced = load({ signal = 1 })
+        unsynced.variables.ParallaxIdleAway = '1'
+        unsynced.env.Update(); unsynced.run(300)
+        equal(#unsynced.applies, 0, 'Away without a sync is ignored')
+        local stale = load({ idleActive = 1, signal = 1 })
+        stale.env.Update(); stale.run(1); stale.broadcast(false)
+        stale.run(200)                          -- the heartbeats stopped
+        stale.variables.ParallaxIdleAway = '1'  -- an away flag with no fresh beat
+        stale.run(100)
+        equal(#stale.applies, 0, 'A beat older than 3 minutes never parks')
+        local signal = load({ idleActive = 1, signal = 1 })
+        signal.env.Update(); signal.run(1); signal.broadcast(true)
+        signal.run(99, heartbeat(function() return true end))
+        signal.signal = 2
+        signal.run(1)
+        signal.signal = 1
+        signal.run(120, heartbeat(function() return true end))
+        equal(#signal.applies, 0, 'One signal sample at 101 s restarts the 120 s quiet from the next sample (102 s)')
+        signal.run(1, heartbeat(function() return true end))
+        onlyApply(signal, '1', 'park', 'Quiet again for 120 s')
+        local missing = load({ idleActive = 1 })
+        missing.env.Update(); missing.run(1); missing.broadcast(true)
+        missing.run(121, heartbeat(function() return true end))
+        onlyApply(missing, '1', 'park', 'Output unavailable (no signal state measure) counts as silence')
+    end)
+
+    scenario('a paused drawer resumes on input, playback, a click, no sync or a stale beat', function()
+        local input = load({ capture = 1, idleActive = 1 })
+        input.env.Update(); input.run(1); input.broadcast(true)
+        input.run(30, heartbeat(function() return true end))
+        equal(#input.applies, 0, 'Stays paused while away')
+        input.now = input.now + 1
+        input.broadcast(false)
+        onlyApply(input, '0', 'unpark', 'Input clears away')
+        local playing = load({ capture = 1, idleActive = 1 })
+        playing.env.Update(); playing.run(1); playing.broadcast(true)
+        playing.wnp = 1
+        playing.run(1)
+        onlyApply(playing, '0', 'unpark', 'WebNowPlaying reports Playing')
+        local click = load({ capture = 1, idleActive = 1 })
+        click.env.Update(); click.run(1); click.broadcast(true)
+        equal(click.env.Unpark('click'), true, 'Click accepted')
+        onlyApply(click, '0', 'unpark', 'A click on the plot')
+        local lonely = load({ capture = 1 })
+        lonely.env.Update(); lonely.run(9)
+        equal(#lonely.applies, 0, 'Waits 10 s for a coordinator')
+        lonely.run(1)
+        onlyApply(lonely, '0', 'fail-live', 'No coordinator 10 s after the load')
+        local stale = load({ capture = 1, idleActive = 1 })
+        stale.env.Update(); stale.run(1); stale.broadcast(true)
+        local joinsBefore = #stale.joins
+        stale.run(180)
+        equal(#stale.applies, 0, 'A 180 s old beat is not yet stale')
+        stale.run(1)
+        onlyApply(stale, '0', 'fail-live', 'A beat over 3 minutes old')
+        equal(#stale.joins, joinsBefore, 'The re-join is rate-limited to one per 10 minutes')
+    end)
+
+    scenario('a sleep gap re-arms the staleness clock instead of failing live', function()
+        local s = load({ capture = 1, idleActive = 1 })
+        s.env.Update(); s.run(1); s.broadcast(true)
+        s.run(10)
+        s.now = s.now + 3600                     -- the computer slept an hour
+        s.env.Update()
+        equal(#s.applies, 0, 'The first update after sleep does not call the coordinator dead')
+        s.run(179)
+        equal(#s.applies, 0, 'Still waiting for a beat after resume')
+        s.run(2)
+        onlyApply(s, '0', 'fail-live', 'No beat for 3 minutes after resume')
+    end)
+
+    scenario('no loop: playing at load, restart while paused, no coordinator', function()
+        local first = load({ capture = 1, idleActive = 1, wnp = 1 })
+        first.env.Update(); first.run(1)
+        onlyApply(first, '0', 'unpark', 'Playing at load resumes')
+        local second = load({ capture = 0, idleActive = 1, wnp = 1, signal = 1 })
+        second.env.Update(); second.run(1); second.broadcast(true)
+        second.run(600, heartbeat(function() return true end))
+        equal(#second.applies, 0, 'The live reload never parks while playing')
+        local restart = load({ capture = 1, idleActive = 1, coordinator = { away = false } })
+        restart.env.Update()
+        equal(#restart.applies, 0, 'Nothing before the sync')
+        restart.run(1)
+        onlyApply(restart, '0', 'unpark', 'Restart while paused resumes on the first sync')
+        local lonely = load({ capture = 1, noLink = true })
+        lonely.env.Update(); lonely.run(15)
+        onlyApply(lonely, '0', 'fail-live', 'Missing link file: fail live after 10 s')
+        local live = load({ capture = 0, signal = 1, noLink = true })
+        live.env.Update(); live.run(900)
+        equal(#live.applies, 0, 'Live with no coordinator stays live (stable)')
+    end)
+
+    scenario('one request per load; standby and reclaim', function()
+        local s = load({ idleActive = 1, signal = 1 })
+        s.env.Update(); s.run(1); s.broadcast(true)
+        s.run(120, heartbeat(function() return true end))
+        equal(#s.applies, 1, 'Parked once')
+        equal(s.applies[1].at - T0, 120, 'Parked at 120 s')
+        s.run(28, heartbeat(function() return true end))
+        equal(#s.applies, 1, 'No repeat while the reload is pending (30 s)')
+        s.run(1, heartbeat(function() return true end))
+        equal(#s.applies, 2, 'A reload that never came is retried after 30 s')
+        local standby = load({ capture = 1, standby = 1, idleActive = 1, wnp = 1 })
+        standby.env.Update(); standby.run(1); standby.broadcast(false)
+        standby.run(60)
+        equal(#standby.applies, 0, 'MediaStandby=1 leaves everything to the stand-down')
+        equal(standby.env.Unpark('click'), false, 'No click resume in standby')
+        local deferred = load({ capture = 2, idleActive = 1 })
+        deferred.env.Update(); deferred.run(1)
+        onlyApply(deferred, '0', 'reclaim', 'A saved deferred state with no standalone loaded reclaims live')
+        local click = load({ capture = 0, idleActive = 1 })
+        equal(click.env.Unpark('click'), false, 'A click does nothing while live')
+        equal(#click.applies, 0, 'No request for a live drawer')
+    end)
+
+    scenario('joining: after the load update, once, last; a nested broadcast is deferred, not dropped', function()
+        local s = load({ idleActive = 0, signal = 1, coordinator = { away = true },
+            hooks = { MediaLeaseTestQuietSeconds = '1' } })
+        s.env.Update()
+        equal(#s.joins, 0, 'The load update never joins (startup walk)')
+        s.run(2)
+        equal(#s.joins, 1, 'One join after the load')
+        equal(s.joins[1].bang, '!ActivateConfig', 'An inactive coordinator is activated')
+        -- The activation's broadcast (away) re-entered the lease inside the
+        -- join; the outer pass re-evaluated and parked exactly once.
+        onlyApply(s, '1', 'park', 'The nested broadcast was evaluated after the join')
+        equal(s.applies[1].at, s.joins[1].at, 'In the same pass as the join, not at the next regular update')
+        s.run(5)
+        equal(#s.joins, 1, 'Synced: no more joins')
+        local active = load({ idleActive = 1, signal = 1 })
+        active.env.Update(); active.run(3)
+        equal(#active.joins, 1, 'An active coordinator gets one silent sync request')
+        equal(active.joins[1].bang, '!UpdateMeasureGroup', 'Silent group request')
+        active.run(500)
+        equal(#active.joins, 1, 'Unsynced: the next re-join waits 10 minutes')
+        active.run(100)
+        equal(#active.joins, 2, 'One re-join after 10 minutes')
+    end)
+
+    scenario('one capture: defer to a loaded standalone, reclaim when it goes', function()
+        for _, capture in ipairs({ 0, 1 }) do
+            local s = load({ capture = capture, idleActive = 1, visualizer = 1, signal = 1 })
+            s.env.Update()
+            equal(#s.applies, 0, 'Not inside the load update')
+            s.run(1)
+            onlyApply(s, '2', 'defer', 'Saved ' .. capture .. ' with the standalone loaded')
+            equal(s.reevaluations, 1, 'The idle coordinator is asked to re-check')
+            equal(#s.joins, 0, 'A deferring drawer does not join')
+        end
+        local stays = load({ capture = 2, idleActive = 1, visualizer = 1 })
+        stays.env.Update(); stays.run(60)
+        equal(#stays.applies, 0, 'Deferred while the standalone stays loaded')
+        equal(#stays.joins, 0, 'A deferred drawer never joins the coordinator')
+        local setup = load({ capture = 0, idleActive = 1, visualizer = 0, signal = 1 })
+        setup.env.Update(); setup.run(1)
+        equal(#setup.applies, 0, 'Standalone not loaded: stays live')
+        -- The standalone loads: its Companion.lua sets the flag and updates
+        -- the ParallaxMediaCompanion group.
+        setup.visualizer = 1; setup.writeSettings()
+        setup.variables.ParallaxCompanionCheck = '1'
+        setup.env.Update()
+        onlyApply(setup, '2', 'defer', 'Companion check after the standalone loaded')
+        equal(setup.variables.ParallaxCompanionCheck, '0', 'The flag is cleared in this skin')
+        local back = load({ capture = 2, idleActive = 1, visualizer = 1 })
+        back.env.Update(); back.run(5)
+        back.visualizer = 0; back.writeSettings()   -- unloaded: Active=0 already recorded
+        back.variables.ParallaxCompanionCheck = '1'
+        back.env.Update()
+        onlyApply(back, '0', 'reclaim', 'Companion check after the standalone unloaded')
+        local exit = load({ capture = 2, idleActive = 1, visualizer = 1 })
+        exit.env.Update(); exit.run(5)
+        exit.variables.ParallaxCompanionCheck = '1'
+        exit.env.Update()
+        equal(#exit.applies, 0, 'A check while the standalone is still recorded loaded changes nothing')
+        local unreadable = load({ capture = 0, idleActive = 1, visualizer = 1, unreadable = true })
+        unreadable.env.Update(); unreadable.run(5)
+        equal(#unreadable.applies, 0, 'Unreadable settings: no deferral')
+    end)
+
+    scenario('a script error in one pass does not stop later updates', function()
+        local s = load({ capture = 1, idleActive = 1 })
+        s.env.Update(); s.run(1); s.broadcast(true)
+        s.throwOnce = true
+        s.now = s.now + 1
+        local ok = pcall(s.env.Update)
+        equal(ok, false, 'The error still reaches Rainmeter (logged)')
+        s.run(1)
+        s.broadcast(false)
+        onlyApply(s, '0', 'unpark', 'The next update still evaluates and resumes')
+    end)
+
+    scenario('bounded test hooks', function()
+        local short = load({ idleActive = 1, signal = 1, hooks = { MediaLeaseTestQuietSeconds = '3', MediaLeaseTestStaleSeconds = '5' } })
+        short.env.Update(); short.run(1); short.broadcast(true)
+        short.run(3)
+        onlyApply(short, '1', 'park', 'A 3 s quiet hook')
+        for _, bad in ipairs({ '0', '121', 'x', '-1', '2.5' }) do
+            local s = load({ idleActive = 1, signal = 1, hooks = { MediaLeaseTestQuietSeconds = bad } })
+            s.env.Update(); s.run(1); s.broadcast(true)
+            s.run(118, heartbeat(function() return true end))
+            equal(#s.applies, 0, 'Out-of-range quiet hook ' .. bad .. ' keeps 120 s')
+        end
+        local stale = load({ capture = 1, idleActive = 1, hooks = { MediaLeaseTestStaleSeconds = '5' } })
+        stale.env.Update(); stale.run(1); stale.broadcast(true)
+        stale.run(6)
+        onlyApply(stale, '0', 'fail-live', 'A 5 s stale hook')
+        local bad = load({ capture = 1, idleActive = 1, hooks = { MediaLeaseTestStaleSeconds = '4' } })
+        bad.env.Update(); bad.run(1); bad.broadcast(true)
+        bad.run(100)
+        equal(#bad.applies, 0, 'Out-of-range stale hook keeps 180 s')
+    end)
+
+    return 'PASS: ' .. passed .. ' assertions in ' .. #cases .. ' capture-lease scenarios; ' .. _VERSION .. '.\n' .. table.concat(cases, '\n')
+end
+
+return Suite

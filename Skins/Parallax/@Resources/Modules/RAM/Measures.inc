@@ -2,27 +2,30 @@
 ; PhysicalMemory supplies bytes with a native 0..total physical RAM range.
 [MeasureRAMUsed]
 Measure=PhysicalMemory
+Group=ParallaxIdlePause
 UpdateDivider=1
 
 [MeasureRAMTotal]
 Measure=PhysicalMemory
+Group=ParallaxIdlePause
 Total=1
 UpdateDivider=1
 
-; Paging-file-only accounting comes from one resident EnumPageFiles host.
-; Bootstrap runs once to allocate session names; no shell is launched per poll.
-[MeasureRAMPageBootstrap]
-Measure=Plugin
-Plugin=RunCommand
-Program=%SystemRoot%\System32\WindowsPowerShell\v1.0\powershell.exe
-StartInFolder=#@#Modules\RAM\
-Parameter=
-State=Hide
-OutputType=UTF8
-Timeout=12000
-UpdateDivider=1
+; The history scale: nothing for Full (the default), or for Auto the range
+; controller and the Calc proxy the Line draws (HistoryScale1.inc). They must
+; follow the two PhysicalMemory measures they read. Changing RAMHistoryScale
+; refreshes Memory Meter to swap them.
+[RAMHistoryScaleInclude]
+@Include11=#@#Modules\RAM\HistoryScale#RAMHistoryScale#.inc
 
-[MeasureRAMPageHost]
+; Paging-file-only accounting comes from one resident EnumPageFiles host; no
+; shell is launched per poll. One bounded launcher (plain PowerShell, no
+; compile) mints the random session, writes its lease, starts the host hidden
+; and detached, waits until it has captured its Rainmeter ancestor, then
+; exits, so no RunCommand thread stays attached to it. The host's lifetime
+; rests on the session lease, that retained ancestor handle and the skin
+; removing the lease on close.
+[MeasureRAMPageLauncher]
 Measure=Plugin
 Plugin=RunCommand
 Program=%SystemRoot%\System32\WindowsPowerShell\v1.0\powershell.exe
@@ -30,11 +33,12 @@ StartInFolder=#@#Modules\RAM\
 Parameter=
 State=Hide
 OutputType=UTF8
-Timeout=-1
+Timeout=15000
 UpdateDivider=1
 
 [MeasureRAMPageView]
 Measure=Script
+Group=ParallaxIdlePause
 ScriptFile=#@#Modules\RAM\PageFile.lua
 UpdateDivider=1
 
@@ -49,9 +53,15 @@ UpdateDivider=-1
 
 ; Self reference starts at zero on load AND refresh; global Counter does not.
 ; Match the Line meter's update cadence. This is a sample count, not telemetry.
+; Once the plot holds ContentWidth samples the cover has zero width until the
+; next refresh. Retire it then: hide it and stop its per-tick Shape rebuild and
+; this count (UpdateDivider=-1 keeps the full count). Refresh restarts both.
 [MeasureRAMHistorySamples]
 Measure=Calc
+Group=ParallaxIdlePause
 Formula=Min(MeasureRAMHistorySamples+1,#ContentWidth#)
+IfCondition=MeasureRAMHistorySamples >= #ContentWidth#
+IfTrueAction=[!HideMeter MeterRAMHistoryUncollected][!SetOption MeterRAMHistoryUncollected UpdateDivider -1][!SetOption MeasureRAMHistorySamples UpdateDivider -1]
 UpdateDivider=1
 
 ; Event-only display bridge. Settings updates this group without resampling.
@@ -78,64 +88,21 @@ FinishAction=[!UpdateMeasure MeasureRAMInfo][!CommandMeasure MeasureRAMInfoView 
 ; Watches cached command status, settles wrapped layout, then disables updates.
 [MeasureRAMInfoView]
 Measure=Script
+Group=ParallaxIdlePause
 ScriptFile=#@#Modules\RAM\Info.lua
 UpdateDivider=1
 
-; Bundled UsageMonitor ranks private resident memory in bytes. All five
-; measures share its Process category worker, which samples independently at 1 Hz.
-
-[MeasureRAMProcess1]
-Measure=Plugin
-Plugin=UsageMonitor
-Alias=RAM
-Index=1
-Rollup=1
-Percent=0
-Blacklist=_Total|Idle
-UpdateDivider=1
-
-[MeasureRAMProcess2]
-Measure=Plugin
-Plugin=UsageMonitor
-Alias=RAM
-Index=2
-Rollup=1
-Percent=0
-Blacklist=_Total|Idle
-UpdateDivider=1
-
-[MeasureRAMProcess3]
-Measure=Plugin
-Plugin=UsageMonitor
-Alias=RAM
-Index=3
-Rollup=1
-Percent=0
-Blacklist=_Total|Idle
-UpdateDivider=1
-
-[MeasureRAMProcess4]
-Measure=Plugin
-Plugin=UsageMonitor
-Alias=RAM
-Index=4
-Rollup=1
-Percent=0
-Blacklist=_Total|Idle
-UpdateDivider=1
-
-[MeasureRAMProcess5]
-Measure=Plugin
-Plugin=UsageMonitor
-Alias=RAM
-Index=5
-Rollup=1
-Percent=0
-Blacklist=_Total|Idle
-UpdateDivider=1
+; The top-process table's five UsageMonitor ranks, or a comment-only stub
+; while RAMShowProcesses=0 (ProcessMeasures0.inc). UsageMonitor reads a whole
+; counter category once a second for as long as any loaded measure names it,
+; Disabled or not, so the opt-out leaves the measures out. Changing
+; RAMShowProcesses refreshes Memory Meter to swap them.
+[RAMProcessMeasureInclude]
+@Include10=#@#Modules\RAM\ProcessMeasures#RAMShowProcesses#.inc
 
 ; Runs after the ranked measures; preferences reformat its cached sample only.
 [MeasureRAMProcessView]
 Measure=Script
+Group=ParallaxIdlePause
 ScriptFile=#@#Modules\RAM\Process.lua
 UpdateDivider=1

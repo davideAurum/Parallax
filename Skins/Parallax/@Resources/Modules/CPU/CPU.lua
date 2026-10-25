@@ -1,5 +1,8 @@
 -- Parallax original CPU presentation/controller. No provider or process polling.
--- Processor Time measures precede this Script measure. Bangs are queued by Rainmeter.
+-- Processor Time measures precede this Script measure. SKIN:Bang runs each bang
+-- synchronously. Update() only sets options: every meter it changes updates in
+-- the skin's own meter pass right after this measure, which then redraws once.
+-- Event handlers (settings, paging, FinishActions) repaint explicitly.
 local state
 
 local function integer(value, fallback, minimum, maximum)
@@ -23,12 +26,33 @@ local function busyPercent(value)
     return math.min(100, value)
 end
 
+-- Each !SetOption forces a full option re-read of its section, and each
+-- show/hide bang searches the skin's meters and forces a window resize check.
+-- Send them only when the value differs from the one this script last sent.
+-- Every option, meter visibility and process-row group this script changes
+-- goes through these helpers, so the caches match the skin.
 local function set(meter, key, value)
-    SKIN:Bang('!SetOption', meter, key, tostring(value))
+    value = tostring(value)
+    state.sent = state.sent or {}
+    local cacheKey = meter .. '\0' .. key
+    if state.sent[cacheKey] == value then return end
+    state.sent[cacheKey] = value
+    SKIN:Bang('!SetOption', meter, key, value)
 end
 
 local function visible(meter, show)
+    show = show and true or false
+    state.shown = state.shown or {}
+    if state.shown[meter] == show then return end
+    state.shown[meter] = show
     SKIN:Bang(show and '!ShowMeter' or '!HideMeter', meter)
+end
+
+local function processRowVisible(slot, show)
+    state.processShown = state.processShown or {}
+    if state.processShown[slot] == show then return end
+    state.processShown[slot] = show
+    SKIN:Bang(show and '!ShowMeterGroup' or '!HideMeterGroup', 'CPUProcess' .. slot)
 end
 
 local function redraw()
@@ -40,6 +64,20 @@ end
 local function save(key, value)
     SKIN:Bang('!SetVariable', key, tostring(value))
     SKIN:Bang('!WriteKeyValue', 'Variables', key, tostring(value), state.userFile)
+end
+
+-- Idle Thread slots keep UpdateDivider=-1 (CoreMeters.inc), so their hidden
+-- meters skip every meter pass. Binding a slot restores divider 1 and forces
+-- one update of its group. That re-read also applies every option set while
+-- the slot was idle, including the V/T text Sensors.lua keeps for all 64
+-- slots, before the warmup shows the slot. Unbinding sets -1 again.
+local slotMeters = {'MeterCoreLabel', 'MeterCoreBar', 'MeterCoreValue', 'MeterCoreVoltage', 'MeterCoreTemperature'}
+local function slotLive(slot, live)
+    state.slotLive = state.slotLive or {}
+    if (state.slotLive[slot] or false) == live then return end
+    state.slotLive[slot] = live
+    for _, prefix in ipairs(slotMeters) do set(prefix .. slot, 'UpdateDivider', live and 1 or -1) end
+    if live then SKIN:Bang('!UpdateMeterGroup', 'CPUCore' .. slot) end
 end
 
 -- The first twelve colors are deliberately distinct for the common 12-thread
@@ -126,6 +164,7 @@ end
 local function configureHistoryTrack()
     state.graphFirst, state.graphRows = graphThreadRange()
     state.graphHeight = graphHeight()
+    state.graphSize = nil
     set('MeterHistoryTrack', 'H', '(' .. state.graphHeight .. '*#Scale#)')
     set('MeterHistory', 'H', '(' .. state.graphHeight .. '*#Scale#)')
 
@@ -166,6 +205,7 @@ local function layout()
         cursor = top + infoHeight + 8
         y('MeterCurrentClockLabel', cursor)
         y('MeterCurrentClockValue', cursor)
+        y('MeterCurrentClockSource', cursor)
         cursor = cursor + 16
         SKIN:Bang(state.showFan and '!ShowMeterGroup' or '!HideMeterGroup', 'CPUFan')
         if state.showFan then
@@ -189,6 +229,7 @@ local function layout()
     else
         y('MeterCurrentClockLabel', 0)
         y('MeterCurrentClockValue', 0)
+        y('MeterCurrentClockSource', 0)
         y('MeterCurrentFanLabel', 0)
         y('MeterCurrentFanValue', 0)
         y('MeterMotherboardFanLabel', 0)
@@ -261,6 +302,29 @@ local function layout()
     SKIN:Bang('!UpdateMeter', '*')
 end
 
+-- UsageMonitor slots have no DynamicVariables, so they re-read options only
+-- when !SetOption flags them, and each re-read is a plugin Reload (even while
+-- disabled). Change a slot's instance or enabled state only when it differs
+-- from what was last applied. Every slot starts Disabled=1; table slots start
+-- at Name=0,0, the safe instance they return to while disabled.
+local function bindMeasure(measure, name, enabled)
+    state.measures = state.measures or {}
+    local applied = state.measures[measure]
+    if not applied then
+        applied = {name='0,0', enabled=false}
+        state.measures[measure] = applied
+    end
+    if name and applied.name ~= name then
+        set(measure, 'Name', name)
+        applied.name = name
+    end
+    if applied.enabled ~= enabled then
+        SKIN:Bang(enabled and '!EnableMeasure' or '!DisableMeasure', measure)
+        set(measure, 'Disabled', enabled and 0 or 1)
+        applied.enabled = enabled
+    end
+end
+
 local function bindCores()
     state.active = 0
     local enabled = state.showCores and state.count > 0
@@ -273,23 +337,22 @@ local function bindCores()
         local measure = 'MeasureCPU' .. slot
         local index = first + slot - 1
         SKIN:Bang('!HideMeterGroup', 'CPUCore' .. slot)
-        SKIN:Bang('!DisableMeasure', measure)
-        set(measure, 'Disabled', 1)
-        -- 0,0 is a valid safe instance while this page-relative slot is disabled.
-        set(measure, 'Name', '0,0')
         if enabled and slot <= state.rows and index <= state.count then
             state.active = state.active + 1
-            set(measure, 'Name', '0,' .. (index - 1))
-            set(measure, 'Disabled', 0)
-            SKIN:Bang('!EnableMeasure', measure)
+            bindMeasure(measure, '0,' .. (index - 1), true)
             set('MeterCoreLabel' .. slot, 'Text', tostring(index))
             set('MeterCoreValue' .. slot, 'NumOfDecimals', state.decimals)
             set('MeterCoreValue' .. slot, 'Text', '...')
             set('MeterCoreBar' .. slot, 'BarColor', state.threadColors[index] or defaultThreadColor(index))
+        else
+            bindMeasure(measure, '0,0', false)
         end
     end
     -- A changed UsageMonitor instance needs fresh samples. Discard its warmup.
     state.warmup = 2
+    -- Bound slots are always 1..active. Their options are all set above, so
+    -- the forced update in slotLive applies them together.
+    for slot = 1, 64 do slotLive(slot, slot <= state.active) end
     visible('MeterCoreState', state.showCores)
     visible('MeterPrevious', enabled and state.page > 1)
     visible('MeterNext', enabled and state.page < state.pages)
@@ -319,28 +382,31 @@ local function applyThreadBarColors()
     end
 end
 
+-- The ten UsageMonitor slots load only with ProcessMeasures1.inc
+-- (CPUShowProcesses=1 at load); CPU Settings refreshes CPU Meter when the
+-- list is toggled. A list shown without them (an unrefreshed variable change)
+-- binds nothing and says so instead of naming absent measures.
 local function bindProcesses()
     state.processWarmup = 2
     for slot = 1, 10 do
-        local enabled = state.showProcesses and slot <= state.processCount
+        local enabled = state.showProcesses and state.processesLoaded and slot <= state.processCount
         local measure = 'MeasureCPUProcess' .. slot
-        SKIN:Bang(enabled and '!EnableMeasure' or '!DisableMeasure', measure)
-        set(measure, 'Disabled', enabled and 0 or 1)
-        SKIN:Bang('!HideMeterGroup', 'CPUProcess' .. slot)
+        bindMeasure(measure, nil, enabled)
+        processRowVisible(slot, false)
     end
     visible('MeterProcessesState', state.showProcesses)
-    set('MeterProcessesState', 'Text', 'Waiting for process data...')
+    set('MeterProcessesState', 'Text', state.processesLoaded and 'Waiting for process data...' or 'Refresh CPU Meter to load processes')
 end
 
 local function updateProcesses()
-    if not state.showProcesses then return end
+    if not state.showProcesses or not state.processesLoaded then return end
     if state.processWarmup > 0 then state.processWarmup = state.processWarmup - 1; return end
     local populated = 0
     for slot = 1, state.processCount do
         local measure = SKIN:GetMeasure('MeasureCPUProcess' .. slot)
         local name, value = measure:GetStringValue(), measure:GetValue()
         local valid = name ~= '' and name ~= '0' and value == value and value > 0 and value <= 100
-        SKIN:Bang(valid and '!ShowMeterGroup' or '!HideMeterGroup', 'CPUProcess' .. slot)
+        processRowVisible(slot, valid)
         if valid then
             populated = populated + 1
             set('MeterProcessName' .. slot, 'Text', name)
@@ -348,7 +414,8 @@ local function updateProcesses()
         end
     end
     visible('MeterProcessesState', populated == 0)
-    set('MeterProcessesState', 'Text', 'No active process data')
+    -- The state line is drawn only without ranked rows; set its text then.
+    if populated == 0 then set('MeterProcessesState', 'Text', 'No active process data') end
 end
 
 local function clearHistoryPath(index)
@@ -357,8 +424,22 @@ local function clearHistoryPath(index)
     state.renderedThreadPath[index] = false
 end
 
+-- MeterHistory disposes and re-parses Shape, Shape2, ... up to the first empty
+-- one on every re-read. Keep one slot per drawable trace (each logical thread
+-- in per-thread mode, one in total mode); a slot without a trace holds the
+-- invisible placeholder, so the chain stays unbroken up to that count. Slots
+-- past it are deleted so the chain stops there. renderHistory only writes
+-- slots inside the count, and every source change clears the graph here.
 local function clearHistoryShape()
-    for index = 1, 64 do clearHistoryPath(index) end
+    local slots = state.historySource == 1 and math.max(1, math.min(64, state.count or 0)) or 1
+    for index = 1, slots do clearHistoryPath(index) end
+    -- The INI defines Shape only; later slots exist once this script set them.
+    for index = slots + 1, state.historyChain or 1 do
+        set('MeterHistory', 'HistoryPath' .. index, '')
+        set('MeterHistory', shapeName(index), '')
+        state.renderedThreadPath[index] = false
+    end
+    state.historyChain = slots
 end
 
 local function clearHistory()
@@ -369,11 +450,30 @@ local function clearHistory()
     visible('MeterHistoryTrack', state.showHistory)
 end
 
+-- The graph size changes only with layout (configureHistoryTrack clears this
+-- cache), so resolve it once there instead of once per trace per tick.
 local function graphDimensions()
-    local width = SKIN:ParseFormula('(' .. SKIN:ReplaceVariables('#ContentWidth#') .. ')')
-    local height = (state.graphHeight or graphTotalHeight) * state.scale
-    if not width or width <= 0 or not height or height <= 0 then return nil end
-    return width, height
+    local size = state.graphSize
+    if not size then
+        local width = SKIN:ParseFormula('(' .. SKIN:ReplaceVariables('#ContentWidth#') .. ')')
+        local height = (state.graphHeight or graphTotalHeight) * state.scale
+        size = {valid = width and width > 0 and height and height > 0, width = width, height = height}
+        state.graphSize = size
+    end
+    if not size.valid then return nil end
+    return size.width, size.height
+end
+
+-- Sample slot x positions for this width and capacity, computed exactly as the
+-- per-point expression inset + (slot - 1) * step did.
+local function sampleX(width, inset, step)
+    local cache = state.sampleX
+    if not cache or cache.width ~= width or cache.inset ~= inset or cache.step ~= step or cache.samples ~= state.samples then
+        cache = {width = width, inset = inset, step = step, samples = state.samples}
+        for slot = 1, state.samples do cache[slot] = inset + (slot - 1) * step end
+        state.sampleX = cache
+    end
+    return cache
 end
 
 local function tracePoints(history, width, top, height)
@@ -387,11 +487,12 @@ local function tracePoints(history, width, top, height)
     local maximum = math.max(2, math.floor(usableWidth) + 1)
     local stride = math.max(1, math.ceil(#history / maximum))
     local step = usableWidth / (state.samples - 1)
+    local xs = sampleX(width, inset, step)
     local points = {}
     local function add(index)
         local sample = history[index]
         points[#points + 1] = {
-            x = inset + (state.samples - #history + index - 1) * step,
+            x = xs[state.samples - #history + index],
             y = top + height - inset - sample / 100 * usableHeight
         }
     end
@@ -493,8 +594,8 @@ local function bindHistoryMeasures()
     for index = 1, 64 do
         local measure = 'MeasureCPUHistory' .. index
         local active = enabled and index <= state.count
-        SKIN:Bang(active and '!EnableMeasure' or '!DisableMeasure', measure)
-        set(measure, 'Disabled', active and 0 or 1)
+        -- Absolute history slots keep their fixed Name; only Disabled changes.
+        bindMeasure(measure, nil, active)
     end
     -- Enabling a UsageMonitor instance requires fresh samples.
     state.historyWarmup = enabled and 2 or 0
@@ -576,6 +677,7 @@ function Update()
         state.showFan = option('CPUShowFan', 1, 0, 1) == 1
         state.showMotherboardFan = option('CPUShowMotherboardFan', 1, 0, 1) == 1
         state.showProcesses = option('CPUShowProcesses', 1, 0, 1) == 1
+        state.processesLoaded = SKIN:GetMeasure('MeasureCPUProcess1') ~= nil
         state.processCount = option('CPUProcessCount', 5, 1, 10)
         state.rows = option('CPUCoresPerPage', 8, 1, 64)
         state.page = option('CPUPage', 1, 1, 64)
@@ -639,8 +741,34 @@ function Update()
             end
         end
     end
-    redraw()
     return value
+end
+
+-- Idle stand-down (Global Settings Idle pause; @Resources\Idle\StandDown.lua).
+-- Every Thread slot meter is in ParallaxIdleFreeze with the other repainting
+-- meters: while paused all of them sit at UpdateDivider -1. On resume the hook
+-- deletes that key, which leaves every slot at the skin default (1), so
+-- ReapplyDividers sets all 64 slots from slotLive's record, bypassing the
+-- option cache and recording what it sent so later binds compare correctly.
+function ReapplyDividers()
+    if not state.ready then return end
+    state.slotLive = state.slotLive or {}
+    state.sent = state.sent or {}
+    for slot = 1, 64 do
+        local value = state.slotLive[slot] and '1' or '-1'
+        for _, prefix in ipairs(slotMeters) do
+            state.sent[prefix .. slot .. '\0UpdateDivider'] = value
+            SKIN:Bang('!SetOption', prefix .. slot, 'UpdateDivider', value)
+        end
+    end
+end
+
+-- The paused controller took no samples, so the History restarts on resume
+-- rather than drawing a trace across time that was never measured. The hook
+-- then forces the measures and this controller's update before any meter
+-- shows, so the header and Thread rows are current samples, never a 0 placeholder.
+function IdleLeave()
+    if state.ready then clearHistory() end
 end
 
 function Page(direction)

@@ -37,6 +37,8 @@ W=(#ContentWidth#-#TitleIconSize#-#TitleIconGap#-66*#Scale#)
 Text=Audio
 UpdateDivider=-1
 
+; Event-driven, like the device name and overlay below: Audio.inc updates it
+; when the readout changes, so a quiet window has no meter due to repaint it.
 [MeterVisualizerVolume]
 Meter=String
 MeterStyle=StyleVisualizerSmall
@@ -48,8 +50,7 @@ StringAlign=RightCenter
 FontColor=#TextColor#
 Text=--
 NumOfDecimals=0
-DynamicVariables=1
-UpdateDivider=#VisualizerVolumeDivider#
+UpdateDivider=-1
 
 ; Original Parallax gear, matching the other utility headers and hover behavior.
 [MeterVisualizerOptions]
@@ -92,12 +93,13 @@ Y=(#Inset#+(24+#VisualizerTopShift#)*#Scale#)
 W=(#ContentWidth#-18*#Scale#)
 H=(18*#Scale#)
 Text=%1
-DynamicVariables=1
-UpdateDivider=(Max(1,Round(1000/#VisualizerEffectiveInterval#)))
+UpdateDivider=-1
 
 ; One transparent hit target keeps icon and text on a single interactive row.
 ; Switching changes the Windows default output, clears a custom capture ID and
 ; refreshes because AudioLevel parent options cannot be changed dynamically.
+; Switch actions come from the variant (Standalone<n>.inc): none while the
+; Visualizer is stood down for the idle pause (no output measure then).
 [MeterVisualizerDeviceHit]
 Meter=Image
 X=#ContentX#
@@ -106,9 +108,9 @@ W=#ContentWidth#
 H=(18*#Scale#)
 SolidColor=0,0,0,1
 MouseActionCursor=1
-LeftMouseUpAction=[!CommandMeasure MeasureVisualizerVolume "ToggleNext"][!WriteKeyValue Variables VisualizerDeviceID "" "#@#User\Visualizer.inc"][!CommandMeasure MeasureMediaOptions "RefreshVisualizerDrawer()" "Parallax\Media"][!Refresh]
-MouseScrollDownAction=[!CommandMeasure MeasureVisualizerVolume "ToggleNext"][!WriteKeyValue Variables VisualizerDeviceID "" "#@#User\Visualizer.inc"][!CommandMeasure MeasureMediaOptions "RefreshVisualizerDrawer()" "Parallax\Media"][!Refresh]
-MouseScrollUpAction=[!CommandMeasure MeasureVisualizerVolume "TogglePrevious"][!WriteKeyValue Variables VisualizerDeviceID "" "#@#User\Visualizer.inc"][!CommandMeasure MeasureMediaOptions "RefreshVisualizerDrawer()" "Parallax\Media"][!Refresh]
+LeftMouseUpAction=#VisualizerDeviceNextAction#
+MouseScrollDownAction=#VisualizerDeviceNextAction#
+MouseScrollUpAction=#VisualizerDevicePreviousAction#
 DynamicVariables=1
 UpdateDivider=-1
 
@@ -127,6 +129,9 @@ Shape3=Line 1,(Floor(#VisualizerBarHeight#/2)+1.5),(#VisualizerPlotWidth#-1),(Fl
 Shape4=Line 1,(Floor(3*#VisualizerBarHeight#/4)+1.5),(#VisualizerPlotWidth#-1),(Floor(3*#VisualizerBarHeight#/4)+1.5) | Stroke Color #GridColor# | StrokeWidth 1
 UpdateDivider=-1
 
+; The single non-live overlay. MeasureVisualizerState (Capture.inc) sets its
+; text and color, forces its update and repaints on each transition, as in
+; Media's drawer, so it never repaints the window on its own.
 [MeterVisualizerUnavailable]
 Meter=String
 MeterStyle=StyleVisualizerSmall
@@ -134,9 +139,12 @@ X=(#VisualizerPlotX#+#VisualizerPlotWidth#/2)
 Y=(#Inset#+(#VisualizerPlotTop#+#VisualizerPlotHeight#/2)*#Scale#)
 W=(#VisualizerPlotWidth#-8*#Scale#)
 StringAlign=CenterCenter
-Text=Output unavailable
-FontColor=#WarningColor#
+; Live: "Output unavailable" until the capture reports (Standalone0.inc);
+; stood down for the idle pause: "Paused (idle)" (Standalone1.inc).
+Text=#VisualizerOverlayText#
+FontColor=#VisualizerOverlayColor#
 SolidColor=#GraphBackgroundColor#
+UpdateDivider=-1
 
 [MeterVisualizerLow]
 Meter=String

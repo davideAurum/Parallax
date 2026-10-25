@@ -1,5 +1,8 @@
 // Original Parallax paging-file sampler. Compiled inside the existing hidden
 // Windows PowerShell host; no child processes, installed services or downloads.
+// The host runs detached from RunCommand: a short launcher starts it and exits
+// once it holds its Rainmeter ancestor. It stops when that ancestor exits,
+// when its lease ages out, or at once when the skin removes the lease.
 // Enumerated usage/allocated size are paging-file pages, not system commit.
 // https://learn.microsoft.com/windows/win32/api/psapi/nf-psapi-enumpagefilesw
 // https://learn.microsoft.com/windows/win32/api/psapi/ns-psapi-enum_page_file_information
@@ -34,20 +37,9 @@ public static class ParallaxRamPageFile
         }
     }
 
-    // Allocates names only: Lua writes the initial lease before starting Run.
-    // No caller-supplied path is ever accepted by the resident provider.
-    public static string CreateSession(int intervalMs)
-    {
-        ValidateInterval(intervalMs);
-        for (int attempt = 0; attempt < 3; ++attempt)
-        {
-            Paths paths = new Paths(Guid.NewGuid().ToString("N"));
-            if (File.Exists(paths.Data) || File.Exists(paths.Lease) || File.Exists(paths.Temporary)) continue;
-            return "RAM_PAGE_SESSION|1|" + paths.Token + "|" + Hex(Encoding.UTF8.GetBytes(paths.Data));
-        }
-        throw new IOException("Unable to allocate a paging-file session.");
-    }
-
+    // The launcher mints the random token with [guid]::NewGuid() and writes
+    // the initial lease before starting Run. Run accepts no path: it validates
+    // the token and derives every session path itself.
     public static void Run(string token, int intervalMs)
     {
         Paths paths = new Paths(token);
@@ -78,22 +70,36 @@ public static class ParallaxRamPageFile
             if (!parent.Alive) return;
             WriteSnapshot(paths, Snapshot(paths.Token, 0, clock(), new Frame("STARTING")), true);
             ownData = true;
-            long sequence = 0;
+            long sequence = 0, written = 0;
+            // The reading last published; null forces the next write.
+            string published = null;
+            long heartbeat = HeartbeatSeconds(intervalMs);
             bool unsupported = false;
             while (parent.Alive)
             {
+                // The skin removes the lease to stop this host (close or failure).
+                if (!File.Exists(paths.Lease)) break;
                 long now = clock(), observedLease;
                 if (ReadLease(paths, now, intervalMs, out observedLease)) validLease = observedLease;
                 // A transient truncate/read failure does not renew the lease.
                 if (!LeaseFresh(validLease, now, intervalMs)) break;
                 Frame frame = unsupported ? new Frame("UNSUPPORTED") : sample();
                 unsupported = frame.Status == "UNSUPPORTED";
-                if (sequence == MaximumInteger) break;
-                string text = Snapshot(paths.Token, ++sequence, clock(), frame);
-                try { WriteSnapshot(paths, text, false); }
-                catch (IOException) { /* Reader lock: the old timestamp ages normally. */ }
-                catch (UnauthorizedAccessException) { /* Retry next interval while leased. */ }
-                if (!parent.Wait(intervalMs)) break;
+                // Publish a changed reading at once; an unchanged one only as a
+                // heartbeat that keeps the reader's freshness window from lapsing.
+                string reading = Values(frame);
+                long stamp = clock();
+                if (reading != published || stamp - written >= heartbeat || stamp < written)
+                {
+                    if (sequence == MaximumInteger) break;
+                    string text = Snapshot(paths.Token, ++sequence, stamp, frame);
+                    // Never recreate session files after the skin's cleanup.
+                    if (!File.Exists(paths.Lease)) break;
+                    try { WriteSnapshot(paths, text, false); published = reading; written = stamp; }
+                    catch (IOException) { /* Reader lock: retried next sample; the old timestamp ages normally. */ }
+                    catch (UnauthorizedAccessException) { /* Retried next sample while leased. */ }
+                }
+                if (!WaitInterval(parent, paths, intervalMs)) break;
             }
         }
         finally
@@ -102,6 +108,39 @@ public static class ParallaxRamPageFile
             Delete(paths.Lease);
             // WriteSnapshot deletes only the temporary file it created.
         }
+    }
+
+    // Seconds between writes of an unchanged reading. PageFile.lua treats a
+    // sample as current for max(8, ceil(3 * interval / 1000) + 2) seconds;
+    // a heartbeat at a third of that keeps several seconds of margin for a
+    // late host or reader (2 s at the default 1 s interval, every sample at
+    // 2 s and slower).
+    internal static long HeartbeatSeconds(int intervalMs)
+    {
+        long window = Math.Max(8L, (3L * intervalMs + 999) / 1000 + 2);
+        return Math.Max(1L, window / 3);
+    }
+
+    // Everything a snapshot carries except its sequence and timestamp.
+    internal static string Values(Frame frame)
+    {
+        return frame.Status + "|" + (frame.Used.HasValue ? Number((long)frame.Used.Value) : "?") + "|" +
+            (frame.Total.HasValue ? Number((long)frame.Total.Value) : "?") + "|" +
+            (frame.Count.HasValue ? Number(frame.Count.Value) : "?");
+    }
+
+    // Waits one sampling interval in slices of at most five seconds, so a
+    // removed lease ends even a slow cadence promptly.
+    internal static bool WaitInterval(IGuard parent, Paths paths, int intervalMs)
+    {
+        for (int remaining = intervalMs; remaining > 0; )
+        {
+            int slice = Math.Min(remaining, 5000);
+            if (!parent.Wait(slice)) return false;
+            remaining -= slice;
+            if (remaining > 0 && !File.Exists(paths.Lease)) return false;
+        }
+        return true;
     }
 
     internal sealed class Frame
@@ -187,7 +226,11 @@ public static class ParallaxRamPageFile
 
     internal static bool LeaseFresh(long timestamp, long now, int intervalMs)
     {
-        long maximumAge = Math.Max(15L, (3L * intervalMs + 999) / 1000);
+        // 60 s (was 15): on 2026-10-25 the live host ended on a lapsed lease
+        // as the displays woke and a monitor reconnected, a stall of Rainmeter
+        // longer than 15 s. The lease only guards a hung skin; a crashed or
+        // closed Rainmeter ends the host at once through its ancestor handle.
+        long maximumAge = Math.Max(60L, (3L * intervalMs + 999) / 1000);
         return timestamp >= 0 && timestamp <= MaximumEpoch && now >= 0 && now <= MaximumEpoch &&
             timestamp <= now + 5 && now - timestamp <= maximumAge;
     }
@@ -276,13 +319,6 @@ public static class ParallaxRamPageFile
         try { File.Delete(path); }
         catch (IOException) { /* UI cleanup may retry after a reader releases its handle. */ }
         catch (UnauthorizedAccessException) { /* Forced kills also leave bounded cleanup to the UI. */ }
-    }
-
-    private static string Hex(byte[] bytes)
-    {
-        StringBuilder text = new StringBuilder(bytes.Length * 2);
-        foreach (byte value in bytes) text.Append(value.ToString("X2", CultureInfo.InvariantCulture));
-        return text.ToString();
     }
 
     private sealed class ParentGuard : IGuard, IDisposable

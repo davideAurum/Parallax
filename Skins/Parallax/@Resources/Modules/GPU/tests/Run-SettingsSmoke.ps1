@@ -30,6 +30,10 @@ foreach ($name in @('Defaults.inc','Geometry.inc','Styles.inc','UtilitySettingsN
 foreach ($name in @('Settings.inc','GPU.inc')) {
     Copy-Item -LiteralPath (Join-Path $sourceSkin ('@Resources\User\'+$name)) -Destination (Join-Path $parallaxRoot '@Resources\User')
 }
+# Idle pause is Off in the staged settings: GPU.ini's last include is the
+# comment-only Idle hook variant.
+$null=New-Item -ItemType Directory -Path (Join-Path $parallaxRoot '@Resources\Idle')
+Copy-Item -LiteralPath (Join-Path $sourceSkin '@Resources\Idle\Hook0.inc') -Destination (Join-Path $parallaxRoot '@Resources\Idle')
 $null=New-Item -ItemType Directory -Path (Join-Path $parallaxRoot '@Resources\Scripts')
 Copy-Item -LiteralPath (Join-Path $sourceSkin '@Resources\Scripts\SettingsInput.ps1') -Destination (Join-Path $parallaxRoot '@Resources\Scripts')
 $utf8=[Text.UTF8Encoding]::new($false)
@@ -368,9 +372,10 @@ function Update()
         if metric then metrics[#metrics+1]=name..'='..metric:GetOption(name:find('Bar$') and 'Shape2' or 'Text','') end
     end
     write([=[$runRoot\driver-metrics-observed.txt]=],table.concat(metrics,'\n'))
-    local bootstrap=SKIN:GetMeasure('MeasureGPUTemperatureBootstrap')
-    write([=[$runRoot\temperature-session.txt]=],bootstrap:GetStringValue())
-    write([=[$runRoot\driver-status.txt]=],tostring(SKIN:GetMeasure('MeasureGPUTemperatureDriver'):GetValue()))
+    -- The one launcher prints the session of the host it started.
+    local launcher=SKIN:GetMeasure('MeasureGPUTemperatureLauncher')
+    write([=[$runRoot\temperature-session.txt]=],launcher:GetStringValue())
+    write([=[$runRoot\driver-status.txt]=],tostring(launcher:GetValue()))
     return 0
 end
 "@
@@ -396,8 +401,9 @@ function Update()
         else local action=actions[command];if action then SKIN:Bang('!CommandMeasure','MeasureGPUSettings',action) end end
         write([=[$runRoot\popup-done.txt]=],command)
     end
-    local out={'Columns='..SKIN:GetVariable('Columns'),'PanelHeight='..SKIN:GetVariable('PanelHeight')}
-    for _,name in ipairs({'MeterSettingsColumnsValue','MeterSettingsHeightValue','MeterSettingsSensorsValue','MeterSettingsTemperatureValue','MeterSettingsPowerSourceValue','MeterSettingsClockSourceValue','MeterSettingsPowerValue','MeterSettingsNotice','MeterSettingsPick1','MeterSettingsTitle'}) do
+    -- The settings window's own height is a formula (648 plus its process rows).
+    local out={'Columns='..SKIN:GetVariable('Columns'),'PanelHeight='..tostring(SKIN:ParseFormula(SKIN:GetVariable('PanelHeight')))}
+    for _,name in ipairs({'MeterSettingsColumnsValue','MeterSettingsHeightValue','MeterSettingsSensorsValue','MeterSettingsProcessesValue','MeterSettingsProcessMemoryValue','MeterSettingsTemperatureValue','MeterSettingsPowerSourceValue','MeterSettingsClockSourceValue','MeterSettingsPowerValue','MeterSettingsNotice','MeterSettingsPick1','MeterSettingsTitle'}) do
         local meter=SKIN:GetMeter(name);if meter then out[#out+1]=name..'='..meter:GetOption('Text','') end
     end
     write([=[$runRoot\settings-observed.txt]=],table.concat(out,'\n'))
@@ -593,7 +599,7 @@ if ('__ACTION__' -eq 'invalid') {
             } 'Typed Columns result did not reach the production completion action.' 12
             Wait-Condition {Text-Matches $observedPath ('(?m)^Columns='+$scenario.Columns+'\r?$')} 'Typed Columns did not preserve or reload the expected monitor width.' 12
             if (-not $scenario.Changed -and ((Get-FileHash -LiteralPath $userPath).Hash -ne $beforeTypedHash -or (Get-Item -LiteralPath $observedPath).LastWriteTimeUtc -ne $beforeTypedReload)) {throw 'Cancelled or invalid Columns input wrote preferences or refreshed GPU.'}
-            if (-not (Text-Matches (Join-Path $runRoot 'settings-observed.txt') '(?m)^PanelHeight=648\r?$')) {throw 'Typed Columns changed settings geometry.'}
+            if (-not (Text-Matches (Join-Path $runRoot 'settings-observed.txt') '(?m)^PanelHeight=704\r?$')) {throw 'Typed Columns changed settings geometry.'}
             Write-RunFile (Join-Path $runRoot ('typed-columns-'+($case+1)+'-result.txt')) (Get-Content -LiteralPath (Join-Path $runRoot 'typed-input-observed.txt') -Raw)
         }
     } finally {Write-RunFile $inputPath $inputSource}
@@ -647,7 +653,7 @@ try {
         Action 'powersource';Wait-Condition {Text-Matches $observedPath '(?m)^GPUPowerSource=0$'} 'Driver power source did not persist.'
         Action 'clocksource';Wait-Condition {Text-Matches $observedPath '(?m)^GPUClockSource=0$'} 'Driver clock source did not persist.'
         Action 'fit';Wait-Condition {Text-Matches $observedPath '(?m)^PanelHeight=462$'} 'GPU did not reload fitted height.'
-        if (-not (Text-Matches (Join-Path $runRoot 'settings-observed.txt') '(?m)^PanelHeight=648$')) { throw 'Settings geometry changed with monitor height.' }
+        if (-not (Text-Matches (Join-Path $runRoot 'settings-observed.txt') '(?m)^PanelHeight=704$')) { throw 'Settings geometry changed with monitor height.' }
         Action 'browse';Wait-Condition {Text-Matches (Join-Path $runRoot 'discovery-observed.txt') '(?m)^1\r?$'} 'Real discovery did not complete.'
         $realDiscovery=Get-Content -LiteralPath (Join-Path $runRoot 'discovery-observed.txt') -Raw
         Write-RunFile (Join-Path $runRoot 'real-discovery-result.txt') $realDiscovery
@@ -744,10 +750,16 @@ try {
     Write-Output (Get-Content -LiteralPath (Join-Path $runRoot 'process-memory-audit.txt') -Raw)
     if ($memoryVisible) {Write-Output 'PASS: positive native per-process dedicated bytes reached exact PID / LUID / physical-GPU rows; labels and raw values agree.'}
     else {Write-Output 'OBSERVED: no usable positive ranked dedicated-memory reading during the bounded wait; zero, missing and idle readings remained --. Native Lua fixtures cover unavailable and replacement identities.'}
-    $hosts=@([GpuSmokeProcessTree]::Children([uint32]$process.Id))
+    # The host runs detached: its launcher reported its session and exited, so
+    # Rainmeter keeps no PowerShell child and no RunCommand thread polls it.
+    $hostSource=Join-Path $parallaxRoot '@Resources\Modules\GPU\DriverTemperature.cs.txt'
+    $hosts=@(Get-CimInstance Win32_Process -Filter "Name='powershell.exe'" | Where-Object {
+        $_.CommandLine -and $_.CommandLine.IndexOf($hostSource,[StringComparison]::OrdinalIgnoreCase) -ge 0 -and $_.CommandLine.Contains("::Run('"+$token+"'")
+    })
     if ($hosts.Count -ne 1) {throw 'Expected exactly one owned persistent temperature host.'}
-    $hostProcessId=$hosts[0]
-    if (-not (Text-Matches (Join-Path $runRoot 'driver-status.txt') '^0$')) {throw 'Native RunCommand did not report running status zero.'}
+    $hostProcessId=[int]$hosts[0].ProcessId
+    Wait-Condition {@([GpuSmokeProcessTree]::Children([uint32]$process.Id)).Count -eq 0} 'A PowerShell stayed a RunCommand child of Rainmeter.' 15
+    if (-not (Text-Matches (Join-Path $runRoot 'driver-status.txt') '^1$')) {throw 'The host launcher did not complete.'}
     if ($ControllerLifecycle -eq 'Unload') {
         Write-RunFile (Join-Path $runRoot 'main-command.txt') 'deactivate'
         Wait-Condition {-not (Get-Process -Id $hostProcessId -ErrorAction SilentlyContinue)} 'Temperature host survived GPU unload.' 12
@@ -761,7 +773,7 @@ try {
         }
         Wait-Condition {-not (Get-Process -Id $hostProcessId -ErrorAction SilentlyContinue)} 'Started host was not stopped before lease expiry.' 4
         if ((Own-Windows).Count -ne $windowsBefore) {throw 'Lifecycle test unloaded a config and could be masked by plugin finalization.'}
-        Write-Output "PASS: $ControllerLifecycle stops running-status-0 host with GPU still loaded, before the minimum 15-second lease expiry."
+        Write-Output "PASS: $ControllerLifecycle stops the detached host by removing its lease, with GPU still loaded, before the minimum 15-second lease expiry."
     }
     Wait-Condition {-not (Test-Path -LiteralPath ($snapshotBase+'.dat')) -and -not (Test-Path -LiteralPath ($snapshotBase+'.lease')) -and -not (Test-Path -LiteralPath ($snapshotBase+'.tmp'))} 'Temperature session files survived GPU unload.' 12
     Write-Output 'PASS: one persistent direct host; sample sequence advances; selected lifecycle stops the host and removes its session files.'

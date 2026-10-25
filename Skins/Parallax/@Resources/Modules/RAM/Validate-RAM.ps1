@@ -34,6 +34,7 @@ function Read-RAMIni([string]$Path) {
     return $sections
 }
 $entry = Read-RAMIni (Join-Path $skinRoot 'RAM\RAM.ini')
+$entryText0 = Get-Content -LiteralPath (Join-Path $skinRoot 'RAM\RAM.ini') -Raw
 $settingsEntry = Read-RAMIni (Join-Path $skinRoot 'RAM\Settings\Settings.ini')
 $defaults = Read-RAMIni (Join-Path $skinRoot '@Resources\Defaults.inc')
 $globalUser = Read-RAMIni (Join-Path $skinRoot '@Resources\User\Settings.inc')
@@ -42,6 +43,7 @@ $geometry = Read-RAMIni (Join-Path $skinRoot '@Resources\Geometry.inc')
 $sharedStyles = Read-RAMIni (Join-Path $skinRoot '@Resources\Styles.inc')
 $settingsNote = Read-RAMIni (Join-Path $skinRoot '@Resources\UtilitySettingsNote.inc')
 $measures = Read-RAMIni (Join-Path $PSScriptRoot 'Measures.inc')
+$processMeasures = Read-RAMIni (Join-Path $PSScriptRoot 'ProcessMeasures1.inc')
 $meters = Read-RAMIni (Join-Path $PSScriptRoot 'Meters.inc')
 $info = Read-RAMIni (Join-Path $PSScriptRoot 'InfoMeters.inc')
 $processMeters = Read-RAMIni (Join-Path $PSScriptRoot 'ProcessMeters.inc')
@@ -66,7 +68,7 @@ $expectedIncludes = @('#@#Defaults.inc', '#@#User\Settings.inc', '#@#User\RAM.in
 for ($i = 0; $i -lt $expectedIncludes.Count; $i++) {
     Assert-RAM ($entry.Variables[('@Include{0}' -f ($i + 1))] -eq $expectedIncludes[$i]) 'Shared include order changed.'
 }
-foreach ($key in $entry.Variables.Keys | Where-Object { $_ -like 'RAM*' -and $_ -ne 'RAMInfoHeight' }) {
+foreach ($key in $entry.Variables.Keys | Where-Object { $_ -like 'RAM*' -and $_ -notin 'RAMInfoHeight','RAMHistoryMeasure' }) {
     Assert-RAM ($user.Variables.ContainsKey($key)) "Module option $key has no preserved default."
 }
 foreach ($name in 'MeasureRAMUsed', 'MeasureRAMTotal') {
@@ -81,20 +83,36 @@ Assert-RAM ($tooltipSections.Count -eq 0) "RAM sections must not declare tooltip
 foreach ($name in 'MeasureRAMPageUsed', 'MeasureRAMPageTotal') {
     Assert-RAM (-not $measures.ContainsKey($name)) 'PAGE must not retain native commit-accounting measures.'
 }
-foreach ($name in 'MeasureRAMPageBootstrap', 'MeasureRAMPageHost') {
-    Assert-RAM ($measures[$name].Plugin -eq 'RunCommand' -and $measures[$name].State -eq 'Hide') 'PAGE setup and resident host must use hidden bundled RunCommand.'
+foreach ($name in @('MeasureRAMPageLauncher')) {
+    Assert-RAM ($measures[$name].Plugin -eq 'RunCommand' -and $measures[$name].State -eq 'Hide') 'The PAGE host launcher must use hidden bundled RunCommand.'
     Assert-RAM ($measures[$name].UpdateDivider -eq '1' -and $measures[$name].Parameter -eq '') 'PAGE helpers must await the controller rather than execute polling commands.'
     Assert-RAM (-not $measures[$name].ContainsKey('FinishAction')) 'PAGE helper completion must not relaunch a polling process.'
+    # A RunCommand child is polled by a 1 ms-timeout plugin thread for as long
+    # as it runs, so no PAGE command may stay attached to RunCommand.
+    Assert-RAM ([int]$measures[$name].Timeout -gt 0 -and [int]$measures[$name].Timeout -le 15000) "$name must have a bounded timeout."
 }
-Assert-RAM ([int]$measures.MeasureRAMPageBootstrap.Timeout -gt 0 -and [int]$measures.MeasureRAMPageBootstrap.Timeout -le 15000) 'PAGE session setup must have a bounded timeout.'
-Assert-RAM ($measures.MeasureRAMPageHost.Timeout -eq '-1') 'PAGE host must stay resident rather than restart per reading.'
+Assert-RAM (-not $measures.ContainsKey('MeasureRAMPageHost')) 'The resident PAGE host must run detached, not as a RunCommand child.'
+# One PowerShell launch and one compile per load: the launcher mints the
+# session itself, so no compiling bootstrap remains.
+Assert-RAM (-not $measures.ContainsKey('MeasureRAMPageBootstrap')) 'No separate PAGE session bootstrap may remain.'
+$launcherSource = Get-Content -LiteralPath (Join-Path $PSScriptRoot 'PageFile.lua') -Raw
+Assert-RAM ($launcherSource -match "Start-Process -FilePath \(\[IO\.Path\]::Combine\(\`$PSHOME,'powershell\.exe'\)\)" -and $launcherSource.Contains("-WindowStyle Hidden -Command '+[char]34+`$h+[char]34") -and $launcherSource.Contains('-WorkingDirectory $t -WindowStyle Hidden -PassThru')) 'The launcher must start the host hidden, outside the skin folder.'
+Assert-RAM ($launcherSource.Contains("-lt 10000") -and $launcherSource.Contains("'RAM_PAGE_SESSION|1|'+`$k+'|'")) 'The launcher must wait a bounded time and report the started host session.'
+Assert-RAM ($launcherSource.Contains("[guid]::NewGuid().ToString('N')") -and $launcherSource.Contains("'CreateNew','Write','Read'") -and $launcherSource -notmatch 'CreateSession') 'The launcher must mint a GUID session with an exclusive lease.'
+Assert-RAM ([regex]::Matches($launcherSource, 'Add-Type').Count -eq 1 -and $launcherSource.Contains("Add-Type -TypeDefinition ([IO.File]::ReadAllText('@S@'))")) 'Only the detached host may compile PageFileHost.cs.txt.'
 Assert-RAM ($measures.MeasureRAMPageView.ScriptFile -eq '#@#Modules\RAM\PageFile.lua' -and $measures.MeasureRAMPageView.UpdateDivider -eq '1') 'Missing paging-file cache and lifecycle controller.'
 Assert-RAM ($meters.MeterRAMPercent.Percentual -eq '1') 'Percentage must use native normalization.'
-foreach ($name in 'MeterRAMPercent', 'MeterRAMBar', 'MeterRAMHistory') {
+foreach ($name in 'MeterRAMPercent', 'MeterRAMBar') {
     Assert-RAM ($meters[$name].MeasureName -eq 'MeasureRAMUsed') "$name lost its native used-memory binding."
 }
+# The history Line draws MeasureRAMUsed (Full) or the Auto range proxy, chosen
+# through a variable that only HistoryScale1.inc overrides.
+Assert-RAM ($meters.MeterRAMHistory.MeasureName -eq '#RAMHistoryMeasure#' -and $entry.Variables.RAMHistoryMeasure -eq 'MeasureRAMUsed') 'History must draw MeasureRAMUsed unless the Auto include overrides its measure.'
 Assert-RAM ($meters.MeterRAMBar.H -eq '#DataBarThicknessPx#') 'RAM capacity bar must inherit shared data-bar thickness.'
 Assert-RAM ($meters.MeterRAMPageBar.H -eq '#DataBarThicknessPx#' -and $meters.MeterRAMPageBar.MeasureName -eq 'MeasureRAMPageRatio') 'PAGE must have its own shared-thickness paging-file ratio bar.'
+foreach ($name in 'MeterRAMPageBar', 'MeterRAMPageGiB', 'MeterRAMPageMiB') {
+    Assert-RAM ($meters[$name].UpdateDivider -eq '-1') "$name changes only through PageFile.lua and must not re-read every update."
+}
 Assert-RAM ($measures.MeasureRAMPageRatio.Measure -eq 'Calc' -and $measures.MeasureRAMPageRatio.UpdateDivider -eq '-1' -and $measures.MeasureRAMPageRatio.MinValue -eq '0' -and $measures.MeasureRAMPageRatio.MaxValue -eq '1') 'PAGE ratio must be an event-only native 0..1 value.'
 Assert-RAM ($geometry.Variables.DataBarThicknessPx -eq '(Max(1,Round(#DataBarThickness#*#Scale#)))') 'Shared bar thickness must round scaled pixels and remain visible.'
 Assert-RAM ($meters.MeterRAMHistory.AutoScale -eq '0') 'History must keep the native full-capacity range.'
@@ -102,34 +120,80 @@ Assert-RAM ($meters.MeterRAMHistory.GraphStart -eq 'Right') 'History startup cov
 Assert-RAM ($meters.MeterRAMHistory.UpdateDivider -eq $measures.MeasureRAMHistorySamples.UpdateDivider) 'History and collected-sample cadence differ.'
 Assert-RAM ($measures.MeasureRAMHistorySamples.Formula -eq 'Min(MeasureRAMHistorySamples+1,#ContentWidth#)') 'History count must reset with the measure on refresh.'
 Assert-RAM ($meters.MeterRAMHistoryUncollected.DynamicVariables -eq '1') 'History cover must follow the sample count.'
+# A full plot leaves a zero-width cover. Retire it (and the count) for the rest of the load.
+Assert-RAM ($measures.MeasureRAMHistorySamples.IfCondition -eq 'MeasureRAMHistorySamples >= #ContentWidth#') 'History cover must retire exactly when the plot is full.'
+Assert-RAM ($measures.MeasureRAMHistorySamples.IfTrueAction -eq '[!HideMeter MeterRAMHistoryUncollected][!SetOption MeterRAMHistoryUncollected UpdateDivider -1][!SetOption MeasureRAMHistorySamples UpdateDivider -1]') 'A full history must hide and idle its zero-width cover and stop the count without resetting it.'
+Assert-RAM (-not $measures.MeasureRAMHistorySamples.ContainsKey('IfFalseAction') -and -not $measures.MeasureRAMHistorySamples.ContainsKey('IfConditionMode')) 'Cover retirement must run once per load.'
+# Auto history scale (RAMHistoryScale=1): a load-time include like the process ranks.
+$scaleMeasures = Read-RAMIni (Join-Path $PSScriptRoot 'HistoryScale1.inc')
+$scaleText = Get-Content -LiteralPath (Join-Path $PSScriptRoot 'Measures.inc') -Raw
+Assert-RAM ($measures.RAMHistoryScaleInclude.'@Include11' -eq '#@#Modules\RAM\HistoryScale#RAMHistoryScale#.inc') 'The history scale must be an include variant chosen at load.'
+Assert-RAM ($scaleText.IndexOf('[MeasureRAMTotal]') -lt $scaleText.IndexOf('[RAMHistoryScaleInclude]') -and $scaleText.IndexOf('[RAMHistoryScaleInclude]') -lt $scaleText.IndexOf('[MeasureRAMPageLauncher]')) 'The scale include must follow the physical-memory measures it reads.'
+Assert-RAM (@($measures.Keys | Where-Object { $_ -like 'MeasureRAMHistory*' -and $_ -ne 'MeasureRAMHistorySamples' }).Count -eq 0) 'Measures.inc must not load the Auto range measures itself.'
+Assert-RAM (@(Get-Content -LiteralPath (Join-Path $PSScriptRoot 'HistoryScale0.inc') | Where-Object { $_.Trim() -and -not $_.Trim().StartsWith(';') }).Count -eq 0) 'The Full variant must be comment-only.'
+Assert-RAM ($scaleMeasures.Variables.RAMHistoryMeasure -eq 'MeasureRAMHistoryValue' -and @($scaleMeasures.Variables.Keys).Count -eq 1) 'The Auto variant may only point the history Line at its proxy.'
+Assert-RAM ($scaleMeasures.MeasureRAMHistoryRange.Measure -eq 'Script' -and $scaleMeasures.MeasureRAMHistoryRange.ScriptFile -eq '#@#Modules\RAM\HistoryRange.lua' -and $scaleMeasures.MeasureRAMHistoryRange.UpdateDivider -eq '1') 'Auto needs its range controller.'
+$proxy = $scaleMeasures.MeasureRAMHistoryValue
+Assert-RAM ($proxy.Measure -eq 'Calc' -and $proxy.Formula -eq 'MeasureRAMUsed' -and $proxy.UpdateDivider -eq '1' -and $proxy.MinValue -eq '0') 'The Auto proxy must copy the used-memory value with a settable range.'
+foreach ($name in 'MeasureRAMHistoryRange', 'MeasureRAMHistoryValue') { Assert-RAM ($scaleMeasures[$name].Group -eq 'ParallaxIdlePause') "$name must join the idle pause." }
+$scaleSource = Get-Content -LiteralPath (Join-Path $PSScriptRoot 'HistoryScale1.inc') -Raw
+Assert-RAM ($scaleSource.IndexOf('[MeasureRAMHistoryRange]') -lt $scaleSource.IndexOf('[MeasureRAMHistoryValue]')) 'The range controller must precede its proxy so a new range draws in the same update.'
+$rangeScript = Get-Content -LiteralPath (Join-Path $PSScriptRoot 'HistoryRange.lua') -Raw
+Assert-RAM ($rangeScript -notmatch 'io\.|os\.execute|RunCommand|DynamicVariables|!Refresh|!UpdateMeasure|!UpdateMeterGroup|ToolTipText') 'The range controller must not do IO, launch, refresh or force meters beyond its label.'
+Assert-RAM ($user.Variables.RAMHistoryScale -eq '0' -and $entry.Variables.RAMHistoryScale -eq '0' -and $user.Variables.RAMHistoryMinSpan -eq '2' -and $entry.Variables.RAMHistoryMinSpan -eq '2' -and $entryText0.IndexOf('RAMHistoryScale=0') -lt $entryText0.IndexOf('@Include3=')) 'Auto must default off with a 2 GB minimum span and a fallback before the user include.'
 Assert-RAM ($measures.MeasureRAMSettings.UpdateDivider -eq '-1') 'Settings must be event-driven.'
 Assert-RAM ($measures.MeasureRAMSettings.ScriptFile -eq '#@#Modules\RAM\Display.lua') 'Main RAM must use its display-only controller.'
 Assert-RAM ($measures.MeasureRAMSettings.Group -eq 'ParallaxRAMApply') 'Main RAM must expose its preference application group.'
 Assert-RAM ($meters.MeterRAMOptions.LeftMouseUpAction -eq '[!ActivateConfig "Parallax\RAM\Settings" "Settings.ini"]') 'Gear must open the dedicated settings config.'
 Assert-RAM ($entry.Rainmeter.ContextAction3 -eq $meters.MeterRAMOptions.LeftMouseUpAction) 'Context settings must open the same utility as the gear.'
-Assert-RAM (-not $meters.MeterRAMHistory.ContainsKey('Group')) 'History must not be forced through menu updates.'
+# Only the idle stand-down's freeze group (forced once at the pause and once
+# at the resume by @Resources\Idle\StandDown.lua); no RAM menu, action or
+# script updates that group, so menu updates still never force the plot.
+Assert-RAM ((-not $meters.MeterRAMHistory.ContainsKey('Group')) -or $meters.MeterRAMHistory.Group -ceq 'ParallaxIdleFreeze') 'History must not be forced through menu updates.'
+$ramSources = @(Get-ChildItem -LiteralPath (Join-Path $skinRoot '@Resources\Modules\RAM') -File | Where-Object { $_.Extension -in @('.lua', '.inc') }) + @(Get-Item -LiteralPath (Join-Path $skinRoot 'RAM\RAM.ini'))
+foreach ($source in $ramSources) {
+    Assert-RAM (-not ((Get-Content -LiteralPath $source.FullName -Raw) -match '(?i)UpdateMeterGroup[^\r\n]*ParallaxIdleFreeze')) "$($source.Name) must not update the idle freeze group."
+}
 Assert-RAM ($measures.MeasureRAMInfo.Plugin -eq 'RunCommand') 'Hardware information must use the bundled RunCommand provider.'
 Assert-RAM ($measures.MeasureRAMInfo.State -eq 'Hide') 'Hardware metadata query must stay hidden.'
 Assert-RAM ([int]$measures.MeasureRAMInfo.Timeout -gt 0 -and [int]$measures.MeasureRAMInfo.Timeout -le 15000) 'Hardware query must have a bounded timeout.'
-Assert-RAM ($entry.Rainmeter.OnRefreshAction -eq '[!CommandMeasure MeasureRAMInfo "Run"][!CommandMeasure MeasureRAMPageView "Start()"]') 'Refresh must query hardware once and start the paging-file lifecycle once.'
+# #ParallaxIdleJoinAction# is empty unless Global Settings Idle pause is on.
+Assert-RAM ($entry.Rainmeter.OnRefreshAction -ceq '[!CommandMeasure MeasureRAMInfo "Run"][!CommandMeasure MeasureRAMPageView "Start()"]#ParallaxIdleJoinAction#') 'Refresh must query hardware once and start the paging-file lifecycle once.'
 Assert-RAM ($entry.Rainmeter.OnCloseAction -eq '[!CommandMeasure MeasureRAMPageView "Stop()"]') 'RAM unload must stop its own paging-file helper and session.'
 Assert-RAM ($measures.MeasureRAMInfoView.Measure -eq 'Script') 'Missing hardware view controller.'
 Assert-RAM ($entry.Variables.RAMInfoHeight -eq '26' -and -not $user.Variables.ContainsKey('RAMInfoHeight')) 'Hardware summary height must be transient layout state with a compact fallback.'
 $includeValues = @($entry.Variables.Keys | Where-Object { $_ -like '@Include*' } | Sort-Object { [int]($_ -replace '@Include','') } | ForEach-Object { $entry.Variables[$_] })
 Assert-RAM ($includeValues -contains '#@#Modules\RAM\InfoMeters.inc') 'Missing hardware meters.'
 Assert-RAM ($includeValues[-1] -eq '#@#Modules\RAM\ProcessMeters.inc') 'Missing final process table include.'
+# B2 / RAM-04: the five ranks load only with the table. Measures.inc names
+# ProcessMeasures<RAMShowProcesses>.inc just before the controller, the 0 file
+# is comment-only, and RAM.ini supplies the fallback before the user include,
+# because a loaded UsageMonitor measure keeps its category read even while
+# Disabled. Defaults keep the table.
+Assert-RAM ($measures.RAMProcessMeasureInclude.'@Include10' -eq '#@#Modules\RAM\ProcessMeasures#RAMShowProcesses#.inc') 'Process ranks must be an include variant chosen at load.'
+Assert-RAM (@($measures.Keys | Where-Object { $_ -like 'MeasureRAMProcess?' }).Count -eq 0) 'Measures.inc must not load a process rank itself.'
+$measureText = Get-Content -LiteralPath (Join-Path $PSScriptRoot 'Measures.inc') -Raw
+Assert-RAM ($measureText.IndexOf('[RAMProcessMeasureInclude]') -lt $measureText.IndexOf('[MeasureRAMProcessView]') -and $measureText.IndexOf('[MeasureRAMInfoView]') -lt $measureText.IndexOf('[RAMProcessMeasureInclude]')) 'Ranks must stay just before their controller.'
+Assert-RAM (@(Get-Content -LiteralPath (Join-Path $PSScriptRoot 'ProcessMeasures0.inc') | Where-Object { $_.Trim() -and -not $_.Trim().StartsWith(';') }).Count -eq 0) 'The off variant must be comment-only.'
+Assert-RAM (@($processMeasures.Keys).Count -eq 5) 'The table variant must hold exactly the five ranks.'
+$entryText = Get-Content -LiteralPath (Join-Path $skinRoot 'RAM\RAM.ini') -Raw
+Assert-RAM ($entry.Variables.RAMShowProcesses -eq '1' -and $user.Variables.RAMShowProcesses -eq '1' -and $entryText.IndexOf('RAMShowProcesses=1') -lt $entryText.IndexOf('@Include3=')) 'The process table must default on, with a fallback before the user include.'
 foreach ($rank in 1..5) {
-    $provider = $measures['MeasureRAMProcess'+$rank]
+    $provider = $processMeasures['MeasureRAMProcess'+$rank]
     Assert-RAM ($provider.Plugin -eq 'UsageMonitor' -and $provider.Alias -eq 'RAM') 'Process ranks must use bundled private-working-set counters.'
     Assert-RAM ($provider.Index -eq [string]$rank -and $provider.Rollup -eq '1' -and $provider.Percent -eq '0') 'Process ranks must retain descending name rollups in bytes.'
     Assert-RAM ($provider.UpdateDivider -eq '1') 'Process rank cadence must follow MetricsInterval.'
+    # B2 step 3 (ENGINE-05 / XMOD-07): DynamicVariables would re-run the
+    # plugin's Reload, re-registering the Process category, on every update.
+    Assert-RAM (-not $provider.ContainsKey('DynamicVariables')) 'UsageMonitor ranks must not re-read their options every update.'
 }
 Assert-RAM ($measures.MeasureRAMProcessView.ScriptFile -eq '#@#Modules\RAM\Process.lua') 'Missing cached process table controller.'
+Assert-RAM ((Get-Content -LiteralPath (Join-Path $PSScriptRoot 'Process.lua') -Raw) -notmatch 'DynamicVariables') 'The process controller must never turn on DynamicVariables at runtime.'
 Assert-RAM ($includeValues -notcontains '#@#Modules\RAM\SettingsMeters.inc') 'Settings controls must not overlay the RAM meter.'
 Assert-RAM ($settingsEntry.Rainmeter.Update -eq '-1') 'Settings utility must not poll.'
 Assert-RAM ($settingsEntry.Rainmeter.Group -eq 'Parallax') 'Settings utility must participate in shared appearance refreshes.'
 Assert-RAM ($settingsEntry.Rainmeter.ContextAction -eq '[!ActivateConfig "Parallax\Settings" "Settings.ini"]') 'Settings utility lost global settings access.'
-Assert-RAM ($settingsEntry.Variables.Columns -eq '2' -and $settingsEntry.Variables.PanelHeight -eq '340') 'Settings utility must own its layout independently of the meter.'
+Assert-RAM ($settingsEntry.Variables.Columns -eq '2' -and $settingsEntry.Variables.PanelHeight -eq '396') 'Settings utility must own its layout independently of the meter.'
 for ($i = 0; $i -lt $expectedIncludes.Count; $i++) {
     Assert-RAM ($settingsEntry.Variables[('@Include{0}' -f ($i + 1))] -eq $expectedIncludes[$i]) 'Utility shared include order changed.'
 }
@@ -143,17 +207,23 @@ $settingsScript = Get-Content -LiteralPath (Join-Path $PSScriptRoot 'Settings.lu
 $displayScript = Get-Content -LiteralPath (Join-Path $PSScriptRoot 'Display.lua') -Raw
 $pageScript = Get-Content -LiteralPath (Join-Path $PSScriptRoot 'PageFile.lua') -Raw
 Assert-RAM ($settingsScript -match '!SetVariableGroup' -and $settingsScript -match 'ParallaxRAM' -and $settingsScript -match '!UpdateMeasureGroup' -and $settingsScript -match 'ParallaxRAMApply') 'Preferences must reach the running RAM skin without refreshing it.'
-Assert-RAM ($settingsScript -notmatch '!Refresh|MeasureRAMInfo|MeasureRAMPage|MeasureRAMHistory|!UpdateMeter.*,.*\*') 'Settings must not refresh RAM, launch providers, or force its history.'
+Assert-RAM ($settingsScript -notmatch 'MeasureRAMInfo|MeasureRAMPage|MeasureRAMHistory|!UpdateMeter.*,.*\*') 'Settings must not launch providers or force RAM history.'
+# Only the process-table opt-out reloads Memory Meter (its ranks are a load-time
+# include); every other preference applies without a refresh.
+Assert-RAM (([regex]::Matches($settingsScript, '!Refresh')).Count -eq 1 -and $settingsScript -match "if key == 'RAMShowProcesses' or key == 'RAMHistoryScale' then(?:\r?\n\s*--[^\r\n]*)*\r?\n\s*SKIN:Bang\('!Refresh', 'Parallax\\\\RAM'\)\r?\n\s*else") 'Only RAMShowProcesses and RAMHistoryScale may refresh, and only Memory Meter.'
 Assert-RAM ($displayScript -notmatch '!Refresh|!WriteKeyValue|ToggleMenu|RAMSettingsMenu') 'Display controller must not persist preferences or own an overlay.'
 Assert-RAM ($displayScript.Contains("SKIN:Bang('!CommandMeasure', 'MeasureRAMPageView', 'Display()')")) 'Unit changes must reformat the cached paging-file reading.'
-Assert-RAM ($displayScript -notmatch 'MeasureRAMPageBootstrap|MeasureRAMPageHost|Start\(\)|io\.open') 'Settings-driven display must not launch or query the PAGE provider.'
+Assert-RAM ($displayScript -notmatch 'MeasureRAMPageBootstrap|MeasureRAMPageLauncher|Start\(\)|io\.open') 'Settings-driven display must not launch or query the PAGE provider.'
+Assert-RAM ($displayScript.Contains("SKIN:Bang('!SetOption', name, 'UpdateDivider', visible and '1' or '-1')") -and $displayScript -match "UpdateDivider', visible and '1' or '-1'\)\r?\n\s*SKIN:Bang\('!UpdateMeter', name\)") 'The hidden RAM unit meter must idle, and each divider change must be forced.'
+Assert-RAM ($displayScript -match 'local function coverRetired\(\)' -and $displayScript -match "GetOption\('UpdateDivider'" -and $displayScript -match 'name == cover and retired') 'Showing history again must not re-show a retired zero-width cover.'
 $pageDisplay = [regex]::Match($pageScript,'(?s)function Display\([^)]*\)(.*?)\nlocal function cleanup').Groups[1].Value
 $pageProviderDisplay = $pageDisplay.Replace("SKIN:Bang('!UpdateMeasure', 'MeasureRAMPageRatio')", '')
 Assert-RAM ($pageDisplay.Length -gt 0 -and $pageProviderDisplay -notmatch 'io\.|launch\(|!CommandMeasure|!UpdateMeasure') 'PAGE Display may update its cached ratio without provider or session IO.'
 Assert-RAM ($pageScript -notmatch 'MeasureRAMHistory|!UpdateMeterGroup') 'PAGE rendering must not force physical-memory history.'
+Assert-RAM ($pageDisplay.Contains("if dirty[name] then") -and $pageDisplay.Contains("SKIN:Bang('!UpdateMeter', name)") -and $pageDisplay.Contains("if changed and immediate ~= false then SKIN:Bang('!Redraw') end")) 'PAGE Display must force its changed UpdateDivider=-1 meters on every path; only the redraw depends on immediate.'
 $tooltipScripts = @('Display.lua', 'Info.lua', 'PageFile.lua', 'Process.lua', 'Settings.lua' | Where-Object { (Get-Content -LiteralPath (Join-Path $PSScriptRoot $_) -Raw) -match 'ToolTipText' })
 Assert-RAM ($tooltipScripts.Count -eq 0) "RAM controllers must not assign tooltips: $($tooltipScripts -join ', ')"
-foreach ($pair in @(@('Units','RAMUseMiB'), @('Decimals','RAMDecimals'), @('PercentDecimals','RAMPercentDecimals'), @('Bar','RAMShowBar'), @('PageBar','RAMShowPageBar'), @('History','RAMShowHistory'))) {
+foreach ($pair in @(@('Units','RAMUseMiB'), @('Decimals','RAMDecimals'), @('PercentDecimals','RAMPercentDecimals'), @('Bar','RAMShowBar'), @('PageBar','RAMShowPageBar'), @('History','RAMShowHistory'), @('Processes','RAMShowProcesses'), @('HistoryScale','RAMHistoryScale'))) {
     Assert-RAM (-not $menu.ContainsKey('MeterRAMSettings'+$pair[0]+'Row')) 'Settings must not retain full-row shaded hit targets.'
     foreach ($suffix in '', 'Label') {
         $name = 'MeterRAMSettings' + $pair[0] + $suffix
@@ -483,7 +553,7 @@ foreach ($suiteScale in 0.75, 1, 1.25, 1.5, 2) {
                 Assert-RAM ([Math]::Abs($rule.Y+$rule.H/2-($inset+$section[2]*$suiteScale)) -lt 0.001 -and [Math]::Abs($rule.H-$border*$suiteScale) -lt 0.001) 'Settings divider lost its semantic stroke or position.'
                 Assert-RAM ($rule.Y -ge $heading.Y+$heading.H -and $rule.Y+$rule.H -le $meterBounds['MeterRAMSettings'+$section[3]].Y) 'Settings divider overlaps its heading or first field.'
             }
-            foreach ($control in @(@('Units',100), @('Decimals',128), @('PercentDecimals',156), @('Bar',214), @('PageBar',242), @('History',270))) {
+            foreach ($control in @(@('Units',100), @('Decimals',128), @('PercentDecimals',156), @('Bar',214), @('PageBar',242), @('History',270), @('Processes',298), @('HistoryScale',326))) {
                 $label = $meterBounds['MeterRAMSettings'+$control[0]+'Label']
                 $value = $meterBounds['MeterRAMSettings'+$control[0]]
                 if ($control[0] -in 'Units','Decimals','PercentDecimals') {

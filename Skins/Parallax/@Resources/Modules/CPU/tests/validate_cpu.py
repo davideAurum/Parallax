@@ -245,6 +245,23 @@ def validate():
     assert sections["Rainmeter"]["Update"] == "#CPUUpdateInterval#"
     assert 'MeasureCPUInfo "Run"' in sections["Rainmeter"]["OnRefreshAction"]
     assert 'MeasureCPUSensors "Reconnect()"' in sections["Rainmeter"]["OnRefreshAction"]
+    # Idle stand-down (Global Settings Idle pause): the delayed coordinator
+    # join ends OnRefreshAction; every Thread slot meter, live or idle, is in
+    # ParallaxIdleFreeze (CPU.lua re-applies their dividers on resume); every
+    # UsageMonitor and Registry measure is in ParallaxIdlePause. The shipped
+    # Off value (Hook0.inc) loads no hook section.
+    assert sections["Rainmeter"]["OnRefreshAction"].endswith("#ParallaxIdleJoinAction#")
+    assert variables["ParallaxIdleControllers"] == "MeasureCPUController|MeasureCPUSensors"
+    assert "MeasureParallaxStandDown" not in sections and "MeterParallaxPaused" not in sections
+    for slot in range(1, 65):
+        for prefix in ("MeterCoreLabel", "MeterCoreBar", "MeterCoreValue", "MeterCoreVoltage", "MeterCoreTemperature"):
+            meter = sections[prefix + str(slot)]
+            assert meter["UpdateDivider"] == "-1", (prefix, slot)
+            assert "ParallaxIdleFreeze" in meter["Group"].split("|"), (prefix, slot)
+    for name, values in sections.items():
+        periodic = values.get("UpdateDivider", "1").strip() != "-1"
+        if periodic and (values.get("Measure") == "Registry" or values.get("Plugin") == "UsageMonitor"):
+            assert "ParallaxIdlePause" in values.get("Group", "").split("|"), name
     assert number(variables["CPUUpdateInterval"]) == 1000
     assert number(variables["CPUSensorInterval"]) == 2000
     sensor_sources = [ROOT / "@Resources/Modules/CPU/SensorMeasures.inc",
@@ -262,6 +279,28 @@ def validate():
                 assert all(ref.strip() in sections for ref in value.split("|")), (name, key)
     measures = [name for name, values in sections.items() if "Measure" in values]
     assert len(measures) == 108 + 9 * 64
+    # CPU-02 / ENGINE-05: a DynamicVariables UsageMonitor measure re-reads, and
+    # reloads the plugin, every tick even while disabled. !SetOption already
+    # forces the one re-read CPU.lua needs.
+    usage_monitor = [name for name, values in sections.items() if values.get("Plugin") == "UsageMonitor"]
+    assert len(usage_monitor) == 1 + 64 + 64 + 10 + 2, len(usage_monitor)
+    assert not [name for name in usage_monitor if "DynamicVariables" in sections[name]]
+    # B2 / CPU-05: the ten Process-category slots load only with the list.
+    # Measures.inc names ProcessMeasures<CPUShowProcesses>.inc; the 0 variant is
+    # comment-only, because a loaded UsageMonitor measure keeps its category's
+    # reader running even while Disabled. CPU.ini supplies the fallback.
+    module = ROOT / "@Resources/Modules/CPU"
+    assert variables["CPUShowProcesses"] == "1"
+    assert (module / "ProcessMeasures1.inc") in visited and (module / "ProcessMeasures0.inc") not in visited
+    assert "[MeasureCPUProcess" not in (module / "Measures.inc").read_text(encoding="utf-8-sig")
+    stub = [line.strip() for line in (module / "ProcessMeasures0.inc").read_text(encoding="utf-8-sig").splitlines()]
+    assert stub and all(not line or line.startswith(";") for line in stub)
+    process_slots = [name for name in usage_monitor if name.startswith("MeasureCPUProcess")]
+    assert process_slots == [f"MeasureCPUProcess{index}" for index in range(1, 11)], process_slots
+    for name in process_slots:
+        assert sections[name]["Alias"] == "CPU" and sections[name]["Disabled"] == "1", name
+    entry_text = ENTRY.read_text(encoding="utf-8-sig")
+    assert entry_text.index("CPUShowProcesses=1") < entry_text.index("@Include3=#@#User\\CPU.inc")
     total_utility = sections["MeasureCPUTotal"]
     assert total_utility["Measure"] == "Plugin" and total_utility["Plugin"] == "UsageMonitor"
     assert total_utility["Category"] == "Processor Information"
@@ -301,6 +340,9 @@ def validate():
             assert f"CPUCore{index}" in meter["Group"].split("|")
             assert not any(key.startswith("MeasureName") for key in meter)
         assert f"MeterSensorCoreLabel{index}" not in sections
+        # CPU-04: idle slots skip the meter pass; CPU.lua restores divider 1 on binding.
+        for prefix in ("MeterCoreLabel", "MeterCoreBar", "MeterCoreValue", "MeterCoreVoltage", "MeterCoreTemperature"):
+            assert sections[f"{prefix}{index}"]["UpdateDivider"] == "-1", (prefix, index)
     assert not (ROOT / "@Resources/Modules/CPU/CoreSensorMeters.inc").exists()
     for index in range(1, 11):
         assert f"MeterProcessBar{index}" not in sections
@@ -371,6 +413,13 @@ def validate():
     assert clock_label["Hidden"] == "1" and clock_value["Hidden"] == "1"
     assert {"CPUInfo", "CPUClock", "CPUUI"}.issubset(clock_label["Group"].split("|"))
     assert {"CPUInfo", "CPUClock", "CPUUI"}.issubset(clock_value["Group"].split("|"))
+    # The Windows aggregate clock is never shown unnamed: Sensors.lua writes
+    # "Windows" here whenever it, not HWiNFO's Core Clocks, is the reading.
+    clock_source = effective("MeterCurrentClockSource")
+    assert clock_source["Text"] == "" and clock_source["Hidden"] == "1"
+    assert clock_source["FontColor"] == "#MutedColor#" and clock_source["StringAlign"] == "Right"
+    assert clock_source["FontSize"] == "(#FontSize#*#Scale#)" and clock_source["FontWeight"] == "500"
+    assert {"CPUInfo", "CPUClock", "CPUUI"}.issubset(clock_source["Group"].split("|"))
     fan_label, fan_value = effective("MeterCurrentFanLabel"), effective("MeterCurrentFanValue")
     assert fan_label["Text"] == "Fan:" and fan_value["Text"] == "Unavailable"
     assert fan_value["FontColor"] == "#AccentColor2#"
@@ -401,6 +450,21 @@ def validate():
             assert number("#Inset#") * 2 == number("#Gap#")
             if (column_width, scale, columns) == (220, 1, 1):
                 assert number("#PanelWidth#") == 220 and width == 228
+            # The not-updating footer "HWiNFO: open Sensors" is 141.90 px (10.64 em) in bundled
+            # IBM Plex Sans Medium at the 10 pt body maximum (Pillow advance, pt*96/72). The
+            # footer's StyleLabel clip box must hold it at every width and scale.
+            footer = effective('MeterSensors')
+            assert footer['FontSize'] == '(#FontSize#*#Scale#)' and footer.get('FontWeight') == '500'
+            assert number(footer['W']) >= 141.90 * scale
+            # The clock source "Windows" is 56.25 px at the 10 pt maximum. It sits flush right
+            # in the space after the Clock value's right-aligned anchor, 4 px clear of it.
+            clock_value_box, clock_source_box = effective('MeterCurrentClockValue'), effective('MeterCurrentClockSource')
+            assert clock_value_box['StringAlign'] == 'Right' and clock_source_box['StringAlign'] == 'Right'
+            source_right = number(clock_source_box['X'])
+            assert source_right == number('#ContentX#') + number('#ContentWidth#')
+            assert source_right - number(clock_source_box['W']) >= number(clock_value_box['X']) + 4 * scale - 0.01
+            assert number(clock_source_box['W']) >= 56.25 * scale
+            assert clock_source_box['Y'] == clock_value_box['Y'] and clock_source_box['H'] == clock_value_box['H']
             # Runtime table Y positions vary, but its source column widths do not.
             label, bar = effective('MeterCoreLabel1'), effective('MeterCoreBar1')
             assert number(label['X']) + number(label['W']) <= number(bar['X'])
@@ -540,10 +604,16 @@ def validate():
     assert "set('MeterCoreLabel' .. slot, 'Text', tostring(index))" in script
     assert "SKIN:Bang('!CommandMeasure', 'MeasureCPUSensors', 'SetThreadPage(' .. first .. ')')" in script
     assert all("ToolTip" not in source for source in (script, sensor_script, setup_script, discovery_script))
-    assert "set(measure, 'Name', '0,' .. (index - 1))" in script
+    # Slots bind absolute instances, re-pointing a measure only when its Name changes.
+    assert "bindMeasure(measure, '0,' .. (index - 1), true)" in script
+    assert "if name and applied.name ~= name then" in script and "set(measure, 'Name', name)" in script
     assert "local function busyPercent(value)" in script and "value > 100.5" in script
     assert "return math.min(100, value)" in script and "graphUtility" not in script and "Processor Utility" not in script
     assert "local function updateThreadValues()" in script
+    # A -1 meter ignores !SetOption until forced: binding must restore 1 and force.
+    assert "set(prefix .. slot, 'UpdateDivider', live and 1 or -1)" in script
+    assert "if live then SKIN:Bang('!UpdateMeterGroup', 'CPUCore' .. slot) end" in script
+    assert "for slot = 1, 64 do slotLive(slot, slot <= state.active) end" in script
     assert "SKIN:GetMeasure('MeasureCPU' .. slot):GetValue()" in script
     assert "string.format('%.' .. state.decimals .. 'f%%', value)" in script
     for prefix in ('MeterCoreVoltage', 'MeterCoreTemperature'):
@@ -551,6 +621,7 @@ def validate():
         assert "y('" + prefix + "' .. slot, 0)" in script
     assert "!ShowMeterGroup' or '!HideMeterGroup', 'CPUInfo'" in script
     assert "y('MeterCurrentClockLabel', cursor)" in script and "cursor = cursor + 16" in script
+    assert "y('MeterCurrentClockSource', cursor)" in script and "y('MeterCurrentClockSource', 0)" in script
     assert "y('MeterCurrentFanLabel', cursor)" in script and "y('MeterCurrentFanValue', cursor)" in script
     assert "y('MeterMotherboardFanLabel', cursor)" in script and "y('MeterMotherboardFanValue', cursor)" in script
     assert "y('MeterHistoryTrack', cursor)" in script and "y('MeterHistory', cursor)" in script
@@ -579,17 +650,28 @@ def validate():
     assert "CPUVoltageDecimals = @(0, 3)" in discovery_script
     assert "CPUTemperatureDecimals = @(0, 1)" in discovery_script
     assert "InputText" not in discovery_script
-    assert "readBinding('Clock')" in sensor_script and 'local function formatClock(value)' in sensor_script
+    # Each render shares one parsed value-name set per hive across its readings.
+    assert "readBinding('Clock', nil, lists)" in sensor_script and 'local function formatClock(value)' in sensor_script
     assert "local providerStarted = state.providerRunning == false and providerRunning" in sensor_script
     assert "state.reconnectQueued = state.reconnectQueued or parameters ~= state.arguments" in sensor_script
     assert "local function formatVoltage(value)" in sensor_script
     assert "precisionChanged" in sensor_script
     assert "set('MeterCurrentClockValue', 'Text'" in sensor_script
-    assert "readBinding('Fan')" in sensor_script and "local function formatFan(value)" in sensor_script
+    assert "readBinding('Fan', nil, lists)" in sensor_script and "local function formatFan(value)" in sensor_script
     assert "set('MeterCurrentFanValue', 'Text'" in sensor_script
-    assert "readBinding('MotherboardFan')" in sensor_script
+    assert "readBinding('MotherboardFan', nil, lists)" in sensor_script
     assert "set('MeterMotherboardFanValue', 'Text'" in sensor_script
-    assert "local displayClock = clock or nativeClock" in sensor_script
+    # HWiNFO's Core Clocks first; the Windows aggregate only with its source named.
+    assert "local displayClock, clockSource = clock, ''" in sensor_script
+    assert "displayClock, clockSource = nativeClock, 'Windows'" in sensor_script
+    assert "set('MeterCurrentClockSource', 'Text', clockSource)" in sensor_script
+    # A running HWiNFO whose export stopped updating must not read as live.
+    assert "local exportStaleSeconds = 60" in sensor_script
+    # The footer names the fix: HWiNFO writes its export only while its Sensors window is open.
+    assert "local exportStaleStatus = 'HWiNFO: open Sensors'" in sensor_script
+    assert "status = exportStaleStatus" in sensor_script
+    assert "export not updating'" not in sensor_script
+    assert "local coreReady = not frozen and" in sensor_script
     assert 'CPUClockIndex' not in sensor_script and 'CPUClockIndex' not in setup_script
     assert "parts[1] == 'CLOCK'" in setup_script and "normalizedLabel ~= 'Core Clocks'" in setup_script
     assert "CLOCK|HKEY_CURRENT_USER|index" in discovery_script

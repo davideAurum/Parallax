@@ -1,5 +1,7 @@
 # Performance pass
 
+> **2026-10-22:** the suite-wide review in [PERFORMANCE-REVIEW.md](PERFORMANCE-REVIEW.md) supersedes the per-module CPU figures below. It has per-utility burden alone and together, the live quiet-state footprint, verified bottlenecks and the fix plan. Its measurements come from `tools/Benchmark-Parallax.ps1` and `tools/Trace-ParallaxLive.ps1`.
+
 Checked 2026-09-13 against Rainmeter 4.5.26.3894 on Windows. This pass focused on frame pacing, redundant paint work, and subprocess launch behavior. It did not change the user's live Rainmeter profile or install dependencies.
 
 ## Findings and corrections

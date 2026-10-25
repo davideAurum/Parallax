@@ -74,6 +74,7 @@ const state = sections.get('MeasureVisualizerState');
 const format = sections.get('MeasureVisualizerFormat');
 const volume = sections.get('MeasureVisualizerVolume');
 const volumeValue = sections.get('MeasureVisualizerVolumeValue');
+const volumeShown = sections.get('MeasureVisualizerVolumeShown');
 const volumeMeter = effective('MeterVisualizerVolume');
 const meters = [...sections].filter(([name]) => name.startsWith('MeterVisualizer'));
 const pluginMeasures = [...sections].filter(([, s]) => s.Plugin === 'AudioLevel');
@@ -99,14 +100,31 @@ assert.equal(options.Hidden, '1');
 assert.equal(options.LeftMouseUpAction, '[!ActivateConfig "Parallax\\Visualizer\\Settings" "Settings.ini"]');
 assert.equal(options.ToolTipText, undefined);
 assert.match(options.Shape, /Fill Color #AccentColor2#/);
-assert.equal(rainmeter.MouseOverAction, '[!HideMeter MeterVisualizerVolume][!ShowMeter MeterVisualizerOptions][!Redraw]');
-assert.equal(rainmeter.MouseLeaveAction, '[!HideMeter MeterVisualizerOptions][!ShowMeter MeterVisualizerVolume][!Redraw]');
+// Hover actions come from the variant (Standalone<n>.inc): the live one swaps
+// the volume readout for the gear.
+assert.equal(rainmeter.MouseOverAction, '#VisualizerHoverIn#');
+assert.equal(expand(rainmeter.MouseOverAction), '[!HideMeter MeterVisualizerVolume][!ShowMeter MeterVisualizerOptions][!Redraw]');
+assert.equal(expand(rainmeter.MouseLeaveAction), '[!HideMeter MeterVisualizerOptions][!ShowMeter MeterVisualizerVolume][!Redraw]');
 assert.notEqual(volumeMeter.Hidden, '1');
 assert.equal(volumeMeter.FontColor, '#TextColor#');
 assert.equal(volumeMeter.StringAlign, 'RightCenter');
 assert.equal(volumeMeter.MeasureName, 'MeasureVisualizerVolumeValue');
 assert.equal(volumeMeter.NumOfDecimals, '0');
-assert.equal(volumeMeter.DynamicVariables, '1');
+// Event-driven readouts (VIS-03): a due meter repaints the whole window, so
+// the output row and overlay update only when what they show changes.
+assert.equal(volumeMeter.DynamicVariables, undefined);
+assert.equal(volumeMeter.UpdateDivider, '-1');
+assert.equal(volumeShown.Measure, 'Calc');
+assert.equal(volumeShown.OnChangeAction, '[!UpdateMeter MeterVisualizerVolume][!Redraw]');
+assert.equal(volume.OnChangeAction, undefined, 'An OnChangeAction on Win7Audio would re-run its COM string lookup');
+const deviceNameMeter = effective('MeterVisualizerDeviceName');
+assert.equal(deviceNameMeter.UpdateDivider, '-1');
+assert.equal(deviceNameMeter.DynamicVariables, undefined);
+assert.equal(sections.get('MeasureVisualizerDeviceName').OnChangeAction, '[!UpdateMeter MeterVisualizerDeviceName][!Redraw]');
+assert.equal(effective('MeterVisualizerUnavailable').UpdateDivider, '-1');
+assert.equal(state.OnChangeAction, '[!Redraw]');
+// No standalone meter is due on a quiet tick; the mask joins only with signal.
+assert.deepEqual(meters.filter(([name]) => effective(name).UpdateDivider !== '-1').map(([name]) => name), []);
 assert.equal(volumeMeter.Text, '--');
 assert.equal(volume.Plugin, 'Win7AudioPlugin');
 assert.equal([...sections.values()].filter(section => section.Plugin === 'Win7AudioPlugin').length, 1);
@@ -123,8 +141,8 @@ assert.equal(formula('#VisualizerVolumeAvailable#'), 0);
 // only one at a time, and leaving must restore the passive volume readout.
 let gearVisible = options.Hidden !== '1', volumeVisible = volumeMeter.Hidden !== '1';
 for (const [action, expectedGear] of [
-  [rainmeter.MouseOverAction, true], [rainmeter.MouseOverAction, true],
-  [rainmeter.MouseLeaveAction, false], [rainmeter.MouseLeaveAction, false]
+  [expand(rainmeter.MouseOverAction), true], [expand(rainmeter.MouseOverAction), true],
+  [expand(rainmeter.MouseLeaveAction), false], [expand(rainmeter.MouseLeaveAction), false]
 ]) {
   for (const [, operation, target] of action.matchAll(/!(ShowMeter|HideMeter) (MeterVisualizer\w+)/g)) {
     if (target === 'MeterVisualizerOptions') gearVisible = operation === 'ShowMeter';
@@ -159,9 +177,13 @@ assert.equal(deviceHit.UpdateDivider, '-1');
 // The switch also reconnects Media's spectrum drawer, which refreshes only
 // while it is open (MediaOptions.lua RefreshVisualizerDrawer).
 const reconnectDrawer = '[!CommandMeasure MeasureMediaOptions "RefreshVisualizerDrawer()" "Parallax\\Media"]';
-assert.equal(deviceHit.LeftMouseUpAction, switchPrefix + '"ToggleNext"]' + clearCaptureId + reconnectDrawer + '[!Refresh]');
-assert.equal(deviceHit.MouseScrollDownAction, deviceHit.LeftMouseUpAction);
-assert.equal(deviceHit.MouseScrollUpAction, switchPrefix + '"TogglePrevious"]' + clearCaptureId + reconnectDrawer + '[!Refresh]');
+// The live variant (Standalone0.inc) supplies the switch; the stood-down one
+// has no output measure and no switch.
+assert.equal(deviceHit.LeftMouseUpAction, '#VisualizerDeviceNextAction#');
+assert.equal(deviceHit.MouseScrollDownAction, '#VisualizerDeviceNextAction#');
+assert.equal(deviceHit.MouseScrollUpAction, '#VisualizerDevicePreviousAction#');
+assert.equal(variables.VisualizerDeviceNextAction, switchPrefix + '"ToggleNext"]' + clearCaptureId + reconnectDrawer + '[!Refresh]');
+assert.equal(variables.VisualizerDevicePreviousAction, switchPrefix + '"TogglePrevious"]' + clearCaptureId + reconnectDrawer + '[!Refresh]');
 // No tooltips anywhere (user direction, 2026-10-11).
 assert.deepEqual(meters.filter(([, meter]) => Object.keys(meter).some(key => key.startsWith('ToolTip'))).map(([name]) => name), []);
 const spectrumMask = effective('MeterVisualizerSpectrumMask');
@@ -170,14 +192,20 @@ assert.equal(meters.filter(([, meter]) => meter.Meter === 'Bar').length, 0);
 assert.equal(spectrumMask.Meter, 'Shape');
 assert.equal(spectrumMask.SolidColor, '0,0,0,0');
 assert.equal(spectrumMask.DynamicVariables, '1');
+// Ships outside periodic updates; MeasureVisualizerState gates it on signal.
+assert.equal(spectrumMask.UpdateDivider, '-1');
 assert.equal(spectrumFill.Meter, 'Shape');
 assert.equal(spectrumFill.Container, 'MeterVisualizerSpectrumMask');
 assert.equal(spectrumFill.UpdateDivider, '-1');
 assert.equal(spectrumFill.Shape, 'Rectangle 0,0,#VisualizerPlotInnerWidth#,#VisualizerBarHeight# | Fill Color #MediaColor# | StrokeWidth 0');
 assert.equal(spectrumFill.SpectrumGradient, '180 | #AccentColor# ; 0 | #AccentColor2# ; 1');
 assert.deepEqual(meters.filter(([, meter]) => meter.Container).map(([name]) => name), ['MeterVisualizerFill']);
+// The mask can repaint once capture has signal, so the idle stand-down's
+// freeze group covers it too (tools/tests/test_idle_freeze_contract.py); the
+// contained fill never repaints on its own and stays in VisualizerSpectrum only.
+assert.equal(spectrumMask.Group, 'VisualizerSpectrum|ParallaxIdleFreeze');
+assert.equal(spectrumFill.Group, 'VisualizerSpectrum');
 for (const meter of [spectrumMask, spectrumFill]) {
-  assert.equal(meter.Group, 'VisualizerSpectrum');
   assert.equal(meter.Hidden, '1');
   assert.equal(meter.W, '#VisualizerPlotInnerWidth#');
   assert.equal(meter.H, '#VisualizerPlotInnerHeight#');
@@ -202,7 +230,9 @@ for (const [name, section] of sections) {
     assert.ok(!action.includes('LIVE - MIXED OUTPUT'), 'Removed live caption remains in ' + name + '.' + key);
     const volumeCommands = [...action.matchAll(/!CommandMeasure\s+"?MeasureVisualizerVolume"?\s+"([^"]+)"/gi)];
     if (volumeCommands.length) {
-      assert.equal(name, 'MeterVisualizerDeviceHit', 'Only the current-output row may switch devices');
+      // The row's switch actions live in the live variant's variables.
+      assert.ok(name === 'MeterVisualizerDeviceHit' || (name === 'Variables' && /^VisualizerDevice(Next|Previous)Action$/.test(key)),
+        'Only the current-output row may switch devices');
       assert.ok(['ToggleNext', 'TogglePrevious'].includes(volumeCommands[0][1]),
         'Current-output row may switch devices but must not control volume or mute');
       assert.equal(volumeCommands.length, 1, 'One output switch per action');
@@ -242,15 +272,21 @@ for (const override of [-100, 0, 1, 33, 50, 100, 999999]) {
     assert.equal(interval, selected === 33 ? 33 : selected === 100 ? 100 : 50);
   }
 }
-// Plugin, numeric binding, and meter must share the slower volume cadence.
+// Plugin and both Calc bindings share the slower volume cadence: about once a
+// second, since every Win7Audio read is a full COM device enumeration
+// (VIS-04). Device status follows the device-name cadence, also about 1 s.
 // This is the configured schedule, not a benchmark of actual update timing.
-for (const [interval, expectedMs] of [[50, 250], [33, 264], [100, 300]]) {
+for (const [interval, expectedMs] of [[50, 1000], [33, 990], [100, 1000]]) {
   const vars = { VisualizerUpdateOverride: String(interval) };
   const divider = formula(volume.UpdateDivider, vars);
   assert.ok(Number.isInteger(divider) && divider > 0);
   assert.equal(divider * formula(rainmeter.Update, vars), expectedMs);
   assert.equal(formula(volumeValue.UpdateDivider, vars), divider);
-  assert.equal(formula(volumeMeter.UpdateDivider, vars), divider);
+  assert.equal(formula(volumeShown.UpdateDivider, vars), divider);
+  const status = sections.get('MeasureVisualizerDevice');
+  assert.equal(status.UpdateDivider, '#VisualizerDeviceNameDivider#');
+  assert.equal(formula(status.UpdateDivider, vars) * formula(rainmeter.Update, vars), expectedMs);
+  assert.equal(formula(status.UpdateDivider, vars), formula(sections.get('MeasureVisualizerDeviceName').UpdateDivider, vars));
 }
 const volumeError = new RegExp(volume.IfMatch);
 for (const [description, expected] of [
@@ -264,6 +300,12 @@ let priorVolumeError;
 let volumeConditions = [false, false, false];
 let volumeTemplate = volumeMeter.Text;
 let validVolumeTransitions = 0;
+// The -1 meter shows what it rendered at its last forced update: the load's
+// first update, a text action's !UpdateMeter or the shown-state Calc's
+// OnChangeAction (which never runs on the first update).
+let displayed;
+let shownState;
+let changeRepaints = 0;
 for (const [description, rawVolume, expected] of [
   ['Speakers (Audio Device)', 0, '0%'],
   ['Speakers (Audio Device)', 100, '100%'],
@@ -285,6 +327,8 @@ for (const [description, rawVolume, expected] of [
   priorVolumeError = failed;
   const numeric = formula(volumeValue.Formula, {}, { MeasureVisualizerVolume: rawVolume });
   assert.equal(numeric, rawVolume, 'The readout must bind numeric volume, not plugin device text');
+  const render = () => volumeTemplate.replaceAll('%1', numeric.toFixed(Number(volumeMeter.NumOfDecimals)));
+  if (displayed === undefined) displayed = render();
   for (let i = 0; i < volumeConditions.length; i++) {
     const suffix = i === 0 ? '' : i + 1;
     const active = Boolean(formula(volumeValue['IfCondition' + suffix],
@@ -294,25 +338,66 @@ for (const [description, rawVolume, expected] of [
       assert.ok(!/!(?:Show|Hide)Meter/.test(action), 'Volume state updates must preserve hover visibility');
       assert.ok(action.includes('[!UpdateMeter MeterVisualizerVolume]'));
       volumeTemplate = /!SetOption MeterVisualizerVolume Text "([^"]+)"/.exec(action)[1];
+      displayed = render();
       if (i === 2) validVolumeTransitions++;
     }
     volumeConditions[i] = active;
   }
-  const rendered = volumeTemplate.replaceAll('%1', numeric.toFixed(Number(volumeMeter.NumOfDecimals)));
+  const state = formula(volumeShown.Formula, { VisualizerVolumeAvailable: String(volumeAvailable) },
+    { MeasureVisualizerVolumeValue: numeric });
+  assert.equal(state, volumeAvailable ? numeric : -2);
+  if (shownState !== undefined && state !== shownState) {
+    assert.ok(volumeShown.OnChangeAction.startsWith('[!UpdateMeter MeterVisualizerVolume]'));
+    displayed = render();
+    changeRepaints++;
+  }
+  shownState = state;
+  const rendered = displayed;
   assert.equal(rendered, expected, 'Wrong volume state for ' + description + ' / ' + rawVolume);
   assert.ok(!rendered.includes(description) || !description, 'Plugin device name leaked into numeric readout');
 }
 assert.equal(validVolumeTransitions, 4, 'Valid-to-valid values should use the existing numeric binding');
+// Every displayed change but the error-to-empty-name one repaints exactly once.
+assert.equal(changeRepaints, 9, 'The shown-state Calc must repaint each displayed volume change');
 const palette = sections.get('MeasureVisualizerColor');
 assert.equal(palette.Measure, 'Script');
 assert.equal(palette.ScriptFile, '#@#Modules\\Visualizer\\Color.lua');
 assert.equal(palette.UpdateDivider, '-1', 'Appearance selection must not add recurring work');
 assert.ok(!palette.Formula && !palette.IfConditionMode, 'The old Calc palette selector must not overwrite gradients');
-assert.equal(rainmeter.OnRefreshAction, '[!CommandMeasure MeasureVisualizerColor "Apply()"]');
+// The palette first, then the one-capture notice to Media's drawer 100 ms
+// later (after Rainmeter's startup walk; Companion.lua, XMOD-02). Both target
+// this skin's own measures, which exist in every Visualizer variant.
+// The palette call comes from the live variant; the idle join is empty while
+// Global Settings Idle pause is Off (the shipped value).
+assert.equal(rainmeter.OnRefreshAction,
+  '#VisualizerRefreshAction#[!Delay 100][!CommandMeasure MeasureVisualizerCompanion "Announce()"]#ParallaxIdleJoinAction#');
+assert.equal(expand(rainmeter.OnRefreshAction),
+  '[!CommandMeasure MeasureVisualizerColor "Apply()"][!Delay 100][!CommandMeasure MeasureVisualizerCompanion "Announce()"]');
+assert.equal(rainmeter.OnCloseAction, '[!CommandMeasure MeasureVisualizerCompanion "Closing()"]');
+const companion = sections.get('MeasureVisualizerCompanion');
+assert.equal(companion.Measure, 'Script');
+assert.equal(companion.ScriptFile, '#@#Modules\\Visualizer\\Companion.lua');
+assert.equal(companion.UpdateDivider, '-1', 'The companion notice is event-only');
+const companionCallbacks = [...sections].flatMap(([name, section]) =>
+  Object.entries(section).filter(([key, value]) => key.includes('Action') &&
+    /MeasureVisualizerCompanion/.test(value)).map(([key]) => name + '.' + key));
+assert.deepEqual(companionCallbacks, ['Rainmeter.OnRefreshAction', 'Rainmeter.OnCloseAction']);
+const companionScript = readFileSync(resolve(skinRoot, '@Resources/Modules/Visualizer/Companion.lua'), 'utf8');
+// The two silent group bangs, and the idle stand-down's single write of its
+// own state file with one reload of this skin, plus the same-skin variable
+// that tells the stand-down hook whether that reload is posted.
+assert.deepEqual([...companionScript.matchAll(/SKIN:Bang\(([^)]*)\)/g)].map((match) => match[1]),
+  ["'!SetVariableGroup', 'ParallaxCompanionCheck', '1', 'Parallax'", "'!UpdateMeasureGroup', 'ParallaxMediaCompanion', '*'",
+   "'!WriteKeyValue', 'Variables', 'VisualizerStandby', level, statePath(", "'!Refresh'",
+   "'!SetVariable', 'ParallaxIdleStandbyPending', standbyRefreshed and '1' or '0'"],
+  'Companion.lua sends the two silent group bangs, its own standby write and reload, and the reload-pending notice only');
+assert.ok(!/io\.open\([^)]*'w|os\.(execute|remove|rename)|!CommandMeasure|!ActivateConfig/.test(companionScript),
+  'Companion.lua writes nothing, launches nothing and commands no other skin');
 const paletteCallbacks = [...sections].flatMap(([name, section]) =>
   Object.entries(section).filter(([key, value]) => key.includes('Action') &&
     /!CommandMeasure\s+"?MeasureVisualizerColor(?:"|\s)/i.test(value)).map(([key]) => name + '.' + key));
-assert.deepEqual(paletteCallbacks, ['Rainmeter.OnRefreshAction'], 'Palette changes must only run on refresh');
+assert.deepEqual(paletteCallbacks, ['Variables.VisualizerRefreshAction'], 'Palette changes must only run on refresh');
+assert.ok(rainmeter.OnRefreshAction.startsWith('#VisualizerRefreshAction#'), 'The palette call is the refresh action');
 // SpectrumPaths.lua rewrites the 24 BandPath options with literal geometry once
 // per load; without it the mask re-expands every geometry formula each update.
 const pathCompiler = sections.get('MeasureVisualizerSpectrumPaths');
@@ -358,9 +443,12 @@ const initialStates = [[0, 0, 0, 0], [1, 0, 0, 1], [1, 0.1, 0, 2], [1, 0, 1, 3]]
 for (const sequence of [transitions, ...initialStates.map(sample => [sample])]) {
 let previousConditions = [false, false, false, false];
 let spectrumVisible = spectrumMask.Hidden !== '1';
+// The hidden mask stays out of periodic updates: any due meter repaints the
+// whole window, and a hidden mask still re-reads its paths (MEDIA-04, VIS-02).
+let maskDivider = spectrumMask.UpdateDivider;
 let overlayVisible = effective('MeterVisualizerUnavailable').Hidden !== '1';
-let status = effective('MeterVisualizerUnavailable').Text;
-let statusColor = effective('MeterVisualizerUnavailable').FontColor;
+let status = expand(effective('MeterVisualizerUnavailable').Text);
+let statusColor = expand(effective('MeterVisualizerUnavailable').FontColor);
 for (const [device, rms, invalid, expected] of sequence) {
   const value = formula(state.Formula, { VisualizerFormatInvalid: String(invalid) },
     { MeasureVisualizerDevice: device, MeasureVisualizerRMS: rms });
@@ -372,6 +460,16 @@ for (const [device, rms, invalid, expected] of sequence) {
       const action = state['IfTrueAction' + suffix];
       if (action.includes('!HideMeterGroup VisualizerSpectrum')) spectrumVisible = false;
       if (action.includes('!ShowMeterGroup VisualizerSpectrum')) spectrumVisible = true;
+      const divider = /\[!SetOption MeterVisualizerSpectrumMask UpdateDivider (-1|"#VisualizerCaptureDivider#")\]/.exec(action);
+      assert.ok(divider, 'Every state transition must set the mask cadence');
+      maskDivider = divider[1];
+      if (maskDivider !== '-1') {
+        // A -1 meter ignores !SetOption until forced: the forced update must
+        // follow the new divider, before the spectrum is shown.
+        const forced = action.indexOf('[!UpdateMeter MeterVisualizerSpectrumMask]');
+        assert.ok(forced > action.indexOf(divider[0]), 'Signal must force the mask after restoring its cadence');
+        assert.ok(forced < action.indexOf('[!ShowMeterGroup VisualizerSpectrum]'));
+      }
       if (action.includes('!HideMeter MeterVisualizerUnavailable')) overlayVisible = false;
       if (action.includes('!ShowMeter MeterVisualizerUnavailable')) overlayVisible = true;
       const text = /!SetOption MeterVisualizerUnavailable Text "([^"]+)"/.exec(action);
@@ -382,6 +480,7 @@ for (const [device, rms, invalid, expected] of sequence) {
     previousConditions[i] = active;
   }
   assert.equal(spectrumVisible, expected === 2, 'Stale spectrum visible');
+  assert.equal(maskDivider !== '-1', expected === 2, 'Mask cadence does not follow the capture state');
   assert.equal(overlayVisible, expected !== 2, 'Live caption or missing non-live state');
   if (expected !== 2) {
     assert.equal(status, ['Output unavailable', 'Idle - quiet', '', 'Unsupported format'][expected]);
@@ -841,7 +940,23 @@ for (const selected of [-100, 0, 10, 20, 35, 50, 65, 80, 999]) {
   }
 }
 assert.equal(effective('MeterVisualizerDbMax').Text, '0 dB');
-console.log('PASS: includes; one output parent; 24 band/path mappings; setting bounds; volume numeric/mute/error/recovery states and 250/264/300ms schedules; four-state visibility; alternating gear/readout; context reconnect/unload; semantic typography/colors; ' + dimensions.length + ' title/width/scale/column/surface cases; ' + appearanceCases + ' height/gap/radius/baseline cases with ' + gridCases + ' pixel-centred grid lines and ' + pathCases + ' bounded cubic paths including six narrow amplitude edges; zero height/radius;54px axis clearance; nine sensitivity clamps/dB endpoints; one fixed container fill; refresh-only palette binding (ColorSuite.lua validates behavior separately); preserved device row.');
+console.log('PASS: includes; one output parent; 24 band/path mappings; setting bounds; volume numeric/mute/error/recovery states and 1000/990/1000ms volume and device-status schedules; four-state visibility; alternating gear/readout; context reconnect/unload; semantic typography/colors; ' + dimensions.length + ' title/width/scale/column/surface cases; ' + appearanceCases + ' height/gap/radius/baseline cases with ' + gridCases + ' pixel-centred grid lines and ' + pathCases + ' bounded cubic paths including six narrow amplitude edges; zero height/radius;54px axis clearance; nine sensitivity clamps/dB endpoints; one fixed container fill; refresh-only palette binding (ColorSuite.lua validates behavior separately); preserved device row.');
 console.table(dimensions.filter(row => row.border === (titleFocus ? '4' : '1') && row.Columns === 1 && [0.75, 1, 2].includes(row.Scale) && [180, 220].includes(row.ColumnWidth)));
 console.log('Checked ' + readFiles.length + ' files: ' + readFiles.map(p => relative(skinRoot, p)).join(', '));
 console.log('Offline checks do not verify Rainmeter rendering, audio capture, timing, DPI, persistence, or CPU cost.');
+
+// Idle stand-down variant (Standalone1.inc): no capture or volume plugin, the
+// plot says "Paused (idle)", the tick is 1 s and hover names only the gear.
+{
+  const standby = readFileSync(resolve(skinRoot, '@Resources/Modules/Visualizer/Standalone1.inc'), 'utf8');
+  assert.ok(!/^Plugin=(AudioLevel|Win7AudioPlugin)\r?$/m.test(standby), 'No capture or volume plugin while stood down');
+  assert.ok(!/(Capture|Audio|Spectrum)\.inc/.test(standby), 'No capture, audio or spectrum include while stood down');
+  assert.match(standby, /^VisualizerOverlayText=Paused \(idle\)\r?$/m);
+  assert.match(standby, /^VisualizerHoverIn=\[!ShowMeter MeterVisualizerOptions\]\[!Redraw\]\r?$/m);
+  assert.match(standby, /^VisualizerRefreshAction=\r?$/m);
+  assert.equal(formula(rainmeter.Update, { VisualizerStandby: '1' }), 1000, 'A stood-down Visualizer ticks once a second');
+  assert.equal(formula(rainmeter.Update, { VisualizerStandby: '0' }), 50);
+  const state = readFileSync(resolve(skinRoot, '@Resources/Modules/Visualizer/StandbyState.inc'), 'utf8');
+  assert.match(state, /^VisualizerStandby=0\r?$/m, 'The shipped standby state is live');
+  console.log('Standby variant: no capture plugin, Paused (idle) overlay, 1000 ms tick.');
+}

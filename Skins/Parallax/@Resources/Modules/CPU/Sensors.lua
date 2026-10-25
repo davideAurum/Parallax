@@ -83,13 +83,24 @@ local function resetBindings()
     end
 end
 
-local function readBinding(kind, core)
+-- A hive's exported value-name list is the same for every reading in one
+-- render. Split it into a set once per render; lists caches it by measure.
+local function valueNames(lists, measure)
+    local names = lists[measure]
+    if not names then
+        names = {}
+        for key in text(measure):gmatch('[^|]+') do names[key] = true end
+        lists[measure] = names
+    end
+    return names
+end
+
+local function readBinding(kind, core, lists)
     local binding
     if core ~= nil then binding = state.coreBindings[kind][core] else binding = state.bindings[kind] end
     if not binding then return nil end
-    local list = text(binding.hive == 'HKEY_CURRENT_USER' and 'MeasureCPUSensorNamesUser' or 'MeasureCPUSensorNamesMachine')
-    local names = {}
-    for key in list:gmatch('[^|]+') do names[key] = true end
+    local names = valueNames(lists or {},
+        binding.hive == 'HKEY_CURRENT_USER' and 'MeasureCPUSensorNamesUser' or 'MeasureCPUSensorNamesMachine')
     for _, field in ipairs(fields) do
         if not names[registryNames[field] .. binding.index] then return nil end
     end
@@ -157,10 +168,57 @@ local function readNativeClock()
     return nil
 end
 
-local function render()
+-- HWiNFO's Gadget export carries no sample timestamp. If HWiNFO keeps running
+-- but stops writing it, the last values stay in the registry and would look
+-- live. Every bound raw value (temperatures, VIDs, clock and fans, including
+-- the CPU-wide summaries) forms one signature. If that signature is unchanged
+-- for exportStaleSeconds while HWiNFO runs, the export counts as not
+-- updating; any single change restores live readings. A reading that is
+-- legitimately constant cannot trip this while any other bound reading
+-- moves. A frozen export is only recognisable after that window, so it still
+-- shows as connected for up to a minute after load, reconnect or restart.
+-- HWiNFO polls its sensors, and writes this export, only while its Sensors
+-- window is open (minimised is fine), so the footer names that fix. The text
+-- is 10.64 em in IBM Plex Sans Medium and fits the narrowest footer (12.5 em
+-- at width 180) at the 10 pt body maximum and every scale.
+local exportStaleSeconds = 60
+local exportStaleStatus = 'HWiNFO: open Sensors'
+local exportKinds = {'Temperature', 'Voltage', 'Clock', 'Fan', 'MotherboardFan'}
+
+local function exportFrozen()
+    local parts = {}
+    for _, kind in ipairs(exportKinds) do
+        if state.bindings[kind] then parts[#parts + 1] = kind .. '=' .. text('MeasureCPUSensor' .. kind .. 'Raw', true) end
+    end
+    for core = 0, 63 do
+        for _, kind in ipairs({'Temperature', 'Voltage'}) do
+            if state.coreBindings[kind][core] then
+                parts[#parts + 1] = kind .. core .. '=' .. text('MeasureCPUSensorCore' .. kind .. 'Raw' .. (core + 1), true)
+            end
+        end
+    end
+    if #parts == 0 then
+        state.exportSignature = nil
+        return false
+    end
+    local signature, now = table.concat(parts, '|'), os.time()
+    if signature ~= state.exportSignature then
+        state.exportSignature, state.exportChangedAt = signature, now
+        return false
+    end
+    return now - state.exportChangedAt >= exportStaleSeconds
+end
+
+-- Event paths repaint at once. The periodic Update() path, and page changes
+-- made by the controller (which repaints afterwards itself), pass false and
+-- leave painting to the skin cycle: every meter set here has UpdateDivider 1,
+-- so the meter pass that follows the measures draws these values this tick.
+local function render(paint)
     local clock, fan, motherboardFan
     local nativeClock = readNativeClock()
+    local lists = {}
     local status
+    local frozen = false
     if not state.enabled then
         status = 'HWiNFO sensors: off'
     elseif state.pending or state.prime then
@@ -168,20 +226,26 @@ local function render()
     elseif SKIN:GetMeasure('MeasureCPUHWiNFORunning'):GetValue() ~= 1 then
         -- Old registry values are suppressed while HWiNFO64 is not running.
         status = 'HWiNFO: not running'
+    elseif exportFrozen() then
+        -- Values from an export that stopped updating are suppressed the same way.
+        frozen = true
+        status = exportStaleStatus
     else
         -- The footer reports provider status only; readings live in their rows.
-        clock = readBinding('Clock')
-        fan = readBinding('Fan')
-        motherboardFan = readBinding('MotherboardFan')
+        clock = readBinding('Clock', nil, lists)
+        fan = readBinding('Fan', nil, lists)
+        motherboardFan = readBinding('MotherboardFan', nil, lists)
     end
-    local coreReady = state.enabled and not state.pending and not state.prime
+    -- Off, connecting or stopped: the next readable export starts a fresh window.
+    if status and not frozen then state.exportSignature = nil end
+    local coreReady = not frozen and state.enabled and not state.pending and not state.prime
         and SKIN:GetMeasure('MeasureCPUHWiNFORunning'):GetValue() == 1
     local coreReadings, readings = 0, {}
     for core = 0, 63 do
         local t, v
         if coreReady then
-            t = readBinding('Temperature', core)
-            v = readBinding('Voltage', core)
+            t = readBinding('Temperature', core, lists)
+            v = readBinding('Voltage', core, lists)
         end
         if core <= 31 and (t or v) then coreReadings = coreReadings + 1 end
         readings[core] = {temperature=t, voltage=v}
@@ -205,13 +269,19 @@ local function render()
             status = 'HWiNFO: connected, ' .. coreReadings .. (coreReadings == 1 and ' core' or ' cores')
         end
     end
-    -- The HWiNFO Core Clocks export takes precedence over the Windows aggregate.
-    local displayClock = clock or nativeClock
+    -- The HWiNFO Core Clocks export takes precedence. When it is frozen,
+    -- missing, unsupported or HWiNFO is off, Windows' own aggregate
+    -- (Processor Frequency x % Processor Performance) is shown instead. It is a
+    -- different measurement, so its source is named beside it and the two are
+    -- never mixed silently; value and source change in the same render.
+    local displayClock, clockSource = clock, ''
+    if not displayClock and nativeClock then displayClock, clockSource = nativeClock, 'Windows' end
     set('MeterCurrentClockValue', 'Text', displayClock and formatClock(displayClock) or 'Unavailable')
+    set('MeterCurrentClockSource', 'Text', clockSource)
     set('MeterCurrentFanValue', 'Text', fan and formatFan(fan) or 'Unavailable')
     set('MeterMotherboardFanValue', 'Text', motherboardFan and formatFan(motherboardFan) or 'Unavailable')
     set('MeterSensors', 'Text', status)
-    redraw()
+    if paint ~= false then redraw() end
 end
 
 function Initialize()
@@ -220,11 +290,21 @@ function Initialize()
         temperatureDecimals=decimalOption('CPUTemperatureDecimals', 0, 1), voltageDecimals=decimalOption('CPUVoltageDecimals', 3, 3)}
 end
 
+-- Idle stand-down (Global Settings Idle pause; @Resources\Idle\StandDown.lua).
+-- This measure does not run while paused, so a discovery still pending at the
+-- pause gets its full 12 s again on resume (its FinishAction may still come)
+-- instead of being abandoned at once. The HWiNFO export check keeps its
+-- wall-clock meaning (owner decision 6): if no exported value changed over the
+-- pause, the footer reads that the export is not updating at once.
+function IdleLeave()
+    if state and state.pending then state.deadline = os.time() + 12 end
+end
+
 function SetThreadPage(first)
     first = tonumber(first)
     if not state or not finite(first) or first ~= math.floor(first) or first < 1 or first > 64 then return end
     state.firstThread = first
-    render()
+    render(false)
 end
 
 local function discoveryArguments()
@@ -416,6 +496,6 @@ function Update()
         state.prime = false
         if state.reconnectQueued then Reconnect() end
     end
-    render()
+    render(false)
     return 0
 end

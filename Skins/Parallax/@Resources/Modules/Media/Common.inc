@@ -57,10 +57,13 @@ LeftMouseUpAction=[!CommandMeasure MeasureMediaOptions "ToggleVisualizer()"]
 
 ; Tab contents, printed on the sheet: defined before MeterPanel so the panel
 ; occludes everything but the notch. Clicking still runs ToggleQueue().
+; Static: its geometry changes only with a refresh, so it never takes part in
+; periodic updates (a due meter repaints the whole window) and needs no
+; DynamicVariables (its Shape expands to about 18 KB of formula text).
 [MeterQueueDrawer]
 Meter=Shape
 AntiAlias=1
-DynamicVariables=1
+UpdateDivider=-1
 X=#MediaSurfaceX#
 Y=#MediaQueueDrawerTop#
 Hidden=(1-#MediaQueueDrawer#)
@@ -99,8 +102,10 @@ Y=#MediaQueueTabCenterY#
 W=(Max(1,#MediaQueueTabWidth#-34*#Scale#))
 Hidden=(1-#MediaQueueDrawer#)
 StringAlign=LeftCenter
+; MediaOptions.lua returns the constant 'Queue', read once at load.
 MeasureName=MeasureMediaOptions
 Text=%1
+UpdateDivider=-1
 MouseActionCursor=1
 LeftMouseUpAction=[!CommandMeasure MeasureMediaOptions "ToggleQueue()"]
 
@@ -142,16 +147,18 @@ UpdateDivider=-1
 ; the player's name while a track plays ("Media: ..." in the compact layout).
 ; MeasureMediaHeader (Header.inc) supplies the whole title as inert text, so a
 ; long name clips with an ellipsis before the gear rather than wrapping or
-; shrinking the title font.
+; shrinking the title font. It follows every MeasureMediaHeader update, on
+; that measure's own divider rather than every animation tick.
 [MeterHeading]
 Meter=String
+Group=ParallaxIdleFreeze
 MeterStyle=StyleTitle|StyleTitleRow
 X=(#ContentX#+#TitleIconSize#+#TitleIconGap#)
 Y=(#MediaHeaderY#+#TitleRowCenterY#-#Inset#)
 W=#MediaHeadingWidth#
 MeasureName=MeasureMediaHeader
 Text=%1
-UpdateDivider=1
+UpdateDivider=#MediaLegacyDivider#
 
 [MeterQueueRule]
 Meter=Shape
@@ -165,6 +172,7 @@ Hidden=#MediaQueueHidden#
 
 [MeterQueueStatus]
 Meter=String
+Group=ParallaxIdleFreeze
 MeterStyle=StyleLabel|MediaSecondaryStyle
 MeasureName=MeasureQueueStatus
 Hidden=#MediaQueueHidden#
@@ -181,6 +189,7 @@ LeftMouseUpAction=[!CommandMeasure MeasureMediaOptions "ToggleQueue()"]
 ; the original #MediaInterval# cadence; see InlineQueueGeometry.inc.
 [MeasureMediaOptions]
 Measure=Script
+Group=ParallaxIdlePause
 ScriptFile=#@#Modules\Media\MediaOptions.lua
 UpdateDivider=#MediaLegacyDivider#
 
@@ -195,6 +204,7 @@ OnUpdateAction=[!CommandMeasure MeasureMediaOptions "CheckAnchor()"]
 
 [MeasureQueueStatus]
 Measure=Script
+Group=ParallaxIdlePause
 ScriptFile=#@#Modules\Media\Queue\QueueReader.lua
 ; Compact footer labels; the standalone queue keeps the full status wording.
 Substitute="Storage unavailable":"Storage error","Spotify unavailable":"Spotify error","Queue unavailable":"Queue error","App quota reached":"Quota reached","Provider stopped":"Stopped"

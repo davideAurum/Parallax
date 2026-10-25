@@ -30,11 +30,14 @@ MeterStyle=StyleTitle | StyleTitleRow
 X=(#ContentX#+#TitleIconSize#+#TitleIconGap#)
 W=(#ContentWidth#-#TitleIconSize#-#TitleIconGap#-78*#Scale#)
 Text=Network
+; Static text: drawn from the refresh update, never changed afterwards.
+UpdateDivider=-1
 
 ; Native glyph layout needs room beyond visible ink, especially at Scale=0.75.
 ; Shared padding adds 6 px width / 2 px height: 44x18 and 28x18 totals.
 [MeterNetworkUnits]
 Meter=String
+Group=ParallaxIdleFreeze
 MeterStyle=StyleButton
 X=(#ContentX#+#ContentWidth#-76*#Scale#)
 Y=#TitleRowCenterY#
@@ -46,6 +49,7 @@ LeftMouseUpAction=[!CommandMeasure MeasureNetworkController "ToggleUnits()"]
 
 [MeterNetworkWidth]
 Meter=String
+Group=ParallaxIdleFreeze
 MeterStyle=StyleButton | StyleSecondaryButton
 X=(#ContentX#+#ContentWidth#-28*#Scale#)
 Y=#TitleRowCenterY#
@@ -62,6 +66,7 @@ Y=(#Inset#+242*#Scale#+#DataBarThicknessPx#)
 
 [MeterNetworkStatus]
 Meter=String
+Group=ParallaxIdleFreeze
 MeterStyle=StyleLabel
 Y=(#Inset#+246*#Scale#+#DataBarThicknessPx#)
 H=(18*#Scale#)
@@ -77,9 +82,11 @@ FontSize=(#HeaderFontSize#*#Scale#)
 FontWeight=600
 FontColor=#HeaderTextColor#
 Text=IN
+UpdateDivider=-1
 
 [MeterNetworkInRate]
 Meter=String
+Group=ParallaxIdleFreeze
 MeterStyle=StyleLabel
 X=(#ContentX#+#ContentWidth#)
 Y=(#Inset#+266*#Scale#+#DataBarThicknessPx#)
@@ -91,6 +98,7 @@ Text=--
 
 [MeterNetworkInCeiling]
 Meter=String
+Group=ParallaxIdleFreeze
 MeterStyle=StyleLabel
 Y=(#Inset#+284*#Scale#+#DataBarThicknessPx#)
 H=(18*#Scale#)
@@ -111,14 +119,15 @@ AntiAlias=1
 
 [MeterNetworkInGraph]
 Meter=Shape
+Group=ParallaxIdleFreeze
 X=#ContentX#
 Y=(#Inset#+304*#Scale#+#DataBarThicknessPx#)
 W=#ContentWidth#
 H=(#NetworkGraphHeight#*#Scale#)
 Shape=Rectangle 0,0,#ContentWidth#,(#NetworkGraphHeight#*#Scale#) | Fill Color 0,0,0,0 | StrokeWidth 0
 Shape2=Path History | Stroke Color #NetworkInColor# | StrokeWidth #Scale# | Fill Color 0,0,0,0
+; Network.lua's !SetOption of History/Shape2 forces a one-shot re-read on change.
 History=1,1 | LineTo 1,1
-DynamicVariables=1
 AntiAlias=1
 
 [MeterNetworkOutLabel]
@@ -131,9 +140,11 @@ FontSize=(#HeaderFontSize#*#Scale#)
 FontWeight=600
 FontColor=#HeaderTextColor#
 Text=OUT
+UpdateDivider=-1
 
 [MeterNetworkOutRate]
 Meter=String
+Group=ParallaxIdleFreeze
 MeterStyle=StyleLabel
 X=(#ContentX#+#ContentWidth#)
 Y=(#Inset#+352*#Scale#+#DataBarThicknessPx#)
@@ -145,6 +156,7 @@ Text=--
 
 [MeterNetworkOutCeiling]
 Meter=String
+Group=ParallaxIdleFreeze
 MeterStyle=StyleLabel
 Y=(#Inset#+370*#Scale#+#DataBarThicknessPx#)
 H=(18*#Scale#)
@@ -165,18 +177,20 @@ AntiAlias=1
 
 [MeterNetworkOutGraph]
 Meter=Shape
+Group=ParallaxIdleFreeze
 X=#ContentX#
 Y=(#Inset#+390*#Scale#+#DataBarThicknessPx#)
 W=#ContentWidth#
 H=(#NetworkGraphHeight#*#Scale#)
 Shape=Rectangle 0,0,#ContentWidth#,(#NetworkGraphHeight#*#Scale#) | Fill Color 0,0,0,0 | StrokeWidth 0
 Shape2=Path History | Stroke Color #NetworkOutColor# | StrokeWidth #Scale# | Fill Color 0,0,0,0
+; Network.lua's !SetOption of History/Shape2 forces a one-shot re-read on change.
 History=1,1 | LineTo 1,1
-DynamicVariables=1
 AntiAlias=1
 
 [MeterNetworkFooter]
 Meter=String
+Group=ParallaxIdleFreeze
 MeterStyle=StyleLabel
 Y=(#Inset#+436*#Scale#+#DataBarThicknessPx#)
 H=(18*#Scale#)

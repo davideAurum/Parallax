@@ -44,7 +44,8 @@ function Suite.run(sourcePath, includePath)
         for key, value in pairs(options.files or {}) do state.files[key] = value end
         local fakeSkin = {}
         function fakeSkin:GetVariable(name, fallback)
-            check(name == '@' or name == 'CURRENTFILE' or name == 'QueuePollSeconds' or name == 'SETTINGSPATH', 'Unexpected variable read: ' .. tostring(name))
+            check(name == '@' or name == 'CURRENTFILE' or name == 'QueuePollSeconds' or name == 'SETTINGSPATH'
+                or name == 'MediaLeaseRefreshAt' or name == 'MediaLeaseRefreshClock', 'Unexpected variable read: ' .. tostring(name))
             local value = state.variables[name]
             if value == false then return nil end
             return value == nil and fallback or value
@@ -110,11 +111,22 @@ function Suite.run(sourcePath, includePath)
                 end
             }
         end }, { __index = function() return forbidden end })
+        -- Wall time and this process's clock for the lease-refresh stamp
+        -- (MEDIA-08). Neither is read unless a nonzero stamp is present.
+        state.now = options.now or 1800000000
+        state.clock = options.clock or 5000.25
         local fakeOs = setmetatable({ getenv = function(name)
             check(name == 'LOCALAPPDATA' or name == 'SystemRoot' or name == 'APPDATA', 'Unexpected environment lookup')
             local value = state.environment[name]
             if value == false then return nil end
             return value
+        end, time = function(arg)
+            check(arg == nil, 'os.time() takes no table here')
+            state.timeReads = (state.timeReads or 0) + 1
+            return state.now
+        end, clock = function()
+            state.clockReads = (state.clockReads or 0) + 1
+            return state.clock
         end }, { __index = function() return forbidden end })
         local env = setmetatable({ SKIN = fakeSkin, io = fakeIo, os = fakeOs }, { __index = _G })
         local chunk = assert(loadfile(sourcePath)); setfenv(chunk, env); chunk()
@@ -273,6 +285,57 @@ function Suite.run(sourcePath, includePath)
             local options = { source = true, queue = true, variables = {}, environment = {} }
             if target == '@' or target == 'SETTINGSPATH' then options.variables[target] = false else options.environment[target] = false end
             local f = fixture(options); f.resume(); equal(#f.calls, 0, 'Missing path rejected'); f.finish()
+        end
+    end)
+    -- MEDIA-08: MediaOptions.ApplyLease stamps CaptureState.inc with
+    -- os.time() and floor(os.clock()) before the reload it causes. Only a
+    -- Media.ini load within 15 s, in the same process, skips both launches.
+    scenario('a fresh same-process lease stamp skips both Media.ini launches', function()
+        local now, clock = 1800000000, 5000.25
+        local function stampOf(age, clockAge) return { MediaLeaseRefreshAt = tostring(now - age), MediaLeaseRefreshClock = tostring(math.floor(clock - (clockAge or age))) } end
+        for _, age in ipairs({ 0, 1, 3, 15 }) do
+            local f = fixture({ source = true, queue = true, now = now, clock = clock, variables = stampOf(age) })
+            f.resume()
+            equal(#f.calls, 0, 'Fresh lease reload (' .. age .. ' s) launches nothing')
+            equal(#f.opens, 0, 'A skipped resume does not even probe intent files')
+            f.finish()
+        end
+        local f = fixture({ source = true, queue = true, now = now, clock = clock, variables = stampOf(2) })
+        f.resume(); f.resume()
+        equal(#f.calls, 0, 'Repeated callbacks in the skipped load stay quiet')
+        f.initialize()
+        f.variables.MediaLeaseRefreshAt, f.variables.MediaLeaseRefreshClock = '0', '0'
+        f.resume()
+        equal(#f.calls, 2, 'The next ordinary load (OnCloseAction wrote At=0) resumes both again')
+        f.finish()
+        for _, case in ipairs({
+            { 'stale (16 s)', stampOf(16) },
+            { 'zero stamp', { MediaLeaseRefreshAt = '0', MediaLeaseRefreshClock = '0' } },
+            { 'no stamp (Queue/older files)', {} },
+            { 'future stamp', { MediaLeaseRefreshAt = tostring(now + 5), MediaLeaseRefreshClock = tostring(math.floor(clock + 5)) } },
+            { 'garbage time', { MediaLeaseRefreshAt = 'abc', MediaLeaseRefreshClock = '4997' } },
+            { 'exponent time', { MediaLeaseRefreshAt = '1.8e9', MediaLeaseRefreshClock = '4997' } },
+            { 'negative time', { MediaLeaseRefreshAt = '-' .. (now - 3), MediaLeaseRefreshClock = '4997' } },
+            { 'fractional time', { MediaLeaseRefreshAt = (now - 3) .. '.5', MediaLeaseRefreshClock = '4997' } },
+            { 'hex time', { MediaLeaseRefreshAt = '0x6B49D1FD', MediaLeaseRefreshClock = '4997' } },
+            { 'garbage clock', { MediaLeaseRefreshAt = tostring(now - 3), MediaLeaseRefreshClock = '[MeasureX]' } },
+            { 'empty clock', { MediaLeaseRefreshAt = tostring(now - 3), MediaLeaseRefreshClock = '' } },
+            { 'restarted process (clock far behind)', stampOf(3, 3 + 1000) },
+            { 'restarted process (clock ahead)', stampOf(3, 3 - 100) },
+            { 'clock drift over 2 s', stampOf(5, 8) },
+        }) do
+            local g = fixture({ source = true, queue = true, now = now, clock = clock, variables = case[2] })
+            g.resume()
+            equal(#g.calls, 2, case[1] .. ': Media.ini resumes both providers as before')
+            commandIs(g.calls[1], 'Source'); commandIs(g.calls[2], 'Queue', 30)
+            g.finish()
+        end
+        for _, entry in ipairs({ 'Setup.ini', 'Queue.ini' }) do
+            local g = fixture({ currentFile = entry, source = true, queue = true, now = now, clock = clock, variables = stampOf(2) })
+            g.resume()
+            equal(#g.calls, 1, entry .. ' ignores a fresh lease stamp and resumes as before')
+            commandIs(g.calls[1], 'Queue', 30)
+            g.finish()
         end
     end)
     scenario('each launch fills its own hidden host before running it', function()

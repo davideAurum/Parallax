@@ -181,9 +181,23 @@ function Suite.run(Core, Connection, fixtures)
     local meterNames, measureNames = {}, {}
     for name in ('\n' .. read(fixtures.moduleRoot .. '\\ConnectionMeters.inc')):gmatch('\n%s*%[([^%]\r\n]+)%]') do meterNames[name] = true end
     for name in ('\n' .. read(fixtures.moduleRoot .. '\\ConnectionMeasures.inc')):gmatch('\n%s*%[([^%]\r\n]+)%]') do measureNames[name] = true end
+    -- Identity comes from Network's traffic bank in the same skin.
+    for name in ('\n' .. read(fixtures.moduleRoot .. '\\Measures.inc')):gmatch('\n%s*%[([^%]\r\n]+)%]') do measureNames[name] = true end
+    local function sections(path)
+        local result, current = {}, nil
+        for line in (read(path) .. '\n'):gmatch('([^\r\n]*)\r?\n') do
+            local name = line:match('^%[([^%]]+)%]$')
+            if name then current = {}; result[name] = current
+            elseif current then
+                local key, value = line:match('^([%w_]+)=(.*)$')
+                if key then current[key] = value end
+            end
+        end
+        return result
+    end
     local wifiNames = {'SSID', 'Quality', 'PHY', 'Rx', 'Tx'}
     local function controller(overrides)
-        local mock = {calls = {}, latest = {}, adapter = adapter(), wifi = wifi(), missing = {},
+        local mock = {calls = {}, latest = {}, adapter = adapter(), wifi = wifi(), missing = {}, reads = {},
             dimensions = {SignalWidth = 188, SignalHeight = 3},
             variables = { NetworkInterface = 'Best', NetworkWiFiEnabled = '1',
                 NetworkWiFiInterface = '0', GoodColor = '20,200,20', WarningColor = '200,150,20',
@@ -197,8 +211,9 @@ function Suite.run(Core, Connection, fixtures)
         function skin:GetVariable(key, default) return mock.variables[key] or default end
         function skin:GetMeasure(name)
             truth(measureNames[name], 'unknown controller measure: ' .. name)
+            mock.reads[name] = (mock.reads[name] or 0) + 1
             if mock.missing[name] then return nil end
-            local suffix = name:match('^MeasureConnection(.+)$')
+            local suffix = name:match('^MeasureConnection(.+)$') or name:match('^MeasureNetwork(.+)$')
             local source, key = mock.adapter, fields[suffix]
             if wifiFields[suffix] then source, key = mock.wifi, wifiFields[suffix] end
             truth(key, 'unmapped controller measure: ' .. name)
@@ -319,6 +334,76 @@ function Suite.run(Core, Connection, fixtures)
         end
         equal(mock:count('!WriteKeyValue'), 0)
     end)
+    test('adapter identity comes from the traffic bank, sampled on the connection bank ticks', function()
+        local connection = sections(fixtures.moduleRoot .. '\\ConnectionMeasures.inc')
+        local traffic = sections(fixtures.moduleRoot .. '\\Measures.inc')
+        local controllerOptions = connection.MeasureConnectionController
+        local bank = tonumber(controllerOptions.BankDivider)
+        truth(bank and bank >= 1, 'controller must declare its SysInfo bank divider')
+        for _, suffix in ipairs({'Alias', 'Description', 'Guid', 'Status', 'State'}) do
+            equal(connection['MeasureConnection' .. suffix], nil, 'duplicated identity measure ' .. suffix .. ' returned')
+            local source = traffic['MeasureNetwork' .. suffix]
+            truth(source and source.Measure == 'SysInfo' and source.SysInfoData == '#NetworkInterface#'
+                and source.UpdateDivider == '1', 'traffic identity measure ' .. suffix .. ' changed')
+        end
+        for name, options in pairs(connection) do
+            if options.Measure == 'SysInfo' then
+                equal(tonumber(options.UpdateDivider), bank, name .. ' must update on the controller bank ticks')
+            end
+        end
+        local mock = controller()
+        mock.dimensions.BankDivider = bank
+        mock.environment.Initialize()
+        mock:tick()
+        equal(mock.latest['MeterConnectionAdapter:Text'], 'Ethernet')
+        -- The traffic bank reports a renamed adapter between connection bank ticks.
+        mock.adapter.alias = 'Renamed adapter'
+        mock.reads = {}
+        for t = 1, bank - 1 do
+            mock:tick()
+            equal(mock.latest['MeterConnectionAdapter:Text'], 'Ethernet', 'identity changed between bank ticks')
+        end
+        equal(mock.reads.MeasureNetworkAlias, nil, 'identity was sampled off the bank ticks')
+        mock:tick()
+        equal(mock.latest['MeterConnectionAdapter:Text'], 'Renamed adapter', 'identity must follow on the next bank tick')
+        equal(mock.reads.MeasureNetworkAlias, 1)
+    end)
+
+    test('controller re-derives the view only on connection bank or Wi-Fi ticks', function()
+        local connection = sections(fixtures.moduleRoot .. '\\ConnectionMeasures.inc')
+        local options = connection.MeasureConnectionController
+        local bank, radio = tonumber(options.BankDivider), tonumber(options.WiFiDivider)
+        truth(radio and radio >= 1, 'controller must declare its Wi-Fi divider')
+        for _, suffix in ipairs(wifiNames) do
+            equal(tonumber(connection['MeasureConnectionWiFi' .. suffix].UpdateDivider), radio,
+                'Wi-Fi ' .. suffix .. ' must update on the controller Wi-Fi ticks')
+        end
+        local function schedule(overrides, last)
+            local mock = controller(overrides)
+            mock.dimensions.BankDivider, mock.dimensions.WiFiDivider = bank, radio
+            mock.environment.Initialize()
+            local worked = {}
+            for t = 0, last do
+                mock.reads = {}
+                local result = mock:tick()
+                equal(result, mock.latest['MeterConnectionSignalBar:Shape2']:match('^Rectangle') and 1 or 0,
+                    'skipped ticks must keep the measure value')
+                if next(mock.reads) then worked[#worked + 1] = t end
+            end
+            return table.concat(worked, ','), mock
+        end
+        local ticks, mock = schedule(nil, 20)
+        equal(ticks, '0,2,4,5,6,8,10,12,14,15,16,18,20')
+        -- A Wi-Fi update between bank ticks still shows on its own tick (25).
+        for _ = 21, 24 do mock:tick() end
+        mock.wifi.quality = 30
+        mock:tick()
+        equal(mock.latest['MeterConnectionSignal:Text'], '30%')
+        equal(schedule({NetworkWiFiEnabled = '0'}, 9), '0,2,4,6,8', 'disabled Wi-Fi adds no ticks')
+        local everyTick = controller()
+        for _ = 1, 3 do everyTick.reads = {}; everyTick:tick(); truth(next(everyTick.reads) ~= nil, 'default dividers run every tick') end
+    end)
+
     test('metadata controller has no companion width output or persistence action', function()
         local mock = controller({NetworkConnectionColumns = '2'})
         equal(rawget(mock.environment, 'ToggleWidth'), nil)

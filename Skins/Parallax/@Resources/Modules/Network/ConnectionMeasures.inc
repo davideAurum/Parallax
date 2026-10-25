@@ -1,41 +1,10 @@
 ; Adapter metadata stays on the same selector as Network's traffic measures.
-[MeasureConnectionAlias]
-Measure=SysInfo
-SysInfoType=ADAPTER_ALIAS
-SysInfoData=#NetworkInterface#
-UpdateDivider=2
-DynamicVariables=1
-
-[MeasureConnectionDescription]
-Measure=SysInfo
-SysInfoType=ADAPTER_DESCRIPTION
-SysInfoData=#NetworkInterface#
-UpdateDivider=2
-DynamicVariables=1
-
-[MeasureConnectionGuid]
-Measure=SysInfo
-SysInfoType=ADAPTER_GUID
-SysInfoData=#NetworkInterface#
-UpdateDivider=2
-DynamicVariables=1
-
-[MeasureConnectionStatus]
-Measure=SysInfo
-SysInfoType=ADAPTER_STATUS
-SysInfoData=#NetworkInterface#
-UpdateDivider=2
-DynamicVariables=1
-
-[MeasureConnectionState]
-Measure=SysInfo
-SysInfoType=ADAPTER_STATE
-SysInfoData=#NetworkInterface#
-UpdateDivider=2
-DynamicVariables=1
-
+; Alias, description, GUID, status and state come from Network's identical
+; MeasureNetwork* bank (Measures.inc, earlier in update order); the controller
+; samples them on this bank's ticks so the section stays one 2 s snapshot.
 [MeasureConnectionType]
 Measure=SysInfo
+Group=ParallaxIdlePause
 SysInfoType=ADAPTER_TYPE
 SysInfoData=#NetworkInterface#
 UpdateDivider=2
@@ -44,11 +13,13 @@ DynamicVariables=1
 ; Native Internet status is PC-wide; SysInfoData cannot scope it to one adapter.
 [MeasureConnectionInternet]
 Measure=SysInfo
+Group=ParallaxIdlePause
 SysInfoType=INTERNET_CONNECTIVITY
 UpdateDivider=2
 
 [MeasureConnectionIP]
 Measure=SysInfo
+Group=ParallaxIdlePause
 SysInfoType=IP_ADDRESS
 SysInfoData=#NetworkInterface#
 UpdateDivider=2
@@ -56,6 +27,7 @@ DynamicVariables=1
 
 [MeasureConnectionGateway]
 Measure=SysInfo
+Group=ParallaxIdlePause
 SysInfoType=GATEWAY_ADDRESS
 SysInfoData=#NetworkInterface#
 UpdateDivider=2
@@ -63,6 +35,7 @@ DynamicVariables=1
 
 [MeasureConnectionRxLink]
 Measure=SysInfo
+Group=ParallaxIdlePause
 SysInfoType=ADAPTER_RECEIVE_SPEED
 SysInfoData=#NetworkInterface#
 UpdateDivider=2
@@ -70,6 +43,7 @@ DynamicVariables=1
 
 [MeasureConnectionTxLink]
 Measure=SysInfo
+Group=ParallaxIdlePause
 SysInfoType=ADAPTER_TRANSMIT_SPEED
 SysInfoData=#NetworkInterface#
 UpdateDivider=2
@@ -82,7 +56,7 @@ Measure=WiFiStatus
 WiFiInfoType=SSID
 WiFiIntfID=0
 Disabled=1
-Group=ConnectionWiFi
+Group=ConnectionWiFi|ParallaxIdlePause
 UpdateDivider=5
 DynamicVariables=1
 
@@ -91,7 +65,7 @@ Measure=WiFiStatus
 WiFiInfoType=Quality
 WiFiIntfID=0
 Disabled=1
-Group=ConnectionWiFi
+Group=ConnectionWiFi|ParallaxIdlePause
 UpdateDivider=5
 DynamicVariables=1
 
@@ -100,7 +74,7 @@ Measure=WiFiStatus
 WiFiInfoType=PHY
 WiFiIntfID=0
 Disabled=1
-Group=ConnectionWiFi
+Group=ConnectionWiFi|ParallaxIdlePause
 UpdateDivider=5
 DynamicVariables=1
 
@@ -110,7 +84,7 @@ Measure=WiFiStatus
 WiFiInfoType=RXRate
 WiFiIntfID=0
 Disabled=1
-Group=ConnectionWiFi
+Group=ConnectionWiFi|ParallaxIdlePause
 UpdateDivider=5
 DynamicVariables=1
 
@@ -119,15 +93,20 @@ Measure=WiFiStatus
 WiFiInfoType=TXRate
 WiFiIntfID=0
 Disabled=1
-Group=ConnectionWiFi
+Group=ConnectionWiFi|ParallaxIdlePause
 UpdateDivider=5
 DynamicVariables=1
 
 [MeasureConnectionController]
 Measure=Script
+Group=ParallaxIdlePause
 ScriptFile=#@#Modules\Network\Connection.lua
 CoreFile=#@#Modules\Network\Core.lua
 ConnectionCoreFile=#@#Modules\Network\ConnectionCore.lua
 SignalWidth=#ContentWidth#
 SignalHeight=#DataBarThicknessPx#
+; Must equal the UpdateDivider of the SysInfo connection bank and of the
+; Wi-Fi measures above: the controller only re-derives the view on their ticks.
+BankDivider=2
+WiFiDivider=5
 UpdateDivider=1

@@ -14,7 +14,12 @@ api['load'](api['ROOT'] / 'GPU' / 'Settings' / 'Settings.ini')
 sections = api['sections']
 assert sections['Rainmeter']['Group'] == 'Parallax'
 assert sections['Variables']['Columns'] == '2'
-assert sections['Variables']['PanelHeight'] == '648'
+# The window grows by one 28 px row for Process table and another for its
+# Process VRAM detail, which collapses while the table is off.
+assert sections['Variables']['GPUShowProcesses'] in ('0', '1')
+assert sections['Variables']['GPUSettingsVRAMRow'] == '(#GPUShowProcesses#=1)'
+assert sections['Variables']['GPUSettingsShift'] == '(28+28*#GPUSettingsVRAMRow#)'
+assert sections['Variables']['PanelHeight'] == '(648+#GPUSettingsShift#)'
 assert sections['Variables']['GPUPowerSource'] == '0'
 assert sections['Variables']['GPUClockSource'] == '0'
 assert sections['MeasureGPUSettings']['UpdateDivider'] == '-1'
@@ -23,7 +28,7 @@ meters = {name: api['effective'](name) for name, opts in sections.items() if 'Me
 assert not [(name, key) for name, opts in sections.items() for key in opts if key.lower().startswith('tooltip')], 'tooltips were removed 2026-10-11'
 assert 'tooltip' not in (Path(__file__).resolve().parents[1] / 'Settings.lua').read_text(encoding='utf-8').lower()
 steppers = {'Columns': 56, 'PowerSource': 56, 'ClockSource': 56, 'Hive': 112}
-assert len(meters) == 61
+assert len(meters) == 65
 assert sections['MeasureGPUSettingsInput']['StartInFolder'] == '#@#Scripts\\'
 assert sections['MeasureGPUSettingsInput']['Parameter'] == ''
 assert sections['MeasureGPUSettingsInput']['FinishAction'] == '[!UpdateMeasure MeasureGPUSettingsInput][!CommandMeasure MeasureGPUSettings "CommitColumnsInput()"]'
@@ -41,7 +46,7 @@ for name in ('MeterSettingsHiveValue', 'MeterSettingsKeyValue', 'MeterSettingsPo
              'MeterSettingsClockValue', 'MeterSettingsRescan', 'MeterSettingsGuide',
              'MeterSettingsAdvanced', 'MeterSettingsTemperatureClear'):
     assert meters[name].get('Hidden', '0') == '0', 'provider setup must not collapse'
-for field in ('Columns', 'Height', 'Temperature', 'PowerSource', 'ClockSource', 'Sensors', 'Hive', 'Key', 'Power', 'Clock'):
+for field in ('Columns', 'Height', 'Processes', 'ProcessMemory', 'Temperature', 'PowerSource', 'ClockSource', 'Sensors', 'Hive', 'Key', 'Power', 'Clock'):
     label, value = meters['MeterSettings' + field + 'Label'], meters['MeterSettings' + field + 'Value']
     assert 'StyleUtilitySettingsLabel' in label['MeterStyle'], field
     assert value['FontColor'] == '#TextColor#', field
@@ -71,6 +76,13 @@ for suffix in ('Label', 'Value'):
 assert meters['MeterSettingsTemperatureValue']['Text'] == 'Driver'
 assert meters['MeterSettingsTemperatureClear']['LeftMouseUpAction'] == '[!CommandMeasure MeasureGPUSettings "RefreshGPU()"]'
 assert meters['MeterSettingsSensorsValue']['LeftMouseUpAction'] == '[!CommandMeasure MeasureGPUSettings "ToggleSensors()"]'
+for field, action in (('Processes', 'ToggleProcesses()'), ('ProcessMemory', 'ToggleProcessMemory()')):
+    for suffix in ('Label', 'Value'):
+        assert meters['MeterSettings' + field + suffix]['LeftMouseUpAction'] == f'[!CommandMeasure MeasureGPUSettings "{action}"]'
+# The table toggle stays accessible; only its VRAM detail collapses.
+assert 'Hidden' not in sections['MeterSettingsProcessesLabel'] and 'Hidden' not in sections['MeterSettingsProcessesValue']
+for suffix in ('Label', 'Value'):
+    assert sections['MeterSettingsProcessMemory' + suffix]['Hidden'] == '(1-#GPUSettingsVRAMRow#)'
 assert meters['MeterSettingsGlobal']['LeftMouseUpAction'] == '[!ActivateConfig "Parallax\\Settings" "Settings.ini"]'
 assert meters['MeterSettingsClose']['LeftMouseUpAction'] == '[!CommandMeasure MeasureGPUSettings "Close()"]'
 assert meters['MeterSettingsColumnsValue']['LeftMouseUpAction'] == '[!CommandMeasure MeasureGPUSettings "BeginColumnsEdit()"]'
@@ -91,18 +103,31 @@ for index in range(1, 6):
     assert 'StyleUtilitySettingsValue' in row['MeterStyle']
     assert row['LeftMouseUpAction'] == f'[!CommandMeasure MeasureGPUSettings "Select({index})"]'
 cases = 0
-for width, scale, monitor_columns, title_size in itertools.product(
-        (180, 200, 220, 240, 280, 320), (.75, 1, 1.25, 1.5, 2), (1, 2), (6, 10, 12)):
-    variables = dict(sections['Variables'], ColumnWidth=str(width), Scale=str(scale), TitleFontSize=str(title_size))
+for width, scale, monitor_columns, title_size, table in itertools.product(
+        (180, 200, 220, 240, 280, 320), (.75, 1, 1.25, 1.5, 2), (1, 2), (6, 10, 12), ('1', '0')):
+    variables = dict(sections['Variables'], ColumnWidth=str(width), Scale=str(scale), TitleFontSize=str(title_size),
+                     GPUShowProcesses=table)
     n = lambda value: api['number'](value, variables)
     bounds = (n('#WindowWidth#'), n('#WindowHeight#'))
     assert n('#Columns#') == 2
+    assert math.isclose(n('#PanelHeight#'), 704 if table == '1' else 676)
     top = lambda field: n(meters['MeterSettings' + field + ('Frame' if field in steppers else 'Value')]['Y'])
     assert top('Height') - top('Columns') == 28 * scale
+    assert math.isclose(top('Processes') - top('Height'), 28 * scale)
+    shown = ('Processes', 'ProcessMemory') if table == '1' else ('Processes',)
+    if table == '1':
+        assert math.isclose(top('ProcessMemory') - top('Processes'), 28 * scale)
+    else:
+        # Collapsed: hidden, no size, no hit target, and the rows below move up.
+        for suffix in ('Label', 'Value'):
+            row = meters['MeterSettingsProcessMemory' + suffix]
+            assert n(row['Hidden']) == 1 and n(row['Y']) == 0 and n(row['W']) == 0 and n(row['H']) == 0
+            assert all(n(part) == 0 for part in row.get('Padding', '0,0,0,0').split(','))
+    assert math.isclose(n(meters['MeterSettingsSensorsSection']['Y']) - top(shown[-1]), (162 - 128 - 2) * scale + 2 * scale)
     fields = ('Temperature', 'PowerSource', 'ClockSource', 'Sensors', 'Hive', 'Key', 'Power', 'Clock')
     for before, after in zip(fields, fields[1:]):
         assert math.isclose(top(after) - top(before), 28 * scale)
-    for field in ('Columns', 'Height') + fields:
+    for field in ('Columns', 'Height') + shown + fields:
         label, value = meters['MeterSettings' + field + 'Label'], meters['MeterSettings' + field + 'Value']
         assert math.isclose(n(label['X']), n('#ContentX#'))
         assert math.isclose(n(label['Y']), top(field) + 2 * scale)
@@ -148,5 +173,5 @@ for width, scale, monitor_columns, title_size in itertools.product(
     assert math.isclose(n(title['Y']), n('#TitleRowCenterY#'))
     assert math.isclose(n(close['Y']), n('#TitleRowCenterY#'))
     cases += 1
-print(f'PASS: {len(meters)} settings meters; {cases} independent geometry cases; no string overlap; Accent 1 sections, accessible provider setup, Global-style values and preserved actions.')
+print(f'PASS: {len(meters)} settings meters; {cases} independent geometry cases (process table on and off); no string overlap; Accent 1 sections, accessible provider setup, Global-style values and preserved actions.')
 print('Offline checks do not validate font rendering, registry exports, or provider behavior.')

@@ -66,11 +66,32 @@ local function readExpanded()
     return value == '1' and '1' or '0'
 end
 
+local standbyChecked
+
 function Initialize()
     settingsPath = SKIN:GetVariable('@') .. 'User\\Media.inc'
+    standbyChecked = false
 end
 
-function Update() return 'Queue' end
+local IDLE_MINUTES = { ['5'] = true, ['10'] = true, ['30'] = true }
+
+-- Idle stand-down load validation (Global Settings Idle pause): a Media.ini
+-- load built in standby while the pause is Off (or holds a hand-edited value)
+-- has no hook to bring it back, so it returns to live here, once per load.
+-- Setup.ini and Queue.ini never act on the saved standby.
+local function checkStandby()
+    standbyChecked = true
+    if SKIN:GetVariable('CURRENTFILE', '') ~= 'Media.ini' then return end
+    if SKIN:GetVariable('MediaStandby', '0') ~= '1' then return end
+    local minutes = (SKIN:GetVariable('IdlePauseMinutes', '0') or ''):match('^%s*(.-)%s*$')
+    if IDLE_MINUTES[minutes] then return end
+    IdleStandby(0, 'fail-live')
+end
+
+function Update()
+    if not standbyChecked then checkStandby() end
+    return 'Queue'
+end
 
 -- An unreadable or unsaved preference leaves the queue display unchanged.
 local function setExpanded(requested)
@@ -177,6 +198,103 @@ local function placeAnchor(expected, live)
     return true
 end
 
+-- Capture lease -------------------------------------------------------------
+-- Modules\Media\CaptureState.inc holds the drawer's runtime capture state:
+-- MediaDrawerCapture 0 live, 1 capture paused, 2 deferred to the standalone
+-- Audio Visualizer, and MediaStandby. ApplyLease is the only writer. A lease
+-- change (park, unpark, defer, reclaim, standby or fail-live) also stamps the
+-- reload it causes, so MediaLifecycle skips the provider resume for it
+-- (MEDIA-08), and reloads this skin once per load at most; several changes
+-- before that posted reload coalesce into it. A 'toggle' change (the tab or
+-- Media settings) writes the state only: the toggle's own reload carries it.
+local LEASE_REASONS = { park = true, unpark = true, defer = true, reclaim = true, standby = true, ['fail-live'] = true }
+local leaseRefreshed = false
+
+local function statePath()
+    return SKIN:GetVariable('@') .. 'Modules\\Media\\CaptureState.inc'
+end
+
+-- The saved capture and standby values, or nil when the file cannot be read
+-- or has no single value for each key.
+local function readLease()
+    local values, found = readSection(statePath(), 65536, 'Variables', { mediadrawercapture = true, mediastandby = true })
+    if not values or not found then return nil end
+    return values.mediadrawercapture or '0', values.mediastandby or '0'
+end
+
+-- capture: 0, 1, 2 or nil to keep; standby: 0, 1 or nil to keep; reason: one
+-- of LEASE_REASONS, or 'toggle'. Returns true when the state changed and
+-- reads back as written.
+function ApplyLease(capture, standby, reason)
+    local savedCapture, savedStandby = readLease()
+    if not savedCapture then return false end
+    local wantCapture = capture == nil and savedCapture or tostring(capture)
+    local wantStandby = standby == nil and savedStandby or tostring(standby)
+    if wantCapture ~= '0' and wantCapture ~= '1' and wantCapture ~= '2' then return false end
+    if wantStandby ~= '0' and wantStandby ~= '1' then return false end
+    if wantCapture == savedCapture and wantStandby == savedStandby then return false end
+    local path = statePath()
+    if wantCapture ~= savedCapture then SKIN:Bang('!WriteKeyValue', 'Variables', 'MediaDrawerCapture', wantCapture, path) end
+    if wantStandby ~= savedStandby then SKIN:Bang('!WriteKeyValue', 'Variables', 'MediaStandby', wantStandby, path) end
+    local lease = LEASE_REASONS[reason] == true
+    if lease then
+        SKIN:Bang('!WriteKeyValue', 'Variables', 'MediaLeaseRefreshAt', string.format('%d', os.time()), path)
+        SKIN:Bang('!WriteKeyValue', 'Variables', 'MediaLeaseRefreshClock', string.format('%d', math.floor(os.clock())), path)
+    end
+    local backCapture, backStandby = readLease()
+    if backCapture ~= wantCapture or backStandby ~= wantStandby then return false end
+    if lease and not leaseRefreshed then
+        leaseRefreshed = true
+        SKIN:Bang('!Refresh')
+    end
+    return true
+end
+
+-- The idle stand-down's single write (@Resources\Idle\StandDown.lua sends
+-- IdleStandby(level, reason) here; Media.ini only). Standby and the open
+-- drawer's capture change together, so entering and leaving standby is one
+-- coalesced reload: level 1 also parks a live open drawer (released capture,
+-- "Capture paused"); level 0 takes a parked drawer back to live, since input
+-- is what ends standby and the capture lease would unpark on input anyway. A
+-- deferred drawer stays deferred. The lease stamp skips the provider resume
+-- on that reload (MEDIA-08). ParallaxIdleStandbyPending tells the hook, which
+-- reads it right after this call, whether this load's reload is now posted
+-- (this write's or an earlier one's): without one, a skin frozen in standby
+-- leaves in place instead of staying frozen while the user is active.
+function IdleStandby(level, reason)
+    level = tonumber(level) == 1 and 1 or 0
+    local capture = tonumber(SKIN:GetVariable('MediaDrawerCapture', '0')) or 0
+    local open = SKIN:GetVariable('VisualizerDrawer', '1') == '2'
+    if level == 1 and capture == 0 and open then capture = 1 end
+    if level == 0 and capture == 1 then capture = 0 end
+    if reason ~= 'fail-live' then reason = 'standby' end
+    local changed = ApplyLease(capture, level, reason)
+    SKIN:Bang('!SetVariable', 'ParallaxIdleStandbyPending', leaseRefreshed and '1' or '0')
+    return changed
+end
+
+-- One capture at a time (XMOD-02): an opening drawer starts deferred while
+-- Rainmeter.ini records the standalone Audio Visualizer loaded (Active=1, its
+-- only skin file), and live otherwise; the lease re-checks after each load.
+local function openingCapture()
+    local values = readSection(rainmeterIni(), 4194304, SKIN:GetVariable('ROOTCONFIG', 'Parallax') .. '\\Visualizer', { active = true })
+    return values and values.active == '1' and 2 or 0
+end
+
+-- Collapsing or hiding the drawer: ask a loaded Parallax\Idle coordinator to
+-- re-check whether anything still needs it (@Resources\Idle\Link.lua). A
+-- silent group request; nothing happens when the coordinator is not loaded
+-- or the link file is missing.
+local function requestReevaluate()
+    -- Rainmeter's dofile logs an error for a missing file, so look first.
+    local path = SKIN:GetVariable('@') .. 'Idle\\Link.lua'
+    local file = io.open(path, 'rb')
+    if not file then return end
+    file:close()
+    local ok, link = pcall(function() return dofile(path).new(SKIN) end)
+    if ok and type(link) == 'table' then link.requestReevaluate() end
+end
+
 -- The tab: collapsed <-> open, from what is on screen. Hidden is chosen only in
 -- Media settings (the tab does not show then). An unreadable or unsaved
 -- preference, or no usable lift, leaves the drawer as it is.
@@ -191,7 +309,11 @@ function ToggleVisualizer()
     end
     SKIN:Bang('!WriteKeyValue', 'Variables', 'VisualizerDrawer', value, settingsPath)
     if readDrawer() ~= value then return false end
+    -- Opening or collapsing starts the drawer live, or deferred to a loaded
+    -- standalone Audio Visualizer.
+    ApplyLease(openingCapture(), nil, 'toggle')
     placeAnchor(lift, false)
+    if value ~= '2' then requestReevaluate() end
     -- Keep an already-open settings panel in sync with the tab.
     SKIN:Bang('!Refresh', 'Parallax\\Media\\Settings')
     SKIN:Bang('!Refresh')
@@ -216,6 +338,8 @@ function ApplyVisualizerPreference()
         local lift = 0
         if state == '2' then lift = openLift() end
         if lift then placeAnchor(lift, false) end
+        ApplyLease(openingCapture(), nil, 'toggle')
+        if state ~= '2' then requestReevaluate() end
     end
     SKIN:Bang('!Refresh')
     return true

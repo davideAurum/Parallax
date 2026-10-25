@@ -3,6 +3,7 @@
 ; product follows Windows' aggregate performance-clock model without a helper.
 [MeasureCPUNativeFrequency]
 Measure=Plugin
+Group=ParallaxIdlePause
 Plugin=UsageMonitor
 Category=Processor Information
 Counter=Processor Frequency
@@ -16,6 +17,7 @@ UpdateDivider=1
 
 [MeasureCPUNativePerformance]
 Measure=Plugin
+Group=ParallaxIdlePause
 Plugin=UsageMonitor
 Category=Processor Information
 Counter=% Processor Performance
@@ -29,6 +31,7 @@ UpdateDivider=1
 
 [MeasureCPUNativeClock]
 Measure=Calc
+Group=ParallaxIdlePause
 Formula=(MeasureCPUNativeFrequency>0 && MeasureCPUNativePerformance>0 ? MeasureCPUNativeFrequency*MeasureCPUNativePerformance/100 : 0)
 MinValue=0
 MaxValue=10000
@@ -39,7 +42,7 @@ UpdateDivider=1
 Measure=Process
 ProcessName=HWiNFO64.exe
 UpdateDivider=(Max(1,Ceil(#CPUSensorInterval#/Max(1,#CPUUpdateInterval#))))
-Group=CPUSensorNative
+Group=CPUSensorNative|ParallaxIdlePause
 
 [MeasureCPUSensorNamesUser]
 Measure=Registry
@@ -49,7 +52,7 @@ RegKey=SOFTWARE\HWiNFO64\VSB
 OutputType=ValueList
 OutputDelimiter=|
 UpdateDivider=(Max(1,Ceil(#CPUSensorInterval#/Max(1,#CPUUpdateInterval#))))
-Group=CPUSensorNative
+Group=CPUSensorNative|ParallaxIdlePause
 
 [MeasureCPUSensorNamesMachine]
 Measure=Registry
@@ -59,7 +62,7 @@ RegKey=SOFTWARE\HWiNFO64\VSB
 OutputType=ValueList
 OutputDelimiter=|
 UpdateDivider=(Max(1,Ceil(#CPUSensorInterval#/Max(1,#CPUUpdateInterval#))))
-Group=CPUSensorNative
+Group=CPUSensorNative|ParallaxIdlePause
 
 [MeasureCPUSensorTemperatureSensor]
 Measure=Registry
@@ -68,7 +71,7 @@ RegKey=SOFTWARE\HWiNFO64\VSB
 RegValue=Sensor0
 Disabled=1
 UpdateDivider=(Max(1,Ceil(#CPUSensorInterval#/Max(1,#CPUUpdateInterval#))))
-Group=CPUSensorNative
+Group=CPUSensorNative|ParallaxIdlePause
 
 [MeasureCPUSensorTemperatureLabel]
 Measure=Registry
@@ -77,7 +80,7 @@ RegKey=SOFTWARE\HWiNFO64\VSB
 RegValue=Label0
 Disabled=1
 UpdateDivider=(Max(1,Ceil(#CPUSensorInterval#/Max(1,#CPUUpdateInterval#))))
-Group=CPUSensorNative
+Group=CPUSensorNative|ParallaxIdlePause
 
 [MeasureCPUSensorTemperatureFormatted]
 Measure=Registry
@@ -86,7 +89,7 @@ RegKey=SOFTWARE\HWiNFO64\VSB
 RegValue=Value0
 Disabled=1
 UpdateDivider=(Max(1,Ceil(#CPUSensorInterval#/Max(1,#CPUUpdateInterval#))))
-Group=CPUSensorNative
+Group=CPUSensorNative|ParallaxIdlePause
 
 [MeasureCPUSensorTemperatureRaw]
 Measure=Registry
@@ -95,7 +98,7 @@ RegKey=SOFTWARE\HWiNFO64\VSB
 RegValue=ValueRaw0
 Disabled=1
 UpdateDivider=(Max(1,Ceil(#CPUSensorInterval#/Max(1,#CPUUpdateInterval#))))
-Group=CPUSensorNative
+Group=CPUSensorNative|ParallaxIdlePause
 
 [MeasureCPUSensorVoltageSensor]
 Measure=Registry
@@ -104,7 +107,7 @@ RegKey=SOFTWARE\HWiNFO64\VSB
 RegValue=Sensor0
 Disabled=1
 UpdateDivider=(Max(1,Ceil(#CPUSensorInterval#/Max(1,#CPUUpdateInterval#))))
-Group=CPUSensorNative
+Group=CPUSensorNative|ParallaxIdlePause
 
 [MeasureCPUSensorVoltageLabel]
 Measure=Registry
@@ -113,7 +116,7 @@ RegKey=SOFTWARE\HWiNFO64\VSB
 RegValue=Label0
 Disabled=1
 UpdateDivider=(Max(1,Ceil(#CPUSensorInterval#/Max(1,#CPUUpdateInterval#))))
-Group=CPUSensorNative
+Group=CPUSensorNative|ParallaxIdlePause
 
 [MeasureCPUSensorVoltageFormatted]
 Measure=Registry
@@ -122,7 +125,7 @@ RegKey=SOFTWARE\HWiNFO64\VSB
 RegValue=Value0
 Disabled=1
 UpdateDivider=(Max(1,Ceil(#CPUSensorInterval#/Max(1,#CPUUpdateInterval#))))
-Group=CPUSensorNative
+Group=CPUSensorNative|ParallaxIdlePause
 
 [MeasureCPUSensorVoltageRaw]
 Measure=Registry
@@ -131,7 +134,7 @@ RegKey=SOFTWARE\HWiNFO64\VSB
 RegValue=ValueRaw0
 Disabled=1
 UpdateDivider=(Max(1,Ceil(#CPUSensorInterval#/Max(1,#CPUUpdateInterval#))))
-Group=CPUSensorNative
+Group=CPUSensorNative|ParallaxIdlePause
 
 [MeasureCPUSensorClockSensor]
 Measure=Registry
@@ -140,7 +143,7 @@ RegKey=SOFTWARE\HWiNFO64\VSB
 RegValue=Sensor0
 Disabled=1
 UpdateDivider=(Max(1,Ceil(#CPUSensorInterval#/Max(1,#CPUUpdateInterval#))))
-Group=CPUSensorNative
+Group=CPUSensorNative|ParallaxIdlePause
 
 [MeasureCPUSensorClockLabel]
 Measure=Registry
@@ -149,7 +152,7 @@ RegKey=SOFTWARE\HWiNFO64\VSB
 RegValue=Label0
 Disabled=1
 UpdateDivider=(Max(1,Ceil(#CPUSensorInterval#/Max(1,#CPUUpdateInterval#))))
-Group=CPUSensorNative
+Group=CPUSensorNative|ParallaxIdlePause
 
 [MeasureCPUSensorClockFormatted]
 Measure=Registry
@@ -158,7 +161,7 @@ RegKey=SOFTWARE\HWiNFO64\VSB
 RegValue=Value0
 Disabled=1
 UpdateDivider=(Max(1,Ceil(#CPUSensorInterval#/Max(1,#CPUUpdateInterval#))))
-Group=CPUSensorNative
+Group=CPUSensorNative|ParallaxIdlePause
 
 [MeasureCPUSensorClockRaw]
 Measure=Registry
@@ -167,7 +170,7 @@ RegKey=SOFTWARE\HWiNFO64\VSB
 RegValue=ValueRaw0
 Disabled=1
 UpdateDivider=(Max(1,Ceil(#CPUSensorInterval#/Max(1,#CPUUpdateInterval#))))
-Group=CPUSensorNative
+Group=CPUSensorNative|ParallaxIdlePause
 
 [MeasureCPUSensorFanSensor]
 Measure=Registry
@@ -176,7 +179,7 @@ RegKey=SOFTWARE\HWiNFO64\VSB
 RegValue=Sensor0
 Disabled=1
 UpdateDivider=(Max(1,Ceil(#CPUSensorInterval#/Max(1,#CPUUpdateInterval#))))
-Group=CPUSensorNative
+Group=CPUSensorNative|ParallaxIdlePause
 
 [MeasureCPUSensorFanLabel]
 Measure=Registry
@@ -185,7 +188,7 @@ RegKey=SOFTWARE\HWiNFO64\VSB
 RegValue=Label0
 Disabled=1
 UpdateDivider=(Max(1,Ceil(#CPUSensorInterval#/Max(1,#CPUUpdateInterval#))))
-Group=CPUSensorNative
+Group=CPUSensorNative|ParallaxIdlePause
 
 [MeasureCPUSensorFanFormatted]
 Measure=Registry
@@ -194,7 +197,7 @@ RegKey=SOFTWARE\HWiNFO64\VSB
 RegValue=Value0
 Disabled=1
 UpdateDivider=(Max(1,Ceil(#CPUSensorInterval#/Max(1,#CPUUpdateInterval#))))
-Group=CPUSensorNative
+Group=CPUSensorNative|ParallaxIdlePause
 
 [MeasureCPUSensorFanRaw]
 Measure=Registry
@@ -203,7 +206,7 @@ RegKey=SOFTWARE\HWiNFO64\VSB
 RegValue=ValueRaw0
 Disabled=1
 UpdateDivider=(Max(1,Ceil(#CPUSensorInterval#/Max(1,#CPUUpdateInterval#))))
-Group=CPUSensorNative
+Group=CPUSensorNative|ParallaxIdlePause
 
 [MeasureCPUSensorMotherboardFanSensor]
 Measure=Registry
@@ -212,7 +215,7 @@ RegKey=SOFTWARE\HWiNFO64\VSB
 RegValue=Sensor0
 Disabled=1
 UpdateDivider=(Max(1,Ceil(#CPUSensorInterval#/Max(1,#CPUUpdateInterval#))))
-Group=CPUSensorNative
+Group=CPUSensorNative|ParallaxIdlePause
 
 [MeasureCPUSensorMotherboardFanLabel]
 Measure=Registry
@@ -221,7 +224,7 @@ RegKey=SOFTWARE\HWiNFO64\VSB
 RegValue=Label0
 Disabled=1
 UpdateDivider=(Max(1,Ceil(#CPUSensorInterval#/Max(1,#CPUUpdateInterval#))))
-Group=CPUSensorNative
+Group=CPUSensorNative|ParallaxIdlePause
 
 [MeasureCPUSensorMotherboardFanFormatted]
 Measure=Registry
@@ -230,7 +233,7 @@ RegKey=SOFTWARE\HWiNFO64\VSB
 RegValue=Value0
 Disabled=1
 UpdateDivider=(Max(1,Ceil(#CPUSensorInterval#/Max(1,#CPUUpdateInterval#))))
-Group=CPUSensorNative
+Group=CPUSensorNative|ParallaxIdlePause
 
 [MeasureCPUSensorMotherboardFanRaw]
 Measure=Registry
@@ -239,7 +242,7 @@ RegKey=SOFTWARE\HWiNFO64\VSB
 RegValue=ValueRaw0
 Disabled=1
 UpdateDivider=(Max(1,Ceil(#CPUSensorInterval#/Max(1,#CPUUpdateInterval#))))
-Group=CPUSensorNative
+Group=CPUSensorNative|ParallaxIdlePause
 
 [CPUCoreSensorMeasureInclude]
 @Include10=#@#Modules\CPU\CoreSensorMeasures.inc
@@ -258,6 +261,7 @@ FinishAction=[!UpdateMeasure MeasureCPUSensorDiscover][!CommandMeasure MeasureCP
 
 [MeasureCPUSensors]
 Measure=Script
+Group=ParallaxIdlePause
 ScriptFile=#@#Modules\CPU\Sensors.lua
 UpdateDivider=(Max(1,Ceil(#CPUSensorInterval#/Max(1,#CPUUpdateInterval#))))
 

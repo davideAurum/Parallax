@@ -23,7 +23,7 @@ $outer=@"
     public static string LifecycleFixture()
     {
         string luid="00000000000000AB";
-        string token=CreateSession(luid,1000).Split('|')[2];Paths paths=new Paths(token);
+        string token=Guid.NewGuid().ToString("N");Paths paths=new Paths(token);
         Exception failure=null;
         Driver.FixtureOpenStatus="UNSUPPORTED";Driver.FixtureOpened.Reset();
         Thread worker=new Thread(delegate(){try{Run(token,luid,1000);}catch(Exception error){failure=error;}});
@@ -42,6 +42,32 @@ $outer=@"
             if(failure!=null)throw failure;
             if(File.Exists(paths.Data)||File.Exists(paths.Lease)||File.Exists(paths.Temporary))throw new Exception("Session files remain");
             return "PASS: one-host terminal-state publication, original lease expiry and session cleanup";
+        }
+        finally{Driver.FixtureOpenStatus=null;Delete(paths.Data);Delete(paths.Lease);Delete(paths.Temporary);}
+    }
+    // The detached host's stop request: the skin removes the lease on close.
+    public static string LeaseRemovalFixture()
+    {
+        string luid="00000000000000AB";
+        string token=Guid.NewGuid().ToString("N");Paths paths=new Paths(token);
+        Exception failure=null;
+        Driver.FixtureOpenStatus="UNSUPPORTED";Driver.FixtureOpened.Reset();
+        Thread worker=new Thread(delegate(){try{Run(token,luid,1000);}catch(Exception error){failure=error;}});
+        worker.IsBackground=true;
+        try
+        {
+            WriteNew(paths.Lease,token+"|"+Number(Now()));
+            worker.Start();
+            if(!Driver.FixtureOpened.WaitOne(5000))throw new Exception("Helper did not open");
+            Thread.Sleep(100);
+            if(!File.Exists(paths.Data))throw new Exception("No sample before stop request");
+            System.Diagnostics.Stopwatch watch=System.Diagnostics.Stopwatch.StartNew();
+            File.Delete(paths.Lease);
+            if(!worker.Join(2500))throw new Exception("Removed lease did not stop helper within one interval");
+            long elapsed=watch.ElapsedMilliseconds;
+            if(failure!=null)throw failure;
+            if(File.Exists(paths.Data)||File.Exists(paths.Lease)||File.Exists(paths.Temporary))throw new Exception("Session files remain after stop request");
+            return "PASS: removed lease stops the host within one interval ("+elapsed+" ms) and leaves no session file";
         }
         finally{Driver.FixtureOpenStatus=null;Delete(paths.Data);Delete(paths.Lease);Delete(paths.Temporary);}
     }
@@ -74,8 +100,8 @@ $outer=@"
         foreach(int value in new int[]{-273,0,300})check(Snapshot(token,1,1000,"OK",value,luid,"?").Split('|')[6]==Number(value),"range endpoint");
         bool overflow=false;try{Snapshot(token,MaximumSequence+1,1000,"OK",49,luid,"?");}catch(InvalidOperationException){overflow=true;}
         check(overflow,"sequence bound");
-        string generated=CreateSession(luid,1000).Split('|')[2];Paths paths=new Paths(generated);
-        check(!File.Exists(paths.Data)&&!File.Exists(paths.Lease)&&!File.Exists(paths.Temporary),"bootstrap creates no files");
+        string generated=Guid.NewGuid().ToString("N");Paths paths=new Paths(generated);
+        check(typeof(ParallaxGpuTemperature).GetMethod("CreateSession",System.Reflection.BindingFlags.Public|System.Reflection.BindingFlags.NonPublic|System.Reflection.BindingFlags.Static)==null,"no bootstrap entry point remains");check(!File.Exists(paths.Data)&&!File.Exists(paths.Lease)&&!File.Exists(paths.Temporary),"deriving session paths creates no files");
         check(Path.GetFileName(paths.Data)=="Parallax-GPU-"+generated+".dat","basename");
         check(paths.Lease==paths.Data.Substring(0,paths.Data.Length-4)+".lease","lease sibling");
         check(paths.Temporary==paths.Data.Substring(0,paths.Data.Length-4)+".tmp","tmp sibling");
@@ -239,7 +265,7 @@ $outer=@"
     // The host's first lease read can land inside Lua's truncate-then-write.
     public static string LateLeaseFixture()
     {
-        string token=CreateSession(NamesOnlyLuid,1000).Split('|')[2];Paths paths=new Paths(token);
+        string token=Guid.NewGuid().ToString("N");Paths paths=new Paths(token);
         Exception failure=null;
         Thread worker=new Thread(delegate(){try{Run(token,NamesOnlyLuid,1000);}catch(Exception error){failure=error;}});
         worker.IsBackground=true;
@@ -262,7 +288,7 @@ $outer=@"
     // Without a selected discrete GPU, Lua starts the same host for names only.
     public static string NamesOnlyLifecycleFixture()
     {
-        string token=CreateSession(NamesOnlyLuid,1000).Split('|')[2];Paths paths=new Paths(token);
+        string token=Guid.NewGuid().ToString("N");Paths paths=new Paths(token);
         Exception failure=null;int opens=Driver.FixtureOpenCalls;uint pid=GetCurrentProcessId();
         Thread worker=new Thread(delegate(){try{Run(token,NamesOnlyLuid,1000);}catch(Exception error){failure=error;}});
         worker.IsBackground=true;
@@ -300,7 +326,7 @@ $outer=@"
         check(ParseLease(token+"|253402300799|9007199254740991|4294967286,4294967287,4294967288,4294967289,4294967290,4294967291,4294967292,4294967293,4294967294,4294967295",token,253402300799L,1000,out lease)&&lease.RequestId==MaximumSequence&&lease.ProcessIds.Length==10&&lease.ProcessIds[9]==UInt32.MaxValue,"longest lease: ten 10-digit PIDs, request and timestamp endpoints");
         foreach(string bad in new string[]{"|?","-1|?","01|?","1.0|?","1e3|?","9007199254740992|?","42|","42|0","42|01","42|-1","42|1,1","42|1,2,3,4,5,6,7,8,9,10,11","42|1,","42|4294967296","42|1 2","42|1|2","42|?\n","42|1;2","42|1,?"})
             check(!ParseLease(token+"|1000|"+bad,token,1000,1000,out lease)&&lease==null,"reject malformed request without heartbeat renewal");
-        string generated=CreateSession(luid,1000).Split('|')[2];Paths paths=new Paths(generated);
+        string generated=Guid.NewGuid().ToString("N");Paths paths=new Paths(generated);
         try
         {
             WriteNew(paths.Lease,generated+"|1000|7|1,2");
@@ -418,11 +444,15 @@ $inner=@"
                 data.Count=(uint)sensorCount;data.Sensors[0].CurrentTemp=value;data.Sensors[0].Target=target;
                 data.Sensors[1].CurrentTemp=value;data.Sensors[1].Target=target;return status;
             };
-            int? result;
-            FixtureIdentity=new Queue<bool>(new bool[]{false});
-            check(driver.ReadTemperature(out result)=="DEVICE_CHANGED"&&!result.HasValue&&calls==0,"before identity blocks call");
-            FixtureIdentity=new Queue<bool>(new bool[]{true,false});
-            check(driver.ReadTemperature(out result)=="DEVICE_CHANGED"&&!result.HasValue&&calls==1,"after identity clears result");
+            int? result;Frame frame;
+            // Identity brackets the whole frame: one check before the first
+            // driver call and one after the last, none inside a single read.
+            FixtureIdentity=new Queue<bool>(new bool[]{false});frame=driver.ReadFrame();
+            check(frame.TemperatureStatus=="DEVICE_CHANGED"&&!frame.Temperature.HasValue&&calls==0,"frame identity before blocks call");
+            FixtureIdentity=new Queue<bool>(new bool[]{true,false});frame=driver.ReadFrame();
+            check(frame.TemperatureStatus=="DEVICE_CHANGED"&&!frame.Temperature.HasValue&&calls==1,"frame identity after clears result");
+            FixtureIdentity=new Queue<bool>(new bool[]{true,true,true});frame=driver.ReadFrame();
+            check(frame.TemperatureStatus=="OK"&&frame.Temperature==49&&calls==2&&FixtureIdentity.Count==1,"exactly two identity checks per frame");
             foreach(int t in new int[]{-273,0,49,300})
             {value=t;FixtureIdentity=new Queue<bool>(new bool[]{true,true});check(driver.ReadTemperature(out result)=="OK"&&result==value,"GPU target");}
             foreach(int t in new int[]{-274,301})
@@ -448,7 +478,7 @@ $inner=@"
 
         internal static int PowerClockFixtures()
         {
-            int count=0,clockCalls=0,powerCalls=0;
+            int count=0,clockCalls=0,powerCalls=0,pciReads=0,nvmlPciReads=0;
             Action<bool,string> check=delegate(bool ok,string label){++count;if(!ok)throw new Exception(label);};
             Action resetIdentity=delegate(){FixtureIdentity=new Queue<bool>();for(int i=0;i<96;++i)FixtureIdentity.Enqueue(true);};
             Driver driver=new Driver(1);driver.opened=true;driver.nvidiaStatus="OK";driver.physical=new IntPtr(1);
@@ -474,17 +504,17 @@ $inner=@"
             resetIdentity();check(driver.ReadClock(out scalar)=="OK"&&scalar==frequency,"clock present bit accepts reserved flags");
             foreach(uint wrong in new uint[]{1,2,15}){selector=wrong;resetIdentity();check(driver.ReadClock(out scalar)=="UNAVAILABLE"&&!scalar.HasValue,"base or boost never mistaken for current");}
             selector=0;badClockVersion=true;resetIdentity();check(driver.ReadClock(out scalar)=="UNAVAILABLE","returned clock version validated");badClockVersion=false;
-            FixtureIdentity=new Queue<bool>(new bool[]{false});before=clockCalls;
-            check(driver.ReadClock(out scalar)=="DEVICE_CHANGED"&&clockCalls==before,"clock identity checked before query");
-            FixtureIdentity=new Queue<bool>(new bool[]{true,false});
-            check(driver.ReadClock(out scalar)=="DEVICE_CHANGED"&&!scalar.HasValue,"clock identity checked after query");
+            FixtureIdentity=new Queue<bool>(new bool[]{false});before=clockCalls;Frame framed=driver.ReadFrame();
+            check(framed.ClockStatus=="DEVICE_CHANGED"&&clockCalls==before,"frame identity checked before clock query");
+            FixtureIdentity=new Queue<bool>(new bool[]{true,false});framed=driver.ReadFrame();
+            check(framed.ClockStatus=="DEVICE_CHANGED"&&!framed.GraphicsClockKHz.HasValue&&clockCalls==before+1,"frame identity checked after clock query");
             NvidiaClockQuery savedClocks=driver.clocks;driver.clocks=null;resetIdentity();
             check(driver.ReadClock(out scalar)=="UNSUPPORTED","missing clock API");driver.clocks=savedClocks;
 
             uint inventoryCount=2,nvmlCount=2,bus=1,domain=0,function=0,mw=13299;
             int inventoryStatus=0,nvmlCountStatus=0,nvmlHandleStatus=0,nvmlPciStatus=0,powerStatus=0,pciStatus=0;
-            bool nvidiaCollision=false,nvmlCollision=false,duplicateNvidia=false,duplicateNvml=false,badBusId=false,mutatePci=false,mutateDomain=false;
-            driver.pciBus=delegate(IntPtr gpu,out uint value){value=gpu==new IntPtr(1)?bus:nvidiaCollision?bus:2u;return pciStatus;};
+            bool nvidiaCollision=false,nvmlCollision=false,duplicateNvidia=false,duplicateNvml=false,badBusId=false;
+            driver.pciBus=delegate(IntPtr gpu,out uint value){++pciReads;value=gpu==new IntPtr(1)?bus:nvidiaCollision?bus:2u;return pciStatus;};
             driver.pciSlot=delegate(IntPtr gpu,out uint value){value=0;return 0;};
             driver.pciIdentifiers=delegate(IntPtr gpu,out uint device,out uint subsystem,out uint revision,out uint external)
             {device=0x1b8010de;subsystem=0x33661028;revision=0xa1;external=0x1b80;return 0;};
@@ -501,12 +531,12 @@ $inner=@"
             NvmlHandle getHandle=delegate(uint index,out IntPtr device){device=new IntPtr(20+(duplicateNvml?0:(int)index));return index==1?nvmlHandleStatus:0;};
             driver.nvmlPci=delegate(IntPtr device,ref NvmlPci data)
             {
-                data.Domain=domain;data.Bus=device==new IntPtr(20)?1u:nvmlCollision?1u:2u;data.Slot=0;data.Device=0x1b8010de;data.Subsystem=0x33661028;
+                ++nvmlPciReads;data.Domain=domain;data.Bus=device==new IntPtr(20)?1u:nvmlCollision?1u:2u;data.Slot=0;data.Device=0x1b8010de;data.Subsystem=0x33661028;
                 string id=badBusId?"00000000:FF:00.0":data.Domain.ToString("X8")+":"+data.Bus.ToString("X2")+":00."+function.ToString();
                 byte[] encoded=Encoding.ASCII.GetBytes(id);Array.Copy(encoded,data.BusId,encoded.Length);return nvmlPciStatus;
             };
             driver.nvmlPower=delegate(IntPtr device,out uint value)
-            {++powerCalls;check(device==new IntPtr(20),"bound NVML power handle");value=mw;if(mutatePci)bus=2;if(mutateDomain)domain=1;return powerStatus;};
+            {++powerCalls;check(device==new IntPtr(20),"bound NVML power handle");value=mw;return powerStatus;};
             resetIdentity();check(driver.MatchNvmlPowerInventory(getCount,getHandle)=="OK"&&driver.nvmlDevice==new IntPtr(20),"unique complete NVML match");
             nvmlCollision=true;resetIdentity();check(driver.MatchNvmlPowerInventory(getCount,getHandle)=="UNSUPPORTED","NVML duplicate tuple rejected");nvmlCollision=false;
             duplicateNvml=true;resetIdentity();check(driver.MatchNvmlPowerInventory(getCount,getHandle)=="UNAVAILABLE","duplicate NVML handle rejected");duplicateNvml=false;
@@ -521,11 +551,16 @@ $inner=@"
             {mw=value;resetIdentity();check(driver.ReadPower(out scalar)=="OK"&&scalar==value,"native mW returned exactly, including zero");}
             foreach(int error in new int[]{3,4,15,999})
             {powerStatus=error;resetIdentity();check(driver.ReadPower(out scalar)==(error==3?"UNSUPPORTED":error==15?"DEVICE_CHANGED":"UNAVAILABLE")&&!scalar.HasValue,"NVML power error status");}
-            powerStatus=0;mw=13299;mutatePci=true;resetIdentity();
-            check(driver.ReadPower(out scalar)=="DEVICE_CHANGED"&&!scalar.HasValue,"PCI mutation after power clears reading");mutatePci=false;bus=1;
-            mutateDomain=true;resetIdentity();check(driver.ReadPower(out scalar)=="DEVICE_CHANGED"&&!scalar.HasValue,"NVML domain mutation after power clears reading");mutateDomain=false;domain=0;
-            FixtureIdentity=new Queue<bool>(new bool[]{false});before=powerCalls;
-            check(driver.ReadPower(out scalar)=="DEVICE_CHANGED"&&powerCalls==before,"power identity before query");
+            // The unique PCI association is proven once at open (above); a sample
+            // reads power alone, inside the frame's two identity checks.
+            powerStatus=0;mw=13299;int pciBefore=pciReads,nvmlPciBefore=nvmlPciReads;before=powerCalls;
+            FixtureIdentity=new Queue<bool>(new bool[]{true,true,true});Frame sampled=driver.ReadFrame();
+            check(sampled.PowerStatus=="OK"&&sampled.PowerMilliwatts==13299&&powerCalls==before+1&&FixtureIdentity.Count==1,"a power frame makes one NVML call inside exactly two identity checks");
+            check(pciReads==pciBefore&&nvmlPciReads==nvmlPciBefore,"a power sample reuses the open-time PCI match without any PCI query");
+            FixtureIdentity=new Queue<bool>(new bool[]{true,false});sampled=driver.ReadFrame();
+            check(sampled.PowerStatus=="DEVICE_CHANGED"&&!sampled.PowerMilliwatts.HasValue&&powerCalls==before+2,"identity lost after the power call voids the reading");
+            FixtureIdentity=new Queue<bool>(new bool[]{false});before=powerCalls;framed=driver.ReadFrame();
+            check(framed.PowerStatus=="DEVICE_CHANGED"&&powerCalls==before,"frame identity before power query");
             driver.powerSupport="UNSUPPORTED";resetIdentity();check(driver.ReadPower(out scalar)=="UNSUPPORTED"&&!scalar.HasValue,"missing NVML power provider");
             resetIdentity();Frame combined=driver.ReadFrame();
             check(combined.ClockStatus=="OK"&&combined.PowerStatus=="UNSUPPORTED","missing power preserves clock");
@@ -595,10 +630,10 @@ $inner=@"
                 availableBytes=remaining;frame=new Frame("UNAVAILABLE");resetIdentity();
                 check(driver.ReadMemory(frame)=="OK"&&frame.Available==remaining,"full and empty allocatable memory");
             }
-            frame=new Frame("UNAVAILABLE");FixtureIdentity=new Queue<bool>(new bool[]{false});int exBefore=exCalls;
-            check(driver.ReadMemory(frame)=="DEVICE_CHANGED"&&exCalls==exBefore,"memory identity before query");
-            frame=new Frame("UNAVAILABLE");FixtureIdentity=new Queue<bool>(new bool[]{true,false});
-            check(driver.ReadMemory(frame)=="DEVICE_CHANGED"&&!frame.Physical.HasValue,"memory identity after query");
+            FixtureIdentity=new Queue<bool>(new bool[]{false});int exBefore=exCalls;frame=driver.ReadFrame();
+            check(frame.MemoryStatus=="DEVICE_CHANGED"&&exCalls==exBefore,"frame identity before memory query");
+            FixtureIdentity=new Queue<bool>(new bool[]{true,false});frame=driver.ReadFrame();
+            check(frame.MemoryStatus=="DEVICE_CHANGED"&&!frame.Physical.HasValue&&exCalls==exBefore+1,"frame identity after memory query");
             driver.sharedSupport="OK";
             driver.sharedProperty=delegate(IntPtr adapter,uint property,UIntPtr size,IntPtr output)
             {check(property==15&&size.ToUInt64()==4,"physical count query");Marshal.WriteInt32(output,(int)physicalCount);return propertyStatus;};
@@ -630,8 +665,8 @@ $inner=@"
             check(driver.ReadShared(frame)=="UNAVAILABLE"&&!frame.SharedResident.HasValue,"shared query failure");queryStatus=0;
             driver.sharedSupport="UNSUPPORTED";frame=new Frame("UNAVAILABLE");resetIdentity();
             check(driver.ReadShared(frame)=="UNSUPPORTED","unsupported DXCore state");driver.sharedSupport="OK";
-            frame=new Frame("UNAVAILABLE");FixtureIdentity=new Queue<bool>(new bool[]{true,true,false});
-            check(driver.ReadShared(frame)=="DEVICE_CHANGED"&&!frame.SharedCommitted.HasValue,"shared identity after query");
+            FixtureIdentity=new Queue<bool>(new bool[]{true,false});int sharedBefore=sharedCalls;frame=driver.ReadFrame();
+            check(frame.SharedStatus=="DEVICE_CHANGED"&&!frame.SharedCommitted.HasValue&&sharedCalls==sharedBefore+1,"frame identity after shared query");
             driver.utilization=delegate(IntPtr gpu,ref UtilizationData data)
             {
                 ++utilCalls;check(data.Version==(72|0x10000)&&data.Domains.Length==8,"utilization ABI");
@@ -657,8 +692,8 @@ $inner=@"
                 utilStatus=failure;frame=new Frame("UNAVAILABLE");resetIdentity();
                 check(driver.ReadUtilization(frame)==(failure==-104?"UNSUPPORTED":failure==-10?"DEVICE_CHANGED":"UNAVAILABLE"),"activity error classification");
             }
-            utilStatus=0;frame=new Frame("UNAVAILABLE");FixtureIdentity=new Queue<bool>(new bool[]{true,false});
-            check(driver.ReadUtilization(frame)=="DEVICE_CHANGED"&&!frame.Utilization[0].HasValue,"activity identity after query");
+            utilStatus=0;FixtureIdentity=new Queue<bool>(new bool[]{true,false});int utilBefore=utilCalls;frame=driver.ReadFrame();
+            check(frame.UtilizationStatus=="DEVICE_CHANGED"&&!frame.Utilization[0].HasValue&&utilCalls==utilBefore+1,"frame identity after activity query");
             NvidiaUtilizationQuery savedUtilization=driver.utilization;driver.utilization=null;frame=new Frame("UNAVAILABLE");resetIdentity();
             check(driver.ReadUtilization(frame)=="UNSUPPORTED"&&!frame.Utilization[0].HasValue,"missing activity API");driver.utilization=savedUtilization;
             resetIdentity();Frame combined=driver.ReadFrame();
@@ -704,6 +739,7 @@ Add-Type -TypeDefinition $source -Language CSharp
 [ParallaxGpuTemperature]::ProcessListingProbe()
 
 [ParallaxGpuTemperature]::LifecycleFixture()
+[ParallaxGpuTemperature]::LeaseRemovalFixture()
 [ParallaxGpuTemperature]::NamesOnlyLifecycleFixture()
 [ParallaxGpuTemperature]::ListingModeFixture()
 [ParallaxGpuTemperature]::LateLeaseFixture()

@@ -3,7 +3,7 @@
 -- Production Media.lua runs unchanged under a mock SKIN in Rainmeter's Lua 5.1.
 local suite = {}
 
-function suite.run(sourcePath)
+function suite.run(sourcePath, optionsPath)
     local passed, cases = 0, {}
     local function check(condition, message)
         assert(condition, message)
@@ -119,14 +119,37 @@ function suite.run(sourcePath)
             end
             return found
         end
+        -- The transport meters use UpdateDivider=-1, and Rainmeter 4.5 applies a
+        -- !SetOption to such a meter only when it is forced to update. So every
+        -- meter whose options changed is forced exactly once, after its last
+        -- option, and no other meter or group is: periodic samples included,
+        -- or a play/pause from another app keeps the old art until hover.
         function instance.assertRefresh(immediate)
-            local expected = immediate and 1 or 0
-            check(instance.count('!UpdateMeterGroup', 'MediaDynamic') == expected,
-                immediate and 'Interactive UI change must update MediaDynamic exactly once'
-                    or 'Periodic UI change must defer meter updates to the normal skin cycle')
-            check(instance.count('!Redraw') == expected,
+            local lastSet, forced, lastForce = {}, {}, 0
+            for index, call in ipairs(calls) do
+                if call[1] == '!SetOption' then lastSet[call[2]] = index end
+            end
+            for index, call in ipairs(calls) do
+                if call[1] == '!UpdateMeter' then
+                    forced[call[2]] = (forced[call[2]] or 0) + 1
+                    check(lastSet[call[2]] ~= nil, 'An unchanged meter was forced: ' .. tostring(call[2]))
+                    check(index > (lastSet[call[2]] or math.huge), 'A meter must be forced after its options are set')
+                    lastForce = index
+                end
+            end
+            for meter in pairs(lastSet) do
+                check(forced[meter] == 1, 'A changed UpdateDivider=-1 meter must be forced exactly once: ' .. meter)
+            end
+            check(instance.count('!UpdateMeterGroup', 'MediaDynamic') == 0,
+                'A MediaDynamic group update would also force unchanged meters')
+            check(instance.count('!Redraw') == (immediate and 1 or 0),
                 immediate and 'Interactive UI change must redraw exactly once'
-                    or 'Periodic UI change must defer to Rainmeter end-of-cycle redraw')
+                    or 'Periodic UI change must leave the repaint to the provider tick\'s own skin cycle')
+            if immediate then
+                for index, call in ipairs(calls) do
+                    if call[1] == '!Redraw' then check(index > lastForce, 'Interactive redraw must follow the forced updates') end
+                end
+            end
             check(instance.count('!CommandMeasure') == 0, 'Update must not send playback commands')
         end
         return instance
@@ -168,6 +191,51 @@ function suite.run(sourcePath)
         f.assertRefresh()
         f.reset()
         check(f.env.Update() == 'Paused' and #f.calls() == 0, 'Paused repeat caused redundant bangs')
+    end)
+
+    scenario('external play/pause and capability changes force only the changed transport meters', function()
+        -- Another app or a media key pauses playback: only the provider sample
+        -- changes, at the provider cadence, with no hover and no click here.
+        local f = fixture()
+        f.env.Update()
+        f.reset()
+        f.values.MeasureState.value = 2
+        check(f.env.Update() == 'Paused' and f.symbol() == 'pause', 'External pause must select the Pause art')
+        check(f.count('!UpdateMeter', 'MeterPlayPause') == 1,
+            'External pause must force the UpdateDivider=-1 play/pause meter, or its art stays stale until hover')
+        check(f.count('!UpdateMeter') == 1, 'External pause must force only the play/pause meter')
+        check(f.count('!UpdateMeterGroup') == 0, 'External pause must not force a meter group')
+        f.assertRefresh()
+        f.reset()
+        check(f.env.Update() == 'Paused' and #f.calls() == 0, 'A repeated paused sample must issue no bang')
+        f.values.MeasureState.value = 1
+        check(f.env.Update() == 'Playing' and f.symbol() == 'play', 'External resume must restore the Play art')
+        check(f.count('!UpdateMeter', 'MeterPlayPause') == 1 and f.count('!UpdateMeter') == 1,
+            'External resume must force only the play/pause meter')
+        f.assertRefresh()
+        -- The player drops Next support: only Next's stroke and cursor change.
+        f.reset()
+        f.values.MeasureCanNext.value = 0
+        check(f.env.Update() == 'Playing', 'A capability change must not change playback state')
+        check(f.strokeColor('MeterNext') == '111,112,113' and f.option('MeterNext', 'MouseActionCursor') == '0',
+            'Unsupported Next must turn muted and inactive')
+        check(f.count('!UpdateMeter', 'MeterNext') == 1 and f.count('!UpdateMeter') == 1,
+            'A capability change must force only the meter it changes')
+        f.assertRefresh()
+        -- The provider disconnects: Previous and Play/Pause turn muted; Next
+        -- already is, so it is not forced again.
+        f.reset()
+        f.values.MeasureConnection.value = 0
+        check(f.env.Update() == 'WNP disconnected', 'Disconnect status incorrect')
+        check(f.count('!UpdateMeter', 'MeterPrevious') == 1 and f.count('!UpdateMeter', 'MeterPlayPause') == 1
+            and f.count('!UpdateMeter', 'MeterNext') == 0, 'Disconnect must force exactly the two meters it changes')
+        f.assertRefresh()
+        -- Reconnect while paused: every control and the art follow the sample.
+        f.reset()
+        f.values.MeasureConnection.value, f.values.MeasureCanNext.value, f.values.MeasureState.value = 1, 1, 2
+        check(f.env.Update() == 'Paused' and f.symbol() == 'pause', 'Reconnect while paused must show Pause')
+        check(f.count('!UpdateMeter') == 3, 'Reconnect must force each transport meter once')
+        f.assertRefresh()
     end)
 
     scenario('disconnected hides stale content and gates controls', function()
@@ -546,6 +614,293 @@ function suite.run(sourcePath)
         check(f.count('!ShowMeterGroup', 'MediaTrack') == 1, 'Refresh failed to restore visibility options')
         f.assertRefresh()
     end)
+
+    -- MediaOptions.lua: the capture-lease writer and the drawer toggles
+    -- (docs/PERFORMANCE-REVIEW.md phase C1). Runs only when the runner passes
+    -- the options source. Files, clocks, dofile and Bangs are injected.
+    if optionsPath then
+        local resources = 'C:\\Fixture\\Skins\\Parallax\\@Resources\\'
+        local statePath = resources .. 'Modules\\Media\\CaptureState.inc'
+        local mediaPath = resources .. 'User\\Media.inc'
+        local settingsPath = 'C:\\Fixture\\Settings\\'
+        local rainmeterIni = settingsPath .. 'Rainmeter.ini'
+        local function iniWrite(text, section, key, value)
+            local lines = {}
+            for line in (text .. '\n'):gmatch('([^\r\n]*)\r?\n') do lines[#lines + 1] = line end
+            while #lines > 0 and lines[#lines] == '' do lines[#lines] = nil end
+            local inSection, done = false, false
+            for index, line in ipairs(lines) do
+                local name = line:match('^%s*%[([^%]]+)%]%s*$')
+                if name then
+                    if inSection then table.insert(lines, index, key .. '=' .. value); done = true; break end
+                    inSection = name:lower() == section:lower()
+                elseif inSection then
+                    local found = line:match('^%s*([^=;]-)%s*=')
+                    if found and found:lower() == key:lower() then lines[index] = key .. '=' .. value; done = true; break end
+                end
+            end
+            if not done then
+                if not inSection then lines[#lines + 1] = '[' .. section .. ']' end
+                lines[#lines + 1] = key .. '=' .. value
+            end
+            return table.concat(lines, '\r\n') .. '\r\n'
+        end
+        local function iniRead(text, section, key)
+            local inSection = false
+            for line in (text .. '\n'):gmatch('([^\r\n]*)\r?\n') do
+                local name = line:match('^%s*%[([^%]]+)%]%s*$')
+                if name then inSection = name:lower() == section:lower()
+                elseif inSection then
+                    local found, value = line:match('^%s*([^=;]-)%s*=%s*(.-)%s*$')
+                    if found and found:lower() == key:lower() then return value end
+                end
+            end
+            return nil
+        end
+        local function options(setup)
+            setup = setup or {}
+            local state = { bangs = {}, links = 0, now = setup.now or 1800000000, clock = setup.clock or 4321.75,
+                readOnly = setup.readOnly or {}, files = {
+                    [statePath] = setup.state or '; runtime\r\n[Variables]\r\nMediaDrawerCapture=0\r\nMediaStandby=0\r\nMediaLeaseRefreshAt=0\r\nMediaLeaseRefreshClock=0\r\n',
+                    [mediaPath] = setup.media or '[Variables]\r\nColumns=2\r\nVisualizerDrawer=2\r\n',
+                    [rainmeterIni] = setup.rainmeter or '[Rainmeter]\r\n[Parallax\\Media]\r\nActive=1\r\nAnchorY=0\r\n',
+                    [resources .. 'Idle\\Link.lua'] = not setup.noLink and '-- link' or nil,
+                } }
+            for path, text in pairs(setup.files or {}) do state.files[path] = text end
+            local variables = { ['@'] = resources, SETTINGSPATH = settingsPath, CURRENTCONFIG = 'Parallax\\Media',
+                MediaVisualizerHost = '1', MediaVisualizerOpen = setup.open or '1' }
+            for key, value in pairs(setup.variables or {}) do variables[key] = value end
+            local mock = {}
+            function mock:GetVariable(name, default)
+                local value = variables[name]
+                if value == nil then return default end
+                return value
+            end
+            function mock:GetMeasure(name)
+                assert(name == 'MeasureMediaVisualizerLift', 'Unexpected measure ' .. tostring(name))
+                return { GetValue = function() return 152 end }
+            end
+            function mock:Bang(...)
+                local args = { ... }
+                state.bangs[#state.bangs + 1] = args
+                if args[1] == '!WriteKeyValue' then
+                    local path = args[5]
+                    if state.files[path] and not state.readOnly[path] then
+                        state.files[path] = iniWrite(state.files[path], args[2], args[3], args[4])
+                    end
+                end
+            end
+            local fakeIo = { open = function(path, mode)
+                assert(mode == 'rb', 'Read-only opens')
+                local text = state.files[path]
+                if text == nil or text == false then return nil end
+                return { read = function(_, limit) return text:sub(1, limit) end, close = function() return true end }
+            end }
+            local fakeOs = { time = function() return state.now end, clock = function() return state.clock end }
+            local env = setmetatable({ SKIN = mock, io = fakeIo, os = fakeOs }, { __index = _G })
+            env.dofile = function(path)
+                assert(path == resources .. 'Idle\\Link.lua', 'Only the idle link is loaded: ' .. tostring(path))
+                -- Rainmeter's dofile logs an error for a missing file.
+                assert(not setup.noLink, 'A missing link file must not be passed to dofile')
+                return { new = function(skin)
+                    assert(skin == mock, 'The link gets this skin')
+                    return { requestReevaluate = function() state.links = state.links + 1 end }
+                end }
+            end
+            local chunk = assert(loadfile(optionsPath))
+            setfenv(chunk, env)
+            chunk()
+            env.Initialize()
+            state.env = env
+            function state.value(key) return iniRead(state.files[statePath], 'Variables', key) end
+            function state.count(bang, target)
+                local count = 0
+                for _, call in ipairs(state.bangs) do
+                    if call[1] == bang and (target == nil or call[2] == target) then count = count + 1 end
+                end
+                return count
+            end
+            function state.writes(key)
+                local count = 0
+                for _, call in ipairs(state.bangs) do
+                    if call[1] == '!WriteKeyValue' and call[3] == key and call[5] == statePath then count = count + 1 end
+                end
+                return count
+            end
+            function state.selfRefreshes()
+                local count = 0
+                for _, call in ipairs(state.bangs) do if call[1] == '!Refresh' and call[2] == nil then count = count + 1 end end
+                return count
+            end
+            return state
+        end
+
+        scenario('ApplyLease: a lease change writes state and stamp, then reloads once', function()
+            local o = options()
+            check(o.env.ApplyLease(1, nil, 'park') == true, 'Park applied')
+            check(o.value('MediaDrawerCapture') == '1', 'Capture state written')
+            check(o.value('MediaStandby') == '0', 'Standby untouched')
+            check(o.value('MediaLeaseRefreshAt') == '1800000000', 'Wall-time stamp written')
+            check(o.value('MediaLeaseRefreshClock') == '4321', 'Whole-second process clock stamp written')
+            check(o.writes('MediaStandby') == 0, 'An unchanged key is not rewritten')
+            check(o.selfRefreshes() == 1, 'One reload')
+            local last = o.bangs[#o.bangs]
+            check(last[1] == '!Refresh' and #last == 1, 'The reload is the last command, after the read-back')
+        end)
+
+        scenario('ApplyLease: repeated and opposite changes coalesce into the one reload', function()
+            local o = options()
+            o.env.ApplyLease(1, nil, 'park')
+            local before = #o.bangs
+            check(o.env.ApplyLease(1, nil, 'park') == false, 'An unchanged state is not applied again')
+            check(#o.bangs == before, 'An unchanged state writes nothing')
+            o.now, o.clock = o.now + 1, o.clock + 1
+            check(o.env.ApplyLease(0, nil, 'unpark') == true, 'The opposite change before the reload is written')
+            check(o.value('MediaDrawerCapture') == '0', 'Latest state wins')
+            check(o.value('MediaLeaseRefreshAt') == '1800000001', 'Stamp follows the latest change')
+            check(o.selfRefreshes() == 1, 'Still exactly one reload per load')
+            local fresh = options()
+            check(fresh.env.ApplyLease(0, nil, 'unpark') == false, 'Already live: nothing to do')
+            check(#fresh.bangs == 0, 'No write and no reload for an unchanged state')
+        end)
+
+        scenario('ApplyLease: unreadable or unwritable state gives no reload', function()
+            local missing = options({ files = { [statePath] = false } })
+            check(missing.env.ApplyLease(1, nil, 'park') == false, 'Missing state file')
+            check(#missing.bangs == 0, 'Nothing written or reloaded without a readable file')
+            local sectionless = options({ state = '; damaged: no [Variables] section\r\nMediaDrawerCapture=0\r\n' })
+            check(sectionless.env.ApplyLease(1, nil, 'park') == false, 'A file without its section fails closed')
+            check(#sectionless.bangs == 0, 'A damaged file is not written')
+            local repeated = options({ state = '[Variables]\r\nMediaDrawerCapture=0\r\nMediaDrawerCapture=1\r\n' })
+            check(repeated.env.ApplyLease(1, nil, 'park') == false, 'An ambiguous file fails closed')
+            check(#repeated.bangs == 0, 'Ambiguous state is not touched')
+            local locked = options({ readOnly = { [statePath] = true } })
+            check(locked.env.ApplyLease(1, nil, 'park') == false, 'A write that does not read back is a failure')
+            check(locked.selfRefreshes() == 0, 'Read-back failure: no reload, so no loop and no stale variant')
+            for _, bad in ipairs({ { 3, nil }, { -1, nil }, { 'x', nil }, { nil, 2 }, { 1.5, nil } }) do
+                local o = options()
+                check(o.env.ApplyLease(bad[1], bad[2], 'park') == false, 'Out-of-range value refused')
+                check(#o.bangs == 0, 'Out-of-range value writes nothing')
+            end
+        end)
+
+        scenario('ApplyLease: a toggle writes the state only, without stamp or reload', function()
+            local o = options({ state = '[Variables]\r\nMediaDrawerCapture=1\r\nMediaStandby=0\r\nMediaLeaseRefreshAt=0\r\nMediaLeaseRefreshClock=0\r\n' })
+            check(o.env.ApplyLease(0, nil, 'toggle') == true, 'Toggle write applied')
+            check(o.value('MediaDrawerCapture') == '0', 'State written')
+            check(o.writes('MediaLeaseRefreshAt') == 0 and o.writes('MediaLeaseRefreshClock') == 0, 'No lease stamp for a toggle')
+            check(o.selfRefreshes() == 0, 'The toggle reloads by itself')
+            local s = options()
+            check(s.env.ApplyLease(nil, 1, 'standby') == true, 'Standby is a lease reason')
+            check(s.value('MediaStandby') == '1' and s.value('MediaDrawerCapture') == '0', 'Only standby changes')
+            check(s.writes('MediaLeaseRefreshAt') == 1 and s.selfRefreshes() == 1, 'Standby stamps and reloads')
+        end)
+
+        scenario('IdleStandby: standby and park in one coalesced reload, then back to live in one', function()
+            local enter = options({ variables = { VisualizerDrawer = '2', MediaDrawerCapture = '0' } })
+            check(enter.env.IdleStandby(1, 'standby') == true, 'Standby applied')
+            check(enter.value('MediaStandby') == '1' and enter.value('MediaDrawerCapture') == '1', 'Standby parks the live open drawer in the same write')
+            check(enter.writes('MediaLeaseRefreshAt') == 1 and enter.selfRefreshes() == 1, 'One stamp, one reload (no provider resume on it)')
+            check(enter.env.IdleStandby(1, 'standby') == false and enter.selfRefreshes() == 1, 'Repeated request: nothing more')
+            local leave = options({ variables = { VisualizerDrawer = '2', MediaDrawerCapture = '1' },
+                state = '[Variables]\r\nMediaDrawerCapture=1\r\nMediaStandby=1\r\nMediaLeaseRefreshAt=0\r\nMediaLeaseRefreshClock=0\r\n' })
+            check(leave.env.IdleStandby(0, 'standby') == true, 'Leave applied')
+            check(leave.value('MediaStandby') == '0' and leave.value('MediaDrawerCapture') == '0', 'Input clears standby and park together')
+            check(leave.selfRefreshes() == 1, 'One reload back')
+            local collapsed = options({ variables = { VisualizerDrawer = '1', MediaDrawerCapture = '0' } })
+            check(collapsed.env.IdleStandby(1, 'standby') == true and collapsed.value('MediaDrawerCapture') == '0', 'A collapsed drawer keeps its capture state')
+            local deferred = options({ variables = { VisualizerDrawer = '2', MediaDrawerCapture = '2' },
+                state = '[Variables]\r\nMediaDrawerCapture=2\r\nMediaStandby=0\r\nMediaLeaseRefreshAt=0\r\nMediaLeaseRefreshClock=0\r\n' })
+            check(deferred.env.IdleStandby(1, 'standby') == true and deferred.value('MediaDrawerCapture') == '2', 'A deferred drawer stays deferred')
+            local failLive = options({ variables = { VisualizerDrawer = '2', MediaDrawerCapture = '1' },
+                state = '[Variables]\r\nMediaDrawerCapture=1\r\nMediaStandby=1\r\nMediaLeaseRefreshAt=0\r\nMediaLeaseRefreshClock=0\r\n' })
+            check(failLive.env.IdleStandby(0, 'fail-live') == true and failLive.value('MediaStandby') == '0', 'Fail-live clears standby')
+            check(failLive.writes('MediaLeaseRefreshAt') == 1 and failLive.selfRefreshes() == 1, 'Fail-live stamps and reloads once')
+        end)
+
+        scenario('IdleStandby tells the stand-down hook whether this load\'s reload is posted', function()
+            local function pending(o)
+                for index = #o.bangs, 1, -1 do
+                    local call = o.bangs[index]
+                    if call[1] == '!SetVariable' and call[2] == 'ParallaxIdleStandbyPending' then return call[3] end
+                end
+                return nil
+            end
+            local enter = options({ variables = { VisualizerDrawer = '2', MediaDrawerCapture = '0' } })
+            enter.env.IdleStandby(1, 'standby')
+            check(pending(enter) == '1' and enter.selfRefreshes() == 1, 'A posted reload: pending 1')
+            enter.env.IdleStandby(1, 'standby')
+            check(pending(enter) == '1' and enter.selfRefreshes() == 1, 'Nothing new to write, the earlier reload is still pending: 1')
+            local same = options({ state = '[Variables]\r\nMediaDrawerCapture=0\r\nMediaStandby=0\r\nMediaLeaseRefreshAt=0\r\nMediaLeaseRefreshClock=0\r\n' })
+            check(same.env.IdleStandby(0, 'standby') == false and pending(same) == '0' and same.selfRefreshes() == 0, 'Nothing to change and no reload: 0')
+            local stuck = options({ variables = { VisualizerDrawer = '2', MediaDrawerCapture = '0' }, readOnly = { [statePath] = true } })
+            check(stuck.env.IdleStandby(1, 'standby') == false and pending(stuck) == '0' and stuck.selfRefreshes() == 0, 'A write that does not read back: no reload, 0')
+            local unreadable = options({ files = { [statePath] = false } })
+            check(unreadable.env.IdleStandby(1, 'standby') == false and pending(unreadable) == '0', 'An unreadable state file: 0')
+        end)
+
+        scenario('Load validation: a standby Media.ini load with Idle pause Off returns to live once', function()
+            local standby = '[Variables]\r\nMediaDrawerCapture=1\r\nMediaStandby=1\r\nMediaLeaseRefreshAt=0\r\nMediaLeaseRefreshClock=0\r\n'
+            for _, minutes in ipairs({ '0', '7', '' }) do
+                local o = options({ state = standby, variables = { CURRENTFILE = 'Media.ini', MediaStandby = '1', MediaDrawerCapture = '1',
+                    VisualizerDrawer = '2', IdlePauseMinutes = minutes } })
+                o.env.Update()
+                check(o.value('MediaStandby') == '0' and o.value('MediaDrawerCapture') == '0', 'Off (' .. minutes .. '): back to live with the capture')
+                check(o.selfRefreshes() == 1, 'Off (' .. minutes .. '): one reload')
+                o.env.Update()
+                check(o.selfRefreshes() == 1, 'Checked once per load')
+            end
+            for _, case in ipairs({ { 'Media.ini', '5' }, { 'Media.ini', '30' }, { 'Setup.ini', '0' }, { 'Queue.ini', '0' } }) do
+                local o = options({ state = standby, variables = { CURRENTFILE = case[1], MediaStandby = '1', MediaDrawerCapture = '1',
+                    VisualizerDrawer = '2', IdlePauseMinutes = case[2] } })
+                o.env.Update()
+                check(o.value('MediaStandby') == '1' and o.selfRefreshes() == 0, case[1] .. ' with Idle pause ' .. case[2] .. ': left to the hook')
+            end
+            local live = options({ variables = { CURRENTFILE = 'Media.ini', MediaStandby = '0', IdlePauseMinutes = '0' } })
+            live.env.Update()
+            check(#live.bangs == 0, 'A live load sends nothing')
+        end)
+
+        scenario('Drawer toggles start the capture live; collapse and hide ask the coordinator to re-check', function()
+            local collapse = options({ open = '1', state = '[Variables]\r\nMediaDrawerCapture=1\r\nMediaStandby=0\r\nMediaLeaseRefreshAt=0\r\nMediaLeaseRefreshClock=0\r\n' })
+            check(collapse.env.ToggleVisualizer() == true, 'Collapse applied')
+            check(iniRead(collapse.files[mediaPath], 'Variables', 'VisualizerDrawer') == '1', 'Drawer collapsed')
+            check(collapse.value('MediaDrawerCapture') == '0', 'A parked capture is cleared when the drawer closes')
+            check(collapse.writes('MediaLeaseRefreshAt') == 0, 'The toggle adds no lease stamp')
+            check(collapse.links == 1, 'Collapse asks the coordinator to re-check once')
+            check(collapse.selfRefreshes() == 1 and collapse.count('!Refresh', 'Parallax\\Media\\Settings') == 1, 'The toggle reloads Media and settings once each')
+            local open = options({ open = '0', media = '[Variables]\r\nVisualizerDrawer=1\r\n', state = '[Variables]\r\nMediaDrawerCapture=2\r\nMediaStandby=0\r\nMediaLeaseRefreshAt=0\r\nMediaLeaseRefreshClock=0\r\n' })
+            check(open.env.ToggleVisualizer() == true, 'Open applied')
+            check(iniRead(open.files[mediaPath], 'Variables', 'VisualizerDrawer') == '2', 'Drawer opened')
+            check(open.value('MediaDrawerCapture') == '0', 'Opening starts live')
+            check(open.links == 0, 'Opening needs no re-check')
+            check(open.selfRefreshes() == 1, 'One reload')
+            for _, case in ipairs({ { '0', 1 }, { '1', 1 }, { '2', 0 } }) do
+                local pref = options({ media = '[Variables]\r\nVisualizerDrawer=' .. case[1] .. '\r\n', state = '[Variables]\r\nMediaDrawerCapture=1\r\nMediaStandby=0\r\nMediaLeaseRefreshAt=0\r\nMediaLeaseRefreshClock=0\r\n' })
+                check(pref.env.ApplyVisualizerPreference() == true, 'Settings preference applied')
+                check(pref.value('MediaDrawerCapture') == '0', 'A settings change starts the drawer live')
+                check(pref.links == case[2], 'Settings drawer ' .. case[1] .. ' re-check count')
+                check(pref.selfRefreshes() == 1, 'One reload for the settings change')
+            end
+            local unlinked = options({ open = '1', noLink = true })
+            check(unlinked.env.ToggleVisualizer() == true, 'A missing idle link does not stop the toggle')
+            -- One capture at a time (XMOD-02): with the standalone Audio
+            -- Visualizer recorded loaded, the drawer opens deferred.
+            local withStandalone = '[Rainmeter]\r\n[Parallax\\Media]\r\nActive=1\r\nAnchorY=0\r\n[Parallax\\Visualizer]\r\nActive=1\r\n'
+            local deferred = options({ open = '0', media = '[Variables]\r\nVisualizerDrawer=1\r\n', rainmeter = withStandalone })
+            check(deferred.env.ToggleVisualizer() == true, 'Open applied')
+            check(deferred.value('MediaDrawerCapture') == '2', 'Opens deferred to the loaded standalone')
+            check(deferred.writes('MediaLeaseRefreshAt') == 0 and deferred.selfRefreshes() == 1, "Still the toggle's own single reload")
+            local unloaded = options({ open = '0', media = '[Variables]\r\nVisualizerDrawer=1\r\n',
+                rainmeter = '[Rainmeter]\r\n[Parallax\\Media]\r\nActive=1\r\nAnchorY=0\r\n[Parallax\\Visualizer]\r\nActive=0\r\n',
+                state = '[Variables]\r\nMediaDrawerCapture=2\r\nMediaStandby=0\r\nMediaLeaseRefreshAt=0\r\nMediaLeaseRefreshClock=0\r\n' })
+            check(unloaded.env.ToggleVisualizer() == true, 'Open applied')
+            check(unloaded.value('MediaDrawerCapture') == '0', 'Opens live once the standalone is unloaded')
+            local settings = options({ media = '[Variables]\r\nVisualizerDrawer=2\r\n', rainmeter = withStandalone })
+            check(settings.env.ApplyVisualizerPreference() == true, 'Settings preference applied')
+            check(settings.value('MediaDrawerCapture') == '2', 'Media settings opening the drawer also defers')
+        end)
+    end
 
     return passed, cases
 end

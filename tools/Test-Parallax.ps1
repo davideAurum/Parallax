@@ -3,7 +3,14 @@
 param(
     [string]$SkinRoot = (Join-Path $PSScriptRoot '..\Skins\Parallax'),
     [switch]$RequireAllModules,
-    [switch]$WarningsAsErrors
+    [switch]$WarningsAsErrors,
+    # Validates one include variant: each 'Name=Value' pins that variable for
+    # every config, as if the user's saved file said so, whatever the shipped
+    # files assign. It applies wherever this validator expands variables:
+    # @Include paths (so VisualizerDrawer=2 checks VisualizerDrawer2.inc),
+    # MeasureName/MeterStyle references and ScriptFile paths. Pass several as
+    # an array: -Variable 'VisualizerDrawer=2','MediaDrawerCapture=1'.
+    [string[]]$Variable = @()
 )
 Set-StrictMode -Version Latest
 $ErrorActionPreference = 'Stop'
@@ -11,6 +18,11 @@ Import-Module (Join-Path $PSScriptRoot 'Parallax.Build.psm1') -Force
 $SkinRoot = (Get-Item -LiteralPath $SkinRoot).FullName
 $issues = [Collections.Generic.List[object]]::new()
 $cache = @{}
+$overrides = [ordered]@{}
+foreach ($assignment in $Variable) {
+    if ($assignment -notmatch '^\s*([A-Za-z_@][\w.@-]*)\s*=(.*)$') { throw "-Variable expects Name=Value, not '$assignment'." }
+    $overrides[$Matches[1]] = $Matches[2]
+}
 function Add-Issue([string]$Level, [string]$File, [int]$Line, [string]$Message) {
     $issues.Add([pscustomobject]@{ Level = $Level; File = $File; Line = $Line; Message = $Message })
 }
@@ -85,7 +97,11 @@ function Visit-Ini([string]$Path, [hashtable]$State) {
             $entry = $section.Keys[$key]
             if ($key -notlike '@Include*') {
                 $State.Sections[$section.Name].Keys[$key] = $entry
-                if ($section.Name -ieq 'Variables') { $State.Variables[$key] = $entry.Value }
+                if ($section.Name -ieq 'Variables') {
+                    $State.Variables[$key] = $entry.Value
+                    # A -Variable override outlasts every file assignment.
+                    if ($overrides.Contains($key)) { $State.Variables[$key] = $overrides[$key] }
+                }
                 continue
             }
             $target = Expand-PathVariables $entry.Value.Trim('"') $State.Variables
@@ -121,7 +137,7 @@ foreach ($file in $files) { $productionPaths[$file.FullName] = $true }
 $configs = @($files | Where-Object { $_.Extension -ieq '.ini' -and (Get-ParallaxRelativePath $_.FullName $SkinRoot) -notmatch '^@Resources[\\/]' })
 foreach ($file in $files | Where-Object { $_.Extension -in '.inc', '.ini' }) { $null = Read-Ini $file.FullName }
 if ($configs.Count -eq 0) { Add-Issue 'Error' $SkinRoot 0 'No loadable skin configs found.' }
-foreach ($module in 'Settings', 'Welcome', 'Chronometer', 'CPU', 'RAM', 'GPU', 'IO', 'Network', 'Media', 'Visualizer') {
+foreach ($module in 'Settings', 'Welcome', 'Chronometer', 'CPU', 'RAM', 'GPU', 'IO', 'Network', 'Media', 'Visualizer', 'Idle') {
     $moduleFiles = @($configs | Where-Object { (Get-ParallaxRelativePath $_.FullName $SkinRoot) -like "$module\*" })
     if ($moduleFiles.Count -eq 0) {
         $level = 'Warning'
@@ -141,6 +157,7 @@ foreach ($config in $configs) {
             ROOTCONFIG = 'Parallax'
         }
     }
+    foreach ($name in $overrides.Keys) { $state.Variables[$name] = $overrides[$name] }
     Visit-Ini $config.FullName $state
     if (-not $state.Sections.ContainsKey('Rainmeter')) { Add-Issue 'Error' $config.FullName 0 'Parallax configs require a [Rainmeter] section.' }
     if (-not $state.Sections.ContainsKey('Metadata')) { Add-Issue 'Warning' $config.FullName 0 'Release configs should contain [Metadata].' }
@@ -207,6 +224,22 @@ foreach ($script in Get-ChildItem -LiteralPath $SkinRoot -Recurse -File | Where-
         if ($line -match $pattern) { Add-Issue 'Error' $script.FullName $lineNumber 'Script assigns a tooltip; Parallax ships no tooltips.' }
     }
 }
+# XMOD-04 (docs/PERFORMANCE-REVIEW.md): Update() runs inside every update's
+# measure phase and SKIN:Bang is synchronous, so an unconditional !Redraw,
+# !UpdateMeterGroup or !UpdateMeter * there paints or re-runs meters a second
+# time each tick; the engine's own end-of-cycle redraw already shows options set
+# during Update. Only direct, unconditional statements of Update() are flagged:
+# bangs inside if/loop blocks, behind and/or, after an early return, or in
+# helpers are left alone, and Update() inside comments or strings is ignored.
+# UTF-16 sources are decoded by their byte-order mark.
+Import-Module (Join-Path $PSScriptRoot 'Parallax.LuaScan.psm1') -Force
+foreach ($script in @($files | Where-Object { $_.Extension -ieq '.lua' })) {
+    $text = Read-ParallaxScriptText $script.FullName
+    if ($text -notmatch '(?i)!(Redraw|UpdateMeter)') { continue }
+    foreach ($finding in @(Find-ParallaxUpdateRepaint -Text $text)) {
+        Add-Issue 'Error' $script.FullName $finding.Line "XMOD-04: Update() sends $($finding.Bang) unconditionally on every update; the engine already redraws after the update. Paint from event paths, or only when something changed."
+    }
+}
 $uniqueIssues = @($issues | Sort-Object Level, File, Line, Message -Unique)
 foreach ($issue in $uniqueIssues) {
     $displayPath = $issue.File
@@ -215,6 +248,8 @@ foreach ($issue in $uniqueIssues) {
 }
 $errors = @($uniqueIssues | Where-Object Level -eq 'Error').Count
 $warnings = @($uniqueIssues | Where-Object Level -eq 'Warning').Count
-Write-Host "Static validation: $($configs.Count) config(s), $($cache.Count) INI/include file(s), $errors error(s), $warnings warning(s). Runtime behavior is not validated."
+$variantText = ''
+if ($overrides.Count) { $variantText = ' Variant: ' + (@($overrides.Keys | ForEach-Object { "$_=$($overrides[$_])" }) -join ', ') + '.' }
+Write-Host "Static validation: $($configs.Count) config(s), $($cache.Count) INI/include file(s), $errors error(s), $warnings warning(s).$variantText Runtime behavior is not validated."
 if ($errors -gt 0 -or ($WarningsAsErrors -and $warnings -gt 0)) { throw 'Parallax static validation failed.' }
-[pscustomobject]@{ Configs = $configs.Count; Files = $cache.Count; Errors = $errors; Warnings = $warnings }
+[pscustomobject]@{ Configs = $configs.Count; Files = $cache.Count; Errors = $errors; Warnings = $warnings; Variables = @($overrides.Keys | ForEach-Object { "$_=$($overrides[$_])" }) }

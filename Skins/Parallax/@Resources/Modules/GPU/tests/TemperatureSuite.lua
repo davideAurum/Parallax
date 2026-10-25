@@ -21,7 +21,11 @@ function Suite.run(path)
     local base = tempRoot .. '\\Parallax-GPU-' .. token
     local dataPath, leasePath, tmpPath = base .. '.dat', base .. '.lease', base .. '.tmp'
     local foreignPath = tempRoot .. '\\Parallax-GPU-another-session.dat'
-    local info, bootstrap, driver = 'MeasureGPUInfo', 'MeasureGPUTemperatureBootstrap', 'MeasureGPUTemperatureDriver'
+    -- One RunCommand launcher mints each session and starts the detached host
+    -- ('bootstrap' remains its alias here). 'driver' counts host sessions: one
+    -- per session whose first lease the controller writes.
+    local info, launcher, driver = 'MeasureGPUInfo', 'MeasureGPUTemperatureLauncher', 'host session'
+    local bootstrap = launcher
     local metadata = 'OK|' .. adapter .. '|8589934592|GDDR6|Vendor|PHYSICAL|1600000|1900000\nGPU_ADAPTER|1|' .. luid
     local function sessionOutput(overrides)
         local f = {'GPU_TEMP_SESSION', '1', token, hex(dataPath), luid}
@@ -43,19 +47,25 @@ function Suite.run(path)
     for _, field in ipairs({'Power', 'Clock'}) do
         for _, suffix in ipairs({'Sensor', 'Label', 'Value', 'ValueRaw'}) do registryNames['MeasureGPU' .. field .. suffix] = true end
     end
+    -- Freshness probes read ValueRaw0..7; like the value list they serve every
+    -- override, so they count as inventory rather than either field's bank.
+    local function inventory(name) return name == 'MeasureGPURegistryNames' or name:match('^MeasureGPUExportProbe[0-7]$') ~= nil end
+    for index = 0, 7 do registryNames['MeasureGPUExportProbe' .. index] = true end
     local function canonical(value) return tostring(value or ''):match('^%s*(.-)%s*$') end
     local function fixture(options)
         options = options or {}
         local f = {now = 1000, calls = {}, meter = {}, meters = {}, parameters = {}, launches = {}, kills = {}, reads = {},
-            registryEnables = {}, registryUpdates = {}, initializing = false,
+            registryEnables = {}, registryUpdates = {}, initializing = false, history = {}, pushes = 0, idle = {}, inIdle = false,
             files = {[foreignPath] = 'preserve'}, removed = {}, leaseWrites = 0, vars = options.vars or {},
-            statuses = {[info] = options.infoStatus or 1, [bootstrap] = options.bootstrapStatus or -1, [driver] = options.driverStatus or -1},
-            outputs = {[info] = options.metadata or metadata, [bootstrap] = '', [driver] = '', MeasureGPUProcessController = options.pids or '?'},
+            statuses = {[info] = options.infoStatus or 1, [launcher] = options.bootstrapStatus or -1},
+            outputs = {[info] = options.metadata or metadata, [launcher] = '', MeasureGPUProcessController = options.pids or '?'},
             exports = {MeasureGPURegistryNames = 'Sensor3|Label3|Value3|ValueRaw3|Sensor4|Label4|Value4|ValueRaw4',
                 MeasureGPUPowerSensor = adapter, MeasureGPUPowerLabel = 'GPU Power',
                 MeasureGPUPowerValue = '77.7 W', MeasureGPUPowerValueRaw = '77.7',
                 MeasureGPUClockSensor = adapter, MeasureGPUClockLabel = 'GPU Clock',
-                MeasureGPUClockValue = '1234.5 MHz', MeasureGPUClockValueRaw = '1234.5'}}
+                MeasureGPUClockValue = '1234.5 MHz', MeasureGPUClockValueRaw = '1234.5',
+                -- Only ValueRaw3/4 exist in the default list; they mirror the mapped indices.
+                MeasureGPUExportProbe3 = '77.7', MeasureGPUExportProbe4 = '1234.5'}}
         for name, value in pairs(options.exports or {}) do f.exports[name] = value end
         local allowedFiles = {[dataPath] = true, [leasePath] = true, [tmpPath] = true}
         f.meters.MeterTemperatureValue = f.meter
@@ -84,6 +94,7 @@ function Suite.run(path)
             return '(Max(1,Round(' .. f.vars.DataBarThickness .. '*' .. f.vars.Scale .. ')))'
         end
         function skin:ParseFormula(raw)
+            f.formulas = f.formulas + 1
             if raw == '((220-2*10))' then return 200 end
             if raw == '((' .. expandedWidth() .. '-102*' .. f.vars.Scale .. '))' then
                 local width = f.vars.ContentWidth == panelFormula and 200 or tonumber(f.vars.ContentWidth)
@@ -99,12 +110,17 @@ function Suite.run(path)
                 assert(canonical(f.vars.GPUEnableSensors) == '1', 'disabled HWiNFO export accessed: ' .. name)
                 local field = name:match('^MeasureGPU(Power)') or name:match('^MeasureGPU(Clock)')
                 if field then assert(canonical(f.vars['GPU' .. field .. 'Source']) == '1', 'unselected HWiNFO export accessed: ' .. name)
-                else assert(name == 'MeasureGPURegistryNames' and (canonical(f.vars.GPUPowerSource) == '1' or canonical(f.vars.GPUClockSource) == '1'),
+                else assert(inventory(name) and (canonical(f.vars.GPUPowerSource) == '1' or canonical(f.vars.GPUClockSource) == '1'),
                     'registry inventory accessed without an explicit HWiNFO source') end
                 assert(f.registryEnables[name] == 1 and f.registryUpdates[name] == 1, 'export read before one-time initialization: ' .. name)
                 if f.exports[name] == false then return nil end
                 return {GetValue = function() return 0 end,
                     GetStringValue = function() f.reads[name] = (f.reads[name] or 0) + 1; return f.exports[name] end}
+            end
+            if name == 'MeasureGPUGraphSamples' then
+                assert(f.inIdle, 'the History point count is read only by the idle resume')
+                return {GetOption = function(_, key, default)
+                    assert(key == 'Formula', 'only the point count formula is read'); return 'Min(MeasureGPUGraphSamples+1,200)' end}
             end
             if name == 'MeasureGPUProcessController' then
                 return {GetStringValue = function() f.reads[name] = (f.reads[name] or 0) + 1; return f.outputs[name] end}
@@ -126,15 +142,27 @@ function Suite.run(path)
                     if args[2] ~= 'Shape2' then assert(not args[3]:find('[#%[%]"%c]'), 'unsafe display data') end
                     f.meters[args[1]] = f.meters[args[1]] or {}
                     f.meters[args[1]][args[2]] = args[3]
+                elseif args[1] == 'MeasureGPUGraphSamples' or args[1] == 'MeterGPUGraphUncollected' then
+                    assert(f.inIdle, 'History cover and count options change only on an idle resume')
+                    f.idle[#f.idle + 1] = '!SetOption ' .. table.concat(args, ' ')
+                elseif args[1] == 'MeasureGPUUtilizationHistory' then
+                    assert(args[2] == 'Formula' and args[3]:match('^%d+$') and tonumber(args[3]) <= 100,
+                        'a History point is a literal 0-100 percentage')
+                    f.historyFormula = args[3]
                 else
-                    assert((args[1] == bootstrap or args[1] == driver) and args[2] == 'Parameter', 'unexpected helper option')
-                    assert(args[3]:find("ReadAllText('DriverTemperature.cs.txt')", 1, true), 'fixed source only')
+                    assert(args[1] == launcher and args[2] == 'Parameter', 'unexpected helper option')
+                    -- The launcher compiles nothing; the host reads the fixed
+                    -- source by the absolute path the launcher substitutes.
+                    assert(args[3]:find("[IO.Directory]::GetCurrentDirectory(),'DriverTemperature.cs.txt')", 1, true)
+                        and args[3]:find("ReadAllText(''@S@'')", 1, true)
+                        and not args[3]:find("ReadAllText('DriverTemperature", 1, true), 'fixed source only')
                     f.parameters[args[1]] = args[3]
                 end
             elseif command == '!CommandMeasure' then
-                assert(#args == 2 and (args[1] == bootstrap or args[1] == driver), 'unexpected subprocess target')
+                assert(#args == 2 and args[1] == launcher, 'unexpected subprocess target')
                 if args[2] == 'Run' then
                     assert(f.parameters[args[1]], 'helper must have a parameter')
+                    f.sessionPending = true
                     f.launches[args[1]] = (f.launches[args[1]] or 0) + 1
                     f.statuses[args[1]] = 0 -- Native RunCommand RUN state; initial is -1.
                 elseif args[2] == 'Kill' then
@@ -151,7 +179,7 @@ function Suite.run(path)
                 assert(canonical(f.vars.GPUEnableSensors) == '1', 'disabled override bank enabled')
                 local field = args[1]:match('^MeasureGPU(Power)') or args[1]:match('^MeasureGPU(Clock)')
                 if field then assert(canonical(f.vars['GPU' .. field .. 'Source']) == '1', 'unselected override bank enabled')
-                else assert(canonical(f.vars.GPUPowerSource) == '1' or canonical(f.vars.GPUClockSource) == '1', 'unselected inventory enabled') end
+                else assert(inventory(args[1]) and (canonical(f.vars.GPUPowerSource) == '1' or canonical(f.vars.GPUClockSource) == '1'), 'unselected inventory enabled') end
                 f.registryEnables[args[1]] = (f.registryEnables[args[1]] or 0) + 1
                 assert(f.registryEnables[args[1]] == 1, 'registry measure enabled repeatedly')
             elseif command == '!UpdateMeasure' then
@@ -160,15 +188,39 @@ function Suite.run(path)
                     assert(f.initializing and f.registryEnables[args[1]] == 1, 'registry update must follow initialization enable')
                     f.registryUpdates[args[1]] = (f.registryUpdates[args[1]] or 0) + 1
                     assert(f.registryUpdates[args[1]] == 1, 'registry update repeatedly forced')
+                elseif args[1] == 'MeasureGPUUtilizationHistory' then
+                    local previous = f.calls[#f.calls - 1]
+                    assert(previous and previous[1] == '!SetOption' and previous[2] == args[1], 'the History Calc is forced right after its point is set')
+                    f.history[#f.history + 1] = tonumber(f.historyFormula)
+                elseif args[1] == 'MeasureGPUGraphSamples' then
+                    local previous = f.calls[#f.calls - 1]
+                    if f.inIdle then
+                        assert(previous and previous[1] == '!SetOption' and previous[2] == args[1] and previous[3] == 'Formula' and previous[4] == '0',
+                            'an idle resume forces the count right after resetting it')
+                        f.idle[#f.idle + 1] = '!UpdateMeasure ' .. args[1]
+                    else
+                        assert(previous and previous[1] == '!UpdateMeasure' and previous[2] == 'MeasureGPUUtilizationHistory', 'the point count follows the point')
+                    end
                 else
-                    assert(args[1] == bootstrap or args[1] == driver, 'unexpected forced update')
+                    assert(args[1] == launcher, 'unexpected forced update')
                     if f.statusOnRefresh and f.statusOnRefresh[args[1]] ~= nil then
                         f.statuses[args[1]] = f.statusOnRefresh[args[1]]
                         f.statusOnRefresh[args[1]] = nil
                     end
                 end
-            elseif command == '!UpdateMeterGroup' then assert(#args == 1 and args[1] == 'GPUDriverReadout')
-            elseif command == '!Redraw' then assert(#args == 0)
+            elseif command == '!UpdateMeter' then
+                assert(#args == 1 and args[1] == 'MeterGPUUtilizationGraph', 'only the History graph is forced')
+                local previous = f.calls[#f.calls - 1]
+                assert(previous and previous[1] == '!UpdateMeasure' and previous[2] == 'MeasureGPUGraphSamples', 'the graph pushes after its point and count')
+                f.pushes = f.pushes + 1
+            elseif command == '!ShowMeter' then
+                assert(f.inIdle and #args == 1 and args[1] == 'MeterGPUGraphUncollected', 'only the History cover is shown, on an idle resume')
+                f.idle[#f.idle + 1] = '!ShowMeter ' .. args[1]
+            elseif command == '!UpdateMeterGroup' or command == '!Redraw' then
+                -- Every GPUDriverReadout meter keeps UpdateDivider=1, so the normal
+                -- end-of-cycle redraw paints changes; Update must not force an
+                -- extra mid-cycle frame.
+                error('Update forced a mid-cycle paint: ' .. command)
             else error('unexpected write/action ' .. tostring(command)) end
         end
         local fakeio = {}
@@ -181,9 +233,16 @@ function Suite.run(path)
                 function handle:write(value)
                     assert(type(value) == 'string' and value:match('^' .. token .. '|%d+|%d+|[%d,?]+$'), 'invalid lease')
                     if f.failWrite then return nil end
-                    f.files[filename] = value; f.leaseWrites = f.leaseWrites + 1; return self
+                    f.files[filename] = value; f.leaseWrites = f.leaseWrites + 1; self.wrote = true; return self
                 end
-                function handle:close() return not f.failClose or nil end
+                function handle:close()
+                    if f.failClose then return nil end
+                    -- The first committed lease after a launch starts a host session.
+                    if self.wrote and f.sessionPending then
+                        f.sessionPending = false; f.launches[driver] = (f.launches[driver] or 0) + 1
+                    end
+                    return true
+                end
                 return handle
             end
             assert(mode == 'rb' and filename == dataPath, 'unexpected file mode/read')
@@ -209,7 +268,11 @@ function Suite.run(path)
                 f.removed[filename] = (f.removed[filename] or 0) + 1; f.files[filename] = nil; return true
             end
         }
-        local env = setmetatable({SKIN = skin, SELF = {}, io = fakeio, os = setmetatable(fakeos, {__index = function() return forbidden end}),
+        -- Counts hex-decoded bytes (string.char) so tests can tell when a
+        -- snapshot's names or adapter field were decoded again.
+        f.chars, f.formulas = 0, 0
+        local countedString = setmetatable({char = function(...) f.chars = f.chars + 1; return string.char(...) end}, {__index = string})
+        local env = setmetatable({SKIN = skin, SELF = {}, io = fakeio, string = countedString, os = setmetatable(fakeos, {__index = function() return forbidden end}),
             package = blocked, debug = blocked, require = forbidden, dofile = forbidden, loadfile = forbidden, loadstring = forbidden}, {__index = _G})
         env._G = env
         local chunk = assert(loadfile(path)); setfenv(chunk, env); chunk(); f.env = env
@@ -223,9 +286,13 @@ function Suite.run(path)
             self.files[dataPath] = table.concat(values, '|')
         end
         function f:start(output)
-            self.outputs[bootstrap] = output or sessionOutput(); self.statuses[bootstrap] = 1; self:update()
+            self.outputs[launcher] = output or sessionOutput(); self.statuses[launcher] = 1; self:update()
         end
+        -- The detached host stops: it removes its snapshot and publishes no
+        -- more, and the controller sees only that, after its liveness grace.
+        function f:hostStops() self.files[dataPath] = nil; self.now = self.now + 31 end
         function f:live(overrides) self:start(); self:sample(overrides); self:update() end
+        function f:idleCall(name) self.inIdle = true; local result = self.env[name](); self.inIdle = false; return result end
         function f:clear() self.calls = {} end
         function f:text(meter) return self.meters[meter] and self.meters[meter].Text end
         function f:bar(meter)
@@ -262,13 +329,148 @@ function Suite.run(path)
     test('metadata, bootstrap and driver each start once without a HWiNFO dependency', function()
         local f = fixture({vars = {GPUEnableSensors = '0', GPUTemperatureIndex = '77'}})
         eq(f.meter.Text, 'Checking...'); eq(f.reads[info], 1); eq(f.launches[bootstrap], 1); eq(f.launches[driver], nil)
-        contains(f.parameters[bootstrap], "CreateSession('" .. luid .. "',2000)")
+        contains(f.parameters[launcher], "[ParallaxGpuTemperature]::Run(''@T@'',''" .. luid .. "'',2000)")
         for _ = 1, 4 do f:update() end; eq(f.launches[bootstrap], 1)
         f:live(); eq(f.launches[driver], 1); eq(f.leaseWrites, 1); eq(f.files[leasePath], token .. '|1000|0|?')
         eq(f.meter.Text, '42 °C')
         f:clear(); for _ = 1, 4 do f:update() end
         eq(#f.calls, 0, 'deduplicated unchanged view'); eq(f.leaseWrites, 1); eq(f.reads[info], 1)
         eq(f.launches[bootstrap], 1); eq(f.launches[driver], 1)
+        -- The launcher starts the host hidden and detached, then exits.
+        local launch = f.parameters[launcher]
+        local _, quotes = launch:gsub('"', '')
+        eq(quotes, 2, 'one quoted -Command argument'); eq(launch:sub(-1), '"')
+        contains(launch, '-Command "'); contains(launch, 'Start-Process'); contains(launch, '-WorkingDirectory $t -WindowStyle Hidden -PassThru')
+        contains(launch, "'-NoLogo -NoProfile -NonInteractive -WindowStyle Hidden -Command '")
+        contains(launch, "[ParallaxGpuTemperature]::Run(''@T@'',''" .. luid .. "'',2000)")
+        -- It mints the session itself: a GUID token and an exclusively created
+        -- lease; it prints the session and removes its lease on failure.
+        contains(launch, "[guid]::NewGuid().ToString('N')"); contains(launch, "'CreateNew','Write','Read'")
+        contains(launch, "'GPU_TEMP_SESSION|1|'+$k+'|'"); contains(launch, "+'|" .. luid .. "')")
+        contains(launch, '[IO.File]::Delete($l)'); contains(launch, '-lt 10000')
+        eq(launch:find('CreateSession', 1, true), nil)
+    end)
+    test('the detached host counts as stopped after twice the freshness window without a sample', function()
+        local f = fixture(); f:live()
+        f.now = 1001; f:update(); eq(f.meter.Text, '42 °C')
+        f.now = 1008; f:update(); eq(f.meter.Text, '42 °C', 'current through its whole freshness window')
+        f.now = 1009; f:update(); eq(f.meter.Text, 'Unavailable', 'a late sample is hidden at once')
+        f.now = 1030; f:update(); eq(f.meter.Text, 'Unavailable'); eq(next(f.removed), nil, 'a late host may still resume')
+        f.now = 1031; f:update(); eq(f.meter.Text, 'Unavailable'); f:ownedClean()
+        eq(f.kills[launcher], nil, 'a completed launcher is never killed'); eq(f.launches[driver], 1, 'no relaunch')
+        f.now = 1040; f:update(); eq(f.launches[launcher], 1, 'no retry before 10 s')
+        f.now = 1041; f:update(); eq(f.launches[launcher], 2, 'a retry after 10 s'); eq(f.meter.Text, 'Checking...')
+        f = fixture(); f:live()
+        f.now = 1025; f:update(); eq(f.meter.Text, 'Unavailable')
+        f:sample({[4] = '2'}); f:update(); eq(f.meter.Text, '42 °C', 'a late host resumes within the grace')
+        f.now = 1055; f:update(); eq(next(f.removed), nil); f.now = 1056; f:update(); f:ownedClean()
+    end)
+    test('a launcher that does not report a valid session ends the attempt without Kill', function()
+        for _, output in ipairs({'', 'GPU_TEMP_FAILED', 'GPU_TEMP_STARTED', sessionOutput() .. '|extra'}) do
+            local f = fixture(); f:start(output); eq(f.meter.Text, 'Unavailable'); eq(f.kills[launcher], nil)
+            eq(f.leaseWrites, 0); eq(next(f.removed), nil, 'no unvalidated path is touched')
+            f:update(); eq(f.launches[launcher], 1); eq(f.launches[driver], nil)
+        end
+    end)
+    test('changed readings are written as options without a forced mid-cycle paint', function()
+        local f = fixture(); f:live(); f:clear()
+        for sequence = 2, 5 do
+            f.now = f.now + 2; f:sample({[4] = tostring(sequence), [23] = tostring(50000 + sequence * 1000)}); f:update()
+        end
+        local writes = 0
+        for _, call in ipairs(f.calls) do
+            eq(call[1] ~= '!Redraw' and call[1] ~= '!UpdateMeterGroup', true, 'no forced paint: ' .. tostring(call[1]))
+            if call[1] == '!SetOption' and call[2] == 'MeterPowerValue' then writes = writes + 1 end
+        end
+        eq(writes, 4, 'each changed power reading is written once'); eq(f:text('MeterPowerValue'), '55.0 W')
+    end)
+    test('an unchanged snapshot is not parsed, decoded or written again but still ages out', function()
+        local map = '7,' .. hex('game.exe')
+        local f = fixture({pids = '7'}); f:live({[27] = map})
+        local names, vram = f.names, f:text('MeterGPUVRAMValue')
+        contains(names, 'GPU_NAMES|1|1000|7,'); f:clear(); f.chars, f.formulas = 0, 0
+        for _ = 1, 3 do f:update() end
+        eq(#f.calls, 0, 'no option writes'); eq(f.chars, 0, 'no hex decoding'); eq(f.formulas, 0, 'no geometry parsing')
+        eq(f.names, names, 'names kept'); eq(f:text('MeterGPUVRAMValue'), vram); eq(f.meter.Text, '42 °C')
+        eq((f:update()), 25, 'Core load kept')
+        f:sample({[4] = '2'}); f:update(); eq(f.chars > 0, true, 'a new snapshot is decoded')
+        f.now = 1009; f:update(); f:allUnavailable(); eq(f.names, '', 'an unchanged snapshot still ages out')
+        local n = fixture({metadata = 'NONE', pids = '7'}); n:start(sessionOutput({[5] = namesOnlyLuid}))
+        n:sample({[8] = namesOnlyLuid, [9] = '?', [27] = map}); n:update(); contains(n.names, 'GPU_NAMES|1|1000|7,')
+        n:clear(); n.chars = 0; n:update(); n:update()
+        eq(#n.calls, 0, 'names only: no writes'); eq(n.chars, 0, 'names only: no decoding')
+        contains(n.names, 'GPU_NAMES|1|1000|7,'); n:allUnavailable()
+    end)
+    test('an unchanged snapshot is re-filtered at once when the name request changes', function()
+        local map = '7,' .. hex('game.exe')
+        local f = fixture({pids = '7'}); f:live({[27] = map}); contains(f.names, 'GPU_NAMES|1|1000|7,')
+        f.outputs.MeasureGPUProcessController = '8'; f.now = 1001; f:update()
+        eq(f.names, '', 'a PID dropped from the request loses its name at once')
+        f.outputs.MeasureGPUProcessController = '7'; f.now = 1002; f:update()
+        eq(f.names, '', 'a re-entered PID waits for a reply at or after its re-entry')
+        eq(f.meter.Text, '42 °C', 'readings stay valid throughout')
+    end)
+    test('bar geometry is resolved once per load, not on every bar write', function()
+        for _, case in ipairs({{vars = {}, width = 98, thickness = 6},
+            {vars = {ContentWidth = '(#PanelWidth#-2*#Padding#)', DataBarThickness = '12', Scale = '1.5'}, width = 47, thickness = 18}}) do
+            local f = fixture({vars = case.vars}); f:live(); local parsed = f.formulas
+            eq(parsed > 0, true, 'formula variables are resolved')
+            for sequence = 2, 4 do
+                f.now = f.now + 2
+                f:sample({[4] = tostring(sequence), [13] = tostring(6442450944 - sequence * 1000000000), [18] = tostring(10 * sequence)}); f:update()
+            end
+            eq(f.formulas, parsed, 'no geometry parse after the first')
+            eq(f:text('MeterGPUVRAMValue'), '6.1/8.6 GB'); eq(f:text('MeterGPULoadValue'), '40%')
+            local endpoint, stroke = f:bar('MeterGPULoadBar')
+            eq(stroke, case.thickness, 'cached thickness')
+            eq(endpoint, tonumber(string.format('%.3f', case.width * 0.4)), 'cached engine width')
+            endpoint = f:bar('MeterGPUVRAMBar')
+            eq(endpoint, tonumber(string.format('%.3f', 200 * 6147483648 / 8589934592)), 'cached content width')
+        end
+    end)
+    test('a snapshot shown unavailable in between is validated and shown again in full', function()
+        local f = fixture(); f:live(); local saved = f.files[dataPath]
+        f.files[dataPath] = nil; f:update(); eq(f.meter.Text, 'Checking...'); eq(f:text('MeterActivityValue'), '--')
+        f.files[dataPath] = saved; f:update()
+        eq(f.meter.Text, '42 °C'); eq(f:text('MeterActivityValue'), '25%'); eq(f:text('MeterGPUVRAMValue'), '2.1/8.6 GB')
+    end)
+    test('the History graph records exactly one point per new driver sample', function()
+        local starting = {[4] = '0', [6] = 'STARTING', [7] = '?', [9] = '?'}
+        for _, index in ipairs({10, 14, 17, 22, 24}) do starting[index] = 'STARTING' end
+        for _, index in ipairs({11, 12, 13, 15, 16, 18, 19, 20, 21, 23, 25}) do starting[index] = '?' end
+        local f = fixture(); eq(#f.history, 0, 'nothing while metadata is pending')
+        f:start(); f.now = 1005; f:update(); eq(#f.history, 0, 'nothing before the first sample')
+        f:sample(starting); f:update(); eq(f.meter.Text, 'Checking...'); eq(#f.history, 0, 'a starting snapshot has no reading to plot')
+        f:sample({[4] = '1', [18] = '30'}); f:update(); eq(table.concat(f.history, ','), '30')
+        for _ = 1, 3 do f:update() end
+        eq(#f.history, 1, 'an unchanged sample is not plotted again')
+        f.now = 1006; f:update(); eq(#f.history, 1, 'a tick without a new sample adds nothing')
+        f.now = 1007; f:sample({[4] = '2', [18] = '45'}); f:update(); eq(table.concat(f.history, ','), '30,45')
+        f:sample({[4] = '2', [18] = '99'}); f:update(); eq(#f.history, 2, 'a rewritten sequence is not a new sample')
+        f.now = 1009; f:sample({[4] = '3', [17] = 'UNSUPPORTED', [18] = '?', [19] = '?', [20] = '?', [21] = '?'}); f:update()
+        eq(table.concat(f.history, ','), '30,45,0', 'unsupported activity traces 0 at the sample cadence')
+        eq(f.pushes, #f.history, 'every point is pushed to the graph once')
+    end)
+    test('while the reading is unavailable the History traces 0 once per sampling interval', function()
+        local f = fixture({metadata = 'NONE'})
+        eq(table.concat(f.history, ','), '0', 'names-only mode traces 0')
+        f:update(); f.now = 1001; f:update(); eq(#f.history, 1, 'not again within the interval')
+        f.now = 1002; f:update(); eq(table.concat(f.history, ','), '0,0')
+        f = fixture(); f:live(); eq(table.concat(f.history, ','), '25')
+        f.now = 1009; f:update(); eq(table.concat(f.history, ','), '25,0', 'a stale reading traces 0')
+        f.now = 1010; f:update(); eq(#f.history, 2); f.now = 1011; f:update(); eq(table.concat(f.history, ','), '25,0,0')
+        f:sample({[4] = '2', [18] = '60'}); f:update(); eq(table.concat(f.history, ','), '25,0,0,60', 'a fresh sample resumes the trace')
+        f = fixture(); f:live(); f.now = 1002; f:sample({[4] = '2', [6] = 'DEVICE_CHANGED'}); f:update()
+        eq(table.concat(f.history, ','), '25,0', 'a changed device traces 0')
+        f = fixture(); f:live(); f:hostStops(); f:update(); eq(table.concat(f.history, ','), '25,0', 'a stopped host traces 0')
+        f.now = f.now + 1; f:update(); eq(#f.history, 2, 'not within the interval of the last point')
+        f.now = f.now + 1; f:update(); eq(table.concat(f.history, ','), '25,0,0', 'the zero trace keeps the sampling cadence')
+        f.env.Stop(); f.now = f.now + 10; f:update(); eq(#f.history, 3, 'nothing after Stop')
+        -- At a 5 s interval a sample stays fresh for 17 s, then 0 is traced every 5 s.
+        f = fixture({vars = {SensorInterval = '5000'}}); f:live(); f.now = 1017; f:update(); eq(#f.history, 1, 'still fresh')
+        f.now = 1018; f:update(); f.now = 1022; f:update()
+        eq(table.concat(f.history, ','), '25,0', 'the zero cadence follows the sampling interval')
+        f.now = 1023; f:update(); eq(table.concat(f.history, ','), '25,0,0')
     end)
     test('interval follows slower collection cadence and bounded integer limits', function()
         local cases = {{{MetricsInterval = '5000', SensorInterval = '2000'}, 5000},
@@ -277,18 +479,18 @@ function Suite.run(path)
             {{MetricsInterval = 'bad', SensorInterval = '2500.9'}, 2500},
             {{MetricsInterval = '1e309', SensorInterval = '2000'}, 2000}}
         for _, item in ipairs(cases) do
-            local f = fixture({vars = item[1]}); contains(f.parameters[bootstrap], "'," .. item[2] .. '))')
+            local f = fixture({vars = item[1]}); contains(f.parameters[launcher], "''," .. item[2] .. ') }')
         end
     end)
     test('pending or missing metadata has a deadline, then runs names only and never launches from stale output', function()
         for _, status in ipairs({-1, 0, 2, 101, 102, 103}) do
             local f = fixture({infoStatus = status}); eq(f.meter.Text, 'Checking...'); eq(f.reads[info], nil)
             f.now = 1014; f:update(); eq(f.meter.Text, 'Unavailable')
-            eq(f.launches[bootstrap], 1); contains(f.parameters[bootstrap], "CreateSession('" .. namesOnlyLuid .. "',2000)")
+            eq(f.launches[bootstrap], 1); contains(f.parameters[launcher], "''@T@'',''" .. namesOnlyLuid .. "'',2000)")
             f.statuses[info] = 1; f.now = 2000; f:update(); eq(f.launches[bootstrap], 1); eq(f.reads[info], nil, 'late metadata is never read')
         end
         local f = fixture({missingInfo = true}); f.now = 1014; f:update(); eq(f.meter.Text, 'Unavailable')
-        contains(f.parameters[bootstrap], "CreateSession('" .. namesOnlyLuid .. "',")
+        contains(f.parameters[launcher], "''@T@'',''" .. namesOnlyLuid .. "'',")
     end)
     test('never-launched helpers reporting minus one are not killed during metadata failure or Stop', function()
         local function untouched(f)
@@ -302,14 +504,14 @@ function Suite.run(path)
             eq(f.launches[bootstrap], 1); eq(f.launches[driver], nil); eq(f.kills[driver], nil)
             eq(next(f.removed), nil, 'unaccepted sessions have no owned files')
         end
-        local f = fixture({metadata = 'NONE', bootstrapStatus = -1, driverStatus = -1})
+        local f = fixture({metadata = 'NONE', bootstrapStatus = -1})
         eq(f.meter.Text, 'Unavailable'); namesOnlyBootstrap(f); eq(f.kills[bootstrap], nil)
-        f.env.Stop(); namesOnlyBootstrap(f); eq(f.kills[bootstrap], 1, 'owned running bootstrap is stopped')
+        f.env.Stop(); namesOnlyBootstrap(f); eq(f.kills[bootstrap], nil, 'a running bootstrap is left to RunCommand unload termination')
         for _, statusValue in ipairs({0, -1}) do
-            f = fixture({infoStatus = statusValue, bootstrapStatus = -1, driverStatus = -1})
+            f = fixture({infoStatus = statusValue, bootstrapStatus = -1})
             eq(f.meter.Text, 'Checking...'); untouched(f)
             f.now = 1014; f:update(); eq(f.meter.Text, 'Unavailable'); namesOnlyBootstrap(f)
-            f = fixture({infoStatus = statusValue, bootstrapStatus = -1, driverStatus = -1})
+            f = fixture({infoStatus = statusValue, bootstrapStatus = -1})
             f.env.Stop(); untouched(f)
             f:clear(); f.now = 2000; f:update(); eq(#f.calls, 0); untouched(f)
         end
@@ -321,7 +523,7 @@ function Suite.run(path)
             (metadata:gsub(luid, namesOnlyLuid)), string.rep('x', 12001)}
         for _, output in ipairs(cases) do
             local f = fixture({metadata = output}); eq(f.meter.Text, 'Unavailable')
-            eq(f.launches[bootstrap], 1); contains(f.parameters[bootstrap], "CreateSession('" .. namesOnlyLuid .. "',2000)")
+            eq(f.launches[bootstrap], 1); contains(f.parameters[launcher], "''@T@'',''" .. namesOnlyLuid .. "'',2000)")
             f:update(); eq(f.launches[bootstrap], 1)
         end
         local f = fixture({metadata = metadata:gsub('\n', '\r\n'):gsub('PHYSICAL', 'DEDICATED')})
@@ -340,7 +542,7 @@ function Suite.run(path)
             eq(f.leaseWrites, 0); eq(next(f.removed), nil); f:update(); eq(f.launches[bootstrap], 1)
         end
     end)
-    test('bootstrap deadline prevents repeated launches or delayed stale completion', function()
+    test('launcher deadline prevents repeated launches or delayed stale completion', function()
         local f = fixture(); f.now = 1020; f:update(); eq(f.meter.Text, 'Unavailable')
         f:start(); eq(f.launches[driver], nil); eq(f.launches[bootstrap], 1); eq(f.leaseWrites, 0)
     end)
@@ -406,106 +608,140 @@ function Suite.run(path)
             eq(f.launches[driver], nil); f:ownedClean(); f:update(); eq(f.launches[bootstrap], 1)
         end
         local f = fixture(); f:live(); f.failOpen = true; f.now = 1005; f:update()
-        eq(f.meter.Text, 'Unavailable'); eq(f.kills[driver], 1); f:ownedClean()
+        -- The launcher has reported, so nothing is killed: removing the lease
+        -- is the detached host's stop request.
+        eq(f.meter.Text, 'Unavailable'); eq(f.kills[launcher], nil); f:ownedClean()
         f.failOpen = false; f:update(); eq(f.launches[driver], 1)
     end)
-    test('a stopped host cannot leave a plausible retained reading or restart loop', function()
+    test('a stopped host cannot leave a plausible retained reading or a restart loop', function()
         local f = fixture(); f:live(); f.files[tmpPath] = 'partial'
-        f.statuses[driver] = 1; f:update(); eq(f.meter.Text, 'Unavailable'); f:ownedClean()
-        f.statuses[driver] = -1; f:update(); eq(f.meter.Text, 'Unavailable'); eq(f.launches[driver], 1)
-    end)
-    test('a stopped host relaunches once after the backoff and recovers live readings', function()
-        local f = fixture(); f:live(); eq(f.meter.Text, '42 °C')
-        f.statuses[driver] = 1; f:update(); eq(f.meter.Text, 'Unavailable'); f:ownedClean()
-        f.now = 1029; f:update(); eq(f.launches[bootstrap], 1, 'no relaunch before the backoff')
-        f.now = 1030; f:update(); eq(f.launches[bootstrap], 2)
-        contains(f.parameters[bootstrap], "CreateSession('" .. luid .. "',2000)")
-        f:update(); eq(f.launches[bootstrap], 2, 'one bootstrap per retry')
-        f:start(); eq(f.launches[driver], 2); f:sample(); f:update()
-        eq(f.meter.Text, '42 °C'); eq(f:text('MeterActivityValue'), '25%')
-        -- The accepted sample reset the backoff to its first step.
-        f.statuses[driver] = 1; f:update(); eq(f.meter.Text, 'Unavailable')
-        f.now = 1060; f:update(); eq(f.launches[bootstrap], 3)
-    end)
-    test('retries back off and stop after five without an accepted sample', function()
-        local f = fixture(); f:start('GPU_TEMP_FAILED'); eq(f.launches[bootstrap], 1)
-        for index, delay in ipairs({30, 60, 120, 240, 300}) do
-            f.now = f.now + delay - 1; f:update(); eq(f.launches[bootstrap], index, 'early retry ' .. index)
-            f.now = f.now + 1; f:update(); eq(f.launches[bootstrap], index + 1, 'retry ' .. index)
-            f:start('GPU_TEMP_FAILED'); eq(f.meter.Text, 'Unavailable')
+        f:hostStops(); f:update(); eq(f.meter.Text, 'Unavailable'); f:ownedClean()
+        -- Bounded recovery: retries after 10, 60 and 300 s (each launcher here
+        -- never reports), then nothing more until refresh.
+        local launches = 1
+        for _, delay in ipairs({10, 60, 300}) do
+            local failedAt = f.now
+            f.now = failedAt + delay - 1; f:update(); eq(f.launches[launcher], launches)
+            f.now = failedAt + delay; f:update(); launches = launches + 1; eq(f.launches[launcher], launches)
+            eq(f.meter.Text, 'Checking...', 'a retry shows Checking..., never the old reading')
+            f.now = f.now + 20; f:update(); eq(f.meter.Text, 'Unavailable'); eq(f.kills[launcher], launches - 1)
         end
-        f.now = f.now + 100000; f:update(); eq(f.launches[bootstrap], 6, 'gives up until refresh'); eq(f.launches[driver], nil)
+        f.now = f.now + 100000; f:update(); eq(f.launches[launcher], 4); eq(f.meter.Text, 'Unavailable')
+        eq(f.launches[driver], 1, 'no retried launcher reported a session')
     end)
-    test('names-only sessions retry in names-only mode and Stop cancels a pending retry', function()
-        local f = fixture({metadata = 'NONE'}); f:start(sessionOutput({[5] = namesOnlyLuid}))
-        f.statuses[driver] = 1; f:update()
-        f.now = 1030; f:update(); eq(f.launches[bootstrap], 2)
-        contains(f.parameters[bootstrap], "CreateSession('" .. namesOnlyLuid .. "',2000)")
-        f = fixture(); f:live(); f.statuses[driver] = 1; f:update(); f.env.Stop()
-        f.now = 5000; f:update(); eq(f.launches[bootstrap], 1)
+    test('idle stand-down stops the host without a failure and resumes one fresh session', function()
+        local f = fixture(); f:live(); eq(f.meter.Text, '42 °C')
+        eq(f:idleCall('IdleEnter'), nil); eq(f.removed[leasePath], 1, 'the lease is removed: the host exits')
+        eq(f.kills[launcher], nil, 'a completed launcher is not killed')
+        eq(f.env.StandDown(), false, 'a second stand-down does nothing')
+        f.now = f.now + 3600; f:update(); eq(f.launches[launcher], 1, 'no launch or retry while standing down')
+        f.idle = {}; f:idleCall('IdleLeave')
+        eq(table.concat(f.idle, '\n'), table.concat({'!SetOption MeasureGPUGraphSamples Formula 0', '!UpdateMeasure MeasureGPUGraphSamples',
+            '!SetOption MeasureGPUGraphSamples Formula Min(MeasureGPUGraphSamples+1,200)',
+            '!SetOption MeterGPUGraphUncollected DynamicVariables 1', '!ShowMeter MeterGPUGraphUncollected'}, '\n'), 'History restarts with its cover')
+        f.idle = {}; f:idleCall('ReapplyDividers'); eq(f.idle[1], '!SetOption MeterGPUGraphUncollected UpdateDivider 1')
+        f:update(); eq(f.launches[launcher], 2, 'the resume update launches one fresh session'); eq(f.meter.Text, 'Checking...', 'never the pre-pause reading')
+        local plotted = #f.history
+        f:start(); eq(f.launches[driver], 2); f:sample({[4] = '1'}); f:update(); eq(f.meter.Text, '42 °C', 'a fresh sample follows')
+        eq(#f.history, plotted + 1, 'the History graph advances again with the first new sample')
+        f:hostStops(); f:update(); f.now = f.now + 9; f:update(); eq(f.launches[launcher], 2)
+        f.now = f.now + 1; f:update(); eq(f.launches[launcher], 3, 'no retry was consumed: the next failure retries after 10 s')
+        -- A launch in progress is killed once.
+        f = fixture(); f:update(); eq(f.launches[launcher], 1)
+        f:idleCall('IdleEnter'); eq(f.kills[launcher], 1, 'a running launcher is killed at stand-down')
+        f:idleCall('IdleLeave'); f:update(); eq(f.launches[launcher], 2, 'and relaunched on resume')
+        -- Metadata still pending: a fresh 14 s deadline after the pause.
+        f = fixture({infoStatus = 0}); f:update(); eq(f.launches[launcher], nil)
+        f:idleCall('IdleEnter'); f.now = f.now + 600; f:idleCall('IdleLeave')
+        f:update(); eq(f.launches[launcher], nil, 'the metadata wait restarts instead of timing out at once')
+        f.now = f.now + 14; f:update(); eq(f.launches[launcher], 1, 'then names-only after its own 14 s')
+        -- A failed state keeps its schedule; Stop after a stand-down is terminal.
+        f = fixture(); f:live(); f:hostStops(); f:update(); eq(f.env.StandDown(), false, 'a failed state does not stand down')
+        f.now = f.now + 10; f:update(); eq(f.launches[launcher], 2, 'its retry stays on schedule')
+        f = fixture(); f:live(); f:idleCall('IdleEnter'); f.env.Stop(); eq(f.env.StandUp(), false)
+        f.now = f.now + 100; f:update(); eq(f.launches[launcher], 1, 'Stop after a stand-down is terminal')
+    end)
+    test('a retried session recovers, a long healthy session resets the count, and Stop cancels a retry', function()
+        -- Reproduced owner symptom (RAM, same design here): the host's lease
+        -- lapsed while Rainmeter was suspended, and readings stayed Unavailable
+        -- with no host until refresh.
+        local f = fixture(); f:live()
+        f:hostStops(); f:update(); eq(f.meter.Text, 'Unavailable')
+        f.now = f.now + 10; f:update(); eq(f.launches[launcher], 2); eq(f.meter.Text, 'Checking...')
+        f:start(); eq(f.launches[driver], 2, 'the retry starts a new host session')
+        eq(f.files[leasePath], token .. '|' .. f.now .. '|0|?')
+        f:sample({[4] = '1'}); f:update(); eq(f.meter.Text, '42 °C', 'a retried session restarts its sequence')
+        local start = f.now
+        for second = 2, 600, 2 do f.now = start + second; f:sample({[4] = tostring(1 + second / 2)}); f:update() end
+        eq(f.meter.Text, '42 °C')
+        f:hostStops(); f:update(); f.now = f.now + 9; f:update(); eq(f.launches[launcher], 2)
+        f.now = f.now + 1; f:update(); eq(f.launches[launcher], 3, 'after 10 healthy minutes the first retry is again after 10 s')
+        f = fixture(); f:live(); f:hostStops(); f:update(); f.env.Stop()
+        f.now = f.now + 1000; f:update(); eq(f.launches[launcher], 1, 'Stop cancels a pending retry')
+        -- Names-only sessions recover the same way and stay names-only.
+        f = fixture({metadata = 'NONE'}); f:start(sessionOutput({[5] = namesOnlyLuid})); eq(f.launches[driver], 1)
+        f:hostStops(); f:update(); f.now = f.now + 10; f:update(); eq(f.launches[launcher], 2)
+        contains(f.parameters[launcher], "'',''" .. namesOnlyLuid .. "'',2000)"); eq(f.meter.Text, 'Unavailable')
     end)
     test('Stop removes owned lease/snapshot/temp files and never restarts helpers', function()
+        -- Removing the lease is the detached host's stop request. Stop sends no
+        -- Kill: RunCommand's unload terminates a running setup command once.
         local f = fixture(); f:live(); f.files[tmpPath] = 'partial'; f.env.Stop(); f:ownedClean()
-        eq(f.kills[bootstrap], nil, 'finished bootstrap need not be killed'); eq(f.kills[driver], 1)
+        eq(f.kills[bootstrap], nil, 'finished bootstrap need not be killed'); eq(f.kills[driver], nil)
         f:clear(); f.now = 2000; f:update(); eq(#f.calls, 0); eq(f.launches[driver], 1)
-        f = fixture(); f.env.Stop(); eq(next(f.removed), nil, 'no files removed before session accepted')
-        eq(f.kills[bootstrap], 1); eq(f.kills[driver], nil)
+        f = fixture(); f:clear(); f.env.Stop(); eq(next(f.removed), nil, 'no files removed before session accepted')
+        eq(f.kills[bootstrap], nil, 'a running bootstrap is left to RunCommand unload'); eq(f.kills[driver], nil)
+        eq(#f.calls, 0, 'Stop neither commands nor refreshes a provider')
         f:start(); eq(f.launches[driver], nil); eq(f.leaseWrites, 0)
     end)
-    test('failure and Stop kill owned native RUN state zero exactly once', function()
-        for _, name in ipairs({bootstrap, driver}) do
-            for _, action in ipairs({'failure', 'Stop'}) do
-                local f = fixture(); if name == driver then f:live() end
-                eq(f.launches[name], 1); eq(f.statuses[name], 0, 'RunCommand is actively running')
-                if action == 'Stop' then f.env.Stop()
-                elseif name == bootstrap then f.now = 1020; f:update()
-                else f.failOpen = true; f.now = 1005; f:update() end
-                eq(f.kills[name], 1)
-                eq(f.kills[name == bootstrap and driver or bootstrap], nil)
-                eq(f.statuses[name], 0, 'asynchronous Kill may retain RUN until the plugin updates')
-                f.env.Stop(); f.env.Stop(); eq(f.kills[name], 1, 'repeated shutdown cannot send a second Kill')
-                if name == driver then f:ownedClean() else eq(next(f.removed), nil) end
-            end
+    test('failure kills the owned running launcher exactly once; Stop never kills', function()
+        for _, action in ipairs({'failure', 'Stop'}) do
+            local f = fixture()
+            eq(f.launches[launcher], 1); eq(f.statuses[launcher], 0, 'RunCommand is actively running')
+            if action == 'Stop' then f.env.Stop() else f.now = 1020; f:update() end
+            local expected = action == 'failure' and 1 or nil
+            eq(f.kills[launcher], expected)
+            eq(f.statuses[launcher], 0, 'asynchronous Kill may retain RUN until the plugin updates')
+            f.env.Stop(); f.env.Stop(); eq(f.kills[launcher], expected, 'repeated shutdown cannot send another Kill')
+            eq(next(f.removed), nil)
+        end
+        -- Once the launcher has reported, nothing is killed: removing the
+        -- lease is the detached host's stop request.
+        for _, action in ipairs({'failure', 'Stop'}) do
+            local f = fixture(); f:live()
+            if action == 'Stop' then f.env.Stop() else f.failOpen = true; f.now = 1005; f:update() end
+            eq(f.kills[launcher], nil); f:ownedClean()
         end
     end)
     test('owned initial, completed and error states are never killed on failure or Stop', function()
         for _, stateValue in ipairs({-1, 1, 2, 101, 102, 103}) do
-            for _, name in ipairs({bootstrap, driver}) do
-                for _, action in ipairs({'failure', 'Stop'}) do
-                    local f = fixture(); if name == driver then f:live() end
-                    eq(f.launches[name], 1); f.statuses[name] = stateValue
-                    if action == 'Stop' then f.env.Stop()
-                    elseif name == bootstrap then f.now = 1020; f:update()
-                    else f.failOpen = true; f.now = 1005; f:update() end
-                    eq(f.kills[bootstrap], nil); eq(f.kills[driver], nil)
-                    f.env.Stop(); eq(f.kills[bootstrap], nil); eq(f.kills[driver], nil)
-                end
+            for _, action in ipairs({'failure', 'Stop'}) do
+                local f = fixture(); eq(f.launches[launcher], 1); f.statuses[launcher] = stateValue
+                if action == 'Stop' then f.env.Stop() else f.now = 1020; f:update() end
+                eq(f.kills[launcher], nil)
+                f.env.Stop(); eq(f.kills[launcher], nil)
             end
         end
     end)
     test('unowned helper status cannot authorize Kill even if the plugin reports RUN', function()
         for _, stateValue in ipairs({-1, 0, 1, 101, 102, 103}) do
-            local f = fixture({metadata = 'NONE', bootstrapStatus = stateValue, driverStatus = stateValue})
+            local f = fixture({metadata = 'NONE', bootstrapStatus = stateValue})
             eq(f.meter.Text, 'Unavailable'); f.env.Stop()
-            eq(f.launches[bootstrap], 1, 'names-only bootstrap is owned'); eq(f.launches[driver], nil)
-            eq(f.kills[driver], nil, 'the never-launched driver host is never killed')
-            f = fixture({infoStatus = 0, bootstrapStatus = stateValue, driverStatus = stateValue})
-            f.env.Stop(); eq(f.launches[bootstrap], nil); eq(f.launches[driver], nil)
-            eq(f.kills[bootstrap], nil); eq(f.kills[driver], nil)
+            eq(f.launches[launcher], 1, 'the names-only launcher is owned'); eq(f.launches[driver], nil)
+            eq(f.kills[launcher], nil, 'Stop never kills')
+            f = fixture({infoStatus = 0, bootstrapStatus = stateValue})
+            f.env.Stop(); eq(f.launches[launcher], nil); eq(f.launches[driver], nil)
+            eq(f.kills[launcher], nil)
         end
     end)
-    test('shutdown refreshes stale plugin status before deciding whether a helper is live', function()
-        for _, name in ipairs({bootstrap, driver}) do
-            for _, stateValue in ipairs({1, 101, 102, 103}) do
-                local f = fixture(); if name == driver then f:live() end
-                eq(f.statuses[name], 0)
-                f.statusOnRefresh = {[name] = stateValue}; f.env.Stop()
-                eq(f.statuses[name], stateValue); eq(f.kills[name], nil, 'completed/error status supersedes cached RUN')
-            end
-            local f = fixture(); if name == driver then f:live() end
-            f.statuses[name] = -1; f.statusOnRefresh = {[name] = 0}; f.env.Stop()
-            eq(f.kills[name], 1, 'fresh RUN status supersedes cached initial state for an owned helper')
+    test('failure refreshes stale plugin status before deciding whether the launcher is live', function()
+        for _, stateValue in ipairs({1, 101, 102, 103}) do
+            local f = fixture(); eq(f.statuses[launcher], 0)
+            f.statusOnRefresh = {[launcher] = stateValue}; f.now = 1020; f:update()
+            eq(f.statuses[launcher], stateValue); eq(f.kills[launcher], nil, 'completed/error status supersedes cached RUN')
         end
+        local f = fixture(); f.statuses[launcher] = -1; f.statusOnRefresh = {[launcher] = 0}; f.now = 1020; f:update()
+        eq(f.kills[launcher], 1, 'fresh RUN status supersedes cached initial state for an owned helper')
     end)
     test('memory capacity and activity domains stay separate in their units', function()
         local f = fixture(); f:live()
@@ -549,7 +785,7 @@ function Suite.run(path)
         f = fixture(); f:live(); f:sample({[4] = '2', [6] = 'DEVICE_CHANGED'}); n = f:update(); eq(n, 0, 'changed device'); f:allUnavailable()
         f = fixture(); f:live(); f:sample({[4] = '2', [17] = 'DEVICE_CHANGED'}); n = f:update(); eq(n, 0, 'changed engine identity'); f:allUnavailable()
         f = fixture(); f:live(); f.files[dataPath] = f.files[dataPath] .. '|extra'; n = f:update(); eq(n, 0, 'malformed sample'); f:allUnavailable()
-        f = fixture(); f:live(); f.statuses[driver] = 1; n = f:update(); eq(n, 0, 'stopped host'); f:allUnavailable()
+        f = fixture(); f:live(); f:hostStops(); n = f:update(); eq(n, 0, 'stopped host'); f:allUnavailable()
         f:clear(); n = f:update(); eq(n, 0, 'failed state stays zero'); eq(#f.calls, 0)
         f = fixture(); f:live(); f.failOpen = true; f.now = 1005; n = f:update(); eq(n, 0, 'lost lease'); eq(f:text('MeterActivityValue'), '--')
         f = fixture(); f:live(); f.env.Stop(); local stopped, names = f:update(); eq(stopped, 0, 'stopped'); eq(names, '')
@@ -584,7 +820,7 @@ function Suite.run(path)
         end
         local f = fixture(); f:live(); f.now = 1009; f:update(); f:allUnavailable()
         f = fixture(); f:live(); f.files[dataPath] = f.files[dataPath] .. '|extra'; f:update(); f:allUnavailable()
-        f = fixture(); f:live(); f.statuses[driver] = 1; f:update(); f:allUnavailable()
+        f = fixture(); f:live(); f:hostStops(); f:update(); f:allUnavailable()
     end)
     test('VRAM validation rejects missing capacities, TCC zeros and inconsistent availability independently', function()
         local invalid = {{[11] = '0'}, {[12] = '0'}, {[12] = '8589934593'}, {[13] = '8053063681'},
@@ -720,7 +956,9 @@ function Suite.run(path)
         eq(f.reads.MeasureGPURegistryNames, nil)
     end)
     test('canonical override selection enables and initializes only its required banks once', function()
-        for _, selection in ipairs({{true, false, 5}, {false, true, 5}, {true, true, 9}, {false, false, 0}}) do
+        -- One field's four-measure bank, plus the shared value list and the eight
+        -- freshness probes (ValueRaw0..7) whenever any override is selected.
+        for _, selection in ipairs({{true, false, 13}, {false, true, 13}, {true, true, 17}, {false, false, 0}}) do
             local f = fixture(manualOptions(selection[1], selection[2]))
             local count = 0
             for name in pairs(registryNames) do
@@ -744,6 +982,83 @@ function Suite.run(path)
         local f = fixture(options); f:live(); eq(f:text('MeterPowerValue'), '77.7 W')
         eq(f.registryEnables.MeasureGPURegistryNames, 1); eq(f.registryEnables.MeasureGPUPowerValue, 1)
         eq(f.registryEnables.MeasureGPUClockValue, nil)
+    end)
+    -- Advance the fixture clock in 2 s steps with a fresh driver sample each
+    -- time, so only the HWiNFO export, never the driver snapshot, can go stale.
+    local function hold(f, seconds)
+        for _ = 1, seconds / 2 do f.now = f.now + 2; f:sample(); f:update() end
+    end
+    test('a frozen HWiNFO override export reads Not updating after 60 s and recovers on any change', function()
+        local f = fixture(manualOptions(true, false)); f:live()
+        eq(f:text('MeterPowerValue'), '77.7 W'); eq(f:text('MeterClockValue'), '1607.5 MHz')
+        hold(f, 58)
+        eq(f:text('MeterPowerValue'), '77.7 W', 'still within the window')
+        hold(f, 2)
+        eq(f:text('MeterPowerValue'), 'Not updating')
+        eq(f:text('MeterClockValue'), '1607.5 MHz', 'the driver source is unaffected')
+        eq(f.meter.Text, '42 °C', 'driver temperature is unaffected')
+        hold(f, 120)
+        eq(f:text('MeterPowerValue'), 'Not updating', 'stays withheld')
+        -- Any probed export value moving restores the reading at once.
+        f.exports.MeasureGPUExportProbe4 = '1300.0'; f:update()
+        eq(f:text('MeterPowerValue'), '77.7 W', 'any change restores the reading')
+        hold(f, 60); eq(f:text('MeterPowerValue'), 'Not updating', 'caught again')
+        -- So does the mapped value itself.
+        f.exports.MeasureGPUPowerValue, f.exports.MeasureGPUPowerValueRaw = '80.5 W', '80.5'; f:update()
+        eq(f:text('MeterPowerValue'), '80.5 W')
+        -- Both overrides are withheld together; values lingering after HWiNFO
+        -- exits look the same and are withheld the same way.
+        f = fixture(manualOptions(true, true)); f:live(); hold(f, 60)
+        eq(f:text('MeterPowerValue'), 'Not updating'); eq(f:text('MeterClockValue'), 'Not updating')
+        eq(f.launches[bootstrap], 1, 'detection launches nothing')
+    end)
+    test('an idle mapped clock that holds one value stays live while the export moves', function()
+        -- Live 2026-10-23 export: GPU Clock held 139.0 MHz for 36 s while GPU
+        -- Power changed on every poll. Here ValueRaw3 stands in for that power.
+        local f = fixture(manualOptions(false, true)); f:live()
+        for step = 1, 5 do
+            hold(f, 40)
+            f.exports.MeasureGPUExportProbe3 = tostring(11 + step / 10); f:update()
+            eq(f:text('MeterClockValue'), '1234.5 MHz', 'live at step ' .. step)
+        end
+        hold(f, 60)
+        eq(f:text('MeterClockValue'), 'Not updating', 'the whole export froze')
+        eq(f:text('MeterPowerValue'), '55.3 W', 'driver power unaffected')
+    end)
+    test('mapping and availability statuses stay more specific than Not updating', function()
+        for _, item in ipairs({
+                {vars = {GPUPowerIndex = '-1'}, expected = 'Unmapped'},
+                {vars = {GPUPowerIndex = '3.5'}, expected = 'Check mapping'},
+                {exports = {MeasureGPUPowerSensor = 'Different GPU'}, expected = 'Check mapping'},
+                {exports = {MeasureGPURegistryNames = 'Sensor3|Label3|Value3'}, expected = 'Unavailable'},
+                {exports = {MeasureGPUPowerValue = '77.7'}, expected = 'Unavailable'}}) do
+            local options = manualOptions(true, false)
+            for name, value in pairs(item.vars or {}) do options.vars[name] = value end
+            options.exports = item.exports
+            local f = fixture(options); f:live(); hold(f, 90)
+            eq(f:text('MeterPowerValue'), item.expected)
+        end
+        local options = manualOptions(true, true); options.vars.GPUEnableSensors = '0'
+        local f = fixture(options); f:live(); hold(f, 90)
+        eq(f:text('MeterPowerValue'), 'Off'); eq(f:text('MeterClockValue'), 'Off')
+    end)
+    test('the default driver path never enables or reads the freshness probes', function()
+        local f = fixture(); f:live(); hold(f, 120)
+        for index = 0, 7 do
+            eq(f.registryEnables['MeasureGPUExportProbe' .. index], nil)
+            eq(f.reads['MeasureGPUExportProbe' .. index], nil)
+        end
+        eq(f:text('MeterPowerValue'), '55.3 W'); eq(f:text('MeterClockValue'), '1607.5 MHz')
+    end)
+    test('probes outside the exported value list are not read; a lone constant export still freezes', function()
+        -- Known limit: an export whose only probed values hold perfectly still
+        -- for a minute is flagged until one moves.
+        local options = manualOptions(false, true)
+        options.exports = {MeasureGPURegistryNames = 'Sensor4|Label4|Value4|ValueRaw4', MeasureGPUExportProbe0 = '5'}
+        local f = fixture(options); f:live(); hold(f, 60)
+        eq(f:text('MeterClockValue'), 'Not updating')
+        eq(f.reads.MeasureGPUExportProbe0, nil, 'a probe outside the value list is not read')
+        eq((f.reads.MeasureGPUExportProbe4 or 0) > 0, true, 'an exported probe is read')
     end)
     test('invalid, missing and disabled source preferences leave all registry measures disabled', function()
         for _, field in ipairs({'Power', 'Clock'}) do
@@ -805,10 +1120,10 @@ function Suite.run(path)
         local f = fixture(manualOptions(true, true)); f:live()
         f.now = 1009; f:update(); f:allUnavailable()
         eq(f:text('MeterPowerValue'), '77.7 W'); eq(f:text('MeterClockValue'), '1234.5 MHz')
-        f.statuses[driver] = 1; f:update(); f:ownedClean()
+        f:hostStops(); f:update(); f:ownedClean()
         f.exports.MeasureGPUPowerValue, f.exports.MeasureGPUPowerValueRaw = '80.5 W', '80.5'
         f.exports.MeasureGPUClockValue, f.exports.MeasureGPUClockValueRaw = '999.5 MHz', '999.5'
-        f.now = 1010; f:update()
+        f.now = f.now + 1; f:update()
         eq(f:text('MeterPowerValue'), '80.5 W'); eq(f:text('MeterClockValue'), '999.5 MHz')
         eq(f.launches[bootstrap], 1); eq(f.launches[driver], 1)
         for _, statusField in ipairs({22, 24}) do
@@ -846,7 +1161,7 @@ function Suite.run(path)
         f.failOpen = false; f.now = 1002; f:sample(); f:update()
         eq(f.files[leasePath], token .. '|1002|3|8', 'a failed request number is never reused')
         f.failWrite = true; f.outputs.MeasureGPUProcessController = '9'; f.now = 1007; f:sample(); f:update()
-        eq(f.meter.Text, 'Unavailable'); eq(f.kills[driver], 1); f:ownedClean()
+        eq(f.meter.Text, 'Unavailable'); eq(f.kills[launcher], nil); f:ownedClean()
         -- A failed change followed by a revert is still committed under a fresh
         -- number; renewing the burned number would leave every reply unmatched.
         local game = '7,' .. hex('game.exe')
@@ -864,7 +1179,7 @@ function Suite.run(path)
             local f = fixture({metadata = output, pids = '7,42'})
             eq(f.meter.Text, 'Unavailable')
             f:start(sessionOutput({[5] = namesOnlyLuid}))
-            eq(f.launches[driver], 1); contains(f.parameters[driver], "','" .. namesOnlyLuid .. "',2000)")
+            eq(f.launches[driver], 1); contains(f.parameters[launcher], "'',''" .. namesOnlyLuid .. "'',2000)")
             eq(f.files[leasePath], token .. '|1000|1|7,42')
             f:update(); eq(f.meter.Text, 'Unavailable', 'no Checking state before the first reply')
             -- GPU readings in a names-only reply (here a plausible 42 C) are never shown.
@@ -874,7 +1189,7 @@ function Suite.run(path)
             eq(f.names, 'GPU_NAMES|1|1001|' .. map); eq(f.launches[driver], 1)
             f:sample({[27] = map}); f:update(); eq(f.names, '', 'a reply for a real adapter LUID is rejected')
             eq(f.meter.Text, 'Unavailable')
-            f.statuses[driver] = 1; f:update(); eq(f.names, '')
+            f:hostStops(); f:update(); eq(f.names, '')
             eq(f.meter.Text, 'Unavailable', 'a stopped host stays unavailable'); f:ownedClean()
         end
         local f = fixture({metadata = 'NONE'}); f:start()
@@ -959,7 +1274,7 @@ function Suite.run(path)
             eq(f.names, 'GPU_NAMES|1|1000|' .. map, 'names do not depend on the GPU driver'); f:allUnavailable()
         end
         local f = fixture({pids='7'}); f:live({[27]=map}); f.now=1009; f:update(); eq(f.names,'')
-        f = fixture({pids='7'}); f:live({[27]=map}); f.statuses[driver]=1; f:update(); eq(f.names,'')
+        f = fixture({pids='7'}); f:live({[27]=map}); f:hostStops(); f:update(); eq(f.names,'')
         f = fixture({pids='7'}); f:live({[27]=map, [6]='UNSUPPORTED', [7]='?'})
         contains(f.names, 'GPU_NAMES|1|'); eq(f.meter.Text,'Unsupported')
     end)

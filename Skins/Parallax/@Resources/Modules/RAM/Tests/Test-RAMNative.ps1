@@ -67,12 +67,13 @@ Assert-RunPath $runRoot
 if (Test-Path -LiteralPath $runRoot) { throw 'Refusing to reuse a runtime directory.' }
 $null = New-Item -ItemType Directory -Path $runRoot -Force
 $sources = [ordered]@{}
-foreach ($relative in @('RAM\RAM.ini', 'RAM\Settings\Settings.ini', '@Resources\Defaults.inc', '@Resources\User\Settings.inc', '@Resources\User\RAM.inc', '@Resources\Geometry.inc', '@Resources\Styles.inc', '@Resources\UtilitySettingsNote.inc', '@Resources\Modules\RAM\Measures.inc', '@Resources\Modules\RAM\Meters.inc', '@Resources\Modules\RAM\InfoMeters.inc', '@Resources\Modules\RAM\Info.lua', '@Resources\Modules\RAM\InfoModel.lua', '@Resources\Modules\RAM\MemoryInfo.ps1.txt', '@Resources\Modules\RAM\SettingsMeters.inc', '@Resources\Modules\RAM\Settings.lua', '@Resources\Modules\RAM\Display.lua')) {
+foreach ($relative in @('RAM\RAM.ini', 'RAM\Settings\Settings.ini', '@Resources\Defaults.inc', '@Resources\Idle\Hook0.inc','@Resources\User\Settings.inc', '@Resources\User\RAM.inc', '@Resources\Geometry.inc', '@Resources\Styles.inc', '@Resources\UtilitySettingsNote.inc', '@Resources\Modules\RAM\Measures.inc', '@Resources\Modules\RAM\Meters.inc', '@Resources\Modules\RAM\InfoMeters.inc', '@Resources\Modules\RAM\Info.lua', '@Resources\Modules\RAM\InfoModel.lua', '@Resources\Modules\RAM\MemoryInfo.ps1.txt', '@Resources\Modules\RAM\SettingsMeters.inc', '@Resources\Modules\RAM\Settings.lua', '@Resources\Modules\RAM\Display.lua')) {
     $path = Join-Path $sourceRoot $relative
     Assert-RegularPath $path
     $sources[$relative] = [IO.File]::ReadAllText($path)
 }
-foreach ($relative in '@Resources\Modules\RAM\ProcessMeters.inc', '@Resources\Modules\RAM\Process.lua', '@Resources\Modules\RAM\ProcessModel.lua', '@Resources\Modules\RAM\PageFile.lua', '@Resources\Modules\RAM\PageFileModel.lua') {
+# The five process ranks are a load-time include (ProcessMeasures<RAMShowProcesses>.inc).
+foreach ($relative in '@Resources\Modules\RAM\ProcessMeasures1.inc', '@Resources\Modules\RAM\ProcessMeasures0.inc', '@Resources\Modules\RAM\HistoryScale0.inc', '@Resources\Modules\RAM\ProcessMeters.inc', '@Resources\Modules\RAM\Process.lua', '@Resources\Modules\RAM\ProcessModel.lua', '@Resources\Modules\RAM\PageFile.lua', '@Resources\Modules\RAM\PageFileModel.lua') {
     $path = Join-Path $sourceRoot $relative
     Assert-RegularPath $path
     $sources[$relative] = [IO.File]::ReadAllText($path)
@@ -252,8 +253,9 @@ foreach ($spec in $caseSpecs) {
             $infoMode = 'Live'
             $infoFixture = ''
             $copiedMeasures = $copiedSources['@Resources\Modules\RAM\Measures.inc']
+            $copiedProcessMeasures = $copiedSources['@Resources\Modules\RAM\ProcessMeasures1.inc']
             $pageFixture = $pageFixtures[($caseIndex-1)%6]
-            foreach ($helper in 'Bootstrap','Host') {
+            foreach ($helper in @('Launcher')) {
                 $pattern = '(?ms)^\[MeasureRAMPage' + $helper + '\]\r?\n.*?(?=^\[|\z)'
                 if ([regex]::Matches($copiedMeasures,$pattern).Count -ne 1) { throw "Expected one PAGE $helper section." }
                 $replacement = "[MeasureRAMPage$helper]`nMeasure=Calc`nFormula=0`nUpdateDivider=-1`n`n"
@@ -297,14 +299,15 @@ foreach ($spec in $caseSpecs) {
                     $processName = if ($expectedProcesses) { $processNames[$rank-1] } else { '' }
                     $bytes = if ($expectedProcesses) { $processBytes[$rank-1] } else { 0 }
                     $pattern = '(?ms)^\[MeasureRAMProcess' + $rank + '\]\r?\n.*?(?=^\[|\z)'
-                    if ([regex]::Matches($copiedMeasures, $pattern).Count -ne 1) { throw "Expected exactly one process rank $rank." }
+                    if ([regex]::Matches($copiedProcessMeasures, $pattern).Count -ne 1) { throw "Expected exactly one process rank $rank." }
                     $replacement = "[MeasureRAMProcess$rank]`nMeasure=Calc`nFormula=$bytes`nSubstitute=`"$bytes`":`"$processName`"`nUpdateDivider=1`n`n"
-                    $copiedMeasures = [regex]::Replace($copiedMeasures, $pattern, [Text.RegularExpressions.MatchEvaluator]{ param($match) $replacement })
+                    $copiedProcessMeasures = [regex]::Replace($copiedProcessMeasures, $pattern, [Text.RegularExpressions.MatchEvaluator]{ param($match) $replacement })
                 }
             }
-            if ($FixtureOnly -and $copiedMeasures -match '(?im)^Plugin=(RunCommand|UsageMonitor)\s*$') { throw 'Focused fixtures must contain no inventory/PAGE helper or process category worker.' }
-            if ($entry -match '!CommandMeasure MeasureRAMPage(?:View "Start\(\)"|Bootstrap|Host)') { throw 'Copied entry must not start a PAGE helper.' }
+            if ($FixtureOnly -and ($copiedMeasures + $copiedProcessMeasures) -match '(?im)^Plugin=(RunCommand|UsageMonitor)\s*$') { throw 'Focused fixtures must contain no inventory/PAGE helper or process category worker.' }
+            if ($entry -match '!CommandMeasure MeasureRAMPage(?:View "Start\(\)"|Launcher)') { throw 'Copied entry must not start a PAGE helper.' }
             Write-RunText (Join-Path $caseRoot '@Resources\Modules\RAM\Measures.inc') $copiedMeasures
+            Write-RunText (Join-Path $caseRoot '@Resources\Modules\RAM\ProcessMeasures1.inc') $copiedProcessMeasures
             $entry += "`n[MeasureRAMNativeSmoke]`nMeasure=Script`nScriptFile=$harnessPath`nResultPath=$resultPath`nProgressPath=$progressPath`nExpectedWidth=$columnWidth`nExpectedColumns=$columns`nExpectedScale=$scale`nExpectedDataBarThickness=$barThickness`nExpectedGroups=$($spec.Groups)`nExpectedProcesses=$expectedProcesses`nProcessMode=$processMode`nMeterNames=$($meterNames -join '|')`nHoverAction=$($hoverActions['MouseOverAction'])`nLeaveAction=$($hoverActions['MouseLeaveAction'])`nInfoMode=$infoMode`nInfoFixture=$infoFixture`nModelTestsPath=$modelTestsPath`nProcessModelTestsPath=$processModelTestsPath`nSettingsConfig=$caseName\RAM\Settings`nUpdateDivider=1`n"
             $entry += "PageFixture=$pageFixture`nPageToken=$pageToken`nPageNow=$pageNow`nPageModelTestsPath=$pageModelTestsPath`n"
             $entry += $fontProbeSource

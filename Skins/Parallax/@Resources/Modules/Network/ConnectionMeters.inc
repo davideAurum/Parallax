@@ -3,6 +3,8 @@ MeterStyle=StyleLabel
 X=#ContentX#
 W=(80*#Scale#)
 H=(18*#Scale#)
+; Static row labels: drawn from the refresh update, never changed afterwards.
+UpdateDivider=-1
 
 [StyleConnectionValue]
 MeterStyle=StyleLabel
@@ -19,6 +21,7 @@ FontColor=#TextColor#
 
 [MeterConnectionAdapter]
 Meter=String
+Group=ParallaxIdleFreeze
 MeterStyle=StyleLabel
 Y=(#Inset#+26*#Scale#)
 H=(18*#Scale#)
@@ -30,6 +33,7 @@ LeftMouseUpAction=[!ActivateConfig "Parallax\Network\Settings" "Settings.ini"]
 
 [MeterConnectionDescription]
 Meter=String
+Group=ParallaxIdleFreeze
 MeterStyle=StyleLabel
 Y=(#Inset#+44*#Scale#)
 H=(18*#Scale#)
@@ -37,6 +41,7 @@ Text=Adapter information
 
 [MeterConnectionStatus]
 Meter=String
+Group=ParallaxIdleFreeze
 MeterStyle=StyleLabel
 Y=(#Inset#+62*#Scale#)
 H=(18*#Scale#)
@@ -50,6 +55,7 @@ Text=Internet (PC)
 
 [MeterConnectionInternet]
 Meter=String
+Group=ParallaxIdleFreeze
 MeterStyle=StyleLabel | StyleConnectionValue
 Y=(#Inset#+80*#Scale#)
 Text=Unknown
@@ -63,6 +69,7 @@ Text=Local IP
 
 [MeterConnectionIP]
 Meter=String
+Group=ParallaxIdleFreeze
 MeterStyle=StyleLabel | StyleConnectionValue
 Y=(#Inset#+98*#Scale#)
 W=(#ContentWidth#-58*#Scale#)
@@ -77,6 +84,7 @@ Text=Gateway
 
 [MeterConnectionGateway]
 Meter=String
+Group=ParallaxIdleFreeze
 MeterStyle=StyleLabel | StyleConnectionValue
 Y=(#Inset#+116*#Scale#)
 W=(#ContentWidth#-58*#Scale#)
@@ -91,6 +99,7 @@ Text=Link RX
 
 [MeterConnectionRx]
 Meter=String
+Group=ParallaxIdleFreeze
 MeterStyle=StyleLabel | StyleConnectionValue
 Y=(#Inset#+134*#Scale#)
 W=(#ContentWidth#-56*#Scale#)
@@ -106,6 +115,7 @@ Text=Link TX
 
 [MeterConnectionTx]
 Meter=String
+Group=ParallaxIdleFreeze
 MeterStyle=StyleLabel | StyleConnectionValue
 Y=(#Inset#+152*#Scale#)
 W=(#ContentWidth#-56*#Scale#)
@@ -119,6 +129,7 @@ Y=(#Inset#+174*#Scale#)
 
 [MeterConnectionWiFi]
 Meter=String
+Group=ParallaxIdleFreeze
 MeterStyle=StyleLabel
 Y=(#Inset#+180*#Scale#)
 H=(18*#Scale#)
@@ -133,22 +144,26 @@ Text=Signal
 
 [MeterConnectionSignal]
 Meter=String
+Group=ParallaxIdleFreeze
 MeterStyle=StyleLabel | StyleConnectionValue
 Y=(#Inset#+198*#Scale#)
 Text=--
 
 [MeterConnectionSignalBar]
 Meter=Shape
+Group=ParallaxIdleFreeze
 X=#ContentX#
 Y=(#Inset#+218*#Scale#)
 W=#ContentWidth#
 H=#DataBarThicknessPx#
 Shape=Rectangle 0,0,#ContentWidth#,#DataBarThicknessPx# | Fill Color #TrackColor# | StrokeWidth 0
+; Connection.lua's !SetOption of Shape2 forces a one-shot re-read when the
+; fill changes; otherwise the shapes are not rebuilt every second.
 Shape2=Line 0,0,0,0 | StrokeWidth 0
-DynamicVariables=1
 
 [MeterConnectionRadio]
 Meter=String
+Group=ParallaxIdleFreeze
 MeterStyle=StyleLabel
 Y=(#Inset#+220*#Scale#+#DataBarThicknessPx#)
 H=(18*#Scale#)

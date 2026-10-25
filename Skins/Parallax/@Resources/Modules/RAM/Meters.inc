@@ -79,6 +79,7 @@ LeftMouseUpAction=[!ActivateConfig "Parallax\RAM\Settings" "Settings.ini"]
 
 [MeterRAMPercent]
 Meter=String
+Group=ParallaxIdleFreeze
 MeterStyle=StyleTitle | StyleTitleRow
 FontSize=((#FontSize#+1)*#Scale#)
 FontColor=#TextColor#
@@ -97,7 +98,7 @@ Meter=Bar
 MeasureName=MeasureRAMUsed
 X=#ContentX#
 Y=(#Inset#+(#RAMInfoHeight#+Max(54,57-#DataBarThickness#/2))*#Scale#)
-Group=RAMLayout
+Group=RAMLayout|ParallaxIdleFreeze
 DynamicVariables=1
 W=#ContentWidth#
 H=#DataBarThicknessPx#
@@ -120,6 +121,8 @@ BarColor=#RAMColor#
 SolidColor=#TrackColor#
 ; The controller shows this only when enabled and current allocation is known.
 Hidden=1
+; Event-only: PageFile.lua force-updates it whenever its ratio or visibility changes.
+UpdateDivider=-1
 
 [MeterRAMUsedLabel]
 Meter=String
@@ -129,6 +132,7 @@ Text=RAM:
 
 [MeterRAMUsedGiB]
 Meter=String
+Group=RAMLayout | ParallaxIdleFreeze
 MeterStyle=StyleLabel | StyleRAMRowValue
 MeasureName=MeasureRAMUsed
 MeasureName2=MeasureRAMTotal
@@ -139,6 +143,7 @@ Hidden=#RAMUseMiB#
 
 [MeterRAMUsedMiB]
 Meter=String
+Group=RAMLayout | ParallaxIdleFreeze
 MeterStyle=StyleLabel | StyleRAMRowValue
 MeasureName=MeasureRAMUsed
 MeasureName2=MeasureRAMTotal
@@ -153,12 +158,15 @@ MeterStyle=StyleLabel | StyleRAMRowLabel
 Y=(#Inset#+(#RAMInfoHeight#+66+Max(0,#DataBarThickness#-6))*#Scale#)
 Text=PAGE:
 
+; PAGE text changes only through PageFile.lua, which force-updates the meters
+; whose options it changed; layout reflow updates the RAMLayout group.
 [MeterRAMPageGiB]
 Meter=String
 MeterStyle=StyleLabel | StyleRAMRowValue
 Y=(#Inset#+(#RAMInfoHeight#+66+Max(0,#DataBarThickness#-6))*#Scale#)
 Text=Checking...
 Hidden=#RAMUseMiB#
+UpdateDivider=-1
 
 [MeterRAMPageMiB]
 Meter=String
@@ -166,12 +174,13 @@ MeterStyle=StyleLabel | StyleRAMRowValue
 Y=(#Inset#+(#RAMInfoHeight#+66+Max(0,#DataBarThickness#-6))*#Scale#)
 Text=Checking...
 Hidden=(1-#RAMUseMiB#)
+UpdateDivider=-1
 
 [MeterRAMHistoryLabel]
 Meter=String
 MeterStyle=StyleHeader
 Y=(#Inset#+(#RAMInfoHeight#+216+2*Max(0,#DataBarThickness#-6))*#Scale#)
-W=(#ContentWidth#-60*#Scale#)
+W=(#ContentWidth#-116*#Scale#)
 H=(18*#Scale#)
 Text=History
 Group=RAMLayout
@@ -184,10 +193,11 @@ Meter=String
 MeterStyle=StyleLabel
 X=(#ContentX#+#ContentWidth#)
 Y=(#Inset#+(#RAMInfoHeight#+216+2*Max(0,#DataBarThickness#-6))*#Scale#)
-W=(58*#Scale#)
+W=(110*#Scale#)
 H=(18*#Scale#)
 FontSize=(#FontSize#*#Scale#)
 StringAlign=Right
+; Full: the fixed range. Auto: HistoryRange.lua writes the shown range here.
 Text=0 - 100%
 Group=RAMLayout
 DynamicVariables=1
@@ -196,7 +206,9 @@ UpdateDivider=-1
 
 [MeterRAMHistory]
 Meter=Line
-MeasureName=MeasureRAMUsed
+Group=ParallaxIdleFreeze
+; MeasureRAMUsed (Full), or the Auto range proxy (HistoryScale1.inc sets it).
+MeasureName=#RAMHistoryMeasure#
 X=#ContentX#
 Y=(#Inset#+(#RAMInfoHeight#+236+2*Max(0,#DataBarThickness#-6))*#Scale#)
 W=#ContentWidth#
@@ -217,13 +229,15 @@ UpdateDivider=1
 ; Native Line starts with a zero-filled ring buffer. Cover its uncollected
 ; left side; do not portray those zeros as observed memory usage. Until full,
 ; overlap by 2 logical pixels to cover the antialiased startup transition.
+; When full, MeasureRAMHistorySamples hides this zero-width cover and sets its
+; UpdateDivider to -1; Display.lua then never re-shows it before a refresh.
 [MeterRAMHistoryUncollected]
 Meter=Shape
 X=#ContentX#
 Y=(#Inset#+(#RAMInfoHeight#+236+2*Max(0,#DataBarThickness#-6))*#Scale#)
 Shape=Rectangle 0,0,(Min(#ContentWidth#,Max(0,(#ContentWidth#-[MeasureRAMHistorySamples]+2*#Scale#)*([MeasureRAMHistorySamples]<#ContentWidth#)))),(#GraphHeight#*#Scale#) | Fill Color #RAMHistoryEmptyColor#,255 | StrokeWidth 0
 Hidden=(1-#RAMShowHistory#)
-Group=RAMLayout
+Group=RAMLayout|ParallaxIdleFreeze
 DynamicVariables=1
 UpdateDivider=1
 

@@ -6,7 +6,13 @@ Where things stand between releases: what is on `main` but not yet in a publishe
 
 ## On main, not in any release
 
-- Nothing yet.
+- **Performance review, phases A-C** (branch `claude/parallax-performance-review-55c97a`, merged 2026-10-25). Media repaints only on change and its Source helper waits instead of polling; shared plumbing cuts GPU and RAM wakeups; a Title animation setting (20 fps / 10 fps / Off). Measured six live skins: 20.5 → 7.7% of a core. See [PERFORMANCE-REVIEW.md](PERFORMANCE-REVIEW.md).
+- **Idle pause** (phase C2): a Global Settings row (Off / 5 / 10 / 30 min, default Off) that freezes every utility after that long without keyboard or mouse input and resumes on input, through a new hidden `Parallax\Idle` config. See [ARCHITECTURE.md](ARCHITECTURE.md#idle-stand-down) and [SETTINGS.md](SETTINGS.md#idle-pause).
+- **Drawer capture lease** (phase C1): the open spectrum drawer releases audio capture after about 2 minutes of silence while you are away, shows "Capture paused", and resumes on input, playback or a click.
+- **Memory Meter**: optional auto-ranged History and a 60 s page-file host lease window.
+- **GPU host recovery**: the branch's retry (10/60/300 s, reset after 10 healthy minutes, stall detection) replaces the alpha.7 backoff ([GPU.md](modules/GPU.md)).
+- Merged with alpha.7's drawer tightening: the title-row volume and the shorter device row now live in each capture variant (`DrawerCapture0/1/2.inc`).
+- Not verified on the merged tree: real keyboard/mouse idle, real WebNowPlaying playback, sleep/resume, and a real release install. Known open item: the Idle-pause helper-launch kill race (RAM/GPU host stranded ~15 s).
 
 ## Open: Stage 1 (prove the upgrade path)
 

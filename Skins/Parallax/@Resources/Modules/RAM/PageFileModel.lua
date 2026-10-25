@@ -65,12 +65,16 @@ function M.ParseSession(output, roots)
     return {token = fields[3], path = path, lease = base .. '.lease', tmp = base .. '.tmp'}
 end
 
+-- Seconds a sample stays current. The controller also treats a host with no
+-- current sample for this long as stopped.
+function M.Window(intervalMs) return math.max(8, math.ceil(3 * intervalMs / 1000) + 2) end
+
 function M.Fresh(epoch, now, intervalMs)
     if type(epoch) ~= 'number' or type(now) ~= 'number' or type(intervalMs) ~= 'number'
         or epoch < 0 or epoch > maxEpoch or now < 0 or now > maxEpoch
         or epoch ~= math.floor(epoch) or now ~= math.floor(now)
         or intervalMs < 1000 or intervalMs > 30000 or intervalMs ~= math.floor(intervalMs) then return false end
-    return epoch <= now + 5 and now - epoch <= math.max(8, math.ceil(3 * intervalMs / 1000) + 2)
+    return epoch <= now + 5 and now - epoch <= M.Window(intervalMs)
 end
 
 function M.Parse(output, expectedToken, now, intervalMs, lastSequence, lastEpoch)

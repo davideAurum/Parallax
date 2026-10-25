@@ -179,9 +179,12 @@ local function save(key, value)
     SKIN:Bang('!WriteKeyValue', 'Variables', key, tostring(value), state.userFile)
     -- Only CPU skins receive the new variable. Rate changes reload only CPU Meter
     -- because Rainmeter applies a skin's Update value and Registry dividers at load.
-    -- Other preferences remain immediate and do not add a usage sample or refresh.
+    -- The process list reloads it too: its UsageMonitor measures are an include
+    -- chosen at load, because a loaded one keeps the Process-category reader
+    -- running even while disabled. Other preferences remain immediate and do not
+    -- add a usage sample or refresh.
     SKIN:Bang('!SetVariableGroup', key, tostring(value), 'ParallaxCPU')
-    if key == 'CPUUpdateInterval' or key == 'CPUSensorInterval' then
+    if key == 'CPUUpdateInterval' or key == 'CPUSensorInterval' or key == 'CPUShowProcesses' then
         SKIN:Bang('!Refresh', 'Parallax\\CPU')
     else
         SKIN:Bang('!UpdateMeasureGroup', 'ParallaxCPUApply', '*')

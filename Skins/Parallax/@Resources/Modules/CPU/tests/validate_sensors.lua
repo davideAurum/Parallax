@@ -99,13 +99,16 @@ local function newMock(sensorPath, options)
             CPUTemperatureDecimals=options.temperatureDecimals or '0', CPUVoltageDecimals=options.voltageDecimals or '3'},
         registry={[HIVE_USER]={}, [HIVE_MACHINE]={}}, measures={}, meters={}, native={},
         queue={}, now=1000, running=options.running == nil and 1 or options.running,
-        runs=0, serial=0, requests={}, nativeReads=0
+        runs=0, serial=0, requests={}, nativeReads=0, paints=0
     }
     local function measure(name, native, enabled)
         local item = {name=name, options={Disabled=enabled == false and '1' or '0'},
             value=0, string='', enabled=enabled ~= false, native=native}
         function item:GetValue() return self.value end
-        function item:GetStringValue() return self.string end
+        function item:GetStringValue()
+            self.stringReads = (self.stringReads or 0) + 1
+            return self.string
+        end
         function item:GetOption(key, fallback) return self.options[key] or fallback or '' end
         context.measures[name] = item
         if native then context.native[#context.native + 1] = item end
@@ -212,7 +215,9 @@ local function newMock(sensorPath, options)
                     equal(args[3], 'PrimeComplete()', 'script callback')
                     self.environment.PrimeComplete()
                 end
-            elseif bang ~= '!UpdateMeterGroup' and bang ~= '!Redraw' then
+            elseif bang == '!Redraw' then
+                self.paints = self.paints + 1
+            elseif bang ~= '!UpdateMeterGroup' then
                 error('Unexpected production bang in offline test: ' .. tostring(bang))
             end
             index = index + 1
@@ -293,6 +298,11 @@ end
 
 local function clockReading(context, expected)
     equal(context:text('MeterCurrentClockValue'), expected, 'current CPU-wide clock')
+end
+
+-- '' for HWiNFO's Core Clocks or no reading; 'Windows' for the native aggregate.
+local function clockSource(context, expected)
+    equal(context:text('MeterCurrentClockSource'), expected, 'current CPU-wide clock source')
 end
 
 local function fanReading(context, expected)
@@ -852,6 +862,211 @@ function suite.Run(sensorPath)
         coreReading(context, 1, '41', '0.910')
         coreReading(context, 5, '64', '1.240')
         equal(bindingState(context), bindings, 'returning page preserves bindings')
+    end)
+    test('periodic sensor reads leave painting to the skin cycle', function()
+        -- CPU-01 / XMOD-04: Update() runs inside the measure pass, and every
+        -- meter it sets updates in the meter pass that follows, so it must not
+        -- add a forced pass and an extra frame. Events still repaint.
+        local context, data = connect(sensorPath)
+        context.paints = 0
+        for _ = 1, 3 do
+            context.now = context.now + 2
+            context:refreshNative()
+            context:call('Update')
+        end
+        context:change(data.hive, 'ValueRaw103', '66')
+        equal(context.paints, 0, 'periodic Update repaints')
+        readings(context, '66', '1.250')
+        context:call('SetThreadPage', 9)
+        equal(context.paints, 0, 'controller page change repaints in the controller')
+        context:call('SetThreadPage', 1)
+        context:call('Reconnect')
+        assert(context.paints >= 1, 'Reconnect repaints')
+        context.paints = 0
+        context:complete(data)
+        assert(context.paints >= 1, 'discovery completion repaints')
+        context.paints = 0
+        context.variables.CPUVoltageDecimals = '2'
+        context:call('ApplyPreferences')
+        assert(context.paints >= 1, 'precision change repaints')
+        context.paints = 0
+        context:setEnabled(false)
+        assert(context.paints >= 1, 'disabling sensors repaints')
+    end)
+    test('each render reads and splits a hive value list once', function()
+        -- Six cores bind twelve per-core readings plus clock and both fans.
+        local cores = {}
+        for id = 0, 5 do cores[#cores + 1] = {id=id, temperatureRaw=tostring(60 + id), voltageRaw='1.2' .. id .. '0'} end
+        local context = connect(sensorPath, {cores=cores})
+        local list = context.measures.MeasureCPUSensorNamesUser
+        list.stringReads = 0
+        context.now = context.now + 2
+        context:refreshNative()
+        context:call('Update')
+        equal(list.stringReads, 1, 'value-list reads per render')
+        for id = 0, 5 do coreReading(context, id + 1, tostring(60 + id), '1.2' .. id .. '0') end
+        clockReading(context, '3.91 GHz')
+        fanReading(context, '2529 RPM')
+        motherboardFanReading(context, '1049 RPM')
+        equal(context:text('MeterSensors'), 'HWiNFO: connected, 6 cores')
+    end)
+    -- Advance the mocked clock in 2 s sensor ticks without touching the export.
+    local function hold(context, seconds)
+        for _ = 1, seconds / 2 do
+            context.now = context.now + 2
+            context:refreshNative()
+            context:call('Update')
+        end
+    end
+    test('an export frozen for 60 s is reported and its values suppressed', function()
+        local context, data = connect(sensorPath, {nativeClock=4289.5})
+        hold(context, 58)
+        readings(context, '65', '1.250')
+        clockReading(context, '3.91 GHz')
+        clockSource(context, '')
+        equal(context:text('MeterSensors'), 'HWiNFO: connected, 1 core', 'still within the window')
+        hold(context, 2)
+        equal(context:text('MeterSensors'), 'HWiNFO: open Sensors')
+        readings(context, '-', '-')
+        clockReading(context, '4.29 GHz')
+        clockSource(context, 'Windows')
+        fanReading(context, 'Unavailable')
+        motherboardFanReading(context, 'Unavailable')
+        context:call('SetThreadPage', 1)
+        readings(context, '-', '-')
+        hold(context, 120)
+        equal(context:text('MeterSensors'), 'HWiNFO: open Sensors', 'stays stale')
+        context:change(data.hive, 'ValueRaw107', '1.240')
+        equal(context:text('MeterSensors'), 'HWiNFO: connected, 1 core', 'any change recovers')
+        readings(context, '65', '1.240')
+        clockReading(context, '3.91 GHz')
+        clockSource(context, '')
+        fanReading(context, '2529 RPM')
+        equal(context.runs, 1, 'detection launches no process')
+    end)
+    test('legitimately constant readings beside a changing one stay live', function()
+        local context, data = connect(sensorPath, {cores={
+            {id=0, temperatureRaw='41', voltageRaw='0.910'},
+            {id=1, temperatureRaw='61', voltageRaw='1.210'}
+        }})
+        -- Core 0, both VIDs, the clock and both fans stay constant throughout;
+        -- only core 1's temperature moves, every 48 s.
+        for step = 1, 4 do
+            hold(context, 48)
+            context:change(data.hive, 'ValueRaw123', tostring(61 + step))
+            equal(context:text('MeterSensors'), 'HWiNFO: connected, 2 cores', 'live at step ' .. step)
+            coreReading(context, 1, '41', '0.910')
+            coreReading(context, 2, tostring(61 + step), '1.210')
+        end
+        hold(context, 60)
+        equal(context:text('MeterSensors'), 'HWiNFO: open Sensors', 'all constant for 60 s')
+        noReadings(context)
+    end)
+    test('a stopped or reconnected provider restarts the frozen-export window', function()
+        local context, data = connect(sensorPath)
+        hold(context, 60)
+        equal(context:text('MeterSensors'), 'HWiNFO: open Sensors')
+        context.running = 0
+        hold(context, 2)
+        equal(context:text('MeterSensors'), 'HWiNFO: not running', 'stopped provider takes precedence')
+        context.running = 1
+        hold(context, 2)
+        equal(context.runs, 2, 'restart rediscovers')
+        context:complete(data)
+        equal(context:text('MeterSensors'), 'HWiNFO: connected, 1 core', 'fresh window after restart')
+        readings(context, '65', '1.250')
+        hold(context, 58)
+        equal(context:text('MeterSensors'), 'HWiNFO: connected, 1 core')
+        hold(context, 2)
+        equal(context:text('MeterSensors'), 'HWiNFO: open Sensors', 'still-frozen export caught again')
+        context:call('Reconnect')
+        context:complete(data)
+        equal(context:text('MeterSensors'), 'HWiNFO: connected, 1 core', 'manual reconnect restarts the window')
+        context:setEnabled(false)
+        hold(context, 70)
+        equal(context:text('MeterSensors'), 'HWiNFO sensors: off')
+    end)
+    test('without bound exports there is no frozen-export state', function()
+        local context = connect(sensorPath, {aggregate=false, cores={}})
+        hold(context, 90)
+        equal(context:text('MeterSensors'), 'HWiNFO: Gadget exports unavailable')
+    end)
+    test('the HWiNFO clock is untagged and the Windows aggregate is named Windows', function()
+        local context, data = connect(sensorPath, {nativeClock=3870})
+        clockReading(context, '3.91 GHz')
+        clockSource(context, '')
+        context = connect(sensorPath, {clock=false, nativeClock=3870})
+        clockReading(context, '3.87 GHz')
+        clockSource(context, 'Windows')
+        -- Exports discovery rejects (effective clocks, a wrong unit) leave no binding.
+        for _, options in ipairs({{clockLabel='Core Effective Clocks'}, {clockUnit='V'}}) do
+            options.nativeClock = 3870
+            context = connect(sensorPath, options)
+            clockReading(context, '3.87 GHz')
+            clockSource(context, 'Windows')
+        end
+        -- A bound export that becomes unusable falls back, named, and returns.
+        context, data = connect(sensorPath, {nativeClock=3870})
+        context:change(data.hive, 'ValueRaw11', '1e999')
+        clockReading(context, '3.87 GHz')
+        clockSource(context, 'Windows')
+        context:change(data.hive, 'Value11', '3906.1 V')
+        clockSource(context, 'Windows')
+        context:change(data.hive, 'Value11', '3906.1 MHz')
+        context:change(data.hive, 'ValueRaw11', '3906.1')
+        clockReading(context, '3.91 GHz')
+        clockSource(context, '')
+        -- With neither source there is no reading and no source.
+        context = connect(sensorPath, {clock=false})
+        clockReading(context, 'Unavailable')
+        clockSource(context, '')
+        context = connect(sensorPath, {clock=false, nativeClock=50})
+        clockReading(context, 'Unavailable')
+        clockSource(context, '')
+    end)
+    test('stopped, connecting and disabled sensors show the named Windows clock', function()
+        local context, data = connect(sensorPath, {nativeClock=3870})
+        context.running = 0
+        context:refreshNative()
+        context:call('Update')
+        equal(context:text('MeterSensors'), 'HWiNFO: not running')
+        clockReading(context, '3.87 GHz')
+        clockSource(context, 'Windows')
+        context.running = 1
+        context:refreshNative()
+        context:call('Update')
+        equal(context:text('MeterSensors'), 'HWiNFO: connecting...')
+        clockReading(context, '3.87 GHz')
+        clockSource(context, 'Windows')
+        context:complete(data)
+        clockReading(context, '3.91 GHz')
+        clockSource(context, '')
+        context:setEnabled(false)
+        equal(context:text('MeterSensors'), 'HWiNFO sensors: off')
+        clockReading(context, '3.87 GHz')
+        clockSource(context, 'Windows')
+        local disabled = newMock(sensorPath, {enabled='0', nativeClock=3870})
+        disabled:call('Reconnect')
+        clockReading(disabled, '3.87 GHz')
+        clockSource(disabled, 'Windows')
+    end)
+    test('a fixed HWiNFO clock beside changing readings stays the HWiNFO clock', function()
+        -- An all-core turbo clock can hold one exact value for minutes, as the
+        -- i7-8700's 4278.5 MHz does; only the whole export freezing counts.
+        local context, data = connect(sensorPath, {clockRaw='4278.5', nativeClock=3870})
+        for step = 1, 5 do
+            hold(context, 30)
+            context:change(data.hive, 'ValueRaw103', tostring(65 + step % 2))
+            clockReading(context, '4.28 GHz')
+            clockSource(context, '')
+        end
+        hold(context, 60)
+        equal(context:text('MeterSensors'), 'HWiNFO: open Sensors', 'the whole export froze')
+        clockReading(context, '3.87 GHz')
+        clockSource(context, 'Windows')
+        context:change(data.hive, 'ValueRaw107', '1.240')
+        clockReading(context, '4.28 GHz')
+        clockSource(context, '')
     end)
     test('sensor rendering never assigns tooltips', function()
         local context = connect(sensorPath, {cores={

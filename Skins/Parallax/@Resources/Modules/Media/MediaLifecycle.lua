@@ -22,6 +22,33 @@ local function enabled(root)
     return stopOK and not stop and code == 2
 end
 
+-- A whole number of seconds as written by MediaOptions.ApplyLease, or nil.
+local function stamp(name)
+    local text = SKIN:GetVariable(name, '0')
+    if type(text) ~= 'string' or #text > 12 or not text:match('^%d+$') then return nil end
+    return tonumber(text)
+end
+
+-- True only for a Media.ini load that MediaOptions.ApplyLease caused itself
+-- (parking or resuming the spectrum drawer's capture) in this same Rainmeter
+-- process, at most 15 s ago (docs/PERFORMANCE-REVIEW.md MEDIA-08). Its
+-- providers were resumed by an earlier load of this process and keep running,
+-- so the lease's own reloads start no PowerShell. os.clock() is wall time
+-- since this Rainmeter process started (the C runtime's clock(); checked
+-- natively by Test-MediaLifecycle.ps1), so after a restart the clock and
+-- wall-time deltas disagree and the normal resume runs. After about 24.8 days
+-- of process uptime clock() returns -1, the stamp ("-1") is rejected and the
+-- normal resume runs. Setup.ini and Queue.ini, and every reload a user or
+-- another skin asks for, resume exactly as before.
+local function leaseRefresh(config)
+    if config ~= 'Media.ini' then return false end
+    local at, clock = stamp('MediaLeaseRefreshAt'), stamp('MediaLeaseRefreshClock')
+    if not at or not clock or at == 0 then return false end
+    local elapsed = os.time() - at
+    if elapsed < 0 or elapsed > 15 then return false end
+    return math.abs((os.clock() - clock) - elapsed) <= 2
+end
+
 function Initialize() attempted = false end
 function Update() return 0 end
 
@@ -30,6 +57,7 @@ function ResumeProviders()
     attempted = true
     local config = SKIN:GetVariable('CURRENTFILE', '')
     if config ~= 'Media.ini' and config ~= 'Setup.ini' and config ~= 'Queue.ini' then return end
+    if leaseRefresh(config) then return end
     -- Isolated previews use a separate Rainmeter profile. They must never
     -- restore collectors against the user's ordinary private runtime data.
     local roaming, settings = os.getenv('APPDATA'), SKIN:GetVariable('SETTINGSPATH', '')

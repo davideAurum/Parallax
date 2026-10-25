@@ -4,6 +4,10 @@ local cache, history, lastObservationTime, shapeCount
 local selected, selectedKey, graphMode, graphDrives, selectionKind
 local capacityEnabled, ratesEnabled, layoutKey
 local Names
+-- Slow state (selection, banks, layout, names, capacities) is recomputed only
+-- when its inputs can have changed; see Update. numbers memoizes parsed
+-- numeric variables by their raw text.
+local ticks, inventoryDivider, phases, pendingSlow, slowInputs, numbers
 local letters = {}
 for code = 65, 90 do letters[#letters + 1] = string.char(code) end
 local historySlots = 60
@@ -53,6 +57,34 @@ local function visible(meter, show)
     end
 end
 
+-- Each letter's eight bank meters share Group=IORow<letter> and ship idle at
+-- UpdateDivider=-1. A shown row updates every tick; a hidden row does no
+-- per-tick work. A -1 meter ignores !SetOption until forced, so each change
+-- of divider is followed by one forced group update, which applies every
+-- option set so far (positions, visibility) and the new divider.
+local function rowActive(letter, active)
+    local id = 'IORow' .. letter
+    if cache[id] ~= active then
+        SKIN:Bang('!SetOptionGroup', id, 'UpdateDivider', active and '1' or '-1')
+        SKIN:Bang('!UpdateMeterGroup', id)
+        cache[id] = active
+    end
+end
+
+-- Idle stand-down (Global Settings Idle pause; @Resources\Idle\StandDown.lua).
+-- Every row meter is in ParallaxIdleFreeze: while paused all of them sit at
+-- UpdateDivider -1. On resume the hook deletes that key (every row would then
+-- update at the skin default, 1) and calls this, which re-applies each
+-- letter's divider from this script's record, bypassing the change cache;
+-- the hook's following forced update applies them. Absent and hidden letters
+-- idle at -1 again. The disk history needs nothing here: observe() already
+-- fills the paused seconds with empty slots, so the graph shows a gap.
+function ReapplyDividers()
+    for _, letter in ipairs(letters) do
+        SKIN:Bang('!SetOptionGroup', 'IORow' .. letter, 'UpdateDivider', cache['IORow' .. letter] and '1' or '-1')
+    end
+end
+
 local function scaled(value, base, units)
     if not finite(value) or value < 0 then return '--' end
     local unit = 1
@@ -94,11 +126,17 @@ end
 
 local function numericVariable(key)
     local raw = variable(key, '')
+    -- Rainmeter stores [Variables] pre-expanded, so derived geometry arrives
+    -- as formula text. Parse it again only when that text changes.
+    local memo = numbers[key]
+    if memo and memo.raw == raw then return memo.value end
     local value = tonumber(raw)
     if not value and raw ~= '' then
         value = SKIN:ParseFormula('(' .. SKIN:ReplaceVariables(raw) .. ')')
     end
-    return finite(value) and value or nil
+    value = finite(value) and value or nil
+    numbers[key] = { raw = raw, value = value }
+    return value
 end
 
 local function present(kind)
@@ -164,7 +202,12 @@ local function updateBanks()
             if wanted ~= active then
                 local group = bank.prefix .. letter
                 SKIN:Bang(wanted and '!EnableMeasureGroup' or '!DisableMeasureGroup', group)
-                if wanted then SKIN:Bang('!UpdateMeasureGroup', group) end
+                if wanted then
+                    SKIN:Bang('!UpdateMeasureGroup', group)
+                    -- The forced update restarts this bank's divider count:
+                    -- its capacity measures next update inventoryDivider ticks on.
+                    phases[ticks % inventoryDivider] = true
+                end
                 bank.active[letter] = wanted
             end
         end
@@ -256,6 +299,7 @@ local function layout()
             option(legend, 'Y', 0)
             visible(legend, false)
         end
+        rowActive(letter, shown)
     end
     text('MeterIOEmpty', selectionKind == 'all' and 'No drives found' or 'No drives selected')
     option('MeterIOEmpty', 'Y', inset + 42 * scale)
@@ -489,9 +533,21 @@ end
 
 function Initialize()
     cache = {}
+    -- DriveMeters.inc ships every row idle; only rows that layout shows change.
+    for _, letter in ipairs(letters) do cache['IORow' .. letter] = false end
     history, lastObservationTime, shapeCount = {}, nil, 0
     selected, selectedKey, graphMode, graphDrives, selectionKind = {}, nil, nil, {}, 'C'
     capacityEnabled, ratesEnabled, layoutKey = {}, {}, nil
+    numbers = {}
+    -- Inventory, label and capacity measures share this divider (Inventory.inc,
+    -- Native.inc). They update on their first tick after load, then every
+    -- inventoryDivider ticks; forced updates restart a measure's count, and
+    -- each one adds its residue to phases. Without a numeric interval the
+    -- measures cannot use the formula either, so recompute every tick.
+    local interval = numericVariable('CapacityInterval')
+    local divider = interval and math.max(5, math.ceil(interval / 1000)) or nil
+    inventoryDivider = (divider and divider <= 86400) and divider or 1
+    ticks, phases, pendingSlow, slowInputs = -1, { [0] = true }, true, nil
     Names = dofile(variable('@', '') .. 'Modules\\IO\\Names.lua')
     Names.Query(SKIN, nameMode())
 end
@@ -532,18 +588,32 @@ end
 function RefreshNamesInventory()
     if not Names then return 0 end
     SKIN:Bang('!UpdateMeasureGroup', 'IOInventory')
+    -- That forced update restarts the inventory measures' count after the
+    -- last tick, so they next update inventoryDivider ticks after it.
+    phases[ticks % inventoryDivider] = true
     Names.Query(SKIN, nameMode())
     -- Inventory names can refresh immediately. Selected membership and its
     -- telemetry/history scope are reconciled by the next normal Update only.
+    pendingSlow = true
     repaintNameLayout()
     return 0
 end
 
 function Update()
-    syncSelection()
-    layout()
-    renderNames(false)
-    updateCapacities()
+    ticks = ticks + 1
+    -- Selection, banks, layout, names and capacities depend only on inventory
+    -- and capacity measures, which change on known ticks, and on variables
+    -- that change through a refresh (geometry), a callback (names) or a
+    -- variable change caught here. Rates and the graph still run every tick.
+    local inputs = variable('IODiskDrives', 'C') .. '\n' .. variable('IOGraphMode', 'combined')
+        .. '\n' .. variable('IODriveNames', 'volume')
+    if pendingSlow or inputs ~= slowInputs or phases[ticks % inventoryDivider] then
+        pendingSlow, slowInputs = false, inputs
+        syncSelection()
+        layout()
+        renderNames(false)
+        updateCapacities()
+    end
     disk()
     return 0
 end

@@ -1,25 +1,24 @@
-; Built-in UsageMonitor has a shared 1 Hz worker independent of UpdateDivider.
-; Keep the raw PID/adapter/engine instance: translating to an executable name
-; may combine multiple engines or PIDs. Index=1 selects one ranked instance;
-; it feeds row 1 of the process table only. The header figure and the History
-; graph come from the direct driver sample (TemperatureMeasures.inc).
-[MeasureGPUActivity]
-Measure=Plugin
-Plugin=UsageMonitor
-Alias=GPU
-Index=1
-Rollup=0
-PIDToName=0
-Percent=0
-RawValue=0
+; No UsageMonitor measure lives here: the process table's GPU Engine ranks,
+; including MeasureGPUActivity (row 1), load only with the table
+; (ProcessMeasures<GPUShowProcesses>.inc), because a loaded UsageMonitor
+; measure keeps its category reader running even while Disabled. The header
+; figure and the History graph come from the direct driver sample
+; (TemperatureMeasures.inc).
 
 ; Self reference starts at zero on load AND refresh; global Counter does not.
-; Match the Line meter's update cadence. This is a sample count, not telemetry,
-; and it only drives the startup cover over the History graph.
+; Counts History points: Temperature.lua forces it together with the Line
+; meter for each point it pushes (and Rainmeter updates both once at load).
+; This is a point count, not telemetry; it only drives the startup cover.
 [MeasureGPUGraphSamples]
 Measure=Calc
 Formula=Min(MeasureGPUGraphSamples+1,#ContentWidth#)
-UpdateDivider=1
+UpdateDivider=-1
+; Once the graph is full the startup cover has nothing left to cover: hide it
+; and end its per-update re-read for the rest of the load. The cover's
+; SetOption forces one last re-read, which takes the new divider; hiding
+; alone would not stop its updates. A refresh restores the INI values.
+IfCondition=MeasureGPUGraphSamples>=#ContentWidth#
+IfTrueAction=[!SetOption MeterGPUGraphUncollected DynamicVariables 0][!SetOption MeterGPUGraphUncollected UpdateDivider -1][!HideMeter MeterGPUGraphUncollected]
 
 ; Values can remain in the registry after HWiNFO stops. This is a snapshot.
 ; List membership distinguishes a missing ValueRawN from a real numeric zero.
@@ -27,6 +26,7 @@ UpdateDivider=1
 ; canonical HWiNFO sources once at initialization, without formula evaluation.
 [MeasureGPURegistryNames]
 Measure=Registry
+Group=ParallaxIdlePause
 RegHKey=#GPURegHKey#
 RegKey=#GPURegKey#
 OutputType=ValueList
@@ -36,6 +36,7 @@ Disabled=1
 
 [MeasureGPUPowerSensor]
 Measure=Registry
+Group=ParallaxIdlePause
 RegHKey=#GPURegHKey#
 RegKey=#GPURegKey#
 RegValue=Sensor#GPUPowerIndex#
@@ -44,6 +45,7 @@ Disabled=1
 
 [MeasureGPUPowerLabel]
 Measure=Registry
+Group=ParallaxIdlePause
 RegHKey=#GPURegHKey#
 RegKey=#GPURegKey#
 RegValue=Label#GPUPowerIndex#
@@ -52,6 +54,7 @@ Disabled=1
 
 [MeasureGPUPowerValue]
 Measure=Registry
+Group=ParallaxIdlePause
 RegHKey=#GPURegHKey#
 RegKey=#GPURegKey#
 RegValue=Value#GPUPowerIndex#
@@ -60,6 +63,7 @@ Disabled=1
 
 [MeasureGPUPowerValueRaw]
 Measure=Registry
+Group=ParallaxIdlePause
 RegHKey=#GPURegHKey#
 RegKey=#GPURegKey#
 RegValue=ValueRaw#GPUPowerIndex#
@@ -68,6 +72,7 @@ Disabled=1
 
 [MeasureGPUClockSensor]
 Measure=Registry
+Group=ParallaxIdlePause
 RegHKey=#GPURegHKey#
 RegKey=#GPURegKey#
 RegValue=Sensor#GPUClockIndex#
@@ -76,6 +81,7 @@ Disabled=1
 
 [MeasureGPUClockLabel]
 Measure=Registry
+Group=ParallaxIdlePause
 RegHKey=#GPURegHKey#
 RegKey=#GPURegKey#
 RegValue=Label#GPUClockIndex#
@@ -84,6 +90,7 @@ Disabled=1
 
 [MeasureGPUClockValue]
 Measure=Registry
+Group=ParallaxIdlePause
 RegHKey=#GPURegHKey#
 RegKey=#GPURegKey#
 RegValue=Value#GPUClockIndex#
@@ -92,9 +99,89 @@ Disabled=1
 
 [MeasureGPUClockValueRaw]
 Measure=Registry
+Group=ParallaxIdlePause
 RegHKey=#GPURegHKey#
 RegKey=#GPURegKey#
 RegValue=ValueRaw#GPUClockIndex#
+UpdateDivider=(Max(1,Ceil(#SensorInterval#/Max(1,#MetricsInterval#))))
+Disabled=1
+
+; Freshness reference for an HWiNFO override. The Gadget export has no
+; timestamp, HWiNFO writes it only while its Sensors window is open, and a
+; mapped clock can legitimately hold one value for minutes (an idle GPU).
+; The first eight exported raw values join the mapped ones in one signature;
+; Temperature.lua withholds the overrides only when all of them stay
+; unchanged for 60 s. Enabled with MeasureGPURegistryNames, only for an
+; explicit override; the default driver path never reads them.
+[MeasureGPUExportProbe0]
+Measure=Registry
+Group=ParallaxIdlePause
+RegHKey=#GPURegHKey#
+RegKey=#GPURegKey#
+RegValue=ValueRaw0
+UpdateDivider=(Max(1,Ceil(#SensorInterval#/Max(1,#MetricsInterval#))))
+Disabled=1
+
+[MeasureGPUExportProbe1]
+Measure=Registry
+Group=ParallaxIdlePause
+RegHKey=#GPURegHKey#
+RegKey=#GPURegKey#
+RegValue=ValueRaw1
+UpdateDivider=(Max(1,Ceil(#SensorInterval#/Max(1,#MetricsInterval#))))
+Disabled=1
+
+[MeasureGPUExportProbe2]
+Measure=Registry
+Group=ParallaxIdlePause
+RegHKey=#GPURegHKey#
+RegKey=#GPURegKey#
+RegValue=ValueRaw2
+UpdateDivider=(Max(1,Ceil(#SensorInterval#/Max(1,#MetricsInterval#))))
+Disabled=1
+
+[MeasureGPUExportProbe3]
+Measure=Registry
+Group=ParallaxIdlePause
+RegHKey=#GPURegHKey#
+RegKey=#GPURegKey#
+RegValue=ValueRaw3
+UpdateDivider=(Max(1,Ceil(#SensorInterval#/Max(1,#MetricsInterval#))))
+Disabled=1
+
+[MeasureGPUExportProbe4]
+Measure=Registry
+Group=ParallaxIdlePause
+RegHKey=#GPURegHKey#
+RegKey=#GPURegKey#
+RegValue=ValueRaw4
+UpdateDivider=(Max(1,Ceil(#SensorInterval#/Max(1,#MetricsInterval#))))
+Disabled=1
+
+[MeasureGPUExportProbe5]
+Measure=Registry
+Group=ParallaxIdlePause
+RegHKey=#GPURegHKey#
+RegKey=#GPURegKey#
+RegValue=ValueRaw5
+UpdateDivider=(Max(1,Ceil(#SensorInterval#/Max(1,#MetricsInterval#))))
+Disabled=1
+
+[MeasureGPUExportProbe6]
+Measure=Registry
+Group=ParallaxIdlePause
+RegHKey=#GPURegHKey#
+RegKey=#GPURegKey#
+RegValue=ValueRaw6
+UpdateDivider=(Max(1,Ceil(#SensorInterval#/Max(1,#MetricsInterval#))))
+Disabled=1
+
+[MeasureGPUExportProbe7]
+Measure=Registry
+Group=ParallaxIdlePause
+RegHKey=#GPURegHKey#
+RegKey=#GPURegKey#
+RegValue=ValueRaw7
 UpdateDivider=(Max(1,Ceil(#SensorInterval#/Max(1,#MetricsInterval#))))
 Disabled=1
 
@@ -116,4 +203,5 @@ FinishAction=[!UpdateMeasure MeasureGPUInfo][!UpdateMeasure MeasureGPUView]
 ; Keep the view last: it reads the current counter, metadata and registry measures.
 [MeasureGPUView]
 Measure=Script
+Group=ParallaxIdlePause
 ScriptFile=#@#Modules\GPU\GPU.lua

@@ -15,7 +15,8 @@ function Suite.run(path)
         lines[#lines+1]=(pass and 'PASS: ' or 'FAIL: ')..name..(pass and '' or ': '..tostring(err))
         if not pass then failed=failed+1 end
     end
-    local allowed={Columns=true,PanelHeight=true,GPUEnableSensors=true,GPURegHKey=true,GPUPowerSource=true,GPUClockSource=true}
+    local allowed={Columns=true,PanelHeight=true,GPUEnableSensors=true,GPURegHKey=true,GPUPowerSource=true,GPUClockSource=true,
+        GPUShowProcesses=true,GPUShowProcessMemory=true}
     for _,field in ipairs({'Temperature','Power','Clock'}) do
         for _,part in ipairs({'Index','Sensor','Label'}) do allowed['GPU'..field..part]=true end
     end
@@ -28,7 +29,7 @@ function Suite.run(path)
         local vars={['@']=root,CURRENTCONFIG='Parallax\\GPU\\Settings'}
         for k,v in pairs(persisted) do vars[k]=v end
         vars.Columns='2';vars.PanelHeight='648'
-        local f={persisted=persisted,vars=vars,options={},writes={},refreshes={},launches={},closes=0,output='',status=1,calls={},inputOutput='',inputStatus=-1,inputKills=0}
+        local f={persisted=persisted,vars=vars,options={},writes={},refreshes={},selfRefreshes=0,launches={},closes=0,output='',status=1,calls={},inputOutput='',inputStatus=-1,inputKills=0}
         local function textFile()
             local t={'[Variables]'};for k,v in pairs(persisted) do t[#t+1]=k..'='..v end;return table.concat(t,'\n')
         end
@@ -75,6 +76,9 @@ function Suite.run(path)
                     assert(previous and previous.command=='!UpdateMeasure' and previous.args[1]=='MeasureGPUSettingsInput','fresh status before Kill')
                     f.inputKills=f.inputKills+1
                 end
+            elseif command=='!Refresh' then
+                -- Only this settings window reloads itself (to reflow its rows).
+                assert(#a==0,'refresh must target only this settings window');f.selfRefreshes=f.selfRefreshes+1
             elseif command=='!DeactivateConfig' then assert(#a==0 or (#a==1 and a[1]=='Parallax\\GPU\\Settings'),'close must target itself');f.closes=f.closes+1
             elseif command=='!ShowMeter' or command=='!HideMeter' then assert(#a==1,'meter target outside settings')
             elseif command=='!UpdateMeterGroup' then assert(#a==1 and (a[1]=='GPUSettingsUI' or a[1]=='GPUSettingsPicker'),'wrong meter group')
@@ -93,7 +97,7 @@ function Suite.run(path)
         local blocked=setmetatable({},{__index=function()return forbidden end})
         local env=setmetatable({SKIN=skin,SELF={},io=fakeio,os=blocked,package=blocked,debug=blocked,require=forbidden,dofile=forbidden,loadfile=forbidden,loadstring=forbidden},{__index=_G})
         env._G=env;local chunk=assert(loadfile(path));setfenv(chunk,env);chunk();f.env=env
-        function f:clear() self.writes={};self.refreshes={};self.launches={};self.calls={} end
+        function f:clear() self.writes={};self.refreshes={};self.selfRefreshes=0;self.launches={};self.calls={} end
         function f:textContains(fragment)
             for _,opts in pairs(self.options) do for _,v in pairs(opts) do if tostring(v):find(fragment,1,true) then return true end end end
             return false
@@ -139,6 +143,24 @@ function Suite.run(path)
         eq(f.options.MeterSettingsHeightValue.Text,'399 px / Fit','saved height stays displayed until Fit')
         f:clear();f.env.ToggleSensors();saved(f,{GPUEnableSensors='0'});f:clear();f.env.FitHeight();saved(f,{PanelHeight='462'});eq(f.vars.PanelHeight,'648')
         f:clear();f.env.FitHeight();idle(f)
+    end)
+    -- GPU loads the process table and its VRAM column by include at refresh;
+    -- the VRAM row collapses with the table, so the table toggle also reloads
+    -- this window. Both default On, including for a GPU.inc without the keys.
+    test('process table and VRAM toggles save one key and refresh GPU',function()
+        local f=fixture();eq(f.options.MeterSettingsProcessesValue.Text,'On');eq(f.options.MeterSettingsProcessMemoryValue.Text,'On')
+        eq(f.persisted.GPUShowProcesses,nil,'an older GPU.inc without the keys reads as On')
+        f:clear();f.env.ToggleProcesses();saved(f,{GPUShowProcesses='0'});eq(f.selfRefreshes,1,'the window reflows')
+        eq(f.options.MeterSettingsProcessesValue.Text,'Off')
+        local lastRefresh,selfRefresh=0,0;for i,c in ipairs(f.calls) do if c.command=='!RefreshGroup' then lastRefresh=i elseif c.command=='!Refresh' then selfRefresh=i end end
+        ok(selfRefresh>lastRefresh,'the window reloads after GPU is told to refresh')
+        f:clear();f.env.ToggleProcessMemory();saved(f,{GPUShowProcessMemory='0'});eq(f.selfRefreshes,0,'the VRAM toggle moves no row')
+        eq(f.options.MeterSettingsProcessMemoryValue.Text,'Off')
+        f:clear();f.env.ToggleProcesses();saved(f,{GPUShowProcesses='1'});eq(f.selfRefreshes,1)
+        f:clear();f.env.ToggleProcessMemory();saved(f,{GPUShowProcessMemory='1'})
+        local custom=fixture({GPUShowProcesses='2',GPUShowProcessMemory='yes'})
+        eq(custom.options.MeterSettingsProcessesValue.Text,'Custom');eq(custom.options.MeterSettingsProcessMemoryValue.Text,'Custom')
+        custom:clear();custom.env.ToggleProcesses();saved(custom,{GPUShowProcesses='1'})
     end)
     test('provider off keeps setup and recovery available and saved mappings intact',function()
         local f=fixture({GPUEnableSensors='1',GPUPowerIndex='8',GPUPowerSensor='Saved GPU',GPUPowerLabel='Saved power'})

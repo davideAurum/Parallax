@@ -2,7 +2,7 @@
 
 Where things stand between releases: what is on `main` but not yet in a published package, and what is still open. Update this file when work lands. When a release ships, move its "On main" entries into that release's notes and clear them here. Stage goals live in [ROADMAP.md](ROADMAP.md); this file is the short list.
 
-**Latest release:** [0.1.0-alpha.7](https://github.com/davideAurum/Parallax/releases/tag/v0.1.0-alpha.7) (2026-10-25): GPU driver host relaunch after standby, the tighter Media spectrum drawer, and no `0.png` log spam without WebNowPlaying. Not yet installed on the maintainer's desktop (alpha.6 is).
+**Latest release:** [0.1.0-alpha.7](https://github.com/davideAurum/Parallax/releases/tag/v0.1.0-alpha.7) (2026-10-25): GPU driver host relaunch after standby, the tighter Media spectrum drawer, and no `0.png` log spam without WebNowPlaying. Installed on the maintainer's desktop the same day through the Welcome panel's updater (alpha.6 → 7; the live `Version.inc` reads `0.1.0-alpha.7`). Rainmeter logging was off, so no log was captured, and settings preservation was not checked item by item.
 
 ## On main, not in any release
 

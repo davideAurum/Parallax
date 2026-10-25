@@ -904,7 +904,7 @@ try {
                 $entry=@{}; foreach ($pair in $_.Trim().Split(' ')) { $parts=$pair.Split('='); if ($parts.Count -eq 2) { $entry[$parts[0]]=$parts[1] } }; $entry })
             $measured=@{Gutter=Get-CopiedSetting $case.Root 'Gutter';PanelPadding=Get-CopiedSetting $case.Root 'PanelPadding';DataBarThickness=Get-CopiedSetting $case.Root 'DataBarThickness';BorderThickness=Get-CopiedSetting $case.Root 'BorderThickness'}
             $literal=$measured.Gutter -eq 8 -and $measured.PanelPadding -eq 6 -and $measured.DataBarThickness -eq 6 -and $null -ne $measured.BorderThickness -and $measured.BorderThickness -le 2
-            $openHeight=if ($case.Kind -eq 'DrawerPlayerTall') { 356 } else { 316 }
+            $openHeight=if ($case.Kind -eq 'DrawerPlayerTall') { 338 } else { 298 }
             $heights=@($stages | ForEach-Object { [int]$_['h'] })
             $problems=@()
             if ($stages.Count -ne 3) { $problems+="recorded $($stages.Count) drawer stages, expected 3" }

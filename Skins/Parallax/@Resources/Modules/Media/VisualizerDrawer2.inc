@@ -69,9 +69,11 @@ SolidColor=#GraphBackgroundColor#
 UpdateDivider=-1
 
 ; Output row, as the standalone draws it (View.inc): the user-selected Lucide
-; Speaker (Icons\Lucide\README.md) and the clipped device name on the left,
-; the read-only Windows output volume on the right. One transparent target
-; switches the Windows default output, like the standalone's row.
+; Speaker (Icons\Lucide\README.md) and the clipped device name, out to the
+; chevron's column: the drawer's collapse chevron (Common.inc) holds the
+; row's last 18S, at the plot's right edge. The read-only volume sits in the title row instead (below).
+; One transparent target switches the Windows default output, like the
+; standalone's row.
 [MeterVisualizerOutputIcon]
 Meter=Shape
 X=#MediaVisualizerRowX#
@@ -92,21 +94,27 @@ MeterStyle=StyleLabel
 MeasureName=MeasureVisualizerDeviceName
 X=(#MediaVisualizerRowX#+18*#Scale#)
 Y=#MediaVisualizerRowY#
-W=(#MediaVisualizerRowWidth#-18*#Scale#-64*#Scale#)
+W=(#MediaVisualizerToggleX#-#MediaVisualizerRowX#-18*#Scale#)
 H=(18*#Scale#)
 Text=%1
 UpdateDivider=#VisualizerDeviceNameDivider#
 
 ; Audio.inc's MeasureVisualizerVolumeValue sets this text: a whole percent,
-; Muted, or -- when Win7Audio reports no device.
+; Muted, or -- when Win7Audio reports no device. It is the panel's headline
+; value in the gear's spot, like CPU's total: shown while the pointer is off
+; the skin, swapped for the gear on hover (Media.ini's MouseOver/LeaveAction
+; use its group, so the closed drawer, which has no such meter, logs nothing).
 [MeterVisualizerVolume]
 Meter=String
-MeterStyle=StyleLabel
+MeterStyle=StyleTitle|StyleTitleRow
 MeasureName=MeasureVisualizerVolumeValue
-X=(#MediaVisualizerRowX#+#MediaVisualizerRowWidth#)
-Y=#MediaVisualizerRowY#
-W=(60*#Scale#)
-StringAlign=Right
+X=#MediaVisualizerVolumeRight#
+Y=#MediaVisualizerVolumeY#
+W=(40*#Scale#)
+StringAlign=RightCenter
+FontSize=(#FontSize#*#Scale#)
+FontColor=#TextColor#
+Group=MediaHeaderValue
 Text=--
 NumOfDecimals=0
 UpdateDivider=#VisualizerVolumeDivider#
@@ -118,7 +126,7 @@ UpdateDivider=#VisualizerVolumeDivider#
 Meter=Image
 X=#MediaVisualizerRowX#
 Y=#MediaVisualizerRowY#
-W=#MediaVisualizerRowWidth#
+W=(#MediaVisualizerToggleX#-#MediaVisualizerRowX#)
 H=(18*#Scale#)
 SolidColor=0,0,0,1
 MouseActionCursor=1
@@ -174,9 +182,10 @@ UpdateDivider=-1
 [MeterVisualizerLow]
 Meter=String
 MeterStyle=StyleLabel
-X=#MediaVisualizerPlotX#
-Y=(#MediaVisualizerPlotY#+#MediaVisualizerPlotHeight#+1*#Scale#)
+X=#MediaVisualizerLowLabelX#
+Y=#MediaVisualizerAxisLabelY#
 W=(50*#Scale#)
+StringAlign=LeftCenter
 FontColor=#MutedColor#
 Text=40 Hz
 UpdateDivider=-1
@@ -184,10 +193,10 @@ UpdateDivider=-1
 [MeterVisualizerHigh]
 Meter=String
 MeterStyle=StyleLabel
-X=(#MediaVisualizerPlotX#+#MediaVisualizerPlotWidth#)
-Y=(#MediaVisualizerPlotY#+#MediaVisualizerPlotHeight#+1*#Scale#)
+X=#MediaVisualizerHighLabelRight#
+Y=#MediaVisualizerAxisLabelY#
 W=(50*#Scale#)
-StringAlign=Right
+StringAlign=RightCenter
 FontColor=#MutedColor#
 Text=16 kHz
 UpdateDivider=-1

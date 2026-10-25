@@ -42,14 +42,14 @@ MediaVisualizerSheetPath=#MediaVisualizerStroke#,#MediaVisualizerSheetHeight# | 
 ; open and flips down while the drawer is open, as List Plus/Minus does below.
 [MeterVisualizerToggle]
 Meter=Shape
-X=#MediaVisualizerTabX#
+X=#MediaVisualizerToggleX#
 Y=#MediaVisualizerToggleY#
-W=#MediaVisualizerTabWidth#
+W=#MediaVisualizerToggleWidth#
 H=#MediaVisualizerToggleHeight#
 Hidden=(1-#MediaVisualizerTab#)
 AntiAlias=1
 UpdateDivider=-1
-Shape=Rectangle 0,0,#MediaVisualizerTabWidth#,#MediaVisualizerToggleHeight# | Fill Color 0,0,0,1 | StrokeWidth 0
+Shape=Rectangle 0,0,#MediaVisualizerToggleWidth#,#MediaVisualizerToggleHeight# | Fill Color 0,0,0,1 | StrokeWidth 0
 Shape2=Path MediaVisualizerChevron | Fill Color 0,0,0,0 | Stroke Color #HeaderTextColor# | StrokeWidth (2*#MediaVisualizerGlyphScale#) | StrokeStartCap Round | StrokeEndCap Round | StrokeLineJoin Round
 MediaVisualizerChevron=(#MediaVisualizerGlyphX#+6*#MediaVisualizerGlyphScale#),(#MediaVisualizerGlyphY#+(15-6*#MediaVisualizerOpen#)*#MediaVisualizerGlyphScale#) | LineTo (#MediaVisualizerGlyphX#+12*#MediaVisualizerGlyphScale#),(#MediaVisualizerGlyphY#+(9+6*#MediaVisualizerOpen#)*#MediaVisualizerGlyphScale#) | LineTo (#MediaVisualizerGlyphX#+18*#MediaVisualizerGlyphScale#),(#MediaVisualizerGlyphY#+(15-6*#MediaVisualizerOpen#)*#MediaVisualizerGlyphScale#)
 MouseActionCursor=1

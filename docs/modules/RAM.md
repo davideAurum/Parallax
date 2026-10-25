@@ -168,11 +168,57 @@ Rainmeter zero-fills the initial Line buffer. An opaque shape covers uncollected
 - Its 206 columns matched the logged values with correlation 0.978 and 24 MB (0.033 px) RMS residual, after removing a constant −0.54 px offset that comes from the analysis's centroid model.
 - The RAM text passed through the same 6 values as the log rounded to 0.1 GB.
 
-Nothing was stuck and nothing was changed. A tighter or auto-ranged scale is an owner decision.
+Nothing was stuck and nothing was changed. An opt-in auto-ranged scale is [proposed below](#proposed-auto-ranged-history-scale-not-built).
 
 History is not saved. Refresh, reload or geometry changes applied by refresh restart it. Avoid graph-only `!UpdateMeter` actions, including `!UpdateMeter *`, unless sample counting is coordinated; normal full updates keep them aligned. Cached overview reflow and Settings changes do not append graph samples.
 
 The overview reports unavailable inventory explicitly. PAGE has the provider status and freshness checks described above. Native PhysicalMemory exposes no freshness/status display here, so this skin cannot independently detect stalled physical-RAM values or OS query failures. It invents no freshness timestamp for physical RAM.
+
+### Proposed: auto-ranged history scale (not built)
+
+Designed 2026-10-25 for owner review. It is opt-in, and the default stays the full 0–100% plot. Nothing below is implemented yet.
+
+**The native Line meter can do it, through a Calc proxy (verified).** Rainmeter's `MeterLine.cpp` stores raw `GetValue()` samples and maps them at draw time with the measure's *current* `GetMinValue()`/`GetMaxValue()`. An isolated probe on Rainmeter 4.5.28.3936 confirmed this. It froze a Line holding a 20–24 GB triangle wave, then changed its Calc measure's `MinValue`/`MaxValue` with `!SetOption` (no `DynamicVariables`).
+
+- The same stored samples were redrawn from 5.59 px tall (0–32 GB; 5.88 px expected) to 45.28 of 47 px (20–24 GB).
+- Column-for-column correlation between the two drawings was 0.9999.
+- New samples then continued at the new range.
+
+So a range change re-maps the whole visible history consistently, with no history reset and no second buffer. `PhysicalMemory` itself cannot be re-ranged: after `!SetOption` it reported the new `MinValue` but kept `MaxValue` at the physical total (34.15 GB).
+
+**Settings.**
+
+- `RAMHistoryScale`: `0` Full (default, today's plot and **0 - 100%** label) or `1` Auto.
+- `RAMHistoryMinSpan`: the smallest range Auto shows, in GB. Proposed default 2, bounds 0.5 to the physical total.
+- RAM Settings gets one **History scale** Full/Auto row (height 368 → 396 logical px). As with Top processes, changing it refreshes Memory Meter and restarts its history.
+
+**Wiring.** `Measures.inc` includes `HistoryScale<RAMHistoryScale>.inc` after `MeasureRAMUsed`, as it does the process ranks.
+
+- `HistoryScale0.inc` is comment-only, so Full loads nothing new and the Line stays on `MeasureRAMUsed`.
+- `HistoryScale1.inc` adds a range controller (Script), followed by a Calc proxy `MeasureRAMHistoryValue` with `Formula=MeasureRAMUsed`. It also sets a `RAMHistoryMeasure` variable so the Line reads the proxy.
+
+**Range rule.**
+
+- The controller keeps its own ring of the last `ContentWidth` samples. These are the same samples, on the same ticks, that the Line holds. It counts only samples collected since load or idle resume, because older slots are covered.
+- Needed span = the larger of (data max − data min) and the minimum span, plus 10% headroom, centred on the data. It is rounded outward to a step matching the label precision (0.1 GB at one decimal) and kept within 0 to the total.
+- The range changes only when a sample leaves it, or when the needed span falls below half the shown span. Re-ranging is therefore occasional, not every tick. Each change sets the proxy's `MinValue`/`MaxValue` and the label.
+
+**Display.** **0 - 100%** becomes the shown range in the selected unit and precision, for example **23.6 - 25.6 GB**. Guides stay at the quarter heights of that range. The header percentage and both bars keep their full-range scales.
+
+**Resolution.** With the 2 GB minimum span and the default 48 px graph, 1 px is about 43 MB instead of 742 MB. The 0.51 GB swing measured above would span about 12 px. Real jitter of a few tens of MB becomes visible as 1 px movement; the range label is what keeps that honest.
+
+**Cost and dependencies.** Auto adds, per tick, one Lua update (a scan of at most 208 numbers) and one Calc. Bangs are sent only when the range changes. Full adds nothing. No new runtime dependency: the controller would be RAM-owned Lua on built-in Script and Calc measures, recorded in the Dependencies table when built.
+
+**Idle pause.** On the performance-review branch, the controller and proxy join `ParallaxIdlePause`, and `IdleLeave` also clears the controller's ring, matching the history restart.
+
+**Open before building:**
+
+- Does a range set during a tick apply to that tick's draw? If it applies a tick later, a new extreme could clip for one frame.
+- Behaviour on Rainmeter 4.5.26.
+- Settings placement and the default minimum span (owner choices).
+- Measured cost.
+
+The build's native test should extend the `Test-RAMHistoryCover.ps1` fixture pattern, and check drawn spans and label text rather than options alone.
 
 ## Validation results
 
@@ -194,6 +240,12 @@ The overview reports unavailable inventory explicitly. PAGE has the provider sta
 - **Cause found in code and reproduced in isolation.** Every PAGE failure was terminal. The host ends itself when its lease is older than 15 s, and only the skin's `Update` renews the lease. Anything that stops RAM's updates for more than 15 s therefore ends the host for good: a suspended or long-blocked Rainmeter main thread (for example a long skin load or refresh), or a sleep after which the host wakes and reads the old lease before the skin renews it. The controller then saw the host gone (RunCommand status 1 before B1; no samples now), cleaned up, and stayed `failed` with no retry. On the base commit `191a1cd`, suspending an isolated Rainmeter for 20 s made the host exit at its lease window, and for all 44 updates after resume PAGE read Unavailable with RunCommand status 1 and no PAGE host process: the owner's symptom.
 - **Other terminal paths with the same result, from code, not reproduced:** a launch that fails or times out under load (for example at logon, when the compile is slowest), and a single failed lease write.
 - **Which one occurred live is not known.** The live logs were not read (they belong to the owner's running instance). The GPU host having been restarted at 12:18 while RAM's was not is consistent with both hosts failing in the same incident and only GPU being refreshed afterwards, because GPU had the same terminal failure.
+- **It recurred live on 2026-10-25 (v0.1.0-alpha.6).** Rainmeter had been running since 2026-10-24 16:52:08, and the host had survived three earlier display-off periods. Then:
+  - At 12:56:00 the displays woke after a 13 h display-off period (Kernel-Power 566; no system sleep).
+  - From 12:56:02 to 12:56:04 the left monitor dropped and reconnected, followed by Desktop settings changes until 12:56:09.
+  - At 12:56:14 the host's PowerShell engine stopped cleanly (Windows PowerShell event 403).
+
+  A killed process logs no clean engine stop, so the host ended itself: its lease had aged past 15 s, meaning the skin had not renewed it since about 12:55:58. Alpha.6 treats that as terminal and removes the session files, so PAGE stayed Unavailable. What delayed the renewals is not established: logging was off and no hang was recorded. The retries above would have restarted the host.
 - **Fix:** bounded retries (see [live memory semantics](#live-memory-semantics-and-units)). The same suspension on this branch: the host exited 14.8 s into the suspension, PAGE read Unavailable, then Checking..., then a current reading 24.3 s after resume, from a new detached host (`Tests/Test-HostLifecycle.ps1 -Suspend`, which now requires that recovery). The native fixture smoke adds the retry schedule, the reset after a 10-minute healthy session, the stop after three failed retries, and Stop cancelling a pending retry.
 
 **Snapshot written on change, 2026-10-23 (performance package B1, XMOD-08).** The host still samples every interval, but writes its snapshot (new temp file plus replace) only when the reading (status, used, allocated, count) differs from the last one published, or as a heartbeat once `max(1, window / 3)` seconds have passed, where window is the reader's freshness limit `max(8, ceil(3 * interval / 1000) + 2)`. That is every 2 s at the default 1 s interval and every sample at 2 s and slower, so the reader keeps at least 5 s of margin before a sample would look stale. A changed reading is written at once and a failed replacement is retried on the next sample; sequence and timestamp advance only with a write. A functional probe of the real host on the test machine saw the paging-file reading change in 1 of 37 one-second samples, and the real-host probe now observed 10 snapshots in about 18 s (about 0.55 per second, from 1 per second). Lease rewrites by the skin are unchanged (every 5 s). Checks: `Test-RAMPageFileProvider.ps1 -ProbeNative` 284 (unchanged readings only as a heartbeat, a change written at once in either direction, a failed replacement retried, heartbeat at a third of the reader window for 1, 2, 3, 5 and 30 s); `Test-RAMPageFileResident.ps1` passed; `Test-HostLifecycle.ps1 -ObserveSeconds 40` saw a current PAGE reading on all 38 skin updates in an isolated Rainmeter. Not measured: file-system, Defender and wakeup effects (the performance step measures those). RAM-02 (a slower PAGE sampling cadence) was not applied: it changes freshness and was not approved.

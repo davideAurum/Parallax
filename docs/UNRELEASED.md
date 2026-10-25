@@ -2,12 +2,11 @@
 
 Where things stand between releases: what is on `main` but not yet in a published package, and what is still open. Update this file when work lands. When a release ships, move its "On main" entries into that release's notes and clear them here. Stage goals live in [ROADMAP.md](ROADMAP.md); this file is the short list.
 
-**Latest release:** [0.1.0-alpha.6](https://github.com/davideAurum/Parallax/releases/tag/v0.1.0-alpha.6) (2026-10-19). Also installed on the maintainer's desktop.
+**Latest release:** [0.1.0-alpha.7](https://github.com/davideAurum/Parallax/releases/tag/v0.1.0-alpha.7) (2026-10-25): GPU driver host relaunch after standby, the tighter Media spectrum drawer, and no `0.png` log spam without WebNowPlaying. Not yet installed on the maintainer's desktop (alpha.6 is).
 
 ## On main, not in any release
 
-- **Media: no `0.png` log spam without WebNowPlaying** (`a18d1f9`). With the plugin missing, Media no longer tries to open `0.png` on every update; only the 14 one-time plugin-load errors remain. See [Media.md](modules/Media.md). Not urgent: the package bundles the plugin.
-- Docs only: the PowerShell helper check in [UPDATES.md](UPDATES.md#rainmeter-started-from-powershell-7), and the alpha.6 clean-install record under Stage 1 in [ROADMAP.md](ROADMAP.md).
+- Nothing yet.
 
 ## Open: Stage 1 (prove the upgrade path)
 

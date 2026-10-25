@@ -235,11 +235,27 @@ Y=(#Inset#+298*#Scale#)
 Text=On
 LeftMouseUpAction=[!CommandMeasure MeasureRAMSettings "Cycle('RAMShowProcesses')"]
 
+; Auto sizes the history range to the visible samples and labels it. Like Top
+; processes it is a load-time include, so this refreshes Memory Meter.
+[MeterRAMSettingsHistoryScaleLabel]
+Meter=String
+MeterStyle=StyleUtilitySettingsLabel | StyleRAMSettingsLabel
+Y=(#Inset#+328*#Scale#)
+Text=History scale
+LeftMouseUpAction=[!CommandMeasure MeasureRAMSettings "Cycle('RAMHistoryScale')"]
+
+[MeterRAMSettingsHistoryScale]
+Meter=String
+MeterStyle=StyleUtilitySettingsValue | StyleRAMSettingsValue
+Y=(#Inset#+326*#Scale#)
+Text=Full
+LeftMouseUpAction=[!CommandMeasure MeasureRAMSettings "Cycle('RAMHistoryScale')"]
+
 [MeterRAMSettingsHint]
 Meter=String
 MeterStyle=StyleLabel
 X=#ContentX#
-Y=(#Inset#+326*#Scale#)
+Y=(#Inset#+354*#Scale#)
 W=#ContentWidth#
 H=(18*#Scale#)
 FontSize=(#FontSize#*#Scale#)
@@ -250,7 +266,7 @@ Group=RAMSettingsUI
 Meter=String
 MeterStyle=StyleLabel
 X=#ContentX#
-Y=(#Inset#+346*#Scale#)
+Y=(#Inset#+374*#Scale#)
 W=#ContentWidth#
 H=(18*#Scale#)
 FontSize=(#FontSize#*#Scale#)

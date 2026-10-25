@@ -226,7 +226,11 @@ public static class ParallaxRamPageFile
 
     internal static bool LeaseFresh(long timestamp, long now, int intervalMs)
     {
-        long maximumAge = Math.Max(15L, (3L * intervalMs + 999) / 1000);
+        // 60 s (was 15): on 2026-10-25 the live host ended on a lapsed lease
+        // as the displays woke and a monitor reconnected, a stall of Rainmeter
+        // longer than 15 s. The lease only guards a hung skin; a crashed or
+        // closed Rainmeter ends the host at once through its ancestor handle.
+        long maximumAge = Math.Max(60L, (3L * intervalMs + 999) / 1000);
         return timestamp >= 0 && timestamp <= MaximumEpoch && now >= 0 && now <= MaximumEpoch &&
             timestamp <= now + 5 && now - timestamp <= maximumAge;
     }

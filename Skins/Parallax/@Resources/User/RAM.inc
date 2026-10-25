@@ -20,6 +20,12 @@ RAMShowHistory=1
 ; table's place reads "Processes off". RAM Settings refreshes Memory Meter
 ; to apply it; refresh after editing here.
 RAMShowProcesses=1
+; History scale: 0 = Full (0 to 100% of physical RAM), 1 = Auto (the range
+; follows the visible samples and the label shows it). RAM Settings refreshes
+; Memory Meter to apply it; refresh after editing here.
+RAMHistoryScale=0
+; Auto only: the smallest range shown, in GB (0.5 to the physical total).
+RAMHistoryMinSpan=2
 ; RGB only: opaque cover for not-yet-collected history, not a telemetry value.
 RAMHistoryEmptyColor=25,25,25
 ; Shared colors, FontFace, FontSize, Scale, and MetricsInterval can be

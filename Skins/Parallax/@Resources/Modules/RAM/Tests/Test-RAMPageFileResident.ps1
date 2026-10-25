@@ -27,7 +27,7 @@ $result = [ordered]@{
     architectureBits = [IntPtr]::Size * 8
     assertions = 0
     intervalMs = 1000
-    maximumLeaseAgeSeconds = 15
+    maximumLeaseAgeSeconds = 60
     hostLaunchCount = 0
     exitCode = $null
     distinctFrames = 0
@@ -169,7 +169,7 @@ try {
     Check-Resident ($result.renewedLease -and $result.continuedBeyondInitialLease) 'The renewed lease did not demonstrably extend the real host lifetime.'
     # Removing the lease is the skin's stop request for the detached host: it
     # must exit at its next check, within one sample interval plus scheduling
-    # slack, not after the 15-second lease window.
+    # slack, not after the 60-second lease window.
     [IO.File]::Delete($leasePath)
     $stopWatch = [Diagnostics.Stopwatch]::StartNew()
     while (-not $resident.HasExited -and $stopWatch.Elapsed.TotalSeconds -lt 3) { Start-Sleep -Milliseconds 50 }

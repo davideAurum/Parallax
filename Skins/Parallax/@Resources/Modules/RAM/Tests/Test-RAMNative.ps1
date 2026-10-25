@@ -73,7 +73,7 @@ foreach ($relative in @('RAM\RAM.ini', 'RAM\Settings\Settings.ini', '@Resources\
     $sources[$relative] = [IO.File]::ReadAllText($path)
 }
 # The five process ranks are a load-time include (ProcessMeasures<RAMShowProcesses>.inc).
-foreach ($relative in '@Resources\Modules\RAM\ProcessMeasures1.inc', '@Resources\Modules\RAM\ProcessMeasures0.inc', '@Resources\Modules\RAM\ProcessMeters.inc', '@Resources\Modules\RAM\Process.lua', '@Resources\Modules\RAM\ProcessModel.lua', '@Resources\Modules\RAM\PageFile.lua', '@Resources\Modules\RAM\PageFileModel.lua') {
+foreach ($relative in '@Resources\Modules\RAM\ProcessMeasures1.inc', '@Resources\Modules\RAM\ProcessMeasures0.inc', '@Resources\Modules\RAM\HistoryScale0.inc', '@Resources\Modules\RAM\ProcessMeters.inc', '@Resources\Modules\RAM\Process.lua', '@Resources\Modules\RAM\ProcessModel.lua', '@Resources\Modules\RAM\PageFile.lua', '@Resources\Modules\RAM\PageFileModel.lua') {
     $path = Join-Path $sourceRoot $relative
     Assert-RegularPath $path
     $sources[$relative] = [IO.File]::ReadAllText($path)

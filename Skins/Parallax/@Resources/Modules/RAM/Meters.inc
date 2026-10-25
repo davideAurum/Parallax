@@ -180,7 +180,7 @@ UpdateDivider=-1
 Meter=String
 MeterStyle=StyleHeader
 Y=(#Inset#+(#RAMInfoHeight#+216+2*Max(0,#DataBarThickness#-6))*#Scale#)
-W=(#ContentWidth#-60*#Scale#)
+W=(#ContentWidth#-116*#Scale#)
 H=(18*#Scale#)
 Text=History
 Group=RAMLayout
@@ -193,10 +193,11 @@ Meter=String
 MeterStyle=StyleLabel
 X=(#ContentX#+#ContentWidth#)
 Y=(#Inset#+(#RAMInfoHeight#+216+2*Max(0,#DataBarThickness#-6))*#Scale#)
-W=(58*#Scale#)
+W=(110*#Scale#)
 H=(18*#Scale#)
 FontSize=(#FontSize#*#Scale#)
 StringAlign=Right
+; Full: the fixed range. Auto: HistoryRange.lua writes the shown range here.
 Text=0 - 100%
 Group=RAMLayout
 DynamicVariables=1
@@ -206,7 +207,8 @@ UpdateDivider=-1
 [MeterRAMHistory]
 Meter=Line
 Group=ParallaxIdleFreeze
-MeasureName=MeasureRAMUsed
+; MeasureRAMUsed (Full), or the Auto range proxy (HistoryScale1.inc sets it).
+MeasureName=#RAMHistoryMeasure#
 X=#ContentX#
 Y=(#Inset#+(#RAMInfoHeight#+236+2*Max(0,#DataBarThickness#-6))*#Scale#)
 W=#ContentWidth#

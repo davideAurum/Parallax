@@ -75,6 +75,10 @@ function ApplyPreferences()
         end
         SKIN:Bang('!CommandMeasure', 'MeasureRAMInfoView', 'Display()')
         SKIN:Bang('!CommandMeasure', 'MeasureRAMProcessView', 'Display()')
+        -- Auto history scale only: rewrite the range label in the new unit.
+        if SKIN:GetMeasure('MeasureRAMHistoryRange') then
+            SKIN:Bang('!CommandMeasure', 'MeasureRAMHistoryRange', 'Display()')
+        end
     end
     if changed.RAMUseMiB or changed.RAMDecimals or changed.RAMShowPageBar then
         SKIN:Bang('!CommandMeasure', 'MeasureRAMPageView', 'Display()')
@@ -124,6 +128,10 @@ end
 -- joined across the pause. Runs before the hook's forced measure update, which
 -- then counts the first new sample.
 function IdleLeave()
+    -- The Auto range window restarts with the plot (absent for Full).
+    if SKIN:GetMeasure('MeasureRAMHistoryRange') then
+        SKIN:Bang('!CommandMeasure', 'MeasureRAMHistoryRange', 'Reset()')
+    end
     local samples = SKIN:GetMeasure('MeasureRAMHistorySamples')
     if not samples then return end
     local formula = samples:GetOption('Formula', '')

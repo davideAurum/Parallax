@@ -11,6 +11,13 @@ Group=ParallaxIdlePause
 Total=1
 UpdateDivider=1
 
+; The history scale: nothing for Full (the default), or for Auto the range
+; controller and the Calc proxy the Line draws (HistoryScale1.inc). They must
+; follow the two PhysicalMemory measures they read. Changing RAMHistoryScale
+; refreshes Memory Meter to swap them.
+[RAMHistoryScaleInclude]
+@Include11=#@#Modules\RAM\HistoryScale#RAMHistoryScale#.inc
+
 ; Paging-file-only accounting comes from one resident EnumPageFiles host; no
 ; shell is launched per poll. One bounded launcher (plain PowerShell, no
 ; compile) mints the random session, writes its lease, starts the host hidden

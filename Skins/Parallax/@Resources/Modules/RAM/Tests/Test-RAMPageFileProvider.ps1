@@ -203,7 +203,7 @@ public static class ParallaxRamPageFileTests
 
         foreach (bool corrupt in new bool[] { false, true })
         {
-            paths = NewPaths(); guard = new Guard(paths); guard.Step = 5; guard.Limit = 8; guard.Corrupt = corrupt;
+            paths = NewPaths(); guard = new Guard(paths); guard.Step = 20; guard.Limit = 8; guard.Corrupt = corrupt;
             Lease(paths, guard.Time); calls = 0;
             ParallaxRamPageFile.RunSession(paths, 1000, guard, delegate { return guard.Time; }, delegate
             { ++calls; return new ParallaxRamPageFile.Frame("NONE", 0, 0, 0); });
@@ -346,7 +346,7 @@ public static class ParallaxRamPageFileTests
 
         foreach (int interval in new int[] { 1000, 5000, 5001, 30000 })
         {
-            long age = Math.Max(15, (3 * interval + 999) / 1000);
+            long age = Math.Max(60, (3 * interval + 999) / 1000);
             Check(ParallaxRamPageFile.LeaseFresh(10000 - age, 10000, interval), "Inclusive lease age");
             Check(!ParallaxRamPageFile.LeaseFresh(9999 - age, 10000, interval), "Expired lease");
             Check(ParallaxRamPageFile.LeaseFresh(10005, 10000, interval), "Future tolerance boundary");

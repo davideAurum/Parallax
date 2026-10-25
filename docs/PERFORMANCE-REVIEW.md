@@ -16,7 +16,8 @@ CPU figures are **percent of one logical core** unless stated otherwise. 100% me
 - **Phase C is merged.**
   - **Idle pause (C2):** off by default; when on, it takes the six skins from 8.5 to 3.65% while paused.
   - **The drawer (C1):** releases its audio capture after silence while you are away.
-  - **Its idle coordinator** costs about 57 UI-thread wakeups/s beside the open drawer, a Rainmeter per-window cost on this machine. The fix C3 removed the avoidable part. See [Phase C result](#phase-c-result-merged-and-measured-2026-10-23).
+  - **Its idle coordinator** cost about 57 UI-thread wakeups/s beside the open drawer, a Rainmeter per-window cost; the fix C3 removed the avoidable part. See [Phase C result](#phase-c-result-merged-and-measured-2026-10-23).
+  - **Re-measured on 2026-10-25 after a restart, that window cost is about 2.** It came from the machine's degraded state (a runaway TextInputHost and days of leaked kernel memory), not from the coordinator. Every skin's UI thread was cheaper too. See [TextInputHost and the after re-measure](#display-dropouts-and-the-kernel-memory-leak-2026-102425).
 - **Step 3: are the gains additive? It depends on where you look.**
   - **Inside Media, synergistic:** the two halves of A1 save 4.5 points alone and 8.5 together.
   - **Across the six skins, antagonistic:** the packages save 21 points when each is added alone, 12.7 together.
@@ -24,10 +25,9 @@ CPU figures are **percent of one logical core** unless stated otherwise. 100% me
   - The likely shared cause of the overlap is Rainmeter's single, contended UI thread. See [Step 3 result](#step-3-result-2026-10-24-are-the-gains-additive).
 - **Nothing has reached the desktop yet.** The live skin changes only when a release is installed.
 - **Open for the owner:**
-  - **TextInputHost** was ended on 2026-10-24. The "after" re-measure of the coordinator's window cost has not run yet; it is best run now that the display is fixed.
   - **The cable fix** still needs an overnight confirmation;
   - whether to hide the process lists (the largest remaining cost);
-  - the C3 options (a lazy coordinator for the drawer);
+  - the C3 options (a lazy coordinator for the drawer; it would now save about 2 wakeups/s, not 57);
   - the stand-down helper kill race.
 
 ## Bottom line
@@ -608,6 +608,7 @@ A follow-up agent isolated the cause with staged variants that each differed in 
    - **Where the time goes.** Stack samples show a `CallNextHookEx` call from `dxgi.dll` inside `GetMessage`. It appears only once a second skin window exists, and it blocks on a win32k lock, most likely the session's USER lock, two to three times per message. That is why it scales with the other skins' message rate.
    - **It cannot be removed in Rainmeter 4.5.28** while the coordinator is a separate config.
    - **This machine makes it worse.** TextInputHost running away at about 90% of a core is the probable lock holder; that is not proven.
+   - **Update 2026-10-25:** after TextInputHost was ended and the PC restarted, the window cost fell to about 2 wakeups/s beside Media. See [the after re-measure](#display-dropouts-and-the-kernel-memory-leak-2026-102425).
 2. **The SysInfo reading: 13-15 wakeups/s.** The fix reads it only when a reading could change the state: about once a minute while you are at the computer. It still reads every 2 s while you are away or skins are paused, so input is seen within one tick.
 
 **Result.** UI-thread wakeups/s from the reviewer's clean re-measure:
@@ -620,11 +621,11 @@ A follow-up agent isolated the cause with staged variants that each differed in 
 CPU time is unchanged within noise.
 
 **Open options, not built:**
-- **A lazy coordinator for the drawer.** It would join only after 2 minutes of drawer silence, or while parked. That saves about 57 wakeups/s while music plays, but it needs a protocol change.
+- **A lazy coordinator for the drawer.** It would join only after 2 minutes of drawer silence, or while parked. On the degraded machine that saved about 57 wakeups/s while music played; after the 2026-10-25 restart the window costs about 2, so the gain is now small, and it still needs a protocol change.
 - **Read IDLE_TIME inside Network when Network is loaded.** Network already reads the interface table every tick, so the reading would cost nothing extra there.
-- **Restart TextInputHost and re-measure.** The per-window cost may largely disappear.
+- **Restart TextInputHost and re-measure: done 2026-10-25.** The per-window cost fell from about 60 to about 2 wakeups/s beside Media.
 
-**Suite-wide lesson.** Every extra Rainmeter window, including a Settings window left open and Media's Queue or Setup, adds this per-message hook call. Weigh that before splitting the UI into more configs.
+**Suite-wide lesson.** Every extra Rainmeter window, including a Settings window left open and Media's Queue or Setup, adds this per-message hook call. Weigh that before splitting the UI into more configs. On a freshly restarted machine the cost was about 2 wakeups/s per hidden window, so it matters mainly when the machine is in a bad state.
 
 **Minor review notes:**
 - **A rare tick-token collision** is possible on a quick double refresh after 24.8 days of uptime.
@@ -700,7 +701,7 @@ CPU time is unchanged within noise.
 - On this machine, each window message that thread handles waits on a contended win32k lock, once per extra skin window.
 - The original build keeps that thread far busier, so removing any one skin's work also shortens every other skin's waits. Alone, a package gets credit for both.
 - A cost that grows faster than the load behaves exactly like this.
-- This is not proven. A re-run after TextInputHost is restarted, if that is what holds the lock, would show how much of the overlap is this machine's state.
+- This is not proven. The 2026-10-25 re-measure supports it: after a restart the six skins' UI thread woke about 310 times a second instead of 554, and the per-window cost fell from about 60 to 2. Step 3 itself was not re-run, so how much of the overlap remains is unknown.
 
 **The protocol's expected interactions:**
 - **A1 with C1 (expected synergistic):** not testable here; C1 needs minutes of silence and absence.
@@ -832,10 +833,30 @@ Explorer, the NVIDIA display container and dwm bursting together is how display 
 - **Likely cause.** The old left cable did not fail on the right monitor either, so a poorly seated plug, or a cable that is marginal at DP 1.2 speed with the left monitor, is the likely cause.
 - **Still to confirm:** a full night with the logger.
 
-**TextInputHost.**
+**TextInputHost and the after re-measure.**
 - **What happened.** It had run at about 85-90% of a core since 2026-10-21 17:54 (97,205 CPU-seconds). It was ended with the owner's OK on 2026-10-24 at 16:14:27, and Windows restarted it as a quiet instance.
-- **The "before" re-measure** gave a coordinator window cost of +55-60 UI wakeups/s beside Media and +109 across the six skins.
-- **The "after" run** was cancelled by the restart and is still to do.
+- **The re-measure.** Both runs used the same three staged copies of the C3 merge (`5474212`): with the coordinator, without it, and with a bare hidden 1x1 window in its place. They used the live preferences and hardware rendering, with 3 interleaved trials per variant. No run saw a display event.
+  - **"Before"** ran on 2026-10-24 from 15:59 to 16:14, with TextInputHost running away and 2.9 days of leaked kernel memory (paged pool about 13.8 GB).
+  - **"After"** ran on 2026-10-25 from 18:25 to 18:39: two hours after a restart, with TextInputHost quiet and the cables swapped.
+
+| UI-thread wakeups/s, median of 3 | Before, with coordinator | Before, without | After, with coordinator | After, without |
+| --- | ---: | ---: | ---: | ---: |
+| Media alone | 169 | 108 | 88 | 86 |
+| Six skins | 663 | 554 | 298 | 310 |
+
+- **The coordinator's window cost is gone.**
+  - Beside Media it fell from +60.5 to +2.1 wakeups/s; a bare hidden window went from +55.2 to +1.7.
+  - Across the six skins it went from +109 to -12, which is noise.
+- **Everything else got cheaper too.**
+  - Without the coordinator, Media's UI thread fell from 108 to 86 wakeups/s and the six skins' from 554 to 310.
+  - Load times fell from about 3.6 s to 0.7 s for Media and from 7.1 s to 1.5 s for the six skins.
+  - Total CPU moved within noise: the six skins without the coordinator went from 8.7% to 8.8% of a core.
+- **The cause was the machine's state, not Parallax.** The extra cost went away with the TextInputHost kill and the restart. This run cannot separate the two. The kernel state before the restart was about 13.8 GB of paged pool (mostly leaked GDI bitmaps), with igfxEM holding 147,488 handles.
+- **What it changes.**
+  - The lazy coordinator (a C3 option) would now save about 2 wakeups/s, not 57.
+  - The Step 3 overlap was measured in the old state and may be smaller now; it was not re-run.
+- **Live Rainmeter, for context only.** A 30 s read-only sample, not like-for-like, because the drawer and Spotify states were not recorded: the UI thread went from 741 to 360 wakeups/s, and the process from 18.5% to 10.6% of a core.
+- **Files.** The logs and summary are in `build/wakeup-recheck/` (git-ignored); the reports are `build/perf-benchmark/*-live-wr-*.json`.
 
 **Not verified.**
 - Whether skins on the steady monitor, or a DPI-aware Rainmeter, would also leak per reconnect.

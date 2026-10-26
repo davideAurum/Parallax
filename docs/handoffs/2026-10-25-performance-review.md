@@ -1,12 +1,17 @@
 # Performance review handoff (2026-10-25)
 
-A fresh session can continue from this note. The full record is [PERFORMANCE-REVIEW.md](../PERFORMANCE-REVIEW.md); its "Where it stands" section is the summary.
+A fresh session can continue from this note. The full record is [PERFORMANCE-REVIEW.md](../PERFORMANCE-REVIEW.md); its "Where it stands" section is the summary. Updated 2026-10-26 after the overnight check.
 
 ## Where things are
 
-- **Branch:** `claude/parallax-performance-review-55c97a`, not pushed and not merged to `main`.
-  - Its last work commit is the kill-race merge, `0f6705f`; this note is committed on top of it.
-  - `main` is at `6d59634` (0.1.0-alpha.8).
+- **Branch:** `claude/parallax-performance-review-55c97a`, not pushed.
+  - `main` (`6d59634`, 0.1.0-alpha.8) already has the branch up to `33b639b`, through merge `da8137b` (2026-10-25 17:07). That covers phases A-C and the opt-in RAM auto-ranged history.
+  - Ten commits are not in `main` yet:
+    - the 10-25 re-measure and owner-decision records (`d36c6af`, `09d9dfe`);
+    - the kill-race fix (`408cc64`, `0bb3e6f`, merge `0f6705f`);
+    - this note (`914ebb5`);
+    - the overnight-trace start script (`f172abd`, `e93f957`, `87bb426`);
+    - the overnight record (`11f757d`).
 - **Worktree:** `C:\Users\david\Coding\Parallax\.claude\worktrees\amazing-mccarthy-f9ba00`. Its git-ignored `build\` folder holds the review's evidence:
   - `leak-watch\`: the leak logger, its CSVs and `which-dropped.ps1`;
   - `perf-trace\`, including the 10-22 overnight baseline `20261022T233145-overnight-baseline*`;
@@ -14,45 +19,32 @@ A fresh session can continue from this note. The full record is [PERFORMANCE-REV
   - `pxab-archive\`: the `anim0` and `anim20` patches;
   - the `*.log` files.
 - **Archiving that worktree's session deletes the worktree.** Do not archive it until step 4 below has copied the evidence out.
-- **The desktop runs the installed 0.1.0-alpha.8 release.** Nothing from the perf branch is live; the live skin changes only when a release is installed.
+- **The desktop runs the installed 0.1.0-alpha.8 release, which includes phases A-C.** Of the ten commits above, only the kill-race fix changes the skin. The live skin changes only when a release is installed. (Corrected 2026-10-26: this line said nothing from the branch was live.)
 
 ## Running now
 
-- **The leak logger.** It is a hidden `powershell -MTA` process running `build\leak-watch\Watch-Leak.ps1` in the worktree above. It ran as pid 22180 from 2026-10-25 16:34 until David restarted the PC at 2026-10-26 00:53 (last sample 00:49); the start script below offers to restart it.
+- **The leak logger.** It is a hidden `powershell -MTA` process running `build\leak-watch\Watch-Leak.ps1` in the worktree above. It ran as pid 22180 from 2026-10-25 16:34 until David restarted the PC at 2026-10-26 00:53 (last sample 00:49), and has run as pid 31668 since 2026-10-26 01:38.
   - It writes `leak-samples.csv` every 10 minutes and `display-events.csv` on each display change. `which-dropped.ps1` reads `display-events.csv`, so dropouts while the logger is down go unrecorded.
   - To stop it, create `build\leak-watch\leak-watch.stop`.
   - It takes `-OutDir`, and defaults to its own folder.
-- **Tonight's overnight trace (David runs it)** with `tools\Start-ParallaxOvernightTrace.ps1`, which is on the perf branch only until it ships:
-  ```
-  powershell -NoProfile -ExecutionPolicy Bypass -File "C:\Users\david\Coding\Parallax\.claude\worktrees\amazing-mccarthy-f9ba00\tools\Start-ParallaxOvernightTrace.ps1" -Label overnight-clean-baseline
-  ```
-  - A read-only preflight runs first:
-    - live Rainmeter alone;
-    - no other trace, benchmark or test running;
-    - HWiNFO's export changing, which needs its sensors window open (minimised is fine);
-    - sleep covered by PowerToys Awake;
-    - the leak logger, Spotify's age, a pending restart, the Claude app, disk space;
-    - a 20 s quiet sample.
-  - A failed check blocks the start. Warnings ask first, and a stopped leak logger gets its own "start it?" prompt. `-PreflightOnly` only checks.
-  - It then runs the main checkout's `tools\Trace-ParallaxLive.ps1` (600 min, 5 s) hidden and detached, and waits for the first rows.
-  - Output goes to `C:\Users\david\Coding\Parallax\build\perf-trace\<timestamp>-overnight-clean-baseline*`. The tracer's console output goes to `build\perf-trace\launch\`.
-  - The screen timeout is still at 60 s from the dropout tests.
+- **The overnight trace has finished.** It ran on 2026-10-26 from 01:44 to 11:44, on alpha.8.
+  - Output: `C:\Users\david\Coding\Parallax\build\perf-trace\20261026T014354-overnight-clean-baseline*`.
+  - David started it with `tools\Start-ParallaxOvernightTrace.ps1`, which is on this branch until it ships. The script runs a read-only preflight, then starts the main checkout's tracer hidden and detached; its header lists the checks.
+  - For any later trace, run the script again with a new `-Label`:
+    ```
+    powershell -NoProfile -ExecutionPolicy Bypass -File "C:\Users\david\Coding\Parallax\.claude\worktrees\amazing-mccarthy-f9ba00\tools\Start-ParallaxOvernightTrace.ps1" -Label <label>
+    ```
+  - The screen timeout is still at 60 s from the dropout tests. David resets it.
 
 ## Next steps, in order
 
-1. **Morning dropout check (David).**
-   ```
-   powershell -NoProfile -ExecutionPolicy Bypass -File "C:\Users\david\Coding\Parallax\.claude\worktrees\amazing-mccarthy-f9ba00\build\leak-watch\which-dropped.ps1" -Since "2026-10-25 15:11"
-   ```
-   - If the cable swap holds, it shows no DISPLAY2 (left monitor) dropouts.
-   - Then David sets the screen timeout back.
-   - Record the result in PERFORMANCE-REVIEW.md, in "Display dropouts and the kernel memory leak", under "Still to confirm".
-2. **Read the overnight trace.** Compare it with the 10-22 baseline. That baseline is confounded:
-   - the left monitor was flapping;
-   - a stuck Adobe Desktop Service ran until 03:58;
-   - HWiNFO's export was frozen.
-   
-   Record the result under the review's evidence protocol and the overnight-trace section.
+1. **Morning dropout check. Done on 2026-10-26** (`11f757d`): the cable fix holds.
+   - `which-dropped.ps1` lists every one-screen row as a dropout. Most of its rows are screen wake-ups, so read them by signature. The review's "Overnight check (2026-10-25/26)" section explains how.
+   - David still resets the screen timeout.
+2. **Read the overnight trace. Done on 2026-10-26** (`11f757d`).
+   - With the screens off, Parallax used 8.1% of a core, against 26.6 on 10-22.
+   - The ~50 s fan peaks are gone.
+   - The remaining fan load is Spotify's runaway renderer, at about 110% of a core with nothing playing.
 3. **Decide the refresh-orphan fix.** It is on `refs/heads/claude/refresh-orphan-host-fix`, commit `7be434a`, "Stop RAM PAGE and GPU hosts left running by a skin refresh".
    - **Unreviewed.** The side session "Fix helper host orphaned by a skin refresh" made it, and nobody has reviewed it. It changes 11 files, +427/-38, including `PageFile.lua` and `Temperature.lua`. `Temperature.lua` is UTF-16LE with mixed line endings.
    - **Older base.** It is based on `408cc64`, before the review corrections in `0bb3e6f`. Expect conflicts in `docs/modules/RAM.md`, `docs/modules/GPU.md` and `docs/PERFORMANCE-REVIEW.md`.
@@ -71,7 +63,11 @@ A fresh session can continue from this note. The full record is [PERFORMANCE-REV
    - Run `tools\Test-Parallax.ps1 -RequireAllModules -WarningsAsErrors` and the packaging tests.
    - Build the release package with `packaging\`; David installs it.
    - Push, publish or open a PR only if David asks.
-6. **After the install.** Run the same overnight trace with a new label (`tools\Start-ParallaxOvernightTrace.ps1 -Label <new label>`), then compare the two. The install is also the first live check of the opt-in RAM auto-ranged history and its CPU cost.
+6. **After the install: probably not needed. David decides.**
+   - The 2026-10-26 trace already ran on alpha.8, with phases A-C live.
+   - The next release adds only the kill-race fix, which does not change steady-state load.
+   - Re-run the trace with a new `-Label` only if David wants a check after installing.
+   - The opt-in RAM auto-ranged history is already in alpha.8. Checking its live CPU cost needs that option switched on.
 
 ## Decided on 2026-10-25
 

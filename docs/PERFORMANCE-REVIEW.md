@@ -12,6 +12,7 @@ CPU figures are **percent of one logical core** unless stated otherwise. 100% me
   - **The fan.** That is the display re-detection behind the fan peaks.
   - **The slowdown over days.** Each reconnect also made Windows leak a kernel copy of every Parallax skin's image, about 2.2 MB, which explains the slowdown that only a restart cleared.
   - **The fix.** Swapping the two DisplayPort cables stopped it: 0 dropouts in 25 dark minutes, against 11-17 in 5-6 minutes before.
+  - **Confirmed overnight (2026-10-25/26).** There were no left-only drops after the swap and no display events in 9.1 dark hours. Paged pool stayed flat (−0.2 MB an hour). See [Overnight check](#overnight-check-2026-102526-cable-fix-and-clean-baseline).
   - See [Display dropouts and the kernel memory leak](#display-dropouts-and-the-kernel-memory-leak-2026-102425).
 - **Phase C is merged.**
   - **Idle pause (C2):** off by default; when on, it takes the six skins from 8.5 to 3.65% while paused.
@@ -25,7 +26,7 @@ CPU figures are **percent of one logical core** unless stated otherwise. 100% me
   - The likely shared cause of the overlap is Rainmeter's single, contended UI thread. See [Step 3 result](#step-3-result-2026-10-24-are-the-gains-additive).
 - **Nothing has reached the desktop yet.** The live skin changes only when a release is installed.
 - **Open for the owner:**
-  - **The cable fix** still needs an overnight confirmation.
+  - **A clean pre-release baseline exists (2026-10-25/26).** With alpha.8 (phases A-C) live and the screens off, Parallax ran at 8.1% of a core, against 26.6 on 10-22. The machine was 10.1% busy, against 22.5. The fan sat at its floor except during three Spotify runaway episodes.
   - **The stand-down helper kill race** is fixed (2026-10-25, branch `claude/kill-race-fix-bf97ef`), waiting to be merged. See [the known issue](#phase-c-result-merged-and-measured-2026-10-23).
   - **Decided on 2026-10-25:** the process lists stay shown by default, and the lazy coordinator is dropped. See [Owner decisions (2026-10-25)](#owner-decisions-2026-10-25).
 
@@ -853,7 +854,7 @@ Explorer, the NVIDIA display container and dwm bursting together is how display 
 
 - **The leak stopped.** During the last test paged pool stayed at 4,693-4,695 MB. The only event was one resync 2 s after the screens woke.
 - **Likely cause.** The old left cable did not fail on the right monitor either, so a poorly seated plug, or a cable that is marginal at DP 1.2 speed with the left monitor, is the likely cause.
-- **Still to confirm:** a full night with the logger.
+- **Still to confirm:** a full night with the logger. **Confirmed 2026-10-25/26**; see [Overnight check](#overnight-check-2026-102526-cable-fix-and-clean-baseline).
 
 **TextInputHost and the after re-measure.**
 - **What happened.** It had run at about 85-90% of a core since 2026-10-21 17:54 (97,205 CPU-seconds). It was ended with the owner's OK on 2026-10-24 at 16:14:27, and Windows restarted it as a quiet instance.
@@ -882,7 +883,53 @@ Explorer, the NVIDIA display container and dwm bursting together is how display 
 
 **Not verified.**
 - Whether skins on the steady monitor, or a DPI-aware Rainmeter, would also leak per reconnect.
-- How much of the fan's night-time pattern remains after the fix. The overnight trace in the evidence protocol should be re-run.
+- How much of the fan's night-time pattern remains after the fix. The overnight trace in the evidence protocol should be re-run. **Update 2026-10-26:** answered in the next section.
+
+## Overnight check (2026-10-25/26): cable fix and clean baseline
+
+**Dropouts: the cable fix holds.**
+- **Logger coverage.** 2026-10-25 15:11-16:08, 16:34-00:49, and 2026-10-26 01:38 onwards (pid 31668, still running). **Not recorded:** 16:08-16:34 (a restart at 16:14) and 00:49-01:38 (a restart at 00:53).
+- **`which-dropped.ps1` reports 21 "DISPLAY2" dropouts since 15:11. None is the old fault.** The script counts every one-screen row, and display-events.csv has two kinds:
+  - **Left gone, right stays** (DISPLAY1 still 2560×1440): the fault. 1,423 before the swap, about 79 an hour on the 10-24 night. Since the swap there have been 2 (20:55:08 and 02:26:52), each within 1 s after a both-gone row. They are a step inside a wake, because the right monitor comes back about 0.7 s before the left.
+  - **Both gone** (DISPLAY1=1024×768, Windows' no-monitor placeholder): 1 before the swap, 19 since. Each comes about 2 s after a Kernel-Power 566 screen-on (keyboard or mouse). These are wake re-enumerations, made frequent by the 60 s screen timeout.
+- **Overnight, dark:** no display events at all from 02:27:50 to 11:35:31, 9.1 hours with the screens off. Before the fix, a dark night meant 70-100 drops an hour.
+
+**Kernel pools: the leak is gone.**
+- **After the 00:53 restart:** paged pool was 1,068 MB at 01:38 and 1,062 MB at 09:00 (range 1,047-1,075), a slope of −0.2 MB an hour. igfxEM handles went from 392 to 423, one step of +31 at the 02:26 wake. NVIDIA's display container went from 727 to 706. Before the fix, paged pool grew about 175 MB an hour.
+- **10-25 16:34-00:49, before that restart:** paged pool rose from 708 to 1,706 MB in the first hour after the 16:14 boot, then held at about 1,750 MB until 21:10.
+  - A runaway `find` process (pid 41784) then held up to 13 million handles, which took paged pool to 8,967 MB by 23:39. All of it was freed when the process ended, at about 23:55 (1,495 MB). That is a handle leak in one process, not the display leak.
+  - igfxEM gained about 31 handles per wake (361 to 856), so its side leak still happens on each wake re-enumeration.
+
+**Trace.**
+- **What ran.** `Trace-ParallaxLive.ps1` ran from 01:44:01 to 10-26 11:43:59 at 5 s, 6,478 samples (`build/perf-trace/20261026T014354-overnight-clean-baseline*` in the main checkout).
+  - The launch log shows no warning or failure, and there is no `.error.log`.
+  - The live skin is the installed **0.1.0-alpha.8, which includes phases A-C** (`main` merge `da8137b`). It does not have the kill-race fix.
+  - The screens were off from 01:46 to 11:35, except a one-minute wake at 02:26.
+  - The figures below cover the screens-off time (531 min). 11:35 to the end is active use.
+- **HWiNFO was live.** The CPU temperature had 43 distinct values, and its longest unchanged run was 12 samples. The CPU fan had 438 distinct values, with a longest unchanged run of 6.
+- **The comparison.** CPU in % of one core; "busy" is % of all cores.
+
+| Screens off | Busy | CPU °C mean / p95 / max | CPU fan RPM mean / p95 / max | Parallax total | Rainmeter main | Helpers | audiodg | Spotify |
+| --- | ---: | ---: | ---: | ---: | ---: | ---: | ---: | ---: |
+| 10-22/23 W3 (214 min) | 22.5% | 68.7 / 79 / 86 | 2,872 / 3,354 / 3,938 | 26.6 | 12.3 | 9 | 7.7 | — |
+| **10-25/26 whole night (531 min)** | **10.1%** | **46.9 / 60 / 84** | **1,918 / 2,411 / 3,183** | **8.1** | **3.5** | **1.0** | **0.0** | **33.6** |
+| 10-25/26, Spotify calm (<20%, 329 min) | 8.3% | 41.5 / — / 70 | 1,732 / 1,734 / 2,295 | 9.1 | — | — | — | <20 |
+
+- **Top processes, screens off:** Spotify 33.6, RazerAppEngine 18.7, Creative Cloud UI Helper 12.1, SearchIndexer 8.4 (it climbed from about 6 to 18 by morning), Rainmeter 6.1, HWiNFO 2.5. TextInputHost, explorer, NVIDIA's display container and Adobe Desktop Service are gone from the list.
+- **RazerAppEngine and Creative Cloud UI Helper stayed busy all night.** Razer ran at about 20-24% and the UI Helper at about 12-16% in every hour where Spotify was calm, matching the 01:08 preflight. Neither is Parallax, and ending them is the owner's call.
+
+**The ~50 s fan-peak pattern is gone.**
+- **Spotify calm.** While Spotify was calm, the CPU fan sat at its floor: p50 1,731 and p90 1,734 RPM, which is sensor jitter.
+- **Spotify running away.** The remaining fan load is Spotify's runaway renderer, at about 110% of a core with no audio playing (audiodg about 0). It had three episodes: 02:55-03:12 (17 min), 04:55-07:00 (125 min) and 09:55-10:33 (38 min). During them busy was 14.2%, the CPU 59 °C and the fan 2,340 RPM mean, 3,183 max.
+- **Not the wake.** The first episode began 28 minutes after the 02:26 wake, so it is not tied to the wake.
+- **Parallax.** It is anti-correlated with the fan (−0.54) because it does not rise when Spotify does.
+
+**Caveats.**
+- **The drawer.** Its state was not recorded. audiodg at about 0 means either the drawer was closed or C1 had released audio capture, so the audiodg saving is not attributable from this trace.
+- **The comparison is not like-for-like.** Parallax's fall from 26.6 to 8.1 combines phases A-C, the drawer state and a clean machine (no leaked kernel pool, no runaway TextInputHost). The isolated benchmarks are the attributable figures; this is the live confirmation.
+- **Spotify confounds the totals.** The "Spotify calm" row is the cleaner machine baseline.
+- **Unrecorded logger gaps.** The two gaps above were not recorded.
+- **Files.** The analysis is `build/overnight-analysis/20261026-clean-baseline-analysis.txt`, with `morning-1026-leak.ps1` and `morning-1026-extra.ps1` beside it (git-ignored).
 
 ## Owner decisions (2026-10-22)
 

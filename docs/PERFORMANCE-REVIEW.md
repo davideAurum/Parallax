@@ -25,10 +25,9 @@ CPU figures are **percent of one logical core** unless stated otherwise. 100% me
   - The likely shared cause of the overlap is Rainmeter's single, contended UI thread. See [Step 3 result](#step-3-result-2026-10-24-are-the-gains-additive).
 - **Nothing has reached the desktop yet.** The live skin changes only when a release is installed.
 - **Open for the owner:**
-  - **The cable fix** still needs an overnight confirmation;
-  - whether to hide the process lists (the largest remaining cost);
-  - the C3 options (a lazy coordinator for the drawer; it would now save about 2 wakeups/s, not 57);
-  - the stand-down helper kill race.
+  - **The cable fix** still needs an overnight confirmation.
+  - **The stand-down helper kill race** is being fixed.
+  - **Decided on 2026-10-25:** the process lists stay shown by default, and the lazy coordinator is dropped. See [Owner decisions (2026-10-25)](#owner-decisions-2026-10-25).
 
 ## Bottom line
 
@@ -544,7 +543,7 @@ CPU in % of one core, median [min-max].
 - **From baseline, the six skins cost 63% less after phase B** (20.5 → 7.7), and 77% less with the process lists hidden (→ 4.7). The peak second fell from 27.7 to 14.4.
 - **Phase B's CPU change at the default settings is inside the trial spread** (9.0 → 7.7, with overlapping ranges). That was expected: B1 removes wakeups rather than CPU time, and B2 changes nothing at the defaults.
 - **B1's wakeup cut is clear.** GPU and RAM each lose about 100 Rainmeter wakeups a second (257 → 155, 266 → 159). That matches the 104/s measured live for RunCommand's polling thread.
-- **The process lists are now the largest remaining cost.** Hiding them takes the six skins from 7.7 to 4.7, and plugin-thread time from 3.9 to 0.6. That plugin time is UsageMonitor's whole-category Process and GPU readers. Hiding the lists is a feature trade-off and the owner's choice; the defaults keep them.
+- **The process lists are now the largest remaining cost.** Hiding them takes the six skins from 7.7 to 4.7, and plugin-thread time from 3.9 to 0.6. That plugin time is UsageMonitor's whole-category Process and GPU readers. Hiding the lists is a feature trade-off and the owner's choice; the defaults keep them. **Owner decision (2026-10-25): keep them shown by default;** the opt-outs stay available.
 - **One outlier.** Baseline's first six-skin trial read 11.5, about half the other two (21.6 and 20.5), and its UI-thread time was half as well. The median uses all three trials.
 - **Why these differ from yesterday's run** (25.5 at baseline, 10.3 after phase A): that ran under different background load. Today's numbers come from one interleaved session, so they compare like with like.
 
@@ -621,7 +620,7 @@ A follow-up agent isolated the cause with staged variants that each differed in 
 CPU time is unchanged within noise.
 
 **Open options, not built:**
-- **A lazy coordinator for the drawer.** It would join only after 2 minutes of drawer silence, or while parked. On the degraded machine that saved about 57 wakeups/s while music played; after the 2026-10-25 restart the window costs about 2, so the gain is now small, and it still needs a protocol change.
+- **A lazy coordinator for the drawer.** It would join only after 2 minutes of drawer silence, or while parked. On the degraded machine that saved about 57 wakeups/s while music played; after the 2026-10-25 restart the window costs about 2, so the gain is now small, and it still needs a protocol change. **Dropped by the owner on 2026-10-25.**
 - **Read IDLE_TIME inside Network when Network is loaded.** Network already reads the interface table every tick, so the reading would cost nothing extra there.
 - **Restart TextInputHost and re-measure: done 2026-10-25.** The per-window cost fell from about 60 to about 2 wakeups/s beside Media.
 
@@ -905,6 +904,14 @@ The audiodg attribution question is answered: see [Live A/B](#live-ab-drawer-and
 - **Media idle cost about 9.9% before phase A** (default preferences, software rendering); it is now 0.35%.
 - **Removing the remaining tick** would need ActionTimer or a reload on play/pause, which is more code for a negligible CPU gain.
 - **Owner decision (2026-10-22): leave the tick as it is.** No ActionTimer pulse. The owner can set Title animation to Off to halve those wakeups, and C2's idle stand-down covers nights.
+
+## Owner decisions (2026-10-25)
+
+1. **Process lists: keep them shown by default.**
+   - **The trade-off:** hiding the CPU, RAM and GPU process lists takes the six skins from 7.7% to 4.7% of a core; they are the largest remaining cost.
+   - **Kept:** the lists are a feature, and the opt-outs (`CPUShowProcesses=0`, `RAMShowProcesses=0`, `GPUShowProcesses=0`, `GPUShowProcessMemory=0`) stay available.
+2. **Lazy coordinator for the drawer (C3 option): dropped.** After the restart the coordinator's window costs about 2 UI wakeups/s, not 57 (see [the after re-measure](#display-dropouts-and-the-kernel-memory-leak-2026-102425)), so the gain no longer justifies a protocol change.
+3. **Stand-down helper kill race: fix it** before the release, in RAM and GPU (see [the known issue](#phase-c-result-merged-and-measured-2026-10-23)).
 
 ## Found along the way (not performance)
 

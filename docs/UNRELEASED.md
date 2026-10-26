@@ -6,7 +6,7 @@ Where things stand between releases: what is on `main` but not yet in a publishe
 
 ## On main, not in any release
 
-- Nothing yet.
+- **Updater moved to Global Settings, with a daily check and an update prompt** (2026-10-26, branch `claude/updater-global-settings`). Global Settings has an Updates section (installed and latest version, Auto check Daily/Off, Check now, Update, Notes); the loaded utilities check the release feed about once a day (on by default) and open a small `Parallax\Update` prompt for a newer release; the Welcome panel's update row is gone. Same feed and install helper. See [UPDATES.md](UPDATES.md). Not verified: a real upgrade through the new path (needs a release newer than the installed one), the live installation, mixed DPI.
 
 ## Open: Stage 1 (prove the upgrade path)
 

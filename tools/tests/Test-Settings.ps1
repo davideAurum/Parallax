@@ -10,11 +10,11 @@ if (-not (Test-Path -LiteralPath $RainmeterPath -PathType Leaf)) { throw 'Existi
 foreach ($ancestor in @($projectRoot, (Join-Path $projectRoot 'build'))) {
     if ((Test-Path -LiteralPath $ancestor) -and ((Get-Item -LiteralPath $ancestor).Attributes -band [IO.FileAttributes]::ReparsePoint)) { throw 'Test parent must not be a junction.' }
 }
-foreach ($dir in @($runRoot, $skinRoot, $parallaxRoot, "$parallaxRoot\Settings", "$parallaxRoot\@Resources", "$parallaxRoot\@Resources\User", "$parallaxRoot\@Resources\Scripts", "$runRoot\Layouts", "$runRoot\Plugins", "$runRoot\Addons")) {
+foreach ($dir in @($runRoot, $skinRoot, $parallaxRoot, "$parallaxRoot\Settings", "$parallaxRoot\@Resources", "$parallaxRoot\@Resources\User", "$parallaxRoot\@Resources\Scripts", "$parallaxRoot\@Resources\Update", "$parallaxRoot\@Resources\Idle", "$runRoot\Layouts", "$runRoot\Plugins", "$runRoot\Addons")) {
     $null = New-Item -ItemType Directory -Path $dir
 }
 $sourceRoot = Join-Path $projectRoot 'Skins\Parallax'
-foreach ($file in @('Defaults.inc','Geometry.inc','Styles.inc','User\Settings.inc','Scripts\Settings.lua')) {
+foreach ($file in @('Defaults.inc','Geometry.inc','Styles.inc','User\Settings.inc','Scripts\Settings.lua','Version.inc','Update\Feed.inc','Update\Install.inc','Update\Update.lua','Update\State.inc','Idle\Link.lua')) {
     Copy-Item -LiteralPath (Join-Path "$sourceRoot\@Resources" $file) -Destination (Join-Path "$parallaxRoot\@Resources" $file)
 }
 Copy-Item -LiteralPath "$sourceRoot\@Resources\Fonts" -Destination "$parallaxRoot\@Resources\Fonts" -Recurse
@@ -57,10 +57,10 @@ function AuditAndQuit()
         local suite = dofile([=[$suitePath]=])
         local count = suite.run([=[$productionPath]=])
         assert(SKIN:GetVariable('Columns') == '2', 'Include precedence lost double width')
-        assert(SKIN:GetVariable('PanelHeight') == '786', 'Include precedence lost settings height')
+        assert(SKIN:GetVariable('PanelHeight') == '901', 'Include precedence lost settings height')
         local bounds = assert(SKIN:GetMeter('MeterBounds'))
         local w, h = bounds:GetW(), bounds:GetH()
-        assert(w == 456 and h == 794, 'Unexpected default bounds: '..w..'x'..h)
+        assert(w == 456 and h == 909, 'Unexpected default bounds: '..w..'x'..h)
         for _, name in ipairs({$meterList}) do
             local meter = assert(SKIN:GetMeter(name))
             assert(meter:GetX() >= 0 and meter:GetY() >= 0, name..' begins outside window')

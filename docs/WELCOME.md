@@ -11,19 +11,15 @@ Inherit the [shared platform and bundling requirements](DEPENDENCIES.md#shared-r
 | Rainmeter's own settings file at `#SETTINGSPATH#Rainmeter.ini` | Required for check marks only; supplied by Rainmeter | Read only, on explicit events, to find which configs Rainmeter records as active. If it cannot be read the check marks clear, the status line says so, and the buttons still load. |
 | `!ActivateConfig` / `!DeactivateConfig` | Required; supplied by Rainmeter | The only writes the panel performs. Rainmeter itself records the resulting active state. |
 | IBM Plex Sans fonts | Bundled, skin-local; SIL OFL 1.1 | Uses the suite font and typography. No system installation. |
-| `@Resources/Version.inc` and `Modules/Welcome/Update.lua` | Bundled source; required for the update check | Installed version, feed address and the check/offer logic. See [UPDATES.md](UPDATES.md). |
-| Rainmeter's built-in WebParser measure and network access to `github.com` | Optional; supplied by Rainmeter / the user's connection | One request per **Check for updates** click. Offline or blocked: `Could not reach the update server.`, and nothing else changes. While `davideAurum/Parallax` is private, the feed is unreachable and the check reports `Update check failed.` |
-| `@Resources/Scripts/UpdateInstall.ps1` via Rainmeter's bundled RunCommand plugin and Windows PowerShell 5.1 | Bundled helper; optional, used only by **Install** | One hidden, one-shot launch per Install click. Downloads the offered package to `%TEMP%\Parallax\Update`, verifies it, ends this skin's resident Media provider workers (one CIM process query) so they cannot block the folder move, and opens it in Skin Installer; a worker that will not end shows `A media helper is running. Quit Rainmeter.` instead. If PowerShell is unavailable, the status line reports that the download failed and nothing is installed. |
-| Rainmeter's `SkinInstaller.exe` (from `#PROGRAMPATH#`) or the `.rmskin` file association | Required for Install; supplied by Rainmeter | Performs the actual upgrade after the user confirms. |
 | The eight utility configs and Global Settings | Bundled; listed, not required | A component missing from the installation cannot be loaded; Rainmeter reports the failed activation in its log and the row stays clear. |
 
-The component loader needs no PowerShell helper, external plugin, network service, account or preference file of its own. Only the explicit update check touches the network, and only Install launches a helper. The panel writes nothing to `@Resources/User/`; the helper writes only its download under `%TEMP%\Parallax\Update`.
+The component loader needs no PowerShell helper, external plugin, network service, account or preference file of its own, and writes nothing to `@Resources/User/`. Since 2026-10-26 it has no update check: updates are in [Global Settings](SETTINGS.md#updates) ([UPDATES.md](UPDATES.md)).
 
 ## What it is for
 
 `Parallax\Welcome\Welcome.ini` is the config the `.rmskin` loads after installation (`loadSkin` in [`packaging/release.json`](../packaging/release.json)). It answers the first question a new installation raises — what is in this suite, and how do I put the parts I want on the desktop — without sending the user to Manage Rainmeter.
 
-It uses the shared two-column geometry, font, padding and rounding. Its logical panel height is 424 pixels: the default window is 456 × 432 pixels including the snapping gutter. (It was 400 before the update row was added.)
+It uses the shared two-column geometry, font, padding and rounding. Its logical panel height is 400 pixels: the default window is 456 × 408 pixels including the snapping gutter. (It was 424 while it carried the update row, until 2026-10-26.)
 
 ## The component list
 
@@ -65,11 +61,11 @@ A click also paints its own intent immediately, so the box responds even though 
 
 If the settings file cannot be read, every check clears and the status line reads `Rainmeter settings are not readable; check marks show clicks only.` Toggling and **Load all** still activate configs in that state; **Unload all** deactivates nothing rather than logging an error for each config that may not be loaded.
 
-## Checking for updates
+## Updates moved to Global Settings (2026-10-26)
 
-**Check for updates** sits at the right end of the Load all row. The bottom line shows the installed version from `@Resources/Version.inc`. A click makes one WebParser request for the release feed. If a newer version is published, the line reads `Parallax <v> is available.`, and **Install** and **Notes** appear beside it. Install downloads and verifies the package, then opens Rainmeter's Skin Installer, which asks for confirmation before changing anything. The status line keeps short text and has no tooltip, so the detailed reason for a failure is not shown. The mechanism, feed format, release procedure and state table are in [UPDATES.md](UPDATES.md).
+The panel used to end with **Check for updates**, a status line and **Install**/**Notes**. Welcome is the package's `loadSkin`, so it opens after an install, but once closed nothing reopens it (on the maintainer's desktop it was `Active=0`), so that button was out of reach. The row and its `MeasureUpdate`, `MeasureUpdateFeed` and `MeasureUpdateInstall` were removed, the panel returned to 400 px, and the updater now lives in Global Settings' [Updates](SETTINGS.md#updates) section, with a daily background check and an update prompt ([UPDATES.md](UPDATES.md)). The Global Settings row in this panel leads there. The two update validation records below are kept as history; the checker is now `@Resources/Update/Update.lua`, tested under `@Resources/Update/tests/`.
 
-The update controls run in their own script measure (`MeasureUpdate`), so the loader's controller and its bang allowlist test are unchanged. `MeasureUpdateFeed` stays disabled until a click and is disabled again when the request finishes, so neither a skin load nor a refresh contacts the network.
+A capture through `tools\Preview-Parallax.ps1 -Modules Settings,Welcome,Update` on 2026-10-26 rendered this panel at 456 × 408 with the Load all row last and `1 of 9 components loaded.`, with zero log errors.
 
 ## Reopening the panel
 
@@ -90,13 +86,13 @@ A native capture through `tools\Preview-Parallax.ps1 -Modules Welcome` rendered 
 
 Not established by these checks: visual quality at other scales and column widths, mixed-DPI behavior, upgrade behavior over an existing installation, Skin Installer's post-install load of this config, and behavior when a listed config is missing from the installation.
 
-### Update check stalls at "Checking for updates...", fixed 2026-10-19
+### Update check stalls at "Checking for updates...", fixed 2026-10-19 (historical)
 
 Reported on 0.1.0-alpha.3: **Check for updates** took a very long time. The panel runs no skin update cycle (`Update=-1`), and a WebParser downloads only on its first measure update and then every `UpdateRate` updates. `Check()` enabled `MeasureUpdateFeed` and sent its `Update` command, but nothing updated the measure, so the request waited for an unrelated redraw of the skin. `Check()` now also sends `!UpdateMeasure MeasureUpdateFeed`, which starts the first download; the `Update` command still starts every later one.
 
 The smoke below did not catch this because it switches Welcome to `Update=500` to drive its harness. A scratch timing harness (not checked in) ran the shipped `Update=-1` panel against the real GitHub feed in an isolated Rainmeter 4.5.26 instance: before the fix, no result within 90 s; after it, `up to date` in about 1 s, and with the installed version set to alpha.2, `0.1.0-alpha.3 is available.` on the first click and again on a second click 1.5 s later. `Run-UpdateSmoke.ps1` still passes (newer, equal and unreachable feeds). Not checked: the Install step against the real release and the live panel.
 
-### Update check, 2026-09-23
+### Update check, 2026-09-23 (historical)
 
 `Skins\Parallax\@Resources\Modules\Welcome\tests\Run-UpdateSmoke.ps1 -ExerciseInstall` stages the sources, replaces the feed address with local `file://` manifests, and runs the real `MeasureUpdateFeed` / `MeasureUpdate` / `MeasureUpdateInstall` chain in an isolated Rainmeter 4.5.26.3894 instance on Windows 11 26200:
 

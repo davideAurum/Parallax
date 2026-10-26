@@ -278,7 +278,9 @@ def validate():
             if key == "MeterStyle" or key.startswith("MeasureName"):
                 assert all(ref.strip() in sections for ref in value.split("|")), (name, key)
     measures = [name for name, values in sections.items() if "Measure" in values]
-    assert len(measures) == 108 + 9 * 64
+    # The shared update hook (Auto check Daily by default) adds its script and feed measures.
+    assert {"MeasureParallaxUpdate", "MeasureParallaxUpdateFeed"} <= set(measures)
+    assert len(measures) == 108 + 9 * 64 + 2
     # CPU-02 / ENGINE-05: a DynamicVariables UsageMonitor measure re-reads, and
     # reloads the plugin, every tick even while disabled. !SetOption already
     # forces the one re-read CPU.lua needs.
@@ -311,7 +313,8 @@ def validate():
     assert sections["MeasureCPUNativeFrequency"]["Counter"] == "Processor Frequency"
     assert sections["MeasureCPUNativePerformance"]["Counter"] == "% Processor Performance"
     assert "MeasureCPUNativeFrequency*MeasureCPUNativePerformance/100" in sections["MeasureCPUNativeClock"]["Formula"]
-    assert measures[-1] == "MeasureCPUController", "Script must follow telemetry"
+    # The update hook's measures (divider -1, never ticked) may follow the controller.
+    assert [name for name in measures if not name.startswith("MeasureParallaxUpdate")][-1] == "MeasureCPUController", "Script must follow telemetry"
     for field in ("Sensor", "Label", "Formatted", "Raw"):
         for kind in ("Clock", "Fan", "MotherboardFan"):
             aggregate_measure = sections[f"MeasureCPUSensor{kind}{field}"]

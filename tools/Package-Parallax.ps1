@@ -141,7 +141,7 @@ foreach ($item in $stagedItems) {
 }
 if ($stagedItems.Count -ne $manifestFiles.Count) { throw 'Stage contents and manifest disagree.' }
 if (-not $expected.ContainsKey("Skins\$LoadSkin")) { throw "loadSkin is not part of the stage: $LoadSkin" }
-# The running suite reports its version from Version.inc; the Welcome update check
+# The running suite reports its version from Version.inc; the update check
 # compares it with the feed, so a package must never ship a stale value.
 $versionInclude = Join-Path $stageSkinRoot '@Resources\Version.inc'
 if (Test-Path -LiteralPath $versionInclude -PathType Leaf) {
@@ -150,7 +150,7 @@ if (Test-Path -LiteralPath $versionInclude -PathType Leaf) {
         throw "@Resources\Version.inc declares ParallaxVersion '$($versionMatch.Groups[1].Value)' but the package version is '$Version'. Update Version.inc before packaging."
     }
 } else {
-    Write-Warning '@Resources\Version.inc is not staged; the Welcome update check cannot report this version.'
+    Write-Warning '@Resources\Version.inc is not staged; the update check cannot report this version.'
 }
 foreach ($variableFile in $variablesFiles) {
     if ($variableFile -notmatch "^$skinRootName\\@Resources\\User\\.+\.inc$") { throw "Unexpected Variables file: $variableFile" }
@@ -326,7 +326,7 @@ $record = [ordered]@{
 $recordPath = $packagePath + '.json'
 $record | ConvertTo-Json -Depth 6 | Set-Content -LiteralPath $recordPath -Encoding UTF8
 
-# Update feed read by the Welcome panel. Publish it as the parallax-update.json asset of
+# Update feed read by the update check (@Resources\Update). Publish it as the parallax-update.json asset of
 # the same GitHub release as the package; field names are part of the Update.lua contract.
 $updateFeedPath = $null
 $releaseRepository = Get-ReleaseValue $release 'releaseRepository'

@@ -49,6 +49,7 @@ $variantSets = @(
     # The standalone Audio Visualizer stood down (Standalone1.inc, no capture).
     , @('IdlePauseMinutes=5', 'VisualizerStandby=1')
     , @('VisualizerStandby=1')
+    , @('UpdateCheck=0')
 )
 
 $assertions = 0

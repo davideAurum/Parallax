@@ -87,11 +87,11 @@ try {
     foreach ($case in $cases) {
         $index++;$rootName=if ($case.Kind -eq 'redirect') {'Parallax'} else {'Case'+$index}
         $caseRoot=Join-Path $runRoot ('Skins\'+$rootName)
-        foreach ($subdir in @('Network\Connection','@Resources\User','@Resources\Modules\Network','@Resources\Idle')) {
+        foreach ($subdir in @('Network\Connection','@Resources\User','@Resources\Modules\Network','@Resources\Idle','@Resources\Update')) {
             $dir=Join-Path $caseRoot $subdir;Assert-RunPath $dir;$null=New-Item -ItemType Directory -Path $dir -Force
         }
         # Idle pause is Off in the staged settings: Network.ini's last include is the comment-only Idle hook variant.
-        foreach ($file in @('Defaults.inc','Geometry.inc','Styles.inc','Idle\Hook0.inc')) { Copy-Item -LiteralPath (Join-Path $resourcesRoot $file) -Destination (Join-Path $caseRoot ('@Resources\'+$file)) }
+        foreach ($file in @('Defaults.inc','Geometry.inc','Styles.inc','Idle\Hook0.inc','Version.inc','Update\Hook1.inc','Update\Feed.inc','Update\Update.lua','Update\State.inc','Idle\Link.lua')) { Copy-Item -LiteralPath (Join-Path $resourcesRoot $file) -Destination (Join-Path $caseRoot ('@Resources\'+$file)) }
         Copy-Item -LiteralPath (Join-Path $resourcesRoot 'Fonts') -Destination (Join-Path $caseRoot '@Resources\Fonts') -Recurse
         # The production-only allowlist excludes tests, QA captures and runtime data.
         foreach ($file in @('Core.lua','Network.lua','Measures.inc','Meters.inc','ConnectionCore.lua','Connection.lua','ConnectionMeasures.inc','ConnectionMeters.inc')) {

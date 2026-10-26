@@ -34,12 +34,19 @@ local colorTargets = {
     TableHeaderBorderColor='MeterTableHeaderBorderColorValue'
 }
 -- Every meter whose Text Update() sets; forced after an in-place change.
-local displayMeters = { 'MeterGeometry', 'MeterCadence', 'MeterRefreshValue', 'MeterIdlePauseValue' }
+local displayMeters = { 'MeterGeometry', 'MeterCadence', 'MeterRefreshValue', 'MeterIdlePauseValue', 'MeterUpdateCheckValue' }
 -- Idle pause (owner decision 2): Off or 5, 10, 30 minutes without input. Any
 -- other saved value shows Custom and acts as Off; it is kept until a choice
 -- is made here.
 local idleChoices = { '0', '5', '10', '30' }
 local idleLabels = { ['0'] = 'Off', ['5'] = '5 min', ['10'] = '10 min', ['30'] = '30 min' }
+-- Automatic update check (Updates section): Daily or Off. Every utility
+-- loads @Resources\Update\Hook<UpdateCheck>.inc, so a change applies like
+-- Idle pause on/off. Any other saved value shows Custom (each utility then
+-- logs the missing include and checks nothing); it is kept until a choice.
+local updateLabels = { ['1'] = 'Daily', ['0'] = 'Off' }
+-- Idle pause and Auto check both choose an include in every utility; one
+-- debounced apply (FlushIdlePause) covers a burst of clicks on either row.
 local idleOwed, idleToken = false, 0
 for _, range in pairs(ranges) do displayMeters[#displayMeters+1] = range.meter end
 for _, meter in pairs(colorTargets) do displayMeters[#displayMeters+1] = meter end
@@ -111,6 +118,11 @@ local function idleChoice(value)
     return idleLabels[value] and value or nil
 end
 
+local function updateChoice(value)
+    value = tostring(value or ''):match('^%s*(.-)%s*$')
+    return updateLabels[value] and value or nil
+end
+
 local function showThemeMenu(open)
     if themeMenuOpen == open then return end
     themeMenuOpen = open
@@ -166,6 +178,8 @@ function Update()
     SKIN:Bang('!SetOption', 'MeterRefreshValue', 'Text', profile == 'balanced' and 'Balanced' or profile == 'economy' and 'Economy' or 'Custom')
     local idle = idleChoice(variable('IdlePauseMinutes'))
     SKIN:Bang('!SetOption', 'MeterIdlePauseValue', 'Text', idle and idleLabels[idle] or 'Custom')
+    local check = updateChoice(variable('UpdateCheck'))
+    SKIN:Bang('!SetOption', 'MeterUpdateCheckValue', 'Text', check and updateLabels[check] or 'Custom')
     SKIN:Bang('!SetOption', 'MeterScaleInput', 'Text', string.format('%g%%', scale * 100))
     SKIN:Bang('!SetOption', 'MeterWidthInput', 'Text', string.format('%g px', number('ColumnWidth',220)))
     SKIN:Bang('!SetOption', 'MeterGapInput', 'Text', string.format('%g px', number('Gutter',8)))
@@ -259,12 +273,16 @@ end
 -- coordinator's threshold, so only Parallax\Idle reloads (silent when it is
 -- not loaded). Back to the loaded value: nothing. This skin's own loaded value
 -- is what the loaded utilities use, since every whole-suite apply reloads it.
+-- An Auto check change adds or removes the update hook in every utility, so
+-- it also reloads the whole group.
 local function applyIdlePause()
     idleOwed = false
     idleToken = idleToken + 1
     local loaded = idleChoice(SKIN:GetVariable('IdlePauseMinutes')) or '0'
     local wanted = idleChoice(variable('IdlePauseMinutes')) or '0'
-    if (loaded == '0') ~= (wanted == '0') then
+    local updateChanged = (updateChoice(SKIN:GetVariable('UpdateCheck')) or SKIN:GetVariable('UpdateCheck'))
+        ~= (updateChoice(variable('UpdateCheck')) or variable('UpdateCheck'))
+    if (loaded == '0') ~= (wanted == '0') or updateChanged then
         refreshAll()
     elseif loaded ~= wanted then
         SKIN:Bang('!RefreshGroup', 'ParallaxIdleCoordinator')
@@ -307,6 +325,22 @@ function CycleIdlePause(direction)
     end
     CloseThemeMenu()
     if not write({ IdlePauseMinutes = nextValue }) then return false end
+    idleOwed = true
+    idleToken = idleToken + 1
+    SKIN:Bang(string.format('[!Delay %d][!CommandMeasure MeasureSettings "FlushIdlePause(%d)"]', refreshDelay, idleToken))
+    refreshDisplay()
+    return true
+end
+
+-- The Auto check row: two choices, so either direction toggles Daily and Off.
+-- A Custom value steps to Daily going forward and to Off going back.
+function CycleUpdateCheck(direction)
+    if editingKey or (direction ~= -1 and direction ~= 1) then return false end
+    local current = updateChoice(variable('UpdateCheck'))
+    local nextValue
+    if current then nextValue = current == '1' and '0' or '1' else nextValue = direction == 1 and '1' or '0' end
+    CloseThemeMenu()
+    if not write({ UpdateCheck = nextValue }) then return false end
     idleOwed = true
     idleToken = idleToken + 1
     SKIN:Bang(string.format('[!Delay %d][!CommandMeasure MeasureSettings "FlushIdlePause(%d)"]', refreshDelay, idleToken))

@@ -2,7 +2,7 @@
 [CmdletBinding()]
 param(
     [string]$RainmeterPath = (Join-Path $env:ProgramFiles 'Rainmeter\Rainmeter.exe'),
-    [ValidateSet('Settings','ColorPicker','Welcome','Chronometer','CPU','RAM','GPU','IO','Network','Media','Visualizer')]
+    [ValidateSet('Settings','ColorPicker','Welcome','Update','Chronometer','CPU','RAM','GPU','IO','Network','Media','Visualizer')]
     [string[]]$Modules = @('Settings','Welcome','Chronometer','CPU','RAM','GPU','IO','Network','Media','Visualizer'),
     [ValidateRange(4,30)][int]$SettleSeconds = 8,
     [ValidateSet('source','0.75','1','1.25','1.5','2')][string]$Scale = 'source',
@@ -41,13 +41,26 @@ if ($null -ne $TitleFontSize) {
     $userSettings = [regex]::Replace($userSettings, '(?m)^TitleFontSize=[^\r\n]*', "TitleFontSize=$titleSizeText")
 }
 Write-RunFile $userSettingsPath $userSettings
+# The update prompt shows only while a newer release is saved, so selecting
+# Update seeds the staged State.inc with a stand-in 99.0.0 offer checked now.
+# Global Settings then shows the offered state too, without contacting GitHub.
+if ($Modules -contains 'Update') {
+    $statePath = Join-Path $parallaxRoot '@Resources\Update\State.inc'
+    $releaseBase = [regex]::Match((Get-Content -LiteralPath (Join-Path $parallaxRoot '@Resources\Version.inc') -Raw), '(?m)^UpdateReleaseBase=([^\r\n]+)').Groups[1].Value.Trim()
+    $now = [DateTimeOffset]::UtcNow.ToUnixTimeSeconds()
+    $seed = [ordered]@{ UpdateCheckedAt=$now; UpdateResultAt=$now; UpdateResult='available'; UpdateLatest='99.0.0'; UpdateLatestAt=$now
+        UpdateUrl="${releaseBase}download/v99.0.0/Parallax_99.0.0.rmskin"; UpdateSha256=('0' * 64); UpdateNotes="${releaseBase}tag/v99.0.0"; UpdateDismissed='' }
+    $state = Get-Content -LiteralPath $statePath -Raw
+    foreach ($key in $seed.Keys) { $state = [regex]::Replace($state, "(?m)^$key=[^\r\n]*", "$key=$($seed[$key])") }
+    Write-RunFile $statePath $state
+}
 $harnessPath = Join-Path $runRoot 'PreviewHarness.lua'
 Copy-Item -LiteralPath (Join-Path $PSScriptRoot 'tests\PreviewHarness.lua') -Destination $harnessPath
 $iniPath = Join-Path $runRoot 'Rainmeter.ini'
 $ini = "[Rainmeter]`nSkinPath=$skinRoot\`nDisableVersionCheck=1`nDisableAutoUpdate=1`nLogging=1`nLanguage=1033`nTrayIcon=0`n"
 $entries = [Collections.Generic.List[object]]::new()
 foreach ($module in $Modules) {
-    if ($module -notin @('Settings','ColorPicker','Welcome') -and $null -ne $Columns) {
+    if ($module -notin @('Settings','ColorPicker','Welcome','Update') -and $null -ne $Columns) {
         $moduleSettingsPath = Join-Path $parallaxRoot "@Resources\User\$module.inc"
         if (-not (Test-Path -LiteralPath $moduleSettingsPath -PathType Leaf)) { throw "Missing staged settings for $module column override." }
         $moduleSettings = Get-Content -LiteralPath $moduleSettingsPath -Raw
@@ -60,7 +73,7 @@ foreach ($module in $Modules) {
     if ($module -eq 'IO') { $file = $IOVariant }
     $config = "Parallax\$module"
     $relativeConfig = "$module\$file"
-    if ($UtilitySettings -and $module -notin @('Settings','ColorPicker','Welcome')) {
+    if ($UtilitySettings -and $module -notin @('Settings','ColorPicker','Welcome','Update')) {
         $file = 'Settings.ini'
         $config = "Parallax\$module\Settings"
         $relativeConfig = "$module\Settings\$file"
@@ -128,7 +141,7 @@ try {
         $nativeReport = Get-Content -LiteralPath $reportPath -Raw
         if ($nativeReport -notmatch ('(?m)^Config=' + [regex]::Escape($entry.Config) + '\r?$')) { throw "Incorrect active config for $($entry.Module)." }
         if ($nativeReport -notmatch ('(?m)^File=' + [regex]::Escape($entry.File) + '\r?$')) { throw "Incorrect active variant for $($entry.Module)." }
-        $expectedColumns = if ($entry.Module -in @('Settings','ColorPicker','Welcome')) { 2 } elseif ($UtilitySettings) { $null } else { $Columns }
+        $expectedColumns = if ($entry.Module -in @('Settings','ColorPicker','Welcome')) { 2 } elseif ($entry.Module -eq 'Update') { 1 } elseif ($UtilitySettings) { $null } else { $Columns }
         if ($null -ne $expectedColumns -and $nativeReport -notmatch ('(?m)^Columns=' + $expectedColumns + '\r?$')) { throw "Incorrect effective Columns for $($entry.Module)." }
     }
     $records = [Collections.Generic.List[object]]::new()

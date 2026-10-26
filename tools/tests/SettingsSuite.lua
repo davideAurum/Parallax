@@ -75,7 +75,7 @@ function suite.run(sourcePath)
         check(token ~= nil and redraws == 1, 'An arrow must redraw once and arm its flush timer')
         local count, forced = 0, true
         for meter in pairs(texts) do count = count + 1; forced = forced and updated[meter] == true end
-        check(textOnly and count == 25 and forced, 'An arrow must set only text, for every summary, field and color value, forced onto its Update=-1 meter')
+        check(textOnly and count == 26 and forced, 'An arrow must set only text, for every summary, field and color value, forced onto its Update=-1 meter')
         return values, token
     end
     local function flush(token)
@@ -88,8 +88,8 @@ function suite.run(sourcePath)
         reset(); check(not env.FlushRefresh(token) and #calls == 0, message)
     end
     env.Update()
-    -- 24 before the Idle pause row (2026-10-23).
-    check(#calls == 25, 'Display update should set summaries, profile, idle pause, fields and all color hex values')
+    -- 24 before the Idle pause row (2026-10-23), 25 before Auto check (2026-10-26).
+    check(#calls == 26, 'Display update should set summaries, profile, idle pause, auto check, fields and all color hex values')
     for _, call in ipairs(calls) do check(call[1] == '!SetOption', 'Display update must not persist or refresh') end
     check(display('MeterAccentValue') == '#89BEFA' and display('MeterAccent2Value') == '#B5A1E2', 'Accent hex differs from shared RGB value')
     check(display('MeterBackgroundTransparencyInput')=='0%' and display('MeterTitleSizeInput')=='10 pt', 'Initial surface/text controls differ from settings')
@@ -578,6 +578,38 @@ function suite.run(sourcePath)
         reset(); check(not env.CycleIdlePause(direction) and #calls == 0, 'Invalid idle direction caused an action')
     end
     vars.IdlePauseMinutes = '0'
+    -- Auto check (Updates): Daily/Off toggles either way, shows in place and
+    -- shares the hook debounce; a change reloads the suite once, a burst back
+    -- to the loaded value reloads nothing. Custom: forward Daily, back Off.
+    local function updateWrites()
+        local values = {}
+        for _, call in ipairs(calls) do
+            if call[1] == '!WriteKeyValue' then
+                check(call[2] == 'Variables' and call[3] == 'UpdateCheck' and call[5] == 'X:\\Isolated\\User\\Settings.inc', 'Auto check writes only its key')
+                values[#values + 1] = call[4]
+            end
+        end
+        return values
+    end
+    for value, label in pairs({ ['1'] = 'Daily', ['0'] = 'Off', ['2'] = 'Custom', [''] = 'Custom' }) do
+        vars.UpdateCheck = value; reload(); reset(); env.Update()
+        check(display('MeterUpdateCheckValue') == label, 'Auto check ' .. value .. ' shows ' .. label)
+    end
+    for _, direction in ipairs({ 1, -1 }) do
+        vars.UpdateCheck = '1'; reload(); reset()
+        check(env.CycleUpdateCheck(direction) and updateWrites()[1] == '0' and display('MeterUpdateCheckValue') == 'Off', 'Daily toggles to Off')
+        check(flushTargets(idleToken()) == '!RefreshGroup|Parallax', 'Turning the check off reloads the suite once')
+        vars.UpdateCheck = '0'; reload(); reset()
+        check(env.CycleUpdateCheck(direction) and updateWrites()[1] == '1' and display('MeterUpdateCheckValue') == 'Daily', 'Off toggles to Daily')
+    end
+    vars.UpdateCheck = '2'; reload(); reset(); check(env.CycleUpdateCheck(1) and updateWrites()[1] == '1', 'Custom forward goes to Daily')
+    vars.UpdateCheck = '2'; reload(); reset(); check(env.CycleUpdateCheck(-1) and updateWrites()[1] == '0', 'Custom back goes to Off')
+    vars.UpdateCheck = '1'; reload()
+    reset(); env.CycleUpdateCheck(1); reset(); env.CycleUpdateCheck(1)
+    check(flushTargets(idleToken()) == '', 'A burst back to the loaded Auto check reloads nothing')
+    for _, direction in ipairs({0, 2, '1', false}) do
+        reset(); check(not env.CycleUpdateCheck(direction) and #calls == 0, 'Invalid Auto check direction caused an action')
+    end
     return passed
 end
 return suite

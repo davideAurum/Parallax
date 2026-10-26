@@ -40,6 +40,10 @@ VisualizerInterval=50
 ; keyboard or mouse input pause the utilities (@Resources\Idle\Hook<n>.inc).
 ; Any other value acts as Off.
 IdlePauseMinutes=0
+; Automatic update check (Global Settings > Updates): 1 checks the release
+; feed about once a day from the loaded utilities (@Resources\Update\Hook1.inc);
+; 0 is Off. On by default, including for upgrades from builds without the key.
+UpdateCheck=1
 GraphBackgroundColor=25,25,25,255
 GridColor=50,50,50,180
 GraphHeight=48

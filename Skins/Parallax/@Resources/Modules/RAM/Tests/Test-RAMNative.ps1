@@ -67,7 +67,7 @@ Assert-RunPath $runRoot
 if (Test-Path -LiteralPath $runRoot) { throw 'Refusing to reuse a runtime directory.' }
 $null = New-Item -ItemType Directory -Path $runRoot -Force
 $sources = [ordered]@{}
-foreach ($relative in @('RAM\RAM.ini', 'RAM\Settings\Settings.ini', '@Resources\Defaults.inc', '@Resources\Idle\Hook0.inc','@Resources\User\Settings.inc', '@Resources\User\RAM.inc', '@Resources\Geometry.inc', '@Resources\Styles.inc', '@Resources\UtilitySettingsNote.inc', '@Resources\Modules\RAM\Measures.inc', '@Resources\Modules\RAM\Meters.inc', '@Resources\Modules\RAM\InfoMeters.inc', '@Resources\Modules\RAM\Info.lua', '@Resources\Modules\RAM\InfoModel.lua', '@Resources\Modules\RAM\MemoryInfo.ps1.txt', '@Resources\Modules\RAM\SettingsMeters.inc', '@Resources\Modules\RAM\Settings.lua', '@Resources\Modules\RAM\Display.lua')) {
+foreach ($relative in @('RAM\RAM.ini', 'RAM\Settings\Settings.ini', '@Resources\Defaults.inc', '@Resources\Idle\Hook0.inc','@Resources\Version.inc', '@Resources\Update\Hook1.inc', '@Resources\Update\Feed.inc', '@Resources\Update\Update.lua', '@Resources\Update\State.inc', '@Resources\Idle\Link.lua', '@Resources\User\Settings.inc', '@Resources\User\RAM.inc', '@Resources\Geometry.inc', '@Resources\Styles.inc', '@Resources\UtilitySettingsNote.inc', '@Resources\Modules\RAM\Measures.inc', '@Resources\Modules\RAM\Meters.inc', '@Resources\Modules\RAM\InfoMeters.inc', '@Resources\Modules\RAM\Info.lua', '@Resources\Modules\RAM\InfoModel.lua', '@Resources\Modules\RAM\MemoryInfo.ps1.txt', '@Resources\Modules\RAM\SettingsMeters.inc', '@Resources\Modules\RAM\Settings.lua', '@Resources\Modules\RAM\Display.lua')) {
     $path = Join-Path $sourceRoot $relative
     Assert-RegularPath $path
     $sources[$relative] = [IO.File]::ReadAllText($path)

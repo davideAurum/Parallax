@@ -54,7 +54,7 @@ function Suite.run(path)
     local function canonical(value) return tostring(value or ''):match('^%s*(.-)%s*$') end
     local function fixture(options)
         options = options or {}
-        local f = {now = 1000, calls = {}, meter = {}, meters = {}, parameters = {}, launches = {}, kills = {}, reads = {},
+        local f = {now = 1000, calls = {}, meter = {}, meters = {}, parameters = {}, launches = {}, kills = {}, reads = {}, drains = 0,
             registryEnables = {}, registryUpdates = {}, initializing = false, history = {}, pushes = 0, idle = {}, inIdle = false,
             files = {[foreignPath] = 'preserve'}, removed = {}, leaseWrites = 0, vars = options.vars or {},
             statuses = {[info] = options.infoStatus or 1, [launcher] = options.bootstrapStatus or -1},
@@ -216,6 +216,10 @@ function Suite.run(path)
             elseif command == '!ShowMeter' then
                 assert(f.inIdle and #args == 1 and args[1] == 'MeterGPUGraphUncollected', 'only the History cover is shown, on an idle resume')
                 f.idle[#f.idle + 1] = '!ShowMeter ' .. args[1]
+            elseif command == '[!Delay 1000][!CommandMeasure MeasureGPUTemperatureController "Drain()"]' then
+                -- One delayed check of a launch an idle stand-down let run.
+                assert(#args == 0, 'the drain check is one fixed bang')
+                f.drains = f.drains + 1
             elseif command == '!UpdateMeterGroup' or command == '!Redraw' then
                 -- Every GPUDriverReadout meter keeps UpdateDivider=1, so the normal
                 -- end-of-cycle redraw paints changes; Update must not force an
@@ -646,10 +650,48 @@ function Suite.run(path)
         eq(#f.history, plotted + 1, 'the History graph advances again with the first new sample')
         f:hostStops(); f:update(); f.now = f.now + 9; f:update(); eq(f.launches[launcher], 2)
         f.now = f.now + 1; f:update(); eq(f.launches[launcher], 3, 'no retry was consumed: the next failure retries after 10 s')
-        -- A launch in progress is killed once.
-        f = fixture(); f:update(); eq(f.launches[launcher], 1)
-        f:idleCall('IdleEnter'); eq(f.kills[launcher], 1, 'a running launcher is killed at stand-down')
-        f:idleCall('IdleLeave'); f:update(); eq(f.launches[launcher], 2, 'and relaunched on resume')
+        -- The launch kill race (found 2026-10-23): a stand-down within
+        -- milliseconds of a launch. RunCommand reports 0 from Run before its
+        -- thread has created the process, so a Kill then is refused (Error
+        -- 102) and the launch carries on: it starts the host and renews its
+        -- lease. A Kill after the launcher's Start-Process ends only the
+        -- launcher. So the stand-down sends no Kill; the launch runs on, and
+        -- Drain (a delayed bang while this measure is paused) stops the host
+        -- it reports.
+        f = fixture(); f:update(); eq(f.launches[launcher], 1); eq(f.statuses[launcher], 0, 'RunCommand reports RUN at once')
+        f:idleCall('IdleEnter'); eq(f.kills[launcher], nil, 'a launch in progress is not killed at stand-down')
+        eq(f.drains, 1, 'the stand-down arms one delayed drain check')
+        f.now = f.now + 1; f.env.Drain(); eq(f.drains, 2, 'a check while the launch runs arms one more'); eq(next(f.removed), nil)
+        -- The launch carries on: the host starts and the launcher renews its
+        -- lease. The cached status still reads 0; the check refreshes it first.
+        f.outputs[launcher] = sessionOutput(); f.statusOnRefresh = {[launcher] = 1}
+        f.files[leasePath] = token .. '|' .. f.now; f.files[dataPath] = 'starting'
+        f.now = f.now + 3; f.env.Drain()
+        eq(f.removed[leasePath], 1, 'the host the launch reports is stopped while still paused: its lease is removed'); f:ownedClean()
+        eq(f.drains, 2, 'the drain ends the checks'); eq(f.kills[launcher], nil); eq(f.launches[driver], nil, 'no session was taken up')
+        f.env.Drain(); eq(f.drains, 2, 'a later check does nothing'); eq(f.removed[leasePath], 1)
+        f.now = f.now + 600; f:idleCall('IdleLeave'); f:update()
+        eq(f.launches[launcher], 2, 'the resume launches one fresh session'); eq(f.meter.Text, 'Checking...')
+        f:start(); eq(f.launches[driver], 1); f:sample({[4] = '1'}); f:update(); eq(f.meter.Text, '42 °C', 'a fresh sample follows')
+        f:hostStops(); f:update(); f.now = f.now + 10; f:update(); eq(f.launches[launcher], 3, 'the drain consumed no retry')
+        -- A resume before the launch reports adopts it: no second host.
+        f = fixture(); f:idleCall('IdleEnter'); f:idleCall('IdleLeave'); f:update()
+        eq(f.launches[launcher], 1, 'a quick resume adopts the launch in progress'); eq(f.meter.Text, 'Checking...')
+        f:start(); eq(f.launches[driver], 1, 'the adopted launch becomes the running session'); eq(next(f.removed), nil)
+        f.env.Drain(); eq(next(f.removed), nil, 'a check left over from the pause does nothing'); eq(f.drains, 1)
+        -- A launch that fails while draining left nothing running.
+        f = fixture(); f:idleCall('IdleEnter'); f.statuses[launcher] = 103; f.env.Drain()
+        eq(f.kills[launcher], nil); eq(next(f.removed), nil); eq(f.drains, 1, 'a failed launch ends the checks')
+        f:idleCall('IdleLeave'); f:update(); eq(f.launches[launcher], 2, 'and the resume starts one fresh session')
+        -- One still running at its deadline is killed once (it exists by then).
+        f = fixture(); f:idleCall('IdleEnter'); f.now = f.now + 20; f.env.Drain()
+        eq(f.kills[launcher], 1, 'a launch running at its deadline is killed once'); eq(f.drains, 1)
+        f:idleCall('IdleLeave'); f:update(); eq(f.launches[launcher], 2)
+        -- A resume after the deadline with the checks missed drains first.
+        f = fixture(); f:idleCall('IdleEnter'); f.now = f.now + 25
+        f.outputs[launcher] = sessionOutput(); f.statuses[launcher] = 1; f.files[leasePath] = token .. '|' .. f.now
+        f:idleCall('IdleLeave'); eq(f.removed[leasePath], 1, 'a late resume stops the reported host first')
+        f:update(); eq(f.launches[launcher], 2); eq(f.kills[launcher], nil)
         -- Metadata still pending: a fresh 14 s deadline after the pause.
         f = fixture({infoStatus = 0}); f:update(); eq(f.launches[launcher], nil)
         f:idleCall('IdleEnter'); f.now = f.now + 600; f:idleCall('IdleLeave')

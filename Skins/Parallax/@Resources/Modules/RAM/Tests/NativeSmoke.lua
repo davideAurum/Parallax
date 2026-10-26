@@ -28,6 +28,8 @@ local function checkPageController()
     -- commands and session IO remain in memory; this never starts a helper.
     local now, opens, launches, kills = 2000000000, 0, {}, {}
     local rejectLease, ratioValue = false, 0
+    -- Delayed drain checks armed (PageFile.lua Drain, after an idle stand-down).
+    local drains, drainBang = 0, '[!Delay 1000][!CommandMeasure MeasureRAMPageView "Drain()"]'
     local token = '0123456789abcdef0123456789abcdef'
     local root = 'C:\\RAMFixtureTemp'
     local path = root..'\\Parallax-RAM-Page-'..token..'.dat'
@@ -69,6 +71,7 @@ local function checkPageController()
                     provider.value, provider.refreshValue = provider.refreshValue, nil
                 end
             end
+        elseif command == drainBang then drains = drains + 1
         else check(command == '!Redraw', 'Unexpected PAGE controller action') end
     end
     local env = setmetatable({SKIN=fakeSkin}, {__index=_G})
@@ -99,7 +102,7 @@ local function checkPageController()
     local function reset()
         now, opens, launches, kills = 2000000000, 0, {}, {}
         files, removed, options, actions = {}, {}, {}, {}
-        rejectLease, ratioValue = false, 0
+        rejectLease, ratioValue, drains = false, 0, 0
         variables.RAMUseMiB, variables.RAMDecimals = '0','2'
         variables.RAMShowBar, variables.RAMShowPageBar = '1','1'
         for _, provider in pairs(providers) do
@@ -373,11 +376,62 @@ local function checkPageController()
     files[path] = nil; local failAt = now + 31; now = failAt; env.Update()
     now = failAt + 10; env.Update()
     check(launches.MeasureRAMPageLauncher == 3, 'Stand-down consumed no retry: the next failure retries after 10 s')
-    -- A launch in progress is killed once at stand-down.
+    -- The launch kill race (found 2026-10-23): a stand-down within
+    -- milliseconds of a launch. RunCommand reports 0 from Run before its
+    -- thread has created the process, so a Kill then is refused (Error 102)
+    -- and the launch carries on: it starts the host and renews its lease. A
+    -- Kill after the launcher's Start-Process ends only the launcher. So the
+    -- stand-down sends no Kill; the launch runs on, and Drain (a delayed bang
+    -- while this measure is paused) stops the host it reports.
     reset(); env.Start()
-    check(env.StandDown() == true and kills.MeasureRAMPageLauncher == 1, 'A launch in progress is killed at stand-down')
+    check(env.StandDown() == true and next(kills) == nil, 'A launch in progress is not killed at stand-down')
+    check(drains == 1 and next(removed) == nil, 'The stand-down arms one delayed drain check')
+    now = now + 1; env.Drain()
+    check(drains == 2 and next(removed) == nil and next(kills) == nil and next(files) == nil,
+        'A check while the launch still runs arms one more and touches nothing')
+    -- The launch carries on: its host starts and the launcher renews the
+    -- lease. The cached status still reads 0; the check refreshes it first.
+    providers.MeasureRAMPageLauncher.refreshValue = 1; providers.MeasureRAMPageLauncher.text = sessionLine
+    files[lease] = token..'|'..now; files[path] = 'RAM_PAGE|1|'..token..'|0|'..now..'|STARTING|?|?|?'
+    now = now + 3; env.Drain()
+    check(removed[lease] == 1 and removed[path] == 1 and removed[temporary] == 1 and files[lease] == nil,
+        'The host the launch reports is stopped while still paused: its lease is removed')
+    check(drains == 2 and next(kills) == nil and launches.MeasureRAMPageLauncher == 1,
+        'The drain ends the checks and kills or launches nothing')
+    env.Drain()
+    check(drains == 2 and removed[lease] == 1, 'A later check does nothing')
+    now = now + 3600
+    check(env.StandUp() == true and env.StandUp() == false, 'StandUp after a drain arms one resume')
+    env.Update()
+    check(launches.MeasureRAMPageLauncher == 2 and options.MeterRAMPageGiB.Text == 'Checking...',
+        'The resume launches one fresh session and shows Checking...')
+    complete(); env.Update(); files[path] = nil; local drainedAt = now + 31; now = drainedAt; env.Update()
+    now = drainedAt + 10; env.Update()
+    check(launches.MeasureRAMPageLauncher == 3, 'The drain consumed no retry: the next failure retries after 10 s')
+    -- A resume before the launch reports adopts it: no second host.
+    reset(); env.Start(); env.StandDown()
+    check(env.StandUp() == true, 'A resume while draining succeeds'); env.Update()
+    check(launches.MeasureRAMPageLauncher == 1 and options.MeterRAMPageGiB.Text == 'Checking...',
+        'A quick resume adopts the launch in progress instead of starting a second')
+    complete(); env.Update()
+    check(files[lease] == token..'|'..now and next(removed) == nil, 'The adopted launch becomes the running session')
+    env.Drain()
+    check(next(removed) == nil and drains == 1, 'A check left over from the pause does nothing')
+    -- A launch that fails while draining left nothing running.
+    reset(); env.Start(); env.StandDown(); providers.MeasureRAMPageLauncher.value = 103; env.Drain()
+    check(next(kills) == nil and next(removed) == nil and drains == 1, 'A failed launch leaves nothing to stop')
     env.StandUp(); env.Update()
-    check(launches.MeasureRAMPageLauncher == 2, 'And relaunched on resume')
+    check(launches.MeasureRAMPageLauncher == 2, 'And the resume starts one fresh session')
+    -- One still running at its deadline is killed once (it exists by then).
+    reset(); env.Start(); env.StandDown(); now = now + 20; env.Drain()
+    check(kills.MeasureRAMPageLauncher == 1 and drains == 1, 'A launch running at its deadline is killed once and the checks end')
+    env.StandUp(); env.Update()
+    check(launches.MeasureRAMPageLauncher == 2 and kills.MeasureRAMPageLauncher == 1, 'Then the resume starts one fresh session')
+    -- A resume after the deadline with the checks missed drains first.
+    reset(); env.Start(); env.StandDown(); now = now + 25; complete(); files[lease] = token..'|'..now
+    check(env.StandUp() == true and removed[lease] == 1, 'A late resume stops the reported host before starting another')
+    env.Update()
+    check(launches.MeasureRAMPageLauncher == 2 and next(kills) == nil, 'And starts one fresh session')
     -- A failed state keeps its schedule; a given-up state stays Unavailable.
     reset(); env.Start(); providers.MeasureRAMPageLauncher.value = 103; env.Update()
     check(env.StandDown() == false and env.StandUp() == false, 'A failed state does not stand down')

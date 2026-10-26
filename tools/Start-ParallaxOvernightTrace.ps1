@@ -19,8 +19,9 @@ It warns (WARN), and asks before starting unless -Force, when:
     morning dropout check reads its display-events.csv, so without it a night
     of dropouts reads as none. The script offers to start it;
   * the machine is busy during a -SampleSeconds CPU sample (the limits of
-    build\wakeup-recheck\wait-quiet.ps1), TextInputHost is running away, or
-    Spotify is busy or has run for over an hour (restart it first);
+    build\wakeup-recheck\wait-quiet.ps1), or TextInputHost is running away;
+  * Spotify is busy (an open window keeps its renderer drawing) or has run for
+    over an hour. The script offers to restart it minimised;
   * Windows has a restart pending;
   * the Claude app is not running (scheduled checks fire only while it is open).
 
@@ -46,6 +47,8 @@ param(
     [ValidateRange(5, 120)][int]$SampleSeconds = 20,
     # Start the leak logger without asking when it is not running.
     [switch]$StartLeakLogger,
+    # Restart Spotify (minimised) without asking when it is busy or old. Playback stops.
+    [switch]$RestartSpotify,
     # Run the checks only; start nothing.
     [switch]$PreflightOnly,
     # Start despite warnings, without asking. Failures still block.
@@ -100,13 +103,22 @@ function Read-HwinfoExport {
     $labels = @($key.PSObject.Properties | Where-Object { $_.Name -match '^Label\d+$' } | ForEach-Object { [string]$_.Value })
     [pscustomobject]@{ Raw = $raw; Labels = $labels }
 }
-function Start-Detached([string]$CommandLine, [string]$WorkingDirectory) {
-    # Win32_Process.Create starts the process hidden, outside this console and its job,
-    # so closing this window does not end it.
-    $startup = New-CimInstance -ClassName Win32_ProcessStartup -ClientOnly -Property @{ ShowWindow = [uint16]0 }
+function Start-Detached([string]$CommandLine, [string]$WorkingDirectory, [uint16]$ShowWindow = 0) {
+    # Win32_Process.Create starts the process outside this console and its job, so
+    # closing this window does not end it. ShowWindow 0 is hidden, 7 minimised.
+    $startup = New-CimInstance -ClassName Win32_ProcessStartup -ClientOnly -Property @{ ShowWindow = $ShowWindow }
     $r = Invoke-CimMethod -ClassName Win32_Process -MethodName Create -Arguments @{ CommandLine = $CommandLine; CurrentDirectory = $WorkingDirectory; ProcessStartupInformation = $startup }
     if ($r.ReturnValue -ne 0) { throw "Win32_Process.Create returned $($r.ReturnValue) for: $CommandLine" }
     [int]$r.ProcessId
+}
+function Measure-ProcessCpu([string]$Name, [int]$Seconds) {
+    $a = Get-ParallaxPerfSnapshot
+    Start-Sleep -Seconds $Seconds
+    $b = Get-ParallaxPerfSnapshot
+    $sec = Get-ParallaxElapsedSeconds $a.Timestamp $b.Timestamp
+    $sum = 0.0
+    foreach ($d in [ParallaxPerfNative]::Diff($a.Processes, $b.Processes)) { if ($d.Name -eq $Name) { $sum += $d.CpuDelta / 1e7 / $sec * 100 } }
+    $sum
 }
 function Quote([string]$Text) { "'" + ($Text -replace "'", "''") + "'" }
 
@@ -150,8 +162,12 @@ else { Add-Check INFO 'leak logger' "none in $LeakWatchDir; skipped" }
 
 $hw = @($procs | Where-Object { $_.Name -match '^HWiNFO(64|32)?\.exe$' })
 $sp = @($procs | Where-Object { $_.Name -eq 'Spotify.exe' } | Sort-Object CreationDate)
+$spotifyStale = $false
 if (-not $sp.Count) { Add-Check INFO 'Spotify' 'not running' }
-elseif (((Get-Date) - $sp[0].CreationDate).TotalMinutes -gt 60) { Add-Check WARN 'Spotify' ('running for {0}; restart it first (its renderer runs away over time)' -f (Format-Age $sp[0].CreationDate)) }
+elseif (((Get-Date) - $sp[0].CreationDate).TotalMinutes -gt 60) {
+    Add-Check WARN 'Spotify' ('running for {0}; restart it first (its renderer runs away over time)' -f (Format-Age $sp[0].CreationDate))
+    $spotifyStale = $true
+}
 else { Add-Check PASS 'Spotify' ('started {0} ago' -f (Format-Age $sp[0].CreationDate)) }
 
 if (@($procs | Where-Object { $_.Name -eq 'claude.exe' }).Count) { Add-Check PASS 'Claude app' 'running (scheduled checks fire only while it is open)' }
@@ -227,7 +243,10 @@ $quiet = $defender -lt 15 -and $claudeCpu -lt 25 -and $rest -lt 150
 Add-Check $(if ($quiet) { 'PASS' } else { 'WARN' }) 'quiet' ('Defender {0:N1}, Claude {1:N1}, everything else {2:N1} (limits 15 / 25 / 150% of a core)' -f $defender, $claudeCpu, $rest)
 Add-Check INFO 'busiest' ('{0}  (% of a core; machine {1:N1}% of all {2} cores)' -f $top, ($total / [Environment]::ProcessorCount), [Environment]::ProcessorCount)
 if ($inputHost -gt 5) { Add-Check WARN 'TextInputHost' ('{0:N1}% of a core: running away again; end it before tracing' -f $inputHost) }
-if ($spotify -gt 10) { Add-Check WARN 'Spotify' ('{0:N1}% of a core while sampled; restart it first' -f $spotify) }
+if ($spotify -gt 10) {
+    Add-Check WARN 'Spotify' ('{0:N1}% of a core while sampled (an open window keeps its renderer drawing); restart it minimised first' -f $spotify)
+    $spotifyStale = $true
+}
 Add-Check INFO 'Parallax' ('Rainmeter {0:N1}%, audiodg {1:N1}% of a core' -f [double]$by['Rainmeter.exe'], [double]$by['audiodg.exe'])
 
 $fails = @($checks | Where-Object { $_.Status -eq 'FAIL' })
@@ -252,6 +271,31 @@ if ($leakMissing) {
             $warns = @($warns | Where-Object { $_.Name -ne 'leak logger' })
         }
         else { Write-Host "The leak logger exited at once; see $LeakWatchDir." -ForegroundColor Red }
+    }
+}
+if ($spotifyStale) {
+    $restart = [bool]$RestartSpotify
+    if (-not $restart -and -not $Force) { $restart = (Read-Host 'Restart Spotify now? Playback stops, and it reopens minimised. [Y/n]') -notmatch '^\s*n' }
+    if ($restart) {
+        $main = @(Get-CimInstance Win32_Process -Filter "Name='Spotify.exe'" | Where-Object { $_.CommandLine -notmatch '--type=' } | Select-Object -First 1)
+        $exe = if ($main.Count) { [string]$main[0].ExecutablePath } else { '' }
+        if (-not $exe -or $exe -match '\\WindowsApps\\') { Write-Host 'Not restarting Spotify: this is the Microsoft Store version (or its path is unreadable); restart it yourself.' -ForegroundColor Yellow }
+        else {
+            Get-Process -Name Spotify -ErrorAction SilentlyContinue | Stop-Process -Force -ErrorAction SilentlyContinue
+            Wait-Process -Name Spotify -Timeout 15 -ErrorAction SilentlyContinue
+            if (Get-Process -Name Spotify -ErrorAction SilentlyContinue) { Write-Host 'Spotify did not close; restart it yourself.' -ForegroundColor Yellow }
+            else {
+                $null = Start-Detached ('"{0}" --minimized' -f $exe) (Split-Path -Parent $exe) 7
+                Write-Host 'Spotify reopened minimised; letting it settle for 20 s, then measuring for 10 s...' -ForegroundColor Cyan
+                Start-Sleep -Seconds 20
+                $spotifyNow = Measure-ProcessCpu 'Spotify.exe' 10
+                if ($spotifyNow -le 10) {
+                    Write-Host ('Spotify restarted: {0:N1}% of a core now.' -f $spotifyNow) -ForegroundColor Green
+                    $warns = @($warns | Where-Object { $_.Name -ne 'Spotify' })
+                }
+                else { Write-Host ('Spotify restarted but is still at {0:N1}% of a core.' -f $spotifyNow) -ForegroundColor Yellow }
+            }
+        }
     }
 }
 if ($warns.Count -and -not $Force) {

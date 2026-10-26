@@ -963,6 +963,7 @@ The audiodg attribution question is answered: see [Live A/B](#live-ab-drawer-and
 | [tools/Parallax.Perf.psm1](../tools/Parallax.Perf.psm1) | Handle-free process, thread, context-switch and GPU-engine accounting shared by the tools below |
 | [tools/Benchmark-Parallax.ps1](../tools/Benchmark-Parallax.ps1) | Isolated solo, suite and leave-one-out benchmark with interaction analysis; JSON under `build/perf-benchmark` |
 | [tools/Trace-ParallaxLive.ps1](../tools/Trace-ParallaxLive.ps1) | Read-only trace of the running session and whole machine, with HWiNFO sensors and spike attribution; CSV under `build/perf-trace` |
+| [tools/Start-ParallaxOvernightTrace.ps1](../tools/Start-ParallaxOvernightTrace.ps1) | Added 2026-10-26. Read-only preflight for an overnight trace: the live Rainmeter, no other runs, HWiNFO's export changing, sleep covered, the leak logger, a quiet sample. It then starts the main checkout's tracer hidden and detached, and confirms it is recording |
 | [tools/perf-dashboard.html](../tools/perf-dashboard.html) and [tools/Serve-PerfDashboard.py](../tools/Serve-PerfDashboard.py) | Live dashboard of both, read-only, served on loopback and optionally on the Tailscale address behind a token |
 
 The tools share one limitation: they measure Rainmeter and its helpers, not DWM's share of composition.

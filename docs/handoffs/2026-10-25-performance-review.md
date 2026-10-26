@@ -18,16 +18,24 @@ A fresh session can continue from this note. The full record is [PERFORMANCE-REV
 
 ## Running now
 
-- **The leak logger.** It is a hidden `powershell` process, pid 22180, started 2026-10-25 16:34. It runs `build\leak-watch\Watch-Leak.ps1` in the worktree above.
-  - It writes `leak-samples.csv` every 10 minutes and `display-events.csv` on each display change.
+- **The leak logger.** It is a hidden `powershell -MTA` process running `build\leak-watch\Watch-Leak.ps1` in the worktree above. It ran as pid 22180 from 2026-10-25 16:34 until David restarted the PC at 2026-10-26 00:53 (last sample 00:49); the start script below offers to restart it.
+  - It writes `leak-samples.csv` every 10 minutes and `display-events.csv` on each display change. `which-dropped.ps1` reads `display-events.csv`, so dropouts while the logger is down go unrecorded.
   - To stop it, create `build\leak-watch\leak-watch.stop`.
   - It takes `-OutDir`, and defaults to its own folder.
-- **Tonight's overnight trace (David runs it).** Run it from the main checkout, so its output does not depend on any session worktree:
+- **Tonight's overnight trace (David runs it)** with `tools\Start-ParallaxOvernightTrace.ps1`, which is on the perf branch only until it ships:
   ```
-  powershell -NoProfile -ExecutionPolicy Bypass -File "C:\Users\david\Coding\Parallax\tools\Trace-ParallaxLive.ps1" -DurationMinutes 600 -IntervalSeconds 5 -Label overnight-clean-baseline
+  powershell -NoProfile -ExecutionPolicy Bypass -File "C:\Users\david\Coding\Parallax\.claude\worktrees\amazing-mccarthy-f9ba00\tools\Start-ParallaxOvernightTrace.ps1" -Label overnight-clean-baseline
   ```
-  - Output goes to `C:\Users\david\Coding\Parallax\build\perf-trace\<timestamp>-overnight-clean-baseline*`.
-  - Before starting: open HWiNFO's sensors window (its export is live only while that window is open) and restart Spotify.
+  - A read-only preflight runs first:
+    - live Rainmeter alone;
+    - no other trace, benchmark or test running;
+    - HWiNFO's export changing, which needs its sensors window open (minimised is fine);
+    - sleep covered by PowerToys Awake;
+    - the leak logger, Spotify's age, a pending restart, the Claude app, disk space;
+    - a 20 s quiet sample.
+  - A failed check blocks the start. Warnings ask first, and a stopped leak logger gets its own "start it?" prompt. `-PreflightOnly` only checks.
+  - It then runs the main checkout's `tools\Trace-ParallaxLive.ps1` (600 min, 5 s) hidden and detached, and waits for the first rows.
+  - Output goes to `C:\Users\david\Coding\Parallax\build\perf-trace\<timestamp>-overnight-clean-baseline*`. The tracer's console output goes to `build\perf-trace\launch\`.
   - The screen timeout is still at 60 s from the dropout tests.
 
 ## Next steps, in order
@@ -63,7 +71,7 @@ A fresh session can continue from this note. The full record is [PERFORMANCE-REV
    - Run `tools\Test-Parallax.ps1 -RequireAllModules -WarningsAsErrors` and the packaging tests.
    - Build the release package with `packaging\`; David installs it.
    - Push, publish or open a PR only if David asks.
-6. **After the install.** Run the same overnight trace with a new label, then compare the two. The install is also the first live check of the opt-in RAM auto-ranged history and its CPU cost.
+6. **After the install.** Run the same overnight trace with a new label (`tools\Start-ParallaxOvernightTrace.ps1 -Label <new label>`), then compare the two. The install is also the first live check of the opt-in RAM auto-ranged history and its CPU cost.
 
 ## Decided on 2026-10-25
 

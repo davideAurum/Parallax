@@ -29,7 +29,11 @@
 #            the frozen value never shows, a resume with the pointer still
 #            over the skin keeps the value hidden, and the next hover-out
 #            restores the live headline.
-#   restart  paused, then the skin reloads: it re-enters once synced.
+#   restart  paused, then the skin reloads: it re-enters once synced. RAM and
+#            GPU: no helper launcher or host outlives the pause, before the
+#            reload and after re-entry (the reload's launch is still running at
+#            re-entry; -LaunchDelayMs makes that certain for the hover cycles'
+#            launches and the reload's, with their hosts already started).
 #   watchdog paused, then the coordinator stops beating (its script paused by
 #            the driver): the skin fails live within the staged 6 s stale limit
 #            plus one 2 s hook period.
@@ -63,7 +67,12 @@ param(
     # Staged BackgroundColor alpha (Global Settings Background transparency);
     # -1 keeps the shipped value. A translucent background shows anything the
     # paused line only covered, so captures with it prove the headline hides.
-    [ValidateRange(-1, 255)][int]$BackgroundAlpha = -1
+    [ValidateRange(-1, 255)][int]$BackgroundAlpha = -1,
+    # Staged RAM and GPU launchers wait this long after their host's first
+    # frame before reporting, so a stand-down shortly after a launch (the
+    # reload while paused) always finds the launch in progress with its host
+    # already started: the kill race's stranded-host case, made deterministic.
+    [ValidateRange(0, 8000)][int]$LaunchDelayMs = 0
 )
 Set-StrictMode -Version Latest
 $ErrorActionPreference = 'Stop'
@@ -150,6 +159,31 @@ function Wait-Until([scriptblock]$Condition, [int]$Milliseconds) {
         Start-Sleep -Milliseconds 200
     }
     return -1
+}
+# Waits up to 20 s for no launcher or host of this run (started after $After,
+# when given) to be left. Quiet is the ms until then (-1: never); Trace lists
+# every one seen, by kind (a launcher's command line carries the session
+# report), with when it was first and last seen (ms after the call).
+function Wait-HelpersGone($Process, [string]$Marker, [datetime]$After = [datetime]::MinValue) {
+    $since = if ($After -gt $Process.StartTime) { $After } else { $Process.StartTime }
+    $seen = [ordered]@{}
+    $clock = [Diagnostics.Stopwatch]::StartNew()
+    $quiet = -1
+    while ($clock.ElapsedMilliseconds -lt 20000) {
+        $live = @(Get-CimInstance Win32_Process -Filter "Name='powershell.exe'" | Where-Object {
+            $_.CommandLine -and $_.CommandLine.Contains($Marker) -and $_.CreationDate -gt $since })
+        $at = $clock.ElapsedMilliseconds
+        foreach ($item in $live) {
+            # A string key: an int would index the ordered dictionary.
+            $id = [string]$item.ProcessId
+            if (-not $seen.Contains($id)) { $seen[$id] = [pscustomobject]@{ Kind = $(if ($item.CommandLine -match '_SESSION\|') { 'launcher' } else { 'host' }); Created = $item.CreationDate.ToString('HH:mm:ss.fff'); First = $at; Last = $at } }
+            else { $seen[$id].Last = $at }
+        }
+        if (-not $live.Count) { $quiet = $at; break }
+        Start-Sleep -Milliseconds 100
+    }
+    $trace = ($seen.Keys | ForEach-Object { '{0} {1} created {2}, seen {3}-{4} ms' -f $seen[$_].Kind, $_, $seen[$_].Created, $seen[$_].First, $seen[$_].Last }) -join '; '
+    [pscustomobject]@{ Quiet = $quiet; Trace = $(if ($trace) { $trace } else { 'no launcher or host seen' }) }
 }
 # A helper-backed module: its host stops while paused and a new one starts on
 # resume; the watched meter shows a starting state, then a fresh reading.
@@ -596,6 +630,16 @@ function Set-StandDownStage([string]$Root, [string]$Target, [string]$LayoutName)
             @('Scale', $scale), @('ColumnWidth', $width), @('TitleFontSize', '12'), @('HeaderFontSize', '10'), @('FontSize', '10'))) {
         Set-Key $settings $pair[0] $pair[1]
     }
+    if ($LaunchDelayMs -gt 0) {
+        # PageFile.lua is ASCII; Temperature.lua is UTF-16LE with BOM, kept so.
+        foreach ($pair in @(@('@Resources\Modules\RAM\PageFile.lua', [Text.Encoding]::ASCII), @('@Resources\Modules\GPU\Temperature.lua', [Text.Encoding]::Unicode))) {
+            $path = Join-Path $Target $pair[0]
+            $text = [IO.File]::ReadAllText($path)
+            $anchor = "if (`$p.HasExited) { throw 'host' }; "
+            if (([regex]::Matches($text, [regex]::Escape($anchor))).Count -ne 1) { throw "No single launcher report step in $($pair[0])." }
+            [IO.File]::WriteAllText($path, $text.Replace($anchor, "Start-Sleep -Milliseconds $LaunchDelayMs; $anchor"), $pair[1])
+        }
+    }
     if ($BackgroundAlpha -ge 0) {
         $channels = ([regex]::Match([IO.File]::ReadAllText($settings), '(?m)^BackgroundColor=(\d+),(\d+),(\d+)')).Groups
         Set-Key $settings 'BackgroundColor' ('{0},{1},{2},{3}' -f $channels[1].Value, $channels[2].Value, $channels[3].Value, $BackgroundAlpha)
@@ -810,11 +854,34 @@ function Invoke-StandDown($Entry, [string]$LayoutName, [bool]$Full) {
         $written = Send $run 'idle 10'
         $enter = Wait-Hidden $run '0' $written 15000
         Check ($null -ne $enter) "$($Entry.Key): paused again before the restart"
+        # A pause during a helper launch (the kill race: in one RAM run the
+        # pause came 47 ms after the launch) lets the launch finish and removes
+        # the lease of the host it reports, so no launcher or host outlives the
+        # pause: at most the launcher's 10 s bound, one 1 s drain check and one
+        # 2 s sampling interval. The hover cycles above resume and pause again
+        # within 2 s, so with -LaunchDelayMs their launches are in progress.
+        # This waits before the reload: a reload during a launch kills its
+        # launcher (RunCommand's unload) and orphans the host until its lease
+        # lapses, with or without Idle pause, which is not what this checks.
+        $marker = @{ RAM = 'ParallaxRamPageFile'; GPU = 'ParallaxGpuTemperature' }[$Entry.Key]
+        if ($marker -and $null -ne $enter) {
+            $gone = Wait-HelpersGone $process $marker
+            Write-Output ("     before the restart: none left {0} ms after the pause ({1})" -f $gone.Quiet, $gone.Trace)
+            Check ($gone.Quiet -ge 0 -and $gone.Quiet -le 13000) "$($Entry.Key): no helper outlives the pause"
+        }
+        $reloadAt = Get-Date
         $reloaded = Send $run "refresh $($Entry.Config)"
         $load = Wait-Record $run 'L' $reloaded 15000
         $again = if ($load) { Wait-Hidden $run '0' $load.Clock 20000 } else { $null }
         Write-Output ("     restart while paused: re-entered {0:N3} s after the reload" -f $(if ($again) { $again.Clock - $load.Clock } else { [double]::NaN }))
         Check ($null -ne $again) "$($Entry.Key): a reload while paused re-enters once synced"
+        # The reload starts a launch and the load re-enters the pause while it
+        # runs: the same bound, for the helpers started since the reload.
+        if ($marker -and $null -ne $again) {
+            $gone = Wait-HelpersGone $process $marker $reloadAt
+            Write-Output ("     restart while paused: none left {0} ms after re-entry ({1})" -f $gone.Quiet, $gone.Trace)
+            Check ($gone.Quiet -ge 0 -and $gone.Quiet -le 13000) "$($Entry.Key): no helper launched by the reload outlives the pause"
+        }
 
         # Watchdog: the coordinator stops beating; fail live after 6 s + 2 s.
         $displayBefore = Get-DisplayEvents $run.Root

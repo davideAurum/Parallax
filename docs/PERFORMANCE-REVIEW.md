@@ -26,7 +26,7 @@ CPU figures are **percent of one logical core** unless stated otherwise. 100% me
 - **Nothing has reached the desktop yet.** The live skin changes only when a release is installed.
 - **Open for the owner:**
   - **The cable fix** still needs an overnight confirmation.
-  - **The stand-down helper kill race** is being fixed.
+  - **The stand-down helper kill race** is fixed (2026-10-25, branch `claude/kill-race-fix-bf97ef`), waiting to be merged. See [the known issue](#phase-c-result-merged-and-measured-2026-10-23).
   - **Decided on 2026-10-25:** the process lists stay shown by default, and the lazy coordinator is dropped. See [Owner decisions (2026-10-25)](#owner-decisions-2026-10-25).
 
 ## Bottom line
@@ -640,10 +640,19 @@ CPU time is unchanged within noise.
 - **Some background work keeps running while paused:** UsageMonitor's readers, Network's interface polling, and Media's Source and Queue helpers.
 - **Resume costs a little:** about 1 s of UI-thread work with all nine skins loaded, plus one PowerShell start and compile for each of the RAM and GPU hosts.
 
-**Known issue, not fixed: a helper-launch kill race (only with Idle pause on).**
-- **What happens.** If a stand-down lands within milliseconds of a RAM or GPU helper launch, RunCommand logs "Error 102: Program not running" and the launch carries on.
-- **What it costs.** Nobody renews the stranded host's lease, so it exits when the lease lapses, about 15 s later.
-- **Why it is open.** Each clean fix needs a design decision; the options are written up in `docs/modules/RAM.md` and `docs/modules/GPU.md`.
+**Known issue, fixed 2026-10-25: a helper-launch kill race (only with Idle pause on).**
+- **What happened.** A stand-down during a RAM or GPU helper launch killed the launcher.
+  - Before the launcher started its host, the Kill was refused ("Error 102: Program not running") and the launch carried on.
+  - After it started its host, the Kill ended only the launcher.
+  - Either way the host was left running with nobody to stop it.
+- **What it cost.** The stranded host ran until its lease lapsed: about 60 s for RAM (since the 2026-10-25 lease window; 15 s before) and 15 s for GPU. A resume inside that window started a second host beside it. The "about 15 s" first written here is now true for GPU only.
+- **The fix.** Stand-down no longer kills a launch in progress. It lets the launch finish, then removes the lease of the host the launch reports, so the host stops itself, as a running one already did.
+  - A one-shot check, 1 s apart, of the launcher's status drives this. It is a Lua `!Delay` chain that launches no process, and it stops at the launcher's 10 s bound.
+  - A resume inside that bound adopts the launch instead.
+  - The validators' rule against a launcher FinishAction is kept, and new assertions keep `Kill` out of stand-down.
+  - Details and checks: [RAM](modules/RAM.md#idle-pause) and [GPU](modules/GPU.md#idle-pause-2026-10-23).
+- **Checks.** It was reproduced natively in its post-`Start-Process` form. With a 3 s staged launch delay, the pre-fix RAM code left two hosts running after 20 s; the fix left none after 2.5 s. The `Error 102` form is covered by the fixtures only.
+- **Found while fixing it, not fixed:** a skin refresh during a launch orphans that launch's host until its lease lapses. This happens with or without Idle pause; see [RAM.md](modules/RAM.md#idle-pause).
 
 **Checks on the merged tree:**
 - `Test-Parallax.ps1 -RequireAllModules -WarningsAsErrors`: 24 configs, 122 files, 0 errors, 0 warnings.
@@ -911,7 +920,7 @@ The audiodg attribution question is answered: see [Live A/B](#live-ab-drawer-and
    - **The trade-off:** hiding the CPU, RAM and GPU process lists takes the six skins from 7.7% to 4.7% of a core; they are the largest remaining cost.
    - **Kept:** the lists are a feature, and the opt-outs (`CPUShowProcesses=0`, `RAMShowProcesses=0`, `GPUShowProcesses=0`, `GPUShowProcessMemory=0`) stay available.
 2. **Lazy coordinator for the drawer (C3 option): dropped.** After the restart the coordinator's window costs about 2 UI wakeups/s, not 57 (see [the after re-measure](#display-dropouts-and-the-kernel-memory-leak-2026-102425)), so the gain no longer justifies a protocol change.
-3. **Stand-down helper kill race: fix it** before the release, in RAM and GPU (see [the known issue](#phase-c-result-merged-and-measured-2026-10-23)).
+3. **Stand-down helper kill race: fix it** before the release, in RAM and GPU (see [the known issue](#phase-c-result-merged-and-measured-2026-10-23)). **Fixed 2026-10-25** on branch `claude/kill-race-fix-bf97ef`: a stand-down lets a launch finish and drains it instead of killing it.
 
 ## Found along the way (not performance)
 

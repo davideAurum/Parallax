@@ -647,12 +647,26 @@ CPU time is unchanged within noise.
   - Either way the host was left running with nobody to stop it.
 - **What it cost.** The stranded host ran until its lease lapsed: about 60 s for RAM (since the 2026-10-25 lease window; 15 s before) and 15 s for GPU. A resume inside that window started a second host beside it. The "about 15 s" first written here is now true for GPU only.
 - **The fix.** Stand-down no longer kills a launch in progress. It lets the launch finish, then removes the lease of the host the launch reports, so the host stops itself, as a running one already did.
-  - A one-shot check, 1 s apart, of the launcher's status drives this. It is a Lua `!Delay` chain that launches no process, and it stops at the launcher's 10 s bound.
-  - A resume inside that bound adopts the launch instead.
+  - A one-shot check, 1 s apart, of the launcher's status drives this. It is a Lua `!Delay` chain that launches no process.
+  - Three limits bound it, the same in RAM and GPU:
+    - **10 s** is the launcher's wait for the host's first frame. Its clock starts after `Start-Process`.
+    - **15 s** is RunCommand's `Timeout=15000`, which ends a slower launcher.
+    - **20 s** is the controller's deadline (`begin()`, `now + 20`), where a launcher still running is killed once. The 15 s Timeout comes first, so this Kill is effectively unreachable.
+  - A resume before the launch reports, and before that deadline, adopts the launch instead.
   - The validators' rule against a launcher FinishAction is kept, and new assertions keep `Kill` out of stand-down.
   - Details and checks: [RAM](modules/RAM.md#idle-pause) and [GPU](modules/GPU.md#idle-pause-2026-10-23).
 - **Checks.** It was reproduced natively in its post-`Start-Process` form. With a 3 s staged launch delay, the pre-fix RAM code left two hosts running after 20 s; the fix left none after 2.5 s. The `Error 102` form is covered by the fixtures only.
-- **Found while fixing it, not fixed:** a skin refresh during a launch orphans that launch's host until its lease lapses. This happens with or without Idle pause; see [RAM.md](modules/RAM.md#idle-pause).
+- **Known, not fixed: a refresh leaves the previous host running.** This happens with or without Idle pause.
+  - `Stop()` runs only from `OnCloseAction`, which runs on unload and never on refresh. So any refresh leaves the previous host running until its lease lapses: about 61 s for RAM, 15 s for GPU.
+  - A launch in progress at the refresh adds only two things: its session is never reported, and a launcher ended before `Start-Process` leaves its `.lease` file.
+  - See [RAM.md](modules/RAM.md#idle-pause).
+- **Found in review, not fixed: a slow PowerShell start strands the host.** This happens with or without Idle pause.
+  - If PowerShell takes more than about 5 s to start, the launcher's startup plus its 10 s wait passes RunCommand's 15 s Timeout.
+  - RunCommand then ends the launcher and reports completion with empty output, because the session line is printed last.
+  - Drain parses no session and removes nothing. The lease minted before `Start-Process` remains, so the host runs for its lease window (about 60 s RAM, 15 s GPU), and a resume inside it starts a second host.
+  - Not a regression: the unpaused launch path has the same gap.
+  - The fixtures' deadline case models a status RunCommand cannot reach here, and the reachable case is untested.
+  - Planned fix, not done: the launcher reports its session before the Timeout can end it. See [RAM.md](modules/RAM.md#idle-pause).
 
 **Checks on the merged tree:**
 - `Test-Parallax.ps1 -RequireAllModules -WarningsAsErrors`: 24 configs, 122 files, 0 errors, 0 warnings.

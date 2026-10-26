@@ -72,7 +72,9 @@ param(
     # frame before reporting, so a stand-down shortly after a launch (the
     # reload while paused) always finds the launch in progress with its host
     # already started: the kill race's stranded-host case, made deterministic.
-    [ValidateRange(0, 8000)][int]$LaunchDelayMs = 0
+    # The delay adds to the launcher's startup and its 10 s wait for that
+    # frame, all inside RunCommand's 15 s Timeout, hence the 4 s cap.
+    [ValidateRange(0, 4000)][int]$LaunchDelayMs = 0
 )
 Set-StrictMode -Version Latest
 $ErrorActionPreference = 'Stop'
@@ -857,9 +859,14 @@ function Invoke-StandDown($Entry, [string]$LayoutName, [bool]$Full) {
         # A pause during a helper launch (the kill race: in one RAM run the
         # pause came 47 ms after the launch) lets the launch finish and removes
         # the lease of the host it reports, so no launcher or host outlives the
-        # pause: at most the launcher's 10 s bound, one 1 s drain check and one
-        # 2 s sampling interval. The hover cycles above resume and pause again
-        # within 2 s, so with -LaunchDelayMs their launches are in progress.
+        # pause. The 13 s bound is the launch itself (the host's first frame
+        # within a few seconds, plus any -LaunchDelayMs, which adds to the
+        # launcher's 10 s wait for that frame), one 1 s drain check and one 2 s
+        # sampling interval. It, and Test-HostCycle's 8 s bound, assume that
+        # first frame comes within a few seconds. It is not raised: a stranded pre-fix GPU host lives about
+        # 15-17 s, so a looser bound could not tell pre-fix code from the fix.
+        # The hover cycles above resume and pause again within 2 s, so with
+        # -LaunchDelayMs their launches are in progress.
         # This waits before the reload: a reload during a launch kills its
         # launcher (RunCommand's unload) and orphans the host until its lease
         # lapses, with or without Idle pause, which is not what this checks.

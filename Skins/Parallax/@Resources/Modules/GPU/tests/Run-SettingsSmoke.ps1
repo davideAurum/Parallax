@@ -34,6 +34,9 @@ foreach ($name in @('Settings.inc','GPU.inc')) {
 # comment-only Idle hook variant.
 $null=New-Item -ItemType Directory -Path (Join-Path $parallaxRoot '@Resources\Idle')
 Copy-Item -LiteralPath (Join-Path $sourceSkin '@Resources\Idle\Hook0.inc') -Destination (Join-Path $parallaxRoot '@Resources\Idle')
+# The update hook (Auto check Daily by default) and the files it loads.
+$null=New-Item -ItemType Directory -Path (Join-Path $parallaxRoot '@Resources\Update')
+foreach ($name in @('Version.inc','Update\Hook1.inc','Update\Feed.inc','Update\Update.lua','Update\State.inc','Idle\Link.lua')) { Copy-Item -LiteralPath (Join-Path $sourceSkin ('@Resources\'+$name)) -Destination (Join-Path $parallaxRoot ('@Resources\'+$name)) }
 $null=New-Item -ItemType Directory -Path (Join-Path $parallaxRoot '@Resources\Scripts')
 Copy-Item -LiteralPath (Join-Path $sourceSkin '@Resources\Scripts\SettingsInput.ps1') -Destination (Join-Path $parallaxRoot '@Resources\Scripts')
 $utf8=[Text.UTF8Encoding]::new($false)

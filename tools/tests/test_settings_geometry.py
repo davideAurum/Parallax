@@ -140,6 +140,12 @@ def run() -> None:
     for name, direction in (("meteridlepausedecrease", -1), ("meteridlepauseincrease", 1), ("meteridlepausevalue", 1), ("meteridlepauseframe", 1)):
         assert options(name, sections).get("leftmouseupaction") == f'[!CommandMeasure MeasureSettings "CycleIdlePause({direction})"]', (name, "Idle pause must use its cycling action")
     assert sections["meteridlepauselabel"]["text"] == "Idle pause", "Idle pause row label"
+    # Updates (2026-10-26): Auto check cycles like Idle pause; the actions go to the updater.
+    for name, direction in (("meterupdatecheckdecrease", -1), ("meterupdatecheckincrease", 1), ("meterupdatecheckvalue", 1), ("meterupdatecheckframe", 1)):
+        assert options(name, sections).get("leftmouseupaction") == f'[!CommandMeasure MeasureSettings "CycleUpdateCheck({direction})"]', (name, "Auto check must use its cycling action")
+    for name, call in (("meterupdatechecknow", "CheckNow()"), ("meterupdateinstall", "Install()"), ("meterupdatenotes", "OpenNotes()")):
+        assert options(name, sections).get("leftmouseupaction") == f'[!CommandMeasure MeasureParallaxUpdate "{call}"]', (name, "Updates button action")
+    assert sections["meterupdatessection"]["text"] == "Updates", "Updates section heading"
     assert not any(key.startswith("tooltip") for name in sections if name.startswith("meteridlepause") for key in sections[name]), "No tooltips"
     for heading, rule, title in (("meterappearancesection", "meterappearancerule", "Appearance"), ("meterperformancesection", "meterperformancerule", "Performance")):
         assert sections[heading]["text"] == title, f"Missing settings section: {title}"
@@ -161,8 +167,9 @@ def run() -> None:
             return number(f"#{name}#", variables)
 
         assert var("Columns") == 2, "Settings must use double-column geometry after include overrides."
-        # 758 before the Idle pause row (one 28 px row, 2026-10-23).
-        assert var("PanelHeight") == 786, "Settings' local height was lost to default precedence."
+        # 758 before the Idle pause row (one 28 px row, 2026-10-23); 786 before
+        # the Updates section (2026-10-26).
+        assert var("PanelHeight") == 901, "Settings' local height was lost to default precedence."
         for thickness in (1, 1.25, 1.5, 2, 2.5, 6, 8.75, 12):
             scaled = dict(variables, databarthickness=str(thickness))
             expected = max(1, math.floor(thickness * scale + 0.5))
@@ -181,7 +188,7 @@ def run() -> None:
                 continue
             resolved = options(name, sections)
             alignment = resolved.get("stringalign", "left").lower()
-            assert alignment in ("left", "lefttop", "leftcenter", "center", "centertop", "centercenter"), "Extend fixture for other anchors."
+            assert alignment in ("left", "lefttop", "leftcenter", "center", "centertop", "centercenter", "right", "righttop"), "Extend fixture for other anchors."
             x, y, w, h = (number(resolved.get(key, "0"), variables) for key in ("x", "y", "w", "h"))
             pad = [number(item, variables) for item in resolved.get("padding", "0,0,0,0").split(",")]
             assert len(pad) == 4
@@ -189,6 +196,8 @@ def run() -> None:
             h += pad[1] + pad[3]
             if alignment.startswith("center"):
                 x -= w / 2
+            elif alignment.startswith("right"):
+                x -= w
             if alignment in ("leftcenter", "centercenter"):
                 y -= h / 2
             assert x >= 0 and y >= 0 and w > 0 and h > 0, (name, label)
@@ -212,8 +221,8 @@ def run() -> None:
                     assert resolved.get("group") == "ThemeMenu", "Option must dismiss with the menu"
                 if "leftmouseupaction" in resolved:
                     minimum_button_margin = min(minimum_button_margin, var("ContentX") + var("ContentWidth") - x - w)
-        for base in (*NUMERIC_CONTROLS, "MeterRefresh", "MeterIdlePause"):
-            left, value, right = (control_boxes[(base + suffix).lower()] for suffix in ("Decrease", "Value" if base in ("MeterRefresh", "MeterIdlePause") else "Input", "Increase"))
+        for base in (*NUMERIC_CONTROLS, "MeterRefresh", "MeterIdlePause", "MeterUpdateCheck"):
+            left, value, right = (control_boxes[(base + suffix).lower()] for suffix in ("Decrease", "Value" if base in ("MeterRefresh", "MeterIdlePause", "MeterUpdateCheck") else "Input", "Increase"))
             resolved_frame = options((base + "Frame").lower(), sections)
             frame = tuple(number(resolved_frame.get(key, "0"), variables) for key in ("x", "y", "w", "h"))
             assert frame[0] >= var("ContentX") and frame[1] >= 0 and min(frame[2:]) > 0, (base, label, "Invalid frame bounds")
@@ -270,6 +279,31 @@ def run() -> None:
         for name in ("meterrefreshlabel", "meterrefreshdecrease", "meterrefreshvalue", "meterrefreshincrease", "metercadence"):
             top, bottom = rectangles[name]
             assert top > performance_rule_y + divider_half_width and bottom < footer_rule_y - divider_half_width, (name, label, "Performance control escaped its section")
+        # Updates: heading clear of its rule; every row between it and the footer
+        # rule, including the Update and Notes buttons the controller shows.
+        updates_rule_y = number(options("meterupdatesrule", sections)["y"], variables)
+        for name in ("meterupdatessection", "meterupdateinstalledvalue"):
+            assert rectangles[name][1] < updates_rule_y - divider_half_width, (name, label, "Updates heading touches its divider")
+            assert rectangles[name][0] > rectangles["meterinputstatus"][1], (name, label, "Updates heading overlaps the input status")
+        offered = dict(control_boxes)
+        for name in ("meterupdatenotes", "meterupdateinstall"):
+            resolved = options(name, sections)
+            x, y, w, h = (number(resolved.get(key, "0"), variables) for key in ("x", "y", "w", "h"))
+            pad = [number(item, variables) for item in resolved["padding"].split(",")]
+            w += pad[0] + pad[2]; h += pad[1] + pad[3]
+            assert resolved.get("stringalign", "").lower() == "right"
+            offered[name] = (x - w, y, w, h)
+            assert x <= var("ContentX") + var("ContentWidth") + 1e-7 and x - w >= var("ContentX"), (name, label, "outside content")
+        update_rows = ("meterupdatelatestlabel", "meterupdatelatestvalue", "meterupdatenotes", "meterupdateinstall", "meterupdatechecklabel",
+                       "meterupdatecheckdecrease", "meterupdatecheckvalue", "meterupdatecheckincrease", "meterupdatestatus", "meterupdatechecknow")
+        for first, second in itertools.combinations(update_rows, 2):
+            a, b = offered[first], offered[second]
+            overlap_w = min(a[0] + a[2], b[0] + b[2]) - max(a[0], b[0])
+            overlap_h = min(a[1] + a[3], b[1] + b[3]) - max(a[1], b[1])
+            assert overlap_w <= 1e-7 or overlap_h <= 1e-7, (first, second, label, "Updates controls overlap when an update is offered")
+        for name in update_rows:
+            top, bottom = offered[name][1], offered[name][1] + offered[name][3]
+            assert top > updates_rule_y + divider_half_width and bottom < footer_rule_y - divider_half_width, (name, label, "Updates control escaped its section")
         checked += 1
     print(f"Settings geometry passed: {checked} preset combinations; minimum padded-button right margin {max(0, minimum_button_margin):g} computed pixels.")
     print("Scope: declared INI geometry, include layering, text rectangles, and button padding. Font rendering, Windows DPI, and Lua execution remain untested.")

@@ -137,7 +137,7 @@ foreach ($file in $files) { $productionPaths[$file.FullName] = $true }
 $configs = @($files | Where-Object { $_.Extension -ieq '.ini' -and (Get-ParallaxRelativePath $_.FullName $SkinRoot) -notmatch '^@Resources[\\/]' })
 foreach ($file in $files | Where-Object { $_.Extension -in '.inc', '.ini' }) { $null = Read-Ini $file.FullName }
 if ($configs.Count -eq 0) { Add-Issue 'Error' $SkinRoot 0 'No loadable skin configs found.' }
-foreach ($module in 'Settings', 'Welcome', 'Chronometer', 'CPU', 'RAM', 'GPU', 'IO', 'Network', 'Media', 'Visualizer', 'Idle') {
+foreach ($module in 'Settings', 'Welcome', 'Chronometer', 'CPU', 'RAM', 'GPU', 'IO', 'Network', 'Media', 'Visualizer', 'Idle', 'Update') {
     $moduleFiles = @($configs | Where-Object { (Get-ParallaxRelativePath $_.FullName $SkinRoot) -like "$module\*" })
     if ($moduleFiles.Count -eq 0) {
         $level = 'Warning'

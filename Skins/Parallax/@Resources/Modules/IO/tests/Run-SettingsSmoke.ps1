@@ -53,7 +53,8 @@ if ($BaseStage) {
     }
     # Idle\Hook0.inc: IO-Disk.ini's last include (Idle pause Off); an older base may predate it.
     $null = New-Item -ItemType Directory -Path (Join-Path $snapshotSkin '@Resources\Idle') -Force
-    foreach ($sharedFile in @('Defaults.inc','Geometry.inc','Styles.inc','UtilitySettingsNote.inc','User\Settings.inc','User\IO.inc','Scripts\SettingsInput.ps1','Idle\Hook0.inc')) {
+    $null = New-Item -ItemType Directory -Path (Join-Path $snapshotSkin '@Resources\Update') -Force
+    foreach ($sharedFile in @('Defaults.inc','Geometry.inc','Styles.inc','UtilitySettingsNote.inc','User\Settings.inc','User\IO.inc','Scripts\SettingsInput.ps1','Idle\Hook0.inc','Version.inc','Update\Hook1.inc','Update\Feed.inc','Update\Update.lua','Update\State.inc','Idle\Link.lua')) {
         Copy-Item -LiteralPath (Join-Path $projectRoot ('Skins\Parallax\@Resources\' + $sharedFile)) -Destination (Join-Path $snapshotSkin ('@Resources\' + $sharedFile)) -Force
     }
     $stage = [pscustomobject]@{ StageRoot=$snapshotRoot; SkinRoot=$snapshotSkin }

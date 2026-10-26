@@ -98,10 +98,16 @@ function Get-PowerTimeout([string]$Subgroup, [string]$Setting, [string]$Source) 
 function Read-HwinfoExport {
     $key = Get-ItemProperty -LiteralPath 'HKCU:\Software\HWiNFO64\VSB' -ErrorAction SilentlyContinue
     if (-not $key) { return $null }
-    $raw = @{}
-    foreach ($p in $key.PSObject.Properties) { if ($p.Name -match '^ValueRaw(\d+)$') { $raw[$Matches[1]] = [string]$p.Value } }
-    $labels = @($key.PSObject.Properties | Where-Object { $_.Name -match '^Label\d+$' } | ForEach-Object { [string]$_.Value })
-    [pscustomobject]@{ Raw = $raw; Labels = $labels }
+    $raw = @{}; $traced = 0
+    foreach ($p in $key.PSObject.Properties) {
+        if ($p.Name -match '^ValueRaw(\d+)$') { $raw[$Matches[1]] = [string]$p.Value }
+        elseif ($p.Name -match '^Label(\d+)$') {
+            # The tracer keeps entries whose label matches its -SensorPattern or whose value is in RPM.
+            $value = $key.PSObject.Properties["Value$($Matches[1])"]
+            if ([string]$p.Value -match $sensorPattern -or ($value -and [string]$value.Value -match 'RPM')) { $traced++ }
+        }
+    }
+    [pscustomobject]@{ Raw = $raw; Traced = $traced }
 }
 function Start-Detached([string]$CommandLine, [string]$WorkingDirectory, [uint16]$ShowWindow = 0) {
     # Win32_Process.Create starts the process outside this console and its job, so
@@ -219,8 +225,7 @@ if (-not $hw.Count) { Add-Check FAIL 'HWiNFO' 'not running; the trace would reco
 elseif ($null -eq $hwBefore -or $null -eq $hwAfter) { Add-Check FAIL 'HWiNFO' 'no registry export (HKCU\Software\HWiNFO64\VSB); turn it on in HWiNFO''s settings' }
 else {
     $changed = @($hwAfter.Raw.Keys | Where-Object { $hwBefore.Raw[$_] -ne $hwAfter.Raw[$_] }).Count
-    $sensors = @($hwAfter.Labels | Where-Object { $_ -match $sensorPattern }).Count
-    if ($changed -gt 0) { Add-Check PASS 'HWiNFO' ('export live: {0} of {1} values changed in {2} s; {3} temperature, fan or power readings' -f $changed, $hwAfter.Raw.Count, $SampleSeconds, $sensors) }
+    if ($changed -gt 0) { Add-Check PASS 'HWiNFO' ('export live: {0} of {1} values changed in {2} s; the trace records {3} of them (temperatures, fans, power)' -f $changed, $hwAfter.Raw.Count, $SampleSeconds, $hwAfter.Traced) }
     else { Add-Check FAIL 'HWiNFO' ('export frozen: none of {0} values changed in {1} s. Open HWiNFO''s sensors window (minimised is fine, closed is not)' -f $hwAfter.Raw.Count, $SampleSeconds) }
 }
 

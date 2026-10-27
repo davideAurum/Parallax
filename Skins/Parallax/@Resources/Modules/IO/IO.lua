@@ -57,7 +57,7 @@ local function visible(meter, show)
     end
 end
 
--- Each letter's eight bank meters share Group=IORow<letter> and ship idle at
+-- Each letter's ten bank meters share Group=IORow<letter> and ship idle at
 -- UpdateDivider=-1. A shown row updates every tick; a hidden row does no
 -- per-tick work. A -1 meter ignores !SetOption until forced, so each change
 -- of divider is followed by one forced group update, which applies every
@@ -85,38 +85,50 @@ function ReapplyDividers()
     end
 end
 
-local function scaled(value, base, units)
-    if not finite(value) or value < 0 then return '--' end
+-- Two significant figures in the largest unit below base. Rounding can carry
+-- into the next unit: 999.6 MB shows as 1.0 GB.
+local function figures(value, base, units)
+    if not finite(value) or value < 0 then return nil end
     local unit = 1
     while value >= base and unit < #units do
         value = value / base
         unit = unit + 1
     end
-    return string.format('%.1f %s', value, units[unit])
+    local amount, decimals = 0, 0
+    if value > 0 then
+        local step = 10 ^ (math.floor(math.log10(value)) - 1)
+        amount = math.floor(value / step + 0.5) * step
+        if amount >= base and unit < #units then
+            amount, unit = amount / base, unit + 1
+        end
+        decimals = math.max(0, 1 - math.floor(math.log10(amount) + 1e-9))
+    end
+    return string.format('%.' .. decimals .. 'f', amount), units[unit]
 end
 
-local function bytes(value)
-    return scaled(value, 1000, {'B', 'KB', 'MB', 'GB', 'TB', 'PB'})
-end
+local capacityUnits = {'B', 'KB', 'MB', 'GB', 'TB', 'PB'}
 
-local function capacityBytes(value)
-    return scaled(value, 1000, {'B', 'KB', 'MB', 'GB', 'TB', 'PB'})
-end
-
-local function compactCapacity(freeText, totalText)
-    local freeValue, freeUnit = freeText:match('^(.-) ([^ ]+)$')
-    local _, totalUnit = totalText:match('^(.-) ([^ ]+)$')
-    return (freeUnit == totalUnit and freeValue or freeText) .. '/' .. totalText
+local function capacityText(free, total)
+    local freeAmount, freeUnit = figures(free, 1000, capacityUnits)
+    local totalAmount, totalUnit = figures(total, 1000, capacityUnits)
+    -- Zero free space has no unit of its own; it borrows the total's.
+    if free == 0 or freeUnit == totalUnit then
+        return freeAmount .. ' / ' .. totalAmount .. ' ' .. totalUnit
+    end
+    return freeAmount .. ' ' .. freeUnit .. ' / ' .. totalAmount .. ' ' .. totalUnit
 end
 
 local function diskRate(value)
     local units = variable('IODiskUnits', 'bytes'):lower()
+    local amount, unit
     if units == 'bits' then
-        return scaled(value * 8, 1000, {'bit/s', 'kbit/s', 'Mbit/s', 'Gbit/s', 'Tbit/s'})
+        amount, unit = figures(value * 8, 1000, {'bit/s', 'kbit/s', 'Mbit/s', 'Gbit/s', 'Tbit/s'})
     elseif units == 'bytes' then
-        return bytes(value) .. '/s'
+        amount, unit = figures(value, 1000, {'B/s', 'KB/s', 'MB/s', 'GB/s', 'TB/s'})
+    else
+        return 'Check IO units'
     end
-    return 'Check IO units'
+    return amount and (amount .. ' ' .. unit) or '--'
 end
 
 local function positiveSetting(key)
@@ -145,13 +157,6 @@ end
 
 local function capacityType(kind)
     return kind == 3 or kind == 4 or kind == 5 or kind == 7
-end
-
-local function compactRate(value)
-    -- Reuse the already-rounded value; only remove redundant display spacing
-    -- and a trailing .0.
-    local amount, unit = value:match('^(%d+%.%d+) ([^ ]+)$')
-    return amount and (amount:gsub('%.0$', '') .. unit) or value
 end
 
 local function nameMode()
@@ -247,13 +252,15 @@ local function layout()
     local gap = numericVariable('Gap') or 0
     local width = numericVariable('ContentWidth') or 0
     local x = numericVariable('ContentX') or inset
-    local cellGap = 4 * scale
-    local cellWidth = math.max(0, width - 2 * cellGap)
-    local rateWidth, capacityWidth = cellWidth * 0.28, cellWidth * 0.44
+    -- Readout block: a 30px gauge/load column, the read/write chevrons at 36
+    -- and their rates at 47, then a 4px gap before the right-aligned capacity.
+    local rateX = x + 36 * scale
+    local cellWidth = math.max(0, width - 51 * scale)
+    local rateWidth, capacityWidth = cellWidth * 0.42, cellWidth * 0.58
     local bar = numericVariable('DataBarThicknessPx')
         or math.max(1, math.floor((numericVariable('DataBarThickness') or 6) * scale + 0.5))
     local extra = #selected > 0 and math.max(0, bar / scale - 6) or 0
-    local pitch = 50 + extra
+    local pitch = 63 + extra
     local legendColumns = math.max(1, math.floor(width / (26 * scale)))
     local legendRows = graphMode == 'overlay' and math.ceil(#selected / legendColumns) or 0
     local savedHeight = numericVariable('PanelHeight') or 139
@@ -262,16 +269,18 @@ local function layout()
     layoutKey = key
     local positions = {}
     for index, letter in ipairs(selected) do positions[letter] = index - 1 end
-    local graphBase = 71 + extra + math.max(0, #selected - 1) * pitch
+    local graphBase = 84 + extra + math.max(0, #selected - 1) * pitch
     for _, letter in ipairs(letters) do
         local index = positions[letter]
         local shown = index ~= nil
         local row = shown and (24 + index * pitch) or 0
         local barY = shown and (inset + (42 + index * pitch) * scale + math.max(0, (6 * scale - bar) / 2)) or 0
-        local rateY = shown and (inset + (50 + extra + index * pitch) * scale) or 0
+        -- Two 16px lines: read, capacity and gauge, then write and load.
+        local readY = shown and (inset + (49 + extra + index * pitch) * scale) or 0
+        local writeY = shown and (readY + 16 * scale) or 0
         for _, prefix in ipairs({'MeterIODrive', 'MeterIOCapacity'}) do
             local capacityRow = prefix == 'MeterIOCapacity'
-            option(prefix .. letter, 'Y', shown and (capacityRow and rateY or (inset + row * scale)) or 0)
+            option(prefix .. letter, 'Y', shown and (capacityRow and readY or (inset + row * scale)) or 0)
             option(prefix .. letter, 'X', capacityRow and (x + width) or x)
             option(prefix .. letter, 'W', capacityRow and capacityWidth or width)
             visible(prefix .. letter, shown)
@@ -279,15 +288,24 @@ local function layout()
         option('MeterIOUsed' .. letter, 'Y', barY)
         if not shown then visible('MeterIOUsed' .. letter, false) end
         for _, direction in ipairs({'Read', 'Write'}) do
-            local cellX = x + (direction == 'Write' and (rateWidth + cellGap) or 0)
+            local lineY = direction == 'Write' and writeY or readY
             for _, suffix in ipairs({'', 'Label'}) do
                 local meter = 'MeterIODisk' .. direction .. suffix .. letter
-                option(meter, 'Y', shown and (rateY + (suffix == 'Label' and 2 * scale or 0)) or 0)
-                option(meter, 'X', cellX + (suffix == 'Label' and 0 or 11 * scale))
-                option(meter, 'W', suffix == 'Label' and 10 * scale or math.max(1, rateWidth - 11 * scale))
+                option(meter, 'Y', shown and (lineY + (suffix == 'Label' and 2 * scale or 0)) or 0)
+                option(meter, 'X', rateX + (suffix == 'Label' and 0 or 11 * scale))
+                -- Capacity shares only the read line; write runs to the right edge.
+                option(meter, 'W', suffix == 'Label' and 10 * scale
+                    or math.max(1, direction == 'Write' and (width - 47 * scale) or rateWidth))
                 visible(meter, shown)
             end
         end
+        option('MeterIOGauge' .. letter, 'Y', shown and (readY + scale) or 0)
+        option('MeterIOGauge' .. letter, 'X', x + 8 * scale)
+        visible('MeterIOGauge' .. letter, shown)
+        option('MeterIOLoad' .. letter, 'Y', writeY)
+        option('MeterIOLoad' .. letter, 'X', x + 15 * scale)
+        option('MeterIOLoad' .. letter, 'W', 30 * scale)
+        visible('MeterIOLoad' .. letter, shown)
         local legend = 'MeterIOLegend' .. letter
         if shown and graphMode == 'overlay' then
             text(legend, letter .. ':')
@@ -323,7 +341,7 @@ local function layout()
         SKIN:Bang('!UpdateMeter', meter)
     end
     SKIN:Bang('!UpdateMeter', 'MeterIODiskGraphTrack')
-    local minimum = 139 + extra + math.max(0, #selected - 1) * pitch + legendRows * 18
+    local minimum = 152 + extra + math.max(0, #selected - 1) * pitch + legendRows * 18
     local height = math.floor(math.max(savedHeight, minimum) * scale + 0.5)
     local id = 'variable:PanelHeightPx'
     local resize = cache[id] ~= height or cache['MeterIOBounds:H'] ~= tostring(height + gap)
@@ -477,7 +495,7 @@ local function capacity(letter)
         detail = 'Unavailable'
     else
         valid = true
-        display = compactCapacity(capacityBytes(free), capacityBytes(total))
+        display = capacityText(free, total)
     end
     text('MeterIOCapacity' .. letter, display or detail)
     option('MeterIOCapacity' .. letter, 'FontColor', valid
@@ -515,8 +533,12 @@ local function disk()
         for _, direction in ipairs({'Read', 'Write'}) do
             local value = sample[direction]
             local meter = 'MeterIODisk' .. direction .. letter
-            text(meter, compactRate(value > 0 and diskRate(value) or '--'))
+            text(meter, value > 0 and diskRate(value) or '--')
         end
+        -- Load is busy time: the share of the last second the volume was not idle.
+        local idle = ratesEnabled[letter] and number('MeasureIODiskIdle' .. letter) or nil
+        text('MeterIOLoad' .. letter, idle
+            and string.format('%.0f%%', math.min(100, math.max(0, 100 - idle))) or '--')
     end
     if #graphDrives > 0 then
         local readTotal, writeTotal = 0, 0
@@ -567,7 +589,8 @@ local function repaintNameLayout()
         graph()
         for _, letter in ipairs(selected) do
             for _, prefix in ipairs({'MeterIODrive', 'MeterIOCapacity', 'MeterIOUsed',
-                'MeterIODiskRead', 'MeterIODiskWrite', 'MeterIODiskReadLabel', 'MeterIODiskWriteLabel'}) do
+                'MeterIODiskRead', 'MeterIODiskWrite', 'MeterIODiskReadLabel', 'MeterIODiskWriteLabel',
+                'MeterIOGauge', 'MeterIOLoad'}) do
                 SKIN:Bang('!UpdateMeter', prefix .. letter)
             end
             if graphMode == 'overlay' then SKIN:Bang('!UpdateMeter', 'MeterIOLegend' .. letter) end

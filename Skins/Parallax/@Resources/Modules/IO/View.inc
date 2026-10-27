@@ -4,7 +4,7 @@ IOGraphHeight=62
 IOBarExtra=(Max(0,#DataBarThicknessPx#/#Scale#-6))
 ; Grow only the derived height; keep the user's saved panel minimum intact.
 ; Inline the shared pixel rule: WindowHeight expands before the later bar keys.
-PanelHeightPx=(Round(Max(#PanelHeight#,139+Max(0,Max(1,Round(#DataBarThickness#*#Scale#))/#Scale#-6))*#Scale#))
+PanelHeightPx=(Round(Max(#PanelHeight#,152+Max(0,Max(1,Round(#DataBarThickness#*#Scale#))/#Scale#-6))*#Scale#))
 
 [MeasureIO]
 Measure=Script
@@ -62,6 +62,18 @@ X=#ContentX#
 W=(16*#Scale#)
 H=(16*#Scale#)
 UpdateDivider=-1
+
+; Lucide gauge, adapted to native Shapes from @Resources/Modules/CPU/Icons/gauge.svg
+; at 14 logical px, as GPU Meter does. It labels the load percentage below it.
+[StyleIOGauge]
+W=(14*#Scale#)
+H=(14*#Scale#)
+Shape=Path IOGaugeArc | Extend IOGaugeStroke
+Shape2=Line (12*14*#Scale#/24),(14*14*#Scale#/24),(16*14*#Scale#/24),(10*14*#Scale#/24) | Extend IOGaugeStroke
+IOGaugeStroke=Fill Color 0,0,0,0 | Stroke Color #TextColor# | StrokeWidth (2*14*#Scale#/24) | StrokeStartCap Round | StrokeEndCap Round | StrokeLineJoin Round
+; SVG "a10 10 0 1 1" = large arc, clockwise; Rainmeter's sweep flag is the
+; reverse of SVG's, so this must be 0,0,1.
+IOGaugeArc=(3.34*14*#Scale#/24),(19*14*#Scale#/24) | ArcTo (20.66*14*#Scale#/24),(19*14*#Scale#/24),(10*14*#Scale#/24),(10*14*#Scale#/24),0,0,1
 
 [MeterIOBounds]
 Meter=Image
@@ -141,7 +153,7 @@ Hidden=1
 [MeterIODiskGraphTrack]
 Meter=Shape
 MeterStyle=StyleGraph
-Y=(#Inset#+(71+#IOBarExtra#)*#Scale#)
+Y=(#Inset#+(84+#IOBarExtra#)*#Scale#)
 H=(#IOGraphHeight#*#Scale#)
 Shape=Rectangle 0.5,0.5,(#ContentWidth#-1),(#IOGraphHeight#*#Scale#-1) | Fill Color #GraphBackgroundColor# | Stroke Color #BorderColor# | StrokeWidth 1
 Shape2=Line 1,(#IOGraphHeight#*#Scale#/4),(#ContentWidth#-1),(#IOGraphHeight#*#Scale#/4) | Stroke Color #GridColor# | StrokeWidth 1
@@ -152,7 +164,7 @@ Shape4=Line 1,(3*#IOGraphHeight#*#Scale#/4),(#ContentWidth#-1),(3*#IOGraphHeight
 Meter=Shape
 Group=ParallaxIdleFreeze
 X=#ContentX#
-Y=(#Inset#+(71+#IOBarExtra#)*#Scale#)
+Y=(#Inset#+(84+#IOBarExtra#)*#Scale#)
 W=#ContentWidth#
 H=(#IOGraphHeight#*#Scale#)
 ; The controller draws only observations; startup history is empty.

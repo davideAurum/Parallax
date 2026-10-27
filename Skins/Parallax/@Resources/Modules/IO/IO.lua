@@ -159,6 +159,11 @@ local function capacityType(kind)
     return kind == 3 or kind == 4 or kind == 5 or kind == 7
 end
 
+-- Removable and optical letters offer the shell's Eject verb.
+local function ejectable(kind)
+    return kind == 3 or kind == 6
+end
+
 local function nameMode()
     local mode = variable('IODriveNames', 'volume')
     if mode ~= 'letters' and mode ~= 'model' and mode ~= 'both' then return 'volume' end
@@ -263,8 +268,16 @@ local function layout()
     local pitch = 63 + extra
     local legendColumns = math.max(1, math.floor(width / (26 * scale)))
     local legendRows = graphMode == 'overlay' and math.ceil(#selected / legendColumns) or 0
-    local savedHeight = numericVariable('PanelHeight') or 139
-    local key = table.concat({selectedKey, graphMode, selectionKind, scale, inset, gap, width, x, bar, savedHeight}, '|')
+    local savedHeight = numericVariable('PanelHeight') or 152
+    local ejects, ejectKey = {}, {}
+    for _, letter in ipairs(selected) do
+        if ejectable(number('MeasureIOType' .. letter)) then
+            ejects[letter] = true
+            ejectKey[#ejectKey + 1] = letter
+        end
+    end
+    local key = table.concat({selectedKey, graphMode, selectionKind, scale, inset, gap, width, x, bar, savedHeight,
+        table.concat(ejectKey)}, '|')
     if layoutKey == key then return false end
     layoutKey = key
     local positions = {}
@@ -278,13 +291,18 @@ local function layout()
         -- Two 16px lines: read, capacity and gauge, then write and load.
         local readY = shown and (inset + (49 + extra + index * pitch) * scale) or 0
         local writeY = shown and (readY + 16 * scale) or 0
+        -- An eject icon's hit box takes the name row's right 20px.
+        local eject = shown and ejects[letter] == true
         for _, prefix in ipairs({'MeterIODrive', 'MeterIOCapacity'}) do
             local capacityRow = prefix == 'MeterIOCapacity'
             option(prefix .. letter, 'Y', shown and (capacityRow and readY or (inset + row * scale)) or 0)
             option(prefix .. letter, 'X', capacityRow and (x + width) or x)
-            option(prefix .. letter, 'W', capacityRow and capacityWidth or width)
+            option(prefix .. letter, 'W', capacityRow and capacityWidth or (eject and (width - 20 * scale) or width))
             visible(prefix .. letter, shown)
         end
+        option('MeterIOEject' .. letter, 'X', x + width - 20 * scale)
+        option('MeterIOEject' .. letter, 'Y', eject and (inset + row * scale) or 0)
+        visible('MeterIOEject' .. letter, eject)
         option('MeterIOUsed' .. letter, 'Y', barY)
         if not shown then visible('MeterIOUsed' .. letter, false) end
         for _, direction in ipairs({'Read', 'Write'}) do
@@ -597,7 +615,7 @@ local function repaintNameLayout()
         for _, letter in ipairs(selected) do
             for _, prefix in ipairs({'MeterIODrive', 'MeterIOCapacity', 'MeterIOUsed',
                 'MeterIODiskRead', 'MeterIODiskWrite', 'MeterIODiskReadLabel', 'MeterIODiskWriteLabel',
-                'MeterIOGauge', 'MeterIOLoad'}) do
+                'MeterIOGauge', 'MeterIOLoad', 'MeterIOEject'}) do
                 SKIN:Bang('!UpdateMeter', prefix .. letter)
             end
             if graphMode == 'overlay' then SKIN:Bang('!UpdateMeter', 'MeterIOLegend' .. letter) end
@@ -626,6 +644,33 @@ function RefreshNamesInventory()
     -- telemetry/history scope are reconciled by the next normal Update only.
     pendingSlow = true
     repaintNameLayout()
+    return 0
+end
+
+-- Called only by a drive's eject icon. The letter is revalidated against the
+-- current inventory and is the only variable part of the fixed command, which
+-- runs the bundled Eject.ps1 as an in-memory script block (no execution
+-- policy dependency). A skin path Rainmeter would expand is refused.
+function Eject(letter)
+    if type(letter) ~= 'string' or not letter:match('^[A-Z]$')
+        or not ejectable(number('MeasureIOType' .. letter)) then return 0 end
+    local script = variable('@', '') .. 'Modules\\IO\\Eject.ps1'
+    if script:find('[#%[%]"]') then return 0 end
+    SKIN:Bang('!SetOption', 'MeasureIOEject', 'Parameter', '-NoLogo -NoProfile -NonInteractive -Command "'
+        .. "& $ExecutionContext.InvokeCommand.NewScriptBlock((Get-Content -Raw -LiteralPath '"
+        .. script:gsub("'", "''") .. "')) " .. letter .. '"')
+    SKIN:Bang('!UpdateMeasure', 'MeasureIOEject')
+    SKIN:Bang('!CommandMeasure', 'MeasureIOEject', 'Run')
+    return 0
+end
+
+-- The eject process has exited. Re-read the inventory now rather than at
+-- its next scheduled update, so an ejected drive leaves the list promptly.
+function EjectFinished()
+    if not phases then return 0 end
+    SKIN:Bang('!UpdateMeasureGroup', 'IOInventory')
+    phases[ticks % inventoryDivider] = true
+    pendingSlow = true
     return 0
 end
 

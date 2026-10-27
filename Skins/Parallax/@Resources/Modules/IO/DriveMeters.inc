@@ -1,9 +1,10 @@
 ; Fixed native meter bank, compacted by IO.lua. Hidden rows stay at Y=0.
-; Each letter's ten meters share Group=IORow<letter> and ship idle
+; Each letter's eleven meters share Group=IORow<letter> and ship idle
 ; (UpdateDivider=-1). IO.lua sets the group to 1 while the letter is shown
 ; and back to -1 when it is hidden, forcing one group update each time.
 ; Drive names open their root on click. The letter is underlined like a link;
 ; hovering underlines the whole name. Patterns avoid brackets inside bangs.
+; Eject icons brighten on hover; their hit box is the whole 20x18 meter.
 [MeterIODriveA]
 Meter=String
 MeterStyle=StyleIODriveName
@@ -16,6 +17,19 @@ InlineSetting=Underline
 InlinePattern=^.:
 MouseOverAction=[!SetOption MeterIODriveA InlinePattern ".*"][!UpdateMeter MeterIODriveA][!Redraw]
 MouseLeaveAction=[!SetOption MeterIODriveA InlinePattern "^.:"][!UpdateMeter MeterIODriveA][!Redraw]
+Hidden=1
+Group=IORowA|ParallaxIdleFreeze
+UpdateDivider=-1
+
+[MeterIOEjectA]
+Meter=Shape
+MeterStyle=StyleIOEject
+X=(#ContentX#+#ContentWidth#-20*#Scale#)
+Y=0
+MouseActionCursor=1
+LeftMouseUpAction=[!CommandMeasure MeasureIO "Eject('A')"]
+MouseOverAction=[!SetOption MeterIOEjectA IOEjectColor "Stroke Color #TextColor#"][!UpdateMeter MeterIOEjectA][!Redraw]
+MouseLeaveAction=[!SetOption MeterIOEjectA IOEjectColor "Stroke Color #MutedColor#"][!UpdateMeter MeterIOEjectA][!Redraw]
 Hidden=1
 Group=IORowA|ParallaxIdleFreeze
 UpdateDivider=-1
@@ -136,6 +150,19 @@ Hidden=1
 Group=IORowB|ParallaxIdleFreeze
 UpdateDivider=-1
 
+[MeterIOEjectB]
+Meter=Shape
+MeterStyle=StyleIOEject
+X=(#ContentX#+#ContentWidth#-20*#Scale#)
+Y=0
+MouseActionCursor=1
+LeftMouseUpAction=[!CommandMeasure MeasureIO "Eject('B')"]
+MouseOverAction=[!SetOption MeterIOEjectB IOEjectColor "Stroke Color #TextColor#"][!UpdateMeter MeterIOEjectB][!Redraw]
+MouseLeaveAction=[!SetOption MeterIOEjectB IOEjectColor "Stroke Color #MutedColor#"][!UpdateMeter MeterIOEjectB][!Redraw]
+Hidden=1
+Group=IORowB|ParallaxIdleFreeze
+UpdateDivider=-1
+
 [MeterIOCapacityB]
 Meter=String
 MeterStyle=StyleIODriveName
@@ -248,6 +275,19 @@ InlineSetting=Underline
 InlinePattern=^.:
 MouseOverAction=[!SetOption MeterIODriveC InlinePattern ".*"][!UpdateMeter MeterIODriveC][!Redraw]
 MouseLeaveAction=[!SetOption MeterIODriveC InlinePattern "^.:"][!UpdateMeter MeterIODriveC][!Redraw]
+Hidden=1
+Group=IORowC|ParallaxIdleFreeze
+UpdateDivider=-1
+
+[MeterIOEjectC]
+Meter=Shape
+MeterStyle=StyleIOEject
+X=(#ContentX#+#ContentWidth#-20*#Scale#)
+Y=0
+MouseActionCursor=1
+LeftMouseUpAction=[!CommandMeasure MeasureIO "Eject('C')"]
+MouseOverAction=[!SetOption MeterIOEjectC IOEjectColor "Stroke Color #TextColor#"][!UpdateMeter MeterIOEjectC][!Redraw]
+MouseLeaveAction=[!SetOption MeterIOEjectC IOEjectColor "Stroke Color #MutedColor#"][!UpdateMeter MeterIOEjectC][!Redraw]
 Hidden=1
 Group=IORowC|ParallaxIdleFreeze
 UpdateDivider=-1
@@ -368,6 +408,19 @@ Hidden=1
 Group=IORowD|ParallaxIdleFreeze
 UpdateDivider=-1
 
+[MeterIOEjectD]
+Meter=Shape
+MeterStyle=StyleIOEject
+X=(#ContentX#+#ContentWidth#-20*#Scale#)
+Y=0
+MouseActionCursor=1
+LeftMouseUpAction=[!CommandMeasure MeasureIO "Eject('D')"]
+MouseOverAction=[!SetOption MeterIOEjectD IOEjectColor "Stroke Color #TextColor#"][!UpdateMeter MeterIOEjectD][!Redraw]
+MouseLeaveAction=[!SetOption MeterIOEjectD IOEjectColor "Stroke Color #MutedColor#"][!UpdateMeter MeterIOEjectD][!Redraw]
+Hidden=1
+Group=IORowD|ParallaxIdleFreeze
+UpdateDivider=-1
+
 [MeterIOCapacityD]
 Meter=String
 MeterStyle=StyleIODriveName
@@ -480,6 +533,19 @@ InlineSetting=Underline
 InlinePattern=^.:
 MouseOverAction=[!SetOption MeterIODriveE InlinePattern ".*"][!UpdateMeter MeterIODriveE][!Redraw]
 MouseLeaveAction=[!SetOption MeterIODriveE InlinePattern "^.:"][!UpdateMeter MeterIODriveE][!Redraw]
+Hidden=1
+Group=IORowE|ParallaxIdleFreeze
+UpdateDivider=-1
+
+[MeterIOEjectE]
+Meter=Shape
+MeterStyle=StyleIOEject
+X=(#ContentX#+#ContentWidth#-20*#Scale#)
+Y=0
+MouseActionCursor=1
+LeftMouseUpAction=[!CommandMeasure MeasureIO "Eject('E')"]
+MouseOverAction=[!SetOption MeterIOEjectE IOEjectColor "Stroke Color #TextColor#"][!UpdateMeter MeterIOEjectE][!Redraw]
+MouseLeaveAction=[!SetOption MeterIOEjectE IOEjectColor "Stroke Color #MutedColor#"][!UpdateMeter MeterIOEjectE][!Redraw]
 Hidden=1
 Group=IORowE|ParallaxIdleFreeze
 UpdateDivider=-1
@@ -600,6 +666,19 @@ Hidden=1
 Group=IORowF|ParallaxIdleFreeze
 UpdateDivider=-1
 
+[MeterIOEjectF]
+Meter=Shape
+MeterStyle=StyleIOEject
+X=(#ContentX#+#ContentWidth#-20*#Scale#)
+Y=0
+MouseActionCursor=1
+LeftMouseUpAction=[!CommandMeasure MeasureIO "Eject('F')"]
+MouseOverAction=[!SetOption MeterIOEjectF IOEjectColor "Stroke Color #TextColor#"][!UpdateMeter MeterIOEjectF][!Redraw]
+MouseLeaveAction=[!SetOption MeterIOEjectF IOEjectColor "Stroke Color #MutedColor#"][!UpdateMeter MeterIOEjectF][!Redraw]
+Hidden=1
+Group=IORowF|ParallaxIdleFreeze
+UpdateDivider=-1
+
 [MeterIOCapacityF]
 Meter=String
 MeterStyle=StyleIODriveName
@@ -712,6 +791,19 @@ InlineSetting=Underline
 InlinePattern=^.:
 MouseOverAction=[!SetOption MeterIODriveG InlinePattern ".*"][!UpdateMeter MeterIODriveG][!Redraw]
 MouseLeaveAction=[!SetOption MeterIODriveG InlinePattern "^.:"][!UpdateMeter MeterIODriveG][!Redraw]
+Hidden=1
+Group=IORowG|ParallaxIdleFreeze
+UpdateDivider=-1
+
+[MeterIOEjectG]
+Meter=Shape
+MeterStyle=StyleIOEject
+X=(#ContentX#+#ContentWidth#-20*#Scale#)
+Y=0
+MouseActionCursor=1
+LeftMouseUpAction=[!CommandMeasure MeasureIO "Eject('G')"]
+MouseOverAction=[!SetOption MeterIOEjectG IOEjectColor "Stroke Color #TextColor#"][!UpdateMeter MeterIOEjectG][!Redraw]
+MouseLeaveAction=[!SetOption MeterIOEjectG IOEjectColor "Stroke Color #MutedColor#"][!UpdateMeter MeterIOEjectG][!Redraw]
 Hidden=1
 Group=IORowG|ParallaxIdleFreeze
 UpdateDivider=-1
@@ -832,6 +924,19 @@ Hidden=1
 Group=IORowH|ParallaxIdleFreeze
 UpdateDivider=-1
 
+[MeterIOEjectH]
+Meter=Shape
+MeterStyle=StyleIOEject
+X=(#ContentX#+#ContentWidth#-20*#Scale#)
+Y=0
+MouseActionCursor=1
+LeftMouseUpAction=[!CommandMeasure MeasureIO "Eject('H')"]
+MouseOverAction=[!SetOption MeterIOEjectH IOEjectColor "Stroke Color #TextColor#"][!UpdateMeter MeterIOEjectH][!Redraw]
+MouseLeaveAction=[!SetOption MeterIOEjectH IOEjectColor "Stroke Color #MutedColor#"][!UpdateMeter MeterIOEjectH][!Redraw]
+Hidden=1
+Group=IORowH|ParallaxIdleFreeze
+UpdateDivider=-1
+
 [MeterIOCapacityH]
 Meter=String
 MeterStyle=StyleIODriveName
@@ -944,6 +1049,19 @@ InlineSetting=Underline
 InlinePattern=^.:
 MouseOverAction=[!SetOption MeterIODriveI InlinePattern ".*"][!UpdateMeter MeterIODriveI][!Redraw]
 MouseLeaveAction=[!SetOption MeterIODriveI InlinePattern "^.:"][!UpdateMeter MeterIODriveI][!Redraw]
+Hidden=1
+Group=IORowI|ParallaxIdleFreeze
+UpdateDivider=-1
+
+[MeterIOEjectI]
+Meter=Shape
+MeterStyle=StyleIOEject
+X=(#ContentX#+#ContentWidth#-20*#Scale#)
+Y=0
+MouseActionCursor=1
+LeftMouseUpAction=[!CommandMeasure MeasureIO "Eject('I')"]
+MouseOverAction=[!SetOption MeterIOEjectI IOEjectColor "Stroke Color #TextColor#"][!UpdateMeter MeterIOEjectI][!Redraw]
+MouseLeaveAction=[!SetOption MeterIOEjectI IOEjectColor "Stroke Color #MutedColor#"][!UpdateMeter MeterIOEjectI][!Redraw]
 Hidden=1
 Group=IORowI|ParallaxIdleFreeze
 UpdateDivider=-1
@@ -1064,6 +1182,19 @@ Hidden=1
 Group=IORowJ|ParallaxIdleFreeze
 UpdateDivider=-1
 
+[MeterIOEjectJ]
+Meter=Shape
+MeterStyle=StyleIOEject
+X=(#ContentX#+#ContentWidth#-20*#Scale#)
+Y=0
+MouseActionCursor=1
+LeftMouseUpAction=[!CommandMeasure MeasureIO "Eject('J')"]
+MouseOverAction=[!SetOption MeterIOEjectJ IOEjectColor "Stroke Color #TextColor#"][!UpdateMeter MeterIOEjectJ][!Redraw]
+MouseLeaveAction=[!SetOption MeterIOEjectJ IOEjectColor "Stroke Color #MutedColor#"][!UpdateMeter MeterIOEjectJ][!Redraw]
+Hidden=1
+Group=IORowJ|ParallaxIdleFreeze
+UpdateDivider=-1
+
 [MeterIOCapacityJ]
 Meter=String
 MeterStyle=StyleIODriveName
@@ -1176,6 +1307,19 @@ InlineSetting=Underline
 InlinePattern=^.:
 MouseOverAction=[!SetOption MeterIODriveK InlinePattern ".*"][!UpdateMeter MeterIODriveK][!Redraw]
 MouseLeaveAction=[!SetOption MeterIODriveK InlinePattern "^.:"][!UpdateMeter MeterIODriveK][!Redraw]
+Hidden=1
+Group=IORowK|ParallaxIdleFreeze
+UpdateDivider=-1
+
+[MeterIOEjectK]
+Meter=Shape
+MeterStyle=StyleIOEject
+X=(#ContentX#+#ContentWidth#-20*#Scale#)
+Y=0
+MouseActionCursor=1
+LeftMouseUpAction=[!CommandMeasure MeasureIO "Eject('K')"]
+MouseOverAction=[!SetOption MeterIOEjectK IOEjectColor "Stroke Color #TextColor#"][!UpdateMeter MeterIOEjectK][!Redraw]
+MouseLeaveAction=[!SetOption MeterIOEjectK IOEjectColor "Stroke Color #MutedColor#"][!UpdateMeter MeterIOEjectK][!Redraw]
 Hidden=1
 Group=IORowK|ParallaxIdleFreeze
 UpdateDivider=-1
@@ -1296,6 +1440,19 @@ Hidden=1
 Group=IORowL|ParallaxIdleFreeze
 UpdateDivider=-1
 
+[MeterIOEjectL]
+Meter=Shape
+MeterStyle=StyleIOEject
+X=(#ContentX#+#ContentWidth#-20*#Scale#)
+Y=0
+MouseActionCursor=1
+LeftMouseUpAction=[!CommandMeasure MeasureIO "Eject('L')"]
+MouseOverAction=[!SetOption MeterIOEjectL IOEjectColor "Stroke Color #TextColor#"][!UpdateMeter MeterIOEjectL][!Redraw]
+MouseLeaveAction=[!SetOption MeterIOEjectL IOEjectColor "Stroke Color #MutedColor#"][!UpdateMeter MeterIOEjectL][!Redraw]
+Hidden=1
+Group=IORowL|ParallaxIdleFreeze
+UpdateDivider=-1
+
 [MeterIOCapacityL]
 Meter=String
 MeterStyle=StyleIODriveName
@@ -1408,6 +1565,19 @@ InlineSetting=Underline
 InlinePattern=^.:
 MouseOverAction=[!SetOption MeterIODriveM InlinePattern ".*"][!UpdateMeter MeterIODriveM][!Redraw]
 MouseLeaveAction=[!SetOption MeterIODriveM InlinePattern "^.:"][!UpdateMeter MeterIODriveM][!Redraw]
+Hidden=1
+Group=IORowM|ParallaxIdleFreeze
+UpdateDivider=-1
+
+[MeterIOEjectM]
+Meter=Shape
+MeterStyle=StyleIOEject
+X=(#ContentX#+#ContentWidth#-20*#Scale#)
+Y=0
+MouseActionCursor=1
+LeftMouseUpAction=[!CommandMeasure MeasureIO "Eject('M')"]
+MouseOverAction=[!SetOption MeterIOEjectM IOEjectColor "Stroke Color #TextColor#"][!UpdateMeter MeterIOEjectM][!Redraw]
+MouseLeaveAction=[!SetOption MeterIOEjectM IOEjectColor "Stroke Color #MutedColor#"][!UpdateMeter MeterIOEjectM][!Redraw]
 Hidden=1
 Group=IORowM|ParallaxIdleFreeze
 UpdateDivider=-1
@@ -1528,6 +1698,19 @@ Hidden=1
 Group=IORowN|ParallaxIdleFreeze
 UpdateDivider=-1
 
+[MeterIOEjectN]
+Meter=Shape
+MeterStyle=StyleIOEject
+X=(#ContentX#+#ContentWidth#-20*#Scale#)
+Y=0
+MouseActionCursor=1
+LeftMouseUpAction=[!CommandMeasure MeasureIO "Eject('N')"]
+MouseOverAction=[!SetOption MeterIOEjectN IOEjectColor "Stroke Color #TextColor#"][!UpdateMeter MeterIOEjectN][!Redraw]
+MouseLeaveAction=[!SetOption MeterIOEjectN IOEjectColor "Stroke Color #MutedColor#"][!UpdateMeter MeterIOEjectN][!Redraw]
+Hidden=1
+Group=IORowN|ParallaxIdleFreeze
+UpdateDivider=-1
+
 [MeterIOCapacityN]
 Meter=String
 MeterStyle=StyleIODriveName
@@ -1640,6 +1823,19 @@ InlineSetting=Underline
 InlinePattern=^.:
 MouseOverAction=[!SetOption MeterIODriveO InlinePattern ".*"][!UpdateMeter MeterIODriveO][!Redraw]
 MouseLeaveAction=[!SetOption MeterIODriveO InlinePattern "^.:"][!UpdateMeter MeterIODriveO][!Redraw]
+Hidden=1
+Group=IORowO|ParallaxIdleFreeze
+UpdateDivider=-1
+
+[MeterIOEjectO]
+Meter=Shape
+MeterStyle=StyleIOEject
+X=(#ContentX#+#ContentWidth#-20*#Scale#)
+Y=0
+MouseActionCursor=1
+LeftMouseUpAction=[!CommandMeasure MeasureIO "Eject('O')"]
+MouseOverAction=[!SetOption MeterIOEjectO IOEjectColor "Stroke Color #TextColor#"][!UpdateMeter MeterIOEjectO][!Redraw]
+MouseLeaveAction=[!SetOption MeterIOEjectO IOEjectColor "Stroke Color #MutedColor#"][!UpdateMeter MeterIOEjectO][!Redraw]
 Hidden=1
 Group=IORowO|ParallaxIdleFreeze
 UpdateDivider=-1
@@ -1760,6 +1956,19 @@ Hidden=1
 Group=IORowP|ParallaxIdleFreeze
 UpdateDivider=-1
 
+[MeterIOEjectP]
+Meter=Shape
+MeterStyle=StyleIOEject
+X=(#ContentX#+#ContentWidth#-20*#Scale#)
+Y=0
+MouseActionCursor=1
+LeftMouseUpAction=[!CommandMeasure MeasureIO "Eject('P')"]
+MouseOverAction=[!SetOption MeterIOEjectP IOEjectColor "Stroke Color #TextColor#"][!UpdateMeter MeterIOEjectP][!Redraw]
+MouseLeaveAction=[!SetOption MeterIOEjectP IOEjectColor "Stroke Color #MutedColor#"][!UpdateMeter MeterIOEjectP][!Redraw]
+Hidden=1
+Group=IORowP|ParallaxIdleFreeze
+UpdateDivider=-1
+
 [MeterIOCapacityP]
 Meter=String
 MeterStyle=StyleIODriveName
@@ -1872,6 +2081,19 @@ InlineSetting=Underline
 InlinePattern=^.:
 MouseOverAction=[!SetOption MeterIODriveQ InlinePattern ".*"][!UpdateMeter MeterIODriveQ][!Redraw]
 MouseLeaveAction=[!SetOption MeterIODriveQ InlinePattern "^.:"][!UpdateMeter MeterIODriveQ][!Redraw]
+Hidden=1
+Group=IORowQ|ParallaxIdleFreeze
+UpdateDivider=-1
+
+[MeterIOEjectQ]
+Meter=Shape
+MeterStyle=StyleIOEject
+X=(#ContentX#+#ContentWidth#-20*#Scale#)
+Y=0
+MouseActionCursor=1
+LeftMouseUpAction=[!CommandMeasure MeasureIO "Eject('Q')"]
+MouseOverAction=[!SetOption MeterIOEjectQ IOEjectColor "Stroke Color #TextColor#"][!UpdateMeter MeterIOEjectQ][!Redraw]
+MouseLeaveAction=[!SetOption MeterIOEjectQ IOEjectColor "Stroke Color #MutedColor#"][!UpdateMeter MeterIOEjectQ][!Redraw]
 Hidden=1
 Group=IORowQ|ParallaxIdleFreeze
 UpdateDivider=-1
@@ -1992,6 +2214,19 @@ Hidden=1
 Group=IORowR|ParallaxIdleFreeze
 UpdateDivider=-1
 
+[MeterIOEjectR]
+Meter=Shape
+MeterStyle=StyleIOEject
+X=(#ContentX#+#ContentWidth#-20*#Scale#)
+Y=0
+MouseActionCursor=1
+LeftMouseUpAction=[!CommandMeasure MeasureIO "Eject('R')"]
+MouseOverAction=[!SetOption MeterIOEjectR IOEjectColor "Stroke Color #TextColor#"][!UpdateMeter MeterIOEjectR][!Redraw]
+MouseLeaveAction=[!SetOption MeterIOEjectR IOEjectColor "Stroke Color #MutedColor#"][!UpdateMeter MeterIOEjectR][!Redraw]
+Hidden=1
+Group=IORowR|ParallaxIdleFreeze
+UpdateDivider=-1
+
 [MeterIOCapacityR]
 Meter=String
 MeterStyle=StyleIODriveName
@@ -2104,6 +2339,19 @@ InlineSetting=Underline
 InlinePattern=^.:
 MouseOverAction=[!SetOption MeterIODriveS InlinePattern ".*"][!UpdateMeter MeterIODriveS][!Redraw]
 MouseLeaveAction=[!SetOption MeterIODriveS InlinePattern "^.:"][!UpdateMeter MeterIODriveS][!Redraw]
+Hidden=1
+Group=IORowS|ParallaxIdleFreeze
+UpdateDivider=-1
+
+[MeterIOEjectS]
+Meter=Shape
+MeterStyle=StyleIOEject
+X=(#ContentX#+#ContentWidth#-20*#Scale#)
+Y=0
+MouseActionCursor=1
+LeftMouseUpAction=[!CommandMeasure MeasureIO "Eject('S')"]
+MouseOverAction=[!SetOption MeterIOEjectS IOEjectColor "Stroke Color #TextColor#"][!UpdateMeter MeterIOEjectS][!Redraw]
+MouseLeaveAction=[!SetOption MeterIOEjectS IOEjectColor "Stroke Color #MutedColor#"][!UpdateMeter MeterIOEjectS][!Redraw]
 Hidden=1
 Group=IORowS|ParallaxIdleFreeze
 UpdateDivider=-1
@@ -2224,6 +2472,19 @@ Hidden=1
 Group=IORowT|ParallaxIdleFreeze
 UpdateDivider=-1
 
+[MeterIOEjectT]
+Meter=Shape
+MeterStyle=StyleIOEject
+X=(#ContentX#+#ContentWidth#-20*#Scale#)
+Y=0
+MouseActionCursor=1
+LeftMouseUpAction=[!CommandMeasure MeasureIO "Eject('T')"]
+MouseOverAction=[!SetOption MeterIOEjectT IOEjectColor "Stroke Color #TextColor#"][!UpdateMeter MeterIOEjectT][!Redraw]
+MouseLeaveAction=[!SetOption MeterIOEjectT IOEjectColor "Stroke Color #MutedColor#"][!UpdateMeter MeterIOEjectT][!Redraw]
+Hidden=1
+Group=IORowT|ParallaxIdleFreeze
+UpdateDivider=-1
+
 [MeterIOCapacityT]
 Meter=String
 MeterStyle=StyleIODriveName
@@ -2336,6 +2597,19 @@ InlineSetting=Underline
 InlinePattern=^.:
 MouseOverAction=[!SetOption MeterIODriveU InlinePattern ".*"][!UpdateMeter MeterIODriveU][!Redraw]
 MouseLeaveAction=[!SetOption MeterIODriveU InlinePattern "^.:"][!UpdateMeter MeterIODriveU][!Redraw]
+Hidden=1
+Group=IORowU|ParallaxIdleFreeze
+UpdateDivider=-1
+
+[MeterIOEjectU]
+Meter=Shape
+MeterStyle=StyleIOEject
+X=(#ContentX#+#ContentWidth#-20*#Scale#)
+Y=0
+MouseActionCursor=1
+LeftMouseUpAction=[!CommandMeasure MeasureIO "Eject('U')"]
+MouseOverAction=[!SetOption MeterIOEjectU IOEjectColor "Stroke Color #TextColor#"][!UpdateMeter MeterIOEjectU][!Redraw]
+MouseLeaveAction=[!SetOption MeterIOEjectU IOEjectColor "Stroke Color #MutedColor#"][!UpdateMeter MeterIOEjectU][!Redraw]
 Hidden=1
 Group=IORowU|ParallaxIdleFreeze
 UpdateDivider=-1
@@ -2456,6 +2730,19 @@ Hidden=1
 Group=IORowV|ParallaxIdleFreeze
 UpdateDivider=-1
 
+[MeterIOEjectV]
+Meter=Shape
+MeterStyle=StyleIOEject
+X=(#ContentX#+#ContentWidth#-20*#Scale#)
+Y=0
+MouseActionCursor=1
+LeftMouseUpAction=[!CommandMeasure MeasureIO "Eject('V')"]
+MouseOverAction=[!SetOption MeterIOEjectV IOEjectColor "Stroke Color #TextColor#"][!UpdateMeter MeterIOEjectV][!Redraw]
+MouseLeaveAction=[!SetOption MeterIOEjectV IOEjectColor "Stroke Color #MutedColor#"][!UpdateMeter MeterIOEjectV][!Redraw]
+Hidden=1
+Group=IORowV|ParallaxIdleFreeze
+UpdateDivider=-1
+
 [MeterIOCapacityV]
 Meter=String
 MeterStyle=StyleIODriveName
@@ -2568,6 +2855,19 @@ InlineSetting=Underline
 InlinePattern=^.:
 MouseOverAction=[!SetOption MeterIODriveW InlinePattern ".*"][!UpdateMeter MeterIODriveW][!Redraw]
 MouseLeaveAction=[!SetOption MeterIODriveW InlinePattern "^.:"][!UpdateMeter MeterIODriveW][!Redraw]
+Hidden=1
+Group=IORowW|ParallaxIdleFreeze
+UpdateDivider=-1
+
+[MeterIOEjectW]
+Meter=Shape
+MeterStyle=StyleIOEject
+X=(#ContentX#+#ContentWidth#-20*#Scale#)
+Y=0
+MouseActionCursor=1
+LeftMouseUpAction=[!CommandMeasure MeasureIO "Eject('W')"]
+MouseOverAction=[!SetOption MeterIOEjectW IOEjectColor "Stroke Color #TextColor#"][!UpdateMeter MeterIOEjectW][!Redraw]
+MouseLeaveAction=[!SetOption MeterIOEjectW IOEjectColor "Stroke Color #MutedColor#"][!UpdateMeter MeterIOEjectW][!Redraw]
 Hidden=1
 Group=IORowW|ParallaxIdleFreeze
 UpdateDivider=-1
@@ -2688,6 +2988,19 @@ Hidden=1
 Group=IORowX|ParallaxIdleFreeze
 UpdateDivider=-1
 
+[MeterIOEjectX]
+Meter=Shape
+MeterStyle=StyleIOEject
+X=(#ContentX#+#ContentWidth#-20*#Scale#)
+Y=0
+MouseActionCursor=1
+LeftMouseUpAction=[!CommandMeasure MeasureIO "Eject('X')"]
+MouseOverAction=[!SetOption MeterIOEjectX IOEjectColor "Stroke Color #TextColor#"][!UpdateMeter MeterIOEjectX][!Redraw]
+MouseLeaveAction=[!SetOption MeterIOEjectX IOEjectColor "Stroke Color #MutedColor#"][!UpdateMeter MeterIOEjectX][!Redraw]
+Hidden=1
+Group=IORowX|ParallaxIdleFreeze
+UpdateDivider=-1
+
 [MeterIOCapacityX]
 Meter=String
 MeterStyle=StyleIODriveName
@@ -2804,6 +3117,19 @@ Hidden=1
 Group=IORowY|ParallaxIdleFreeze
 UpdateDivider=-1
 
+[MeterIOEjectY]
+Meter=Shape
+MeterStyle=StyleIOEject
+X=(#ContentX#+#ContentWidth#-20*#Scale#)
+Y=0
+MouseActionCursor=1
+LeftMouseUpAction=[!CommandMeasure MeasureIO "Eject('Y')"]
+MouseOverAction=[!SetOption MeterIOEjectY IOEjectColor "Stroke Color #TextColor#"][!UpdateMeter MeterIOEjectY][!Redraw]
+MouseLeaveAction=[!SetOption MeterIOEjectY IOEjectColor "Stroke Color #MutedColor#"][!UpdateMeter MeterIOEjectY][!Redraw]
+Hidden=1
+Group=IORowY|ParallaxIdleFreeze
+UpdateDivider=-1
+
 [MeterIOCapacityY]
 Meter=String
 MeterStyle=StyleIODriveName
@@ -2916,6 +3242,19 @@ InlineSetting=Underline
 InlinePattern=^.:
 MouseOverAction=[!SetOption MeterIODriveZ InlinePattern ".*"][!UpdateMeter MeterIODriveZ][!Redraw]
 MouseLeaveAction=[!SetOption MeterIODriveZ InlinePattern "^.:"][!UpdateMeter MeterIODriveZ][!Redraw]
+Hidden=1
+Group=IORowZ|ParallaxIdleFreeze
+UpdateDivider=-1
+
+[MeterIOEjectZ]
+Meter=Shape
+MeterStyle=StyleIOEject
+X=(#ContentX#+#ContentWidth#-20*#Scale#)
+Y=0
+MouseActionCursor=1
+LeftMouseUpAction=[!CommandMeasure MeasureIO "Eject('Z')"]
+MouseOverAction=[!SetOption MeterIOEjectZ IOEjectColor "Stroke Color #TextColor#"][!UpdateMeter MeterIOEjectZ][!Redraw]
+MouseLeaveAction=[!SetOption MeterIOEjectZ IOEjectColor "Stroke Color #MutedColor#"][!UpdateMeter MeterIOEjectZ][!Redraw]
 Hidden=1
 Group=IORowZ|ParallaxIdleFreeze
 UpdateDivider=-1

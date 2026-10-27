@@ -29,7 +29,7 @@ WIDTHS = (180, 200, 220, 240, 280, 320)
 SCALES = (.75, 1, 1.25, 1.5, 2)
 THICKNESSES = (1, 6, 6.01, 8.5, 12)
 LETTERS = string.ascii_uppercase
-DRIVE_METERS = ("Drive", "Capacity", "Used", "DiskReadLabel", "DiskWriteLabel", "DiskRead", "DiskWrite", "Gauge", "Load", "Legend")
+DRIVE_METERS = ("Drive", "Capacity", "Used", "DiskReadLabel", "DiskWriteLabel", "DiskRead", "DiskWrite", "Gauge", "Load", "Eject", "Legend")
 GRAPH_MARKERS = {"MeterIOGraphPositive": "+", "MeterIOGraphZero": "0", "MeterIOGraphNegative": "-"}
 STEPPERS = {
     "Names": ("CycleNamesMode", "CycleNamesMode()", 126),
@@ -168,12 +168,18 @@ def check_drive_bank():
                     assert options.get("StringAlign", "Left") == "Left", (name, "load aligns under the gauge")
             elif field == "Gauge":
                 assert options["Meter"] == "Shape" and options["MeterStyle"] == "StyleIOGauge", (name, "shared Lucide gauge")
+            elif field == "Eject":
+                assert options["Meter"] == "Shape" and options["MeterStyle"] == "StyleIOEject", (name, "shared eject glyph")
+                assert options["MouseActionCursor"] == "1"
+                assert options["LeftMouseUpAction"] == '[!CommandMeasure MeasureIO "Eject(\'' + letter + '\')"]', (name, "eject binding")
+                for action, color in (("MouseOverAction", "TextColor"), ("MouseLeaveAction", "MutedColor")):
+                    assert options[action] == '[!SetOption ' + name + ' IOEjectColor "Stroke Color #' + color + '#"][!UpdateMeter ' + name + '][!Redraw]', (name, action)
     assert set(providers) == expected_providers, "unexpected or incomplete native provider bank"
     actual_bank = read_sections(("@Resources/Modules/IO/DriveMeters.inc",))
     assert set(actual_bank) == expected_meters, "unexpected or incomplete drive meter bank"
     entrypoint = read_sections(("IO/IO-Disk.ini",))
     includes = {value for section in entrypoint.values() for key, value in section.items() if key.startswith("@Include")}
-    for name in ("Inventory", "Native", "Disk", "Model", "View"):
+    for name in ("Inventory", "Native", "Disk", "Model", "Eject", "View"):
         assert "#@#Modules\\IO\\" + name + ".inc" in includes, (name, "provider/view include missing from monitor")
     view = read_sections(("@Resources/Modules/IO/View.inc",))
     includes = {value for section in view.values() for key, value in section.items() if key.startswith("@Include")}
@@ -187,6 +193,13 @@ def check_drive_bank():
         assert marker["StringAlign"] == "Right" and marker["ClipString"] == "1", (name, "bounded axis alignment")
         assert marker["FontFace"] == "#FontFace#" and marker["FontColor"] == "#MutedColor#", (name, "shared metadata styling")
         assert not any(key.endswith("Action") for key in marker), (name, "axis markers are passive")
+    eject = read_sections(("@Resources/Modules/IO/Eject.inc",))
+    assert set(eject) == {"MeasureIOEject"}, "one explicit eject helper"
+    helper = eject["MeasureIOEject"]
+    # A click-only, hidden one-shot: no console flash, no polling, Lua supplies the letter.
+    assert helper["Plugin"] == "RunCommand" and helper["State"] == "Hide" and helper["UpdateDivider"] == "-1"
+    assert helper["Program"].endswith("powershell.exe") and helper["DynamicVariables"] == "1"
+    assert helper["FinishAction"] == '[!CommandMeasure MeasureIO "EjectFinished()"]'
     model = read_sections(("@Resources/Modules/IO/Model.inc",))
     assert set(model) == {"MeasureIOModelQuery"}, "one explicit model query provider"
     query = model["MeasureIOModelQuery"]
@@ -225,6 +238,9 @@ def check_monitor_layout(bounds, variables, scale, thickness):
         assert math.isclose(capacity[2], (content_width - 51 * scale) * .58, abs_tol=.001)
         read, write = (bounds["MeterIODisk" + field + letter] for field in ("Read", "Write"))
         gauge, load = (bounds["MeterIO" + field + letter] for field in ("Gauge", "Load"))
+        eject = bounds["MeterIOEject" + letter]
+        assert math.isclose(eject[0] + eject[2], content_x + content_width, abs_tol=.001) and math.isclose(eject[2], 20 * scale, abs_tol=.001), (letter, "eject hit box at the name row's right edge")
+        assert math.isclose(eject[3], 18 * scale, abs_tol=.001), (letter, "eject hit box spans the name row")
         # Gauge and load sit flush with the content edge; the stacked rates start after them.
         assert math.isclose(gauge[2], 14 * scale, abs_tol=.001) and math.isclose(gauge[3], 14 * scale, abs_tol=.001)
         assert math.isclose(gauge[0], content_x, abs_tol=.001), (letter, "gauge flush with the content edge")

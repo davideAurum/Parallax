@@ -75,6 +75,22 @@ IOGaugeStroke=Fill Color 0,0,0,0 | Stroke Color #TextColor# | StrokeWidth (2*14*
 ; reverse of SVG's, so this must be 0,0,1.
 IOGaugeArc=(3.34*14*#Scale#/24),(19*14*#Scale#/24) | ArcTo (20.66*14*#Scale#/24),(19*14*#Scale#/24),(10*14*#Scale#/24),(10*14*#Scale#/24),0,0,1
 
+; Original eject glyph on the same 24-unit grid and 2-unit round stroke as
+; the Lucide icons: a triangle over a bar, at 14 logical px. The meter is a
+; 20x18 hit box (the name row's height plus the 6px gap before it): Shape
+; meters only take clicks on drawn pixels, so an alpha-1 rectangle fills it.
+; The glyph keeps its place at the box's right edge, 1px below the row top,
+; and brightens from MutedColor to TextColor on hover.
+[StyleIOEject]
+W=(20*#Scale#)
+H=(18*#Scale#)
+Shape=Rectangle 0,0,(20*#Scale#),(18*#Scale#) | Fill Color 0,0,0,1 | StrokeWidth 0
+Shape2=Path IOEjectTriangle | Extend IOEjectStroke, IOEjectColor
+Shape3=Line (5*14*#Scale#/24),(18*14*#Scale#/24),(19*14*#Scale#/24),(18*14*#Scale#/24) | Extend IOEjectStroke, IOEjectColor
+IOEjectStroke=Fill Color 0,0,0,0 | StrokeWidth (2*14*#Scale#/24) | StrokeStartCap Round | StrokeEndCap Round | StrokeLineJoin Round | Offset (6*#Scale#),#Scale#
+IOEjectColor=Stroke Color #MutedColor#
+IOEjectTriangle=(12*14*#Scale#/24),(5*14*#Scale#/24) | LineTo (19*14*#Scale#/24),(13*14*#Scale#/24) | LineTo (5*14*#Scale#/24),(13*14*#Scale#/24) | ClosePath 1
+
 [MeterIOBounds]
 Meter=Image
 MeterStyle=StyleBounds

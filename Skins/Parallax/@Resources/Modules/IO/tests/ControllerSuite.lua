@@ -45,7 +45,7 @@ function Suite.run(productionPath)
     local targets, bankLetter = {}, {}
     local bankPrefixes = {'MeterIODrive', 'MeterIOCapacity', 'MeterIOUsed',
         'MeterIODiskRead', 'MeterIODiskWrite', 'MeterIODiskReadLabel', 'MeterIODiskWriteLabel',
-        'MeterIOGauge', 'MeterIOLoad', 'MeterIOLegend'}
+        'MeterIOGauge', 'MeterIOLoad', 'MeterIOEject', 'MeterIOLegend'}
     for _, name in ipairs({
         'MeterIOTotal', 'MeterIOBounds', 'MeterIOPanel', 'MeterIOEmpty',
         'MeterIODiskGraph', 'MeterIODiskGraphTrack',
@@ -85,7 +85,7 @@ function Suite.run(productionPath)
         -- reads counts GetMeasure calls by name and parses ParseFormula calls.
         local state = { vars = vars, values = values, options = {}, shown = {}, calls = {}, now = 1000,
             groups = {}, variableWrites = {}, queryRuns = 0, rows = {}, effective = {}, pending = {}, rowUpdates = {},
-            reads = {}, parses = 0 }
+            reads = {}, parses = 0, ejects = {}, ejectParameter = nil }
         local skin = {}
         function skin:GetVariable(key, default)
             if vars[key] == nil then return default end
@@ -113,7 +113,15 @@ function Suite.run(productionPath)
             return expression()
         end
         function skin:Bang(command, target, key, value)
-            if command == '!CommandMeasure' then
+            if command == '!CommandMeasure' and target == 'MeasureIOEject' then
+                assert(key == 'Run' and value == nil, 'unexpected eject command')
+                state.ejects[#state.ejects + 1] = state.ejectParameter
+            elseif command == '!SetOption' and target == 'MeasureIOEject' then
+                assert(key == 'Parameter', 'only the eject parameter may change')
+                state.ejectParameter = value
+            elseif command == '!UpdateMeasure' then
+                assert(target == 'MeasureIOEject', 'unexpected measure update: ' .. tostring(target))
+            elseif command == '!CommandMeasure' then
                 assert(target == 'MeasureIOModelQuery' and key == 'Run' and value == nil, 'unexpected provider command')
                 state.queryRuns = state.queryRuns + 1
             elseif command == '!Redraw' then
@@ -164,7 +172,8 @@ function Suite.run(productionPath)
                         or target:match('^MeterIOUsed[A-Z]$') or target:match('^MeterIOLegend[A-Z]$')
                         or target:match('^MeterIODiskRead[A-Z]$') or target:match('^MeterIODiskWrite[A-Z]$')
                         or target:match('^MeterIODiskReadLabel[A-Z]$') or target:match('^MeterIODiskWriteLabel[A-Z]$')
-                        or target:match('^MeterIOGauge[A-Z]$') or target:match('^MeterIOLoad[A-Z]$'),
+                        or target:match('^MeterIOGauge[A-Z]$') or target:match('^MeterIOLoad[A-Z]$')
+                        or target:match('^MeterIOEject[A-Z]$'),
                         'unexpected forced meter update')
                     state.pending[target] = nil
                 else
@@ -222,6 +231,8 @@ function Suite.run(productionPath)
         end
         function state:applyNamesMode() return self:checkRows(env.ApplyNamesMode()) end
         function state:refreshNamesInventory() return self:checkRows(env.RefreshNamesInventory()) end
+        function state:eject(letter) return env.Eject(letter) end
+        function state:ejectFinished() return self:checkRows(env.EjectFinished()) end
         function state:refresh()
             self.options, self.shown, self.calls, self.groups, self.variableWrites = {}, {}, {}, {}, {}
             self.rows, self.effective, self.pending, self.rowUpdates = {}, {}, {}, {}
@@ -341,6 +352,52 @@ function Suite.run(productionPath)
         equal(mixed:text('MeterIOCapacityC'), '520 GB / 1.0 TB', 'a total that rounds into TB keeps both units')
         local bits = fixture({ IODiskUnits = 'bits' }, { MeasureIODiskReadC = 150.5e6 })
         equal(bits:text('MeterIODiskReadC'), '1.2 Gbit/s')
+    end)
+
+    test('removable and optical rows offer eject; the click runs the bundled eject script once', function()
+        local f = fixture({ IODiskDrives = 'C,F,G' }, {
+            MeasureIOTypeF = 6, MeasureIOTypeG = 3, MeasureIOTotalG = 64e9, MeasureIOFreeG = 63.9e9 })
+        equal(f.shown.MeterIOEjectC, false, 'a fixed drive has no eject')
+        equal(f.shown.MeterIOEjectF, true, 'optical drives eject')
+        equal(f.shown.MeterIOEjectG, true, 'removable drives eject')
+        equal(tonumber(f.options.MeterIODriveC.W), 208)
+        equal(tonumber(f.options.MeterIODriveG.W), 188, 'the name stops 6px before the icon')
+        equal(tonumber(f.options.MeterIOEjectG.X), 10 + 208 - 20, 'the hit box starts where the name stops')
+        equal(tonumber(f.options.MeterIOEjectG.Y), tonumber(f.options.MeterIODriveG.Y), 'the hit box spans the name row')
+        equal(f:eject('G'), 0)
+        equal(#f.ejects, 1)
+        contains(f.ejects[1], "NewScriptBlock((Get-Content -Raw -LiteralPath 'fixture-resources\\Modules\\IO\\Eject.ps1')) G\"")
+        truth(not f.ejects[1]:find('ExecutionPolicy', 1, true), 'no execution-policy override')
+        truth(not f.ejects[1]:find('[#%[%]]'), 'the parameter must not expand variables or sections')
+        local quoted = fixture({ IODiskDrives = 'G', ['@'] = "C:\\O'Neil\\Skins\\Parallax\\@Resources\\" },
+            { MeasureIOTypeG = 3 })
+        quoted:eject('G')
+        contains(quoted.ejects[1], "'C:\\O''Neil\\Skins\\Parallax\\@Resources\\Modules\\IO\\Eject.ps1'",
+            'an apostrophe in the skin path is doubled for PowerShell')
+        local expanding = fixture({ IODiskDrives = 'G', ['@'] = 'C:\\Skins [old]\\Parallax\\@Resources\\' },
+            { MeasureIOTypeG = 3 })
+        expanding:eject('G')
+        equal(#expanding.ejects, 0, 'a path Rainmeter would expand is refused')
+        for _, bad in ipairs({ 'C', 'g', 'GG', '', "G');", 7, nil }) do
+            f:eject(bad)
+        end
+        equal(#f.ejects, 1, 'fixed, malformed and absent letters never launch the helper')
+        local before = f.rowUpdates.G or 0
+        f.values.MeasureIOTypeG = 1
+        local callsBefore = #f.calls
+        equal(f:ejectFinished(), 0)
+        local refreshed = false
+        for index = callsBefore + 1, #f.calls do
+            local call = f.calls[index]
+            refreshed = refreshed or (call[1] == '!UpdateMeasureGroup' and call[2] == 'IOInventory')
+        end
+        truth(refreshed, 'a finished eject re-reads the inventory at once')
+        f:tick()
+        equal(f.shown.MeterIOEjectG, false, 'an ejected drive loses its icon on the next tick')
+        equal(tonumber(f.options.MeterIODriveG.W), 208)
+        truth((f.rowUpdates.G or 0) >= before)
+        local hidden = fixture({ IODiskDrives = 'C' }, { MeasureIOTypeG = 3 })
+        equal(hidden.shown.MeterIOEjectG, false, 'unselected removable drives show nothing')
     end)
 
     test('C: shows decimal free/total and used percentage with body reading color', function()

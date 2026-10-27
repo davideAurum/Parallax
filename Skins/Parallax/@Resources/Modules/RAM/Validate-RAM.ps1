@@ -267,6 +267,7 @@ function Get-RAMMeter([string]$Name) {
 }
 $numberCache = @{}
 $contextNumberCache = @{}
+$variableToken = [regex]::new('#([^#]+)#')
 function Get-RAMNumber([string]$Expression, [double]$Samples = 0) {
     # Geometry repeats the same expressions across many meters. Reset this
     # cache whenever the test changes its variable context, below.
@@ -274,11 +275,17 @@ function Get-RAMNumber([string]$Expression, [double]$Samples = 0) {
     if ($script:contextNumberCache.ContainsKey($contextKey)) { return $script:contextNumberCache[$contextKey] }
     $expanded = $Expression.Replace('[MeasureRAMHistorySamples]', $Samples.ToString([Globalization.CultureInfo]::InvariantCulture))
     for ($pass = 0; $pass -lt 30 -and $expanded.Contains('#'); $pass++) {
-        $expanded = [regex]::Replace($expanded, '#([^#]+)#', {
-            param($match)
-            if (-not $variables.ContainsKey($match.Groups[1].Value)) { throw "Unknown variable: $($match.Value)" }
-            return [string]$variables[$match.Groups[1].Value]
-        })
+        # Each pass is [regex]::Replace with a lookup per #Variable#, written as
+        # a loop: a script-block evaluator cost about 2 ms per expression here.
+        $text = [Text.StringBuilder]::new()
+        $last = 0
+        foreach ($match in $variableToken.Matches($expanded)) {
+            $name = $match.Groups[1].Value
+            if (-not $variables.ContainsKey($name)) { throw "Unknown variable: $($match.Value)" }
+            $null = $text.Append($expanded, $last, $match.Index - $last).Append([string]$variables[$name])
+            $last = $match.Index + $match.Length
+        }
+        $expanded = $text.Append($expanded, $last, $expanded.Length - $last).ToString()
     }
     # Only the numeric expression subset authored by this module is accepted.
     $residue = $expanded -replace '\b(Round|Min|Max)\b', '' -replace '[0-9.()+*/ ,<>-]', ''

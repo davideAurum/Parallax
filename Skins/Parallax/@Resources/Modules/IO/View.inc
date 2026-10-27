@@ -4,7 +4,7 @@ IOGraphHeight=62
 IOBarExtra=(Max(0,#DataBarThicknessPx#/#Scale#-6))
 ; Grow only the derived height; keep the user's saved panel minimum intact.
 ; Inline the shared pixel rule: WindowHeight expands before the later bar keys.
-PanelHeightPx=(Round(Max(#PanelHeight#,157+Max(0,Max(1,Round(#DataBarThickness#*#Scale#))/#Scale#-6))*#Scale#))
+PanelHeightPx=(Round(Max(#PanelHeight#,139+Max(0,Max(1,Round(#DataBarThickness#*#Scale#))/#Scale#-6))*#Scale#))
 
 [MeasureIO]
 Measure=Script
@@ -126,13 +126,6 @@ MouseActionCursor=1
 LeftMouseUpAction=[!ActivateConfig "Parallax\IO\Settings" "Settings.ini"]
 
 
-[MeterIOCapacityHeading]
-Meter=String
-Group=ParallaxIdleFreeze
-MeterStyle=StyleIOHeader
-Y=(#Inset#+24*#Scale#)
-Text=Capacity: free / total
-
 [IODriveMeterInclude]
 @Include10=#@#Modules\IO\DriveMeters.inc
 
@@ -140,7 +133,7 @@ Text=Capacity: free / total
 Meter=String
 Group=ParallaxIdleFreeze
 MeterStyle=StyleIOText
-Y=(#Inset#+42*#Scale#)
+Y=(#Inset#+24*#Scale#)
 Text=Select drives in settings.
 Hidden=1
 
@@ -148,7 +141,7 @@ Hidden=1
 [MeterIODiskGraphTrack]
 Meter=Shape
 MeterStyle=StyleGraph
-Y=(#Inset#+(89+#IOBarExtra#)*#Scale#)
+Y=(#Inset#+(71+#IOBarExtra#)*#Scale#)
 H=(#IOGraphHeight#*#Scale#)
 Shape=Rectangle 0.5,0.5,(#ContentWidth#-1),(#IOGraphHeight#*#Scale#-1) | Fill Color #GraphBackgroundColor# | Stroke Color #BorderColor# | StrokeWidth 1
 Shape2=Line 1,(#IOGraphHeight#*#Scale#/4),(#ContentWidth#-1),(#IOGraphHeight#*#Scale#/4) | Stroke Color #GridColor# | StrokeWidth 1
@@ -159,7 +152,7 @@ Shape4=Line 1,(3*#IOGraphHeight#*#Scale#/4),(#ContentWidth#-1),(3*#IOGraphHeight
 Meter=Shape
 Group=ParallaxIdleFreeze
 X=#ContentX#
-Y=(#Inset#+(89+#IOBarExtra#)*#Scale#)
+Y=(#Inset#+(71+#IOBarExtra#)*#Scale#)
 W=#ContentWidth#
 H=(#IOGraphHeight#*#Scale#)
 ; The controller draws only observations; startup history is empty.

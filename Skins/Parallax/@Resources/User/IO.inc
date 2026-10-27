@@ -1,7 +1,7 @@
 ; Disk Meter settings. Select drive readouts and one shared graph mode.
 [Variables]
 Columns=1
-PanelHeight=157
+PanelHeight=139
 IODiskUnits=bytes
 ; C preserves the original layout. all follows detected drive letters.
 ; Custom selection: uppercase comma-separated letters in alphabetical order; none hides rows.

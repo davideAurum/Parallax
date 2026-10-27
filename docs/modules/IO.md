@@ -66,7 +66,7 @@ Explicitly saved `IODiskDrives=none` hides the Capacity quota label/value and re
 | Key | Current default | Meaning |
 | --- | --- | --- |
 | `Columns` | `1` | Main panel width using shared column geometry. |
-| `PanelHeight` | `157` | Saved minimum main panel height in logical pixels; thicker capacity bars can increase the derived height without changing this value. |
+| `PanelHeight` | `139` | Saved minimum main panel height in logical pixels; thicker capacity bars can increase the derived height without changing this value. |
 | `IODiskDrives` | `C` | `all`, `none`, or a sorted, unique uppercase comma-separated list such as `C,D,F`. Only A–Z letter roots are supported. |
 | `IOGraphMode` | `combined` | `c` for C: only, `combined` for the selected-drive sum, `overlay` for individual traces, or `split` for selected reads above zero and writes below zero. |
 | `IODriveNames` | `volume` | `letters`, `volume`, `model` or `both`. Volume labels use native measures; models use the optional one-shot query. Unknown values display the volume mode without rewriting the preference. |
@@ -115,6 +115,8 @@ The Drives, Graph / display and Capacity section headings inherit `HeaderFontSiz
 Drive-name and summary-cell meters use a standalone module style matching shared body typography, explicit bounded W, `ClipString=1` and no local or inherited H. Rainmeter calculates natural single-line height and trims with an ellipsis. This avoids the two-line wrapping that a fixed 18px text box could permit with very small fonts. The 18px row allocation and settings field pitch stay unchanged. Clipped text is not repeated elsewhere. The compact capacity text shows a shared unit only when the existing formatted units match, such as `26.8/107.4 GB`; differing units retain both. Compact rate text removes number/unit spacing and redundant `.0` while keeping KB/MB/GB or bit units and `/s`. These changes do not alter rounding, underlying values or graph observations. Narrow cells can ellipsize long readings without overlap or wrapping.
 
 ## Current validation
+
+**Capacity heading removed, 2026-10-26.** The `Capacity: free / total` line under the title (`MeterIOCapacityHeading`) is gone and everything below it moves up its 18 px row: first name y24, bar slot y42, summary y50+extra, graph 71+extra and single-drive minimum 139+extra; the shipped `PanelHeight` default follows (157 to 139). Installed copies whose `User/IO.inc` still saves 157 keep 18 px of extra space under the graph until it is lowered. The controller suite passes **46 tests / 51,114 assertions** offline under LuaJIT; every changed expectation moved by exactly 18 px. `check_geometry.py` and `Test-Parallax.ps1` pass, and a `Preview-Parallax.ps1 -Modules IO` capture (C, D, G; 228x247) shows the first drive directly under the title (`build/Parallax-visual-preview-20261027T031553843Z-508f1e6c`). Native Rainmeter Lua runs and the settings smoke were not repeated.
 
 **Clickable drive names, 2026-10-26.** Static validation (`Test-Parallax.ps1`, 0 errors/warnings) and `check_geometry.py` pass with the 26 new actions. The exact bang text `["C:\"]` sent to the running Rainmeter 4.5 via `!Execute` opened a `C:\` Explorer window within ~1.1 s, detected and closed through Shell.Application. A physical click on the shown row, a non-Explorer folder handler and the hand cursor are unverified natively.
 

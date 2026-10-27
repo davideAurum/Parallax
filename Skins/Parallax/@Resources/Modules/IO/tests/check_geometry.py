@@ -191,7 +191,7 @@ def check_monitor_layout(bounds, variables, scale, thickness):
     saved_height = formula(variables["PanelHeight"], variables)
     physical_thickness = max(1, math.floor(thickness * scale + .5))
     extra = max(0, physical_thickness / scale - 6)
-    expected_height = math.floor(max(saved_height, 157 + extra) * scale + .5)
+    expected_height = math.floor(max(saved_height, 139 + extra) * scale + .5)
     content_x = formula(variables["ContentX"], variables)
     content_width = formula(variables["ContentWidth"], variables)
     for name in GRAPH_MARKERS:
@@ -217,11 +217,11 @@ def check_monitor_layout(bounds, variables, scale, thickness):
     assert panel[3] == expected_height, (thickness, scale, saved_height, "initial panel height")
     # PanelHeightPx rounds to a physical pixel; the painted bottom can lose .5 px.
     assert graph[1] + graph[3] + 6 * scale <= panel[1] + panel[3] + .501, "graph bottom padding"
-    baseline_height = math.floor(max(saved_height, 157) * scale + .5)
+    baseline_height = math.floor(max(saved_height, 139) * scale + .5)
     assert panel[3] >= baseline_height, "panel shrank below saved minimum"
-    if saved_height >= 157 + extra:
+    if saved_height >= 139 + extra:
         assert panel[3] == math.floor(saved_height * scale + .5), "larger saved height changed"
-    elif (157 + extra - max(saved_height, 157)) * scale >= 1:
+    elif (139 + extra - max(saved_height, 139)) * scale >= 1:
         assert panel[3] > baseline_height, "thicker bar did not grow panel"
 
 

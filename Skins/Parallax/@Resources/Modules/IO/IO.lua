@@ -256,19 +256,19 @@ local function layout()
     local pitch = 50 + extra
     local legendColumns = math.max(1, math.floor(width / (26 * scale)))
     local legendRows = graphMode == 'overlay' and math.ceil(#selected / legendColumns) or 0
-    local savedHeight = numericVariable('PanelHeight') or 157
+    local savedHeight = numericVariable('PanelHeight') or 139
     local key = table.concat({selectedKey, graphMode, selectionKind, scale, inset, gap, width, x, bar, savedHeight}, '|')
     if layoutKey == key then return false end
     layoutKey = key
     local positions = {}
     for index, letter in ipairs(selected) do positions[letter] = index - 1 end
-    local graphBase = 89 + extra + math.max(0, #selected - 1) * pitch
+    local graphBase = 71 + extra + math.max(0, #selected - 1) * pitch
     for _, letter in ipairs(letters) do
         local index = positions[letter]
         local shown = index ~= nil
-        local row = shown and (42 + index * pitch) or 0
-        local barY = shown and (inset + (60 + index * pitch) * scale + math.max(0, (6 * scale - bar) / 2)) or 0
-        local rateY = shown and (inset + (68 + extra + index * pitch) * scale) or 0
+        local row = shown and (24 + index * pitch) or 0
+        local barY = shown and (inset + (42 + index * pitch) * scale + math.max(0, (6 * scale - bar) / 2)) or 0
+        local rateY = shown and (inset + (50 + extra + index * pitch) * scale) or 0
         for _, prefix in ipairs({'MeterIODrive', 'MeterIOCapacity'}) do
             local capacityRow = prefix == 'MeterIOCapacity'
             option(prefix .. letter, 'Y', shown and (capacityRow and rateY or (inset + row * scale)) or 0)
@@ -302,7 +302,7 @@ local function layout()
         rowActive(letter, shown)
     end
     text('MeterIOEmpty', selectionKind == 'all' and 'No drives found' or 'No drives selected')
-    option('MeterIOEmpty', 'Y', inset + 42 * scale)
+    option('MeterIOEmpty', 'Y', inset + 24 * scale)
     visible('MeterIOEmpty', #selected == 0)
     local graphY = inset + (graphBase + legendRows * 18) * scale
     option('MeterIODiskGraphTrack', 'Y', graphY)
@@ -323,7 +323,7 @@ local function layout()
         SKIN:Bang('!UpdateMeter', meter)
     end
     SKIN:Bang('!UpdateMeter', 'MeterIODiskGraphTrack')
-    local minimum = 157 + extra + math.max(0, #selected - 1) * pitch + legendRows * 18
+    local minimum = 139 + extra + math.max(0, #selected - 1) * pitch + legendRows * 18
     local height = math.floor(math.max(savedHeight, minimum) * scale + 0.5)
     local id = 'variable:PanelHeightPx'
     local resize = cache[id] ~= height or cache['MeterIOBounds:H'] ~= tostring(height + gap)

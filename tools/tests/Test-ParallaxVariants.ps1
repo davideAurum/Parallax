@@ -59,7 +59,11 @@ function Assert-True([bool]$Condition, [string]$Message) {
 }
 
 # --- A small Rainmeter-like resolver -------------------------------------
+# Every config re-reads the shared includes once per variant set; the files do
+# not change during a run (fixtures are written before they are read).
+$parsedIni = @{}
 function Read-VariantIni([string]$Path) {
+    if ($parsedIni.ContainsKey($Path)) { return $parsedIni[$Path] }
     $sections = [Collections.Generic.List[object]]::new()
     $section = $null
     $number = 0
@@ -75,16 +79,24 @@ function Read-VariantIni([string]$Path) {
         if ($null -eq $section -or $trimmed -notmatch '^([^=]+)=(.*)$') { continue }
         $section.Keys.Add([pscustomobject]@{ Key = $Matches[1].Trim(); Value = $Matches[2].Trim(); Line = $number })
     }
+    $parsedIni[$Path] = $sections
     return $sections
 }
 
+$staticToken = [regex]::new('#([^#\s]+)#')
 function Expand-Static([string]$Value, [hashtable]$Variables) {
     for ($i = 0; $i -lt 30; $i++) {
-        $expanded = [regex]::Replace($Value, '#([^#\s]+)#', {
-            param($match)
-            if ($Variables.ContainsKey($match.Groups[1].Value)) { return [string]$Variables[$match.Groups[1].Value] }
-            return $match.Value
-        })
+        # [regex]::Replace keeping unknown #names#, written as a loop: a
+        # script-block evaluator per match is slow over every action of every config.
+        $text = [Text.StringBuilder]::new()
+        $last = 0
+        foreach ($match in $staticToken.Matches($Value)) {
+            $name = $match.Groups[1].Value
+            $replacement = if ($Variables.ContainsKey($name)) { [string]$Variables[$name] } else { $match.Value }
+            $null = $text.Append($Value, $last, $match.Index - $last).Append($replacement)
+            $last = $match.Index + $match.Length
+        }
+        $expanded = $text.Append($Value, $last, $Value.Length - $last).ToString()
         if ($expanded -eq $Value) { break }
         $Value = $expanded
     }
@@ -280,6 +292,36 @@ function Invoke-Validator([string]$Root, [string[]]$Set, [switch]$Strict) {
     return [pscustomobject]@{ Result = $result; Lines = $lines; Failed = $failed }
 }
 
+# The strict real-tree runs are independent, so they start together as
+# background jobs (a process each; runspaces in one process did not run them
+# any faster), and Receive-Validator returns what Invoke-Validator -Strict
+# would have for that set.
+function Start-Validator([string]$Root, [string[]]$Set) {
+    Start-Job -ArgumentList $validator, $Root, $Set -ScriptBlock {
+        param($Validator, $Root, $Set)
+        # Invoke-Validator -Strict, inside the job.
+        $arguments = @{ SkinRoot = $Root; RequireAllModules = $true; WarningsAsErrors = $true }
+        if (@($Set).Count) { $arguments.Variable = [string[]]@($Set) }
+        $lines = [Collections.Generic.List[string]]::new()
+        $result = $null
+        $failed = $false
+        try {
+            & $Validator @arguments 6>&1 | ForEach-Object {
+                if ($_ -is [Management.Automation.InformationRecord]) { $lines.Add([string]$_.MessageData) } else { $result = $_ }
+            }
+        } catch { $failed = $true }
+        [pscustomobject]@{ Result = $result; Lines = @($lines); Failed = $failed }
+    }
+}
+
+function Receive-Validator($Job) {
+    $run = $null
+    try { $run = Receive-Job (Wait-Job $Job) -ErrorAction Stop } catch { }
+    Remove-Job $Job -Force
+    if ($null -eq $run) { return [pscustomobject]@{ Result = $null; Lines = @(); Failed = $true } }
+    return [pscustomobject]@{ Result = $run.Result; Lines = @($run.Lines); Failed = [bool]$run.Failed }
+}
+
 # --- 1. Fixtures ------------------------------------------------------------
 if (-not $SkipFixtures) {
     $fixtureRoot = Join-Path ([IO.Path]::GetTempPath()) ('Parallax-Variants-' + [Guid]::NewGuid().ToString('N').Substring(0, 12))
@@ -373,10 +415,15 @@ MouseOverAction=[!UpdateMeasure MeasureNotHere]
 $configs = Get-Configs $SkinRoot
 $totalChecked = 0
 $failures = [Collections.Generic.List[string]]::new()
-foreach ($set in $variantSets) {
+$pending = @{}
+if (-not $SkipValidator) {
+    for ($index = 0; $index -lt $variantSets.Count; $index++) { $pending[$index] = Start-Validator $SkinRoot $variantSets[$index] }
+}
+for ($index = 0; $index -lt $variantSets.Count; $index++) {
+    $set = $variantSets[$index]
     $label = if ($set.Count) { $set -join ', ' } else { 'shipped values' }
     if (-not $SkipValidator) {
-        $run = Invoke-Validator $SkinRoot $set -Strict
+        $run = Receive-Validator $pending[$index]
         foreach ($line in $run.Lines) { if ($line -match '^(ERROR|WARNING):') { $failures.Add("[$label] $line") } }
         if ($run.Failed -or $null -eq $run.Result -or $run.Result.Errors -ne 0 -or $run.Result.Warnings -ne 0) {
             $failures.Add("[$label] Test-Parallax -RequireAllModules -WarningsAsErrors did not give 0 errors and 0 warnings.")

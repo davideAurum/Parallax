@@ -82,7 +82,9 @@ foreach ($file in $sourceFiles) {
     # Report the location only, never the potential credential value.
     if ($file.Extension -in '.ini', '.inc') {
         $lineNumber = 0
-        foreach ($line in Get-Content -LiteralPath $file.FullName) {
+        # One array read (assigned first; a foreach over the command sees one item).
+        $lines = Get-Content -LiteralPath $file.FullName -ReadCount 0
+        foreach ($line in $lines) {
             $lineNumber++
             if ($line -match '^\s*(?:[A-Za-z0-9_]*(?:AccessToken|RefreshToken|ClientSecret|ApiKey|Password|Credential)[A-Za-z0-9_]*)\s*=\s*(.+?)\s*$') {
                 $candidate = $Matches[1].Trim()

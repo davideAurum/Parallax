@@ -33,7 +33,11 @@ function Read-Ini([string]$Path) {
     $seenSections = @{}
     $section = $null
     $lineNumber = 0
-    foreach ($line in Get-Content -LiteralPath $Path) {
+    # -ReadCount 0 reads the file as one array: same decoding and line splits as
+    # line-by-line Get-Content, without its per-line pipeline cost. Assign it
+    # first: a foreach over the command itself would see one array item.
+    $lines = Get-Content -LiteralPath $Path -ReadCount 0
+    foreach ($line in $lines) {
         $lineNumber++
         $trimmed = $line.Trim()
         if ($trimmed.Length -eq 0 -or $trimmed.StartsWith(';')) { continue }
@@ -43,7 +47,9 @@ function Read-Ini([string]$Path) {
                 Add-Issue 'Error' $Path $lineNumber "Duplicate section [$name] in the same file; Rainmeter ignores the later section."
             }
             $seenSections[$name] = $true
-            $section = [pscustomobject]@{ Name = $name; Line = $lineNumber; Keys = @{} }
+            # Order lists each key once, in the spelling Keys stores (its first),
+            # by the line of its last assignment: the order Visit-Ini consumes.
+            $section = [pscustomobject]@{ Name = $name; Line = $lineNumber; Keys = @{}; Order = [Collections.Generic.List[string]]::new() }
             $sections.Add($section)
             continue
         }
@@ -57,7 +63,16 @@ function Read-Ini([string]$Path) {
             Add-Issue 'Error' $Path $lineNumber "Option '$key' appears before a section."
             continue
         }
-        if ($section.Keys.ContainsKey($key)) { Add-Issue 'Error' $Path $lineNumber "Duplicate option '$key' in [$($section.Name)]." }
+        if ($section.Keys.ContainsKey($key)) {
+            Add-Issue 'Error' $Path $lineNumber "Duplicate option '$key' in [$($section.Name)]."
+            # Move the stored spelling to the end, matching it as Keys does.
+            $match = @{ $key = $true }
+            for ($i = 0; -not $match.ContainsKey($section.Order[$i]); $i++) { }
+            $section.Order.Add($section.Order[$i])
+            $section.Order.RemoveAt($i)
+        } else {
+            $section.Order.Add($key)
+        }
         $section.Keys[$key] = [pscustomobject]@{ Value = $value; Line = $lineNumber }
         if ($key -like '@Include*') { $includes.Add([pscustomobject]@{ Value = $value; Line = $lineNumber }) }
     }
@@ -66,6 +81,7 @@ function Read-Ini([string]$Path) {
     return $parsed
 }
 function Expand-PathVariables([string]$Value, [hashtable]$Variables) {
+    if ($Value.IndexOf('#') -lt 0) { return $Value }
     for ($i = 0; $i -lt 20; $i++) {
         $expanded = [regex]::Replace($Value, '#([^#]+)#', {
             param($match)
@@ -93,7 +109,7 @@ function Visit-Ini([string]$Path, [hashtable]$State) {
         }
         # Options are consumed in file order. An include runs at its key, then
         # later local assignments can override the included defaults.
-        foreach ($key in ($section.Keys.Keys | Sort-Object { $section.Keys[$_].Line })) {
+        foreach ($key in $section.Order) {
             $entry = $section.Keys[$key]
             if ($key -notlike '@Include*') {
                 $State.Sections[$section.Name].Keys[$key] = $entry
@@ -145,6 +161,7 @@ foreach ($module in 'Settings', 'Welcome', 'Chronometer', 'CPU', 'RAM', 'GPU', '
         Add-Issue $level $SkinRoot 0 "No config yet for $module."
     }
 }
+$keyKinds = @{}
 foreach ($config in $configs) {
     $state = @{
         ConfigDirectory = $config.DirectoryName
@@ -165,12 +182,20 @@ foreach ($config in $configs) {
     if ($meters.Count -eq 0) { Add-Issue 'Error' $config.FullName 0 'No Meter= option found in this config or its includes.' }
     foreach ($section in $state.Sections.Values) {
         foreach ($key in $section.Keys.Keys) {
+            # Most keys (X, W, FontColor...) need none of the checks below; their
+            # option names repeat across thousands of sections and every config.
+            $kind = $keyKinds[$key]
+            if ($null -eq $kind) {
+                $kind = if ($key -match 'Action$') { 'Action' } elseif ($key -match '^MeasureName\d*$|^MeterStyle$') { 'Reference' } elseif ($key -ieq 'ScriptFile') { 'ScriptFile' } else { '' }
+                $keyKinds[$key] = $kind
+            }
+            if (-not $kind) { continue }
             $rawValue = $section.Keys[$key].Value
-            if ($key -match 'Action$' -and $rawValue -match '(?i)powershell(?:\.exe)?' -and
+            if ($kind -eq 'Action' -and $rawValue -match '(?i)powershell(?:\.exe)?' -and
                 -not ($rawValue -match '(?i)-NoExit' -and $rawValue -match '(?i)-Command"?\s+"?Connect')) {
                 Add-Issue 'Error' $section.File $section.Keys[$key].Line 'One-shot PowerShell actions must run through a State=Hide RunCommand measure; only the deliberately visible Connect flow may launch directly.'
             }
-            if ($key -match '^MeasureName\d*$|^MeterStyle$') {
+            if ($kind -eq 'Reference') {
                 $reference = Expand-PathVariables $section.Keys[$key].Value $state.Variables
                 if ($reference -match '#|\[') { continue }
                 foreach ($name in $reference.Split('|')) {
@@ -179,7 +204,7 @@ foreach ($config in $configs) {
                     }
                 }
             }
-            if ($key -ieq 'ScriptFile') {
+            if ($kind -eq 'ScriptFile') {
                 $target = Expand-PathVariables $section.Keys[$key].Value.Trim('"') $state.Variables
                 if ($target -match '#|\[') {
                     Add-Issue 'Warning' $section.File $section.Keys[$key].Line 'ScriptFile could not be checked statically.'
@@ -213,12 +238,26 @@ foreach ($path in @($cache.Keys)) {
         }
     }
 }
+# Every non-hidden .lua/.ps1 outside tests and QA folders, shipped or not. Those
+# folders are skipped whole rather than listed and filtered: native runs leave
+# thousands of files below them (RAM\Tests\.runtime, Network\QA\run-*).
 # Filter on Extension rather than -Include: with -LiteralPath, Windows PowerShell 5.1 also returns non-matching files (e.g. .py).
-foreach ($script in Get-ChildItem -LiteralPath $SkinRoot -Recurse -File | Where-Object { $_.Extension -in '.lua', '.ps1' }) {
-    if ($script.FullName -match '\\(?:tests|QA)\\') { continue }
+$scripts = [Collections.Generic.List[object]]::new()
+$scriptFolders = [Collections.Generic.Stack[string]]::new()
+if (($SkinRoot.TrimEnd('\') + '\') -notmatch '\\(?:tests|QA)\\') { $scriptFolders.Push($SkinRoot) }
+while ($scriptFolders.Count -gt 0) {
+    foreach ($item in Get-ChildItem -LiteralPath $scriptFolders.Pop()) {
+        if ($item.PSIsContainer) {
+            # Linked folders are not followed, as in PowerShell 7's -Recurse.
+            if ($item.Name -notmatch '^(?:tests|QA)$' -and -not ($item.Attributes -band [IO.FileAttributes]::ReparsePoint)) { $scriptFolders.Push($item.FullName) }
+        } elseif ($item.Extension -in '.lua', '.ps1') { $scripts.Add($item) }
+    }
+}
+foreach ($script in $scripts) {
     $pattern = if ($script.Extension -ieq '.ps1') { 'Windows\.Forms\.ToolTip\b' } else { $tooltipOption }
     $lineNumber = 0
-    foreach ($line in Get-Content -LiteralPath $script.FullName) {
+    $lines = Get-Content -LiteralPath $script.FullName -ReadCount 0
+    foreach ($line in $lines) {
         $lineNumber++
         if ($line.TrimStart().StartsWith('--') -or $line.TrimStart().StartsWith('#')) { continue }
         if ($line -match $pattern) { Add-Issue 'Error' $script.FullName $lineNumber 'Script assigns a tooltip; Parallax ships no tooltips.' }

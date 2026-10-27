@@ -281,6 +281,33 @@ Assert-True ($updateEntries.Count -eq 1 -and $updateEntries[0].SHA256 -eq $updat
 foreach ($path in $excludedUpdateCopies) {
     Assert-True (-not (Test-Path -LiteralPath (Join-Path $updateStage.SkinRoot $path))) "Unexpected packaged update helper copy: $path"
 }
+$ioEject = New-Fixture 'io-eject-exact-path'
+$ioEjectRelative = '@Resources\Modules\IO\Eject.ps1'
+$ioEjectSource = Join-Path (Split-Path -Parent $toolsRoot) "Skins\Parallax\$ioEjectRelative"
+$ioEjectDestination = Join-Path $ioEject.Skin $ioEjectRelative
+Put-File $ioEjectDestination ''
+# Preserve the production helper bytes without running its eject code.
+Copy-Item -LiteralPath $ioEjectSource -Destination $ioEjectDestination
+$excludedEjectCopies = @(
+    '@Resources\Modules\IO\Eject.old.ps1',
+    '@Resources\Modules\IO\Eject.ps1.ps1',
+    '@Resources\Modules\IO\Nested\Eject.ps1',
+    '@Resources\Scripts\Eject.ps1',
+    '@Resources\Modules\IO\Tests\Eject.ps1',
+    '@Resources\Modules\IO\Runtime\Eject.ps1',
+    '@Resources\User\Eject.ps1'
+)
+foreach ($path in $excludedEjectCopies) { Put-File (Join-Path $ioEject.Skin $path) '# Synthetic packaging exclusion fixture only.' }
+$ejectStage = & (Join-Path $toolsRoot 'Stage-Parallax.ps1') -ProjectRoot $ioEject.Project -Version 'test-io-eject'
+$ejectManifest = Get-Content -LiteralPath (Join-Path $ejectStage.StageRoot 'stage-manifest.json') -Raw | ConvertFrom-Json
+Assert-True ($ejectManifest.Files.Count -eq 5) 'Only baseline skin files and the exact eject helper may ship.'
+$ejectEntries = @($ejectManifest.Files | Where-Object { $_.Path -eq "Skins\Parallax\$ioEjectRelative" })
+$ejectSourceHash = (Get-FileHash -LiteralPath $ioEjectSource -Algorithm SHA256).Hash
+$ejectStagedHash = (Get-FileHash -LiteralPath (Join-Path $ejectStage.SkinRoot $ioEjectRelative) -Algorithm SHA256).Hash
+Assert-True ($ejectEntries.Count -eq 1 -and $ejectEntries[0].SHA256 -eq $ejectSourceHash -and $ejectStagedHash -eq $ejectSourceHash) 'Source, staged bytes, and manifest must agree for Eject.ps1.'
+foreach ($path in $excludedEjectCopies) {
+    Assert-True (-not (Test-Path -LiteralPath (Join-Path $ejectStage.SkinRoot $path))) "Unexpected packaged eject helper copy: $path"
+}
 $hiddenInputDirectory = Split-Path -Parent $settingsInputDestination
 [IO.File]::SetAttributes($hiddenInputDirectory, ([IO.File]::GetAttributes($hiddenInputDirectory) -bor [IO.FileAttributes]::Hidden))
 $hiddenInputStage = & (Join-Path $toolsRoot 'Stage-Parallax.ps1') -ProjectRoot $settingsInput.Project -Version 'test-hidden-settings-input'

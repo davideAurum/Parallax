@@ -41,6 +41,7 @@ foreach ($path in @(
     '@Resources\Modules\GPU\AdapterInfo.cs.txt',
     '@Resources\Modules\GPU\DriverTemperature.cs.txt',
     '@Resources\Modules\IO\DriveModels.ps1.txt',
+    '@Resources\Modules\IO\Eject.ps1',
     '@Resources\Modules\RAM\MemoryInfo.ps1.txt',
     '@Resources\Modules\RAM\PageFileHost.cs.txt',
     '@Resources\Modules\Media\Queue\QueueProvider.ps1',

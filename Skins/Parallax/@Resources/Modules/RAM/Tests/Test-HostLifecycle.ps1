@@ -2,9 +2,9 @@
 # Isolated lifecycle proof for a detached resident helper host: RAM's PAGE
 # host (-Module RAM) or GPU's telemetry host (-Module GPU).
 #
-# Stages the suite with tools/Stage-Parallax.ps1 and starts an isolated
-# Rainmeter (own Rainmeter.ini and SkinPath under build/, offscreen, own PID
-# only) with the module and a small test-only control config. The control
+# Copies the suite's production files into a fresh C:\pxc\<id> root and starts
+# an isolated Rainmeter (own Rainmeter.ini and SkinPath there, offscreen, own
+# PID only) with the module and a small test-only control config. The control
 # config executes bangs that this script drops as files into the run root, so
 # no command-line bang is ever sent to any Rainmeter instance. It checks:
 #   - the host runs detached: its launcher has exited and no PowerShell child
@@ -12,6 +12,15 @@
 #   - no console window becomes visible while helpers start;
 #   - Unload: !DeactivateConfig stops the host within one interval and removes
 #     its session files; the module is then activated again;
+#   - Refresh (optional): !Refresh of the module while its host runs. A
+#     refresh runs no OnCloseAction, so the new load must stop the previous
+#     load's host itself: it must exit within one interval plus 3 s (not at
+#     its lease lapse, RAM 60 s, GPU 15 s), with its session files removed,
+#     leaving exactly one host. With -LaunchDelayMs the staged launcher waits
+#     that long after its host's first frame before reporting, and a second
+#     refresh is sent while the first refresh's launch is still waiting with
+#     its host started (RunCommand's unload ends the launcher before it
+#     reports): that host must exit within the same bound;
 #   - Suspend (optional): the Rainmeter process is suspended, then resumed. The
 #     host's lease window is 60 s, so the default 20 s suspension must leave
 #     the same host running with a current reading afterwards, and a longer
@@ -29,6 +38,10 @@ param(
     [ValidateRange(10,180)][int]$RecoverySeconds = 60,
     [ValidateSet('Exit','Kill')][string]$Finish = 'Exit',
     [switch]$SkipUnload,
+    [switch]$Refresh,
+    # With -Refresh: the staged launcher's wait after its host's first frame,
+    # which adds the refresh-during-launch case.
+    [ValidateRange(0,8000)][int]$LaunchDelayMs = 0,
     # Seconds to watch after the first reading: every skin update must keep
     # showing a current reading (no stale or Checking flicker).
     [ValidateRange(0,600)][int]$ObserveSeconds = 0,
@@ -40,16 +53,25 @@ $ErrorActionPreference = 'Stop'
 if (-not (Test-Path -LiteralPath $RainmeterPath -PathType Leaf)) { throw 'Existing Rainmeter required; nothing is installed.' }
 if (-not $ProjectRoot) { $ProjectRoot = Join-Path $PSScriptRoot '..\..\..\..\..\..' }
 $ProjectRoot = [IO.Path]::GetFullPath($ProjectRoot)
+Import-Module (Join-Path $ProjectRoot 'tools\Parallax.Build.psm1') -Force
 $spec = @{
     RAM = @{ Config = 'Parallax\RAM'; File = 'RAM.ini'; Source = 'PageFileHost.cs.txt'; Prefix = 'Parallax-RAM-Page-'
-        Meter = 'MeterRAMPageGiB'; Reading = '^\d+(\.\d+)?/\d+(\.\d+)? (GB|TB)$|^No paging file$'; IntervalSeconds = 1 }
+        Script = 'PageFile.lua'; ScriptEncoding = [Text.Encoding]::ASCII
+        Meter = 'MeterRAMPageGiB'; Reading = '^\d+(\.\d+)?/\d+(\.\d+)? (GB|TB)$|^No paging file$'; IntervalSeconds = 1; LeaseSeconds = 60 }
     GPU = @{ Config = 'Parallax\GPU'; File = 'GPU.ini'; Source = 'DriverTemperature.cs.txt'; Prefix = 'Parallax-GPU-'
+        Script = 'Temperature.lua'; ScriptEncoding = [Text.Encoding]::Unicode
         # Celsius sign bytes depend on the Lua code page; match any one or two.
-        Meter = 'MeterTemperatureValue'; Reading = '^-?\d+ \S{1,2}C$|^Unsupported$'; IntervalSeconds = 2 }
+        Meter = 'MeterTemperatureValue'; Reading = '^-?\d+ \S{1,2}C$|^Unsupported$'; IntervalSeconds = 2; LeaseSeconds = 15 }
 }[$Module]
-$stage = & (Join-Path $ProjectRoot 'tools\Stage-Parallax.ps1') -Version ($Module.ToLowerInvariant() + '-lifecycle') -ProjectRoot $ProjectRoot
-$runRoot = $stage.StageRoot
-$parallaxRoot = $stage.SkinRoot
+$runRoot = 'C:\pxc\' + [Guid]::NewGuid().ToString('N').Substring(0, 8)
+if (Test-Path -LiteralPath $runRoot) { throw 'Run root must be fresh.' }
+$parallaxRoot = Join-Path $runRoot 'Skins\Parallax'
+$skinSource = Join-Path $ProjectRoot 'Skins\Parallax'
+foreach ($file in Get-ParallaxFiles $skinSource -ProductionOnly) {
+    $destination = Join-Path $parallaxRoot (Get-ParallaxRelativePath $file.FullName $skinSource)
+    $null = New-Item -ItemType Directory -Path (Split-Path -Parent $destination) -Force
+    Copy-Item -LiteralPath $file.FullName -Destination $destination
+}
 $utf8 = [Text.UTF8Encoding]::new($false)
 function Write-RunFile([string]$Path, [string]$Text) {
     if (-not [IO.Path]::GetFullPath($Path).StartsWith($runRoot + '\', [StringComparison]::OrdinalIgnoreCase)) { throw 'Write outside generated test directory.' }
@@ -58,6 +80,14 @@ function Write-RunFile([string]$Path, [string]$Text) {
     [IO.File]::WriteAllText($Path, $Text, $utf8)
 }
 foreach ($name in @('Layouts','Plugins','Addons')) { $null = New-Item -ItemType Directory -Path (Join-Path $runRoot $name) }
+if ($LaunchDelayMs -gt 0) {
+    # The staged launcher waits after its host's first frame, before it reports.
+    $scriptPath = Join-Path $parallaxRoot ('@Resources\Modules\' + $Module + '\' + $spec.Script)
+    $text = [IO.File]::ReadAllText($scriptPath)
+    $anchor = "if (`$p.HasExited) { throw 'host' }; "
+    if (([regex]::Matches($text, [regex]::Escape($anchor))).Count -ne 1) { throw "No single launcher report step in $($spec.Script)." }
+    [IO.File]::WriteAllText($scriptPath, $text.Replace($anchor, "Start-Sleep -Milliseconds $LaunchDelayMs; $anchor"), $spec.ScriptEncoding)
+}
 Write-RunFile (Join-Path $runRoot 'TEST-ONLY.txt') "Isolated helper lifecycle check with test-stage instrumentation. Do not distribute."
 $observedPath = Join-Path $runRoot 'observed.txt'
 $harnessPath = Join-Path $runRoot 'LifecycleHarness.lua'
@@ -66,7 +96,8 @@ Write-RunFile $harnessPath @"
 function Update()
     local meter = SKIN:GetMeter('$($spec.Meter)')
     local text = meter and meter:GetOption('Text', '') or '?'
-    local f = io.open([=[$observedPath]=], 'ab'); f:write(os.time(), '|', text, '\n'); f:close()
+    local f = io.open([=[$observedPath]=], 'ab')
+    if f then f:write(os.time(), '|', text, '\n'); f:close() end
     return 0
 end
 "@
@@ -189,7 +220,14 @@ function Send-Bang([string]$Bang) {
 }
 function Get-Reading {
     if (-not (Test-Path -LiteralPath $observedPath)) { return $null }
-    $last = @(Get-Content -LiteralPath $observedPath -Encoding UTF8 -Tail 1)
+    # A whole-file read: Windows PowerShell's Get-Content -Tail returned no
+    # line once GPU's degree sign (one byte that is not UTF-8) was in the file.
+    # The stream shares writes so the harness's append never meets a lock.
+    try {
+        $stream = [IO.FileStream]::new($observedPath, [IO.FileMode]::Open, [IO.FileAccess]::Read, [IO.FileShare]::ReadWrite -bor [IO.FileShare]::Delete)
+        try { $all = [IO.StreamReader]::new($stream, $utf8).ReadToEnd() } finally { $stream.Dispose() }
+    } catch [IO.IOException] { return $null }
+    $last = @($all -split "`r?`n" | Where-Object { $_ } | Select-Object -Last 1)
     if (-not $last.Count) { return $null }
     $parts = $last[0].Split('|', 2)
     if ($parts.Count -lt 2) { return $null }
@@ -222,6 +260,29 @@ function Wait-Exit([int]$ProcessId, [double]$Seconds) {
         Start-Sleep -Milliseconds 50
     }
     return $null
+}
+# A launcher still attached to RunCommand: a PowerShell child of the isolated
+# Rainmeter whose command carries the session report.
+function Get-Launchers($Rainmeter) {
+    @(Get-CimInstance Win32_Process -Filter "ParentProcessId=$($Rainmeter.Id)" | Where-Object {
+        $_.Name -eq 'powershell.exe' -and $_.CommandLine -and $_.CommandLine.Contains('_SESSION|')
+    })
+}
+# Watches a previous load's host after a refresh, every 100 ms for up to
+# $Seconds: when it exited, when another host first appeared, and the most
+# hosts running at once (seconds after the call).
+function Watch-PreviousHost([int]$ProcessId, [double]$Seconds) {
+    $clock = [Diagnostics.Stopwatch]::StartNew()
+    $exit = $null; $newHost = $null; $most = 0
+    while ($clock.Elapsed.TotalSeconds -lt $Seconds) {
+        $hosts = @(Get-Hosts)
+        $at = [Math]::Round($clock.Elapsed.TotalSeconds, 2)
+        if ($hosts.Count -gt $most) { $most = $hosts.Count }
+        if ($null -eq $newHost -and @($hosts | Where-Object { $_.ProcessId -ne $ProcessId }).Count) { $newHost = $at }
+        if (-not (Get-Process -Id $ProcessId -ErrorAction SilentlyContinue)) { $exit = $at; break }
+        Start-Sleep -Milliseconds 100
+    }
+    [pscustomobject]@{ Exit = $exit; NewHost = $newHost; Most = $most }
 }
 function Assert-Detached($Rainmeter, [string]$Label) {
     $hosts = @(Get-Hosts)
@@ -277,6 +338,62 @@ try {
         Send-Bang ('!ActivateConfig "' + $spec.Config + '" "' + $spec.File + '"')
         $null = Wait-Reading 90
         $hostProcess = Assert-Detached $rainmeter 'Reload'
+        $token = Get-Token $hostProcess
+    }
+
+    if ($Refresh) {
+        # A refresh runs no OnCloseAction. Each watch runs past the lease
+        # window, so a host left to its lease is measured, not only failed;
+        # the checks follow the measurements.
+        $old = $hostProcess; $oldToken = $token
+        Remove-Item -LiteralPath $observedPath -Force
+        Send-Bang ('!Refresh "' + $spec.Config + '"')
+        $running = Watch-PreviousHost $old.ProcessId ($spec.LeaseSeconds + 10)
+        $result.RefreshPreviousHostExitSeconds = $running.Exit
+        $result.RefreshNewHostAfterSeconds = $running.NewHost
+        $result.RefreshMostHosts = $running.Most
+        Start-Sleep -Milliseconds 500
+        $runningFiles = @(Get-SessionFiles $oldToken).Count
+        $null = Wait-Reading 90
+        $launch = $null
+        if ($LaunchDelayMs -gt 0) {
+            # Launch in progress: a refresh, then a second one once that load's
+            # launcher has started its host but has not yet reported. The host
+            # still compiles when it is first listed, so the launcher has at
+            # least -LaunchDelayMs to go; ending within 2 s means the unload
+            # ended it.
+            $known = @(Get-Hosts | ForEach-Object ProcessId)
+            Send-Bang ('!Refresh "' + $spec.Config + '"')
+            $deadline = [DateTime]::UtcNow.AddSeconds(30)
+            $pending = $null; $launcher = $null
+            while ([DateTime]::UtcNow -lt $deadline) {
+                $launchers = @(Get-Launchers $rainmeter)
+                $started = @(Get-Hosts | Where-Object { $known -notcontains $_.ProcessId })
+                if ($launchers.Count -eq 1 -and $started.Count -eq 1) { $pending = $started[0]; $launcher = $launchers[0]; break }
+                Start-Sleep -Milliseconds 100
+            }
+            Check ($null -ne $pending) 'Refresh during launch: the launch started its host and had not yet reported'
+            Remove-Item -LiteralPath $observedPath -Force -ErrorAction SilentlyContinue
+            Send-Bang ('!Refresh "' + $spec.Config + '"')
+            $launcherGone = Wait-Exit $launcher.ProcessId 2
+            $launch = Watch-PreviousHost $pending.ProcessId ($spec.LeaseSeconds + 10)
+            $result.LaunchRefreshLauncherExitSeconds = $launcherGone
+            $result.LaunchRefreshHostExitSeconds = $launch.Exit
+            $result.LaunchRefreshMostHosts = $launch.Most
+            Start-Sleep -Milliseconds 500
+            $launchFiles = @(Get-SessionFiles (Get-Token $pending)).Count
+            $null = Wait-Reading 90
+        }
+        Check ($null -ne $running.Exit) "Refresh: the previous load's host exited ($($running.Exit) s; lease window $($spec.LeaseSeconds) s)"
+        Check ($running.Exit -le $spec.IntervalSeconds + 3) "Refresh: the previous load's host exited within one interval plus 3 s, not at its lease lapse ($($running.Exit) s)"
+        Check ($runningFiles -eq 0) "Refresh: the previous session's files were removed"
+        if ($launch) {
+            Check ($LaunchDelayMs -ge 3000 -and $null -ne $launcherGone) "Refresh during launch: the unload ended the launcher before it reported ($launcherGone s)"
+            Check ($null -ne $launch.Exit) "Refresh during launch: the unreported host exited ($($launch.Exit) s; lease window $($spec.LeaseSeconds) s)"
+            Check ($launch.Exit -le $spec.IntervalSeconds + 3) "Refresh during launch: the unreported host exited within one interval plus 3 s, not at its lease lapse ($($launch.Exit) s)"
+            Check ($launchFiles -eq 0) "Refresh during launch: the unreported session's files were removed"
+        }
+        $hostProcess = Assert-Detached $rainmeter 'Refresh'
         $token = Get-Token $hostProcess
     }
 

@@ -228,6 +228,16 @@ $pageStandDown = [regex]::Match($pageScript, '(?s)\nfunction StandDown\(\)(.*?)\
 $pageDrain = [regex]::Match($pageScript, '(?s)\nfunction Drain\(\)(.*?)\nend').Groups[1].Value
 Assert-RAM ($pageStandDown.Length -gt 0 -and $pageStandDown -notmatch 'Kill|stopProcesses') 'Idle stand-down must not kill a PAGE launch in progress.'
 Assert-RAM ($pageDrain.Length -gt 0 -and $pageDrain -notmatch "launch\(|begin\(|'Run'") 'The PAGE drain must never start a process.'
+# A refresh runs no OnCloseAction, and RunCommand's unload ends a launcher
+# before it reports. Each launch records its token in this skin's owner file
+# before it starts the host; a new load and a close stop the session it names.
+$ownerWrite = $pageScript.IndexOf('[IO.File]::WriteAllText([IO.Path]::Combine($t,''Parallax-RAM-Owner-" .. owner .. ".txt''),$k,[Text.Encoding]::ASCII); ')
+Assert-RAM ($ownerWrite -gt $pageScript.IndexOf("if (-not `$k) { throw 'session' }; ") -and $ownerWrite -lt $pageScript.IndexOf('$p=Start-Process')) 'The PAGE launcher must record its session in the owner file before it starts the host.'
+$pageInitialize = [regex]::Match($pageScript, '(?s)\nfunction Initialize\(\)(.*?)\nend').Groups[1].Value
+$pageStop = [regex]::Match($pageScript, '(?s)\nfunction Stop\(\)(.*?)\nend').Groups[1].Value
+$pageRecorded = [regex]::Match($pageScript, '(?s)\nlocal function stopRecorded\(\)(.*?)\nend').Groups[1].Value
+Assert-RAM ($pageInitialize.Contains('stopRecorded()') -and $pageStop.Contains('stopRecorded()')) 'A new PAGE load and a close must stop the session the owner file names.'
+Assert-RAM ($pageRecorded.Contains("#token == 32 and not token:find('[^0-9a-f]')") -and $pageRecorded -notmatch "launch\(|begin\(|'Run'|Kill") 'The PAGE owner file may name only a hex token, and stopping it starts or kills nothing.'
 Assert-RAM ($pageScript.Contains("local drainCheck = '[!Delay 1000][!CommandMeasure MeasureRAMPageView ""Drain()""]'")) 'The PAGE drain check must be one fixed delayed call into its own controller.'
 Assert-RAM ($pageDisplay.Contains("if dirty[name] then") -and $pageDisplay.Contains("SKIN:Bang('!UpdateMeter', name)") -and $pageDisplay.Contains("if changed and immediate ~= false then SKIN:Bang('!Redraw') end")) 'PAGE Display must force its changed UpdateDivider=-1 meters on every path; only the redraw depends on immediate.'
 $tooltipScripts = @('Display.lua', 'Info.lua', 'PageFile.lua', 'Process.lua', 'Settings.lua' | Where-Object { (Get-Content -LiteralPath (Join-Path $PSScriptRoot $_) -Raw) -match 'ToolTipText' })

@@ -21,6 +21,17 @@ function Suite.run(path)
     local base = tempRoot .. '\\Parallax-GPU-' .. token
     local dataPath, leasePath, tmpPath = base .. '.dat', base .. '.lease', base .. '.tmp'
     local foreignPath = tempRoot .. '\\Parallax-GPU-another-session.dat'
+    -- TEMP differs from TMP here; each root may hold this skin's owner file
+    -- naming a previous load's session (a refresh).
+    local otherRoot = 'C:\\Other Fixture Temp'
+    local previous = 'fedcba9876543210fedcba9876543210'
+    local function isRecord(filename)
+        for _, root in ipairs({tempRoot, otherRoot}) do
+            local prefix = root .. '\\Parallax-GPU-Owner-'
+            if filename:sub(1, #prefix) == prefix and filename:sub(#prefix + 1):match('^' .. string.rep('%x', 16) .. '%.txt$') then return true end
+        end
+        return false
+    end
     -- One RunCommand launcher mints each session and starts the detached host
     -- ('bootstrap' remains its alias here). 'driver' counts host sessions: one
     -- per session whose first lease the controller writes.
@@ -68,6 +79,13 @@ function Suite.run(path)
                 MeasureGPUExportProbe3 = '77.7', MeasureGPUExportProbe4 = '1234.5'}}
         for name, value in pairs(options.exports or {}) do f.exports[name] = value end
         local allowedFiles = {[dataPath] = true, [leasePath] = true, [tmpPath] = true}
+        for _, root in ipairs({tempRoot, otherRoot}) do
+            for _, suffix in ipairs({'.lease', '.dat', '.tmp'}) do allowedFiles[root .. '\\Parallax-GPU-' .. previous .. suffix] = true end
+        end
+        f.recordOpens = {}
+        f.vars.SETTINGSPATH = f.vars.SETTINGSPATH or 'C:\\Fixture Settings\\'
+        f.vars.CURRENTCONFIG = f.vars.CURRENTCONFIG or 'Parallax\\GPU'
+        f.vars['@'] = f.vars['@'] or 'C:\\Fixture Skins\\Parallax\\@Resources\\'
         f.meters.MeterTemperatureValue = f.meter
         f.vars.Scale = f.vars.Scale or '1'
         f.vars.ContentWidth = f.vars.ContentWidth or '200'
@@ -83,7 +101,8 @@ function Suite.run(path)
                 or name == 'GPUEngineBarWidth' or name == 'DataBarThicknessPx' or name == 'GPUEnableSensors'
                 or name:match('^GPUPowerSource$') or name:match('^GPUClockSource$')
                 or name:match('^GPUPowerIndex$') or name:match('^GPUPowerSensor$') or name:match('^GPUPowerLabel$')
-                or name:match('^GPUClockIndex$') or name:match('^GPUClockSensor$') or name:match('^GPUClockLabel$'),
+                or name:match('^GPUClockIndex$') or name:match('^GPUClockSensor$') or name:match('^GPUClockLabel$')
+                or name == 'SETTINGSPATH' or name == 'CURRENTCONFIG' or name == '@',
                 'unexpected variable or HWiNFO dependency: ' .. name)
             return f.vars[name] or fallback
         end
@@ -229,6 +248,14 @@ function Suite.run(path)
         end
         local fakeio = {}
         function fakeio.open(filename, mode)
+            if isRecord(filename) then
+                -- The owner file is only ever read; the launcher writes it.
+                assert(mode == 'rb', 'the controller never writes its owner file')
+                f.recordOpens[#f.recordOpens + 1] = filename
+                if f.files[filename] == nil then return nil end
+                return {close = function() return true end, read = function(_, count)
+                    assert(count == 33, 'an owner-file read must be bounded'); return f.files[filename]:sub(1, count) end}
+            end
             assert(allowedFiles[filename], 'access outside own session: ' .. tostring(filename))
             if mode == 'wb' then
                 assert(filename == leasePath, 'only lease can be written')
@@ -265,10 +292,10 @@ function Suite.run(path)
             time = function() return f.now end,
             getenv = function(key)
                 assert(key == 'TMP' or key == 'TEMP', 'unexpected environment access')
-                return key == 'TMP' and tempRoot or 'C:\\Other Fixture Temp'
+                return key == 'TMP' and tempRoot or otherRoot
             end,
             remove = function(filename)
-                assert(allowedFiles[filename], 'cleanup outside own session')
+                assert(allowedFiles[filename] or isRecord(filename), 'cleanup outside own session')
                 f.removed[filename] = (f.removed[filename] or 0) + 1; f.files[filename] = nil; return true
             end
         }
@@ -323,6 +350,8 @@ function Suite.run(path)
             eq(self.files[dataPath], nil); eq(self.files[leasePath], nil); eq(self.files[tmpPath], nil)
             eq(self.files[foreignPath], 'preserve', 'other sessions remain untouched')
         end
+        -- Files left before this load (a refresh), then the load itself.
+        if options.seed then options.seed(f) end
         f.initializing = true; env.Initialize(); f.initializing = false; env.Update(); return f
     end
     local function manualOptions(power, clock)
@@ -735,6 +764,58 @@ function Suite.run(path)
         eq(f.kills[bootstrap], nil, 'a running bootstrap is left to RunCommand unload'); eq(f.kills[driver], nil)
         eq(#f.calls, 0, 'Stop neither commands nor refreshes a provider')
         f:start(); eq(f.launches[driver], nil); eq(f.leaseWrites, 0)
+    end)
+    test('a new load or a close stops the session named by this skin\'s owner file', function()
+        -- Rainmeter runs no OnCloseAction on a refresh, so the previous load
+        -- never reached Stop(), and RunCommand's unload ends a launcher that
+        -- has not reported: either way its host ran on until its 15 s lease
+        -- lapsed, beside the new load's (found 2026-10-25). Each launch now
+        -- records its token in this skin's owner file before it starts the
+        -- host, and a new load or a close removes the session that file names.
+        local f = fixture()
+        eq(#f.recordOpens, 2, 'a load reads its owner file under TMP and TEMP'); eq(next(f.removed), nil, 'with none it removes nothing')
+        local owned = f.recordOpens[1]
+        local key = owned:match('Owner%-(%x+)%.txt$')
+        eq(owned, tempRoot .. '\\Parallax-GPU-Owner-' .. key .. '.txt'); eq(f.recordOpens[2], otherRoot .. '\\Parallax-GPU-Owner-' .. key .. '.txt')
+        eq(key:find('[^0-9a-f]'), nil, 'the key is lowercase hex')
+        local launch = f.parameters[launcher]
+        local record = launch:find("[IO.File]::WriteAllText([IO.Path]::Combine($t,'Parallax-GPU-Owner-" .. key .. ".txt'),$k,[Text.Encoding]::ASCII); ", 1, true)
+        eq(not not record, true, 'the launcher records its token in the owner file')
+        eq(record > launch:find("$l=$b+'.lease'", 1, true) and record > launch:find("if (-not $k) { throw 'session' }; ", 1, true)
+            and record < launch:find('Start-Process', 1, true), true, 'after creating the lease and before it starts the host')
+        -- The key is this instance's and this skin's: no other one reads (or stops) it.
+        for _, vars in ipairs({{SETTINGSPATH = 'C:\\Other Instance\\'}, {CURRENTCONFIG = 'Parallax\\Other'}, {['@'] = 'C:\\Other Skins\\Parallax\\@Resources\\'}}) do
+            eq(fixture({vars = vars}).recordOpens[1] ~= owned, true, 'another instance or skin has its own owner file')
+        end
+        eq(fixture().recordOpens[1], owned, 'the same instance and skin reload to the same owner file')
+        -- The previous load's host, running or still unreported, under either root.
+        for _, root in ipairs({tempRoot, otherRoot}) do
+            local file = root .. '\\Parallax-GPU-Owner-' .. key .. '.txt'
+            local base = root .. '\\Parallax-GPU-' .. previous
+            f = fixture({seed = function(s)
+                s.files[file] = previous; s.files[base .. '.lease'] = previous .. '|1000|0|?'; s.files[base .. '.dat'] = 'GPU_TEMP|4|' .. previous
+            end})
+            eq(f.removed[base .. '.lease'], 1, 'a new load removes the previous lease: that host exits within one interval')
+            eq(f.removed[base .. '.dat'], 1); eq(f.removed[base .. '.tmp'], 1)
+            eq(f.removed[file], 1, 'and the owner file'); eq(f.files[file], nil); eq(f.kills[launcher], nil)
+            eq(f.files[foreignPath], 'preserve', 'other sessions remain untouched')
+            f:live(); eq(f.launches[driver], 1, 'the new load then starts its own session'); eq(f.files[leasePath], token .. '|1000|0|?')
+        end
+        -- Anything but one 32-digit lowercase hex token touches no session file.
+        for _, text in ipairs({'', string.upper(previous), previous:sub(1, 31), previous .. '0', previous:sub(1, 31) .. 'g', '..\\..\\Windows\\win.ini'}) do
+            f = fixture({seed = function(s) s.files[owned] = text end})
+            local others = 0
+            for name in pairs(f.removed) do if name ~= owned then others = others + 1 end end
+            eq(f.removed[owned], 1, 'an invalid owner file is removed'); eq(others, 0, 'without touching any session file')
+        end
+        -- Close during a launch that has started its host but not reported:
+        -- the owner file names it, so Stop stops it too, without a Kill
+        -- (RunCommand's unload ends the launcher).
+        f = fixture(); eq(f.launches[launcher], 1); eq(f.statuses[launcher], 0)
+        f.files[owned] = token; f.files[leasePath] = token .. '|1000'; f.files[dataPath] = 'starting'
+        f.env.Stop(); f:ownedClean(); eq(f.removed[owned], 1); eq(f.kills[launcher], nil)
+        -- A close of a running session also removes the owner file.
+        f = fixture(); f:live(); f.files[owned] = token; f.env.Stop(); f:ownedClean(); eq(f.files[owned], nil); eq(f.kills[launcher], nil)
     end)
     test('failure kills the owned running launcher exactly once; Stop never kills', function()
         for _, action in ipairs({'failure', 'Stop'}) do

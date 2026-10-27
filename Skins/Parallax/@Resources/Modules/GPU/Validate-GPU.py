@@ -421,6 +421,16 @@ drain = re.search(r"\nfunction Drain\(\)(.*?)\nend", temperature_text, re.S)
 assert stand_down and "Kill" not in stand_down.group(1) and "stopHelpers" not in stand_down.group(1), "idle stand-down must not kill a launch in progress"
 assert drain and not re.search(r"launch\(|begin\(|'Run'", drain.group(1)), "the drain must never start a process"
 assert """local drainCheck = '[!Delay 1000][!CommandMeasure MeasureGPUTemperatureController "Drain()"]'""" in temperature_text
+# A refresh runs no OnCloseAction, and RunCommand's unload ends a launcher
+# before it reports. Each launch records its token in this skin's owner file
+# before it starts the host; a new load and a close stop the session it names.
+owner_write = temperature_text.find('''[IO.File]::WriteAllText([IO.Path]::Combine($t,'Parallax-GPU-Owner-" .. owner .. ".txt'),$k,[Text.Encoding]::ASCII); ''')
+assert temperature_text.find("if (-not $k) { throw 'session' }; ") < owner_write < temperature_text.find("$p=Start-Process"), "the launcher must record its session in the owner file before it starts the host"
+initialize = re.search(r"\nfunction Initialize\(\)(.*?)\nend", temperature_text, re.S)
+stop = re.search(r"\nfunction Stop\(\)(.*?)\nend", temperature_text, re.S)
+recorded = re.search(r"\nlocal function stopRecorded\(\)(.*?)\nend", temperature_text, re.S)
+assert initialize and "stopRecorded()" in initialize.group(1) and stop and "stopRecorded()" in stop.group(1), "a new load and a close must stop the session the owner file names"
+assert recorded and "#token == 32 and not token:find('[^0-9a-f]')" in recorded.group(1) and not re.search(r"launch\(|begin\(|'Run'|Kill", recorded.group(1)), "the owner file may name only a hex token, and stopping it starts or kills nothing"
 assert "CreateSession" not in (GPU_DIR / "DriverTemperature.cs.txt").read_text(encoding="utf-8")
 assert not any(opts.get("Plugin") == "RunCommand" and opts.get("Timeout", "-1") == "-1" for opts in sections.values())
 assert not any(name.startswith("MeasureGPUTemperature") and opts.get("Measure") == "Registry" for name, opts in sections.items())

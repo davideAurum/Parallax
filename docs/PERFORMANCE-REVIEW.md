@@ -630,7 +630,7 @@ CPU time is unchanged within noise.
 **Minor review notes:**
 - **A rare tick-token collision** is possible on a quick double refresh after 24.8 days of uptime.
 - **The re-armed tick drifts a few milliseconds per tick,** so the heartbeat comes about every 60.5 s.
-- **Unexplained RAM double hosts.** Two of 5 combined native runs of the fixed code started two RAM hosts, both during display re-detection, against 0 of 2 runs at the base. The cause was not found.
+- **Unexplained RAM double hosts.** Two of 5 combined native runs of the fixed code started two RAM hosts, both during display re-detection, against 0 of 2 runs at the base. The cause was not found. A candidate, found 2026-10-25 and fixed: a refresh left the running host up for its 60 s lease beside the new load's host. Whether those runs refreshed Memory Meter was not checked.
 
 **Owner choices the build made (the behaviour-preserving option, or one the design required):**
 - **A new hidden config.** `Parallax\Idle` appears in Rainmeter's Manage list (not as a Welcome row) whenever the drawer is open or Idle pause is on.
@@ -657,10 +657,7 @@ CPU time is unchanged within noise.
   - The validators' rule against a launcher FinishAction is kept, and new assertions keep `Kill` out of stand-down.
   - Details and checks: [RAM](modules/RAM.md#idle-pause) and [GPU](modules/GPU.md#idle-pause-2026-10-23).
 - **Checks.** It was reproduced natively in its post-`Start-Process` form. With a 3 s staged launch delay, the pre-fix RAM code left two hosts running after 20 s; the fix left none after 2.5 s. The `Error 102` form is covered by the fixtures only.
-- **Known, not fixed: a refresh leaves the previous host running.** This happens with or without Idle pause.
-  - `Stop()` runs only from `OnCloseAction`, which runs on unload and never on refresh. So any refresh leaves the previous host running until its lease lapses: about 61 s for RAM, 15 s for GPU.
-  - A launch in progress at the refresh adds only two things: its session is never reported, and a launcher ended before `Start-Process` leaves its `.lease` file.
-  - See [RAM.md](modules/RAM.md#idle-pause).
+- **Found while fixing it, fixed 2026-10-25:** a skin refresh orphaned the host until its lease lapsed, with or without Idle pause. This held for a running host too (59.5 s for RAM, 15.8 s for GPU, measured natively), not only during a launch. Each launcher now records its session in a per-skin owner file in TEMP, and the next load or a close removes that session's lease; natively the old host exited within 0.2-1.3 s. See [RAM.md](modules/RAM.md#idle-pause).
 - **Found in review, not fixed: a slow PowerShell start strands the host.** This happens with or without Idle pause.
   - If PowerShell takes more than about 5 s to start, the launcher's startup plus its 10 s wait passes RunCommand's 15 s Timeout.
   - RunCommand then ends the launcher and reports completion with empty output, because the session line is printed last.

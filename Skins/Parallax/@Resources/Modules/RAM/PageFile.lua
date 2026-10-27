@@ -18,6 +18,8 @@ local retryDelays, healthyAfter = {10, 60, 300}, 600
 local failures, retryAt, healthySince
 local launcher = 'MeasureRAMPageLauncher'
 local targets = {'MeterRAMPageGiB', 'MeterRAMPageMiB', 'MeterRAMPageBar'}
+-- owner: this skin's owner-file key (see stopRecorded).
+local owner
 -- One check of a launch that an idle stand-down let run, a second from now
 -- (see Drain). The launcher measure is never paused; this one is.
 local drainCheck = '[!Delay 1000][!CommandMeasure MeasureRAMPageView "Drain()"]'
@@ -79,6 +81,56 @@ local function cleanup()
     end
 end
 
+local function tempRoots()
+    local roots = {}
+    for _, key in ipairs({'TMP', 'TEMP'}) do
+        local root = os.getenv(key)
+        if root then roots[#roots + 1] = root end
+    end
+    return roots
+end
+
+-- A refresh runs no OnCloseAction, so the previous load never reaches
+-- Stop(), and RunCommand's unload ends a launcher before it reports. Either
+-- way that load's host would run on, beside the new load's, until its lease
+-- lapsed (60 s). So every launch writes its session token to an owner file
+-- in TEMP before it starts the host, and a new load (Initialize) or a close
+-- (Stop) removes the session that file names: the host exits within one
+-- sampling interval. The file is keyed to this Rainmeter instance and skin
+-- (settings folder, config and resource path), so no other instance's host
+-- is touched. Only a 32-digit hex token is accepted; the paths derive from it.
+local function ownerKey()
+    local identity = ((SKIN:GetVariable('SETTINGSPATH') or '') .. '|' .. (SKIN:GetVariable('CURRENTCONFIG') or '')
+        .. '|' .. (SKIN:GetVariable('@') or '')):lower()
+    local a, b = 5381, 0
+    for index = 1, #identity do
+        local byte = identity:byte(index)
+        a = (a * 33 + byte) % 4294967296
+        b = (b * 65599 + byte) % 4294967296
+    end
+    -- %x takes 32-bit signed integers in Lua 5.1 on Windows: format halves.
+    return string.format('%04x%04x%04x%04x', math.floor(a / 65536), a % 65536, math.floor(b / 65536), b % 65536)
+end
+
+local function stopRecorded()
+    for _, root in ipairs(tempRoots()) do
+        root = root:gsub('[\\/]+$', '')
+        local record = root .. '\\Parallax-RAM-Owner-' .. owner .. '.txt'
+        local file = io.open(record, 'rb')
+        if file then
+            local token = file:read(33)
+            file:close()
+            if token and #token == 32 and not token:find('[^0-9a-f]') then
+                local base = root .. '\\Parallax-RAM-Page-' .. token
+                os.remove(base .. '.lease')
+                os.remove(base .. '.dat')
+                os.remove(base .. '.tmp')
+            end
+            os.remove(record)
+        end
+    end
+end
+
 local function stopProcesses()
     for _, name in ipairs({launcher}) do
         if launched[name] then
@@ -115,14 +167,17 @@ local function literal(text) return "'" .. (text:gsub("'", "''")) .. "'" end
 
 -- The only launch: plain PowerShell (no compile). It mints a random session
 -- with [guid]::NewGuid(), creating its lease exclusively so names never
--- collide, and writes the first heartbeat. It starts the host hidden, outside
+-- collide, and writes the first heartbeat, then the token to this skin's
+-- owner file (see stopRecorded); a failed write ends the launch before any
+-- host exists. It starts the host hidden, outside
 -- the skin folder, with the source's absolute path on its command line, and
 -- waits up to 10 s until the host has written its first frame (by then it
 -- holds its Rainmeter ancestor handle) or has exited. It then renews the
 -- lease and prints the session, or removes the lease and reports failure, and
--- exits, ending RunCommand's polling thread for this command. Only fixed text
--- and a validated integer enter it; the host validates the token and derives
--- every path itself, and this controller validates the returned path.
+-- exits, ending RunCommand's polling thread for this command. Only fixed text,
+-- the hex owner key and a validated integer enter it; the host validates the
+-- token and derives every path itself, and this controller validates the
+-- returned path.
 local function launcherParameter()
     local hostScript = "$ErrorActionPreference='Stop'; $ProgressPreference='SilentlyContinue'; try { "
         .. "Add-Type -TypeDefinition ([IO.File]::ReadAllText('@S@')); "
@@ -138,6 +193,7 @@ local function launcherParameter()
         .. "$l=$b+'.lease'; try { $e=[Text.Encoding]::ASCII.GetBytes($g+'|'+[DateTimeOffset]::UtcNow.ToUnixTimeSeconds()); $f.Write($e,0,$e.Length) } finally { $f.Dispose() }; "
         .. '$k=$g }; '
         .. "if (-not $k) { throw 'session' }; "
+        .. "[IO.File]::WriteAllText([IO.Path]::Combine($t,'Parallax-RAM-Owner-" .. owner .. ".txt'),$k,[Text.Encoding]::ASCII); "
         .. '$h=' .. literal(hostScript) .. ".Replace('@T@',$k).Replace('@S@',$s.Replace($q,$q+$q)); "
         .. "$p=Start-Process -FilePath ([IO.Path]::Combine($PSHOME,'powershell.exe')) "
         .. "-ArgumentList ('-NoLogo -NoProfile -NonInteractive -WindowStyle Hidden -Command '+[char]34+$h+[char]34) "
@@ -170,6 +226,9 @@ function Initialize()
     interval = tonumber(SKIN:GetVariable('MetricsInterval')) or 1000
     if interval ~= interval or interval == math.huge or interval == -math.huge then interval = 1000 end
     interval = math.max(1000, math.min(30000, math.floor(interval)))
+    -- The previous load of this skin (a refresh) may have left a host.
+    owner = ownerKey()
+    stopRecorded()
 end
 
 -- Starts one session: a fresh launch with nothing carried over.
@@ -207,15 +266,6 @@ local function readFrame(now)
     -- counts as stopped. Accepted epochs never regress, so this only moves
     -- forward. The first sample replaces the 20-second startup guard.
     aliveUntil = frame.epoch + math.max(30, 2 * model.Window(interval))
-end
-
-local function tempRoots()
-    local roots = {}
-    for _, key in ipairs({'TMP', 'TEMP'}) do
-        local root = os.getenv(key)
-        if root then roots[#roots + 1] = root end
-    end
-    return roots
 end
 
 function Update()
@@ -324,8 +374,11 @@ function IdleLeave() StandUp() end
 -- Close only: removing the lease stops the detached host. RunCommand's own
 -- unload terminates any setup command still running; a Kill sent here first
 -- made that a second termination of the same process (logged Error 105).
--- Pending retries end with it.
+-- A launch that has not reported has already recorded its session if it
+-- started a host, so the owner file stops that host too. Pending retries end
+-- with it.
 function Stop()
     state, launched, retryAt = 'stopped', {}, nil
     cleanup()
+    stopRecorded()
 end

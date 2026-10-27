@@ -34,8 +34,18 @@ local function checkPageController()
     local root = 'C:\\RAMFixtureTemp'
     local path = root..'\\Parallax-RAM-Page-'..token..'.dat'
     local lease, temporary = path:sub(1,-5)..'.lease', path:sub(1,-5)..'.tmp'
+    -- The previous load's session, named by this skin's owner file (a refresh).
+    local previous = 'fedcba9876543210fedcba9876543210'
+    local previousBase = root..'\\Parallax-RAM-Page-'..previous
+    local previousLease, previousPath, previousTemporary = previousBase..'.lease', previousBase..'.dat', previousBase..'.tmp'
+    -- recordPath: the owner file the controller last opened; recordOpens counts those reads.
+    local recordPath, recordOpens = nil, 0
+    local function isRecord(filePath)
+        return filePath:match('^C:\\RAMFixtureTemp\\Parallax%-RAM%-Owner%-'..string.rep('%x', 16)..'%.txt$') ~= nil
+    end
     local files, removed, options, actions = {}, {}, {}, {}
-    local variables = {['@']='fixture-resource\\', MetricsInterval='1000', RAMUseMiB='0', RAMDecimals='2', RAMShowBar='1', RAMShowPageBar='1'}
+    local variables = {['@']='fixture-resource\\', MetricsInterval='1000', RAMUseMiB='0', RAMDecimals='2', RAMShowBar='1', RAMShowPageBar='1',
+        SETTINGSPATH='C:\\FixtureSettings\\', CURRENTCONFIG='Parallax\\RAM'}
     local providers = {}
     for _, name in ipairs({'MeasureRAMPageLauncher'}) do
         providers[name] = {value=-1, text=''}
@@ -80,6 +90,14 @@ local function checkPageController()
         return pageModel
     end
     env.io = {open=function(filePath,mode)
+        if isRecord(filePath) then
+            -- The owner file is only ever read; the launcher writes it.
+            check(mode == 'rb', 'The controller must not write its owner file')
+            recordPath, recordOpens = filePath, recordOpens + 1
+            if not files[filePath] then return nil end
+            return {read=function(_,count) check(count == 33, 'An owner-file read must be bounded'); return files[filePath]:sub(1,count) end,
+                close=function() return true end}
+        end
         opens=opens+1
         check(filePath == path or filePath == lease, 'Controller IO escaped its validated session')
         if mode == 'rb' then
@@ -94,20 +112,23 @@ local function checkPageController()
     env.os = {time=function() return now end, getenv=function(key)
         check(key == 'TMP' or key == 'TEMP', 'Controller requested unrelated environment data'); return root
     end, remove=function(filePath)
-        check(filePath == path or filePath == lease or filePath == temporary, 'Controller cleanup escaped its own session')
+        check(filePath == path or filePath == lease or filePath == temporary or filePath == previousLease
+            or filePath == previousPath or filePath == previousTemporary or isRecord(filePath), 'Controller cleanup escaped its own session')
         removed[filePath]=(removed[filePath] or 0)+1; files[filePath]=nil; return true
     end}
     local chunk = assert(loadfile(SKIN:GetVariable('@')..'Modules\\RAM\\PageFile.lua'))
     setfenv(chunk,env)
-    local function reset()
+    -- seed: files left before the load (the previous load's session).
+    local function reset(seed)
         now, opens, launches, kills = 2000000000, 0, {}, {}
         files, removed, options, actions = {}, {}, {}, {}
-        rejectLease, ratioValue, drains = false, 0, 0
+        rejectLease, ratioValue, drains, recordOpens = false, 0, 0, 0
         variables.RAMUseMiB, variables.RAMDecimals = '0','2'
         variables.RAMShowBar, variables.RAMShowPageBar = '1','1'
         for _, provider in pairs(providers) do
             provider.value, provider.text, provider.updates, provider.refreshValue = -1,'',0,nil
         end
+        if seed then seed() end
         chunk(); env.Initialize()
     end
     local sessionLine = 'RAM_PAGE_SESSION|1|'..token..'|'..path:gsub('.',function(c) return string.format('%02X',c:byte()) end)
@@ -121,6 +142,7 @@ local function checkPageController()
     end
     reset()
     check(#actions == 0 and opens == 0, 'PAGE initialization must not launch or read a provider')
+    check(recordOpens == 2 and next(removed) == nil, 'PAGE initialization reads only its owner file (TMP and TEMP) and, with none, removes nothing')
     env.Display()
     check(options.MeterRAMPageGiB.Text == 'Checking...' and opens == 0, 'PAGE must start with an honest cached checking state')
     env.Start(); env.Start()
@@ -447,6 +469,65 @@ local function checkPageController()
     check(removed[lease] == 1, 'IdleEnter stands the host down')
     env.IdleLeave(); env.Update()
     check(launches.MeasureRAMPageLauncher == 2, 'IdleLeave resumes it')
+
+    -- Refresh (found 2026-10-25). Rainmeter runs no OnCloseAction on a
+    -- refresh, so the previous load never reached Stop(), and RunCommand's
+    -- unload ends a launcher that has not reported: either way its host ran
+    -- on until its 60 s lease lapsed, beside the new load's. Each launch now
+    -- records its token in this skin's owner file before it starts the host,
+    -- and a new load or a close removes the session that file names.
+    reset(); env.Start()
+    local owned = recordPath
+    local key = owned:match('Owner%-(%x+)%.txt$')
+    check(#key == 16 and not key:find('[^0-9a-f]'), 'The owner file is keyed by 16 lowercase hex digits')
+    local parameter = options.MeasureRAMPageLauncher.Parameter
+    local record = parameter:find("[IO.File]::WriteAllText([IO.Path]::Combine($t,'Parallax-RAM-Owner-"..key..".txt'),$k,[Text.Encoding]::ASCII); ", 1, true)
+    check(record and record > parameter:find("if (-not $k) { throw 'session' }; ", 1, true) and record < parameter:find('Start-Process', 1, true)
+        and record > parameter:find("$l=$b+'.lease'", 1, true),
+        'The launcher records its token in the owner file after creating the lease and before it starts the host')
+    -- The key is this instance's and this skin's: another settings folder or
+    -- config never reads (or stops) it.
+    variables.SETTINGSPATH = 'C:\\OtherInstance\\'; reset()
+    check(recordPath ~= owned, 'Another Rainmeter instance has its own owner file')
+    variables.SETTINGSPATH = 'C:\\FixtureSettings\\'; variables.CURRENTCONFIG = 'Parallax\\Other'; reset()
+    check(recordPath ~= owned, 'Another config has its own owner file')
+    variables.CURRENTCONFIG = 'Parallax\\RAM'; reset()
+    check(recordPath == owned, 'The same instance and skin reload to the same owner file')
+    -- The previous load's host, running or still unreported by its launcher.
+    local function leftBehind()
+        files[owned] = previous; files[previousLease] = previous..'|'..now
+        files[previousPath] = 'RAM_PAGE|1|'..previous..'|5|'..now..'|OK|3000000000|12000000000|2'
+    end
+    reset(leftBehind)
+    check(removed[previousLease] == 1 and removed[previousPath] == 1 and removed[previousTemporary] == 1
+        and removed[owned] == 1 and files[previousLease] == nil and files[owned] == nil,
+        'A new load removes the previous session and the owner file: that host exits within one interval')
+    check(#actions == 0 and next(launches) == nil and next(kills) == nil and opens == 0,
+        'Stopping the previous load\'s host launches, commands and reads nothing else')
+    startHost()
+    check(launches.MeasureRAMPageLauncher == 1 and files[lease] == token..'|'..now and not removed[lease],
+        'The new load then starts and keeps its own session')
+    -- Anything but one 32-digit lowercase hex token touches no session file.
+    for _, text in ipairs({'', 'FEDCBA9876543210FEDCBA9876543210', 'fedcba9876543210fedcba987654321', 'fedcba9876543210fedcba98765432100',
+            '..\\..\\Windows\\win.ini', 'fedcba9876543210fedcba987654321g'}) do
+        reset(function() files[owned] = text end)
+        local others = 0
+        for name in pairs(removed) do if name ~= owned then others = others + 1 end end
+        check(removed[owned] == 1 and others == 0, 'An invalid owner file is removed without touching any session file')
+    end
+    -- Close during a launch that has started its host but not reported: the
+    -- owner file names it, so Stop stops it too (no Kill: RunCommand's unload
+    -- ends the launcher).
+    reset(); env.Start()
+    files[owned] = token; files[lease] = token..'|'..now; files[path] = 'RAM_PAGE|1|'..token..'|0|'..now..'|STARTING|?|?|?'
+    env.Stop()
+    check(removed[lease] == 1 and removed[path] == 1 and removed[temporary] == 1 and removed[owned] == 1 and next(kills) == nil,
+        'Stop during a launch stops the host that launch recorded, without a Kill')
+    -- A close of a running session also removes the owner file.
+    reset(); startHost(); files[owned] = token
+    env.Stop()
+    check(removed[lease] >= 1 and files[lease] == nil and removed[owned] == 1 and files[owned] == nil and next(kills) == nil,
+        'Stop removes the running session and its owner file')
 end
 
 local function checkProcessController()

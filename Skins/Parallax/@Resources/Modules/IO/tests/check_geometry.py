@@ -29,7 +29,7 @@ WIDTHS = (180, 200, 220, 240, 280, 320)
 SCALES = (.75, 1, 1.25, 1.5, 2)
 THICKNESSES = (1, 6, 6.01, 8.5, 12)
 LETTERS = string.ascii_uppercase
-DRIVE_METERS = ("Drive", "Capacity", "Used", "DiskReadLabel", "DiskWriteLabel", "DiskRead", "DiskWrite", "Legend")
+DRIVE_METERS = ("Drive", "Capacity", "Used", "DiskReadLabel", "DiskWriteLabel", "DiskRead", "DiskWrite", "Gauge", "Load", "Eject", "Legend")
 GRAPH_MARKERS = {"MeterIOGraphPositive": "+", "MeterIOGraphZero": "0", "MeterIOGraphNegative": "-"}
 STEPPERS = {
     "Names": ("CycleNamesMode", "CycleNamesMode()", 126),
@@ -135,6 +135,15 @@ def check_drive_bank():
             assert options["Counter"] == "Disk " + direction + " Bytes/sec"
             assert options["Group"] == "IORates" + letter + "|ParallaxIdlePause" and options["Disabled"] == "1"
             assert all(options[key] == "0" for key in ("Rollup", "Percent", "RawValue"))
+        name = "MeasureIODiskIdle" + letter
+        options = providers[name]
+        expected_providers.add(name)
+        # Load is 100 - % Idle Time, sharing the rate bank's group and category worker.
+        assert options["Measure"] == "Plugin" and options["Plugin"] == "UsageMonitor"
+        assert options["Category"] == "LogicalDisk" and options["Name"] == letter + ":"
+        assert options["Counter"] == "% Idle Time" and options["MaxValue"] == "100"
+        assert options["Group"] == "IORates" + letter + "|ParallaxIdlePause" and options["Disabled"] == "1"
+        assert all(options[key] == "0" for key in ("Rollup", "Percent", "RawValue"))
         for field in DRIVE_METERS:
             name = "MeterIO" + field + letter
             options = resolved_options(name, meters)
@@ -148,15 +157,29 @@ def check_drive_bank():
                 assert options["H"] == "#DataBarThicknessPx#", (name, "shared bar thickness")
             elif field == "Drive":
                 assert options["Text"] == letter + ":", (name, "drive label")
+                assert options["LeftMouseUpAction"] == '["' + letter + ':\\"]', (name, "opens the drive root")
+                assert options["InlineSetting"] == "Underline" and options["InlinePattern"] == "^.:", (name, "link-style letter")
+                assert options["MouseOverAction"] == '[!SetOption ' + name + ' InlinePattern ".*"][!UpdateMeter ' + name + '][!Redraw]', (name, "hover underlines the name")
+                assert options["MouseLeaveAction"] == '[!SetOption ' + name + ' InlinePattern "^.:"][!UpdateMeter ' + name + '][!Redraw]', (name, "leave restores the letter")
                 assert options["ClipString"] == "1" and "H" not in options, (name, "one-line automatic height with ellipsis")
-            elif field in ("Capacity", "DiskRead", "DiskWrite"):
+            elif field in ("Capacity", "DiskRead", "DiskWrite", "Load"):
                 assert options["ClipString"] == "1" and "H" not in options, (name, "single-line summary cell")
+                if field == "Load":
+                    assert options.get("StringAlign", "Left") == "Left", (name, "load aligns under the gauge")
+            elif field == "Gauge":
+                assert options["Meter"] == "Shape" and options["MeterStyle"] == "StyleIOGauge", (name, "shared Lucide gauge")
+            elif field == "Eject":
+                assert options["Meter"] == "Shape" and options["MeterStyle"] == "StyleIOEject", (name, "shared eject glyph")
+                assert options["MouseActionCursor"] == "1"
+                assert options["LeftMouseUpAction"] == '[!CommandMeasure MeasureIO "Eject(\'' + letter + '\')"]', (name, "eject binding")
+                for action, color in (("MouseOverAction", "TextColor"), ("MouseLeaveAction", "MutedColor")):
+                    assert options[action] == '[!SetOption ' + name + ' IOEjectColor "Stroke Color #' + color + '#"][!UpdateMeter ' + name + '][!Redraw]', (name, action)
     assert set(providers) == expected_providers, "unexpected or incomplete native provider bank"
     actual_bank = read_sections(("@Resources/Modules/IO/DriveMeters.inc",))
     assert set(actual_bank) == expected_meters, "unexpected or incomplete drive meter bank"
     entrypoint = read_sections(("IO/IO-Disk.ini",))
     includes = {value for section in entrypoint.values() for key, value in section.items() if key.startswith("@Include")}
-    for name in ("Inventory", "Native", "Disk", "Model", "View"):
+    for name in ("Inventory", "Native", "Disk", "Model", "Eject", "View"):
         assert "#@#Modules\\IO\\" + name + ".inc" in includes, (name, "provider/view include missing from monitor")
     view = read_sections(("@Resources/Modules/IO/View.inc",))
     includes = {value for section in view.values() for key, value in section.items() if key.startswith("@Include")}
@@ -170,6 +193,13 @@ def check_drive_bank():
         assert marker["StringAlign"] == "Right" and marker["ClipString"] == "1", (name, "bounded axis alignment")
         assert marker["FontFace"] == "#FontFace#" and marker["FontColor"] == "#MutedColor#", (name, "shared metadata styling")
         assert not any(key.endswith("Action") for key in marker), (name, "axis markers are passive")
+    eject = read_sections(("@Resources/Modules/IO/Eject.inc",))
+    assert set(eject) == {"MeasureIOEject"}, "one explicit eject helper"
+    helper = eject["MeasureIOEject"]
+    # A click-only, hidden one-shot: no console flash, no polling, Lua supplies the letter.
+    assert helper["Plugin"] == "RunCommand" and helper["State"] == "Hide" and helper["UpdateDivider"] == "-1"
+    assert helper["Program"].endswith("powershell.exe") and helper["DynamicVariables"] == "1"
+    assert helper["FinishAction"] == '[!CommandMeasure MeasureIO "EjectFinished()"]'
     model = read_sections(("@Resources/Modules/IO/Model.inc",))
     assert set(model) == {"MeasureIOModelQuery"}, "one explicit model query provider"
     query = model["MeasureIOModelQuery"]
@@ -191,7 +221,7 @@ def check_monitor_layout(bounds, variables, scale, thickness):
     saved_height = formula(variables["PanelHeight"], variables)
     physical_thickness = max(1, math.floor(thickness * scale + .5))
     extra = max(0, physical_thickness / scale - 6)
-    expected_height = math.floor(max(saved_height, 157 + extra) * scale + .5)
+    expected_height = math.floor(max(saved_height, 152 + extra) * scale + .5)
     content_x = formula(variables["ContentX"], variables)
     content_width = formula(variables["ContentWidth"], variables)
     for name in GRAPH_MARKERS:
@@ -205,23 +235,33 @@ def check_monitor_layout(bounds, variables, scale, thickness):
         assert math.isclose(bar[0], content_x, abs_tol=.001) and math.isclose(bar[2], content_width, abs_tol=.001)
         drive, capacity = (bounds["MeterIO" + field + letter] for field in ("Drive", "Capacity"))
         assert math.isclose(drive[0], content_x, abs_tol=.001) and math.isclose(drive[2], content_width, abs_tol=.001), (letter, "full-width name")
-        assert math.isclose(capacity[2], (content_width - 8 * scale) * .44, abs_tol=.001)
+        assert math.isclose(capacity[2], (content_width - 51 * scale) * .58, abs_tol=.001)
         read, write = (bounds["MeterIODisk" + field + letter] for field in ("Read", "Write"))
+        gauge, load = (bounds["MeterIO" + field + letter] for field in ("Gauge", "Load"))
+        eject = bounds["MeterIOEject" + letter]
+        assert math.isclose(eject[0] + eject[2], content_x + content_width, abs_tol=.001) and math.isclose(eject[2], 20 * scale, abs_tol=.001), (letter, "eject hit box at the name row's right edge")
+        assert math.isclose(eject[3], 18 * scale, abs_tol=.001), (letter, "eject hit box spans the name row")
+        # Gauge and load sit flush with the content edge; the stacked rates start after them.
+        assert math.isclose(gauge[2], 14 * scale, abs_tol=.001) and math.isclose(gauge[3], 14 * scale, abs_tol=.001)
+        assert math.isclose(gauge[0], content_x, abs_tol=.001), (letter, "gauge flush with the content edge")
+        assert math.isclose(load[0], content_x, abs_tol=.001) and math.isclose(load[2], 36 * scale, abs_tol=.001), (letter, "load column fits 100% at 10pt")
         for direction, rate in (("Read", read), ("Write", write)):
             glyph = bounds["MeterIODisk" + direction + "Label" + letter]
+            assert glyph[0] >= load[0] + load[2] - .001, (letter, direction, "load box must end before the chevrons")
             assert rate[0] >= glyph[0] + glyph[2] + scale - .001, (letter, direction, "rate/glyph horizontal gap")
-        assert read[0] + read[2] + 4 * scale <= bounds["MeterIODiskWriteLabel" + letter][0] + .001
-        assert write[0] + write[2] + 4 * scale <= capacity[0] + .001, (letter, "speed/capacity cell gap")
+        assert read[0] + read[2] + 4 * scale <= capacity[0] + .001, (letter, "read/capacity cell gap")
+        # Capacity shares only the read line, so write runs to the content edge.
+        assert read[0] == write[0] and math.isclose(write[0] + write[2], content_x + content_width, abs_tol=.001), (letter, "stacked rates")
     assert all(math.isclose(a, b, abs_tol=.001) for a, b in zip(graph, frame)), "trace/frame alignment"
     assert math.isclose(graph[3], formula(variables["IOGraphHeight"], variables) * scale, abs_tol=.001)
     assert panel[3] == expected_height, (thickness, scale, saved_height, "initial panel height")
     # PanelHeightPx rounds to a physical pixel; the painted bottom can lose .5 px.
     assert graph[1] + graph[3] + 6 * scale <= panel[1] + panel[3] + .501, "graph bottom padding"
-    baseline_height = math.floor(max(saved_height, 157) * scale + .5)
+    baseline_height = math.floor(max(saved_height, 152) * scale + .5)
     assert panel[3] >= baseline_height, "panel shrank below saved minimum"
-    if saved_height >= 157 + extra:
+    if saved_height >= 152 + extra:
         assert panel[3] == math.floor(saved_height * scale + .5), "larger saved height changed"
-    elif (157 + extra - max(saved_height, 157)) * scale >= 1:
+    elif (152 + extra - max(saved_height, 152)) * scale >= 1:
         assert panel[3] > baseline_height, "thicker bar did not grow panel"
 
 
@@ -381,7 +421,7 @@ def check_profile(includes, column_counts, fonts, widths=WIDTHS, panel_height=No
             if name in GRAPH_MARKERS:
                 assert math.isclose(formula(options["FontSize"], variables), max(6, fonts["FontSize"] - 2) * scale, abs_tol=.001), (name, "shared axis font")
             x, y, w, h = [formula(options.get(key, 0), variables) for key in "XYWH"]
-            if re.fullmatch(r"MeterIO(?:Drive|Capacity|DiskRead|DiskWrite)[A-Z]|MeterIOSettingsDrive[A-Z]Label", name):
+            if re.fullmatch(r"MeterIO(?:Drive|Capacity|DiskRead|DiskWrite|Load)[A-Z]|MeterIOSettingsDrive[A-Z]Label", name):
                 assert "H" not in options and options["ClipString"] == "1"
                 # Check the allocated row envelope here. Natural single-line
                 # font height and ellipsis rendering require native validation.

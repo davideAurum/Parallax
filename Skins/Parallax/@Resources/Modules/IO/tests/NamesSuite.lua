@@ -277,14 +277,28 @@ function Suite.run(productionPath)
 
     test('unlabeled and missing native names use exact mode-specific fallbacks', function()
         for _, label in ipairs({ '', ' \t\r\n ', false, 42 }) do
-            local f = fixture({ labels = { C = label } })
-            formatted(f, 'C', 'volume', noLabel)
-            formatted(f, 'C', 'both', 'Synthetic Storage')
+            local f = fixture({ types = { D = 4 }, labels = { C = label, D = label },
+                raw = header .. 'OK\nC|Synthetic Storage\nD|Other Model' })
+            formatted(f, 'D', 'volume', noLabel)
+            formatted(f, 'D', 'both', 'Other Model')
+            -- An unnamed C: is shown as the Windows volume.
+            formatted(f, 'C', 'volume', 'Windows')
+            formatted(f, 'C', 'both', 'Windows / Synthetic Storage')
         end
-        local f = fixture()
+        local f = fixture({ types = { D = 4 } })
         f.labels.C = nil
+        formatted(f, 'D', 'volume', noLabel)
+        formatted(f, 'C', 'volume', 'Windows')
+        formatted(f, 'C', 'both', 'Windows / Synthetic Storage')
+    end)
+
+    test('a real C: label replaces the Windows default and an absent C: gets none', function()
+        local f = fixture({ labels = { C = 'System' } })
+        formatted(f, 'C', 'volume', 'System')
+        f.labels.C = ''
+        f.types.C = 1
         formatted(f, 'C', 'volume', noLabel)
-        formatted(f, 'C', 'both', 'Synthetic Storage')
+        formatted(f, 'C', 'letters', '')
     end)
 
     test('missing unavailable and invalid model packets retain only a known volume', function()
@@ -302,14 +316,15 @@ function Suite.run(productionPath)
     end)
 
     test('neither available name exposes both missing parts explicitly', function()
-        local f = fixture({ labels = { C = '' }, raw = header .. 'UNAVAILABLE' })
-        formatted(f, 'C', 'both', noLabel .. '; ' .. noModel)
+        local f = fixture({ types = { D = 4 }, labels = { C = '', D = '' }, raw = header .. 'UNAVAILABLE' })
+        formatted(f, 'D', 'both', noLabel .. '; ' .. noModel)
+        formatted(f, 'C', 'both', 'Windows')
     end)
 
     test('failed cached measure reads preserve available parts without querying', function()
         local f = fixture()
         f.failures.label = true
-        formatted(f, 'C', 'both', 'Synthetic Storage')
+        formatted(f, 'C', 'both', 'Windows / Synthetic Storage')
         f.failures.label, f.failures.query = nil, true
         formatted(f, 'C', 'both', 'Archive')
         f.failures.query, f.failures.type = nil, true
@@ -323,7 +338,7 @@ function Suite.run(productionPath)
         f.labels.C = 'Quote " and apostrophe \' stay'
         formatted(f, 'C', 'volume', 'Quote " and apostrophe \' stay')
         f.labels.C = '#[%]\t\r\n'
-        formatted(f, 'C', 'volume', noLabel)
+        formatted(f, 'C', 'volume', 'Windows')
     end)
 
     test('long native labels truncate at complete UTF-8 character boundaries', function()

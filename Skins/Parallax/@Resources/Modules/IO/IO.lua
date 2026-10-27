@@ -57,7 +57,7 @@ local function visible(meter, show)
     end
 end
 
--- Each letter's eight bank meters share Group=IORow<letter> and ship idle at
+-- Each letter's ten bank meters share Group=IORow<letter> and ship idle at
 -- UpdateDivider=-1. A shown row updates every tick; a hidden row does no
 -- per-tick work. A -1 meter ignores !SetOption until forced, so each change
 -- of divider is followed by one forced group update, which applies every
@@ -85,38 +85,50 @@ function ReapplyDividers()
     end
 end
 
-local function scaled(value, base, units)
-    if not finite(value) or value < 0 then return '--' end
+-- Two significant figures in the largest unit below base. Rounding can carry
+-- into the next unit: 999.6 MB shows as 1.0 GB.
+local function figures(value, base, units)
+    if not finite(value) or value < 0 then return nil end
     local unit = 1
     while value >= base and unit < #units do
         value = value / base
         unit = unit + 1
     end
-    return string.format('%.1f %s', value, units[unit])
+    local amount, decimals = 0, 0
+    if value > 0 then
+        local step = 10 ^ (math.floor(math.log10(value)) - 1)
+        amount = math.floor(value / step + 0.5) * step
+        if amount >= base and unit < #units then
+            amount, unit = amount / base, unit + 1
+        end
+        decimals = math.max(0, 1 - math.floor(math.log10(amount) + 1e-9))
+    end
+    return string.format('%.' .. decimals .. 'f', amount), units[unit]
 end
 
-local function bytes(value)
-    return scaled(value, 1000, {'B', 'KB', 'MB', 'GB', 'TB', 'PB'})
-end
+local capacityUnits = {'B', 'KB', 'MB', 'GB', 'TB', 'PB'}
 
-local function capacityBytes(value)
-    return scaled(value, 1000, {'B', 'KB', 'MB', 'GB', 'TB', 'PB'})
-end
-
-local function compactCapacity(freeText, totalText)
-    local freeValue, freeUnit = freeText:match('^(.-) ([^ ]+)$')
-    local _, totalUnit = totalText:match('^(.-) ([^ ]+)$')
-    return (freeUnit == totalUnit and freeValue or freeText) .. '/' .. totalText
+local function capacityText(free, total)
+    local freeAmount, freeUnit = figures(free, 1000, capacityUnits)
+    local totalAmount, totalUnit = figures(total, 1000, capacityUnits)
+    -- Zero free space has no unit of its own; it borrows the total's.
+    if free == 0 or freeUnit == totalUnit then
+        return freeAmount .. ' / ' .. totalAmount .. ' ' .. totalUnit
+    end
+    return freeAmount .. ' ' .. freeUnit .. ' / ' .. totalAmount .. ' ' .. totalUnit
 end
 
 local function diskRate(value)
     local units = variable('IODiskUnits', 'bytes'):lower()
+    local amount, unit
     if units == 'bits' then
-        return scaled(value * 8, 1000, {'bit/s', 'kbit/s', 'Mbit/s', 'Gbit/s', 'Tbit/s'})
+        amount, unit = figures(value * 8, 1000, {'bit/s', 'kbit/s', 'Mbit/s', 'Gbit/s', 'Tbit/s'})
     elseif units == 'bytes' then
-        return bytes(value) .. '/s'
+        amount, unit = figures(value, 1000, {'B/s', 'KB/s', 'MB/s', 'GB/s', 'TB/s'})
+    else
+        return 'Check IO units'
     end
-    return 'Check IO units'
+    return amount and (amount .. ' ' .. unit) or '--'
 end
 
 local function positiveSetting(key)
@@ -147,11 +159,9 @@ local function capacityType(kind)
     return kind == 3 or kind == 4 or kind == 5 or kind == 7
 end
 
-local function compactRate(value)
-    -- Reuse the already-rounded value; only remove redundant display spacing
-    -- and a trailing .0.
-    local amount, unit = value:match('^(%d+%.%d+) ([^ ]+)$')
-    return amount and (amount:gsub('%.0$', '') .. unit) or value
+-- Removable and optical letters offer the shell's Eject verb.
+local function ejectable(kind)
+    return kind == 3 or kind == 6
 end
 
 local function nameMode()
@@ -247,47 +257,75 @@ local function layout()
     local gap = numericVariable('Gap') or 0
     local width = numericVariable('ContentWidth') or 0
     local x = numericVariable('ContentX') or inset
-    local cellGap = 4 * scale
-    local cellWidth = math.max(0, width - 2 * cellGap)
-    local rateWidth, capacityWidth = cellWidth * 0.28, cellWidth * 0.44
+    -- Readout block: a left-aligned gauge/load column, the read/write chevrons at 36
+    -- and their rates at 47, then a 4px gap before the right-aligned capacity.
+    local rateX = x + 36 * scale
+    local cellWidth = math.max(0, width - 51 * scale)
+    local rateWidth, capacityWidth = cellWidth * 0.42, cellWidth * 0.58
     local bar = numericVariable('DataBarThicknessPx')
         or math.max(1, math.floor((numericVariable('DataBarThickness') or 6) * scale + 0.5))
     local extra = #selected > 0 and math.max(0, bar / scale - 6) or 0
-    local pitch = 50 + extra
+    local pitch = 63 + extra
     local legendColumns = math.max(1, math.floor(width / (26 * scale)))
     local legendRows = graphMode == 'overlay' and math.ceil(#selected / legendColumns) or 0
-    local savedHeight = numericVariable('PanelHeight') or 157
-    local key = table.concat({selectedKey, graphMode, selectionKind, scale, inset, gap, width, x, bar, savedHeight}, '|')
+    local savedHeight = numericVariable('PanelHeight') or 152
+    local ejects, ejectKey = {}, {}
+    for _, letter in ipairs(selected) do
+        if ejectable(number('MeasureIOType' .. letter)) then
+            ejects[letter] = true
+            ejectKey[#ejectKey + 1] = letter
+        end
+    end
+    local key = table.concat({selectedKey, graphMode, selectionKind, scale, inset, gap, width, x, bar, savedHeight,
+        table.concat(ejectKey)}, '|')
     if layoutKey == key then return false end
     layoutKey = key
     local positions = {}
     for index, letter in ipairs(selected) do positions[letter] = index - 1 end
-    local graphBase = 89 + extra + math.max(0, #selected - 1) * pitch
+    local graphBase = 84 + extra + math.max(0, #selected - 1) * pitch
     for _, letter in ipairs(letters) do
         local index = positions[letter]
         local shown = index ~= nil
-        local row = shown and (42 + index * pitch) or 0
-        local barY = shown and (inset + (60 + index * pitch) * scale + math.max(0, (6 * scale - bar) / 2)) or 0
-        local rateY = shown and (inset + (68 + extra + index * pitch) * scale) or 0
+        local row = shown and (24 + index * pitch) or 0
+        local barY = shown and (inset + (42 + index * pitch) * scale + math.max(0, (6 * scale - bar) / 2)) or 0
+        -- Two 16px lines: read, capacity and gauge, then write and load.
+        local readY = shown and (inset + (49 + extra + index * pitch) * scale) or 0
+        local writeY = shown and (readY + 16 * scale) or 0
+        -- An eject icon's hit box takes the name row's right 20px.
+        local eject = shown and ejects[letter] == true
         for _, prefix in ipairs({'MeterIODrive', 'MeterIOCapacity'}) do
             local capacityRow = prefix == 'MeterIOCapacity'
-            option(prefix .. letter, 'Y', shown and (capacityRow and rateY or (inset + row * scale)) or 0)
+            option(prefix .. letter, 'Y', shown and (capacityRow and readY or (inset + row * scale)) or 0)
             option(prefix .. letter, 'X', capacityRow and (x + width) or x)
-            option(prefix .. letter, 'W', capacityRow and capacityWidth or width)
+            option(prefix .. letter, 'W', capacityRow and capacityWidth or (eject and (width - 20 * scale) or width))
             visible(prefix .. letter, shown)
         end
+        option('MeterIOEject' .. letter, 'X', x + width - 20 * scale)
+        option('MeterIOEject' .. letter, 'Y', eject and (inset + row * scale) or 0)
+        visible('MeterIOEject' .. letter, eject)
         option('MeterIOUsed' .. letter, 'Y', barY)
         if not shown then visible('MeterIOUsed' .. letter, false) end
         for _, direction in ipairs({'Read', 'Write'}) do
-            local cellX = x + (direction == 'Write' and (rateWidth + cellGap) or 0)
+            local lineY = direction == 'Write' and writeY or readY
             for _, suffix in ipairs({'', 'Label'}) do
                 local meter = 'MeterIODisk' .. direction .. suffix .. letter
-                option(meter, 'Y', shown and (rateY + (suffix == 'Label' and 2 * scale or 0)) or 0)
-                option(meter, 'X', cellX + (suffix == 'Label' and 0 or 11 * scale))
-                option(meter, 'W', suffix == 'Label' and 10 * scale or math.max(1, rateWidth - 11 * scale))
+                option(meter, 'Y', shown and (lineY + (suffix == 'Label' and 2 * scale or 0)) or 0)
+                option(meter, 'X', rateX + (suffix == 'Label' and 0 or 11 * scale))
+                -- Capacity shares only the read line; write runs to the right edge.
+                option(meter, 'W', suffix == 'Label' and 10 * scale
+                    or math.max(1, direction == 'Write' and (width - 47 * scale) or rateWidth))
                 visible(meter, shown)
             end
         end
+        option('MeterIOGauge' .. letter, 'Y', shown and (readY + scale) or 0)
+        option('MeterIOGauge' .. letter, 'X', x)
+        visible('MeterIOGauge' .. letter, shown)
+        -- Gauge and load sit flush with the content edge. 100% is 33px at
+        -- 9pt and 37px at 10pt; the chevrons start where its box ends.
+        option('MeterIOLoad' .. letter, 'Y', writeY)
+        option('MeterIOLoad' .. letter, 'X', x)
+        option('MeterIOLoad' .. letter, 'W', 36 * scale)
+        visible('MeterIOLoad' .. letter, shown)
         local legend = 'MeterIOLegend' .. letter
         if shown and graphMode == 'overlay' then
             text(legend, letter .. ':')
@@ -302,7 +340,7 @@ local function layout()
         rowActive(letter, shown)
     end
     text('MeterIOEmpty', selectionKind == 'all' and 'No drives found' or 'No drives selected')
-    option('MeterIOEmpty', 'Y', inset + 42 * scale)
+    option('MeterIOEmpty', 'Y', inset + 24 * scale)
     visible('MeterIOEmpty', #selected == 0)
     local graphY = inset + (graphBase + legendRows * 18) * scale
     option('MeterIODiskGraphTrack', 'Y', graphY)
@@ -323,7 +361,7 @@ local function layout()
         SKIN:Bang('!UpdateMeter', meter)
     end
     SKIN:Bang('!UpdateMeter', 'MeterIODiskGraphTrack')
-    local minimum = 157 + extra + math.max(0, #selected - 1) * pitch + legendRows * 18
+    local minimum = 152 + extra + math.max(0, #selected - 1) * pitch + legendRows * 18
     local height = math.floor(math.max(savedHeight, minimum) * scale + 0.5)
     local id = 'variable:PanelHeightPx'
     local resize = cache[id] ~= height or cache['MeterIOBounds:H'] ~= tostring(height + gap)
@@ -339,12 +377,22 @@ local function layout()
     return true
 end
 
+-- A refused eject replaces the drive's name with why, in WarningColor, for
+-- noticeTicks updates. ejecting is the letter whose eject process is running.
+local notice, ejecting
+local noticeTicks = 8
+local holders = { SearchIndexer = 'Windows Search', WSearch = 'Windows Search' }
+
 local function renderNames(immediate)
     local mode, changed = nameMode(), false
     for _, letter in ipairs(selected) do
         local display = Names.Format(SKIN, letter, mode)
         local meter = 'MeterIODrive' .. letter
-        local dirty = text(meter, letter .. ':' .. (display ~= '' and (' ' .. display) or ''))
+        local warned = notice and notice.letter == letter
+        if warned then display = notice.text end
+        local colored = option(meter, 'FontColor', variable(warned and 'WarningColor' or 'TextColor',
+            warned and '240,225,40' or '220,220,220'))
+        local dirty = text(meter, letter .. ':' .. (display ~= '' and (' ' .. display) or '')) or colored
         if immediate and dirty then SKIN:Bang('!UpdateMeter', meter) end
         changed = dirty or changed
     end
@@ -477,7 +525,7 @@ local function capacity(letter)
         detail = 'Unavailable'
     else
         valid = true
-        display = compactCapacity(capacityBytes(free), capacityBytes(total))
+        display = capacityText(free, total)
     end
     text('MeterIOCapacity' .. letter, display or detail)
     option('MeterIOCapacity' .. letter, 'FontColor', valid
@@ -515,8 +563,17 @@ local function disk()
         for _, direction in ipairs({'Read', 'Write'}) do
             local value = sample[direction]
             local meter = 'MeterIODisk' .. direction .. letter
-            text(meter, compactRate(value > 0 and diskRate(value) or '--'))
+            text(meter, value > 0 and diskRate(value) or '--')
         end
+        -- Load is busy time: the share of the last second the volume was not idle.
+        -- UsageMonitor reports 0 for a letter with no counter instance (an
+        -- optical drive without media), which would read as 100% busy. A
+        -- fully busy second that moved no bytes is not credible, so that
+        -- combination shows as unavailable.
+        local idle = ratesEnabled[letter] and number('MeasureIODiskIdle' .. letter) or nil
+        if idle and idle <= 0 and sample.Read == 0 and sample.Write == 0 then idle = nil end
+        text('MeterIOLoad' .. letter, idle
+            and string.format('%.0f%%', math.min(100, math.max(0, 100 - idle))) or '--')
     end
     if #graphDrives > 0 then
         local readTotal, writeTotal = 0, 0
@@ -567,7 +624,8 @@ local function repaintNameLayout()
         graph()
         for _, letter in ipairs(selected) do
             for _, prefix in ipairs({'MeterIODrive', 'MeterIOCapacity', 'MeterIOUsed',
-                'MeterIODiskRead', 'MeterIODiskWrite', 'MeterIODiskReadLabel', 'MeterIODiskWriteLabel'}) do
+                'MeterIODiskRead', 'MeterIODiskWrite', 'MeterIODiskReadLabel', 'MeterIODiskWriteLabel',
+                'MeterIOGauge', 'MeterIOLoad', 'MeterIOEject'}) do
                 SKIN:Bang('!UpdateMeter', prefix .. letter)
             end
             if graphMode == 'overlay' then SKIN:Bang('!UpdateMeter', 'MeterIOLegend' .. letter) end
@@ -599,6 +657,52 @@ function RefreshNamesInventory()
     return 0
 end
 
+-- Called only by a drive's eject icon. The letter is revalidated against the
+-- current inventory and is the only variable part of the fixed command, which
+-- runs the bundled Eject.ps1 as an in-memory script block (no execution
+-- policy dependency). A skin path Rainmeter would expand is refused.
+function Eject(letter)
+    if type(letter) ~= 'string' or not letter:match('^[A-Z]$')
+        or not ejectable(number('MeasureIOType' .. letter)) then return 0 end
+    local script = variable('@', '') .. 'Modules\\IO\\Eject.ps1'
+    if script:find('[#%[%]"]') then return 0 end
+    SKIN:Bang('!SetOption', 'MeasureIOEject', 'Parameter', '-NoLogo -NoProfile -NonInteractive -Command "'
+        .. "& $ExecutionContext.InvokeCommand.NewScriptBlock((Get-Content -Raw -LiteralPath '"
+        .. script:gsub("'", "''") .. "')) " .. letter .. '"')
+    SKIN:Bang('!UpdateMeasure', 'MeasureIOEject')
+    SKIN:Bang('!CommandMeasure', 'MeasureIOEject', 'Run')
+    ejecting = letter
+    return 0
+end
+
+-- Eject.ps1 prints one line: 'ejected', 'absent', 'vetoed <type> <name>' or
+-- another failure. Veto type 4 names an application's image path, 5 a
+-- service; anything else, or no output at all, is a plain refusal.
+local function refusal(output)
+    output = tostring(output or ''):gsub('%s+$', '')
+    if output == 'ejected' or output == 'absent' then return nil end
+    local kind, name = output:match('^vetoed (%d+) (.+)$')
+    local holder = (kind == '4' and (name:match('([^\\/]+)$') or name):gsub('%.[Ee][Xx][Ee]$', ''))
+        or (kind == '5' and name) or nil
+    if holder then return 'In use by ' .. (holders[holder] or holder) end
+    return "Couldn't eject"
+end
+
+-- The eject process has exited. Re-read the inventory now rather than at
+-- its next scheduled update, so an ejected drive leaves the list promptly;
+-- a refusal is shown on the drive's name row.
+function EjectFinished()
+    if not phases then return 0 end
+    local measure = SKIN:GetMeasure('MeasureIOEject')
+    local why = ejecting and refusal(measure and measure:GetStringValue())
+    notice = why and { letter = ejecting, text = why, untilTick = ticks + noticeTicks } or nil
+    ejecting = nil
+    SKIN:Bang('!UpdateMeasureGroup', 'IOInventory')
+    phases[ticks % inventoryDivider] = true
+    pendingSlow = true
+    return 0
+end
+
 function Update()
     ticks = ticks + 1
     -- Selection, banks, layout, names and capacities depend only on inventory
@@ -607,6 +711,7 @@ function Update()
     -- variable change caught here. Rates and the graph still run every tick.
     local inputs = variable('IODiskDrives', 'C') .. '\n' .. variable('IOGraphMode', 'combined')
         .. '\n' .. variable('IODriveNames', 'volume')
+    if notice and ticks >= notice.untilTick then notice, pendingSlow = nil, true end
     if pendingSlow or inputs ~= slowInputs or phases[ticks % inventoryDivider] then
         pendingSlow, slowInputs = false, inputs
         syncSelection()

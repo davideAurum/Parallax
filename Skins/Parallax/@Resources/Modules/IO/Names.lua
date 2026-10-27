@@ -92,6 +92,8 @@ function Names.Format(skin, letter, mode)
     local kind = measured(skin, 'MeasureIOType' .. letter, 'GetValue')
     local present = type(kind) == 'number' and kind >= 3 and kind <= 7 and kind % 1 == 0
     local label = present and clean(measured(skin, 'MeasureIOName' .. letter, 'GetStringValue')) or ''
+    -- An unnamed C: is shown as the Windows volume; a real label wins.
+    if label == '' and present and letter == 'C' then label = 'Windows' end
     if mode == 'volume' then return label ~= '' and label or 'No label / unavailable' end
     local raw = measured(skin, 'MeasureIOModelQuery', 'GetStringValue')
     if packetModels == nil or raw ~= packetRaw then

@@ -4,7 +4,7 @@ IOGraphHeight=62
 IOBarExtra=(Max(0,#DataBarThicknessPx#/#Scale#-6))
 ; Grow only the derived height; keep the user's saved panel minimum intact.
 ; Inline the shared pixel rule: WindowHeight expands before the later bar keys.
-PanelHeightPx=(Round(Max(#PanelHeight#,157+Max(0,Max(1,Round(#DataBarThickness#*#Scale#))/#Scale#-6))*#Scale#))
+PanelHeightPx=(Round(Max(#PanelHeight#,152+Max(0,Max(1,Round(#DataBarThickness#*#Scale#))/#Scale#-6))*#Scale#))
 
 [MeasureIO]
 Measure=Script
@@ -62,6 +62,34 @@ X=#ContentX#
 W=(16*#Scale#)
 H=(16*#Scale#)
 UpdateDivider=-1
+
+; Lucide gauge, adapted to native Shapes from @Resources/Modules/CPU/Icons/gauge.svg
+; at 14 logical px, as GPU Meter does. It labels the load percentage below it.
+[StyleIOGauge]
+W=(14*#Scale#)
+H=(14*#Scale#)
+Shape=Path IOGaugeArc | Extend IOGaugeStroke
+Shape2=Line (12*14*#Scale#/24),(14*14*#Scale#/24),(16*14*#Scale#/24),(10*14*#Scale#/24) | Extend IOGaugeStroke
+IOGaugeStroke=Fill Color 0,0,0,0 | Stroke Color #TextColor# | StrokeWidth (2*14*#Scale#/24) | StrokeStartCap Round | StrokeEndCap Round | StrokeLineJoin Round
+; SVG "a10 10 0 1 1" = large arc, clockwise; Rainmeter's sweep flag is the
+; reverse of SVG's, so this must be 0,0,1.
+IOGaugeArc=(3.34*14*#Scale#/24),(19*14*#Scale#/24) | ArcTo (20.66*14*#Scale#/24),(19*14*#Scale#/24),(10*14*#Scale#/24),(10*14*#Scale#/24),0,0,1
+
+; Original eject glyph on the same 24-unit grid and 2-unit round stroke as
+; the Lucide icons: a triangle over a bar, at 14 logical px. The meter is a
+; 20x18 hit box (the name row's height plus the 6px gap before it): Shape
+; meters only take clicks on drawn pixels, so an alpha-1 rectangle fills it.
+; The glyph keeps its place at the box's right edge, 1px below the row top,
+; and brightens from MutedColor to TextColor on hover.
+[StyleIOEject]
+W=(20*#Scale#)
+H=(18*#Scale#)
+Shape=Rectangle 0,0,(20*#Scale#),(18*#Scale#) | Fill Color 0,0,0,1 | StrokeWidth 0
+Shape2=Path IOEjectTriangle | Extend IOEjectStroke, IOEjectColor
+Shape3=Line (5*14*#Scale#/24),(18*14*#Scale#/24),(19*14*#Scale#/24),(18*14*#Scale#/24) | Extend IOEjectStroke, IOEjectColor
+IOEjectStroke=Fill Color 0,0,0,0 | StrokeWidth (2*14*#Scale#/24) | StrokeStartCap Round | StrokeEndCap Round | StrokeLineJoin Round | Offset (6*#Scale#),#Scale#
+IOEjectColor=Stroke Color #MutedColor#
+IOEjectTriangle=(12*14*#Scale#/24),(5*14*#Scale#/24) | LineTo (19*14*#Scale#/24),(13*14*#Scale#/24) | LineTo (5*14*#Scale#/24),(13*14*#Scale#/24) | ClosePath 1
 
 [MeterIOBounds]
 Meter=Image
@@ -126,13 +154,6 @@ MouseActionCursor=1
 LeftMouseUpAction=[!ActivateConfig "Parallax\IO\Settings" "Settings.ini"]
 
 
-[MeterIOCapacityHeading]
-Meter=String
-Group=ParallaxIdleFreeze
-MeterStyle=StyleIOHeader
-Y=(#Inset#+24*#Scale#)
-Text=Capacity: free / total
-
 [IODriveMeterInclude]
 @Include10=#@#Modules\IO\DriveMeters.inc
 
@@ -140,7 +161,7 @@ Text=Capacity: free / total
 Meter=String
 Group=ParallaxIdleFreeze
 MeterStyle=StyleIOText
-Y=(#Inset#+42*#Scale#)
+Y=(#Inset#+24*#Scale#)
 Text=Select drives in settings.
 Hidden=1
 
@@ -148,7 +169,7 @@ Hidden=1
 [MeterIODiskGraphTrack]
 Meter=Shape
 MeterStyle=StyleGraph
-Y=(#Inset#+(89+#IOBarExtra#)*#Scale#)
+Y=(#Inset#+(84+#IOBarExtra#)*#Scale#)
 H=(#IOGraphHeight#*#Scale#)
 Shape=Rectangle 0.5,0.5,(#ContentWidth#-1),(#IOGraphHeight#*#Scale#-1) | Fill Color #GraphBackgroundColor# | Stroke Color #BorderColor# | StrokeWidth 1
 Shape2=Line 1,(#IOGraphHeight#*#Scale#/4),(#ContentWidth#-1),(#IOGraphHeight#*#Scale#/4) | Stroke Color #GridColor# | StrokeWidth 1
@@ -159,7 +180,7 @@ Shape4=Line 1,(3*#IOGraphHeight#*#Scale#/4),(#ContentWidth#-1),(3*#IOGraphHeight
 Meter=Shape
 Group=ParallaxIdleFreeze
 X=#ContentX#
-Y=(#Inset#+(89+#IOBarExtra#)*#Scale#)
+Y=(#Inset#+(84+#IOBarExtra#)*#Scale#)
 W=#ContentWidth#
 H=(#IOGraphHeight#*#Scale#)
 ; The controller draws only observations; startup history is empty.

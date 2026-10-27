@@ -512,7 +512,7 @@ function Suite.run(productionPath)
 
     test('name fallbacks remain explicit for unlabeled missing and unmapped drives', function()
         local volume = fixture(nil, nil, nil, { labels = { C = '' } })
-        equal(volume:text('MeterIOSettingsDriveCLabel'), 'C: No label / unavailable')
+        equal(volume:text('MeterIOSettingsDriveCLabel'), 'C: Windows', 'an unnamed C: is the Windows volume')
         idle(volume)
         local model = fixture({ IODriveNames = 'model' }, nil, nil,
             { modelOutput = 'IO_MODELS_V1\nUNAVAILABLE' })

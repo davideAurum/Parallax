@@ -238,6 +238,13 @@ $pageStop = [regex]::Match($pageScript, '(?s)\nfunction Stop\(\)(.*?)\nend').Gro
 $pageRecorded = [regex]::Match($pageScript, '(?s)\nlocal function stopRecorded\(\)(.*?)\nend').Groups[1].Value
 Assert-RAM ($pageInitialize.Contains('stopRecorded()') -and $pageStop.Contains('stopRecorded()')) 'A new PAGE load and a close must stop the session the owner file names.'
 Assert-RAM ($pageRecorded.Contains("#token == 32 and not token:find('[^0-9a-f]')") -and $pageRecorded -notmatch "launch\(|begin\(|'Run'|Kill") 'The PAGE owner file may name only a hex token, and stopping it starts or kills nothing.'
+# A slow PowerShell start: RunCommand's 15 s Timeout ended a launcher still
+# waiting for the first frame, with no output, and its host ran to its lease.
+# The launcher stops waiting 13 s after its own start, and a launch that ends
+# unreported has its recorded host stopped (fail, and Drain after a stand-down).
+$pageFail = [regex]::Match($pageScript, '(?s)\nlocal function fail\(\)(.*?)\nend').Groups[1].Value
+Assert-RAM ($pageScript.Contains('$z=[Diagnostics.Process]::GetCurrentProcess().StartTime.AddSeconds(13); ') -and $pageScript.Contains('-lt 10000 -and [DateTime]::Now -lt $z)')) 'The PAGE launcher must stop waiting 13 s after its own start, inside RunCommand''s 15 s Timeout.'
+Assert-RAM ($pageFail.Contains('stopRecorded()') -and ([regex]::Matches($pageDrain, 'stopRecorded\(\)')).Count -eq 2) 'A PAGE launch that ends unreported must have its recorded host stopped, in fail() and in both Drain() endings.'
 Assert-RAM ($pageScript.Contains("local drainCheck = '[!Delay 1000][!CommandMeasure MeasureRAMPageView ""Drain()""]'")) 'The PAGE drain check must be one fixed delayed call into its own controller.'
 Assert-RAM ($pageDisplay.Contains("if dirty[name] then") -and $pageDisplay.Contains("SKIN:Bang('!UpdateMeter', name)") -and $pageDisplay.Contains("if changed and immediate ~= false then SKIN:Bang('!Redraw') end")) 'PAGE Display must force its changed UpdateDivider=-1 meters on every path; only the redraw depends on immediate.'
 $tooltipScripts = @('Display.lua', 'Info.lua', 'PageFile.lua', 'Process.lua', 'Settings.lua' | Where-Object { (Get-Content -LiteralPath (Join-Path $PSScriptRoot $_) -Raw) -match 'ToolTipText' })

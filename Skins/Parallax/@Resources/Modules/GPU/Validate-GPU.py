@@ -431,6 +431,13 @@ stop = re.search(r"\nfunction Stop\(\)(.*?)\nend", temperature_text, re.S)
 recorded = re.search(r"\nlocal function stopRecorded\(\)(.*?)\nend", temperature_text, re.S)
 assert initialize and "stopRecorded()" in initialize.group(1) and stop and "stopRecorded()" in stop.group(1), "a new load and a close must stop the session the owner file names"
 assert recorded and "#token == 32 and not token:find('[^0-9a-f]')" in recorded.group(1) and not re.search(r"launch\(|begin\(|'Run'|Kill", recorded.group(1)), "the owner file may name only a hex token, and stopping it starts or kills nothing"
+# A slow PowerShell start: RunCommand's 15 s Timeout ended a launcher still
+# waiting for the first frame, with no output, and its host ran to its lease.
+# The launcher stops waiting 13 s after its own start, and a launch that ends
+# unreported has its recorded host stopped (fail, and Drain after a stand-down).
+fail_body = re.search(r"\nlocal function fail\(\)(.*?)\nend", temperature_text, re.S)
+assert "$z=[Diagnostics.Process]::GetCurrentProcess().StartTime.AddSeconds(13); " in temperature_text and "-lt 10000 -and [DateTime]::Now -lt $z)" in temperature_text, "the launcher must stop waiting 13 s after its own start, inside RunCommand's 15 s Timeout"
+assert fail_body and "stopRecorded()" in fail_body.group(1) and drain.group(1).count("stopRecorded()") == 2, "a launch that ends unreported must have its recorded host stopped, in fail() and in both Drain() endings"
 assert "CreateSession" not in (GPU_DIR / "DriverTemperature.cs.txt").read_text(encoding="utf-8")
 assert not any(opts.get("Plugin") == "RunCommand" and opts.get("Timeout", "-1") == "-1" for opts in sections.values())
 assert not any(name.startswith("MeasureGPUTemperature") and opts.get("Measure") == "Registry" for name, opts in sections.items())

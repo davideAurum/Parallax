@@ -658,13 +658,10 @@ CPU time is unchanged within noise.
   - Details and checks: [RAM](modules/RAM.md#idle-pause) and [GPU](modules/GPU.md#idle-pause-2026-10-23).
 - **Checks.** It was reproduced natively in its post-`Start-Process` form. With a 3 s staged launch delay, the pre-fix RAM code left two hosts running after 20 s; the fix left none after 2.5 s. The `Error 102` form is covered by the fixtures only.
 - **Found while fixing it, fixed 2026-10-25:** a skin refresh orphaned the host until its lease lapsed, with or without Idle pause. This held for a running host too (59.5 s for RAM, 15.8 s for GPU, measured natively), not only during a launch. Each launcher now records its session in a per-skin owner file in TEMP, and the next load or a close removes that session's lease; natively the old host exited within 0.2-1.3 s. See [RAM.md](modules/RAM.md#idle-pause).
-- **Found in review, not fixed: a slow PowerShell start strands the host.** This happens with or without Idle pause.
-  - If PowerShell takes more than about 5 s to start, the launcher's startup plus its 10 s wait passes RunCommand's 15 s Timeout.
-  - RunCommand then ends the launcher and reports completion with empty output, because the session line is printed last.
-  - Drain parses no session and removes nothing. The lease minted before `Start-Process` remains, so the host runs for its lease window (about 60 s RAM, 15 s GPU), and a resume inside it starts a second host.
-  - Not a regression: the unpaused launch path has the same gap.
-  - The fixtures' deadline case models a status RunCommand cannot reach here, and the reachable case is untested.
-  - Planned fix, not done: the launcher reports its session before the Timeout can end it. See [RAM.md](modules/RAM.md#idle-pause).
+- **Found in review, fixed 2026-10-26: a slow PowerShell start stranded the host.** This happened with or without Idle pause.
+  - If PowerShell took more than about 5 s to start, the launcher's startup plus its 10 s wait passed RunCommand's 15 s Timeout. RunCommand ended the launcher and reported completion with empty output, because the session line is printed last, so the host ran for its lease window (about 60 s RAM, 15 s GPU) and the retry or a resume started a second one.
+  - **The fix, in RAM and GPU:** the launcher stops waiting 13 s after its own process start, so it reports its session before the Timeout and the controller's startup guard waits for the first frame. A launch that still ends unreported (or at the deadline Kill) has the host it recorded stopped through the owner file, from `fail()` and from `Drain()`.
+  - **Measured natively** with a staged slow start (`Test-HostLifecycle.ps1 -StartDelayMs 6000`): with a slow host too, the launcher reported 13.13 s (RAM) and 13.03 s (GPU) after its start, against 15.58 s and no reading in 90 s before the fix. With the report held past the Timeout, the host exited 1.26 s (RAM) and 2.34 s (GPU) after the launcher ended, against 53.07 s and two hosts at once before. See [RAM.md](modules/RAM.md#idle-pause).
 
 **Checks on the merged tree:**
 - `Test-Parallax.ps1 -RequireAllModules -WarningsAsErrors`: 24 configs, 122 files, 0 errors, 0 warnings.

@@ -144,10 +144,16 @@ local function stopProcesses()
     end
 end
 
+-- A launch that ends without reporting a session (RunCommand's Timeout ended
+-- a slow launcher with empty output, or the deadline Kill) may already have
+-- started a host on the session it recorded, so the owner file stops that
+-- host too. Otherwise the record names the session ending here, or one that
+-- already ended.
 local function fail()
     state, cached = 'failed', nil
     stopProcesses()
     cleanup()
+    stopRecorded()
     local now = os.time()
     if healthySince and now - healthySince >= healthyAfter then failures = 0 end
     healthySince, failures = nil, failures + 1
@@ -172,7 +178,10 @@ local function literal(text) return "'" .. (text:gsub("'", "''")) .. "'" end
 -- host exists. It starts the host hidden, outside
 -- the skin folder, with the source's absolute path on its command line, and
 -- waits up to 10 s until the host has written its first frame (by then it
--- holds its Rainmeter ancestor handle) or has exited. It then renews the
+-- holds its Rainmeter ancestor handle) or has exited, but never past 13 s
+-- after its own start: RunCommand's Timeout=15000 ends a launcher at 15 s,
+-- before it reports, so a slow PowerShell start still reports its session
+-- (the startup guard then waits for the first frame). It then renews the
 -- lease and prints the session, or removes the lease and reports failure, and
 -- exits, ending RunCommand's polling thread for this command. Only fixed text,
 -- the hex owner key and a validated integer enter it; the host validates the
@@ -198,8 +207,8 @@ local function launcherParameter()
         .. "$p=Start-Process -FilePath ([IO.Path]::Combine($PSHOME,'powershell.exe')) "
         .. "-ArgumentList ('-NoLogo -NoProfile -NonInteractive -WindowStyle Hidden -Command '+[char]34+$h+[char]34) "
         .. '-WorkingDirectory $t -WindowStyle Hidden -PassThru; '
-        .. "$d=$b+'.dat'; $w=[Diagnostics.Stopwatch]::StartNew(); "
-        .. 'while (-not $p.HasExited -and -not [IO.File]::Exists($d) -and $w.ElapsedMilliseconds -lt 10000) { Start-Sleep -Milliseconds 100 }; '
+        .. "$d=$b+'.dat'; $w=[Diagnostics.Stopwatch]::StartNew(); $z=[Diagnostics.Process]::GetCurrentProcess().StartTime.AddSeconds(13); "
+        .. 'while (-not $p.HasExited -and -not [IO.File]::Exists($d) -and $w.ElapsedMilliseconds -lt 10000 -and [DateTime]::Now -lt $z) { Start-Sleep -Milliseconds 100 }; '
         .. "if ($p.HasExited) { throw 'host' }; "
         .. "[IO.File]::WriteAllText($l,$k+'|'+[DateTimeOffset]::UtcNow.ToUnixTimeSeconds(),[Text.Encoding]::ASCII); "
         .. "[Console]::Write('RAM_PAGE_SESSION|1|'+$k+'|'+[BitConverter]::ToString([Text.Encoding]::UTF8.GetBytes($d)).Replace('-','')) "
@@ -330,9 +339,11 @@ end
 -- A launch a stand-down let run, checked once a second while this measure is
 -- paused (the delayed !CommandMeasure still reaches it, and the launcher
 -- measure keeps updating). When it reports a session, removing that lease
--- stops the host at its next check, within one sampling interval; a failed
--- launch left nothing running. One still running at its deadline is killed,
--- as fail() does (it has long existed by then). Each check arms at most the
+-- stops the host at its next check, within one sampling interval; a launch
+-- that ended without reporting one (RunCommand's Timeout) is stopped through
+-- the owner file, as in fail(), and a failed launch left nothing running. One
+-- still running at its deadline is killed, as fail() does (it has long
+-- existed by then). Each check arms at most the
 -- next, so the checks end with the drain or at the deadline. A check that
 -- reaches another state, or a later load (a delayed bang survives a
 -- refresh), does nothing. No process is started here.
@@ -344,9 +355,11 @@ function Drain()
         launched[launcher] = nil
         session = model.ParseSession(output(launcher), tempRoots())
         cleanup()
+        stopRecorded()
         state = 'standby'
     elseif current >= 100 or os.time() >= deadline then
         stopProcesses()
+        stopRecorded()
         state = 'standby'
     else
         SKIN:Bang(drainCheck)

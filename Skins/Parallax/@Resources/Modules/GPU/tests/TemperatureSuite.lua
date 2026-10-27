@@ -817,6 +817,33 @@ function Suite.run(path)
         -- A close of a running session also removes the owner file.
         f = fixture(); f:live(); f.files[owned] = token; f.env.Stop(); f:ownedClean(); eq(f.files[owned], nil); eq(f.kills[launcher], nil)
     end)
+    test('a launch that ends unreported (a slow start hit RunCommand\'s Timeout) has its recorded host stopped', function()
+        -- Found in review 2026-10-25: a PowerShell start over about 5 s pushed
+        -- the launcher's 10 s wait past RunCommand's 15 s Timeout, which ended
+        -- it with empty output, so the host it had started ran on to its 15 s
+        -- lease. The launcher now stops waiting 13 s after its own start, and a
+        -- launch that still ends unreported is stopped through the owner file.
+        local f = fixture()
+        local launch = f.parameters[launcher]
+        contains(launch, '$z=[Diagnostics.Process]::GetCurrentProcess().StartTime.AddSeconds(13); ')
+        contains(launch, '-lt 10000 -and [DateTime]::Now -lt $z)')
+        local owned = f.recordOpens[1]
+        local function endedUnreported(s)
+            s.files[owned] = token; s.files[leasePath] = token .. '|' .. s.now; s.files[dataPath] = 'starting'
+            s.outputs[launcher] = ''; s.statuses[launcher] = 1
+        end
+        f.now = f.now + 15; endedUnreported(f); f:update()
+        f:ownedClean(); eq(f.removed[leasePath], 1, 'its lease is removed: the host exits'); eq(f.removed[owned], 1)
+        eq(f.kills[launcher], nil); eq(f.meter.Text, 'Unavailable')
+        f.now = f.now + 10; f:update(); eq(f.launches[launcher], 2, 'it is retried after 10 s like any failed launch')
+        -- The same while draining after a stand-down, without a Kill.
+        f = fixture(); f:idleCall('IdleEnter'); f.now = f.now + 15; endedUnreported(f); f.env.Drain()
+        f:ownedClean(); eq(f.removed[owned], 1); eq(f.kills[launcher], nil); eq(f.drains, 1)
+        f:idleCall('IdleLeave'); f:update(); eq(f.launches[launcher], 2, 'then the resume starts one fresh session')
+        -- The startup-guard Kill also stops the host its launch recorded.
+        f = fixture(); f.files[owned] = token; f.files[leasePath] = token .. '|1000'; f.now = 1020; f:update()
+        eq(f.kills[launcher], 1); f:ownedClean(); eq(f.removed[owned], 1)
+    end)
     test('failure kills the owned running launcher exactly once; Stop never kills', function()
         for _, action in ipairs({'failure', 'Stop'}) do
             local f = fixture()

@@ -21,6 +21,14 @@
 #     refresh is sent while the first refresh's launch is still waiting with
 #     its host started (RunCommand's unload ends the launcher before it
 #     reports): that host must exit within the same bound;
+#   - Slow start (optional): -StartDelayMs stages a sleep at the launcher's
+#     start (a slow PowerShell start) and -HostDelayMs one before the host
+#     compiles, so the launcher's 10 s wait alone would cross RunCommand's 15 s
+#     Timeout. The launcher must still report, before that Timeout, and leave
+#     one running host. With -Unreported (and -LaunchDelayMs to hold the
+#     report back) the Timeout ends the launch after it started its host: that
+#     host must exit within one interval plus 3 s of the launcher's end, not at
+#     its lease lapse, and never beside a second;
 #   - Suspend (optional): the Rainmeter process is suspended, then resumed. The
 #     host's lease window is 60 s, so the default 20 s suspension must leave
 #     the same host running with a current reading afterwards, and a longer
@@ -42,6 +50,12 @@ param(
     # With -Refresh: the staged launcher's wait after its host's first frame,
     # which adds the refresh-during-launch case.
     [ValidateRange(0,8000)][int]$LaunchDelayMs = 0,
+    # Slow start: staged sleeps at the launcher's start and before the host
+    # compiles; -Unreported checks a launch the Timeout ends after its host
+    # started (load only: no unload, refresh, suspend or observe steps).
+    [ValidateRange(0,20000)][int]$StartDelayMs = 0,
+    [ValidateRange(0,20000)][int]$HostDelayMs = 0,
+    [switch]$Unreported,
     # Seconds to watch after the first reading: every skin update must keep
     # showing a current reading (no stale or Checking flicker).
     [ValidateRange(0,600)][int]$ObserveSeconds = 0,
@@ -87,6 +101,21 @@ if ($LaunchDelayMs -gt 0) {
     $anchor = "if (`$p.HasExited) { throw 'host' }; "
     if (([regex]::Matches($text, [regex]::Escape($anchor))).Count -ne 1) { throw "No single launcher report step in $($spec.Script)." }
     [IO.File]::WriteAllText($scriptPath, $text.Replace($anchor, "Start-Sleep -Milliseconds $LaunchDelayMs; $anchor"), $spec.ScriptEncoding)
+}
+if ($Unreported -and (-not $SkipUnload -or $Refresh -or $Suspend -or $ObserveSeconds)) { throw '-Unreported checks the load only: pass -SkipUnload, without -Refresh, -Suspend or -ObserveSeconds.' }
+if ($StartDelayMs -gt 0 -or $HostDelayMs -gt 0) {
+    # The launcher sleeps first thing (its process start time is before it);
+    # the host sleeps before it compiles, so its first frame comes late.
+    $scriptPath = Join-Path $parallaxRoot ('@Resources\Modules\' + $Module + '\' + $spec.Script)
+    $text = [IO.File]::ReadAllText($scriptPath)
+    $launcherAnchor = "try { `$q=[string][char]39; "
+    $hostAnchor = "Add-Type -TypeDefinition ([IO.File]::ReadAllText('@S@')); "
+    foreach ($anchor in @($launcherAnchor, $hostAnchor)) {
+        if (([regex]::Matches($text, [regex]::Escape($anchor))).Count -ne 1) { throw "No single staging anchor in $($spec.Script): $anchor" }
+    }
+    if ($StartDelayMs -gt 0) { $text = $text.Replace($launcherAnchor, "$launcherAnchor" + "Start-Sleep -Milliseconds $StartDelayMs; ") }
+    if ($HostDelayMs -gt 0) { $text = $text.Replace($hostAnchor, "Start-Sleep -Milliseconds $HostDelayMs; $hostAnchor") }
+    [IO.File]::WriteAllText($scriptPath, $text, $spec.ScriptEncoding)
 }
 Write-RunFile (Join-Path $runRoot 'TEST-ONLY.txt') "Isolated helper lifecycle check with test-stage instrumentation. Do not distribute."
 $observedPath = Join-Path $runRoot 'observed.txt'
@@ -310,13 +339,47 @@ try {
     if (@(Get-Hosts).Count) { throw 'A host for this staged path already runs.' }
     [ParallaxLifecycleNative]::StartWatch()
     $rainmeter = Start-Process -FilePath $RainmeterPath -ArgumentList ('"{0}"' -f $iniPath) -WorkingDirectory $runRoot -WindowStyle Hidden -PassThru
-    $first = Wait-Reading 90
-    $result.FirstReading = $first.Text
-    $hostProcess = Assert-Detached $rainmeter 'Load'
-    $token = Get-Token $hostProcess
-    Check ($token -ne '') 'Load: the host command carries its session token'
-    $files = @(Get-SessionFiles $token)
-    Check (($files -contains ($spec.Prefix + $token + '.dat')) -and ($files -contains ($spec.Prefix + $token + '.lease'))) 'Load: the session holds its snapshot and lease'
+    $pending = $null
+    if ($StartDelayMs -gt 0) {
+        # The first launch: how long its launcher lived, from its own start,
+        # and the host it started.
+        $deadline = [DateTime]::UtcNow.AddSeconds(20)
+        $launcher = $null
+        while (-not $launcher -and [DateTime]::UtcNow -lt $deadline) {
+            $launcher = @(Get-Launchers $rainmeter) | Select-Object -First 1
+            if (-not $launcher) { Start-Sleep -Milliseconds 50 }
+        }
+        Check ($null -ne $launcher) 'Slow start: the launcher started'
+        $deadline = [DateTime]::UtcNow.AddSeconds(25)
+        while ([DateTime]::UtcNow -lt $deadline -and (Get-Process -Id $launcher.ProcessId -ErrorAction SilentlyContinue)) {
+            if (-not $pending) { $pending = @(Get-Hosts) | Select-Object -First 1 }
+            Start-Sleep -Milliseconds 50
+        }
+        $result.LauncherSeconds = [Math]::Round(([DateTime]::Now - $launcher.CreationDate).TotalSeconds, 2)
+        if (-not $pending) { $pending = @(Get-Hosts) | Select-Object -First 1 }
+    }
+    if ($Unreported) {
+        # RunCommand's Timeout ended the launch after it started its host.
+        Check ($null -ne $pending) 'Unreported: the launch started its host before it ended'
+        Check ($result.LauncherSeconds -ge 14.5) "Unreported: RunCommand's Timeout ended the launcher ($($result.LauncherSeconds) s after its start)"
+        $watch = Watch-PreviousHost $pending.ProcessId ($spec.LeaseSeconds + 10)
+        $result.UnreportedHostExitSeconds = $watch.Exit
+        $result.UnreportedMostHosts = $watch.Most
+        Start-Sleep -Milliseconds 500
+        $unreportedFiles = @(Get-SessionFiles (Get-Token $pending)).Count
+        Check ($null -ne $watch.Exit -and $watch.Exit -le $spec.IntervalSeconds + 3) "Unreported: the host exited within one interval plus 3 s of its launcher's end, not at its lease lapse ($($watch.Exit) s; lease window $($spec.LeaseSeconds) s)"
+        Check ($watch.Most -le 1) "Unreported: never two hosts at once ($($watch.Most))"
+        Check ($unreportedFiles -eq 0) "Unreported: the unreported session's files were removed"
+    } else {
+        $first = Wait-Reading 90
+        if ($StartDelayMs -gt 0) { Check ($result.LauncherSeconds -lt 14.5) "Slow start: the launcher reported before RunCommand's 15 s Timeout ($($result.LauncherSeconds) s after its start)" }
+        $result.FirstReading = $first.Text
+        $hostProcess = Assert-Detached $rainmeter 'Load'
+        $token = Get-Token $hostProcess
+        Check ($token -ne '') 'Load: the host command carries its session token'
+        $files = @(Get-SessionFiles $token)
+        Check (($files -contains ($spec.Prefix + $token + '.dat')) -and ($files -contains ($spec.Prefix + $token + '.lease'))) 'Load: the session holds its snapshot and lease'
+    }
     if ($ObserveSeconds) {
         $mark = @(Get-Content -LiteralPath $observedPath -Encoding UTF8).Count
         Start-Sleep -Seconds $ObserveSeconds

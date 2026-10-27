@@ -153,8 +153,8 @@ With Global Settings **Idle pause** on (5, 10 or 30 minutes; default Off), Memor
 - **PAGE host:** stops at the pause. `PageFile.lua` `StandDown()` removes the session lease, so the resident host exits within one sampling interval (seen at 0.24 s natively); a launch still in progress is let finish and then drained (next bullet). This is not a failure: no retry is consumed and the retry schedule is untouched; a session that had already failed keeps its own schedule, and one that gave up stays Unavailable. `Stop()` is not used (it is terminal for the load).
 - **Launch kill race (found 2026-10-23, fixed 2026-10-25).** C2 killed a launch still in progress at the pause. A pause within a few milliseconds of a launch (seen once in five isolated runs, in the reload-while-paused step) sent RunCommand's Kill before its worker thread had created the process; RunCommand reports 0 from `Run` before the process exists, so Lua could not tell the two apart. RunCommand logged `Error 102: Program not running` and the launch carried on: it started the host and renewed the lease when the host first sampled. Nobody renewed it after that, so the host did not run until the resume: it exited when the lease lapsed, 60 s after that renewal since the 2026-10-25 lease window (15 s before), and a resume inside that time started a second host beside it. A Kill that landed after the launcher's `Start-Process` (the few seconds while the host compiles) stranded the host the same way, on the launcher's first lease, because it ended only the launcher.
   - **The fix.** `StandDown()` no longer kills a launch in progress. It marks the session draining and sends one `[!Delay 1000][!CommandMeasure MeasureRAMPageView "Drain()"]`; the delayed call still reaches the paused script, and the launcher measure is never paused, so its status is current. `Drain()` refreshes the launcher's status: once the launcher reports its session, Drain removes that lease and the host exits at its next check, within one sampling interval; a failed launch left nothing running. Otherwise it arms one more check, so the checks end with the drain. Three limits bound a launch, the same in GPU:
-    - **10 s:** the launcher waits up to 10 s for the host's first frame. Its clock starts only after `Start-Process` (`PageFile.lua:146`).
-    - **15 s:** RunCommand's `Timeout=15000` ends a slower launcher (see the slow-start known issue below).
+    - **10 s:** the launcher waits up to 10 s for the host's first frame. Its clock starts only after `Start-Process`, and since 2026-10-26 the wait also ends 13 s after the launcher's own start (see the slow-start fix below).
+    - **15 s:** RunCommand's `Timeout=15000` ends a slower launcher.
     - **20 s:** at the controller's deadline (`begin()`, `now + 20`), a launcher still running is killed once, as a failure would. The 15 s Timeout comes first, so this Kill is effectively unreachable.
 
     A resume before the launch reports, and before that deadline, adopts it as the session's start, so no second host starts. A resume past the deadline drains first. A check that reaches a later load (a delayed bang survives a refresh) finds no draining state and does nothing. Nothing here starts a process, and the launcher keeps no `FinishAction` (`Validate-RAM.ps1`'s rule is kept: a completion action could relaunch a polling process); the validator now also asserts that `StandDown()` sends no Kill and `Drain()` starts nothing.
@@ -165,12 +165,11 @@ With Global Settings **Idle pause** on (5, 10 or 30 minutes; default Off), Memor
   - **After the fix:** the running host exited 0.18 s after the refresh. During a launch, the launcher was ended at once as before, and its unreported host exited 0.48 s later. Never more than one host ran.
   - **Also closed:** a close (`Stop()`) during a launch now stops the unreported host through the same record; before, it ran to its lease lapse.
   - **Left:** an owner file stays in TEMP only when Rainmeter is killed rather than closed; the skin's next load clears it. Should the old launcher outlive the new `Initialize()` (RunCommand ends it during the unload, so this was not seen), the new load misses that one session and its lease lapse remains the backstop.
-- **Known issue, not fixed: a slow PowerShell start strands the host (found in review 2026-10-25; not specific to Idle pause).**
-  - **What happens.** If PowerShell takes more than about 5 s to start, the launcher's startup plus its 10 s wait passes RunCommand's 15 s `Timeout`. RunCommand's TerminateApp ends the launcher and sets value 1 with whatever output it captured. The session line is printed last, so that output is empty.
-  - **The effect.** `Drain()`'s `current == 1` branch parses no session, so `cleanup()` removes nothing and the state goes to standby. The lease minted before `Start-Process` remains, so the host runs for its lease window, about 60 s, and a resume inside that window starts a second host.
-  - **Not a regression.** The unpaused `Update()` path has the same gap: `fail()` with a nil session.
-  - **Coverage.** The 20 s deadline Kill is effectively unreachable, because the 15 s Timeout comes first. The fixtures' deadline case models status 0 at +20 s, which cannot occur with `Timeout=15000`. It stays as a guard on that branch, but it does not cover slow launches. The reachable case, value 1 with empty output, is untested.
-  - **Planned fix, not done.** The launcher reports its session before RunCommand's Timeout can end it, either by printing the session before `Start-Process` or by measuring its wait from its own process start time.
+- **A slow PowerShell start stranded the host (found in review 2026-10-25, fixed 2026-10-26; not specific to Idle pause).**
+  - **What happened.** If PowerShell took more than about 5 s to start, the launcher's startup plus its 10 s wait passed RunCommand's 15 s `Timeout`. RunCommand ended the launcher and set value 1 with the output it had captured, which was empty because the session line is printed last. `fail()` (or `Drain()` after a stand-down) then had no session to clean up, so the host ran for its 60 s lease window, and the retry 10 s later, or a resume, started a second host beside it. Every retry repeated this, so PAGE never showed a reading.
+  - **The fix, part 1: report in time.** The launcher's wait for the first frame also ends 13 s after its own process start (`[Diagnostics.Process]::GetCurrentProcess().StartTime`), 2 s inside the Timeout. A host still compiling then is reported anyway, and the controller's 20 s startup guard waits for its first frame.
+  - **The fix, part 2: a backstop.** A launch that still ends without reporting (a start over about 13 s, or the deadline Kill) has already recorded its session in the owner file if it started a host, so `fail()` and both `Drain()` endings now call `stopRecorded()` too. The record names that launch's session, or one that already ended; nothing starts or kills a process.
+  - **Left:** a launcher ended before it writes the owner file has started no host, but leaves its `.lease` file in TEMP, as before.
 - **On the first input:** measures update before anything is shown, then every meter and one repaint. `StandUp()` arms one fresh launch for that update, so PAGE reads **Checking...** until the new host's first sample (natively 3.7 s after the input, including its compile), never the pre-pause value. The history restarts: the startup cover and its sample count reset (`Display.lua` `IdleLeave`), so only samples taken after the resume are shown and nothing is joined across the pause. `ReapplyDividers` restores the shown Used unit (the hidden one idles) and the cover's divider.
 - **Still running while paused:** the skin's timer and mouse timer with nothing to update, the stand-down hook's check about once a minute, and UsageMonitor's process-wide Process reader (it stops only when no measure of its category is loaded).
 - **Auto history scale:** `Display.lua` `IdleLeave` calls the range controller's `Reset()`, restarting its sample window with the restarted history; the controller and its proxy are in the paused measure group.
@@ -187,7 +186,7 @@ Checks (2026-10-25, kill race fix):
   - the resume shows Checking... and starts one fresh launch, with no retry consumed;
   - a quick resume adopts the launch;
   - a failed launch leaves nothing to stop;
-  - one Kill at the 20 s deadline (status 0 then, which `Timeout=15000` prevents in practice; not a slow-launch case, see the slow-start known issue);
+  - one Kill at the 20 s deadline (status 0 then, which `Timeout=15000` prevents in practice; not a slow-launch case, see the slow-start fix);
   - a late resume drains first.
 
   With the pre-fix `PageFile.lua`, all 6 cases fail on the stand-down Kill.
@@ -214,6 +213,15 @@ Checks (2026-10-25, refresh fix):
   - **Fixed code: 30/30 checks, clean log.** Old host gone 0.18 s after a refresh; during a launch, launcher ended at once and host gone 0.48 s after; never two hosts.
   - **Pre-fix code: fails.** 59.48 s and 60.4 s; up to three hosts at once.
 - **Not verified:** a refresh issued from the Settings window in a live session (the harness refreshes by bang); Rainmeter 4.5.26.
+
+Checks (2026-10-26, slow-start fix):
+- **`NativeSmoke.lua` in `Test-RAMNative.ps1 -FixtureOnly`: 6/6 cases natively.** New PAGE controller cases: the launcher's 13 s bound; a launch ended unreported (value 1, empty output) has its recorded lease, data, tmp and owner file removed with no Kill, then retries after 10 s; the same while draining; the startup-guard Kill stops the recorded host too.
+- **`Validate-RAM.ps1`: 100,375 assertions,** including the launcher's bound and `stopRecorded()` in `fail()` and both `Drain()` endings.
+- **`Tests/Test-HostLifecycle.ps1` slow-start steps** (new `-StartDelayMs`, `-HostDelayMs` and `-Unreported`; isolated under `C:\pxc`):
+  - **Reported in time** (`-StartDelayMs 6000 -HostDelayMs 8000`): fixed code 14/14 checks, the launcher reported 13.13 s after its start and PAGE showed a reading with one host; pre-fix code fails, the Timeout ended the launcher at 15.58 s and no reading came within 90 s.
+  - **Ended unreported** (`-StartDelayMs 6000 -LaunchDelayMs 8000 -Unreported`): fixed code 9/9, the Timeout ended the launcher at 15.86 s and its host exited 1.26 s later, one host at most; pre-fix code fails, the host ran 53.07 s past the launcher (its lease lapse) and two hosts ran at once.
+  - The standard run (`-Refresh`) still passes 25/25 with a clean log. RunCommand logs nothing when its Timeout ends the launcher.
+- **Not verified:** a genuinely slow PowerShell start (the delays are staged sleeps inside the launcher and host); the live install.
 
 ## History and unavailable information
 

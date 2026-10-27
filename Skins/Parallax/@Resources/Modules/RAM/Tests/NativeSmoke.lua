@@ -162,7 +162,7 @@ local function checkPageController()
     check(not launchParameter:find('Add-Type -TypeDefinition ([IO.File]::ReadAllText(\'PageFileHost', 1, true)
         and launchParameter:find("ReadAllText(''@S@'')", 1, true) and launchParameter:find("[ParallaxRamPageFile]::Run(''@T@'',1000)", 1, true),
         'Only the detached host compiles, from the absolute source path, for the minted session')
-    check(launchParameter:find('-lt 10000', 1, true) and launchParameter:find("'RAM_PAGE_SESSION|1|'+$k+'|'", 1, true)
+    check(launchParameter:find('-lt 10000 -and', 1, true) and launchParameter:find("'RAM_PAGE_SESSION|1|'+$k+'|'", 1, true)
         and launchParameter:find('[IO.File]::Delete($l)', 1, true),
         'Launcher waits a bounded time, prints the session, and removes its lease on failure')
     check(next(files) == nil, 'The controller writes no lease before the launcher reports')
@@ -528,6 +528,35 @@ local function checkPageController()
     env.Stop()
     check(removed[lease] >= 1 and files[lease] == nil and removed[owned] == 1 and files[owned] == nil and next(kills) == nil,
         'Stop removes the running session and its owner file')
+
+    -- A slow PowerShell start (found in review 2026-10-25). RunCommand's
+    -- Timeout=15000 ended a launcher still waiting for its host's first frame
+    -- and reported completion with no output, so the host it had started ran
+    -- on to its 60 s lease. The launcher now stops waiting 13 s after its own
+    -- start, and a launch that still ends unreported has the host it recorded
+    -- stopped through the owner file.
+    check(parameter:find('$z=[Diagnostics.Process]::GetCurrentProcess().StartTime.AddSeconds(13); ', 1, true)
+        and parameter:find('-lt 10000 -and [DateTime]::Now -lt $z)', 1, true),
+        'The launcher stops waiting 13 s after its own start, inside RunCommand\'s 15 s Timeout')
+    local function endedUnreported()
+        files[owned] = token; files[lease] = token..'|'..now
+        files[path] = 'RAM_PAGE|1|'..token..'|0|'..now..'|STARTING|?|?|?'
+        providers.MeasureRAMPageLauncher.value = 1; providers.MeasureRAMPageLauncher.text = ''
+    end
+    reset(); env.Start(); now = now + 15; endedUnreported(); env.Update()
+    check(removed[lease] == 1 and removed[path] == 1 and removed[temporary] == 1 and removed[owned] == 1 and files[lease] == nil,
+        'A launch the Timeout ended unreported has its recorded host stopped: its lease is removed')
+    check(next(kills) == nil and options.MeterRAMPageGiB.Text == 'Unavailable', 'That failure kills nothing and shows Unavailable')
+    now = now + 10; env.Update()
+    check(launches.MeasureRAMPageLauncher == 2, 'It is retried after 10 s like any failed launch')
+    reset(); env.Start(); env.StandDown(); now = now + 15; endedUnreported(); env.Drain()
+    check(removed[lease] == 1 and removed[owned] == 1 and files[lease] == nil and next(kills) == nil and drains == 1,
+        'A drained launch the Timeout ended unreported has its recorded host stopped, without a Kill')
+    env.StandUp(); env.Update()
+    check(launches.MeasureRAMPageLauncher == 2, 'Then the resume starts one fresh session')
+    reset(); env.Start(); files[owned] = token; files[lease] = token..'|'..now; now = now + 20; env.Update()
+    check(kills.MeasureRAMPageLauncher == 1 and removed[lease] == 1 and removed[owned] == 1,
+        'The startup-guard Kill also stops the host its launch recorded')
 end
 
 local function checkProcessController()

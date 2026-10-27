@@ -7,7 +7,7 @@ IOMinPanelHeight=0
 IODiskUnits=bytes
 ; C preserves the original layout. all follows detected drive letters.
 ; Custom selection: uppercase comma-separated letters in alphabetical order; none hides rows.
-IODiskDrives=C,D,G
+IODiskDrives=C
 ; c = C only, combined = selected sum, overlay = per-drive traces, split = read above/write below zero.
 IOGraphMode=combined
 ; letters, volume (Windows label), model (device model), or both.

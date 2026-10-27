@@ -475,6 +475,7 @@ def main():
     # Installer keeps an old value only for keys the new User\IO.inc still has.
     user = read_sections(("@Resources/User/IO.inc",))["Variables"]
     assert "PanelHeight" not in user and user["IOMinPanelHeight"] == "0", "Disk Meter's saved minimum must ship as IOMinPanelHeight=0"
+    assert user["IODiskDrives"] == "C", "a fresh install must select C: only, not a machine's drive letters"
     entry = read_sections(("IO/IO-Disk.ini",))["Variables"]
     assert entry["PanelHeight"] == "(Max(#IOMinPanelHeight#,152))", "the entrypoint seeds Geometry.inc from the drive-row minimum"
     settings = read_sections(("IO/Settings/Settings.ini",))

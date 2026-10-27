@@ -412,6 +412,15 @@ assert "[guid]::NewGuid().ToString('N')" in temperature_text and "'CreateNew','W
 assert "CreateSession" not in temperature_text and temperature_text.count("Add-Type") == 1
 assert "Add-Type -TypeDefinition ([IO.File]::ReadAllText('@S@'))" in temperature_text
 assert "-WorkingDirectory $t -WindowStyle Hidden -PassThru" in temperature_text
+# Idle stand-down never kills a launch in progress: a Kill before RunCommand
+# has created the process is refused (Error 102), and one after the
+# launcher's Start-Process misses the detached host. Drain stops the host the
+# launch reports, from one fixed delayed call, and starts nothing.
+stand_down = re.search(r"\nfunction StandDown\(\)(.*?)\nend", temperature_text, re.S)
+drain = re.search(r"\nfunction Drain\(\)(.*?)\nend", temperature_text, re.S)
+assert stand_down and "Kill" not in stand_down.group(1) and "stopHelpers" not in stand_down.group(1), "idle stand-down must not kill a launch in progress"
+assert drain and not re.search(r"launch\(|begin\(|'Run'", drain.group(1)), "the drain must never start a process"
+assert """local drainCheck = '[!Delay 1000][!CommandMeasure MeasureGPUTemperatureController "Drain()"]'""" in temperature_text
 assert "CreateSession" not in (GPU_DIR / "DriverTemperature.cs.txt").read_text(encoding="utf-8")
 assert not any(opts.get("Plugin") == "RunCommand" and opts.get("Timeout", "-1") == "-1" for opts in sections.values())
 assert not any(name.startswith("MeasureGPUTemperature") and opts.get("Measure") == "Registry" for name, opts in sections.items())

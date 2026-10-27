@@ -18,6 +18,9 @@ local retryDelays, healthyAfter = {10, 60, 300}, 600
 local failures, retryAt, healthySince
 local launcher = 'MeasureRAMPageLauncher'
 local targets = {'MeterRAMPageGiB', 'MeterRAMPageMiB', 'MeterRAMPageBar'}
+-- One check of a launch that an idle stand-down let run, a second from now
+-- (see Drain). The launcher measure is never paused; this one is.
+local drainCheck = '[!Delay 1000][!CommandMeasure MeasureRAMPageView "Drain()"]'
 
 local function measure(name)
     if not measures[name] then measures[name] = SKIN:GetMeasure(name) end
@@ -206,6 +209,15 @@ local function readFrame(now)
     aliveUntil = frame.epoch + math.max(30, 2 * model.Window(interval))
 end
 
+local function tempRoots()
+    local roots = {}
+    for _, key in ipairs({'TMP', 'TEMP'}) do
+        local root = os.getenv(key)
+        if root then roots[#roots + 1] = root end
+    end
+    return roots
+end
+
 function Update()
     local now = os.time()
     if state == 'launching' then
@@ -213,12 +225,7 @@ function Update()
         local current = status(launcher)
         if current == 1 then
             launched[launcher] = nil
-            local roots = {}
-            for _, key in ipairs({'TMP', 'TEMP'}) do
-                local root = os.getenv(key)
-                if root then roots[#roots + 1] = root end
-            end
-            session = model.ParseSession(output(launcher), roots)
+            session = model.ParseSession(output(launcher), tempRoots())
             if not session then fail(); return 0 end
             if not heartbeat(now) then fail(); return 0 end
             state, deadline = 'running', now + 20
@@ -239,28 +246,73 @@ function Update()
     elseif state == 'resume' then
         begin(now)
     end
-    if state ~= 'stopped' and state ~= 'standby' then Display(false) end
+    if state ~= 'stopped' and state ~= 'standby' and state ~= 'draining' then Display(false) end
     return 0
 end
 
 -- Idle stand-down (Global Settings Idle pause; @Resources\Idle\StandDown.lua
 -- calls IdleEnter before pausing this measure and IdleLeave after unpausing
 -- it). StandDown ends the session without counting a failure: removing the
--- lease stops a running host within one sampling interval, and a launch
--- still in progress is killed. Not Stop(), which is terminal for this load.
--- A failed state keeps its retry schedule (or stays Unavailable after the
--- last retry), so a host that keeps failing is not relaunched per pause.
+-- lease stops a running host within one sampling interval. Not Stop(), which
+-- is terminal for this load. A failed state keeps its retry schedule (or
+-- stays Unavailable after the last retry), so a host that keeps failing is
+-- not relaunched per pause.
+-- A launch still in progress is not killed. A Kill sent before RunCommand's
+-- thread has created the process is refused (Error 102) and the launch
+-- carries on; one sent after the launcher's Start-Process ends only the
+-- launcher, and the detached host it started runs on the launcher's lease
+-- until that lapses. Either way nobody here knows the session to stop. So
+-- the launch is let run (it reports within about 10 s; RunCommand's Timeout
+-- bounds it) and drained: Drain stops whatever host it reports.
 function StandDown()
     if state ~= 'launching' and state ~= 'running' then return false end
-    stopProcesses()
+    cached, retryAt = nil, nil
+    if state == 'launching' then
+        state = 'draining'
+        SKIN:Bang(drainCheck)
+        return true
+    end
     cleanup()
-    state, cached, retryAt = 'standby', nil, nil
+    state = 'standby'
     return true
 end
 
+-- A launch a stand-down let run, checked once a second while this measure is
+-- paused (the delayed !CommandMeasure still reaches it, and the launcher
+-- measure keeps updating). When it reports a session, removing that lease
+-- stops the host at its next check, within one sampling interval; a failed
+-- launch left nothing running. One still running at its deadline is killed,
+-- as fail() does (it has long existed by then). Each check arms at most the
+-- next, so the checks end with the drain or at the deadline. A check that
+-- reaches another state, or a later load (a delayed bang survives a
+-- refresh), does nothing. No process is started here.
+function Drain()
+    if state ~= 'draining' then return end
+    SKIN:Bang('!UpdateMeasure', launcher)
+    local current = status(launcher)
+    if current == 1 then
+        launched[launcher] = nil
+        session = model.ParseSession(output(launcher), tempRoots())
+        cleanup()
+        state = 'standby'
+    elseif current >= 100 or os.time() >= deadline then
+        stopProcesses()
+        state = 'standby'
+    else
+        SKIN:Bang(drainCheck)
+    end
+end
+
 -- Arms a fresh session for the next update (the stand-down's forced resume
--- update): PAGE shows Starting until the new host's first sample.
+-- update): PAGE shows Starting until the new host's first sample. A launch
+-- still draining before its deadline becomes this session's start again, so
+-- a quick resume starts no second host.
 function StandUp()
+    if state == 'draining' and os.time() < deadline then
+        state, cached = 'launching', {status = 'STARTING'}
+        return true
+    end
+    if state == 'draining' then Drain() end
     if state ~= 'standby' then return false end
     state, cached = 'resume', {status = 'STARTING'}
     return true

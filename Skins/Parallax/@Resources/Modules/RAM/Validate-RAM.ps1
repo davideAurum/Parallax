@@ -220,6 +220,15 @@ $pageDisplay = [regex]::Match($pageScript,'(?s)function Display\([^)]*\)(.*?)\nl
 $pageProviderDisplay = $pageDisplay.Replace("SKIN:Bang('!UpdateMeasure', 'MeasureRAMPageRatio')", '')
 Assert-RAM ($pageDisplay.Length -gt 0 -and $pageProviderDisplay -notmatch 'io\.|launch\(|!CommandMeasure|!UpdateMeasure') 'PAGE Display may update its cached ratio without provider or session IO.'
 Assert-RAM ($pageScript -notmatch 'MeasureRAMHistory|!UpdateMeterGroup') 'PAGE rendering must not force physical-memory history.'
+# Idle stand-down never kills a launch in progress: a Kill before RunCommand
+# has created the process is refused (Error 102), and one after the
+# launcher's Start-Process misses the detached host. Drain stops the host the
+# launch reports, from one fixed delayed call, and starts nothing.
+$pageStandDown = [regex]::Match($pageScript, '(?s)\nfunction StandDown\(\)(.*?)\nend').Groups[1].Value
+$pageDrain = [regex]::Match($pageScript, '(?s)\nfunction Drain\(\)(.*?)\nend').Groups[1].Value
+Assert-RAM ($pageStandDown.Length -gt 0 -and $pageStandDown -notmatch 'Kill|stopProcesses') 'Idle stand-down must not kill a PAGE launch in progress.'
+Assert-RAM ($pageDrain.Length -gt 0 -and $pageDrain -notmatch "launch\(|begin\(|'Run'") 'The PAGE drain must never start a process.'
+Assert-RAM ($pageScript.Contains("local drainCheck = '[!Delay 1000][!CommandMeasure MeasureRAMPageView ""Drain()""]'")) 'The PAGE drain check must be one fixed delayed call into its own controller.'
 Assert-RAM ($pageDisplay.Contains("if dirty[name] then") -and $pageDisplay.Contains("SKIN:Bang('!UpdateMeter', name)") -and $pageDisplay.Contains("if changed and immediate ~= false then SKIN:Bang('!Redraw') end")) 'PAGE Display must force its changed UpdateDivider=-1 meters on every path; only the redraw depends on immediate.'
 $tooltipScripts = @('Display.lua', 'Info.lua', 'PageFile.lua', 'Process.lua', 'Settings.lua' | Where-Object { (Get-Content -LiteralPath (Join-Path $PSScriptRoot $_) -Raw) -match 'ToolTipText' })
 Assert-RAM ($tooltipScripts.Count -eq 0) "RAM controllers must not assign tooltips: $($tooltipScripts -join ', ')"

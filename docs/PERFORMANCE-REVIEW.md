@@ -12,11 +12,13 @@ CPU figures are **percent of one logical core** unless stated otherwise. 100% me
   - **The fan.** That is the display re-detection behind the fan peaks.
   - **The slowdown over days.** Each reconnect also made Windows leak a kernel copy of every Parallax skin's image, about 2.2 MB, which explains the slowdown that only a restart cleared.
   - **The fix.** Swapping the two DisplayPort cables stopped it: 0 dropouts in 25 dark minutes, against 11-17 in 5-6 minutes before.
+  - **Confirmed overnight (2026-10-25/26).** There were no left-only drops after the swap and no display events in 9.1 dark hours. Paged pool stayed flat (−0.2 MB an hour). See [Overnight check](#overnight-check-2026-102526-cable-fix-and-clean-baseline).
   - See [Display dropouts and the kernel memory leak](#display-dropouts-and-the-kernel-memory-leak-2026-102425).
 - **Phase C is merged.**
   - **Idle pause (C2):** off by default; when on, it takes the six skins from 8.5 to 3.65% while paused.
   - **The drawer (C1):** releases its audio capture after silence while you are away.
-  - **Its idle coordinator** costs about 57 UI-thread wakeups/s beside the open drawer, a Rainmeter per-window cost on this machine. The fix C3 removed the avoidable part. See [Phase C result](#phase-c-result-merged-and-measured-2026-10-23).
+  - **Its idle coordinator** cost about 57 UI-thread wakeups/s beside the open drawer, a Rainmeter per-window cost; the fix C3 removed the avoidable part. See [Phase C result](#phase-c-result-merged-and-measured-2026-10-23).
+  - **Re-measured on 2026-10-25 after a restart, that window cost is about 2.** It came from the machine's degraded state (a runaway TextInputHost and days of leaked kernel memory), not from the coordinator. Every skin's UI thread was cheaper too. See [TextInputHost and the after re-measure](#display-dropouts-and-the-kernel-memory-leak-2026-102425).
 - **Step 3: are the gains additive? It depends on where you look.**
   - **Inside Media, synergistic:** the two halves of A1 save 4.5 points alone and 8.5 together.
   - **Across the six skins, antagonistic:** the packages save 21 points when each is added alone, 12.7 together.
@@ -24,11 +26,9 @@ CPU figures are **percent of one logical core** unless stated otherwise. 100% me
   - The likely shared cause of the overlap is Rainmeter's single, contended UI thread. See [Step 3 result](#step-3-result-2026-10-24-are-the-gains-additive).
 - **Nothing has reached the desktop yet.** The live skin changes only when a release is installed.
 - **Open for the owner:**
-  - **TextInputHost** was ended on 2026-10-24. The "after" re-measure of the coordinator's window cost has not run yet; it is best run now that the display is fixed.
-  - **The cable fix** still needs an overnight confirmation;
-  - whether to hide the process lists (the largest remaining cost);
-  - the C3 options (a lazy coordinator for the drawer);
-  - the stand-down helper kill race.
+  - **A clean pre-release baseline exists (2026-10-25/26).** With alpha.8 (phases A-C) live and the screens off, Parallax ran at 8.1% of a core, against 26.6 on 10-22. The machine was 10.1% busy, against 22.5. The fan sat at its floor except during three Spotify runaway episodes.
+  - **The stand-down helper kill race** is fixed (2026-10-25, branch `claude/kill-race-fix-bf97ef`), waiting to be merged. See [the known issue](#phase-c-result-merged-and-measured-2026-10-23).
+  - **Decided on 2026-10-25:** the process lists stay shown by default, and the lazy coordinator is dropped. See [Owner decisions (2026-10-25)](#owner-decisions-2026-10-25).
 
 ## Bottom line
 
@@ -544,7 +544,7 @@ CPU in % of one core, median [min-max].
 - **From baseline, the six skins cost 63% less after phase B** (20.5 → 7.7), and 77% less with the process lists hidden (→ 4.7). The peak second fell from 27.7 to 14.4.
 - **Phase B's CPU change at the default settings is inside the trial spread** (9.0 → 7.7, with overlapping ranges). That was expected: B1 removes wakeups rather than CPU time, and B2 changes nothing at the defaults.
 - **B1's wakeup cut is clear.** GPU and RAM each lose about 100 Rainmeter wakeups a second (257 → 155, 266 → 159). That matches the 104/s measured live for RunCommand's polling thread.
-- **The process lists are now the largest remaining cost.** Hiding them takes the six skins from 7.7 to 4.7, and plugin-thread time from 3.9 to 0.6. That plugin time is UsageMonitor's whole-category Process and GPU readers. Hiding the lists is a feature trade-off and the owner's choice; the defaults keep them.
+- **The process lists are now the largest remaining cost.** Hiding them takes the six skins from 7.7 to 4.7, and plugin-thread time from 3.9 to 0.6. That plugin time is UsageMonitor's whole-category Process and GPU readers. Hiding the lists is a feature trade-off and the owner's choice; the defaults keep them. **Owner decision (2026-10-25): keep them shown by default;** the opt-outs stay available.
 - **One outlier.** Baseline's first six-skin trial read 11.5, about half the other two (21.6 and 20.5), and its UI-thread time was half as well. The median uses all three trials.
 - **Why these differ from yesterday's run** (25.5 at baseline, 10.3 after phase A): that ran under different background load. Today's numbers come from one interleaved session, so they compare like with like.
 
@@ -608,6 +608,7 @@ A follow-up agent isolated the cause with staged variants that each differed in 
    - **Where the time goes.** Stack samples show a `CallNextHookEx` call from `dxgi.dll` inside `GetMessage`. It appears only once a second skin window exists, and it blocks on a win32k lock, most likely the session's USER lock, two to three times per message. That is why it scales with the other skins' message rate.
    - **It cannot be removed in Rainmeter 4.5.28** while the coordinator is a separate config.
    - **This machine makes it worse.** TextInputHost running away at about 90% of a core is the probable lock holder; that is not proven.
+   - **Update 2026-10-25:** after TextInputHost was ended and the PC restarted, the window cost fell to about 2 wakeups/s beside Media. See [the after re-measure](#display-dropouts-and-the-kernel-memory-leak-2026-102425).
 2. **The SysInfo reading: 13-15 wakeups/s.** The fix reads it only when a reading could change the state: about once a minute while you are at the computer. It still reads every 2 s while you are away or skins are paused, so input is seen within one tick.
 
 **Result.** UI-thread wakeups/s from the reviewer's clean re-measure:
@@ -620,11 +621,11 @@ A follow-up agent isolated the cause with staged variants that each differed in 
 CPU time is unchanged within noise.
 
 **Open options, not built:**
-- **A lazy coordinator for the drawer.** It would join only after 2 minutes of drawer silence, or while parked. That saves about 57 wakeups/s while music plays, but it needs a protocol change.
+- **A lazy coordinator for the drawer.** It would join only after 2 minutes of drawer silence, or while parked. On the degraded machine that saved about 57 wakeups/s while music played; after the 2026-10-25 restart the window costs about 2, so the gain is now small, and it still needs a protocol change. **Dropped by the owner on 2026-10-25.**
 - **Read IDLE_TIME inside Network when Network is loaded.** Network already reads the interface table every tick, so the reading would cost nothing extra there.
-- **Restart TextInputHost and re-measure.** The per-window cost may largely disappear.
+- **Restart TextInputHost and re-measure: done 2026-10-25.** The per-window cost fell from about 60 to about 2 wakeups/s beside Media.
 
-**Suite-wide lesson.** Every extra Rainmeter window, including a Settings window left open and Media's Queue or Setup, adds this per-message hook call. Weigh that before splitting the UI into more configs.
+**Suite-wide lesson.** Every extra Rainmeter window, including a Settings window left open and Media's Queue or Setup, adds this per-message hook call. Weigh that before splitting the UI into more configs. On a freshly restarted machine the cost was about 2 wakeups/s per hidden window, so it matters mainly when the machine is in a bad state.
 
 **Minor review notes:**
 - **A rare tick-token collision** is possible on a quick double refresh after 24.8 days of uptime.
@@ -640,10 +641,33 @@ CPU time is unchanged within noise.
 - **Some background work keeps running while paused:** UsageMonitor's readers, Network's interface polling, and Media's Source and Queue helpers.
 - **Resume costs a little:** about 1 s of UI-thread work with all nine skins loaded, plus one PowerShell start and compile for each of the RAM and GPU hosts.
 
-**Known issue, not fixed: a helper-launch kill race (only with Idle pause on).**
-- **What happens.** If a stand-down lands within milliseconds of a RAM or GPU helper launch, RunCommand logs "Error 102: Program not running" and the launch carries on.
-- **What it costs.** Nobody renews the stranded host's lease, so it exits when the lease lapses, about 15 s later.
-- **Why it is open.** Each clean fix needs a design decision; the options are written up in `docs/modules/RAM.md` and `docs/modules/GPU.md`.
+**Known issue, fixed 2026-10-25: a helper-launch kill race (only with Idle pause on).**
+- **What happened.** A stand-down during a RAM or GPU helper launch killed the launcher.
+  - Before the launcher started its host, the Kill was refused ("Error 102: Program not running") and the launch carried on.
+  - After it started its host, the Kill ended only the launcher.
+  - Either way the host was left running with nobody to stop it.
+- **What it cost.** The stranded host ran until its lease lapsed: about 60 s for RAM (since the 2026-10-25 lease window; 15 s before) and 15 s for GPU. A resume inside that window started a second host beside it. The "about 15 s" first written here is now true for GPU only.
+- **The fix.** Stand-down no longer kills a launch in progress. It lets the launch finish, then removes the lease of the host the launch reports, so the host stops itself, as a running one already did.
+  - A one-shot check, 1 s apart, of the launcher's status drives this. It is a Lua `!Delay` chain that launches no process.
+  - Three limits bound it, the same in RAM and GPU:
+    - **10 s** is the launcher's wait for the host's first frame. Its clock starts after `Start-Process`.
+    - **15 s** is RunCommand's `Timeout=15000`, which ends a slower launcher.
+    - **20 s** is the controller's deadline (`begin()`, `now + 20`), where a launcher still running is killed once. The 15 s Timeout comes first, so this Kill is effectively unreachable.
+  - A resume before the launch reports, and before that deadline, adopts the launch instead.
+  - The validators' rule against a launcher FinishAction is kept, and new assertions keep `Kill` out of stand-down.
+  - Details and checks: [RAM](modules/RAM.md#idle-pause) and [GPU](modules/GPU.md#idle-pause-2026-10-23).
+- **Checks.** It was reproduced natively in its post-`Start-Process` form. With a 3 s staged launch delay, the pre-fix RAM code left two hosts running after 20 s; the fix left none after 2.5 s. The `Error 102` form is covered by the fixtures only.
+- **Known, not fixed: a refresh leaves the previous host running.** This happens with or without Idle pause.
+  - `Stop()` runs only from `OnCloseAction`, which runs on unload and never on refresh. So any refresh leaves the previous host running until its lease lapses: about 61 s for RAM, 15 s for GPU.
+  - A launch in progress at the refresh adds only two things: its session is never reported, and a launcher ended before `Start-Process` leaves its `.lease` file.
+  - See [RAM.md](modules/RAM.md#idle-pause).
+- **Found in review, not fixed: a slow PowerShell start strands the host.** This happens with or without Idle pause.
+  - If PowerShell takes more than about 5 s to start, the launcher's startup plus its 10 s wait passes RunCommand's 15 s Timeout.
+  - RunCommand then ends the launcher and reports completion with empty output, because the session line is printed last.
+  - Drain parses no session and removes nothing. The lease minted before `Start-Process` remains, so the host runs for its lease window (about 60 s RAM, 15 s GPU), and a resume inside it starts a second host.
+  - Not a regression: the unpaused launch path has the same gap.
+  - The fixtures' deadline case models a status RunCommand cannot reach here, and the reachable case is untested.
+  - Planned fix, not done: the launcher reports its session before the Timeout can end it. See [RAM.md](modules/RAM.md#idle-pause).
 
 **Checks on the merged tree:**
 - `Test-Parallax.ps1 -RequireAllModules -WarningsAsErrors`: 24 configs, 122 files, 0 errors, 0 warnings.
@@ -700,7 +724,7 @@ CPU time is unchanged within noise.
 - On this machine, each window message that thread handles waits on a contended win32k lock, once per extra skin window.
 - The original build keeps that thread far busier, so removing any one skin's work also shortens every other skin's waits. Alone, a package gets credit for both.
 - A cost that grows faster than the load behaves exactly like this.
-- This is not proven. A re-run after TextInputHost is restarted, if that is what holds the lock, would show how much of the overlap is this machine's state.
+- This is not proven. The 2026-10-25 re-measure supports it: after a restart the six skins' UI thread woke about 310 times a second instead of 554, and the per-window cost fell from about 60 to 2. Step 3 itself was not re-run, so how much of the overlap remains is unknown.
 
 **The protocol's expected interactions:**
 - **A1 with C1 (expected synergistic):** not testable here; C1 needs minutes of silence and absence.
@@ -830,16 +854,82 @@ Explorer, the NVIDIA display container and dwm bursting together is how display 
 
 - **The leak stopped.** During the last test paged pool stayed at 4,693-4,695 MB. The only event was one resync 2 s after the screens woke.
 - **Likely cause.** The old left cable did not fail on the right monitor either, so a poorly seated plug, or a cable that is marginal at DP 1.2 speed with the left monitor, is the likely cause.
-- **Still to confirm:** a full night with the logger.
+- **Still to confirm:** a full night with the logger. **Confirmed 2026-10-25/26**; see [Overnight check](#overnight-check-2026-102526-cable-fix-and-clean-baseline).
 
-**TextInputHost.**
+**TextInputHost and the after re-measure.**
 - **What happened.** It had run at about 85-90% of a core since 2026-10-21 17:54 (97,205 CPU-seconds). It was ended with the owner's OK on 2026-10-24 at 16:14:27, and Windows restarted it as a quiet instance.
-- **The "before" re-measure** gave a coordinator window cost of +55-60 UI wakeups/s beside Media and +109 across the six skins.
-- **The "after" run** was cancelled by the restart and is still to do.
+- **The re-measure.** Both runs used the same three staged copies of the C3 merge (`5474212`): with the coordinator, without it, and with a bare hidden 1x1 window in its place. They used the live preferences and hardware rendering, with 3 interleaved trials per variant. No run saw a display event.
+  - **"Before"** ran on 2026-10-24 from 15:59 to 16:14, with TextInputHost running away and 2.9 days of leaked kernel memory (paged pool about 13.8 GB).
+  - **"After"** ran on 2026-10-25 from 18:25 to 18:39: two hours after a restart, with TextInputHost quiet and the cables swapped.
+
+| UI-thread wakeups/s, median of 3 | Before, with coordinator | Before, without | After, with coordinator | After, without |
+| --- | ---: | ---: | ---: | ---: |
+| Media alone | 169 | 108 | 88 | 86 |
+| Six skins | 663 | 554 | 298 | 310 |
+
+- **The coordinator's window cost is gone.**
+  - Beside Media it fell from +60.5 to +2.1 wakeups/s; a bare hidden window went from +55.2 to +1.7.
+  - Across the six skins it went from +109 to -12, which is noise.
+- **Everything else got cheaper too.**
+  - Without the coordinator, Media's UI thread fell from 108 to 86 wakeups/s and the six skins' from 554 to 310.
+  - Load times fell from about 3.6 s to 0.7 s for Media and from 7.1 s to 1.5 s for the six skins.
+  - Total CPU moved within noise: the six skins without the coordinator went from 8.7% to 8.8% of a core.
+- **The cause was the machine's state, not Parallax.** The extra cost went away with the TextInputHost kill and the restart. This run cannot separate the two. The kernel state before the restart was about 13.8 GB of paged pool (mostly leaked GDI bitmaps), with igfxEM holding 147,488 handles.
+- **What it changes.**
+  - The lazy coordinator (a C3 option) would now save about 2 wakeups/s, not 57.
+  - The Step 3 overlap was measured in the old state and may be smaller now; it was not re-run.
+- **Live Rainmeter, for context only.** A 30 s read-only sample, not like-for-like, because the drawer and Spotify states were not recorded: the UI thread went from 741 to 360 wakeups/s, and the process from 18.5% to 10.6% of a core.
+- **Files.** The logs and summary are in `build/wakeup-recheck/` (git-ignored); the reports are `build/perf-benchmark/*-live-wr-*.json`.
 
 **Not verified.**
 - Whether skins on the steady monitor, or a DPI-aware Rainmeter, would also leak per reconnect.
-- How much of the fan's night-time pattern remains after the fix. The overnight trace in the evidence protocol should be re-run.
+- How much of the fan's night-time pattern remains after the fix. The overnight trace in the evidence protocol should be re-run. **Update 2026-10-26:** answered in the next section.
+
+## Overnight check (2026-10-25/26): cable fix and clean baseline
+
+**Dropouts: the cable fix holds.**
+- **Logger coverage.** 2026-10-25 15:11-16:08, 16:34-00:49, and 2026-10-26 01:38 onwards (pid 31668, still running). **Not recorded:** 16:08-16:34 (a restart at 16:14) and 00:49-01:38 (a restart at 00:53).
+- **`which-dropped.ps1` reports 21 "DISPLAY2" dropouts since 15:11. None is the old fault.** The script counts every one-screen row, and display-events.csv has two kinds:
+  - **Left gone, right stays** (DISPLAY1 still 2560×1440): the fault. 1,423 before the swap, about 79 an hour on the 10-24 night. Since the swap there have been 2 (20:55:08 and 02:26:52), each within 1 s after a both-gone row. They are a step inside a wake, because the right monitor comes back about 0.7 s before the left.
+  - **Both gone** (DISPLAY1=1024×768, Windows' no-monitor placeholder): 1 before the swap, 19 since. Each comes about 2 s after a Kernel-Power 566 screen-on (keyboard or mouse). These are wake re-enumerations, made frequent by the 60 s screen timeout.
+- **Overnight, dark:** no display events at all from 02:27:50 to 11:35:31, 9.1 hours with the screens off. Before the fix, a dark night meant 70-100 drops an hour.
+
+**Kernel pools: the leak is gone.**
+- **After the 00:53 restart:** paged pool was 1,068 MB at 01:38 and 1,062 MB at 09:00 (range 1,047-1,075), a slope of −0.2 MB an hour. igfxEM handles went from 392 to 423, one step of +31 at the 02:26 wake. NVIDIA's display container went from 727 to 706. Before the fix, paged pool grew about 175 MB an hour.
+- **10-25 16:34-00:49, before that restart:** paged pool rose from 708 to 1,706 MB in the first hour after the 16:14 boot, then held at about 1,750 MB until 21:10.
+  - A runaway `find` process (pid 41784) then held up to 13 million handles, which took paged pool to 8,967 MB by 23:39. All of it was freed when the process ended, at about 23:55 (1,495 MB). That is a handle leak in one process, not the display leak.
+  - igfxEM gained about 31 handles per wake (361 to 856), so its side leak still happens on each wake re-enumeration.
+
+**Trace.**
+- **What ran.** `Trace-ParallaxLive.ps1` ran from 01:44:01 to 10-26 11:43:59 at 5 s, 6,478 samples (`build/perf-trace/20261026T014354-overnight-clean-baseline*` in the main checkout).
+  - The launch log shows no warning or failure, and there is no `.error.log`.
+  - The live skin is the installed **0.1.0-alpha.8, which includes phases A-C** (`main` merge `da8137b`). It does not have the kill-race fix.
+  - The screens were off from 01:46 to 11:35, except a one-minute wake at 02:26.
+  - The figures below cover the screens-off time (531 min). 11:35 to the end is active use.
+- **HWiNFO was live.** The CPU temperature had 43 distinct values, and its longest unchanged run was 12 samples. The CPU fan had 438 distinct values, with a longest unchanged run of 6.
+- **The comparison.** CPU in % of one core; "busy" is % of all cores.
+
+| Screens off | Busy | CPU °C mean / p95 / max | CPU fan RPM mean / p95 / max | Parallax total | Rainmeter main | Helpers | audiodg | Spotify |
+| --- | ---: | ---: | ---: | ---: | ---: | ---: | ---: | ---: |
+| 10-22/23 W3 (214 min) | 22.5% | 68.7 / 79 / 86 | 2,872 / 3,354 / 3,938 | 26.6 | 12.3 | 9 | 7.7 | — |
+| **10-25/26 whole night (531 min)** | **10.1%** | **46.9 / 60 / 84** | **1,918 / 2,411 / 3,183** | **8.1** | **3.5** | **1.0** | **0.0** | **33.6** |
+| 10-25/26, Spotify calm (<20%, 329 min) | 8.3% | 41.5 / — / 70 | 1,732 / 1,734 / 2,295 | 9.1 | — | — | — | <20 |
+
+- **Top processes, screens off:** Spotify 33.6, RazerAppEngine 18.7, Creative Cloud UI Helper 12.1, SearchIndexer 8.4 (it climbed from about 6 to 18 by morning), Rainmeter 6.1, HWiNFO 2.5. TextInputHost, explorer, NVIDIA's display container and Adobe Desktop Service are gone from the list.
+- **RazerAppEngine and Creative Cloud UI Helper stayed busy all night.** Razer ran at about 20-24% and the UI Helper at about 12-16% in every hour where Spotify was calm, matching the 01:08 preflight. Neither is Parallax, and ending them is the owner's call.
+
+**The ~50 s fan-peak pattern is gone.**
+- **Spotify calm.** While Spotify was calm, the CPU fan sat at its floor: p50 1,731 and p90 1,734 RPM, which is sensor jitter.
+- **Spotify running away.** The remaining fan load is Spotify's runaway renderer, at about 110% of a core with no audio playing (audiodg about 0). It had three episodes: 02:55-03:12 (17 min), 04:55-07:00 (125 min) and 09:55-10:33 (38 min). During them busy was 14.2%, the CPU 59 °C and the fan 2,340 RPM mean, 3,183 max.
+- **Not the wake.** The first episode began 28 minutes after the 02:26 wake, so it is not tied to the wake.
+- **Parallax.** It is anti-correlated with the fan (−0.54) because it does not rise when Spotify does.
+
+**Caveats.**
+- **The drawer.** Its state was not recorded. audiodg at about 0 means either the drawer was closed or C1 had released audio capture, so the audiodg saving is not attributable from this trace.
+- **The comparison is not like-for-like.** Parallax's fall from 26.6 to 8.1 combines phases A-C, the drawer state and a clean machine (no leaked kernel pool, no runaway TextInputHost). The isolated benchmarks are the attributable figures; this is the live confirmation.
+- **Spotify confounds the totals.** The "Spotify calm" row is the cleaner machine baseline.
+- **Unrecorded logger gaps.** The two gaps above were not recorded.
+- **Files.** The analysis is `build/overnight-analysis/20261026-clean-baseline-analysis.txt`, with `morning-1026-leak.ps1` and `morning-1026-extra.ps1` beside it (git-ignored).
 
 ## Owner decisions (2026-10-22)
 
@@ -885,6 +975,14 @@ The audiodg attribution question is answered: see [Live A/B](#live-ab-drawer-and
 - **Removing the remaining tick** would need ActionTimer or a reload on play/pause, which is more code for a negligible CPU gain.
 - **Owner decision (2026-10-22): leave the tick as it is.** No ActionTimer pulse. The owner can set Title animation to Off to halve those wakeups, and C2's idle stand-down covers nights.
 
+## Owner decisions (2026-10-25)
+
+1. **Process lists: keep them shown by default.**
+   - **The trade-off:** hiding the CPU, RAM and GPU process lists takes the six skins from 7.7% to 4.7% of a core; they are the largest remaining cost.
+   - **Kept:** the lists are a feature, and the opt-outs (`CPUShowProcesses=0`, `RAMShowProcesses=0`, `GPUShowProcesses=0`, `GPUShowProcessMemory=0`) stay available.
+2. **Lazy coordinator for the drawer (C3 option): dropped.** After the restart the coordinator's window costs about 2 UI wakeups/s, not 57 (see [the after re-measure](#display-dropouts-and-the-kernel-memory-leak-2026-102425)), so the gain no longer justifies a protocol change.
+3. **Stand-down helper kill race: fix it** before the release, in RAM and GPU (see [the known issue](#phase-c-result-merged-and-measured-2026-10-23)). **Fixed 2026-10-25** on branch `claude/kill-race-fix-bf97ef`: a stand-down lets a launch finish and drains it instead of killing it.
+
 ## Found along the way (not performance)
 
 - **HWiNFO's registry export is frozen in the live session.**
@@ -912,6 +1010,7 @@ The audiodg attribution question is answered: see [Live A/B](#live-ab-drawer-and
 | [tools/Parallax.Perf.psm1](../tools/Parallax.Perf.psm1) | Handle-free process, thread, context-switch and GPU-engine accounting shared by the tools below |
 | [tools/Benchmark-Parallax.ps1](../tools/Benchmark-Parallax.ps1) | Isolated solo, suite and leave-one-out benchmark with interaction analysis; JSON under `build/perf-benchmark` |
 | [tools/Trace-ParallaxLive.ps1](../tools/Trace-ParallaxLive.ps1) | Read-only trace of the running session and whole machine, with HWiNFO sensors and spike attribution; CSV under `build/perf-trace` |
+| [tools/Start-ParallaxOvernightTrace.ps1](../tools/Start-ParallaxOvernightTrace.ps1) | Added 2026-10-26. Read-only preflight for an overnight trace: the live Rainmeter, no other runs, HWiNFO's export changing, sleep covered, the leak logger, a quiet sample. It then starts the main checkout's tracer hidden and detached, and confirms it is recording |
 | [tools/perf-dashboard.html](../tools/perf-dashboard.html) and [tools/Serve-PerfDashboard.py](../tools/Serve-PerfDashboard.py) | Live dashboard of both, read-only, served on loopback and optionally on the Tailscale address behind a token |
 
 The tools share one limitation: they measure Rainmeter and its helpers, not DWM's share of composition.

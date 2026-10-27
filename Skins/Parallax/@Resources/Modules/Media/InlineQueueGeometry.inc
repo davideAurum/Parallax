@@ -256,8 +256,9 @@ MediaQueueTextX=(#MediaQueueNumberRight#+6*#Scale#)
 MediaQueueDividerX=((#MediaQueueNumberRight#+#MediaQueueTextX#)/2)
 MediaQueueDividerInset=(3*#Scale#)
 MediaQueueTextWidth=(#MediaQueueX#+#MediaQueueWidth#-#MediaQueueTextX#)
-; The header row's Refresh action, right-aligned at the rows' right edge.
-MediaQueueRefreshWidth=(56*#Scale#)
+; The header row's Refresh action, right-aligned at the rows' right edge. Only
+; Media.ini has one: Queue\QueueControlHost.inc sets 56S; Setup keeps 0.
+MediaQueueRefreshWidth=0
 ; Song and artist share one flowing string per row, so the artist sits right
 ; after the title instead of in a column that leaves a ragged gap. The accent
 ; is applied by InlinePattern, which QueueReader.lua sets per row to the

@@ -72,25 +72,8 @@ InlinePattern=Artist$
 Text=Song / Artist
 UpdateDivider=-1
 
-; Asks the running helper to read the queue now (QueueControl.lua Refresh).
-; Right end of the header row, in the accent the standalone panel's actions
-; use. A click's outcome replaces the "Song / Artist" text beside it.
-[MeterQueueRefresh]
-Meter=String
-MeterStyle=StyleHeader
-X=(#MediaQueueX#+#MediaQueueWidth#)
-W=#MediaQueueRefreshWidth#
-H=(18*#Scale#)
-Y=#MediaQueueHeaderY#
-StringAlign=Right
-FontColor=#AccentColor#
-SolidColor=0,0,0,1
-Group=QueueRows
-Hidden=1
-Text=Refresh
-MouseActionCursor=1
-LeftMouseUpAction=[!CommandMeasure MeasureQueueControl "Run('Refresh')"]
-UpdateDivider=-1
+; Media.ini's Refresh action sits at this row's right end; it lives in
+; Queue\QueueControlHost.inc beside the measure it calls, so Setup has none.
 
 [MeterQueueHeaderDivider]
 Meter=Shape

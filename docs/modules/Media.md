@@ -1258,6 +1258,11 @@ items before it are skipped past (so they leave the queue). Remove and reorder a
 - **Clickable rows.** Only live, visible rows of a snapshot whose grant
   includes playback control, in a skin that declares the click host (Media.ini
   and the standalone Queue, not Setup), get the hand cursor and accept clicks.
+  Setup has no Refresh either: the drawer's label lives in
+  `Queue\QueueControlHost.inc` with the measure it calls, and Setup's header
+  keeps its full width (`MediaQueueRefreshWidth=0`). Until 2026-10-27 the label
+  was in the shared `InlineQueueMeters.inc`, so Setup showed a Refresh that
+  named a missing measure; `Test-ParallaxVariants.ps1` caught it before alpha.10.
 - **Snapshot V3.** `PARALLAX_QUEUE_V3` adds `control=0|1` and
   `notice=<enum>` after `count`. The reader still accepts V2, which reads as
   not clickable with no notice. Nonready snapshots must carry `control=0` and

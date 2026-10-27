@@ -145,7 +145,20 @@ MediaTimingY=(#MediaProgressY#+#DataBarThicknessPx#+8*#Scale#)
 ; Left boundary of the content beside the artwork; still bounds the timing
 ; text's width. Compact artwork sits above that row, so it uses ContentX.
 MediaTransportLeft=((#MediaCoverX#+#MediaCoverSize#)*#MediaWide#+#ContentX#*(1-#MediaWide#))
-MediaTimingMaxWidth=(Max(1,#ContentX#+#ContentWidth#-#MediaTransportLeft#-104*#Scale#))
+; Where the shuffle/repeat toggles show, the timing text moves up to share the
+; album row (PlayerMeters.inc), right-aligned to the bar's end, so its width is
+; a fixed reservation the album stops short of: room for "12:34 / 45:06" in
+; the default 9pt body font, clipped beyond. Where they are hidden it keeps
+; its place under the bar's right end and its old bound, and the album its
+; full width. It is centre-aligned in both places (StringAlign cannot follow
+; a formula, and !SetOption does not re-apply it at runtime). Under the bar
+; that centres the text in the same 18S box it used to top-align in, which
+; draws it 1px lower than before (measured 2026-10-26, IBM Plex Sans 9pt,
+; compact 220, scale 1).
+MediaTimingMaxWidth=(#MediaTransportToggles#*88*#Scale#+(1-#MediaTransportToggles#)*Max(1,#ContentX#+#ContentWidth#-#MediaTransportLeft#-104*#Scale#))
+MediaTimingGap=(8*#Scale#)
+MediaAlbumTimingReserve=(#MediaTransportToggles#*(#MediaTimingMaxWidth#+#MediaTimingGap#))
+MediaTimingCenterY=(#MediaTransportToggles#*(#MediaMetadataY#+2*#MediaMetadataPitch#+12*#Scale#)+(1-#MediaTransportToggles#)*(#MediaProgressY#+#DataBarThicknessPx#+11*#Scale#))
 ; TEMPORARY exploration: 1 hides the queue footer and reclaims the height it
 ; reserved, so the panel ends just below the timing text. Set to 0 to restore.
 MediaQueueHidden=1
@@ -160,11 +173,12 @@ MediaQueueDrawer=1
 ; reads as a soft cut-away rather than a punched rectangle. Only the top
 ; two corners are visible; the notch runs past the panel's lower edge.
 MediaQueueTabRadius=(Max(10,#CornerRadius#*2)*#Scale#)
-; The notch spans from the artwork to the transport circles, so its width is
+; The notch spans from the artwork to the transport circles (the shuffle
+; toggle, leftmost of the row), so its width is
 ; derived from both rather than fixed: move the buttons and it follows. Its
 ; right clearance is deliberately still 4 - that edge is really a question of
 ; where the buttons live on the x-axis, which is being decided separately.
-MediaQueueTabRight=(#MediaTransportGroupX#-#MediaTransportShadowPad#-4*#Scale#)
+MediaQueueTabRight=(#MediaTransportGroupX#-#MediaTransportToggles#*#MediaTransportToggleSpan#-#MediaTransportShadowPad#-4*#Scale#)
 ; Sits in the only clear strip on the bottom edge: right of the artwork and
 ; left of the transport circles. Its left edge is #ContentX# - the same line
 ; the title icon, the metadata icons and the progress bar all start on - so it
@@ -242,6 +256,8 @@ MediaQueueTextX=(#MediaQueueNumberRight#+6*#Scale#)
 MediaQueueDividerX=((#MediaQueueNumberRight#+#MediaQueueTextX#)/2)
 MediaQueueDividerInset=(3*#Scale#)
 MediaQueueTextWidth=(#MediaQueueX#+#MediaQueueWidth#-#MediaQueueTextX#)
+; The header row's Refresh action, right-aligned at the rows' right edge.
+MediaQueueRefreshWidth=(56*#Scale#)
 ; Song and artist share one flowing string per row, so the artist sits right
 ; after the title instead of in a column that leaves a ragged gap. The accent
 ; is applied by InlinePattern, which QueueReader.lua sets per row to the
@@ -410,7 +426,37 @@ MediaTransportY=(#MediaTransportCenterY#-#MediaTransportBox#/2)
 ; which is no longer the transport row.
 MediaTransportGap=(4*#Scale#)
 MediaTransportGroupWidth=(3*#MediaTransportSize#+2*#MediaTransportGap#)
-MediaTransportGroupX=(((#MediaCoverX#+#MediaCoverSize#)+(#Inset#+#PanelWidth#))/2-#MediaTransportGroupWidth#/2)
+MediaTransportCenteredX=(((#MediaCoverX#+#MediaCoverSize#)+(#Inset#+#PanelWidth#))/2-#MediaTransportGroupWidth#/2)
+; Shuffle and repeat: smaller secondary circles flanking the three, one
+; #MediaTransportGap# out, on the same centre line. Their 24-unit art is
+; drawn at 18S (the 34S circles carry 24S art, the same 0.7 ratio), with the
+; suite's 2S stroke kept rather than scaled, so all five strokes match.
+; The row's left end bounds the queue notch, which must keep room for its
+; icon and "Queue" label (#MediaQueueTabMinWidth#). Where the centred row
+; would cut the notch below that, the whole row slides right by just enough,
+; never closer than #Padding# to the panel's right edge. Where even that is
+; not enough (measured 2026-10-26: compact at width 220 and below, double at
+; 180, every scale; double 220 slides 26S right of centre), the toggles are
+; hidden and parked and the three keep their centred place, exactly as
+; before. MediaTransportToggles is that 1/0 choice.
+MediaTransportToggleSize=(26*#Scale#)
+MediaTransportToggleSpan=(#MediaTransportGap#+#MediaTransportToggleSize#)
+MediaQueueTabMinWidth=(76*#Scale#)
+MediaTransportToggleNeed=(Max(0,#MediaQueueTabX#+#MediaQueueTabMinWidth#+4*#Scale#+#MediaTransportShadowPad#-(#MediaTransportCenteredX#-#MediaTransportToggleSpan#)))
+MediaTransportToggleRoom=(#Inset#+#PanelWidth#-#Padding#-(#MediaTransportCenteredX#+#MediaTransportGroupWidth#+#MediaTransportToggleSpan#))
+MediaTransportToggles=(#MediaTransportToggleNeed#<=#MediaTransportToggleRoom# ? 1 : 0)
+MediaTransportGroupX=(#MediaTransportCenteredX#+#MediaTransportToggles#*#MediaTransportToggleNeed#)
+MediaTransportToggleBox=(#MediaTransportToggleSize#+2*#MediaTransportShadowPad#)
+MediaTransportToggleY=(#MediaTransportCenterY#-#MediaTransportToggleBox#/2)
+MediaTransportToggleGlyphScale=(18*#Scale#/24)
+MediaTransportToggleGlyphOffset=((#MediaTransportToggleBox#-18*#Scale#)/2)
+; Hidden toggles park at #Inset#, inside the window in every layout, so they
+; cannot widen it (a hidden meter still counts toward the skin's bounds).
+MediaTransportShuffleX=(#MediaTransportToggles#*(#MediaTransportGroupX#-#MediaTransportToggleSpan#)+(1-#MediaTransportToggles#)*(#Inset#+#MediaTransportShadowPad#))
+MediaTransportRepeatX=(#MediaTransportToggles#*(#MediaTransportGroupX#+#MediaTransportGroupWidth#+#MediaTransportGap#)+(1-#MediaTransportToggles#)*(#Inset#+#MediaTransportShadowPad#))
+; Off: an opaque neutral face ringed in the panel border colour, so the panel
+; border never shows through it; on: the AccentColor face of the trio.
+MediaTransportToggleOffFill=#GraphBackgroundColor#
 MediaOverhangBottom=(Max(#MediaCoverY#+#MediaCoverSize#,#MediaTransportY#+#MediaTransportBox#))
 ; The panel band clears the lift above it; the overhang and the open queue
 ; sheet are absolute positions, so they already include it.

@@ -36,6 +36,9 @@ InlinePattern=$^
 Group=QueueRows
 Hidden=1
 UpdateDivider=-1
+; Clicking a row skips to it (QueueReader.lua PlayRow). The hand cursor shows
+; only on rows the reader marks clickable; it starts off.
+MouseActionCursor=0
 
 ; One segment per row, inset top and bottom so the column reads as a dashed
 ; delimiter rather than a single line. QueueReader.lua places and hides these
@@ -57,7 +60,7 @@ Text=#
 Meter=String
 MeterStyle=StyleHeader
 X=#MediaQueueTextX#
-W=#MediaQueueTextWidth#
+W=(#MediaQueueTextWidth#-#MediaQueueRefreshWidth#)
 H=(18*#Scale#)
 Y=#MediaQueueHeaderY#
 Group=QueueRows
@@ -67,6 +70,26 @@ Hidden=1
 InlineSetting=Color | #MediaQueueArtistColor#
 InlinePattern=Artist$
 Text=Song / Artist
+UpdateDivider=-1
+
+; Asks the running helper to read the queue now (QueueControl.lua Refresh).
+; Right end of the header row, in the accent the standalone panel's actions
+; use. A click's outcome replaces the "Song / Artist" text beside it.
+[MeterQueueRefresh]
+Meter=String
+MeterStyle=StyleHeader
+X=(#MediaQueueX#+#MediaQueueWidth#)
+W=#MediaQueueRefreshWidth#
+H=(18*#Scale#)
+Y=#MediaQueueHeaderY#
+StringAlign=Right
+FontColor=#AccentColor#
+SolidColor=0,0,0,1
+Group=QueueRows
+Hidden=1
+Text=Refresh
+MouseActionCursor=1
+LeftMouseUpAction=[!CommandMeasure MeasureQueueControl "Run('Refresh')"]
 UpdateDivider=-1
 
 [MeterQueueHeaderDivider]
@@ -96,6 +119,7 @@ Meter=String
 MeterStyle=StyleLabel|MediaInlineQueueRowStyle
 Y=#Inset#
 Text=
+LeftMouseUpAction=[!CommandMeasure MeasureQueueStatus "PlayRow(1)"]
 
 [MeterQueueNumber2]
 Meter=String
@@ -108,6 +132,7 @@ Meter=String
 MeterStyle=StyleLabel|MediaInlineQueueRowStyle
 Y=#Inset#
 Text=
+LeftMouseUpAction=[!CommandMeasure MeasureQueueStatus "PlayRow(2)"]
 
 [MeterQueueNumber3]
 Meter=String
@@ -120,6 +145,7 @@ Meter=String
 MeterStyle=StyleLabel|MediaInlineQueueRowStyle
 Y=#Inset#
 Text=
+LeftMouseUpAction=[!CommandMeasure MeasureQueueStatus "PlayRow(3)"]
 
 [MeterQueueNumber4]
 Meter=String
@@ -132,6 +158,7 @@ Meter=String
 MeterStyle=StyleLabel|MediaInlineQueueRowStyle
 Y=#Inset#
 Text=
+LeftMouseUpAction=[!CommandMeasure MeasureQueueStatus "PlayRow(4)"]
 
 [MeterQueueNumber5]
 Meter=String
@@ -144,6 +171,7 @@ Meter=String
 MeterStyle=StyleLabel|MediaInlineQueueRowStyle
 Y=#Inset#
 Text=
+LeftMouseUpAction=[!CommandMeasure MeasureQueueStatus "PlayRow(5)"]
 
 [MeterQueueDivider1]
 Meter=Shape

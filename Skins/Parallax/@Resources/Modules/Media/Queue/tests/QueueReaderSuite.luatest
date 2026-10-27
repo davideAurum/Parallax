@@ -33,6 +33,13 @@ function Suite.run(sourcePath, scratchPath, optionsSourcePath)
         end
         return table.concat(lines, '\n') .. '\n'
     end
+    -- V3 adds control and notice after count.
+    local function snapshot3(overrides, rows)
+        local fields = { control = '0', notice = '' }
+        for key, value in pairs(overrides or {}) do fields[key] = tostring(value) end
+        local data = snapshot(overrides, rows):gsub('^PARALLAX_QUEUE_V2\n', 'PARALLAX_QUEUE_V3\n')
+        return (data:gsub('(\ncount=%d+\n)', '%1control=' .. fields.control .. '\nnotice=' .. fields.notice .. '\n', 1))
+    end
     local function blocked(overrides)
         local fields = { state = 'offline', observed = '0', valid_until = '0', count = '0' }
         for key, value in pairs(overrides or {}) do fields[key] = value end
@@ -55,9 +62,14 @@ function Suite.run(sourcePath, scratchPath, optionsSourcePath)
     end
     local function fixture(data, options)
         options = options or {}
-        local calls, texts, visible, positions, patterns = {}, {}, {}, {}, {}
+        local calls, texts, visible, positions, patterns, cursors = {}, {}, {}, {}, {}, {}
         local state = { data = data, time = 1001, reads = 0, closes = 0, opens = 0 }
         local skin = {}
+        function skin:GetMeasure(name)
+            equal(name, 'MeasureQueueControl', 'reader looks up only the click host')
+            if options.noControlHost then return nil end
+            return {}
+        end
         function skin:GetMeter(name)
             if options.noMeters or name == options.absentMeter then return nil end
             if options.absentMeters and options.absentMeters[name] then return nil end
@@ -82,6 +94,15 @@ function Suite.run(sourcePath, scratchPath, optionsSourcePath)
                     check(args[4] == '#Inset#' or args[4]:match('^%(#MediaQueueRowsY#%+[0-4]%*#MediaQueueRowPitch#%)$'),
                         'inline geometry only indexes into the skin-owned row formula')
                     positions[target] = args[4]
+                elseif args[3] == 'MouseActionCursor' then
+                    -- Clickable rows (control granted, live and visible) only.
+                    check(target:match('^MeterQueueRow[1-5]$') and (args[4] == '0' or args[4] == '1'), 'cursor only on row text, 0 or 1')
+                    cursors[target] = args[4]
+                elseif target == 'MeterQueueHeaderTrack' then
+                    check(options.inline and args[3] == 'Text', 'only the inline header text shows a click outcome')
+                    check(args[4] == 'Song / Artist' or args[4] == 'Queue changed' or args[4] == 'No active device'
+                        or args[4] == 'Control denied' or args[4] == 'Skip failed' or args[4] == 'Sign in again', 'header shows fixed labels only')
+                    state.header = args[4]
                 else
                     check(target:match('^MeterQueueRow[1-5]$'), 'only the row text meter changes text or pattern')
                     check(args[3] == 'Text' or args[3] == 'InlinePattern', 'only text, pattern or inline Y mutation')
@@ -95,6 +116,12 @@ function Suite.run(sourcePath, scratchPath, optionsSourcePath)
                 check(target:match('^MeterQueueRow[1-5]$') or target:match('^MeterQueueNumber[1-5]$')
                     or target:match('^MeterQueueDivider[1-5]$'), 'only row, digit or divider visibility')
                 visible[target] = bang == '!ShowMeter'
+            elseif bang == '!CommandMeasure' and target == 'MeasureQueueControl' then
+                -- A row click: integers only, never queue text.
+                check(args[3]:match('^Play%([1-5],[1-9]%d*%)$') ~= nil, 'row click hands over only row and observed time')
+                equal(#args, 3, 'row click has no extra arguments')
+                state.plays = state.plays or {}
+                state.plays[#state.plays + 1] = args[3]
             elseif bang == '!CommandMeasure' then
                 check(options.inline and state.reader.expanded, 'only expanded inline queue can request collapse')
                 equal(target, 'MeasureMediaOptions', 'fixed accordion callback target')
@@ -135,7 +162,7 @@ function Suite.run(sourcePath, scratchPath, optionsSourcePath)
             rowLimit = options.rowLimit, showDetails = options.showDetails, expanded = options.expanded,
             inline = options.inline }
         state.reader = Reader.new(state.env)
-        state.calls, state.texts, state.visible, state.positions, state.patterns = calls, texts, visible, positions, patterns
+        state.calls, state.texts, state.visible, state.positions, state.patterns, state.cursors = calls, texts, visible, positions, patterns, cursors
         return state
     end
 
@@ -562,6 +589,58 @@ function Suite.run(sourcePath, scratchPath, optionsSourcePath)
         equal(env.CollapseEmptyQueue(),false); equal(writes,3); equal(refreshes,4)
         denied=false; writeFails=false; data=data..'QueueExpanded=0\n'
         equal(env.CollapseEmptyQueue(),false); equal(writes,3); equal(refreshes,4)
+    end)
+    scenario('V3 control and notices: strict parsing, clickable rows and row clicks', function()
+        local rows = { {'One','a'}, {'Two','b'}, {'Three','c'} }
+        local granted = valid(snapshot3({ count = 3, control = 1 }, rows))
+        equal(granted.control, true, 'control grant parsed')
+        equal(granted.notice, nil)
+        equal(valid(snapshot({ count = 3 }, rows)).control, false, 'V2 snapshots are never clickable')
+        equal(valid(snapshot3({ count = 3, control = 1, notice = 'no_device' }, rows)).status, 'No active device')
+        for _, bad in ipairs({ { control = 2 }, { control = '' }, { notice = 'skip_everything' }, { notice = 'Queue changed' } }) do
+            bad.count = 3
+            invalid(snapshot3(bad, rows))
+        end
+        invalid(snapshot3({ state = 'offline', observed = 0, valid_until = 0, control = 1 }))
+        invalid(snapshot3({ state = 'offline', observed = 0, valid_until = 0, notice = 'queue_changed' }))
+        invalid(snapshot({ count = 3 }, rows):gsub('\ncount=3\n', '\ncount=3\ncontrol=1\n'))
+        -- Inline: clickable rows get the hand cursor, the header shows a notice.
+        local state = fixture(snapshot3({ count = 3, control = 1 }, rows), { inline = true, expanded = true })
+        equal(state.reader:update(), 'Next 3')
+        for index = 1, 3 do equal(state.cursors['MeterQueueRow' .. index], '1') end
+        for index = 4, 5 do equal(state.cursors['MeterQueueRow' .. index], '0') end
+        equal(state.header, 'Song / Artist')
+        equal(state.reader:play(2), true)
+        equal(state.plays[1], 'Play(2,1000)', 'click names the row and its snapshot')
+        for _, refused in ipairs({ 0, 4, 1.5, -1 }) do equal(state.reader:play(refused), false, 'row outside the clickable rows') end
+        equal(#state.plays, 1)
+        state.data = snapshot3({ count = 3, control = 1, notice = 'queue_changed', observed = 1001, valid_until = 1031 }, rows)
+        equal(state.reader:update(), 'Queue changed')
+        equal(state.header, 'Queue changed')
+        state.data = snapshot3({ count = 3, observed = 1002, valid_until = 1032 }, rows)
+        equal(state.reader:update(), 'Next 3')
+        equal(state.header, 'Song / Artist', 'notice lasts one snapshot')
+        for index = 1, 3 do equal(state.cursors['MeterQueueRow' .. index], '0', 'read-only grant: no cursor') end
+        equal(state.reader:play(1), false, 'read-only grant refuses clicks')
+        state.data = snapshot3({ count = 3, control = 1, observed = 1003, valid_until = 1033 }, rows)
+        state.reader:update()
+        state.time = 1040
+        equal(state.reader:update(), 'Queue stale')
+        equal(state.reader:play(1), false, 'stale rows refuse clicks')
+        -- Collapsed rows are not clickable even with a grant.
+        local collapsed = fixture(snapshot3({ count = 3, control = 1 }, rows), { inline = true, expanded = false })
+        collapsed.reader:update()
+        equal(collapsed.reader:play(1), false, 'hidden rows refuse clicks')
+        -- The standalone panel has no inline header to rewrite.
+        local standalone = fixture(snapshot3({ count = 2, control = 1, notice = 'control_failed' }, { rows[1], rows[2] }), {})
+        equal(standalone.reader:update(), 'Skip failed')
+        equal(standalone.header, nil)
+        equal(standalone.reader:play(2), true)
+        -- Setup declares no click host: its rows never become clickable.
+        local setup = fixture(snapshot3({ count = 3, control = 1 }, rows), { inline = true, expanded = true, noControlHost = true })
+        setup.reader:update()
+        for index = 1, 3 do equal(setup.cursors['MeterQueueRow' .. index], '0', 'no host: no cursor') end
+        equal(setup.reader:play(1), false, 'no host refuses clicks')
     end)
     scenario('Rainmeter callbacks use injected I/O and return status strings', function()
         local state = fixture(snapshot({ count=1 }, {{'#Danger#[Measure]%', 'Details'}}))

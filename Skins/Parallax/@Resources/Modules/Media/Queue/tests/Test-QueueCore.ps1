@@ -16,11 +16,20 @@ Check ($normalized.Items.Count -eq 3) 'track, duplicate, and episode retained'
 Check ($normalized.Items[0].Title -ceq $normalized.Items[1].Title) 'duplicate order preserved'
 Check ($normalized.Items[2].Detail -ceq 'Show') 'episode show source'
 $text = ConvertTo-QueueSnapshotText (New-QueueSnapshot -State ready -Items $normalized.Items -Now $now)
-Check ($text.StartsWith("PARALLAX_QUEUE_V2`nstate=ready`n")) 'versioned inert snapshot'
+Check ($text.StartsWith("PARALLAX_QUEUE_V3`nstate=ready`n")) 'versioned inert snapshot'
+Check ($text.Contains("count=3`ncontrol=0`nnotice=`n")) 'read-only grant: rows not clickable, no notice'
 Check ($text.Contains('count=3')) 'display count'
 Check ($text.Contains("title4=`ndetail4=`ntitle5=`ndetail5=`n")) 'unused rows blank'
 Check ($text -notmatch 'Synthetic title|Artist|Episode') 'display metadata encoded, not Rainmeter syntax'
-Check (($text -split "`n").Count -eq 17) 'exact bounded field count'
+Check (($text -split "`n").Count -eq 19) 'exact bounded field count'
+$controlText = ConvertTo-QueueSnapshotText (New-QueueSnapshot -State ready -Items $normalized.Items -Now $now -Control $true -Notice 'queue_changed')
+Check ($controlText.Contains("control=1`nnotice=queue_changed`n")) 'control grant and click notice recorded'
+Reject { New-QueueSnapshot -State ready -Items $normalized.Items -Now $now -Notice 'skip_everything' } 'unknown notice rejected'
+Reject { New-QueueSnapshot -State stopped -Now $now -Control $true } 'control without live rows rejected'
+Reject { New-QueueSnapshot -State offline -Now $now -Notice 'no_device' } 'notice without live rows rejected'
+foreach ($pair in @(@(204,''),@(200,''),@(401,'control_reauth'),@(403,'control_denied'),@(404,'no_device'),@(429,'control_failed'),@(500,'control_failed'),@(0,'control_failed'))) {
+    Check ((Get-QueueControlDecision $pair[0]) -ceq $pair[1]) ('skip response ' + $pair[0])
+}
 
 $empty = ConvertTo-QueueItems (ConvertFrom-QueueJson '{"currently_playing":null,"queue":[]}')
 Check ($empty.Items.Count -eq 0) 'real empty list accepted'

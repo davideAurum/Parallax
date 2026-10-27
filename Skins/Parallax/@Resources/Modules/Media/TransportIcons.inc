@@ -66,3 +66,65 @@ LucideFastForwardLeftPath=(2*#Scale#),(6*#Scale#) | ArcTo (5.414*#Scale#),(4.586
 MouseOverAction=[!CommandMeasure "MeasureMediaUI" "HoverTransport('Next',true)"]
 MouseLeaveAction=[!CommandMeasure "MeasureMediaUI" "HoverTransport('Next',false)"]
 LeftMouseUpAction=[!CommandMeasure "MeasureMediaUI" "Control('Next')"]
+
+; Shuffle and repeat: Lucide shuffle, repeat and repeat-1 at 18S on 26S
+; circles (see #MediaTransportToggleSize#). Media.lua sets the face (on, off,
+; hovered) and the art's stroke from WNP's Shuffle/Repeat state and Supports*
+; capabilities; repeat-one swaps the extra "1" stroke into Shape8.
+[MediaTransportToggleStyle]
+AntiAlias=1
+DynamicVariables=1
+UpdateDivider=-1
+Group=MediaDynamic|MediaTransport
+Y=#MediaTransportToggleY#
+; Hidden (and parked) where the five-button row has no room; see
+; MediaTransportToggles in InlineQueueGeometry.inc.
+Hidden=(1-#MediaTransportToggles#)
+W=#MediaTransportToggleBox#
+H=#MediaTransportToggleBox#
+Shape=Ellipse (#MediaTransportToggleBox#/2),(#MediaTransportToggleBox#/2+3*#Scale#),(#MediaTransportToggleSize#/2+2*#Scale#),(#MediaTransportToggleSize#/2+2*#Scale#) | Fill Color 0,0,0,28 | StrokeWidth 0
+Shape2=Ellipse (#MediaTransportToggleBox#/2),(#MediaTransportToggleBox#/2+2*#Scale#),(#MediaTransportToggleSize#/2+#Scale#),(#MediaTransportToggleSize#/2+#Scale#) | Fill Color 0,0,0,38 | StrokeWidth 0
+; The ring is stroked inside the face's edge, so the click target and the
+; painted face keep the same outer radius on and off.
+Shape3=Ellipse (#MediaTransportToggleBox#/2),(#MediaTransportToggleBox#/2),(#MediaTransportToggleSize#/2-#BorderThickness#*#Scale#/2),(#MediaTransportToggleSize#/2-#BorderThickness#*#Scale#/2) | Extend MediaTransportToggleFace
+MediaTransportToggleFace=Fill Color #MediaTransportToggleOffFill# | Stroke Color #BorderColor# | StrokeWidth (#BorderThickness#*#Scale#)
+LucideToggleStroke=Fill Color 0,0,0,0 | Stroke Color #MutedColor# | StrokeWidth (2*#Scale#) | StrokeStartCap Round | StrokeEndCap Round | StrokeLineJoin Round | Offset #MediaTransportToggleGlyphOffset#,#MediaTransportToggleGlyphOffset#
+MouseActionCursor=0
+
+[MeterShuffle]
+Meter=Shape
+MeterStyle=MediaTransportToggleStyle
+X=(#MediaTransportShuffleX#-#MediaTransportShadowPad#)
+Shape4=Path LucideShuffleLowerArrowPath | Extend LucideToggleStroke
+Shape5=Path LucideShuffleUpperArrowPath | Extend LucideToggleStroke
+Shape6=Path LucideShuffleCrossPath | Extend LucideToggleStroke
+Shape7=Path LucideShuffleUpperTailPath | Extend LucideToggleStroke
+Shape8=Path LucideShuffleLowerTailPath | Extend LucideToggleStroke
+LucideShuffleLowerArrowPath=(18*#MediaTransportToggleGlyphScale#),(14*#MediaTransportToggleGlyphScale#) | LineTo (22*#MediaTransportToggleGlyphScale#),(18*#MediaTransportToggleGlyphScale#) | LineTo (18*#MediaTransportToggleGlyphScale#),(22*#MediaTransportToggleGlyphScale#)
+LucideShuffleUpperArrowPath=(18*#MediaTransportToggleGlyphScale#),(2*#MediaTransportToggleGlyphScale#) | LineTo (22*#MediaTransportToggleGlyphScale#),(6*#MediaTransportToggleGlyphScale#) | LineTo (18*#MediaTransportToggleGlyphScale#),(10*#MediaTransportToggleGlyphScale#)
+; SVG sweep=0 maps to Rainmeter SweepDirection=1, sweep=1 to 0.
+LucideShuffleCrossPath=(2*#MediaTransportToggleGlyphScale#),(18*#MediaTransportToggleGlyphScale#) | LineTo (3.973*#MediaTransportToggleGlyphScale#),(18*#MediaTransportToggleGlyphScale#) | ArcTo (7.273*#MediaTransportToggleGlyphScale#),(16.3*#MediaTransportToggleGlyphScale#),(4*#MediaTransportToggleGlyphScale#),(4*#MediaTransportToggleGlyphScale#),0,1,0 | LineTo (12.727*#MediaTransportToggleGlyphScale#),(7.7*#MediaTransportToggleGlyphScale#) | ArcTo (16.027*#MediaTransportToggleGlyphScale#),(6*#MediaTransportToggleGlyphScale#),(4*#MediaTransportToggleGlyphScale#),(4*#MediaTransportToggleGlyphScale#),0,0,0 | LineTo (22*#MediaTransportToggleGlyphScale#),(6*#MediaTransportToggleGlyphScale#)
+LucideShuffleUpperTailPath=(2*#MediaTransportToggleGlyphScale#),(6*#MediaTransportToggleGlyphScale#) | LineTo (3.972*#MediaTransportToggleGlyphScale#),(6*#MediaTransportToggleGlyphScale#) | ArcTo (7.572*#MediaTransportToggleGlyphScale#),(8.2*#MediaTransportToggleGlyphScale#),(4*#MediaTransportToggleGlyphScale#),(4*#MediaTransportToggleGlyphScale#),0,0,0
+LucideShuffleLowerTailPath=(22*#MediaTransportToggleGlyphScale#),(18*#MediaTransportToggleGlyphScale#) | LineTo (15.959*#MediaTransportToggleGlyphScale#),(18*#MediaTransportToggleGlyphScale#) | ArcTo (12.659*#MediaTransportToggleGlyphScale#),(16.2*#MediaTransportToggleGlyphScale#),(4*#MediaTransportToggleGlyphScale#),(4*#MediaTransportToggleGlyphScale#),0,0,0 | LineTo (12.3*#MediaTransportToggleGlyphScale#),(15.75*#MediaTransportToggleGlyphScale#)
+MouseOverAction=[!CommandMeasure "MeasureMediaUI" "HoverTransport('Shuffle',true)"]
+MouseLeaveAction=[!CommandMeasure "MeasureMediaUI" "HoverTransport('Shuffle',false)"]
+LeftMouseUpAction=[!CommandMeasure "MeasureMediaUI" "Control('Shuffle')"]
+
+[MeterRepeat]
+Meter=Shape
+MeterStyle=MediaTransportToggleStyle
+X=(#MediaTransportRepeatX#-#MediaTransportShadowPad#)
+Shape4=Path LucideRepeatUpperArrowPath | Extend LucideToggleStroke
+Shape5=Path LucideRepeatUpperPath | Extend LucideToggleStroke
+Shape6=Path LucideRepeatLowerArrowPath | Extend LucideToggleStroke
+Shape7=Path LucideRepeatLowerPath | Extend LucideToggleStroke
+Shape8=Rectangle 0,0,1,1 | Fill Color 0,0,0,0 | StrokeWidth 0
+LucideRepeatUpperArrowPath=(17*#MediaTransportToggleGlyphScale#),(2*#MediaTransportToggleGlyphScale#) | LineTo (21*#MediaTransportToggleGlyphScale#),(6*#MediaTransportToggleGlyphScale#) | LineTo (17*#MediaTransportToggleGlyphScale#),(10*#MediaTransportToggleGlyphScale#)
+LucideRepeatUpperPath=(3*#MediaTransportToggleGlyphScale#),(11*#MediaTransportToggleGlyphScale#) | LineTo (3*#MediaTransportToggleGlyphScale#),(10*#MediaTransportToggleGlyphScale#) | ArcTo (7*#MediaTransportToggleGlyphScale#),(6*#MediaTransportToggleGlyphScale#),(4*#MediaTransportToggleGlyphScale#),(4*#MediaTransportToggleGlyphScale#),0,0,0 | LineTo (21*#MediaTransportToggleGlyphScale#),(6*#MediaTransportToggleGlyphScale#)
+LucideRepeatLowerArrowPath=(7*#MediaTransportToggleGlyphScale#),(22*#MediaTransportToggleGlyphScale#) | LineTo (3*#MediaTransportToggleGlyphScale#),(18*#MediaTransportToggleGlyphScale#) | LineTo (7*#MediaTransportToggleGlyphScale#),(14*#MediaTransportToggleGlyphScale#)
+LucideRepeatLowerPath=(21*#MediaTransportToggleGlyphScale#),(13*#MediaTransportToggleGlyphScale#) | LineTo (21*#MediaTransportToggleGlyphScale#),(14*#MediaTransportToggleGlyphScale#) | ArcTo (17*#MediaTransportToggleGlyphScale#),(18*#MediaTransportToggleGlyphScale#),(4*#MediaTransportToggleGlyphScale#),(4*#MediaTransportToggleGlyphScale#),0,0,0 | LineTo (3*#MediaTransportToggleGlyphScale#),(18*#MediaTransportToggleGlyphScale#)
+; repeat-1's extra stroke; Media.lua shows it in Shape8 only while repeating one.
+LucideRepeatOnePath=(11*#MediaTransportToggleGlyphScale#),(10*#MediaTransportToggleGlyphScale#) | LineTo (12*#MediaTransportToggleGlyphScale#),(10*#MediaTransportToggleGlyphScale#) | LineTo (12*#MediaTransportToggleGlyphScale#),(14*#MediaTransportToggleGlyphScale#)
+MouseOverAction=[!CommandMeasure "MeasureMediaUI" "HoverTransport('Repeat',true)"]
+MouseLeaveAction=[!CommandMeasure "MeasureMediaUI" "HoverTransport('Repeat',false)"]
+LeftMouseUpAction=[!CommandMeasure "MeasureMediaUI" "Control('Repeat')"]

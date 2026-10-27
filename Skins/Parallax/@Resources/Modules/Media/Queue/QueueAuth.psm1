@@ -6,6 +6,9 @@
 # Redirect registration: http://127.0.0.1/callback (dynamic loopback port exception).
 Set-StrictMode -Version 2.0
 $script:QueueScope = 'user-read-currently-playing'
+# Optional: clicking a queue row skips to it. Requested at sign-in, never
+# required, so an older read-only grant keeps reading the queue unchanged.
+$script:QueueControlScope = 'user-modify-playback-state'
 $script:TokenTransport = $null # Internal injection point; never set from user configuration.
 
 function Stop-QueueAuth {
@@ -446,6 +449,12 @@ function Test-QueueGrantedScope {
     return @($Scope.Split(' ')) -ccontains $script:QueueScope
 }
 
+function Test-QueueControlScope {
+    param([object]$Scope)
+    if (-not (Test-QueueGrantedScope $Scope)) { return $false }
+    return @($Scope.Split(' ')) -ccontains $script:QueueControlScope
+}
+
 function ConvertTo-QueueTokenRecord {
     param([object]$Response, [string]$ClientId, [object]$Previous)
     try {
@@ -470,7 +479,9 @@ function ConvertTo-QueueTokenRecord {
 
 function Get-QueueAccessToken {
     [CmdletBinding()]
-    param([Parameter(Mandatory = $true)][string]$DataRoot, [switch]$ForceRefresh)
+    param([Parameter(Mandatory = $true)][string]$DataRoot, [switch]$ForceRefresh, [switch]$WithControl)
+    # -WithControl returns { Token; Control } where Control says whether the
+    # grant includes playback control; the token itself is unchanged.
     $lock = Enter-QueueAuthLock $DataRoot
     try {
         $clientId = Get-QueueClientId $DataRoot
@@ -483,11 +494,15 @@ function Get-QueueAccessToken {
             $now = [DateTimeOffset]::UtcNow
             if ($record.schema_version -ne 1 -or $record.client_id -cne $clientId -or -not (Test-QueueGrantedScope $record.scope) -or $record.access_token -isnot [string] -or $record.refresh_token -isnot [string] -or $record.access_token -cnotmatch '\A[\x21-\x7e]{1,8192}\z' -or $record.refresh_token -cnotmatch '\A[\x21-\x7e]{1,8192}\z' -or $authorized -gt $now.AddMinutes(1) -or $expires -gt $now.AddDays(1) -or $authorized.AddMonths(6) -le $now) { Stop-QueueAuth reauth_required }
         } catch { Remove-QueueTokenFile $DataRoot; Stop-QueueAuth reauth_required }
-        if (-not $ForceRefresh -and $expires -gt $now.AddSeconds(60)) { return $record.access_token }
+        if (-not $ForceRefresh -and $expires -gt $now.AddSeconds(60)) {
+            if ($WithControl) { return [pscustomobject]@{ Token = $record.access_token; Control = (Test-QueueControlScope $record.scope) } }
+            return $record.access_token
+        }
         try {
             $reply = Invoke-QueueTokenPost @{ grant_type = 'refresh_token'; refresh_token = $record.refresh_token; client_id = $clientId }
             $updated = ConvertTo-QueueTokenRecord -Response $reply -ClientId $clientId -Previous $record
             Write-QueueTokenRecord $DataRoot $updated
+            if ($WithControl) { return [pscustomobject]@{ Token = $updated.access_token; Control = (Test-QueueControlScope $updated.scope) } }
             return $updated.access_token
         } catch {
             if ($_.Exception.Data['QueueState'] -eq 'reauth_required') { Remove-QueueTokenFile $DataRoot }
@@ -510,7 +525,7 @@ function Connect-QueueSpotify {
         $listener.Start(4)
         $port = $listener.LocalEndpoint.Port
         $redirect = "http://127.0.0.1:$port/callback"
-        $parameters = [ordered]@{ client_id = $clientId; response_type = 'code'; redirect_uri = $redirect; state = $material.State; scope = $script:QueueScope; code_challenge_method = 'S256'; code_challenge = $material.Challenge }
+        $parameters = [ordered]@{ client_id = $clientId; response_type = 'code'; redirect_uri = $redirect; state = $material.State; scope = ($script:QueueScope + ' ' + $script:QueueControlScope); code_challenge_method = 'S256'; code_challenge = $material.Challenge }
         $query = @($parameters.Keys | ForEach-Object { [Uri]::EscapeDataString($_) + '=' + [Uri]::EscapeDataString([string]$parameters[$_]) }) -join '&'
         $clock = [Diagnostics.Stopwatch]::StartNew()
         $launch = [Diagnostics.ProcessStartInfo]::new('https://accounts.spotify.com/authorize?' + $query)

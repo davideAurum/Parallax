@@ -22,14 +22,17 @@ $script:refreshCalls = 0
 $script:tokenFailure = ''
 $script:tokenWait = 0L
 $script:stopOnResponse = ''
+$script:tokenControl = $true
+$script:endpoints = [Collections.Generic.List[string]]::new()
 $script:verifyWorkerLocks = $false
 function Reset-Transport {
     param([object[]]$Replies = @())
     $script:responses = $Replies; $script:apiCalls=0; $script:tokenCalls=0; $script:refreshCalls=0
     $script:tokenFailure=''; $script:tokenWait=0L; $script:stopOnResponse=''
+    $script:tokenControl=$true; $script:endpoints=[Collections.Generic.List[string]]::new()
 }
 function Get-QueueAccessToken {
-    param([string]$DataRoot,[switch]$ForceRefresh)
+    param([string]$DataRoot,[switch]$ForceRefresh,[switch]$WithControl)
     if ($script:verifyWorkerLocks) {
         Assert-Check (Test-MutexAvailable ((Get-QueueMutexName $DataRoot)+'.Control')) 'Live polling releases lifecycle control before token work'
         Assert-Check (-not (Test-MutexAvailable (Get-QueueMutexName $DataRoot))) 'Live polling retains exclusive worker ownership'
@@ -41,10 +44,12 @@ function Get-QueueAccessToken {
         $errorRecord.Data['RetryAfterSeconds']=$script:tokenWait
         throw $errorRecord
     }
+    if ($WithControl) { return [pscustomobject]@{ Token='SYNTHETIC_ACCESS_NOT_A_REAL_CREDENTIAL'; Control=$script:tokenControl } }
     return 'SYNTHETIC_ACCESS_NOT_A_REAL_CREDENTIAL'
 }
 function Invoke-QueueApiRequest {
-    param([string]$AccessToken)
+    param([string]$AccessToken,[string]$Endpoint='Queue')
+    $script:endpoints.Add($Endpoint)
     Assert-Check ($AccessToken -ceq 'SYNTHETIC_ACCESS_NOT_A_REAL_CREDENTIAL') 'Unexpected synthetic token'
     if ($script:apiCalls -ge $script:responses.Count) { throw 'Unexpected synthetic request' }
     $response = $script:responses[$script:apiCalls]; $script:apiCalls++
@@ -73,6 +78,83 @@ Assert-Check ($cycle.Snapshot.ValidUntil-$cycle.Snapshot.Observed -eq 300) 'Maxi
 Reset-Transport @((Reply 401),(Reply))
 $cycle = Invoke-QueueCycle $root 30
 Assert-Check ($cycle.Success -and $script:apiCalls -eq 2 -and $script:refreshCalls -eq 1) '401 gets exactly one forced refresh and retry'
+
+# Row clicks (Play) and Refresh. The click names the snapshot it was read from;
+# the worker re-reads the queue and skips only while every row up to the click
+# still matches. Synthetic transport only; no Spotify request.
+$root = Fresh-Root
+function Synthetic-Track { param([string]$Name); return '{"type":"track","name":"Synthetic ' + $Name + '","artists":[{"name":"Synthetic artist"}]}' }
+$queueBody = '{"currently_playing":null,"queue":[' + (Synthetic-Track 'one') + ',' + (Synthetic-Track 'two') + ',' + (Synthetic-Track 'three') + ']}'
+Reset-Transport @(Reply 200 $queueBody)
+$cycle = Invoke-QueueCycle $root 30 -Notice 'no_device'
+Assert-Check ($cycle.Snapshot.Control -and $cycle.Snapshot.Notice -ceq 'no_device') 'A control grant marks rows clickable and carries the notice'
+Reset-Transport @(Reply 200 $queueBody); $script:tokenControl = $false
+Assert-Check (-not (Invoke-QueueCycle $root 30).Snapshot.Control) 'A read-only grant leaves rows unclickable'
+$last = $cycle.Snapshot
+$play = [pscustomobject]@{ Kind='play'; Position=2; Observed=$last.Observed; Created=0 }
+Reset-Transport @((Reply 200 $queueBody),(Reply 204 ''),(Reply 204 ''))
+$notice = Invoke-QueuePlay -Root $root -Action $play -Last $last -GapMilliseconds 0
+Assert-Check ($notice -ceq '' -and ($script:endpoints -join ',') -ceq 'Queue,Next,Next') 'Row 2 re-reads the queue, then skips exactly twice'
+$changed = '{"currently_playing":null,"queue":[' + (Synthetic-Track 'two') + ',' + (Synthetic-Track 'three') + ']}'
+Reset-Transport @(Reply 200 $changed)
+$notice = Invoke-QueuePlay -Root $root -Action $play -Last $last -GapMilliseconds 0
+Assert-Check ($notice -ceq 'queue_changed' -and ($script:endpoints -join ',') -ceq 'Queue') 'A queue that moved since the click never skips'
+Reset-Transport @()
+$stale = [pscustomobject]@{ Kind='play'; Position=2; Observed=($last.Observed - 1); Created=0 }
+$notice = Invoke-QueuePlay -Root $root -Action $stale -Last $last -GapMilliseconds 0
+Assert-Check ($notice -ceq 'queue_changed' -and $script:tokenCalls -eq 0 -and $script:apiCalls -eq 0) 'A click on an older snapshot does no token or network work'
+$beyond = [pscustomobject]@{ Kind='play'; Position=4; Observed=$last.Observed; Created=0 }
+Assert-Check ((Invoke-QueuePlay -Root $root -Action $beyond -Last $last -GapMilliseconds 0) -ceq 'queue_changed' -and $script:apiCalls -eq 0) 'A row past the snapshot is refused'
+Reset-Transport @(); $script:tokenControl = $false
+$notice = Invoke-QueuePlay -Root $root -Action $play -Last $last -GapMilliseconds 0
+Assert-Check ($notice -ceq 'control_reauth' -and $script:apiCalls -eq 0) 'A read-only grant asks for sign-in and never skips'
+Reset-Transport @((Reply 200 $queueBody),(Reply 404 ''))
+$notice = Invoke-QueuePlay -Root $root -Action $play -Last $last -GapMilliseconds 0
+Assert-Check ($notice -ceq 'no_device' -and ($script:endpoints -join ',') -ceq 'Queue,Next') 'No active device stops at the first skip'
+Reset-Transport @((Reply 200 $queueBody),(Reply 204 ''),(Reply 403 ''))
+Assert-Check ((Invoke-QueuePlay -Root $root -Action $play -Last $last -GapMilliseconds 0) -ceq 'control_denied') 'A refused second skip is reported'
+Reset-Transport @(); $script:tokenFailure = 'reauth_required'
+Assert-Check ((Invoke-QueuePlay -Root $root -Action $play -Last $last -GapMilliseconds 0) -ceq 'control_reauth') 'An expired grant asks for sign-in'
+Reset-Transport @()
+
+Write-QueueAction $root play 2 $last.Observed
+$read = Read-QueueAction $root
+Assert-Check ($read.Kind -ceq 'play' -and $read.Position -eq 2 -and $read.Observed -eq $last.Observed) 'A click request round-trips'
+Assert-Check (-not (Test-Path -LiteralPath (Join-Path $root 'action.request'))) 'A request is consumed once'
+Assert-Check ($null -eq (Read-QueueAction $root)) 'No request reads as none'
+Write-QueueAction $root refresh
+Assert-Check ($null -eq (Read-QueueAction $root -Now ((Get-QueueUnixTime) + 60))) 'A request older than 15 seconds is discarded'
+foreach ($bad in @("PARALLAX_QUEUE_ACTION_V1|play|9|1|1`n", "PARALLAX_QUEUE_ACTION_V1|play|0|1|NOW`n", "PARALLAX_QUEUE_ACTION_V1|stop|0|0|NOW`n", "PARALLAX_QUEUE_ACTION_V1|refresh|1|0|NOW`n", "PARALLAX_QUEUE_ACTION_V1|play|1|1|NOW")) {
+    [IO.File]::WriteAllText((Join-Path $root 'action.request'), $bad.Replace('NOW', [string](Get-QueueUnixTime)), [Text.Encoding]::ASCII)
+    Assert-Check ($null -eq (Read-QueueAction $root)) ('A malformed request is discarded: ' + $bad.Trim())
+    Assert-Check (-not (Test-Path -LiteralPath (Join-Path $root 'action.request'))) 'A malformed request is removed'
+}
+$rejected = $false; try { Write-QueueAction $root play 0 1 } catch { $rejected = $true }
+Assert-Check $rejected 'A play request needs a row'
+
+# The control command writes a request only while a worker holds its mutex.
+$savedRoot = $DataRoot; $savedCommand = $Command
+$DataRoot = $root; $Command = 'Play'; $Position = 1; $Observed = $last.Observed
+Invoke-QueueCommand
+Assert-Check (-not (Test-Path -LiteralPath (Join-Path $root 'action.request'))) 'No running worker: a click writes nothing'
+# A real worker holds it in another process; a mutex is re-entrant for its
+# owning thread, so the stand-in holds it from a separate runspace thread.
+$ready = [Threading.ManualResetEvent]::new($false); $release = [Threading.ManualResetEvent]::new($false)
+$holder = [PowerShell]::Create()
+$null = $holder.AddScript({ param($Name,$Ready,$Release) $m = [Threading.Mutex]::new($false,$Name); $null = $m.WaitOne(); $null = $Ready.Set(); $null = $Release.WaitOne(); $m.ReleaseMutex(); $m.Dispose() }).AddArgument((Get-QueueMutexName $root)).AddArgument($ready).AddArgument($release)
+$handle = $holder.BeginInvoke()
+Assert-Check ($ready.WaitOne(10000)) 'Stand-in worker holds the run mutex'
+try {
+    Invoke-QueueCommand
+    Assert-Check ((Read-QueueAction $root).Position -eq 1) 'A running worker receives the click'
+    $Command = 'Refresh'; Invoke-QueueCommand
+    Assert-Check ((Read-QueueAction $root).Kind -ceq 'refresh') 'A running worker receives Refresh'
+    Request-QueueStop $root; $Command = 'Play'; Invoke-QueueCommand
+    Assert-Check (-not (Test-Path -LiteralPath (Join-Path $root 'action.request'))) 'A stopped helper receives nothing'
+    Clear-QueueStop $root
+} finally { $null = $release.Set(); $null = $holder.EndInvoke($handle); $holder.Dispose(); $ready.Dispose(); $release.Dispose() }
+Assert-Check ($script:tokenCalls -eq 0 -and $script:apiCalls -eq 0) 'Control commands never touch tokens or the network'
+$DataRoot = $savedRoot; $Command = $savedCommand; $Position = 0; $Observed = 0
 Reset-Transport @((Reply 401),(Reply 401))
 $cycle = Invoke-QueueCycle $root 30
 Assert-Check ($cycle.Pause -and $cycle.Snapshot.State -eq 'reauth_required' -and $script:apiCalls -eq 2 -and $script:refreshCalls -eq 1) 'Repeated401 pauses without loop'
@@ -100,8 +182,11 @@ Assert-Check ($cycle.Snapshot.State -eq 'rate_limited' -and $cycle.NextAt -ge (G
 
 $root = Fresh-Root
 Reset-Transport @(Reply)
+# A click left from before this worker started is discarded, never acted on.
+Write-QueueAction $root play 1 1
 Invoke-QueueRun $root -Single -Silent
 Assert-Check ((Read-Snapshot $root) -match 'state=ready' -and $script:apiCalls -eq 1) 'One-shot publishes validated snapshot'
+Assert-Check (($script:endpoints -join ',') -ceq 'Queue' -and -not (Test-Path -LiteralPath (Join-Path $root 'action.request'))) 'A request from before the worker started is discarded'
 Assert-Check ((Read-Snapshot $root) -notmatch 'SYNTHETIC_ACCESS') 'No token in display cache'
 Reset-Transport @(Reply 429 '{}' '3600')
 Invoke-QueueRun $root -Single -Silent
@@ -338,8 +423,8 @@ function Clear-QueueStop {
 param($provider,$root,$oldId,$ready)
 . $provider -Command Help
 $script:tokenCalls=0; $script:apiCalls=0
-function Get-QueueAccessToken { param($DataRoot,[switch]$ForceRefresh); $script:tokenCalls++; throw 'Synthetic transport must not run' }
-function Invoke-QueueApiRequest { param($AccessToken); $script:apiCalls++; throw 'Synthetic transport must not run' }
+function Get-QueueAccessToken { param($DataRoot,[switch]$ForceRefresh,[switch]$WithControl); $script:tokenCalls++; throw 'Synthetic transport must not run' }
+function Invoke-QueueApiRequest { param($AccessToken,$Endpoint); $script:apiCalls++; throw 'Synthetic transport must not run' }
 $null=$ready.Set()
 Invoke-QueueRun $root 30 -Single -Silent -RetryQuota -LaunchId $oldId
 [pscustomobject]@{TokenCalls=$script:tokenCalls;ApiCalls=$script:apiCalls}

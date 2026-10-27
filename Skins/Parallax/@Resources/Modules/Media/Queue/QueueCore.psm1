@@ -3,6 +3,8 @@ Set-StrictMode -Version Latest
 $ErrorActionPreference = 'Stop'
 $script:QueueStates = @('onboarding_required','connecting','ready','reauth_required','forbidden','rate_limited','quota_exceeded','offline','service_unavailable','error','stopped')
 $script:Utf8 = [Text.UTF8Encoding]::new($false, $true)
+# One-snapshot outcome of a row click or refresh, shown in place of "Next N".
+$script:QueueNotices = @('','queue_changed','no_device','control_denied','control_failed','control_reauth')
 
 function Get-QueueUnixTime { return [long][Math]::Floor(([DateTime]::UtcNow - [DateTime]::new(1970,1,1,0,0,0,[DateTimeKind]::Utc)).TotalSeconds) }
 
@@ -67,13 +69,16 @@ function ConvertTo-QueueItems {
 }
 
 function New-QueueSnapshot {
-    param([Parameter(Mandatory)][string]$State, [object[]]$Items = @(), [long]$Now = (Get-QueueUnixTime), [ValidateRange(1,300)][int]$LifetimeSeconds = 90, [long]$RetryNotBefore = 0)
+    param([Parameter(Mandatory)][string]$State, [object[]]$Items = @(), [long]$Now = (Get-QueueUnixTime), [ValidateRange(1,300)][int]$LifetimeSeconds = 90, [long]$RetryNotBefore = 0,
+        [bool]$Control = $false, [AllowEmptyString()][string]$Notice = '')
     if ($State -notin $script:QueueStates) { throw 'Invalid queue state.' }
     if ($Now -lt 1 -or $Now -gt 253402300000 -or $RetryNotBefore -lt 0 -or $RetryNotBefore -gt 253402300000) { throw 'Invalid queue timestamp.' }
     if ($Items.Count -gt 5 -or ($State -ne 'ready' -and $Items.Count -ne 0)) { throw 'Invalid items for queue state.' }
+    # Rows are clickable, and a click outcome is shown, only beside live rows.
+    if ($Notice -cnotin $script:QueueNotices -or ($State -ne 'ready' -and ($Control -or $Notice))) { throw 'Invalid queue control for state.' }
     $observed = 0L; $expires = 0L
     if ($State -eq 'ready') { $observed = $Now; $expires = $Now + $LifetimeSeconds }
-    return [pscustomobject]@{ State=$State; Observed=$observed; ValidUntil=$expires; RetryNotBefore=$RetryNotBefore; Items=@($Items) }
+    return [pscustomobject]@{ State=$State; Observed=$observed; ValidUntil=$expires; RetryNotBefore=$RetryNotBefore; Items=@($Items); Control=$Control; Notice=$Notice }
 }
 
 function ConvertTo-QueueSnapshotText {
@@ -81,13 +86,19 @@ function ConvertTo-QueueSnapshotText {
     if ($Snapshot.State -notin $script:QueueStates -or $Snapshot.Items.Count -gt 5) { throw 'Invalid snapshot.' }
     if ($Snapshot.State -ne 'ready' -and ($Snapshot.Items.Count -ne 0 -or $Snapshot.Observed -ne 0 -or $Snapshot.ValidUntil -ne 0)) { throw 'Nonready snapshot contains live data.' }
     if ($Snapshot.State -eq 'ready' -and ($Snapshot.Observed -le 0 -or $Snapshot.ValidUntil -le $Snapshot.Observed -or $Snapshot.ValidUntil -gt $Snapshot.Observed+300)) { throw 'Invalid snapshot lifetime.' }
+    $control = [bool]($Snapshot.PSObject.Properties['Control'] -and $Snapshot.Control)
+    $notice = if ($Snapshot.PSObject.Properties['Notice']) { [string]$Snapshot.Notice } else { '' }
+    if ($notice -cnotin $script:QueueNotices -or ($Snapshot.State -ne 'ready' -and ($control -or $notice))) { throw 'Invalid snapshot control.' }
     $lines = [Collections.Generic.List[string]]::new()
-    $lines.Add('PARALLAX_QUEUE_V2')
+    # V3 adds control (rows may be clicked) and notice (a click's outcome).
+    $lines.Add('PARALLAX_QUEUE_V3')
     $lines.Add('state=' + $Snapshot.State)
     $lines.Add('observed=' + [long]$Snapshot.Observed)
     $lines.Add('valid_until=' + [long]$Snapshot.ValidUntil)
     $lines.Add('retry_not_before=' + [long]$Snapshot.RetryNotBefore)
     $lines.Add('count=' + $Snapshot.Items.Count)
+    $lines.Add('control=' + [int]$control)
+    $lines.Add('notice=' + $notice)
     for ($index = 1; $index -le 5; $index++) {
         $title = ''; $detail = ''
         if ($index -le $Snapshot.Items.Count) {
@@ -155,11 +166,15 @@ function Get-QueueResponseDecision {
 }
 
 function Invoke-QueueApiRequest {
-    param([Parameter(Mandatory)][string]$AccessToken)
+    # Queue reads the queue (GET); Next skips one item (POST, empty body). No
+    # other endpoint or method is reachable from here.
+    param([Parameter(Mandatory)][string]$AccessToken, [ValidateSet('Queue','Next')][string]$Endpoint = 'Queue')
     if (-not $AccessToken -or $AccessToken -match '[\r\n]') { throw 'Access token is unavailable.' }
     [Net.ServicePointManager]::SecurityProtocol = [Net.SecurityProtocolType]::Tls12
-    $request = [Net.HttpWebRequest]::Create('https://api.spotify.com/v1/me/player/queue')
-    $request.Method = 'GET'
+    $uri = if ($Endpoint -eq 'Next') { 'https://api.spotify.com/v1/me/player/next' } else { 'https://api.spotify.com/v1/me/player/queue' }
+    $request = [Net.HttpWebRequest]::Create($uri)
+    $request.Method = if ($Endpoint -eq 'Next') { 'POST' } else { 'GET' }
+    if ($Endpoint -eq 'Next') { $request.ContentLength = 0 }
     $request.Accept = 'application/json'
     $request.Headers['Authorization'] = 'Bearer ' + $AccessToken
     $request.AllowAutoRedirect = $false
@@ -194,4 +209,16 @@ function Invoke-QueueApiRequest {
     finally { if ($null -ne $response) { $response.Dispose() } }
 }
 
-Export-ModuleMember -Function Get-QueueUnixTime,ConvertFrom-QueueJson,Limit-QueueText,ConvertTo-QueueItems,New-QueueSnapshot,ConvertTo-QueueSnapshotText,Write-QueueAtomicFile,Publish-QueueSnapshot,Get-QueueResponseDecision,Invoke-QueueApiRequest
+function Get-QueueControlDecision {
+    # A click's skip response: 2xx continues; anything else ends the action
+    # with the notice shown beside the refreshed rows. A 429 is only a failed
+    # click here: the regular queue read that follows records any server wait.
+    param([int]$StatusCode)
+    if ($StatusCode -ge 200 -and $StatusCode -le 299) { return '' }
+    if ($StatusCode -eq 401) { return 'control_reauth' }
+    if ($StatusCode -eq 403) { return 'control_denied' }
+    if ($StatusCode -eq 404) { return 'no_device' }
+    return 'control_failed'
+}
+
+Export-ModuleMember -Function Get-QueueControlDecision,Get-QueueUnixTime,ConvertFrom-QueueJson,Limit-QueueText,ConvertTo-QueueItems,New-QueueSnapshot,ConvertTo-QueueSnapshotText,Write-QueueAtomicFile,Publish-QueueSnapshot,Get-QueueResponseDecision,Invoke-QueueApiRequest

@@ -125,7 +125,16 @@ local function media_geometry(expanded, rows)
     local size,pad,button_gap=34*scale,5*scale,4*scale
     -- Transport circles: statically centred between the art's right edge and
     -- the panel's, and centred vertically on the panel's lower border.
-    local transport_x=(cover_x+cover+panel_width)/2-(3*size+2*button_gap)/2
+    local centered=(cover_x+cover+panel_width)/2-(3*size+2*button_gap)/2
+    -- Shuffle/repeat (26px) flank the three, one gap out. The row slides right
+    -- just enough to leave the queue notch 76px, never closer than the padding
+    -- to the panel's right edge; where it cannot, the toggles are hidden and
+    -- the three keep their centred place.
+    local toggle_span=button_gap+26*scale
+    local need=math.max(0,content_x+76*scale+4*scale+pad-(centered-toggle_span))
+    local room=panel_width-padding-(centered+3*size+2*button_gap+toggle_span)
+    local toggles=need<=room
+    local transport_x=centered+(toggles and need or 0)
     local queue_top=math.max(cover_y+cover,body)+4*scale
     local queue_bottom=queue_top+(1+rows)*18*scale+5*scale
     local drawer_bottom=expanded and queue_bottom+8*scale or body
@@ -149,7 +158,8 @@ local function media_geometry(expanded, rows)
         cover=cover,cover_x=cover_x,cover_y=cover_y,content_x=content_x,content_right=panel_width-padding,
         surface_x=wide and 96*scale or 0,transport_x=transport_x,transport_size=size,transport_pad=pad,
         transport_box=size+2*pad,transport_step=size+button_gap,tab_y=progress+bar+padding,
-        tab_right=transport_x-pad-4*scale,queue_top=queue_top,rows_y=queue_top+23*scale,
+        tab_right=transport_x-(toggles and toggle_span or 0)-pad-4*scale,queue_top=queue_top,rows_y=queue_top+23*scale,
+        toggles=toggles,toggle_span=toggle_span,
         drawer_bottom=drawer_bottom,window=window,width=columns*(unit+gap)}
 end
 local function dimensions(expanded, rows)
@@ -252,9 +262,16 @@ local function transport_layout(active_name)
     local bar_width=bar:GetW()>0 and bar:GetW() or SKIN:ParseFormula(SKIN:ReplaceVariables(bar:GetOption('W')))
     -- Compact art sits above this row, so the cap runs from the content edge.
     local transport_left=g.wide and g.cover_x+g.cover or g.content_x
-    local cap=math.max(1,g.content_right-transport_left-104*scale)
-    local detail=string.format('%s width=%g left=%g cap=%g',active_name,active:GetW(),left,cap)
-    check(math.abs(active:GetY(true)-bar:GetY(true)-g.bar-2*scale)<=1,'Timing is not directly below the progress bar: '..detail)
+    -- With shuffle/repeat shown the timing shares the album row with an 88px
+    -- cap; otherwise it stays under the bar. Both are RightCenter, so the
+    -- native Y anchor is the 18px box's vertical centre.
+    local cap=g.toggles and 88*scale or math.max(1,g.content_right-transport_left-104*scale)
+    local detail=string.format('%s width=%g left=%g cap=%g toggles=%s',active_name,active:GetW(),left,cap,tostring(g.toggles))
+    if g.toggles then
+        check(math.abs(active:GetY(true)-SKIN:GetMeter('MeterAlbum'):GetY(true))<=1,'Timing is not centred on the album row: '..detail)
+    else
+        check(math.abs(active:GetY(true)-bar:GetY(true)-g.bar-11*scale)<=1,'Timing is not directly below the progress bar: '..detail)
+    end
     check(math.abs(active:GetX(true)-bar:GetX(true)-bar_width)<=1,'Timing does not align to the progress bar right edge: '..detail)
     check(active:GetW()>0 and math.abs(active:GetH()-18*scale)<=1,'Active timing hidden or taller than one row: '..detail)
     check(active:GetW()<=cap+1,'Auto-width timing exceeds its cap: '..detail)
@@ -267,6 +284,19 @@ local function transport_layout(active_name)
         check(math.abs(meter:GetY(true)+meter:GetH()/2-center_y)<=1,'Transport is not centred on the panel lower border: '..name)
         check(meter:GetY(true)+meter:GetH()<=g.top+g.rows_y+1,'Transport reaches the first queue row: '..name)
         check(meter:GetOption('Shape3'):find('Fill Color '..SKIN:GetVariable('AccentColor'),1,true)~=nil,'Transport face ignores AccentColor: '..name)
+    end
+    for side,name in ipairs({'MeterShuffle','MeterRepeat'}) do
+        local meter=SKIN:GetMeter(name)
+        if g.toggles then
+            -- Shuffle one span left of Previous; repeat one gap right of Next.
+            local face_x=side==1 and g.transport_x-g.toggle_span or g.transport_x+2*g.transport_step+g.transport_size+(g.transport_step-g.transport_size)
+            check(meter:GetW()>0 and math.abs(meter:GetW()-(26*scale+2*g.transport_pad))<=1,'Toggle hidden or resized: '..name)
+            check(math.abs(meter:GetX(true)-(inset+face_x-g.transport_pad))<=1,'Toggle does not flank the transport: '..name)
+            check(math.abs(meter:GetY(true)+meter:GetH()/2-center_y)<=1,'Toggle is not centred on the panel lower border: '..name)
+            check(meter:GetX(true)+meter:GetW()-g.transport_pad<=inset+g.content_right+1,'Toggle face passes the panel padding: '..name)
+        else
+            check(meter:GetW()==0,'Toggle shown where the row has no room: '..name)
+        end
     end
     -- Measured, not asserted: the right-hand face against the visible time.
     -- That overlap belongs to the deferred transport x-axis decision.
@@ -1007,6 +1037,7 @@ artwork_bounds=function(expanded)
         local metadata_x=inset+(wide and art_size+8*scale or padding+54*scale)
         check(math.abs(title:GetX(true)-(metadata_x+20*scale))<=1,'Track title is not clear of its icon')
         local icon_shapes={}
+        local toggles_shown=media_geometry(false,5).toggles
         for row,pair in ipairs({{'MeterSongIcon','MeterTrackTitle'},{'MeterArtistIcon','MeterArtist'},{'MeterAlbumIcon','MeterAlbum'}}) do
             local icon,label=SKIN:GetMeter(pair[1]),SKIN:GetMeter(pair[2])
             names[#names+1]=pair[1]
@@ -1020,7 +1051,10 @@ artwork_bounds=function(expanded)
             local font_size=tonumber(label:GetOption('FontSize')) or SKIN:ParseFormula(label:GetOption('FontSize'))
             check(math.abs(font_size-tonumber(SKIN:GetVariable('FontSize'))*scale)<0.001,'Metadata does not inherit body font size')
             check(math.abs(label:GetH()-24*scale)<=1,'Enlarged metadata row height wrong')
-            check(math.abs(label:GetW()-(width-inset-padding-metadata_x-20*scale))<=1,'Artwork shrink changed metadata width')
+            -- With shuffle/repeat shown the album stops short of the timing
+            -- text sharing its row (88px cap plus an 8px gap).
+            local reserve=(pair[2]=='MeterAlbum' and toggles_shown) and 96*scale or 0
+            check(math.abs(label:GetW()-(width-inset-padding-metadata_x-20*scale-reserve))<=1,'Artwork shrink changed metadata width')
             local fingerprint=icon:GetOption('Shape')..icon:GetOption('Shape2','')..icon:GetOption('Shape3','')
             check(not icon_shapes[fingerprint],'Metadata icons are duplicates')
             icon_shapes[fingerprint]=true
@@ -1028,9 +1062,10 @@ artwork_bounds=function(expanded)
         local timing=SKIN:GetMeter('MeterTiming')
         local _,detail=transport_layout('MeterTiming')
         timing_report=timing_report..(timing_report=='' and '' or '; ')..detail
-        check(timing:GetOption('StringAlign')=='Right','Playback time is not right aligned')
+        check(timing:GetOption('StringAlign')=='RightCenter','Playback time is not right aligned')
         check(math.abs(timing:GetX(true)-(width-inset-padding))<=1,'Playback time right edge wrong')
-        check(math.abs(timing:GetY(true)-progress:GetY(true)-bar_height-2*scale)<=1,'Playback time baseline wrong')
+        local timing_y=toggles_shown and album:GetY(true) or progress:GetY(true)+bar_height+11*scale
+        check(math.abs(timing:GetY(true)-timing_y)<=1,'Playback time baseline wrong')
         check(SKIN:GetMeter('MeterPrevious'):GetY(true)>progress:GetY(true)+bar_height,'Transport does not sit below the bar')
     else
         check(SKIN:GetMeasure('MeasureMediaSource')==nil,'Setup loaded a source reader')
@@ -1057,7 +1092,9 @@ artwork_bounds=function(expanded)
             local meter=SKIN:GetMeter(name)
             inside(name,width,height)
             check(math.abs(meter:GetX(true)-(queue_x+22*scale))<=1,'Queue text column alignment wrong: '..name)
-            check(math.abs(meter:GetX(true)+meter:GetW()-queue_right)<=1,'Queue width wrong: '..name)
+            -- The header's column labels stop short of its Refresh action.
+            local right=name=='MeterQueueHeaderTrack' and queue_right-56*scale or queue_right
+            check(math.abs(meter:GetX(true)+meter:GetW()-right)<=1,'Queue width wrong: '..name)
             check(meter:GetY(true)>=art_y+art_size+4*scale-1 and meter:GetY(true)>=g.top+g.body+4*scale-1,'Queue is not below the artwork and panel: '..name)
         end
         for row=1,5 do

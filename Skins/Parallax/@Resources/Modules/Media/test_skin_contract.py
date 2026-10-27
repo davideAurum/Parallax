@@ -979,6 +979,24 @@ def path_points(path, value):
 
 
 class SkinContractTests(unittest.TestCase):
+    def assert_timing_placement(self, box, val, scale):
+        """Timing ends on the bar's right edge. Where the shuffle/repeat toggles
+        show it shares the album row's centre and the album stops the gap short
+        of its reservation; elsewhere it sits 2S under the bar as before."""
+        toggles = val('#MediaTransportToggles#')
+        self.assertIn(toggles, (0, 1))
+        album = box('MeterAlbum')
+        for timing in ('MeterTiming', 'MeterTimingUnavailable'):
+            self.assertAlmostEqual(box(timing).right, box('MeterProgress').right)
+            if toggles:
+                self.assertAlmostEqual((box(timing).top+box(timing).bottom)/2, (album.top+album.bottom)/2)
+                self.assertTrue(box(timing).above(box('MeterProgress')), timing)
+                self.assertAlmostEqual(box(timing).right-album.right,
+                                       val('#MediaTimingMaxWidth#')+val('#MediaTimingGap#'))
+            else:
+                self.assertAlmostEqual(box(timing).top-box('MeterProgress').bottom, 2*scale)
+                self.assertTrue(box('MeterProgress').above(box(timing)), timing)
+
     def test_duplicate_meter_sections_across_includes_are_rejected(self):
         with tempfile.TemporaryDirectory(prefix='Parallax-Media-section-test-') as directory:
             fixture=Path(directory)
@@ -1094,7 +1112,7 @@ class SkinContractTests(unittest.TestCase):
                                     if config=='Media.ini': self.assertTrue(art.before(box(first)))
                                 if config=='Media.ini':
                                     self.assertTrue(box('MeterAlbum').above(box('MeterProgress')))
-                                    self.assertTrue(box('MeterProgress').above(box('MeterTiming')))
+                                    self.assert_timing_placement(box,val,scale)
                                 else:
                                     self.assertTrue(box('MeterSetupStatus').above(box('MeterSetupInstructions')))
                                     self.assertTrue(box('MeterSetupInstructions').above(box('MeterDesktopNote')))
@@ -1385,7 +1403,8 @@ class SkinContractTests(unittest.TestCase):
         sections, _, _, _ = read_config('Media.ini')
         expected = {'Status', 'Player', 'Title', 'Artist', 'Album', 'Cover', 'State',
                     'Position', 'Duration', 'Progress', 'SupportsSkipPrevious',
-                    'SupportsPlayPause', 'SupportsSkipNext'}
+                    'SupportsPlayPause', 'SupportsSkipNext', 'Shuffle', 'Repeat',
+                    'SupportsToggleShuffleActive', 'SupportsToggleRepeatMode'}
         plugins = [s for s in sections.values() if s.get('Plugin') == 'WebNowPlaying']
         self.assertEqual({s['PlayerType'] for s in plugins}, expected)
         # The update hook's measures (divider -1, never ticked) follow the module's own.
@@ -1482,6 +1501,15 @@ class SkinContractTests(unittest.TestCase):
             allowed = dict(settings_allowed) if name == 'Settings/Settings.ini' else dict(lifecycle_allowed)
             if name == 'Queue/Queue.ini':
                 allowed.update(queue_allowed)
+            if name == 'Media.ini':
+                # QueueControlHost.inc's inert host for queue row clicks and
+                # Refresh: a one-shot request to the running helper, run only
+                # on a click. Setup has none (test_provider_free_setup...).
+                allowed.update({
+                    ('MeasureQueueProviderControl', 'Plugin'): 'RunCommand',
+                    ('MeasureQueueProviderControl', 'Program'): powershell,
+                    ('MeasureQueueProviderControl', 'Parameter'): '-NoLogo -NoProfile -NonInteractive -WindowStyle Hidden -ExecutionPolicy Bypass -File "QueueProvider.ps1" -Command "Refresh" -Quiet',
+                })
             for section_name, s in sections.items():
                 for key, value in s.items():
                     if (section_name, key) in allowed:
@@ -1864,7 +1892,7 @@ class SkinContractTests(unittest.TestCase):
                         self.assertTrue(box('MeterCover').above(box('MeterProgress')))
                     else:
                         self.assertTrue(box('MeterCover').before(box('MeterProgress')))
-                    self.assertTrue(box('MeterProgress').above(box('MeterTiming')))
+                    self.assert_timing_placement(box,val,scale)
                     # The transport used to sit left of the timing text. It is now a
                     # centred row of circles straddling the panel's lower border, and
                     # the timing is right aligned - so its box spans the content width
@@ -1873,8 +1901,8 @@ class SkinContractTests(unittest.TestCase):
                     for control in ('MeterPrevious','MeterPlayPause','MeterNext'):
                         self.assertAlmostEqual((box(control).top+box(control).bottom)/2,
                                                val('#Inset#')+val('#MediaBodyHeightPx#'),msg=control)
-                    self.assertEqual(resolve_style(sections,'MeterTiming')['StringAlign'],'Right')
-                    self.assertEqual(resolve_style(sections,'MeterTimingUnavailable')['StringAlign'],'Right')
+                    self.assertEqual(resolve_style(sections,'MeterTiming')['StringAlign'],'RightCenter')
+                    self.assertEqual(resolve_style(sections,'MeterTimingUnavailable')['StringAlign'],'RightCenter')
                     controls = ('MeterPrevious', 'MeterPlayPause', 'MeterNext')
                 elif name == 'Setup.ini':
                     self.assertTrue(box('MeterSetupStatus').above(box('MeterSetupInstructions')))
@@ -1976,12 +2004,11 @@ class SkinContractTests(unittest.TestCase):
                                 self.assertEqual(val(sections['MeterArtworkPlaceholder']['Hidden']),1-wide)
                                 self.assertEqual(val(sections['MeterArtworkLabel']['Hidden']),1-wide)
                                 if config=='Media.ini':
-                                    for timing in ('MeterTiming','MeterTimingUnavailable'):
-                                        self.assertAlmostEqual(box(timing).top-box('MeterProgress').bottom,2*scale)
-                                        self.assertAlmostEqual(box(timing).right,box('MeterProgress').right)
+                                    self.assert_timing_placement(box,val,scale)
                                     for row,name in enumerate(('MeterTrackTitle','MeterArtist','MeterAlbum')):
                                         self.assertAlmostEqual(box(name).left,old_metadata_x+20*scale)
-                                        self.assertAlmostEqual(box(name).width,box('MeterPanel').right-padding-old_metadata_x-20*scale)
+                                        reserve=val('#MediaAlbumTimingReserve#') if name=='MeterAlbum' else 0
+                                        self.assertAlmostEqual(box(name).width,box('MeterPanel').right-padding-old_metadata_x-20*scale-reserve)
                                         self.assertAlmostEqual(box(name).top,inset+surface_offset+(30+row*24)*scale)
                                         icon=('MeterSongIcon','MeterArtistIcon','MeterAlbumIcon')[row]
                                         self.assertAlmostEqual((box(name).top+box(name).bottom)/2,(box(icon).top+box(icon).bottom)/2)
@@ -2044,9 +2071,7 @@ class SkinContractTests(unittest.TestCase):
                             box=lambda name:meter_bounds(resolve_style(sections,name),val)
                             self.assertEqual(box('MeterProgress').height,max(1,math.floor(thickness*scale+0.5)))
                             self.assertGreaterEqual(box('MeterProgress').top-box('MeterAlbum').bottom,2*scale-EPSILON)
-                            for timing in ('MeterTiming','MeterTimingUnavailable'):
-                                self.assertAlmostEqual(box(timing).top-box('MeterProgress').bottom,2*scale)
-                                self.assertAlmostEqual(box(timing).right,box('MeterProgress').right)
+                            self.assert_timing_placement(box,val,scale)
                             # The button box carries a shadow pad each side, so its top
                             # is no longer a fixed drop from the bar: the circles are
                             # centred on the panel's lower border instead.
@@ -3012,7 +3037,8 @@ class SkinContractTests(unittest.TestCase):
                 self.assertEqual(plugins,{'AudioLevel','Win7AudioPlugin','WebNowPlaying','RunCommand'})
                 self.assertEqual([name for name,section in sections.items() if section.get('Plugin')=='Win7AudioPlugin'],
                                  ['MeasureVisualizerVolume'])
-                self.assertEqual([name for name,section in sections.items() if section.get('Plugin')=='RunCommand'],list(RESUME_HOSTS))
+                # Plus the queue's click host (QueueControlHost.inc).
+                self.assertEqual([name for name,section in sections.items() if section.get('Plugin')=='RunCommand'],list(RESUME_HOSTS)+['MeasureQueueProviderControl'])
                 for name in capture+['MeasureVisualizerState','MeasureVisualizerColorApply']:
                     for key,value in sections[name].items():
                         if 'Action' in key:

@@ -68,11 +68,11 @@ user-selected Lucide metadata and playback icons are attributed below.
 | Spectrum drawer — optional, plugins bundled with Rainmeter | Rainmeter's bundled AudioLevel and Win7AudioPlugin plugins, a Windows output endpoint, and the Visualizer module's shared `Modules/Visualizer/{Fallbacks,Options,Capture,Audio,Spectrum}.inc`, `HeightPresets/*.inc`, `Color.lua`, `SpectrumPaths.lua` and `User/Visualizer.inc`. Media settings' Spectrum section adds `Modules/Visualizer/SettingsShared.inc` and `Settings.lua` (event-only; its numeric input is the shared one-shot helper, launched only by a click). Writes `AnchorY` and its `ParallaxDrawerAnchorY` record in this config's own Rainmeter.ini section on tab clicks, Media settings saves and any load whose drawer-owned anchor does not match (that load-time repair's `!SetAnchor` also rewrites `AnchorX` with its existing value); a user-set anchor is never changed. Since 2026-10-23 the open drawer's capture lease also uses the bundled input-idle coordinator config `Parallax\Idle` (`Idle/Idle.ini`, `@Resources/Idle/Coordinator.lua` and `Link.lua`), which reads Rainmeter's built-in SysInfo `IDLE_TIME` (keyboard and mouse input only) every 2 s while you are away or skins are paused, and about once a minute while you are at the computer, and is loaded only while the drawer is open and not deferred, and the bundled runtime state file `Modules/Media/CaptureState.inc` (shipped at zeros, written only by `MediaOptions.ApplyLease`). | Capture and Win7Audio exist only while `VisualizerDrawer=2` and the capture is live (`MediaDrawerCapture=0`); collapsed, hidden, paused, deferred and Setup load no AudioLevel or Win7Audio measure. The lease parks the capture after 2 minutes of silence while you are away 5 minutes and nothing plays, and resumes it on input, WebNowPlaying Playing or a click ([Capture lease](#capture-lease)). Without the coordinator (missing or unloaded) the drawer stays live: a paused drawer resumes 10 s after a load without a sync, or 3 minutes after the last beat. Live, it runs on Media's 50 ms tick (100 ms for the Visualizer's 100 ms choice); Win7Audio volume, device name and device status once a second each (the volume was read every 250 ms before 2026-10-22). Win7Audio errors show `--`, mute shows `Muted`; a failed numeric getter can leave an old volume. The output row's click/wheel switches the system default output (no volume or mute command). A missing or unavailable endpoint shows `Output unavailable`; quiet output shows `Idle - quiet`; an invalid format shows `Unsupported format`. While the standalone Audio Visualizer is loaded the drawer defers to it (state 2) instead of running a second capture, and takes the capture back when it unloads; the standalone's event-only `Companion.lua` notifies Media through two silent group bangs. |
 | Fonts and icons — bundled | Private IBM Plex Sans fonts ([license](../../Skins/Parallax/@Resources/Licenses/IBM-Plex-OFL.txt)); native Shape adaptations of Lucide artwork ([provenance and licenses](../../Skins/Parallax/@Resources/Modules/Media/Icons/Lucide/README.md)). | No download, system font installation or SVG-rendering plugin required. |
 | Typed numeric settings — bundled | Rainmeter's bundled RunCommand plugin, Windows PowerShell/.NET WinForms and the shared `Scripts/SettingsInput.ps1` overlay. | An explicit numeric-field click starts one temporary editor. Fixed numeric/cancel output is revalidated before saving; invalid, cancelled, unrequested or hidden-field results do not save. No polling or provider starts. |
-| Playback metadata and controls — optional, plugin bundled | [WebNowPlaying](https://wnp.keifufu.dev/rainmeter/getting-started) plugin 2.0.7.0 (MIT License, keifufu and Trevor Hamilton), bundled in the Parallax `.rmskin` from `packaging/Plugins/WebNowPlaying` and installed by Skin Installer unless a newer version is present ([license](../../Skins/Parallax/@Resources/Licenses/WebNowPlaying-LICENSE.txt), [provenance](../../packaging/Plugins/WebNowPlaying/README.md)); a supported player. Browser playback additionally requires the separately installed WebNowPlaying browser extension; desktop adapters are also separate. A development copy of the skin without the package needs a manual plugin install (2.x+). | Sampled on the skin update; `MediaInterval` does not throttle WNP internally. Inactive connections show no active media; unsupported controls remain disabled. Setup unloads the optional plugin. |
+| Playback metadata and controls — optional, plugin bundled | [WebNowPlaying](https://wnp.keifufu.dev/rainmeter/getting-started) plugin 2.0.7.0 (MIT License, keifufu and Trevor Hamilton), bundled in the Parallax `.rmskin` from `packaging/Plugins/WebNowPlaying` and installed by Skin Installer unless a newer version is present ([license](../../Skins/Parallax/@Resources/Licenses/WebNowPlaying-LICENSE.txt), [provenance](../../packaging/Plugins/WebNowPlaying/README.md)); a supported player. Browser playback additionally requires the separately installed WebNowPlaying browser extension; desktop adapters are also separate. A development copy of the skin without the package needs a manual plugin install (2.x+). | Sampled on the skin update; `MediaInterval` does not throttle WNP internally. Inactive connections show no active media; unsupported controls remain disabled. Setup unloads the optional plugin. Since 2026-10-27 the shuffle and repeat toggles read WNP's `Shuffle`, `Repeat`, `SupportsToggleShuffleActive` and `SupportsToggleRepeatMode` player types and send its `Shuffle` and `Repeat` commands; a player that does not report support shows them muted and unclickable. Whether a given player (Spotify desktop included) reports that support is unverified. |
 | Spotify source identification — optional | Bundled `SourceProvider.ps1` and the shared `ProviderOwner.psm1` owner lease, Rainmeter's bundled RunCommand plugin, Windows PowerShell 5.1, built-in .NET and Windows media-session APIs. No Spotify authentication or network request. | Explicit Start uses a dormant `State=Hide` RunCommand control and enables one persistent observer targeting a 2-second collection cadence, with load-time recovery through `MediaLifecycle.lua`/`Lifecycle.inc`. Stop uses the same hidden event-only path. Between collections the observer waits on its owner Rainmeter and a stop event, not a poll, and rewrites its snapshot every cycle while Spotify plays and otherwise only on change, plus a heartbeat about every 4 seconds. Observations expire after 6 seconds. Missing or inconclusive evidence leaves generic Windows playback identified as `Unknown`. |
 | Idle pause — optional, bundled suite component | The hidden `Parallax\Idle` input-idle coordinator (built-in SysInfo `IDLE_TIME`) through `@Resources/Idle/Hook.inc` and `StandDown.lua`; `Modules/Media/CaptureState.inc` (`MediaStandby`) written only by `MediaOptions.lua`. | Only while Global Settings **Idle pause** is 5, 10 or 30 minutes (default Off). Media.ini reloads once into standby (provider cadence, drawer parked) and freezes; input reloads it once back. Setup and Queue freeze in place. Off loads a comment-only include; a standby state saved while the pause is Off is cleared at the next Media.ini load. No coordinator sync 10 s after a standby load, or no beat for 3 minutes, returns to live. See [Idle pause](#idle-pause). |
 | Update check — optional, bundled suite component | Automatic update check: Rainmeter's built-in WebParser and the bundled `@Resources/Update/Hook1.inc` (`Update.lua`, `Feed.inc`, `State.inc`, `Version.inc`). | Optional bundled suite component, on by default: Global Settings **Updates** > **Auto check** Daily (`UpdateCheck=1`). Off loads the comment-only `Hook0.inc`. About once a day, one request for the release feed on github.com, made by whichever loaded utility finds the check due (60 s after a load, then an hourly `[!Delay]` look); a newer release opens the `Parallax\Update` prompt. No meter, process or plugin; offline and failed checks are recorded quietly and retried after an hour. See [Updates](../UPDATES.md). |
-| Spotify queue — optional | Bundled `QueueProvider.ps1`, `QueueCore.psm1`, `QueueAuth.psm1` and the shared `ProviderOwner.psm1` owner lease; Rainmeter's bundled RunCommand plugin; Windows PowerShell 5.1/.NET; network access; Spotify Developer app public Client ID and user-authorized PKCE sign-in. The [queue setup guide](../../Skins/Parallax/@Resources/Modules/Media/Queue/README.md) records Development Mode prerequisites, including owner Premium and user allowlisting. No client secret. | Start, Stop, Restart and Disconnect use dormant `State=Hide` RunCommand controls with a fixed allowlist and do not overlap. One opt-in worker requests every 30 seconds by default, configurable to 30–150 seconds, subject to backoff/quota pauses. Sign in deliberately retains a visible setup console/browser flow. Passive views read local snapshots on their update. Missing, stopped, expired or failed data produces explicit status and suppresses rows. |
+| Spotify queue — optional | Bundled `QueueProvider.ps1`, `QueueCore.psm1`, `QueueAuth.psm1` and the shared `ProviderOwner.psm1` owner lease; Rainmeter's bundled RunCommand plugin; Windows PowerShell 5.1/.NET; network access; Spotify Developer app public Client ID and user-authorized PKCE sign-in. The [queue setup guide](../../Skins/Parallax/@Resources/Modules/Media/Queue/README.md) records Development Mode prerequisites, including owner Premium and user allowlisting. No client secret. | Start, Stop, Restart and Disconnect use dormant `State=Hide` RunCommand controls with a fixed allowlist and do not overlap. One opt-in worker requests every 30 seconds by default, configurable to 30–150 seconds, subject to backoff/quota pauses. Sign in deliberately retains a visible setup console/browser flow. Passive views read local snapshots on their update. Missing, stopped, expired or failed data produces explicit status and suppresses rows. Since 2026-10-27, clicking a row or **Refresh** runs one short hidden `QueueProvider.ps1 -Command Play`/`Refresh` on a dormant `State=Hide` RunCommand host (`Queue/QueueControlHost.inc` in Media.ini; Queue.ini's existing host); it only hands a request file to the running worker and exits. Skipping needs the optional `user-modify-playback-state` permission, now requested at sign-in; a grant without it keeps reading the queue but rows are not clickable until you sign in again. Spotify's skip endpoint acts on the account's active device and needs Premium. |
 
 Both provider helpers require an explicit initial Start (or successful queue sign-in).
 They save private enabled intent and can resume once when their Media view loads
@@ -1203,11 +1203,13 @@ See the [queue setup guide](../../Skins/Parallax/@Resources/Modules/Media/Queue/
 for app configuration, lifecycle commands, status meanings, storage, and protocol.
 Register `http://127.0.0.1/callback` in your Spotify app, copy the public Client ID,
 and click Sign in in `Parallax\Media\Queue`. The helper opens Spotify consent,
-uses PKCE S256 with a dynamic numeric loopback callback, and requests only
-`user-read-currently-playing`. In live acceptance, Spotify included
-`user-read-playback-state` in the refreshed grant. No additional scopes are
-requested. Validation accepts Spotify's returned scope set when it contains the
-required permission; the helper only calls the queue endpoint.
+uses PKCE S256 with a dynamic numeric loopback callback, and requests
+`user-read-currently-playing` (required) and, since 2026-10-27,
+`user-modify-playback-state` (optional, for row clicks). In live acceptance,
+Spotify included `user-read-playback-state` in the refreshed grant. Validation
+accepts Spotify's returned scope set when it contains the required permission;
+the helper calls only the queue endpoint and, for a row click, the skip-to-next
+endpoint.
 Sources: [queue endpoint](https://developer.spotify.com/documentation/web-api/reference/get-queue),
 [PKCE](https://developer.spotify.com/documentation/web-api/tutorials/code-pkce-flow),
 [redirects](https://developer.spotify.com/documentation/web-api/concepts/redirect_uri).
@@ -1224,7 +1226,44 @@ Queue panel keeps its existing layout and status behavior.
 Unavailable, malformed, expired, or failed responses suppress rows. Successful
 data expires after twice the configured polling interval, clamped to 90–300
 seconds. The account's Spotify queue may differ from WNP's player.
-Queue display does not add playback/write scopes or item manipulation.
+
+### Row clicks and Refresh (2026-10-27)
+
+Clicking a queue row skips Spotify to that item; **Refresh** reads the queue
+now. Spotify's Web API has no "play queue item N", remove or reorder call for
+the queue, so a click skips forward N times (`POST /me/player/next`) and the
+items before it are skipped past (so they leave the queue). Remove and reorder are not possible.
+
+- **Path.** The row's click calls `QueueReader.lua PlayRow(n)`, which hands the
+  row number and the shown snapshot's `observed` time (integers only) to
+  `QueueControl.lua Play`. That runs one hidden `QueueProvider.ps1 -Command Play
+  -Position n -Observed t` on the dormant RunCommand host. The control process
+  touches no tokens or network. It writes `action.request` into the private data
+  root only while a worker holds its run mutex, then exits. The worker checks
+  for a request on each of its 1-second waits, so a click acts within about a
+  second plus PowerShell's start-up.
+- **Checks before skipping.** The worker acts only if the request names the
+  snapshot it last published and that snapshot was a successful read. It then
+  reads the queue again and skips only if every row up to the clicked one still
+  has the same title and detail. It skips N times, 250 ms apart, waits 500 ms
+  and reads the queue at once. A request older than 15 seconds, malformed, or
+  left from before the worker started is discarded.
+- **Outcomes.** One snapshot carries a notice in place of "Next N": `Queue
+  changed`, `No active device` (404), `Control denied` (403, e.g. not
+  Premium), `Skip failed` (any other failure) or `Sign in again` (the grant
+  lacks `user-modify-playback-state`). The inline drawer shows it in the
+  header's "Song / Artist" slot. The next regular read clears it.
+- **Refresh** sets the next read to now, unless the last read failed, in which
+  case its backoff or server wait stands.
+- **Clickable rows.** Only live, visible rows of a snapshot whose grant
+  includes playback control, in a skin that declares the click host (Media.ini
+  and the standalone Queue, not Setup), get the hand cursor and accept clicks.
+- **Snapshot V3.** `PARALLAX_QUEUE_V3` adds `control=0|1` and
+  `notice=<enum>` after `count`. The reader still accepts V2, which reads as
+  not clickable with no notice. Nonready snapshots must carry `control=0` and
+  an empty notice.
+- **Not verified live.** No real Spotify skip, device, or a Premium versus Free
+  account has been exercised; all checks are synthetic.
 
 Windows PowerShell 5.1 and built-in .NET provide HTTP, callback listener, locking,
 and DPAPI. A single opt-in process polls every 30 seconds by default; Rainmeter
@@ -1248,6 +1287,54 @@ Sources: [quota modes](https://developer.spotify.com/documentation/web-api/conce
 [rate limits](https://developer.spotify.com/documentation/web-api/concepts/rate-limits).
 
 ## Validation report
+
+### Shuffle, repeat and clickable queue (2026-10-27)
+
+**Shuffle and repeat.** 26S circles flank the transport trio, one 4S gap out
+on the same centre line (`MediaTransportToggleSize`, `TransportIcons.inc`),
+with Lucide shuffle, repeat and repeat-1 art drawn at 18S and the suite's 2S
+stroke. Off: a `GraphBackgroundColor` face ringed in `BorderColor`, lifted to
+`BorderColor` on hover. On: the trio's `AccentColor` face. Repeat-one adds the
+"1" stroke. The glyph is white when the player reports support and
+`MutedColor` (no cursor) otherwise.
+
+- **Fit.** The row's left end bounds the queue notch, which must keep 76S for
+  its icon and label (`MediaQueueTabMinWidth`). Where the centred row would
+  cut it shorter, the five slide right by just enough, never closer than
+  `Padding` to the panel's edge. Where that is still not enough, the toggles
+  are hidden and parked at `#Inset#` and the trio keeps its centred place.
+  Measured at scale 0.75–2: toggles show at double 220 (row 26S right of
+  centre at scale 1, notch exactly 76) and at 320 in both widths. They are
+  hidden at compact 180 and 220 and at double 180.
+- **Timing text.** Where the toggles show, it moved from under the bar's right
+  end to the right end of the album row, so the bottom edge holds only the
+  notch and the buttons. The album stops 96S short of it (88S timing cap plus
+  an 8S gap). Before the move, the repeat circle overlapped "45 / 180" at
+  double 220. Measured: the digits' ink spans rows 102–109 and "album" spans
+  102–110, centred on the same Y; the 1px bottom difference is the round
+  lowercase overshoot, unchanged by a box-height experiment.
+- **Compact cost.** Both timing meters are now `RightCenter`. `StringAlign`
+  cannot follow a formula, and a runtime `!SetOption StringAlign` did not
+  re-apply (measured: Y moved, the alignment did not). Where the toggles are
+  hidden the timing text therefore draws 1px lower than before (ink rows
+  139–149 → 140–150, compact 220, scale 1). A pixel diff against HEAD shows
+  nothing else changed in that layout apart from the animated title icon.
+
+**Checks run.** `Test-Media.ps1`: 806 assertions in 29 scenarios, including a
+new shuffle/repeat scenario. `test_skin_contract.py`: 34 tests, 4,051
+subtests. `Test-MediaTransport.ps1 -Columns 1|2` (new `-Columns`
+parameter): PASS. `Test-MediaSettings.ps1 -QueueTogglePlayersOnly`: 1,238 +
+1,314 checks. `Test-QueueCore.ps1`: 72. `Test-QueueProvider.ps1`: 269, with
+new click, request-file and stand-in-worker cases. `Test-QueueAuth.ps1`: 63
+(unchanged). `Test-QueueReader.ps1`: 6,206 in 26 scenarios, including V3,
+cursors, notices, clicks and the Setup no-host case. `Test-QueueView.ps1`: 20
+layouts. Standalone Queue's Refresh shows only with live rows: on the status
+line it clipped "Queue unavailable" at compact 180.
+
+**Not verified.** Live WebNowPlaying shuffle/repeat support for any real
+player, and live Spotify skips. The inline Refresh label's look in an
+expanded drawer was not captured; its bounds are checked by the contract
+suite.
 
 ### Open chevron in the top-right corner (2026-10-25)
 

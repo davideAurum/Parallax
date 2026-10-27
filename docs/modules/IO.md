@@ -63,7 +63,7 @@ Explicitly saved `IODiskDrives=none` hides the Capacity quota label/value and re
 
 | Key | Current default | Meaning |
 | --- | --- | --- |
-| `Columns` | `1` | Main panel width using shared column geometry. |
+| `Columns` | `1` | Main panel width using shared column geometry. `2` only widens the single-column stack; dedicated two-column layouts were explored but not pursued (see [two-column research](../IO-TWO-COLUMN-RESEARCH.md)). |
 | `PanelHeight` | `157` | Saved minimum main panel height in logical pixels; thicker capacity bars can increase the derived height without changing this value. |
 | `IODiskDrives` | `C` | `all`, `none`, or a sorted, unique uppercase comma-separated list such as `C,D,F`. Only A–Z letter roots are supported. |
 | `IOGraphMode` | `combined` | `c` for C: only, `combined` for the selected-drive sum, `overlay` for individual traces, or `split` for selected reads above zero and writes below zero. |

@@ -8,6 +8,7 @@ This does not emulate Rainmeter, execute Lua or validate font rendering.
 The packaging allowlist excludes this development-only .py file.
 """
 import ast
+import atexit
 import math
 import re
 import subprocess
@@ -20,11 +21,21 @@ sections = {}
 loaded = set()
 # --processes/--memory override the saved GPUShowProcesses/GPUShowProcessMemory
 # when choosing the include variants, as a changed User\GPU.inc would. A plain
-# run checks the shipped values, then the other variants in subprocesses.
+# run checks the shipped values, and the other variants in subprocesses.
 OVERRIDES = {}
 for flag, key in (("--processes", "GPUShowProcesses"), ("--memory", "GPUShowProcessMemory")):
     if flag in sys.argv[1:]:
         OVERRIDES[key] = sys.argv[sys.argv.index(flag) + 1]
+# The other include variants, each in a fresh interpreter (module state). They
+# start now and run alongside this one; their results are read at the end.
+VARIANT_RUNS = []
+if __name__ == "__main__" and not OVERRIDES:
+    for processes, memory in (("1", "0"), ("0", "1"), ("0", "0")):
+        VARIANT_RUNS.append(subprocess.Popen([sys.executable, __file__, "--processes", processes, "--memory", memory]
+                                             + [arg for arg in sys.argv[1:] if arg == "--all-scales"],
+                                             stdout=subprocess.PIPE, stderr=subprocess.PIPE, text=True))
+    # A failing check here must not leave the variant runs behind.
+    atexit.register(lambda: [run.kill() for run in VARIANT_RUNS if run.poll() is None])
 # Layouts meet exactly at 4 px gutters and shared row edges; absorb float noise
 # from products such as 50*0.76 + 4*0.76 versus 54*0.76 without hiding real overlap.
 EPS = 1e-6
@@ -68,11 +79,18 @@ def load(path):
             sections[current][key] = value
 
 
+# Expanded formula text -> value. Parsing, checking and evaluating depend on the
+# text alone, and the geometry cases expand to the same texts many times over.
+FORMULAS = {}
+
+
 def number(value, variables):
     text = expand(value, variables)
     # Rainmeter's single "=" comparison, as in "(#PanelHeight#=650)", becomes
     # Python's "=="; "<=", ">=" and an existing "==" are left untouched.
     text = re.sub(r"(?<![<>=!])=(?!=)", "==", text)
+    if text in FORMULAS:
+        return FORMULAS[text]
     tree = ast.parse(text, mode="eval")
     allowed = (ast.Expression, ast.Constant, ast.BinOp, ast.UnaryOp, ast.Add,
                ast.Sub, ast.Mult, ast.Div, ast.UAdd, ast.USub, ast.Call,
@@ -87,7 +105,8 @@ def number(value, variables):
         if isinstance(item, ast.Compare):
             assert len(item.ops) == 1, f"Chained comparison: {text}"
     # A comparison evaluates to True/False, which arithmetic treats as 1/0.
-    return float(eval(compile(tree, "<geometry>", "eval"), {"__builtins__": {}}, functions))
+    FORMULAS[text] = float(eval(compile(tree, "<geometry>", "eval"), {"__builtins__": {}}, functions))
+    return FORMULAS[text]
 
 
 def effective(name):
@@ -873,12 +892,8 @@ for metrics, sensors in ((1000, 2000), (1500, 2000), (500, 2000), (3000, 2000)):
 variant = f"GPUShowProcesses={SHOW_PROCESSES} GPUShowProcessMemory={SHOW_MEMORY}"
 print(f"PASS ({variant}): {len(loaded)} includes/configs; {len(meters)} explicit meters; {len(usage_monitor)} UsageMonitor measures; {len(cases)} geometry cases; 4 sensor cadences.")
 print("\n".join(rows))
-if __name__ == "__main__" and not OVERRIDES:
-    # The other include variants, each in a fresh interpreter (module state).
-    for processes, memory in (("1", "0"), ("0", "1"), ("0", "0")):
-        result = subprocess.run([sys.executable, __file__, "--processes", processes, "--memory", memory]
-                                + [arg for arg in sys.argv[1:] if arg == "--all-scales"],
-                                capture_output=True, text=True)
-        assert result.returncode == 0, result.stdout + result.stderr
-        print(result.stdout.splitlines()[0])
+for run in VARIANT_RUNS:
+    stdout, stderr = run.communicate()
+    assert run.returncode == 0, stdout + stderr
+    print(stdout.splitlines()[0])
 print("This offline check does not execute Lua or verify rendering, HWiNFO integration or performance.")

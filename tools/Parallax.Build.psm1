@@ -8,9 +8,10 @@ function Test-ParallaxChildPath {
 
 function Get-ParallaxExclusionReason {
     param([Parameter(Mandatory)][string]$RelativePath, [IO.FileAttributes]$Attributes = [IO.FileAttributes]::Normal)
-    $segments = $RelativePath -split '[\\/]'
-    if (@($segments | Where-Object { $_ -match '^\.|^(Cache|Caches|Runtime|Logs?|Temp|Tmp|Private|Secrets?|Tokens?|Credentials?|Tests?|QA|Fixtures|__pycache__)$' }).Count -gt 0) {
-        return 'Private, hidden, developer, cache, or runtime path'
+    foreach ($segment in $RelativePath -split '[\\/]') {
+        if ($segment -match '^\.|^(Cache|Caches|Runtime|Logs?|Temp|Tmp|Private|Secrets?|Tokens?|Credentials?|Tests?|QA|Fixtures|__pycache__)$') {
+            return 'Private, hidden, developer, cache, or runtime path'
+        }
     }
     if (-not ($Attributes -band [IO.FileAttributes]::Directory) -and $RelativePath -match '(?i)(^|[\\/])[^\\/]*(secret|credential|token)[^\\/]*$|(^|[\\/])[^\\/]*\.(bak|tmp|log)$') {
         return 'Secret, credential, token, or transient filename'

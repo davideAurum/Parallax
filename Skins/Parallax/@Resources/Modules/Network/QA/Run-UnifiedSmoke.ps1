@@ -52,7 +52,6 @@ try {
             Add-Glyph $name '--' ($name -notin @('MeterNetworkAdapter','MeterConnectionAdapter','MeterConnectionDescription','MeterConnectionIP','MeterConnectionGateway','MeterConnectionWiFi')) $true
         }
     }
-    foreach ($caption in @('1x','2x')) { Add-Glyph 'MeterNetworkWidth' $caption }
     foreach ($caption in @('bits','bytes','units?')) { Add-Glyph 'MeterNetworkUnits' $caption }
     Add-Glyph 'MeterNetworkTitle' 'Network'
     foreach ($caption in @('Up / 1 s samples','Up / sampling...','Disconnected','Not present','Down','Status unknown','Dormant','Testing','Selected NIC not found','Select one adapter','Adapter unavailable','Lower layer down','Sample unavailable')) { Add-Glyph 'MeterNetworkStatus' $caption }
@@ -72,7 +71,7 @@ try {
     foreach ($field in @('IP','Gateway')) { Add-Glyph ('MeterConnection'+$field) '255.255.255.255' }
     foreach ($field in @('Rx','Tx')) { foreach ($unit in @('Mbit/s','Gbit/s','Tbit/s')) { Add-Glyph ('MeterConnection'+$field) ('1000.0 '+$unit) } }
     $cases=@()
-    foreach ($width in $ColumnWidths) { foreach ($scale in @(0.75,1,1.25,1.5,2)) { foreach ($columns in @(1,2)) {
+    foreach ($width in $ColumnWidths) { foreach ($scale in @(0.75,1,1.25,1.5,2)) { foreach ($columns in @(1)) { # Network is fixed at one column; a saved Columns=2 is ignored.
         $cases += [pscustomobject]@{Width=$width;Scale=$scale;Columns=$columns;Thickness=6;Kind='layout';Selector='Best';WiFiEnabled='1';WiFiIndex='0'}
     } } }
     foreach ($edge in @(@(1,0.75),@(1,2),@(2.5,0.75),@(2.5,1),@(12,0.75),@(12,2))) {

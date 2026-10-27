@@ -6,7 +6,7 @@ This is still a prototype. Installed Rainmeter 4.5.26.3894 supplies the native r
 
 ## Delivered behavior
 
-The single Network header contains the original three-node icon, `bits`/`bytes` control and `1x`/`2x` width control. Below it are the selected adapter alias/model and operational state, Windows' PC-wide Internet report, local address/gateway, reported receive/transmit link speeds, Wi-Fi SSID/quality/radio, then current inbound/outbound rates and separate histories. The traffic sampling state and sample count stay visible.
+The single Network header contains the original three-node icon, `bits`/`bytes` control and a settings gear in the right corner that opens the Network settings window. The meter is fixed at one column (no `1x`/`2x` control). Below it are the selected adapter alias/model and operational state, Windows' PC-wide Internet report, local address/gateway, reported receive/transmit link speeds, Wi-Fi SSID/quality/radio, then current inbound/outbound rates and separate histories. The traffic sampling state and sample count stay visible.
 
 Click the adapter name or use **Network settings** in the context menu to open the editor. The context menu also retains Global Settings, the module settings-file editor and Windows Wi-Fi settings. There is one monitor width preference; the Connection block no longer has its own title, frame, width control or navigation action.
 
@@ -18,7 +18,7 @@ Each graph retains up to 60 valid one-second samples without prefilling. It clip
 
 One shared surface contains all data. Metadata rows use the existing body layout, followed by the shared-thickness Wi-Fi bar and two 42-logical-pixel histories. Icons, lines and history geometry retain their distinct styling. Fonts/colors, borders, section dividers and grid spacing follow [APPEARANCE.md](../APPEARANCE.md). No upstream code or artwork was copied.
 
-The saved `Columns` controls the complete monitor. Its saved `PanelHeight` is a minimum, preserved unchanged. After shared Geometry loads, the monitor computes:
+The monitor is always one column: `Network.ini` sets `Columns=1` after the user include, so a saved `Columns=2` is kept in the file but ignored. Its saved `PanelHeight` is a minimum, preserved unchanged. After shared Geometry loads, the monitor computes:
 
 ```text
 PanelHeightPx = Max(Round(PanelHeight * Scale),
@@ -62,7 +62,7 @@ Settings has its own two-column, 598-logical-pixel layout. It reads the module u
 
 | Key | Shipped default | Current meaning |
 | --- | --- | --- |
-| `Columns` | `1` | One or two columns for the entire merged monitor. |
+| `Columns` | `1` | Ignored by the meter, which is fixed at one column (still read by the Network settings window). |
 | `PanelHeight` | `236` | Saved minimum; derived content geometry increases the actual height as above. |
 | `NetworkInterface` | `Best` | Best, exact adapter alias/description, or positive decimal interface index. |
 | `NetworkUnits` | `bits` | Decimal bits/s or decimal bytes/s. |

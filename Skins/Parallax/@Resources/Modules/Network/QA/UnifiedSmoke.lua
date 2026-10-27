@@ -73,20 +73,24 @@ local function role(target,size,color)
 end
 local function header()
     local scale,center=variable('Scale'),variable('TitleRowCenterY')
-    local icon,title,units,width=n('Icon'),n('Title'),n('Units'),n('Width')
-    for _,target in ipairs({title,units,width}) do
+    local icon,title,units,gear=n('Icon'),n('Title'),n('Units'),n('Options')
+    for _,target in ipairs({title,units}) do
         assert(target:GetOption('StringAlign'):lower()=='leftcenter','Header does not use center anchor')
         same(option(target,'Y'),center,'Shared title center')
         assert(math.abs(target:GetY(false)+target:GetH()/2-center)<=1,'Native header center differs')
     end
+    assert(math.abs(gear:GetY(false)+gear:GetH()/2-center)<=1,'Gear center differs from title row')
+    same(gear:GetW(),18*scale,'Gear width',1);same(gear:GetH(),18*scale,'Gear height',1)
+    same(gear:GetX(false)+gear:GetW(),variable('ContentX')+variable('ContentWidth'),'Gear sits in the right corner',1.5)
+    assert(gear:GetOption('LeftMouseUpAction'):find('Parallax\\Network\\Settings',1,true),'Gear does not open Network settings')
     local iconScale=variable('TitleIconScale');same(iconScale,variable('TitleFontSize')*scale/10,'Shared icon scale')
     same(option(icon,'W'),14*iconScale,'Icon width');same(option(icon,'H'),14*iconScale,'Icon height')
     assert(math.abs(icon:GetY(false)+icon:GetH()/2-center)<=1,'Icon center differs')
     same(option(title,'X'),option(icon,'X')+14*iconScale+variable('TitleIconGap'),'Title/icon gap')
     assert(icon:GetX(false)+icon:GetW()<=title:GetX(false),'Icon overlaps title')
     assert(title:GetX(false)+title:GetW()<=units:GetX(false),'Title overlaps units')
-    assert(units:GetX(false)+units:GetW()<=width:GetX(false),'Units overlap width')
-    for _,target in ipairs({units,width}) do before(target,c('Adapter')) end
+    assert(units:GetX(false)+units:GetW()<=gear:GetX(false),'Units overlap gear')
+    for _,target in ipairs({units,gear}) do before(target,c('Adapter')) end
     for _,spec in ipairs(probes) do
         if names[spec.target]=='MeterNetworkTitle' then assert(center+math.ceil(spec.glyphHeight/2)<=c('Adapter'):GetY(false)+1,'Title glyphs collide with adapter row') end
     end
@@ -119,7 +123,7 @@ local function layout()
     assert(variable('TitleFontSize')==(maximum and 12 or 10) and variable('FontSize')==(maximum and 10 or 9)
         and variable('HeaderFontSize')==(maximum and 10 or 8),'Fixture typography differs')
     local glyphs=glyphChecks();header()
-    role(n('Title'),'TitleFontSize','TitleTextColor');role(n('Units'),'FontSize','AccentColor');role(n('Width'),'FontSize','AccentColor2')
+    role(n('Title'),'TitleFontSize','TitleTextColor');role(n('Units'),'FontSize','AccentColor')
     for _,direction in ipairs({'In','Out'}) do
         role(n(direction..'Label'),'HeaderFontSize','HeaderTextColor')
         role(n(direction..'Rate'),'FontSize',direction=='In' and 'NetworkInColor' or 'NetworkOutColor')

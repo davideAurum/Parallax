@@ -53,7 +53,6 @@ function Update()
     local result = Core.step(model, input, os.time())
     local units = setting('NetworkUnits', 'bits'):lower()
     text('Units', units == 'bytes' and 'bytes' or units == 'bits' and 'bits' or 'units?')
-    text('Width', setting('Columns', '1') == '2' and '2x' or '1x')
     text('Status', shortStates[result.state] or result.state)
     option('Status', 'FontColor', setting(result.valid and 'GoodColor' or 'WarningColor', '143,155,173'))
     local width = SELF:GetNumberOption('GraphWidth', 248)
@@ -82,10 +81,4 @@ function ToggleUnits()
     SKIN:Bang('!WriteKeyValue', 'Variables', 'NetworkUnits', units, setting('@') .. 'User\\Network.inc')
     SKIN:Bang('!SetVariable', 'NetworkUnits', units)
     -- Do not force native measure updates: maintain their one-second baseline.
-end
-
-function ToggleWidth()
-    local columns = setting('Columns', '1') == '2' and '1' or '2'
-    SKIN:Bang('!WriteKeyValue', 'Variables', 'Columns', columns, setting('@') .. 'User\\Network.inc')
-    SKIN:Bang('!Refresh')
 end

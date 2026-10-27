@@ -27,7 +27,7 @@ CPU figures are **percent of one logical core** unless stated otherwise. 100% me
 - **Nothing has reached the desktop yet.** The live skin changes only when a release is installed.
 - **Open for the owner:**
   - **A clean pre-release baseline exists (2026-10-25/26).** With alpha.8 (phases A-C) live and the screens off, Parallax ran at 8.1% of a core, against 26.6 on 10-22. The machine was 10.1% busy, against 22.5. The fan sat at its floor except during three Spotify runaway episodes.
-  - **The stand-down helper kill race** is fixed (2026-10-25, branch `claude/kill-race-fix-bf97ef`), waiting to be merged. See [the known issue](#phase-c-result-merged-and-measured-2026-10-23).
+  - **The stand-down helper kill race** is fixed (2026-10-25) and merged into main (2026-10-26), with the refresh orphan-host fix. Neither has reached the desktop yet. See [the known issue](#phase-c-result-merged-and-measured-2026-10-23).
   - **Decided on 2026-10-25:** the process lists stay shown by default, and the lazy coordinator is dropped. See [Owner decisions (2026-10-25)](#owner-decisions-2026-10-25).
 
 ## Bottom line
@@ -978,7 +978,7 @@ The audiodg attribution question is answered: see [Live A/B](#live-ab-drawer-and
    - **The trade-off:** hiding the CPU, RAM and GPU process lists takes the six skins from 7.7% to 4.7% of a core; they are the largest remaining cost.
    - **Kept:** the lists are a feature, and the opt-outs (`CPUShowProcesses=0`, `RAMShowProcesses=0`, `GPUShowProcesses=0`, `GPUShowProcessMemory=0`) stay available.
 2. **Lazy coordinator for the drawer (C3 option): dropped.** After the restart the coordinator's window costs about 2 UI wakeups/s, not 57 (see [the after re-measure](#display-dropouts-and-the-kernel-memory-leak-2026-102425)), so the gain no longer justifies a protocol change.
-3. **Stand-down helper kill race: fix it** before the release, in RAM and GPU (see [the known issue](#phase-c-result-merged-and-measured-2026-10-23)). **Fixed 2026-10-25** on branch `claude/kill-race-fix-bf97ef`: a stand-down lets a launch finish and drains it instead of killing it.
+3. **Stand-down helper kill race: fix it** before the release, in RAM and GPU (see [the known issue](#phase-c-result-merged-and-measured-2026-10-23)). **Fixed 2026-10-25**, merged into main 2026-10-26: a stand-down lets a launch finish and drains it instead of killing it.
 
 ## Found along the way (not performance)
 

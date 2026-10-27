@@ -6,7 +6,10 @@ Where things stand between releases: what is on `main` but not yet in a publishe
 
 ## On main, not in any release
 
-- Nothing yet.
+- **Disk Meter drive rows are links** (2026-10-26). Clicking a drive's name opens its root folder. The letter is underlined, the whole name underlines on hover, and an unnamed C: reads Windows. See [IO.md](modules/IO.md#current-validation).
+- **Disk Meter load gauge and two-figure rates** (2026-10-26). The "Capacity: free / total" heading is gone. Each drive's summary line is now a block: a gauge over its load percentage (100 minus `% Idle Time`), read over write, and free / total on the read line, all to two significant figures. An empty optical drive reads unavailable instead of 100% busy. The shipped `PanelHeight` default is 152 (was 157); an installed copy keeps its saved value, so 5 px of extra space under the graph until it is lowered. Not verified: load against Task Manager under sustained transfers, write-rate fit at 180 / 0.75 scale. A long read rate and a mixed-unit capacity clip there.
+- **Disk Meter eject button** (2026-10-27). Removable and optical drives show an eject icon at the right end of the name row. A removable drive gets the taskbar's Safely Remove request; an optical drive opens its tray. When Windows refuses, the row reads "In use by <program>" or "Couldn't eject" briefly. Checked live by holding G: open ("G: In use by pwsh").
+- **Media shuffle and repeat, and a clickable Spotify queue** (2026-10-27). Two transport toggles for WebNowPlaying shuffle and repeat are accent-filled when on, muted when the player doesn't report support, and hidden in the narrowest layouts. Clicking a queue row skips forward to it. This needs one fresh Spotify sign-in (a new scope), Premium and an active device; a failure shows as a short notice. See [Media.md](modules/Media.md#shuffle-repeat-and-clickable-queue-2026-10-27). Not verified: live WNP shuffle/repeat support, a real Spotify skip, the drawer's Refresh look in an expanded queue.
 
 ## Open: Stage 1 (prove the upgrade path)
 

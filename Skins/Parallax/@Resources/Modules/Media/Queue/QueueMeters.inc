@@ -2,6 +2,9 @@
 H=(18*#Scale#)
 Group=QueueRows
 Hidden=1
+; Clicking a row skips to it (QueueReader.lua PlayRow); the reader shows the
+; hand cursor only on rows it marks clickable.
+MouseActionCursor=0
 
 [QueueActionStyle]
 FontFace=#FontFace#
@@ -40,12 +43,28 @@ Y=(#Inset#+26*#Scale#)
 H=(18*#Scale#)
 Text=%1
 
+; Asks the running helper to read the queue now, at the status row's right end.
+; It shows with the rows (QueueRows), when the status is a short "Next N" or
+; a click's outcome; the long unavailable states keep the whole line.
+[MeterQueueRefresh]
+Meter=String
+Group=QueueRows | ParallaxIdleFreeze
+Hidden=1
+MeterStyle=QueueActionStyle
+X=(#ContentX#+#ContentWidth#)
+Y=(#Inset#+26*#Scale#)
+W=(56*#Scale#)
+StringAlign=Right
+Text=Refresh
+LeftMouseUpAction=[!CommandMeasure MeasureQueueControl "Run('Refresh')"]
+
 [MeterQueueRow1]
 Meter=String
 Group=QueueRows | ParallaxIdleFreeze
 MeterStyle=StyleLabel|QueueRowStyle
 Y=(#Inset#+46*#Scale#)
 Text=
+LeftMouseUpAction=[!CommandMeasure MeasureQueueStatus "PlayRow(1)"]
 
 [MeterQueueRow2]
 Meter=String
@@ -53,6 +72,7 @@ Group=QueueRows | ParallaxIdleFreeze
 MeterStyle=StyleLabel|QueueRowStyle
 Y=(#Inset#+64*#Scale#)
 Text=
+LeftMouseUpAction=[!CommandMeasure MeasureQueueStatus "PlayRow(2)"]
 
 [MeterQueueRow3]
 Meter=String
@@ -60,6 +80,7 @@ Group=QueueRows | ParallaxIdleFreeze
 MeterStyle=StyleLabel|QueueRowStyle
 Y=(#Inset#+82*#Scale#)
 Text=
+LeftMouseUpAction=[!CommandMeasure MeasureQueueStatus "PlayRow(3)"]
 
 [MeterQueueRow4]
 Meter=String
@@ -67,6 +88,7 @@ Group=QueueRows | ParallaxIdleFreeze
 MeterStyle=StyleLabel|QueueRowStyle
 Y=(#Inset#+100*#Scale#)
 Text=
+LeftMouseUpAction=[!CommandMeasure MeasureQueueStatus "PlayRow(4)"]
 
 [MeterQueueRow5]
 Meter=String
@@ -74,6 +96,7 @@ Group=QueueRows | ParallaxIdleFreeze
 MeterStyle=StyleLabel|QueueRowStyle
 Y=(#Inset#+118*#Scale#)
 Text=
+LeftMouseUpAction=[!CommandMeasure MeasureQueueStatus "PlayRow(5)"]
 
 [MeterQueueRule]
 Meter=Shape

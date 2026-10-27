@@ -27,11 +27,20 @@ local commands = {
     PlayPause = { measure = 'MeasureCanPlayPause', meter = 'MeterPlayPause', nudge = '' },
     Next = { measure = 'MeasureCanNext', meter = 'MeterNext', nudge = '+#MediaTransportGlyphNudge#' }
 }
+-- Shuffle and repeat are toggles, not one-shot commands: WNP's Shuffle flips
+-- it and Repeat cycles the player's own modes. on() reads the reported state.
+local toggles = {
+    Shuffle = { measure = 'MeasureCanShuffle', state = 'MeasureShuffle', meter = 'MeterShuffle',
+        on = function(value) return value == 1 end },
+    Repeat = { measure = 'MeasureCanRepeat', state = 'MeasureRepeat', meter = 'MeterRepeat',
+        on = function(value) return value == 1 or value == 2 end }
+}
 function Initialize()
     measures, applied, pending, playPauseHovered = {}, {}, {}, false
     transportHovered, activeTiming = {}, nil
     local names = { 'MeasureConnection', 'MeasureTitle', 'MeasureCover', 'MeasureState',
-        'MeasurePosition', 'MeasureDuration', 'MeasureCanPrevious', 'MeasureCanPlayPause', 'MeasureCanNext' }
+        'MeasurePosition', 'MeasureDuration', 'MeasureCanPrevious', 'MeasureCanPlayPause', 'MeasureCanNext',
+        'MeasureShuffle', 'MeasureRepeat', 'MeasureCanShuffle', 'MeasureCanRepeat' }
     for _, name in ipairs(names) do measures[name] = SKIN:GetMeasure(name) end
 end
 
@@ -110,6 +119,24 @@ function Update(immediate)
             .. ' | StrokeWidth (2*#Scale#) | StrokeStartCap Round | StrokeEndCap Round | StrokeLineJoin Round | Offset (#MediaTransportGlyphOffset#' .. command.nudge .. '),#MediaTransportGlyphOffset#') or changed
         changed = option(command.meter, 'MouseActionCursor', enabled and '1' or '0') or changed
     end
+    for name, toggle in pairs(toggles) do
+        local enabled = online and number(toggle.measure) == 1
+        local value = enabled and number(toggle.state) or nil
+        local on = value ~= nil and toggle.on(value)
+        -- On: the trio's accent face. Off: the opaque neutral face and border
+        -- ring, lifted to the border colour while a supported toggle is hovered.
+        local face = on and 'Fill Color ' .. SKIN:GetVariable('AccentColor') .. ' | StrokeWidth 0'
+            or 'Fill Color ' .. SKIN:GetVariable((enabled and transportHovered[name]) and 'BorderColor' or 'MediaTransportToggleOffFill')
+                .. ' | Stroke Color ' .. SKIN:GetVariable('BorderColor') .. ' | StrokeWidth (#BorderThickness#*#Scale#)'
+        changed = option(toggle.meter, 'MediaTransportToggleFace', face) or changed
+        local color = SKIN:GetVariable(enabled and 'MediaTransportGlyphColor' or 'MutedColor')
+        changed = option(toggle.meter, 'LucideToggleStroke', 'Fill Color 0,0,0,0 | Stroke Color ' .. color
+            .. ' | StrokeWidth (2*#Scale#) | StrokeStartCap Round | StrokeEndCap Round | StrokeLineJoin Round | Offset #MediaTransportToggleGlyphOffset#,#MediaTransportToggleGlyphOffset#') or changed
+        changed = option(toggle.meter, 'MouseActionCursor', enabled and '1' or '0') or changed
+    end
+    -- Repeat one (WNP 1) adds Lucide repeat-1's "1"; off and all show plain repeat.
+    local repeatOne = online and number('MeasureCanRepeat') == 1 and number('MeasureRepeat') == 1
+    changed = option('MeterRepeat', 'Shape8', repeatOne and 'Path LucideRepeatOnePath | Extend LucideToggleStroke' or emptyShape) or changed
     local hovered = online and number('MeasureCanPlayPause') == 1 and playPauseHovered
     -- Artwork shows the reported state; hover previews the opposite action.
     -- Paused uses Step Forward to resume; playing uses Play Off to pause.
@@ -195,7 +222,7 @@ function HoverPlayPause(entered)
 end
 
 function HoverTransport(command, entered)
-    if (command ~= 'Previous' and command ~= 'Next') or type(entered) ~= 'boolean'
+    if (command ~= 'Previous' and command ~= 'Next' and not toggles[command]) or type(entered) ~= 'boolean'
         or (transportHovered[command] or false) == entered then return false end
     transportHovered[command] = entered
     Update(true)
@@ -203,7 +230,7 @@ function HoverTransport(command, entered)
 end
 
 function Control(command)
-    local spec = commands[command]
+    local spec = commands[command] or toggles[command]
     -- Recheck the latest sampled values at click time; these are not a heartbeat.
     if spec and connected() and number(spec.measure) == 1 then
         SKIN:Bang('!CommandMeasure', 'MeasureConnection', command)

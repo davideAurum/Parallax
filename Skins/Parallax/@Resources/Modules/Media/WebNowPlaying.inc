@@ -115,6 +115,36 @@ Plugin=WebNowPlaying
 PlayerType=SupportsSkipNext
 UpdateDivider=#MediaLegacyDivider#
 
+; Shuffle: 0 off, 1 on. Repeat: 0 off, 1 one track, 2 all. The Supports*
+; measures gate the toggles exactly as the skip capabilities gate skipping.
+[MeasureShuffle]
+Measure=Plugin
+Group=ParallaxIdlePause
+Plugin=WebNowPlaying
+PlayerType=Shuffle
+UpdateDivider=#MediaLegacyDivider#
+
+[MeasureRepeat]
+Measure=Plugin
+Group=ParallaxIdlePause
+Plugin=WebNowPlaying
+PlayerType=Repeat
+UpdateDivider=#MediaLegacyDivider#
+
+[MeasureCanShuffle]
+Measure=Plugin
+Group=ParallaxIdlePause
+Plugin=WebNowPlaying
+PlayerType=SupportsToggleShuffleActive
+UpdateDivider=#MediaLegacyDivider#
+
+[MeasureCanRepeat]
+Measure=Plugin
+Group=ParallaxIdlePause
+Plugin=WebNowPlaying
+PlayerType=SupportsToggleRepeatMode
+UpdateDivider=#MediaLegacyDivider#
+
 ; Passive source reader uses this update's metadata and never starts the helper.
 [MeasureMediaSource]
 Measure=Script

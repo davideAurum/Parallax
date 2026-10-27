@@ -3,8 +3,10 @@
 Implemented 2026-09-11. This original Parallax helper reads the next five Spotify
 queue entries for the account you authorize. It preserves order and duplicates
 and supports tracks and episodes. Playback controls remain with WebNowPlaying,
-which may be displaying a different player. The queue helper cannot add, remove,
-reorder, or play items.
+which may be displaying a different player. Since 2026-10-27 clicking a row
+skips Spotify's active device to that item, and **Refresh** reads the queue at
+once (see [Row clicks and Refresh](#row-clicks-and-refresh)). Spotify's Web API
+offers no way to remove or reorder queue items, so the helper cannot.
 
 ## Connect your app
 
@@ -35,7 +37,10 @@ The execution-policy argument applies only to this process. Sign-in opens a
 browser and waits up to three minutes. It uses PKCE S256, random single-use state,
 and a listener bound only to `127.0.0.1` on an ephemeral port. Callback host, path,
 state, grammar, size, and deadline are validated; the listener closes before code
-exchange. The only requested scope is `user-read-currently-playing`.
+exchange. It requests `user-read-currently-playing` (required to read the queue)
+and `user-modify-playback-state` (optional, for row clicks). A sign-in from before
+2026-10-27 lacks the second; the queue still reads, and rows become clickable
+after you sign in again.
 
 Sources: [Spotify apps](https://developer.spotify.com/documentation/web-api/concepts/apps),
 [PKCE](https://developer.spotify.com/documentation/web-api/tutorials/code-pkce-flow),
@@ -93,7 +98,25 @@ server waits and never grants a quota override. Interactive sign-in retains its
 existing bounded wait; Stop can time out while consent is pending.
 
 CLI commands: `Help`, `Configure`, `Connect`, `Start`, `Resume`, `Run`, `Stop`,
-`Disconnect`, `Restart`. `Run -Once` makes at most one cycle subject to saved waits.
+`Disconnect`, `Restart`, `Refresh`, `Play -Position n -Observed t`. `Run -Once`
+makes at most one cycle subject to saved waits.
+
+## Row clicks and Refresh
+
+`Refresh` and `Play` only hand a request to a running helper and exit: they read
+no tokens, make no request, and write nothing when no helper is running or Stop
+is in effect. The helper checks for a request once a second. `Play` names the
+clicked row and the `observed` time of the snapshot it was shown in. The helper
+acts only on its own last successful snapshot, reads the queue again, and skips
+(`POST /me/player/next`, once per row up to the clicked one) only if those rows
+are unchanged. It then reads the queue at once. Spotify has no call to play a
+queue item directly, so the rows before it are skipped past. The outcome shows
+for one snapshot in place of "Next N": Queue changed, No active device, Control
+denied (for example, Free accounts), Skip failed, or Sign in again (the grant lacks
+`user-modify-playback-state`). `Refresh` reads now unless the last read failed,
+whose wait stands. Requests older than 15 seconds, malformed, or left from
+before the helper started are discarded.
+Source: [skip to next](https://developer.spotify.com/documentation/web-api/reference/skip-users-playback-to-next-track).
 HTTP401 gets exactly one forced token refresh and one queue retry, then pauses
 if still unauthorized. Returned token scopes may be a superset of the requested
 permission; the required scope must still be present. Refresh tokens rotate or are retained as specified by
@@ -138,6 +161,7 @@ Runtime files stay outside skins in `%LOCALAPPDATA%\Parallax\Media\Spotify\`:
 - `queue.snapshot`: up to five titles and artists/shows, status, and expiry.
 - `queue.retry.json`: retry time and quota pause.
 - `auth.lock`, `stop.request`: coordination.
+- `action.request`: one pending row click or Refresh, consumed by the helper.
 
 The directory uses a current-user-only ACL. Storage rejects reparse paths and
 unsafe profile/skin roots. Atomic replacement keeps no plaintext token backup.
@@ -146,9 +170,10 @@ cache. DPAPI protects stored data for this Windows user; it does not isolate it
 from other software running as that user.
 Source: [Windows DPAPI](https://learn.microsoft.com/en-us/windows/win32/api/dpapi/nf-dpapi-cryptprotectdata).
 
-The reader accepts only bounded inert ASCII `PARALLAX_QUEUE_V2`: header; state,
-observed, valid_until, retry_not_before, count; and exactly five titleN/detailN
-pairs encoded as UTF-8 hex. Unused fields are empty. Nonready states contain no
+The reader accepts only bounded inert ASCII `PARALLAX_QUEUE_V3` (or the older
+`PARALLAX_QUEUE_V2`): header; state, observed, valid_until, retry_not_before,
+count; in V3, control (0/1) and notice (one fixed outcome name or empty); and
+exactly five titleN/detailN pairs encoded as UTF-8 hex. Unused fields are empty. Nonready states contain no
 rows or observation/expiry. Unknown/duplicate keys, invalid Unicode, oversized
 files/fields, and invalid timestamps are rejected. Limits: 32,768-byte snapshot,
 512 UTF-8 bytes per title/detail, 1,048,576-byte API JSON, depth 24. Metadata is never

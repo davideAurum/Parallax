@@ -3,7 +3,11 @@
 #requires -Version 5.1
 [CmdletBinding()]
 param(
-    [ValidateSet('Help','Configure','Connect','Start','Resume','Run','Stop','Restart','Disconnect')][string]$Command = 'Help',
+    [ValidateSet('Help','Configure','Connect','Start','Resume','Run','Stop','Restart','Disconnect','Refresh','Play')][string]$Command = 'Help',
+    # Play: the clicked row (1-5) and the observed time of the snapshot it was
+    # read from, so the worker acts only on the queue the user actually saw.
+    [ValidateRange(0,5)][int]$Position = 0,
+    [ValidateRange(0,253402300000)][long]$Observed = 0,
     [string]$ClientId = '',
     [ValidateRange(30,150)][int]$PollSeconds = 30,
     [switch]$Once,
@@ -29,7 +33,10 @@ Parallax Spotify queue (read-only)
 4. Sign in and consent in Spotify's browser page. The queue helper starts after login.
 
 Commands: Connect (sign in), Start (background), Resume (saved intent), Run, Stop, Restart,
-          Disconnect (stop and remove local tokens/listening cache), Configure.
+          Disconnect (stop and remove local tokens/listening cache), Configure,
+          Refresh (ask the running helper to read now), Play -Position n -Observed t
+          (skip the running helper's player to queue row n; needs the playback
+          control permission, granted by signing in again with Connect).
 Run accepts -Once, -PollSeconds 30..150 and -ResumeAfterQuota for an explicit retry
 after resolving exhausted quota. Ordinary server Retry-After waits are retained.
 No client secret is needed. Development apps require owner Premium and allowlisting.
@@ -57,7 +64,7 @@ function Wait-QueueMutex {
 }
 
 function Get-QueueRuntimeFile {
-    param([string]$Root, [ValidateSet('stop.request','queue.retry.json','queue.snapshot','enabled.intent','launch.id')][string]$Name)
+    param([string]$Root, [ValidateSet('stop.request','queue.retry.json','queue.snapshot','enabled.intent','launch.id','action.request')][string]$Name)
     $path = Join-Path ([IO.Path]::GetFullPath($Root)) $Name
     if (Test-Path -LiteralPath $path) {
         $item = Get-Item -LiteralPath $path -Force
@@ -102,7 +109,7 @@ function Set-QueueEnabledIntent {
 }
 
 function Write-QueueControlFile {
-    param([string]$Root, [ValidateSet('enabled.intent','launch.id')][string]$Name, [string]$Text)
+    param([string]$Root, [ValidateSet('enabled.intent','launch.id','action.request')][string]$Name, [string]$Text)
     $path = Get-QueueRuntimeFile $Root $Name
     $temporary = Join-Path $Root ('.queue-control-' + [Guid]::NewGuid().ToString('N') + '.tmp')
     $bytes = [Text.Encoding]::ASCII.GetBytes($Text)
@@ -173,31 +180,98 @@ function Get-QueueExceptionDecision {
     return Get-QueueResponseDecision 204 -FailureCount $FailureCount
 }
 
-function Invoke-QueueCycle {
-    param([string]$Root, [int]$Interval, [int]$FailureCount = 0)
+function Write-QueueAction {
+    # A short-lived control process (a row click or Refresh) hands its request
+    # to the running worker through this one file; only the worker, which owns
+    # the tokens, talks to Spotify. A newer click replaces an unread one.
+    param([string]$Root, [ValidateSet('refresh','play')][string]$Kind, [int]$Position = 0, [long]$Observed = 0)
+    if ($Kind -eq 'play' -and ($Position -lt 1 -or $Position -gt 5 -or $Observed -lt 1)) { throw 'Invalid queue action.' }
+    if ($Kind -eq 'refresh') { $Position = 0; $Observed = 0 }
+    Write-QueueControlFile $Root 'action.request' ("PARALLAX_QUEUE_ACTION_V1|$Kind|$Position|$Observed|" + (Get-QueueUnixTime) + "`n")
+}
+
+function Read-QueueAction {
+    # Consumes the pending request, if any. Anything malformed, or older than
+    # 15 seconds (written before this worker started), is discarded unread.
+    param([string]$Root, [long]$Now = (Get-QueueUnixTime))
+    $path = Get-QueueRuntimeFile $Root 'action.request'
+    if (-not [IO.File]::Exists($path)) { return $null }
+    $text = ''
     try {
-        $token = Get-QueueAccessToken -DataRoot $Root
-        $response = Invoke-QueueApiRequest -AccessToken $token
+        if ([IO.FileInfo]::new($path).Length -le 128) { $text = [Text.Encoding]::ASCII.GetString([IO.File]::ReadAllBytes($path)) }
+    } finally { if ([IO.File]::Exists($path)) { [IO.File]::Delete($path) } }
+    if ($text -cnotmatch '\APARALLAX_QUEUE_ACTION_V1\|(refresh|play)\|([0-5])\|([0-9]{1,12})\|([0-9]{1,12})\n\z') { return $null }
+    $action = [pscustomobject]@{ Kind=$Matches[1]; Position=[int]$Matches[2]; Observed=[long]$Matches[3]; Created=[long]$Matches[4] }
+    if ($action.Created -gt $Now + 5 -or $action.Created -lt $Now - 15) { return $null }
+    if ($action.Kind -eq 'play' -and ($action.Position -lt 1 -or $action.Observed -lt 1)) { return $null }
+    if ($action.Kind -eq 'refresh' -and ($action.Position -ne 0 -or $action.Observed -ne 0)) { return $null }
+    return $action
+}
+
+function Invoke-QueuePlay {
+    # Skips the active player to queue row Position. The click names the
+    # snapshot it was read from; the worker checks that it is still the one it
+    # last published, reads the queue again and checks every row up to the
+    # clicked one still matches, then skips that many times. Returns the notice
+    # to show ('' when every skip succeeded); the caller refreshes the rows.
+    param([string]$Root, [object]$Action, [object]$Last, [int]$GapMilliseconds = 250)
+    if ($null -eq $Last -or $Last.Observed -ne $Action.Observed -or $Action.Position -gt $Last.Items.Count) { return 'queue_changed' }
+    try {
+        $auth = Get-QueueAccessToken -DataRoot $Root -WithControl
+        if (-not $auth.Control) { return 'control_reauth' }
+        $response = Invoke-QueueApiRequest -AccessToken $auth.Token
+        if ($response.StatusCode -eq 401) {
+            $auth = Get-QueueAccessToken -DataRoot $Root -ForceRefresh -WithControl
+            if (-not $auth.Control) { return 'control_reauth' }
+            $response = Invoke-QueueApiRequest -AccessToken $auth.Token
+        }
+        if ($response.StatusCode -ne 200) { return (Get-QueueControlDecision $response.StatusCode) }
+        $current = (ConvertTo-QueueItems (ConvertFrom-QueueJson $response.Body)).Items
+        if ($current.Count -lt $Action.Position) { return 'queue_changed' }
+        for ($index = 0; $index -lt $Action.Position; $index++) {
+            if ($current[$index].Title -cne $Last.Items[$index].Title -or $current[$index].Detail -cne $Last.Items[$index].Detail) { return 'queue_changed' }
+        }
+        for ($skip = 1; $skip -le $Action.Position; $skip++) {
+            if ($skip -gt 1) { Start-Sleep -Milliseconds $GapMilliseconds }
+            $notice = Get-QueueControlDecision (Invoke-QueueApiRequest -AccessToken $auth.Token -Endpoint Next).StatusCode
+            if ($notice) { return $notice }
+        }
+        # Let the player settle before the refresh reads its new queue.
+        Start-Sleep -Milliseconds (2 * $GapMilliseconds)
+        return ''
+    } catch {
+        $state = [string]$_.Exception.Data['QueueState']
+        if ($state -in @('reauth_required','forbidden')) { return 'control_reauth' }
+        return 'control_failed'
+    } finally { $auth = $null }
+}
+
+function Invoke-QueueCycle {
+    param([string]$Root, [int]$Interval, [int]$FailureCount = 0, [AllowEmptyString()][string]$Notice = '')
+    try {
+        $auth = Get-QueueAccessToken -DataRoot $Root -WithControl
+        $response = Invoke-QueueApiRequest -AccessToken $auth.Token
         if ($response.StatusCode -eq 401) {
             # Exactly one forced refresh, then one GET retry. Never a consent loop.
-            $token = Get-QueueAccessToken -DataRoot $Root -ForceRefresh
-            $response = Invoke-QueueApiRequest -AccessToken $token
+            $auth = Get-QueueAccessToken -DataRoot $Root -ForceRefresh -WithControl
+            $response = Invoke-QueueApiRequest -AccessToken $auth.Token
         }
-        $token = $null
+        $control = [bool]$auth.Control
+        $auth = $null
         $now = Get-QueueUnixTime
         $decision = Get-QueueResponseDecision -StatusCode $response.StatusCode -Body $response.Body -RetryAfter $response.RetryAfter -Now $now -FailureCount $FailureCount
         if ($decision.State -eq 'response_requires_validation') {
             try {
                 $items = ConvertTo-QueueItems (ConvertFrom-QueueJson $response.Body)
                 $lifetime = [Math]::Min(300, [Math]::Max(90, $Interval*2))
-                $snapshot = New-QueueSnapshot -State ready -Items $items.Items -Now $now -LifetimeSeconds $lifetime
+                $snapshot = New-QueueSnapshot -State ready -Items $items.Items -Now $now -LifetimeSeconds $lifetime -Control $control -Notice $Notice
                 return [pscustomobject]@{ Snapshot=$snapshot; NextAt=($now+$Interval); Pause=$false; Success=$true }
             } catch {
                 $decision = Get-QueueResponseDecision 204 -Now $now -FailureCount $FailureCount
             }
         }
     } catch { $decision = Get-QueueExceptionDecision $_.Exception $FailureCount }
-    finally { $token=$null }
+    finally { $auth=$null }
     $snapshot = New-QueueSnapshot -State $decision.State -RetryNotBefore $decision.RetryNotBefore
     return [pscustomobject]@{ Snapshot=$snapshot; NextAt=$decision.RetryNotBefore; Pause=$decision.Pause; Success=$false }
 }
@@ -255,7 +329,21 @@ function Invoke-QueueRun {
         }
         if (-not $Silent) { Write-Output 'Queue helper running. Close this console or use Stop in the queue skin to stop it.' }
         $failures = 0
+        # The last published ready snapshot (a click must name it) and the
+        # outcome of a click to show with the next rows.
+        $last = $null; $notice = ''
+        # A request left from before this worker started is never acted on.
+        $null = Read-QueueAction $Root -Now 0
         while (-not (Test-QueueStop $Root)) {
+            $action = Read-QueueAction $Root
+            if ($null -ne $action) {
+                # Both need the current rows to be live: a failed read keeps
+                # its backoff or server wait, and a click has nothing to name.
+                if ($null -ne $last -and $failures -eq 0) {
+                    if ($action.Kind -eq 'play') { $notice = Invoke-QueuePlay -Root $Root -Action $action -Last $last }
+                    $next = Get-QueueUnixTime
+                }
+            }
             if ((Get-QueueUnixTime) -lt $next) {
                 # The launching Rainmeter is gone. Exit without a 'stopped'
                 # snapshot: resume intent is unchanged, and the next Rainmeter's
@@ -263,7 +351,8 @@ function Invoke-QueueRun {
                 if (Wait-MediaOwnerExit $owner 1000) { return }
                 continue
             }
-            $result = Invoke-QueueCycle -Root $Root -Interval $Interval -FailureCount $failures
+            $result = Invoke-QueueCycle -Root $Root -Interval $Interval -FailureCount $failures -Notice $notice
+            $notice = ''
             if (Test-QueueStop $Root) {
                 # A stop/restart during an HTTP request must still retain any
                 # retry barrier that arrived in that response.
@@ -275,9 +364,11 @@ function Invoke-QueueRun {
             Publish-QueueSnapshot $Root $result.Snapshot
             if ($result.Success) {
                 $failures = 0
+                $last = $result.Snapshot
                 $retryPath = Get-QueueRuntimeFile $Root 'queue.retry.json'
                 if ([IO.File]::Exists($retryPath)) { [IO.File]::Delete($retryPath) }
             } else {
+                $last = $null
                 $failures = [Math]::Min(10,$failures+1)
                 Set-QueueRetry $Root ([pscustomobject]@{ State=$result.Snapshot.State; RetryNotBefore=$result.NextAt; Pause=$result.Pause })
             }
@@ -298,6 +389,20 @@ function Invoke-QueueCommand {
     if ($Command -eq 'Help') { Show-QueueHelp; return }
     if ($PSVersionTable.PSEdition -ne 'Desktop') { throw 'Use Windows PowerShell 5.1 to run QueueProvider.ps1.' }
     if (-not $DataRoot) { $DataRoot = Get-QueueDataRoot }
+    if ($Command -in @('Refresh','Play')) {
+        # A click hands its request to the live worker and exits: no tokens, no
+        # network, no directory creation or ACL change, and no lifecycle lock.
+        $candidate = & (Get-Module -Name QueueAuth) { param($Path) Resolve-QueuePrivatePath $Path } $DataRoot
+        if (-not [IO.Directory]::Exists($candidate) -or (Test-QueueStop $candidate)) { return }
+        $mutex = New-QueueRunMutex $candidate
+        try {
+            # Acquired means no worker is running, so nothing would read it.
+            if (Wait-QueueMutex $mutex 0) { $mutex.ReleaseMutex(); return }
+        } finally { $mutex.Dispose() }
+        if ($Command -eq 'Play') { Write-QueueAction $candidate play $Position $Observed }
+        else { Write-QueueAction $candidate refresh }
+        return
+    }
     if ($Command -eq 'Resume') {
         # Reuse Auth's passive path validation without creating the directory or
         # modifying its ACL. Missing/disabled/malformed intent is a true no-op.

@@ -6,7 +6,10 @@ local actions = {
     Start = { command = 'Start', poll = true },
     Stop = { command = 'Stop' },
     Disconnect = { command = 'Disconnect' },
-    ResumeQuota = { command = 'Start', quota = true }
+    ResumeQuota = { command = 'Start', quota = true },
+    -- Hand a request to the running helper; neither starts one.
+    Refresh = { command = 'Refresh' },
+    Play = { command = 'Play' }
 }
 
 local function interval()
@@ -19,8 +22,12 @@ end
 function Initialize() launched = false end
 function Update() return 0 end
 
-function Run(action)
+function Run(action, position, observed)
     local spec = actions[action]
+    -- Play carries the clicked row and its snapshot's observed time, as plain
+    -- integers only, so nothing from the queue text reaches the command line.
+    if action == 'Play' and (type(position) ~= 'number' or position ~= math.floor(position) or position < 1 or position > 5
+        or type(observed) ~= 'number' or observed ~= math.floor(observed) or observed < 1 or observed > 253402300000) then return false end
     local measure = spec and SKIN:GetMeasure(control) or nil
     if not measure then return false end
     -- Refresh RunCommand's cached state. Do not stack another transient host
@@ -32,6 +39,9 @@ function Run(action)
         .. spec.command .. '"'
     if spec.poll then arguments = arguments .. ' -PollSeconds "' .. interval() .. '"' end
     if spec.quota then arguments = arguments .. ' -ResumeAfterQuota' end
+    if action == 'Play' then
+        arguments = arguments .. ' -Position "' .. position .. '" -Observed "' .. string.format('%d', observed) .. '"'
+    end
     arguments = arguments .. ' -Quiet'
     SKIN:Bang('!SetOption', control, 'Parameter', arguments)
     SKIN:Bang('!UpdateMeasure', control)
@@ -39,3 +49,5 @@ function Run(action)
     launched = true
     return true
 end
+
+function Play(position, observed) return Run('Play', position, observed) end

@@ -17,6 +17,14 @@ The user selected these Lucide icons on 2026-09-12:
 | Collapse Queue | list-minus, supplied by the user as an SVG data URL |
 | Media title, nothing playing | monitor-play, supplied by the user as an SVG data URL |
 | Media title, track playing (animated) | audio-lines, supplied by the user as an SVG data URL |
+| Shuffle (added 2026-10-27) | [shuffle](https://lucide.dev/icons/shuffle) |
+| Repeat off / all (added 2026-10-27) | [repeat](https://lucide.dev/icons/repeat) |
+| Repeat one (added 2026-10-27) | [repeat-1](https://lucide.dev/icons/repeat-1) |
+
+The three icons added on 2026-10-27 are unmodified upstream files from the same
+pinned revision below. `TransportIcons.inc` draws them at `18 * Scale / 24` on
+26-pixel circles with the transport's 2-pixel stroke; their SVG arcs reverse the
+sweep flag for Rainmeter, as the other adaptations do.
 
 The first six unmodified upstream SVGs and the full upstream LICENSE are retained here from
 [Lucide revision a79b2d131dab2bf20cb224bd0937b439a9c4fa99](https://github.com/lucide-icons/lucide/tree/a79b2d131dab2bf20cb224bd0937b439a9c4fa99).
@@ -56,6 +64,9 @@ SHA256 of the unmodified upstream files:
 - pause.svg: `F122EC4EA7F5693A0B1BAAFA9C708B53980DC87B4AACB297C6E6F71C1A4C115C`
 - play-off.svg: `5179F07B1D726103F7C874D4232C39CDC756ECA6349D5C68F40ED4A8D7B44BCF`
 - LICENSE: `B495047BD93A9B06913511076F504DABA17D5BBEB3E0650F3BB53A4220329C57`
+- shuffle.svg: `7051F9BA993DF6E7FEFD9E3FFCCB5D812E0F83C89E1287A850111295202EDEE0`
+- repeat.svg: `6B67B8707E6A3107A1CCAD48716BD93FC5E95E8D91F2BFF5EEC64F62CC7DFC4B`
+- repeat-1.svg: `D74C0581FD9410E52108D74AA07B011162000382238266775AAF7A2D18BA6C68`
 
 SHA256 of the decoded user-supplied SVGs:
 

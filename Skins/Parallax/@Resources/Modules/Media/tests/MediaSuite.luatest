@@ -25,7 +25,11 @@ function suite.run(sourcePath, optionsPath)
             MeasureDuration = { value = 180 },
             MeasureCanPrevious = { value = 1 },
             MeasureCanPlayPause = { value = 1 },
-            MeasureCanNext = { value = 1 }
+            MeasureCanNext = { value = 1 },
+            MeasureShuffle = { value = 0 },
+            MeasureRepeat = { value = 0 },
+            MeasureCanShuffle = { value = 1 },
+            MeasureCanRepeat = { value = 1 }
         }
         local variables = {
             MediaColor = '71,120,160',
@@ -33,6 +37,8 @@ function suite.run(sourcePath, optionsPath)
             AccentColor = '137,190,250',
             BackgroundColor = '24,25,26',
             MediaTransportGlyphColor = '255,255,255',
+            BorderColor = '50,51,52',
+            MediaTransportToggleOffFill = '25,26,27,255',
             Columns = '2',
             Scale = '1'
         }
@@ -234,8 +240,68 @@ function suite.run(sourcePath, optionsPath)
         f.reset()
         f.values.MeasureConnection.value, f.values.MeasureCanNext.value, f.values.MeasureState.value = 1, 1, 2
         check(f.env.Update() == 'Paused' and f.symbol() == 'pause', 'Reconnect while paused must show Pause')
-        check(f.count('!UpdateMeter') == 3, 'Reconnect must force each transport meter once')
+        check(f.count('!UpdateMeter') == 5, 'Reconnect must force each transport meter, shuffle and repeat included, once')
         f.assertRefresh()
+    end)
+
+    scenario('shuffle and repeat show the reported state, gate on capability and dispatch WNP toggles', function()
+        local f = fixture()
+        local accent = 'Fill Color 137,190,250 | StrokeWidth 0'
+        local empty = 'Rectangle 0,0,1,1 | Fill Color 0,0,0,0 | StrokeWidth 0'
+        local function face(meter) return f.option(meter, 'MediaTransportToggleFace') end
+        local function glyph(meter)
+            local stroke = f.option(meter, 'LucideToggleStroke')
+            return stroke and stroke:match('Stroke Color ([^|]-) |')
+        end
+        f.env.Update()
+        for _, meter in ipairs({ 'MeterShuffle', 'MeterRepeat' }) do
+            check(face(meter):find('Fill Color 25,26,27,255 | Stroke Color 50,51,52 ', 1, true) == 1, 'Off toggle must use the neutral face and border ring')
+            check(glyph(meter) == '255,255,255' and f.option(meter, 'MouseActionCursor') == '1', 'Supported toggle must be white and clickable')
+        end
+        check(f.option('MeterRepeat', 'Shape8') == empty, 'Repeat off must not show the repeat-one stroke')
+        f.reset()
+        f.values.MeasureShuffle.value = 1
+        f.env.Update()
+        check(face('MeterShuffle') == accent, 'Shuffle on must use the accent face')
+        check(f.count('!UpdateMeter') == 1 and f.count('!UpdateMeter', 'MeterShuffle') == 1, 'Shuffle state must force only its own meter')
+        f.assertRefresh()
+        f.reset()
+        f.values.MeasureRepeat.value = 1
+        f.env.Update()
+        check(face('MeterRepeat') == accent and f.option('MeterRepeat', 'Shape8') == 'Path LucideRepeatOnePath | Extend LucideToggleStroke',
+            'Repeat one must use the accent face and add the repeat-one stroke')
+        f.assertRefresh()
+        f.reset()
+        f.values.MeasureRepeat.value = 2
+        f.env.Update()
+        check(f.option('MeterRepeat', 'Shape8') == empty and face('MeterRepeat') == nil, 'Repeat all keeps the on face and drops the one stroke')
+        f.assertRefresh()
+        -- WNP may still report shuffle on for a player that cannot change it:
+        -- an unsupported toggle never claims a state.
+        f.reset()
+        f.values.MeasureCanShuffle.value = 0
+        f.env.Update()
+        check(glyph('MeterShuffle') == '111,112,113' and f.option('MeterShuffle', 'MouseActionCursor') == '0', 'Unsupported shuffle must turn muted and inactive')
+        check(face('MeterShuffle'):find('Fill Color 25,26,27,255 ', 1, true) == 1, 'Unsupported shuffle must not show the on face')
+        f.reset()
+        check(f.env.Control('Shuffle') == false and #f.calls() == 0, 'Unsupported shuffle dispatched')
+        check(f.env.HoverTransport('Shuffle', true) == true and face('MeterShuffle') == nil, 'Unsupported hover must not lift the face')
+        f.reset()
+        check(f.env.Control('Repeat') == true and #f.calls() == 1 and f.calls()[1][1] == '!CommandMeasure'
+            and f.calls()[1][2] == 'MeasureConnection' and f.calls()[1][3] == 'Repeat', 'Repeat must dispatch WNP Repeat')
+        f.values.MeasureRepeat.value = 0
+        f.env.Update()
+        f.reset()
+        check(f.env.HoverTransport('Repeat', true) == true, 'Repeat hover accepted')
+        check(face('MeterRepeat'):find('Fill Color 50,51,52 ', 1, true) == 1, 'Hovered off toggle lifts to the border colour')
+        f.assertRefresh(true)
+        for _, invalid in ipairs({ 'shuffle', 'Shuffle][!Quit]', 'Loop' }) do check(f.env.Control(invalid) == false, 'Unrecognized toggle accepted') end
+        f.reset()
+        f.values.MeasureConnection.value, f.values.MeasureCanShuffle.value = 0, 1
+        f.env.Update()
+        check(glyph('MeterRepeat') == '111,112,113' and f.option('MeterRepeat', 'MouseActionCursor') == '0', 'Disconnected repeat must be muted')
+        f.reset()
+        check(f.env.Control('Shuffle') == false and f.env.Control('Repeat') == false and #f.calls() == 0, 'Disconnected toggle dispatched')
     end)
 
     scenario('disconnected hides stale content and gates controls', function()
@@ -436,7 +502,11 @@ function suite.run(sourcePath, optionsPath)
         check(f.strokeColor('MeterPlayPause') == '181,161,226', 'PlayPause failed to follow MediaTransportGlyphColor')
         check(f.strokeColor('MeterNext') == nil, 'MediaTransportGlyphColor changed unsupported control')
         check(f.variables.MediaColor == '9,88,177', 'Action accent update must preserve the independent metric MediaColor')
-        check(f.count('!SetOption') == 2, 'Color update changed unrelated options')
+        -- Previous, PlayPause and the two supported toggles' glyph strokes.
+        check(f.option('MeterShuffle', 'LucideToggleStroke'):find('Stroke Color 181,161,226 |', 1, true) ~= nil
+            and f.option('MeterRepeat', 'LucideToggleStroke'):find('Stroke Color 181,161,226 |', 1, true) ~= nil,
+            'Supported toggles must follow MediaTransportGlyphColor')
+        check(f.count('!SetOption') == 4, 'Color update changed unrelated options')
         f.assertRefresh()
     end)
 

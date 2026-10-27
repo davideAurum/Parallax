@@ -162,7 +162,9 @@ Group=MediaTrack|ParallaxIdleFreeze
 MeasureName=MeasureAlbum
 X=(#MediaMetadataX#+20*#Scale#)
 Y=(#MediaMetadataY#+2*#MediaMetadataPitch#+12*#Scale#)
-W=(#MediaMetadataWidth#-20*#Scale#)
+; Where it shares its row with the right-aligned timing text, it stops
+; #MediaTimingGap# short of the space reserved for it (MediaAlbumTimingReserve).
+W=(#MediaMetadataWidth#-20*#Scale#-#MediaAlbumTimingReserve#)
 H=(24*#Scale#)
 StringAlign=LeftCenter
 Text=%1
@@ -181,8 +183,11 @@ BarColor=#MediaColor#
 SolidColor=#TrackColor#
 Hidden=1
 
-; Auto-size the time text inside a bounded, single-line area. Its measured left
-; edge supplies the transport centering boundary; no hidden width probe needed.
+; Auto-size the time text inside a bounded, single-line area ending on the
+; progress bar's right edge. Where shuffle/repeat show it sits at the right end
+; of the album row, above the bar (2026-10-26), so the queue notch and the five
+; transport buttons have the bottom edge to themselves; elsewhere it stays
+; under the bar. See MediaTimingCenterY and MediaTransportToggles.
 ; No DynamicVariables: these options change only with a refresh, and Media's
 ; pre-expanded geometry chains made each re-read about 23 KB of formula text
 ; (docs/PERFORMANCE-REVIEW.md MEDIA-03). The time itself comes from measures.
@@ -197,8 +202,8 @@ ClipStringW=#MediaTimingMaxWidth#
 H=(18*#Scale#)
 Padding=0,0,0,0
 X=(#MediaProgressX#+#MediaProgressWidth#)
-Y=(#MediaProgressY#+#DataBarThicknessPx#+2*#Scale#)
-StringAlign=Right
+Y=#MediaTimingCenterY#
+StringAlign=RightCenter
 
 ; Neither timing meter calls Media.lua's LayoutTransport() while that layout
 ; is disabled (TEMPORARY there): an OnUpdateAction ran a no-op Lua call on

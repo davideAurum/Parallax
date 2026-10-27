@@ -10,7 +10,9 @@ param(
     # The adapter under test (default: this checkout's Media.lua); another
     # revision's Media.lua reproduces a fault.
     [string]$AdapterPath = '',
-    [ValidateSet('20','10','0')][string]$TitleAnimation = '20'
+    [ValidateSet('20','10','0')][string]$TitleAnimation = '20',
+    # Player width in columns (Media.inc Columns); 2 is the shipped default.
+    [ValidateSet('1','2')][string]$Columns = '2'
 )
 
 $ErrorActionPreference = 'Stop'
@@ -74,7 +76,7 @@ foreach ($relative in $sourceMap.Keys) {
 
 # Shipped Media preferences, with the drawer closed to its tab (no audio
 # capture) and the requested title animation.
-Write-TestFile (Join-Path $parallax '@Resources\User\Media.inc') ("[Variables]`nColumns=2`nPanelHeight=162`nMediaInterval=1000`nQueueExpanded=0`nQueueRowLimit=5`nQueueShowDetails=1`nQueuePollSeconds=30`nVisualizerDrawer=1`nMediaTitleAnimation=$TitleAnimation`n")
+Write-TestFile (Join-Path $parallax '@Resources\User\Media.inc') ("[Variables]`nColumns=$Columns`nPanelHeight=162`nMediaInterval=1000`nQueueExpanded=0`nQueueRowLimit=5`nQueueShowDetails=1`nQueuePollSeconds=30`nVisualizerDrawer=1`nMediaTitleAnimation=$TitleAnimation`n")
 
 # Provider: every WebNowPlaying measure becomes a built-in fixture with the
 # production divider, so samples change only at the provider cadence.
@@ -83,7 +85,9 @@ Write-TestFile (Join-Path $parallax '@Resources\User\Media.inc') ("[Variables]`n
 $providerPath = Join-Path $parallax '@Resources\Modules\Media\WebNowPlaying.inc'
 $provider = [IO.File]::ReadAllText($providerPath)
 $numeric = @{ MeasureConnection = '1'; MeasureState = '#FixtureState#'; MeasurePosition = '45'; MeasureDuration = '180'; MeasureProgress = '25'
-    MeasureCanPrevious = '1'; MeasureCanPlayPause = '1'; MeasureCanNext = '#FixtureCanNext#' }
+    MeasureCanPrevious = '1'; MeasureCanPlayPause = '1'; MeasureCanNext = '#FixtureCanNext#'
+    # Shuffle off and repeat-one on, so a capture shows both toggle faces.
+    MeasureShuffle = '0'; MeasureRepeat = '1'; MeasureCanShuffle = '1'; MeasureCanRepeat = '1' }
 $strings = @{ MeasurePlayer = 'Synthetic player'; MeasureTitle = 'Synthetic title'; MeasureArtist = 'Synthetic artist'
     MeasureSourceArtist = 'Synthetic artist'; MeasureAlbum = 'Synthetic album'; MeasureCover = ''; MeasureMediaSource = 'Spotify' }
 $replaced = 0
@@ -111,7 +115,7 @@ Write-TestFile (Join-Path $parallax '@Resources\Modules\Media\ProviderControlFix
 foreach ($entryFile in Get-ChildItem -LiteralPath $parallax -Recurse -File | Where-Object { $_.Extension -in @('.ini', '.inc') }) {
     $text = [IO.File]::ReadAllText($entryFile.FullName)
     $updated = $text
-    foreach ($name in @('MeasureMediaSourceResume', 'MeasureMediaQueueResume')) {
+    foreach ($name in @('MeasureMediaSourceResume', 'MeasureMediaQueueResume', 'MeasureQueueProviderControl')) {
         $updated = [regex]::Replace($updated, '(?ms)^\[' + $name + '\]\r?\n.*?(?=^\[|\z)', "[$name]`nMeasure=Script`nScriptFile=#@#Modules\Media\ProviderControlFixture.lua`nUpdateDivider=-1`n`n")
     }
     # The queue reader reads only a file inside this run root (absent: no queue).

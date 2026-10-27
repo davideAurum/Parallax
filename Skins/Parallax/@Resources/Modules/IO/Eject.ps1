@@ -3,7 +3,8 @@
 # on the PowerShell execution policy. Prints one result line; exit 0 = ejected.
 #   Removable (Win32 type 2): the same device-eject request as the taskbar's
 #     Safely Remove Hardware. Programs watching the drive are asked to let go
-#     first; one that refuses is named in the veto. A card reader leaves the
+#     first; one that refuses is named (from the veto, or from Kernel-PnP
+#     event 225 when it only holds a handle). A card reader leaves the
 #     system as a whole until it is replugged, exactly as with the taskbar.
 #   Optical (Win32 type 5): opens the tray.
 param([Parameter(Mandatory = $true)][ValidatePattern('^[A-Z]$')][string]$Letter)
@@ -54,6 +55,21 @@ if ($volume.DriveType -eq 5) {
         Get-CimAssociatedInstance -ResultClassName Win32_DiskDrive | Select-Object -First 1
     if (-not $disk) { 'no disk device'; exit 2 }
     $result = [ParallaxEject]::Device($disk.PNPDeviceID)
+    # An open handle vetoes as type 6 and names only the volume. Windows logs
+    # the holding process in Kernel-PnP event 225 at the same moment; report
+    # it as an application veto when that event is readable.
+    if ($result -like 'vetoed 6 *') {
+        $filter = "*[System[Provider[@Name='Microsoft-Windows-Kernel-PnP'] and EventID=225 and TimeCreated[timediff(@SystemTime) <= 15000]]]"
+        for ($attempt = 0; $attempt -lt 5; $attempt++) {
+            $holder = Get-WinEvent -LogName System -FilterXPath $filter -ErrorAction SilentlyContinue | ForEach-Object {
+                $data = @{}
+                ([xml]$_.ToXml()).Event.EventData.Data | ForEach-Object { $data[$_.Name] = $_.'#text' }
+                if ($data.DeviceInstance -eq $disk.PNPDeviceID -and $data.ProcessName) { $data.ProcessName }
+            } | Select-Object -First 1
+            if ($holder) { $result = "vetoed 4 $holder"; break }
+            Start-Sleep -Milliseconds 200
+        }
+    }
 } else {
     'not removable'; exit 2
 }

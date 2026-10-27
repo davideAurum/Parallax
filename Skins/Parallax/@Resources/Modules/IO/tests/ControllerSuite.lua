@@ -400,6 +400,39 @@ function Suite.run(productionPath)
         equal(hidden.shown.MeterIOEjectG, false, 'unselected removable drives show nothing')
     end)
 
+    test('a refused eject names the holder on the drive row in WarningColor, then clears', function()
+        local f = fixture({ IODiskDrives = 'C,G', TextColor = '220,220,220', WarningColor = '240,225,40' },
+            { MeasureIOTypeG = 3, MeasureIOTotalG = 64e9, MeasureIOFreeG = 63.9e9 })
+        local normal = f.options.MeterIODriveG.Text
+        local function refuse(output, expected)
+            f:eject('G')
+            f.values.MeasureIOEject = output
+            f:ejectFinished()
+            f:tick()
+            equal(f.options.MeterIODriveG.Text, expected, tostring(output))
+            equal(f.options.MeterIODriveG.FontColor, '240,225,40', 'warning color for ' .. tostring(output))
+        end
+        refuse('vetoed 4 \\Device\\HarddiskVolume5\\Windows\\System32\\SearchIndexer.exe\r\n', 'G: In use by Windows Search')
+        refuse('vetoed 5 WSearch', 'G: In use by Windows Search')
+        refuse('vetoed 4 C:\\Tools\\Lightroom.EXE', 'G: In use by Lightroom')
+        refuse('vetoed 6 USBSTOR\\Disk&Ven_Multiple', "G: Couldn't eject")
+        refuse('eject failed 21', "G: Couldn't eject")
+        refuse(nil, "G: Couldn't eject")
+        equal(f.options.MeterIODriveC.FontColor, '220,220,220', 'other rows keep the text color')
+        for _ = 1, 7 do f:tick() end
+        equal(f.options.MeterIODriveG.Text, normal, 'the notice clears after eight updates')
+        equal(f.options.MeterIODriveG.FontColor, '220,220,220')
+        f:eject('G')
+        f.values.MeasureIOEject = 'ejected'
+        f:ejectFinished()
+        f:tick()
+        equal(f.options.MeterIODriveG.Text, normal, 'a successful eject shows no notice')
+        f.values.MeasureIOEject = 'vetoed 5 WSearch'
+        f:ejectFinished()
+        f:tick()
+        equal(f.options.MeterIODriveG.Text, normal, 'a finish without a click shows nothing')
+    end)
+
     test('C: shows decimal free/total and used percentage with body reading color', function()
         local f = fixture({ TextColor = '210,220,230' })
         equal(f:text('MeterIODriveC'), 'C:')

@@ -377,12 +377,22 @@ local function layout()
     return true
 end
 
+-- A refused eject replaces the drive's name with why, in WarningColor, for
+-- noticeTicks updates. ejecting is the letter whose eject process is running.
+local notice, ejecting
+local noticeTicks = 8
+local holders = { SearchIndexer = 'Windows Search', WSearch = 'Windows Search' }
+
 local function renderNames(immediate)
     local mode, changed = nameMode(), false
     for _, letter in ipairs(selected) do
         local display = Names.Format(SKIN, letter, mode)
         local meter = 'MeterIODrive' .. letter
-        local dirty = text(meter, letter .. ':' .. (display ~= '' and (' ' .. display) or ''))
+        local warned = notice and notice.letter == letter
+        if warned then display = notice.text end
+        local colored = option(meter, 'FontColor', variable(warned and 'WarningColor' or 'TextColor',
+            warned and '240,225,40' or '220,220,220'))
+        local dirty = text(meter, letter .. ':' .. (display ~= '' and (' ' .. display) or '')) or colored
         if immediate and dirty then SKIN:Bang('!UpdateMeter', meter) end
         changed = dirty or changed
     end
@@ -661,13 +671,32 @@ function Eject(letter)
         .. script:gsub("'", "''") .. "')) " .. letter .. '"')
     SKIN:Bang('!UpdateMeasure', 'MeasureIOEject')
     SKIN:Bang('!CommandMeasure', 'MeasureIOEject', 'Run')
+    ejecting = letter
     return 0
 end
 
+-- Eject.ps1 prints one line: 'ejected', 'absent', 'vetoed <type> <name>' or
+-- another failure. Veto type 4 names an application's image path, 5 a
+-- service; anything else, or no output at all, is a plain refusal.
+local function refusal(output)
+    output = tostring(output or ''):gsub('%s+$', '')
+    if output == 'ejected' or output == 'absent' then return nil end
+    local kind, name = output:match('^vetoed (%d+) (.+)$')
+    local holder = (kind == '4' and (name:match('([^\\/]+)$') or name):gsub('%.[Ee][Xx][Ee]$', ''))
+        or (kind == '5' and name) or nil
+    if holder then return 'In use by ' .. (holders[holder] or holder) end
+    return "Couldn't eject"
+end
+
 -- The eject process has exited. Re-read the inventory now rather than at
--- its next scheduled update, so an ejected drive leaves the list promptly.
+-- its next scheduled update, so an ejected drive leaves the list promptly;
+-- a refusal is shown on the drive's name row.
 function EjectFinished()
     if not phases then return 0 end
+    local measure = SKIN:GetMeasure('MeasureIOEject')
+    local why = ejecting and refusal(measure and measure:GetStringValue())
+    notice = why and { letter = ejecting, text = why, untilTick = ticks + noticeTicks } or nil
+    ejecting = nil
     SKIN:Bang('!UpdateMeasureGroup', 'IOInventory')
     phases[ticks % inventoryDivider] = true
     pendingSlow = true
@@ -682,6 +711,7 @@ function Update()
     -- variable change caught here. Rates and the graph still run every tick.
     local inputs = variable('IODiskDrives', 'C') .. '\n' .. variable('IOGraphMode', 'combined')
         .. '\n' .. variable('IODriveNames', 'volume')
+    if notice and ticks >= notice.untilTick then notice, pendingSlow = nil, true end
     if pendingSlow or inputs ~= slowInputs or phases[ticks % inventoryDivider] then
         pendingSlow, slowInputs = false, inputs
         syncSelection()

@@ -4,7 +4,7 @@ IOGraphHeight=62
 IOBarExtra=(Max(0,#DataBarThicknessPx#/#Scale#-6))
 ; Grow only the derived height; keep the user's saved panel minimum intact.
 ; Inline the shared pixel rule: WindowHeight expands before the later bar keys.
-PanelHeightPx=(Round(Max(#PanelHeight#,152+Max(0,Max(1,Round(#DataBarThickness#*#Scale#))/#Scale#-6))*#Scale#))
+PanelHeightPx=(Round(Max(#IOMinPanelHeight#,152+Max(0,Max(1,Round(#DataBarThickness#*#Scale#))/#Scale#-6))*#Scale#))
 
 [MeasureIO]
 Measure=Script

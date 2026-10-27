@@ -114,7 +114,9 @@ foreach ($role in $copies.Keys) {
         }
     }
     $user = $copied['@Resources\User\IO.inc']
-    $overrides = [ordered]@{ ColumnWidth=180; Columns=1; Scale='0.75'; PanelHeight=157; CapacityInterval=30000; IODiskDrives='C,D,G'; IOGraphMode='overlay'; IODriveNames='volume'; IODiskUnits='bytes'; IODiskMaxMiBs=500 }
+    # Both height keys, so a -CompareSkinRoot tree from before alpha.10 (PanelHeight)
+    # sizes the same as the current one (IOMinPanelHeight).
+    $overrides = [ordered]@{ ColumnWidth=180; Columns=1; Scale='0.75'; PanelHeight=157; IOMinPanelHeight=157; CapacityInterval=30000; IODiskDrives='C,D,G'; IOGraphMode='overlay'; IODriveNames='volume'; IODiskUnits='bytes'; IODiskMaxMiBs=500 }
     foreach ($key in $overrides.Keys) { $user = Set-IniVariable $user $key ([string]$overrides[$key]) }
     $copied['@Resources\User\IO.inc'] = $user
     foreach ($relative in '@Resources\Modules\IO\Inventory.inc','@Resources\Modules\IO\Native.inc','@Resources\Modules\IO\Disk.inc','@Resources\Modules\IO\Model.inc') {

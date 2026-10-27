@@ -63,7 +63,7 @@ function Suite.run(productionPath)
         local vars = {
             IODiskUnits = 'bytes', IODiskDrives = 'C', IOGraphMode = 'combined', IODriveNames = 'letters',
             ['@'] = 'fixture-resources\\',
-            Inset = '4', Gap = '8', ContentX = '10', PanelHeight = '152', DataBarThickness = '6',
+            Inset = '4', Gap = '8', ContentX = '10', PanelHeight = '152', IOMinPanelHeight = '0', DataBarThickness = '6',
             IODiskMaxMiBs = '500',
             ContentWidth = '208', Scale = '1', DiskReadColor = '10,20,30', DiskWriteColor = '40,50,60'
         }
@@ -1046,14 +1046,14 @@ function Suite.run(productionPath)
         empty:tick()
         equal(#empty:traces()[1].points, 1)
         empty.vars.DataBarThickness = '12'
-        empty.vars.PanelHeight = '300'
+        empty.vars.IOMinPanelHeight = '300'
         local before = #empty.calls
         empty:tick()
         equal(#empty:traces()[1].points, 2)
         equal(tonumber(empty.options.MeterIODiskReadC.Y), 59)
         equal(tonumber(empty.options.MeterIODiskGraph.Y), 94)
         equal(tonumber(empty.vars.PanelHeightPx), 300)
-        equal(empty.vars.PanelHeight, '300')
+        equal(empty.vars.IOMinPanelHeight, '300')
         equal(empty.vars.DataBarThickness, '12')
         for index = before + 1, #empty.calls do
             truth(not empty.calls[index][1]:find('MeasureGroup', 1, true), 'layout-only change forced a bank update')
@@ -1124,6 +1124,19 @@ function Suite.run(productionPath)
         equal(tonumber(f.options.MeterIODiskGraph.Y), 88)
         equal(tonumber(f.vars.PanelHeightPx), 152)
         equal(#f:traces()[1].points, 1)
+    end)
+
+    test('an upgraded copy ignores the old saved PanelHeight and fits its drives', function()
+        -- Every release before alpha.10 saved PanelHeight=157 in User\IO.inc.
+        local f = fixture({ PanelHeight = '157' })
+        f:tick()
+        equal(tonumber(f.vars.PanelHeightPx), 152, 'the old saved height left 5px under the graph')
+        f.vars.IOMinPanelHeight = '170'
+        f:tick()
+        equal(tonumber(f.vars.PanelHeightPx), 170, 'the new key still raises the minimum')
+        f.vars.IOMinPanelHeight = '100'
+        f:tick()
+        equal(tonumber(f.vars.PanelHeightPx), 152, 'and never shrinks below the drive rows')
     end)
 
     test('split sums selected drives with read above write below and a shared symmetric scale', function()

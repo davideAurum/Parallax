@@ -43,7 +43,7 @@ function Suite.run(productionPath)
     local function fixture(overrides, inventory, initialize, metadata)
         local vars = {
             ['@'] = resourceRoot, CURRENTCONFIG = 'Parallax\\IO\\Settings',
-            Scale = '1', Inset = '4', Gap = '8', PanelHeight = '400',
+            Scale = '1', Inset = '4', Gap = '8', IOMinPanelHeight = '400',
             IODiskQuota = '0', IODiskUnits = 'bytes',
             IODiskMaxMiBs = '500', IODiskDrives = 'C', IOGraphMode = 'combined', IODriveNames = 'volume'
         }
@@ -336,7 +336,7 @@ function Suite.run(productionPath)
         equal(f.vars.IODiskQuota, quota, 'quota value changed during layout')
         equal(f:text('MeterIOSettingsQuotaValue'), quota == '1' and 'On' or quota == '0' and 'Off' or 'Check',
             'quota display changed during collapse')
-        equal(f.persisted.PanelHeight, '400', 'saved monitor height changed')
+        equal(f.persisted.IOMinPanelHeight, '400', 'saved monitor height changed')
         return visible
     end
 

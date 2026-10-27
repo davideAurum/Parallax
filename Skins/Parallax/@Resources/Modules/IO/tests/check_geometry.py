@@ -218,7 +218,7 @@ def check_monitor_layout(bounds, variables, scale, thickness):
     panel = bounds["MeterIOPanel"]
     graph = bounds["MeterIODiskGraph"]
     frame = bounds["MeterIODiskGraphTrack"]
-    saved_height = formula(variables["PanelHeight"], variables)
+    saved_height = formula(variables["IOMinPanelHeight"], variables)
     physical_thickness = max(1, math.floor(thickness * scale + .5))
     extra = max(0, physical_thickness / scale - 6)
     expected_height = math.floor(max(saved_height, 152 + extra) * scale + .5)
@@ -407,7 +407,7 @@ def check_profile(includes, column_counts, fonts, widths=WIDTHS, panel_height=No
         variables = dict(defaults, ColumnWidth=width, Scale=scale, Columns=columns, DataBarThickness=thickness)
         variables.update(fonts)
         if panel_height is not None:
-            variables["PanelHeight"] = panel_height
+            variables["IOMinPanelHeight"] = panel_height
         variables = CaseVariables(variables)
         window_width = formula(variables["WindowWidth"], variables)
         window_height = formula(variables["WindowHeight"], variables)
@@ -470,7 +470,13 @@ def main():
     assert formula(shared["DataBarThickness"], shared) == 6, "shared thickness default"
     assert "DataBarThicknessPx" in shared, "missing shared thickness geometry"
     view = read_sections(("@Resources/Modules/IO/View.inc",))["Variables"]
-    assert "PanelHeight" not in view, "view must preserve the saved panel minimum"
+    assert "PanelHeight" not in view and "IOMinPanelHeight" not in view, "view must preserve the saved panel minimum"
+    # Renamed from PanelHeight (157 in every release before alpha.10): Skin
+    # Installer keeps an old value only for keys the new User\IO.inc still has.
+    user = read_sections(("@Resources/User/IO.inc",))["Variables"]
+    assert "PanelHeight" not in user and user["IOMinPanelHeight"] == "0", "Disk Meter's saved minimum must ship as IOMinPanelHeight=0"
+    entry = read_sections(("IO/IO-Disk.ini",))["Variables"]
+    assert entry["PanelHeight"] == "(Max(#IOMinPanelHeight#,152))", "the entrypoint seeds Geometry.inc from the drive-row minimum"
     settings = read_sections(("IO/Settings/Settings.ini",))
     assert settings["Variables"]["Columns"] == "2", "settings must retain independent double-column width"
     includes = {value for section in settings.values() for key, value in section.items() if key.startswith("@Include")}
@@ -487,7 +493,7 @@ def main():
             print(f"PASS: {checks} IO {name} meter bounds, {typography} typography; six widths, five scales, five bar thicknesses, Columns={column_counts}.")
     fonts = dict(TitleFontSize=12, HeaderFontSize=10, FontSize=10)
     checks = check_profile(PROFILES["monitor"][0], (1,), fonts, widths=(180,), panel_height=200)
-    print(f"PASS: {checks} IO monitor meter bounds with saved PanelHeight=200; width 180, maximum typography, five scales, five bar thicknesses.")
+    print(f"PASS: {checks} IO monitor meter bounds with saved IOMinPanelHeight=200; width 180, maximum typography, five scales, five bar thicknesses.")
     print("LIMIT: name heights use their allocated 18px row envelopes; natural single-line font height/ellipsis require native validation. Hidden Y=0 rows check declared dimensions only; Lua suites check dynamic layout separately.")
 
 

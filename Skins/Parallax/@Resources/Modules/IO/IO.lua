@@ -268,7 +268,9 @@ local function layout()
     local pitch = 63 + extra
     local legendColumns = math.max(1, math.floor(width / (26 * scale)))
     local legendRows = graphMode == 'overlay' and math.ceil(#selected / legendColumns) or 0
-    local savedHeight = numericVariable('PanelHeight') or 152
+    -- An optional extra minimum (User\IO.inc). The old PanelHeight key is not
+    -- read: every release before alpha.10 saved 157, which the installer keeps.
+    local savedHeight = numericVariable('IOMinPanelHeight') or 0
     local ejects, ejectKey = {}, {}
     for _, letter in ipairs(selected) do
         if ejectable(number('MeasureIOType' .. letter)) then

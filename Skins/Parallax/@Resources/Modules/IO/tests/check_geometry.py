@@ -157,11 +157,15 @@ def check_drive_bank():
                 assert options["H"] == "#DataBarThicknessPx#", (name, "shared bar thickness")
             elif field == "Drive":
                 assert options["Text"] == letter + ":", (name, "drive label")
+                assert options["LeftMouseUpAction"] == '["' + letter + ':\\"]', (name, "opens the drive root")
+                assert options["InlineSetting"] == "Underline" and options["InlinePattern"] == "^.:", (name, "link-style letter")
+                assert options["MouseOverAction"] == '[!SetOption ' + name + ' InlinePattern ".*"][!UpdateMeter ' + name + '][!Redraw]', (name, "hover underlines the name")
+                assert options["MouseLeaveAction"] == '[!SetOption ' + name + ' InlinePattern "^.:"][!UpdateMeter ' + name + '][!Redraw]', (name, "leave restores the letter")
                 assert options["ClipString"] == "1" and "H" not in options, (name, "one-line automatic height with ellipsis")
             elif field in ("Capacity", "DiskRead", "DiskWrite", "Load"):
                 assert options["ClipString"] == "1" and "H" not in options, (name, "single-line summary cell")
                 if field == "Load":
-                    assert options["StringAlign"] == "Center", (name, "load centers under the gauge")
+                    assert options.get("StringAlign", "Left") == "Left", (name, "load aligns under the gauge")
             elif field == "Gauge":
                 assert options["Meter"] == "Shape" and options["MeterStyle"] == "StyleIOGauge", (name, "shared Lucide gauge")
     assert set(providers) == expected_providers, "unexpected or incomplete native provider bank"
@@ -221,13 +225,13 @@ def check_monitor_layout(bounds, variables, scale, thickness):
         assert math.isclose(capacity[2], (content_width - 51 * scale) * .58, abs_tol=.001)
         read, write = (bounds["MeterIODisk" + field + letter] for field in ("Read", "Write"))
         gauge, load = (bounds["MeterIO" + field + letter] for field in ("Gauge", "Load"))
-        # Gauge and load share one 30px column; the stacked rates start after it.
+        # Gauge and load sit flush with the content edge; the stacked rates start after them.
         assert math.isclose(gauge[2], 14 * scale, abs_tol=.001) and math.isclose(gauge[3], 14 * scale, abs_tol=.001)
-        assert math.isclose(gauge[0] + gauge[2] / 2, content_x + 15 * scale, abs_tol=.001), (letter, "gauge column center")
-        assert math.isclose(load[0], content_x, abs_tol=.001) and math.isclose(load[2], 30 * scale, abs_tol=.001), (letter, "load column")
+        assert math.isclose(gauge[0], content_x, abs_tol=.001), (letter, "gauge flush with the content edge")
+        assert math.isclose(load[0], content_x, abs_tol=.001) and math.isclose(load[2], 36 * scale, abs_tol=.001), (letter, "load column fits 100% at 10pt")
         for direction, rate in (("Read", read), ("Write", write)):
             glyph = bounds["MeterIODisk" + direction + "Label" + letter]
-            assert glyph[0] >= load[0] + load[2] + 6 * scale - .001, (letter, direction, "column/chevron gap")
+            assert glyph[0] >= load[0] + load[2] - .001, (letter, direction, "load box must end before the chevrons")
             assert rate[0] >= glyph[0] + glyph[2] + scale - .001, (letter, direction, "rate/glyph horizontal gap")
         assert read[0] + read[2] + 4 * scale <= capacity[0] + .001, (letter, "read/capacity cell gap")
         # Capacity shares only the read line, so write runs to the content edge.

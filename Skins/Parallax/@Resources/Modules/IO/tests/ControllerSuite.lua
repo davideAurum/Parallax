@@ -273,9 +273,9 @@ function Suite.run(productionPath)
             truth(math.abs(tonumber(actual) - expected) < 0.001, message)
         end
         equal(tonumber(f.options['MeterIODrive' .. letter].W), width)
-        near(gauge.X, x + 8 * scale, 'gauge centers in the 30px load column')
-        near(load.X, x + 15 * scale)
-        near(load.W, 30 * scale)
+        near(gauge.X, x, 'gauge sits flush with the content edge')
+        near(load.X, x)
+        near(load.W, 36 * scale, '100% at 10pt fits without an ellipsis')
         for _, icon in ipairs({readIcon, writeIcon}) do
             near(icon.X, x + 36 * scale)
             near(icon.W, 10 * scale)
@@ -296,7 +296,7 @@ function Suite.run(productionPath)
     end
 
     test('load is busy time from % Idle Time, clamped, under the gauge and honest when unavailable', function()
-        local f = fixture(nil, { MeasureIODiskIdleC = 88 })
+        local f = fixture(nil, { MeasureIODiskIdleC = 88, MeasureIODiskReadC = 1e6 })
         equal(f:text('MeterIOLoadC'), '12%')
         equal(f.shown.MeterIOGaugeC, true)
         equal(f.shown.MeterIOLoadC, true)
@@ -313,6 +313,12 @@ function Suite.run(productionPath)
         f.values.MeasureIODiskIdleC = nil
         f:tick()
         equal(f:text('MeterIOLoadC'), '--', 'a missing counter must not read as idle or busy')
+        f.values.MeasureIODiskIdleC, f.values.MeasureIODiskReadC = 0, 0
+        f:tick()
+        equal(f:text('MeterIOLoadC'), '--', 'a missing instance reads 0 idle with no transfers, not 100% busy')
+        f.values.MeasureIODiskWriteC = 1e6
+        f:tick()
+        equal(f:text('MeterIOLoadC'), '100%', 'zero idle while moving bytes is a real full load')
         local hidden = fixture({ IODiskDrives = 'none' }, { MeasureIODiskIdleC = 50 })
         equal(hidden.shown.MeterIOGaugeC, false)
         equal(hidden.shown.MeterIOLoadC, false)

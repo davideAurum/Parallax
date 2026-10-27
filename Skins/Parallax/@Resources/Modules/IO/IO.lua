@@ -252,7 +252,7 @@ local function layout()
     local gap = numericVariable('Gap') or 0
     local width = numericVariable('ContentWidth') or 0
     local x = numericVariable('ContentX') or inset
-    -- Readout block: a 30px gauge/load column, the read/write chevrons at 36
+    -- Readout block: a left-aligned gauge/load column, the read/write chevrons at 36
     -- and their rates at 47, then a 4px gap before the right-aligned capacity.
     local rateX = x + 36 * scale
     local cellWidth = math.max(0, width - 51 * scale)
@@ -300,11 +300,13 @@ local function layout()
             end
         end
         option('MeterIOGauge' .. letter, 'Y', shown and (readY + scale) or 0)
-        option('MeterIOGauge' .. letter, 'X', x + 8 * scale)
+        option('MeterIOGauge' .. letter, 'X', x)
         visible('MeterIOGauge' .. letter, shown)
+        -- Gauge and load sit flush with the content edge. 100% is 33px at
+        -- 9pt and 37px at 10pt; the chevrons start where its box ends.
         option('MeterIOLoad' .. letter, 'Y', writeY)
-        option('MeterIOLoad' .. letter, 'X', x + 15 * scale)
-        option('MeterIOLoad' .. letter, 'W', 30 * scale)
+        option('MeterIOLoad' .. letter, 'X', x)
+        option('MeterIOLoad' .. letter, 'W', 36 * scale)
         visible('MeterIOLoad' .. letter, shown)
         local legend = 'MeterIOLegend' .. letter
         if shown and graphMode == 'overlay' then
@@ -536,7 +538,12 @@ local function disk()
             text(meter, value > 0 and diskRate(value) or '--')
         end
         -- Load is busy time: the share of the last second the volume was not idle.
+        -- UsageMonitor reports 0 for a letter with no counter instance (an
+        -- optical drive without media), which would read as 100% busy. A
+        -- fully busy second that moved no bytes is not credible, so that
+        -- combination shows as unavailable.
         local idle = ratesEnabled[letter] and number('MeasureIODiskIdle' .. letter) or nil
+        if idle and idle <= 0 and sample.Read == 0 and sample.Write == 0 then idle = nil end
         text('MeterIOLoad' .. letter, idle
             and string.format('%.0f%%', math.min(100, math.max(0, 100 - idle))) or '--')
     end

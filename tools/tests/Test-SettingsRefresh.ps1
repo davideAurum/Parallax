@@ -181,11 +181,12 @@ function Assert-DiffBands($Before,$After,$Snapshot,[string[]]$Meters,[string]$Co
     return $rows.Count
 }
 
-$sourceFiles=@('Settings\Settings.ini','@Resources\Defaults.inc','@Resources\Geometry.inc','@Resources\Styles.inc','@Resources\User\Settings.inc','@Resources\Scripts\Settings.lua')
+$sourceFiles=@('Settings\Settings.ini','@Resources\Defaults.inc','@Resources\Geometry.inc','@Resources\Styles.inc','@Resources\User\Settings.inc','@Resources\Scripts\Settings.lua','@Resources\Version.inc','@Resources\Update\Feed.inc','@Resources\Update\Install.inc','@Resources\Update\Update.lua','@Resources\Update\State.inc','@Resources\Idle\Link.lua','@Resources\Dev\Panel.inc','@Resources\Dev\DevPanel.lua','@Resources\Dev\DevCommon.lua')
 $sourceHashes=[ordered]@{}
 foreach ($relative in $sourceFiles) {
     $source=Join-Path $sourceRoot $relative
     $sourceHashes[$relative]=(Get-FileHash -LiteralPath $source -Algorithm SHA256).Hash
+    $null=New-Item -ItemType Directory -Force -Path (Split-Path -Parent (Join-Path $parallaxRoot $relative))
     Copy-Item -LiteralPath $source -Destination (Join-Path $parallaxRoot $relative)
 }
 Copy-Item -LiteralPath "$sourceRoot\@Resources\Fonts" -Destination "$parallaxRoot\@Resources\Fonts" -Recurse

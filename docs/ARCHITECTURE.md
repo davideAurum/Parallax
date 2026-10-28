@@ -175,6 +175,15 @@ Added 2026-10-26 (moved from the Welcome panel). [UPDATES.md](UPDATES.md) has th
 - **Cadence.** First look 60 s after a load, then an hourly `[!Delay]` look; a check is due 24 h after a good one and 1 h after a failed or unfinished one. Global Settings checks as it opens only when the last check is over 10 minutes old. No process is launched to poll; the only launch is `UpdateInstall.ps1` on an explicit Update click.
 - **Views.** A host that records a result broadcasts `!UpdateMeasureGroup ParallaxUpdateView *`, so an open Global Settings or prompt re-renders. Only a background check opens the prompt, and only for a newer version not dismissed with Later.
 
+## Developer mode
+
+Added 2026-10-28; [DEVMODE.md](DEVMODE.md) has the full design. Global Settings > Developer (or `tools\Sync-ParallaxDev.ps1`) creates `<Skins>\ParallaxDev`, a clone of the installed release, and loads its utilities beside the release windows so a change can be seen next to the build it changes.
+
+- **Identity.** Rainmeter names a config by its folder, so the copy's hard-coded `Parallax\<config>` references in `.ini`, `.inc` and `.lua` files are rewritten to `ParallaxDev\<config>` as it is written (`DevCopy.psm1`, `ConvertTo-ParallaxDevRewrite`). New code should keep reading `#ROOTCONFIG#` where it can; a literal `Parallax\<config>` still works because of the rewrite. Group names (`Parallax`, `ParallaxIdle*`) are not rewritten, so a suite-wide refresh or idle broadcast reaches both builds.
+- **Loading.** Every utility entrypoint ends with `[ParallaxDevHookInclude] @Include97=#@#Dev\Hook#ParallaxDevBuild#.inc`, before the update and idle hooks, and names its utility and title meter (`ParallaxDevModule`, `ParallaxDevTitle`, `ParallaxDevTitleMeasure`). `ParallaxDevBuild` is 0 in `Defaults.inc` and 1 only in the copy's own `User\Settings.inc`; `Hook0.inc` is comment-only, so a release carries nothing.
+- **Status.** `DevMode.ps1` compares the two folders (utility, suite, shared and ignored files; see DEVMODE.md) and writes `@Resources\Dev\Status.inc` and `Diff.txt` in the copy. `DevStatus.lua` reads the status at load and on `Reload()` and shows one of three icon meters (red git-branch-plus, green git-compare-arrows, muted for unknown) after the title text, found by measuring the title with a transparent probe meter. Nothing runs on a timer; the only launches are explicit clicks.
+- **Rainmeter limit.** A skin folder created while Rainmeter runs cannot be activated until the skin list is refreshed, so the first Dev mode on a new copy runs `!RefreshApp` once and resumes (`DevPending`).
+
 ## Acceptance
 
 Each module delivers usable baseline controls/data within its capability, configuration instructions, source attribution, meaningful checks, and known limitations. Record prototype versus verified live behavior. Test reload persistence, missing providers, long labels, dimensions at multiple scales and CPU cost with helpers included before release. The shared settings skin can close independently without stopping other modules.

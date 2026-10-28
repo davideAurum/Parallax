@@ -117,18 +117,19 @@ $appearanceKeys = @('Theme','FontFace','FontSize','PanelPadding','CornerRadius',
 $appearanceKeys += @('AccentColor2','TitleFontSize','HeaderFontSize','TitleTextColor','HeaderTextColor','BorderThickness','DividerColor','DividerThickness')
 $appearanceKeys += @('TableHeaderBorderColor','TableHeaderBorderThickness','DataBarThickness')
 $records = [Collections.Generic.List[object]]::new()
-foreach ($case in @(@{Name='default';Scale='1';ColumnWidth='220';Width=456;Height=766},@{Name='narrow';Scale='0.75';ColumnWidth='180';Width=282;Height=575})) {
+foreach ($case in @(@{Name='default';Scale='1';ColumnWidth='220';Width=456;Height=1005},@{Name='narrow';Scale='0.75';ColumnWidth='180';Width=282;Height=754})) {
     $caseRoot=Join-Path $runRoot $case.Name
     $skinRoot=Join-Path $caseRoot 'Skins'
     $parallaxRoot=Join-Path $skinRoot 'Parallax'
     $process=$null
-    foreach ($relative in @('','Skins','Skins\Parallax','Skins\Parallax\Settings','Skins\Parallax\@Resources','Skins\Parallax\@Resources\User','Skins\Parallax\@Resources\Scripts','Layouts','Plugins','Addons','captures')) {
+    foreach ($relative in @('','Skins','Skins\Parallax','Skins\Parallax\Settings','Skins\Parallax\@Resources','Layouts','Plugins','Addons','captures')) {
         $null=New-Item -ItemType Directory -Path (Join-Path $caseRoot $relative)
     }
-    foreach ($file in @('Defaults.inc','Geometry.inc','Styles.inc','User\Settings.inc','Scripts\Settings.lua')) {
-        Copy-Item -LiteralPath (Join-Path "$sourceRoot\@Resources" $file) -Destination (Join-Path "$parallaxRoot\@Resources" $file)
+    # Settings.ini includes the update and developer resources (Version.inc, Update\*, Dev\*) as well as the
+    # shared files, so the fixture takes the whole @Resources folder (it has no tests of its own to carry).
+    foreach ($entry in Get-ChildItem -LiteralPath "$sourceRoot\@Resources") {
+        Copy-Item -LiteralPath $entry.FullName -Destination (Join-Path "$parallaxRoot\@Resources" $entry.Name) -Recurse -Force
     }
-    Copy-Item -LiteralPath "$sourceRoot\@Resources\Fonts" -Destination "$parallaxRoot\@Resources\Fonts" -Recurse
     Copy-Item -LiteralPath (Join-Path $PSScriptRoot 'ThemeDropdownHarness.lua') -Destination (Join-Path $caseRoot 'Harness.lua')
     $userPath=Join-Path $parallaxRoot '@Resources\User\Settings.inc'
     $user=Get-Content -LiteralPath $userPath -Raw

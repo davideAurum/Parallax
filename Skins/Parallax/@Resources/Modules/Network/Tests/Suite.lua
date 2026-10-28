@@ -42,6 +42,7 @@ function Suite.run(Core, fixtures)
         truth(result.valid, 'fixture failed to reach valid sampling')
         return model, sample
     end
+    local sectionBodies
     local function read(path)
         local file = assert(io.open(path, 'rb'))
         local data = assert(file:read('*a'))
@@ -367,23 +368,6 @@ function Suite.run(Core, fixtures)
         near(lastY(mock), 2 + 44 * 0.5, 0.01)    -- 5 MB/s against 10 MB/s: steps follow the display units
         equal(mock.latest['MeterNetworkScale:Text'], nil, 'the scale is not printed')
     end)
-    test('units action writes only the module choice and does not force sampling', function()
-        local mock = controller(); mock:tick(); mock.calls = {}
-        mock.environment.ToggleUnits()
-        equal(#mock.calls, 2)
-        equal(mock.calls[1].bang, '!WriteKeyValue')
-        equal(mock.calls[1].args[1], 'Variables')
-        equal(mock.calls[1].args[2], 'NetworkUnits')
-        equal(mock.calls[1].args[3], 'bytes')
-        equal(mock.calls[1].args[4], 'C:\\ParallaxTest\\@Resources\\User\\Network.inc')
-        equal(mock.calls[2].bang, '!SetVariable')
-        mock:tick(); mock:tick()
-        equal(mock.latest['MeterNetworkInRate:Text'], '1.0 MB/s')
-        equal(mock:count('!WriteKeyValue'), 1)
-        equal(mock:count('!Refresh'), 0)
-        mock.environment.ToggleUnits()
-        equal(mock.variables.NetworkUnits, 'bits')
-    end)
     test('meter is fixed at one column: no width toggle, gear opens Network settings', function()
         local mock = controller()
         equal(rawget(mock.environment, 'ToggleWidth'), nil)
@@ -395,7 +379,7 @@ function Suite.run(Core, fixtures)
         assert(gear and gear:find('ActivateConfig "Parallax\\Network\\Settings"', 1, true), 'gear does not open Network settings')
     end)
 
-    local function sectionBodies(path)
+    sectionBodies = function(path)
         local result, current = {}, nil
         for line in (read(path) .. '\n'):gmatch('([^\r\n]*)\r?\n') do
             local name = line:match('^%[([^%]]+)%]$')
@@ -404,6 +388,24 @@ function Suite.run(Core, fixtures)
         end
         return result
     end
+
+    test('header reads Network Meter with no units button; the gear shows on hover in the signal value\'s spot', function()
+        local mock = controller()
+        equal(rawget(mock.environment, 'ToggleUnits'), nil)
+        mock:tick()
+        equal(mock.latest['MeterNetworkUnits:Text'], nil)
+        local meters = sectionBodies(fixtures.moduleRoot .. '\\Meters.inc')
+        truth(meters.MeterNetworkUnits == nil, 'units button meter remains')
+        truth(meters.MeterNetworkTitle:find('Text=Network Meter', 1, true), 'title is not Network Meter')
+        truth(meters.MeterNetworkOptions:find('Hidden=1', 1, true), 'gear must start hidden')
+        local value = sectionBodies(fixtures.moduleRoot .. '\\ConnectionMeters.inc').MeterConnectionHeaderSignal
+        truth(value and value:find('StringAlign=RightCenter', 1, true), 'header signal value missing')
+        truth(not value:find('Hidden=1', 1, true), 'header signal value must start shown')
+        local ini = read(fixtures.moduleRoot .. '\\..\\..\\..\\Network\\Network.ini')
+        contains(ini, 'MouseOverAction=[!HideMeter MeterConnectionHeaderSignal][!ShowMeter MeterNetworkOptions]')
+        contains(ini, 'MouseLeaveAction=[!HideMeter MeterNetworkOptions][!ShowMeter MeterConnectionHeaderSignal]#ParallaxIdleHoverAction#')
+        contains(ini, 'ParallaxIdleHoverSwap=MeterNetworkOptions|MeterConnectionHeaderSignal')
+    end)
 
     test('graph and signal shapes rebuild only when a controller changes them', function()
         -- Each controller !SetOption forces one re-read; DynamicVariables=1

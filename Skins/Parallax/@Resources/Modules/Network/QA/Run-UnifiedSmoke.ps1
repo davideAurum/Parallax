@@ -45,22 +45,25 @@ try {
     function Add-Glyph([string]$Target,[string]$Text,[bool]$Width=$true,[bool]$Live=$false) {
         if ($meterNames.Contains($Target)) { $glyphs.Add([pscustomobject]@{Target=$Target;Text=$Text;Width=$Width;Live=$Live}) }
     }
+    # "Network Meter" at the largest typography in the narrowest column clips (ClipString) beside the signal value.
+    $titleClips = if ($Typography -eq 'maximum') { @('MeterNetworkTitle') } else { @() }
     foreach ($section in [regex]::Matches(($sourceEntry+"`n"+$sourceMeters),'(?ms)^\[(Meter[^\]\r\n]+)\]\r?\n(.*?)(?=^\[|\z)')) {
         $name=$section.Groups[1].Value
         if ($meterNames.Contains($name)) { throw ('Duplicate production meter: '+$name) }
         $meterNames.Add($name)
         if ($section.Groups[2].Value -match '(?m)^Meter=String\r?$') {
-            Add-Glyph $name '--' ($name -notin @('MeterNetworkAdapter','MeterNetworkInRate','MeterNetworkOutRate','MeterConnectionName','MeterConnectionIP','MeterConnectionGateway','MeterConnectionSSID')) $true
+            Add-Glyph $name '--' ($name -notin (@($titleClips) + @('MeterNetworkAdapter','MeterNetworkInRate','MeterNetworkOutRate','MeterConnectionName','MeterConnectionIP','MeterConnectionGateway','MeterConnectionSSID'))) $true
         }
     }
-    foreach ($caption in @('bits','bytes','units?')) { Add-Glyph 'MeterNetworkUnits' $caption }
-    Add-Glyph 'MeterNetworkTitle' 'Network'
+    # The longer title may clip (ClipString) at the largest typography in the narrowest column.
+    Add-Glyph 'MeterNetworkTitle' 'Network Meter' ($Typography -eq 'default')
     foreach ($direction in @('In','Out')) {
         foreach ($caption in @('0.0 bit/s','28.3 kbit/s','Check units')) { Add-Glyph ('MeterNetwork'+$direction+'Rate') $caption }
         # Terabit-scale extremes clip (ClipString) rather than widen the half-row readout.
         foreach ($caption in @('280.7 kbit/s','1023.9 Gbit/s','1023.9 GB/s')) { Add-Glyph ('MeterNetwork'+$direction+'Rate') $caption $false }
     }
     foreach ($caption in @('Ethernet','Wi-Fi','Other')) { Add-Glyph 'MeterConnectionType' $caption }
+    foreach ($caption in @('100%','0%','--')) { Add-Glyph 'MeterConnectionHeaderSignal' $caption }
     foreach ($caption in @('2.4 GHz (9)','5 GHz (149)','6 GHz (233)','Channel 233','Checking band...','Band unavailable')) { Add-Glyph 'MeterConnectionBand' $caption }
     foreach ($caption in @('Check Wi-Fi settings','Synthetic WLAN')) { Add-Glyph 'MeterConnectionSSID' $caption }
     foreach ($caption in @('0%','100%','--','Pending','Unavailable')) { Add-Glyph 'MeterConnectionSignal' $caption }

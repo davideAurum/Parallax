@@ -14,6 +14,19 @@ H=(18*#Scale#)
 StringAlign=Right
 FontColor=#TextColor#
 
+; Signal quality in the header's right corner, in the gear's spot while the
+; pointer is off the skin (swapped for the gear on hover, like CPU's total).
+; Same text and color as the Signal row below.
+[MeterConnectionHeaderSignal]
+Meter=String
+Group=ParallaxIdleFreeze
+MeterStyle=StyleTitle | StyleTitleRow
+X=(#ContentX#+#ContentWidth#)
+W=(44*#Scale#)
+StringAlign=RightCenter
+FontSize=(#FontSize#*#Scale#)
+FontColor=#MutedColor#
+Text=--
 ; Identity panel (CPU-style): eight 18-pixel lines in a 148-pixel box, 2 px padded top and bottom and starting at Y=30 as CPU's block does - link type,
 ; adapter name, SSID, protocol, band, local IP and gateway (IP and gateway as
 ; label/value rows) - then the operational status line. The panel and status

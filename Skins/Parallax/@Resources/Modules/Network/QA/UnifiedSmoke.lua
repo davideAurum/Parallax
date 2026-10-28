@@ -75,24 +75,30 @@ local function role(target,size,color)
 end
 local function header()
     local scale,center=variable('Scale'),variable('TitleRowCenterY')
-    local icon,title,units,gear=n('Icon'),n('Title'),n('Units'),n('Options')
-    for _,target in ipairs({title,units}) do
+    local icon,title,gear,value=n('Icon'),n('Title'),n('Options'),c('HeaderSignal')
+    for _,target in ipairs({title}) do
         assert(target:GetOption('StringAlign'):lower()=='leftcenter','Header does not use center anchor')
         same(option(target,'Y'),center,'Shared title center')
         assert(math.abs(target:GetY(false)+target:GetH()/2-center)<=1,'Native header center differs')
     end
-    assert(math.abs(gear:GetY(false)+gear:GetH()/2-center)<=1,'Gear center differs from title row')
-    same(gear:GetW(),18*scale,'Gear width',1);same(gear:GetH(),18*scale,'Gear height',1)
-    same(gear:GetX(false)+gear:GetW(),variable('ContentX')+variable('ContentWidth'),'Gear sits in the right corner',1.5)
+    -- The gear starts hidden (shown on hover), so read its geometry from its options, not the drawn meter.
+    same(option(gear,'Y')+option(gear,'H')/2,center,'Gear center differs from title row',0.001)
+    same(option(gear,'W'),18*scale,'Gear width');same(option(gear,'H'),18*scale,'Gear height')
+    same(option(gear,'X')+option(gear,'W'),variable('ContentX')+variable('ContentWidth'),'Gear sits in the right corner')
     assert(gear:GetOption('LeftMouseUpAction'):find('Parallax\\Network\\Settings',1,true),'Gear does not open Network settings')
     local iconScale=variable('TitleIconScale');same(iconScale,variable('TitleFontSize')*scale/10,'Shared icon scale')
     same(option(icon,'W'),14*iconScale,'Icon width');same(option(icon,'H'),14*iconScale,'Icon height')
     assert(math.abs(icon:GetY(false)+icon:GetH()/2-center)<=1,'Icon center differs')
     same(option(title,'X'),option(icon,'X')+14*iconScale+variable('TitleIconGap'),'Title/icon gap')
     assert(icon:GetX(false)+icon:GetW()<=title:GetX(false),'Icon overlaps title')
-    assert(title:GetX(false)+title:GetW()<=units:GetX(false),'Title overlaps units')
-    assert(units:GetX(false)+units:GetW()<=gear:GetX(false),'Units overlap gear')
-    for _,target in ipairs({units,gear}) do before(target,c('Identity')) end
+    -- The signal value takes the gear's spot while the pointer is off the skin: same right edge, same row.
+    assert(title:GetX(false)+title:GetW()<=value:GetX(false)+1,'Title overlaps the signal value')
+    assert(title:GetX(false)+title:GetW()<=option(gear,'X')+1,'Title overlaps gear')
+    assert(value:GetOption('StringAlign'):lower()=='rightcenter','Signal value is not right aligned')
+    same(value:GetX(false)+value:GetW(),variable('ContentX')+variable('ContentWidth'),'Signal value right edge',1.5)
+    assert(math.abs(value:GetY(false)+value:GetH()/2-center)<=1,'Signal value center differs from title row')
+    assert(gear:GetOption('Hidden')=='1' and value:GetOption('Hidden','0')=='0','Gear must start hidden and the signal value shown')
+    before(value,c('Identity'));assert(option(gear,'Y')+option(gear,'H')<=c('Identity'):GetY(false),'Gear overlaps identity panel')
     for _,spec in ipairs(probes) do
         if names[spec.target]=='MeterNetworkTitle' then assert(center+math.ceil(spec.glyphHeight/2)<=c('Identity'):GetY(false)+1,'Title glyphs collide with identity panel') end
     end
@@ -125,7 +131,7 @@ local function layout()
     assert(variable('TitleFontSize')==(maximum and 12 or 10) and variable('FontSize')==(maximum and 10 or 9)
         and variable('HeaderFontSize')==(maximum and 10 or 8),'Fixture typography differs')
     local glyphs=glyphChecks();header()
-    role(n('Title'),'TitleFontSize','TitleTextColor');role(n('Units'),'FontSize','AccentColor')
+    role(n('Title'),'TitleFontSize','TitleTextColor');role(c('HeaderSignal'),'FontSize')
     for _,direction in ipairs({'In','Out'}) do
         role(n(direction..'Rate'),'FontSize',direction=='In' and 'NetworkInColor' or 'NetworkOutColor')
     end

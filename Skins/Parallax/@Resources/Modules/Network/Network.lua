@@ -39,7 +39,6 @@ function Update()
     }
     local result = Core.step(model, input, os.time())
     local units = setting('NetworkUnits', 'bits'):lower()
-    text('Units', units == 'bytes' and 'bytes' or units == 'bits' and 'bits' or 'units?')
     local width = SELF:GetNumberOption('GraphWidth', 248)
     local height = SELF:GetNumberOption('GraphHeight', 48)
     local scale = SELF:GetNumberOption('GraphScale', 1)
@@ -58,9 +57,3 @@ function Update()
     return result.valid and 1 or 0
 end
 
-function ToggleUnits()
-    local units = setting('NetworkUnits', 'bits'):lower() == 'bits' and 'bytes' or 'bits'
-    SKIN:Bang('!WriteKeyValue', 'Variables', 'NetworkUnits', units, setting('@') .. 'User\\Network.inc')
-    SKIN:Bang('!SetVariable', 'NetworkUnits', units)
-    -- Do not force native measure updates: maintain their one-second baseline.
-end

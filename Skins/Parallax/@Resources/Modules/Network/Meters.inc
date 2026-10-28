@@ -63,55 +63,65 @@ AntiAlias=1
 MouseActionCursor=1
 LeftMouseUpAction=[!ActivateConfig "Parallax\Network\Settings" "Settings.ini"]
 
-[MeterNetworkTrafficRule]
+; Live readouts sit in the connection block, on one row under the signal bar:
+; down caret + IN, up caret + OUT, using the Disk meter's chevron glyphs (10 px
+; box, 2 px strokes). The graph below is separate from them.
+[MeterNetworkInCaret]
 Meter=Shape
-MeterStyle=StyleRule
-Y=(#Inset#+242*#Scale#+#DataBarThicknessPx#)
-
-[MeterNetworkStatus]
-Meter=String
-Group=ParallaxIdleFreeze
-MeterStyle=StyleLabel
-Y=(#Inset#+246*#Scale#+#DataBarThicknessPx#)
-H=(18*#Scale#)
-Text=Waiting for native measures
-
-[MeterNetworkInLabel]
-Meter=String
-MeterStyle=StyleLabel
-Y=(#Inset#+266*#Scale#+#DataBarThicknessPx#)
-W=(30*#Scale#)
-H=(18*#Scale#)
-FontSize=(#HeaderFontSize#*#Scale#)
-FontWeight=600
-FontColor=#HeaderTextColor#
-Text=IN
+X=#ContentX#
+Y=(#Inset#+216*#Scale#+#DataBarThicknessPx#)
+W=(10*#Scale#)
+H=(10*#Scale#)
+Shape=Line (1*#Scale#),(3*#Scale#),(4*#Scale#),(6*#Scale#) | Stroke Color #NetworkInColor# | StrokeWidth (Max(1,2*#Scale#))
+Shape2=Line (4*#Scale#),(6*#Scale#),(7*#Scale#),(3*#Scale#) | Stroke Color #NetworkInColor# | StrokeWidth (Max(1,2*#Scale#))
 UpdateDivider=-1
+AntiAlias=1
 
 [MeterNetworkInRate]
 Meter=String
 Group=ParallaxIdleFreeze
 MeterStyle=StyleLabel
-X=(#ContentX#+#ContentWidth#)
-Y=(#Inset#+266*#Scale#+#DataBarThicknessPx#)
-W=(#ContentWidth#-32*#Scale#)
+X=(#ContentX#+11*#Scale#)
+Y=(#Inset#+212*#Scale#+#DataBarThicknessPx#)
+W=(#ContentWidth#/2-11*#Scale#)
 H=(18*#Scale#)
-StringAlign=Right
 FontColor=#NetworkInColor#
 Text=--
 
-[MeterNetworkInCeiling]
+[MeterNetworkOutCaret]
+Meter=Shape
+X=(#ContentX#+#ContentWidth#/2)
+Y=(#Inset#+216*#Scale#+#DataBarThicknessPx#)
+W=(10*#Scale#)
+H=(10*#Scale#)
+Shape=Line (1*#Scale#),(6*#Scale#),(4*#Scale#),(3*#Scale#) | Stroke Color #NetworkOutColor# | StrokeWidth (Max(1,2*#Scale#))
+Shape2=Line (4*#Scale#),(3*#Scale#),(7*#Scale#),(6*#Scale#) | Stroke Color #NetworkOutColor# | StrokeWidth (Max(1,2*#Scale#))
+UpdateDivider=-1
+AntiAlias=1
+
+[MeterNetworkOutRate]
 Meter=String
 Group=ParallaxIdleFreeze
 MeterStyle=StyleLabel
-Y=(#Inset#+284*#Scale#+#DataBarThicknessPx#)
+X=(#ContentX#+#ContentWidth#/2+11*#Scale#)
+Y=(#Inset#+212*#Scale#+#DataBarThicknessPx#)
+W=(#ContentWidth#/2-11*#Scale#)
 H=(18*#Scale#)
-Text=Graph ceiling
+FontColor=#NetworkOutColor#
+Text=--
 
-[MeterNetworkInGrid]
+[MeterNetworkTrafficRule]
+Meter=Shape
+MeterStyle=StyleRule
+Y=(#Inset#+234*#Scale#+#DataBarThicknessPx#)
+
+; One graph at the suite's shared graph height, IN and OUT overlaid on one grid.
+; Network.lua rescales its axis to the largest sample in the 60-sample window
+; (1-2-5 steps in the display units); the scale is not printed.
+[MeterNetworkGrid]
 Meter=Shape
 X=#ContentX#
-Y=(#Inset#+304*#Scale#+#DataBarThicknessPx#)
+Y=(#Inset#+240*#Scale#+#DataBarThicknessPx#)
 W=#ContentWidth#
 H=(#NetworkGraphHeight#*#Scale#)
 Shape=Rectangle 0.5,0.5,(#ContentWidth#-1),(#NetworkGraphHeight#*#Scale#-1),(2*#Scale#) | Fill Color #GraphBackgroundColor# | Stroke Color #BorderColor# | StrokeWidth 1
@@ -125,7 +135,7 @@ AntiAlias=1
 Meter=Shape
 Group=ParallaxIdleFreeze
 X=#ContentX#
-Y=(#Inset#+304*#Scale#+#DataBarThicknessPx#)
+Y=(#Inset#+240*#Scale#+#DataBarThicknessPx#)
 W=#ContentWidth#
 H=(#NetworkGraphHeight#*#Scale#)
 Shape=Rectangle 0,0,#ContentWidth#,(#NetworkGraphHeight#*#Scale#) | Fill Color 0,0,0,0 | StrokeWidth 0
@@ -134,56 +144,12 @@ Shape2=Path History | Stroke Color #NetworkInColor# | StrokeWidth #Scale# | Fill
 History=1,1 | LineTo 1,1
 AntiAlias=1
 
-[MeterNetworkOutLabel]
-Meter=String
-MeterStyle=StyleLabel
-Y=(#Inset#+352*#Scale#+#DataBarThicknessPx#)
-W=(30*#Scale#)
-H=(18*#Scale#)
-FontSize=(#HeaderFontSize#*#Scale#)
-FontWeight=600
-FontColor=#HeaderTextColor#
-Text=OUT
-UpdateDivider=-1
-
-[MeterNetworkOutRate]
-Meter=String
-Group=ParallaxIdleFreeze
-MeterStyle=StyleLabel
-X=(#ContentX#+#ContentWidth#)
-Y=(#Inset#+352*#Scale#+#DataBarThicknessPx#)
-W=(#ContentWidth#-32*#Scale#)
-H=(18*#Scale#)
-StringAlign=Right
-FontColor=#NetworkOutColor#
-Text=--
-
-[MeterNetworkOutCeiling]
-Meter=String
-Group=ParallaxIdleFreeze
-MeterStyle=StyleLabel
-Y=(#Inset#+370*#Scale#+#DataBarThicknessPx#)
-H=(18*#Scale#)
-Text=Graph ceiling
-
-[MeterNetworkOutGrid]
-Meter=Shape
-X=#ContentX#
-Y=(#Inset#+390*#Scale#+#DataBarThicknessPx#)
-W=#ContentWidth#
-H=(#NetworkGraphHeight#*#Scale#)
-Shape=Rectangle 0.5,0.5,(#ContentWidth#-1),(#NetworkGraphHeight#*#Scale#-1),(2*#Scale#) | Fill Color #GraphBackgroundColor# | Stroke Color #BorderColor# | StrokeWidth 1
-Shape2=Line 1,(#NetworkGraphHeight#*#Scale#/4),(#ContentWidth#-1),(#NetworkGraphHeight#*#Scale#/4) | Stroke Color #GridColor# | StrokeWidth 1
-Shape3=Line 1,(#NetworkGraphHeight#*#Scale#/2),(#ContentWidth#-1),(#NetworkGraphHeight#*#Scale#/2) | Stroke Color #GridColor# | StrokeWidth 1
-Shape4=Line 1,(3*#NetworkGraphHeight#*#Scale#/4),(#ContentWidth#-1),(3*#NetworkGraphHeight#*#Scale#/4) | Stroke Color #GridColor# | StrokeWidth 1
-UpdateDivider=-1
-AntiAlias=1
-
+; Drawn over the IN trace on the same grid and scale.
 [MeterNetworkOutGraph]
 Meter=Shape
 Group=ParallaxIdleFreeze
 X=#ContentX#
-Y=(#Inset#+390*#Scale#+#DataBarThicknessPx#)
+Y=(#Inset#+240*#Scale#+#DataBarThicknessPx#)
 W=#ContentWidth#
 H=(#NetworkGraphHeight#*#Scale#)
 Shape=Rectangle 0,0,#ContentWidth#,(#NetworkGraphHeight#*#Scale#) | Fill Color 0,0,0,0 | StrokeWidth 0
@@ -191,11 +157,3 @@ Shape2=Path History | Stroke Color #NetworkOutColor# | StrokeWidth #Scale# | Fil
 ; Network.lua's !SetOption of History/Shape2 forces a one-shot re-read on change.
 History=1,1 | LineTo 1,1
 AntiAlias=1
-
-[MeterNetworkFooter]
-Meter=String
-Group=ParallaxIdleFreeze
-MeterStyle=StyleLabel
-Y=(#Inset#+436*#Scale#+#DataBarThicknessPx#)
-H=(18*#Scale#)
-Text=60 samples / incl. LAN

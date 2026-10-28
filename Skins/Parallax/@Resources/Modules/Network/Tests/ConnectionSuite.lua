@@ -16,7 +16,7 @@ function Suite.run(Core, Connection, fixtures)
     local function adapter(overrides)
         local a = { selector = 'Best', alias = 'Ethernet', description = 'Synthetic test adapter',
             guid = '{12345678-1234-1234-1234-123456789ABC}', status = 1, state = 1, type = 6,
-            internet = 1, ip = '192.0.2.2', gateway = '192.0.2.1', receiveSpeed = 1000000000, transmitSpeed = 1000000000 }
+            ip = '192.0.2.2', gateway = '192.0.2.1', receiveSpeed = 1000000000, transmitSpeed = 1000000000 }
         for k, v in pairs(overrides or {}) do a[k] = v end
         return a
     end
@@ -55,43 +55,29 @@ function Suite.run(Core, Connection, fixtures)
     test('verified adapter metadata and native link units are preserved', function()
         local d = describe()
         equal(d.typeName, 'Ethernet'); equal(d.name, 'Synthetic test adapter')
-        equal(d.status, 'Ethernet / Up'); equal(d.statusColor, 'GoodColor')
         equal(d.ip, '192.0.2.2'); equal(d.gateway, '192.0.2.1')
         equal(d.receiveLink, '1.0 Gbit/s'); equal(d.transmitLink, '1.0 Gbit/s')
     end)
-    test('adapter type distinguishes Ethernet, Wi-Fi and other', function()
-        contains(describe(adapter({type = 71})).status, 'Wi-Fi / ')
-        contains(describe(adapter({type = 131})).status, 'Other / ')
-    end)
     test('invalid named fallback suppresses all selected-adapter data', function()
         local d = describe(adapter({selector = 'Missing NIC'}))
-        equal(d.status, 'Selected NIC not found'); equal(d.name, 'Selected: Missing NIC'); equal(d.typeName, '--')
+        equal(d.name, 'Selected: Missing NIC'); equal(d.typeName, '--')
         equal(d.ip, '--'); equal(d.gateway, '--'); equal(d.receiveLink, '--'); equal(d.transmitLink, '--')
-        equal(d.internet, 'Detected'); equal(d.ssid, 'Synthetic WLAN')
+        equal(d.ssid, 'Synthetic WLAN')
     end)
     test('missing GUID rejects even otherwise plausible adapter metadata', function()
         local d = describe(adapter({guid = '0'}))
-        equal(d.status, 'Adapter unavailable'); contains(d.name, 'Selected: '); equal(d.receiveLink, '--')
+        contains(d.name, 'Selected: '); equal(d.receiveLink, '--')
     end)
     test('down adapters retain model identity while hiding addresses and links', function()
-        local labels = { [-3] = 'Not present', [-2] = 'Lower layer down', [-1] = 'Down', [0] = 'Status unknown', [2] = 'Dormant', [3] = 'Testing' }
-        for status, label in pairs(labels) do
+        for _, status in ipairs({-3, -2, -1, 0, 2, 3}) do
             local d = describe(adapter({status = status}))
-            equal(d.name, 'Synthetic test adapter'); contains(d.status, label)
+            equal(d.name, 'Synthetic test adapter'); equal(d.typeName, 'Ethernet')
             equal(d.ip, '--'); equal(d.gateway, '--'); equal(d.receiveLink, '--'); equal(d.transmitLink, '--')
-            equal(d.statusColor, 'WarningColor')
         end
     end)
     test('media disconnection overrides operational Up', function()
         local d = describe(adapter({state = -1}))
-        equal(d.status, 'Ethernet / Disconnected'); equal(d.receiveLink, '--'); equal(d.ip, '--')
-    end)
-    test('PC Internet report remains independent of selected NIC state', function()
-        local online = describe(adapter({status = -1, internet = 1}))
-        equal(online.internet, 'Detected'); equal(online.internetColor, 'GoodColor')
-        local unreported = describe(adapter({status = 1, internet = -1}))
-        equal(unreported.internet, 'Not reported'); equal(unreported.statusColor, 'GoodColor')
-        for _, value in ipairs({0, 2, -2, '1'}) do equal(describe(adapter({internet = value})).internet, 'Unknown') end
+        equal(d.receiveLink, '--'); equal(d.ip, '--')
     end)
     test('panel name prefers the model description and falls back to the alias', function()
         equal(describe(adapter({alias = ''})).name, 'Synthetic test adapter')
@@ -132,7 +118,7 @@ function Suite.run(Core, Connection, fixtures)
     test('pending native SSIDs never present connection quality as current', function()
         for _, suffix in ipairs({'(connecting...)', '(authorizing...)'}) do
             local d = describe(nil, wifi({ssid = 'Synthetic WLAN' .. suffix}))
-            equal(d.ssid, 'Synthetic WLAN' .. suffix); equal(d.signal, 'Pending'); equal(d.radio, 'Radio: Pending'); equal(d.signalPercent, nil)
+            equal(d.ssid, 'Synthetic WLAN' .. suffix); equal(d.signal, 'Pending'); equal(d.radio, 'Pending'); equal(d.signalPercent, nil)
         end
     end)
     test('SSID alone with only numeric zeros is insufficient connection proof', function()
@@ -145,7 +131,7 @@ function Suite.run(Core, Connection, fixtures)
     end)
     test('unknown PHY can use a positive native link to prove querying', function()
         local d = describe(nil, wifi({phy = '???', quality = 0}))
-        equal(d.ssid, 'Synthetic WLAN'); equal(d.signalPercent, 0); equal(d.radio, 'Radio unavailable')
+        equal(d.ssid, 'Synthetic WLAN'); equal(d.signalPercent, 0); equal(d.radio, 'Protocol unavailable')
     end)
     test('invalid signal quality is withheld without fabricating zero', function()
         for _, quality in ipairs({-1, 101, math.huge, -math.huge, 0/0, '80'}) do
@@ -160,9 +146,14 @@ function Suite.run(Core, Connection, fixtures)
             equal(d.signalPercent, fixture[1]); equal(d.signalColor, fixture[2])
         end
     end)
-    test('recognized PHY reports the Wi-Fi standard as radio', function()
-        local d = describe()
-        equal(d.radio, 'Radio: 802.11ax')
+    test('recognized PHY reports the Wi-Fi generation and protocol', function()
+        equal(describe().radio, 'Wi-Fi 6 (802.11ax)')
+        for phy, text in pairs({['802.11n'] = 'Wi-Fi 4 (802.11n)', ['802.11ac'] = 'Wi-Fi 5 (802.11ac)',
+            ['802.11ax'] = 'Wi-Fi 6 (802.11ax)', ['802.11be'] = 'Wi-Fi 7 (802.11be)',
+            ['802.11g'] = '802.11g', ['802.11a'] = '802.11a', ['dsss'] = 'dsss'}) do
+            equal(describe(nil, wifi({phy = phy})).radio, text)
+        end
+        equal(describe(nil, wifi({phy = '802.11AX'})).radio, 'Wi-Fi 6 (802.11AX)')
     end)
     test('a separate WLAN source still reports beside an Ethernet adapter', function()
         local d = describe(adapter({type = 6}), nil, Connection.configureWifi('1', '3'))
@@ -177,7 +168,7 @@ function Suite.run(Core, Connection, fixtures)
     end)
     test('missing source tables remain explicitly unavailable', function()
         local d = Connection.describe(Core, {}, {}, Connection.configureWifi('1', '0'))
-        equal(d.internet, 'Unknown'); equal(d.ip, '--'); equal(d.ssid, ''); equal(d.signalPercent, nil)
+        equal(d.ip, '--'); equal(d.ssid, ''); equal(d.signalPercent, nil)
     end)
 
     local function read(path)
@@ -212,7 +203,7 @@ function Suite.run(Core, Connection, fixtures)
                 DangerColor = '200,20,20', MutedColor = '150,150,150', ['@'] = 'C:\\ParallaxTest\\@Resources\\' }}
         for key, value in pairs(overrides or {}) do mock.variables[key] = value end
         local fields = {Alias = 'alias', Description = 'description', Guid = 'guid', Status = 'status',
-            State = 'state', Type = 'type', Internet = 'internet', IP = 'ip', Gateway = 'gateway',
+            State = 'state', Type = 'type', IP = 'ip', Gateway = 'gateway',
             RxLink = 'receiveSpeed', TxLink = 'transmitSpeed'}
         local wifiFields = {WiFiSSID = 'ssid', WiFiQuality = 'quality', WiFiPHY = 'phy', WiFiRx = 'receiveRate', WiFiTx = 'transmitRate'}
         local skin = {}
@@ -222,6 +213,9 @@ function Suite.run(Core, Connection, fixtures)
             mock.reads[name] = (mock.reads[name] or 0) + 1
             if mock.missing[name] then return nil end
             local suffix = name:match('^MeasureConnection(.+)$') or name:match('^MeasureNetwork(.+)$')
+            if suffix == 'BandRun' then
+                return {GetValue = function() return 0 end, GetStringValue = function() return mock.bandOutput or '' end}
+            end
             local source, key = mock.adapter, fields[suffix]
             if wifiFields[suffix] then source, key = mock.wifi, wifiFields[suffix] end
             truth(key, 'unmapped controller measure: ' .. name)
@@ -240,6 +234,8 @@ function Suite.run(Core, Connection, fixtures)
                     end
                 end
                 mock.latest[args[1] .. ':' .. args[2]] = args[3]
+            elseif bang == '!CommandMeasure' then
+                truth(args[1] == 'MeasureConnectionBandRun' and args[2] == 'Run', 'unexpected controller command')
             elseif bang == '!EnableMeasure' or bang == '!DisableMeasure' then
                 truth(measureNames[args[1]] and args[1]:match('^MeasureConnectionWiFi'), 'unknown Wi-Fi enable/disable target')
             else
@@ -295,15 +291,79 @@ function Suite.run(Core, Connection, fixtures)
         equal(mock.latest['MeterConnectionType:Text'], 'Ethernet')
         equal(mock.latest['MeterConnectionName:Text'], 'Synthetic test adapter')
         equal(mock.latest['MeterConnectionSSID:Text'], 'Synthetic WLAN')
-        equal(mock.latest['MeterConnectionRadio:Text'], 'Radio: 802.11ax')
+        equal(mock.latest['MeterConnectionRadio:Text'], 'Wi-Fi 6 (802.11ax)')
         contains(mock.latest['MeterConnectionSignalBar:Shape2'], '150.400')
         for _, call in ipairs(mock.calls) do
-            equal(call.bang, '!SetOption')
-            truth(meterNames[call.args[1]], 'polling mutated a native measure')
-            truth(call.args[2] ~= 'ToolTipText', 'polling set a tooltip on ' .. call.args[1])
+            if call.bang ~= '!CommandMeasure' then   -- the one band query, checked below
+                equal(call.bang, '!SetOption')
+                truth(meterNames[call.args[1]], 'polling mutated a native measure')
+                truth(call.args[2] ~= 'ToolTipText', 'polling set a tooltip on ' .. call.args[1])
+            end
         end
+        equal(mock:count('!CommandMeasure'), 1, 'the band query must run once per connection, not per tick')
         equal(mock:count('!WriteKeyValue'), 0); equal(mock:count('!Refresh'), 0)
         mock.calls = {}; mock:tick(); equal(#mock.calls, 0, 'unchanged display should not rewrite cached options')
+    end)
+    test('band is queried once per Wi-Fi connection and parsed from netsh output', function()
+        local netsh = table.concat({
+            'There are 2 interfaces on the system:', '',
+            '    Name                   : Wi-Fi 2', '    SSID                   : Other net', '    BSSID                  : aa:bb:cc:dd:ee:ff',
+            '    Band                   : 5 GHz', '    Channel                : 36', '',
+            '    Name                   : Wi-Fi', '    State                  : connected', '    SSID                   : Synthetic WLAN',
+            '    BSSID                  : 11:22:33:44:55:66', '    Radio type             : 802.11n',
+            '    Band                   : 2.4 GHz', '    Channel                : 6'}, '\r\n')
+        local mock = controller(); mock.bandOutput = netsh
+        mock:tick()
+        equal(mock.latest['MeterConnectionBand:Text'], 'Checking band...')
+        equal(mock:count('!CommandMeasure'), 1)
+        mock.environment.ApplyBand()
+        equal(mock.latest['MeterConnectionBand:Text'], '2.4 GHz (6)')
+        for _ = 1, 30 do mock:tick() end
+        equal(mock:count('!CommandMeasure'), 1, 'no re-query while the SSID and protocol are unchanged')
+        -- A new SSID (roam or reconnect) queries again.
+        mock.wifi.ssid = 'Other net'; mock.bandOutput = netsh
+        for _ = 1, 6 do mock:tick() end
+        equal(mock:count('!CommandMeasure'), 2)
+        mock.environment.ApplyBand()
+        equal(mock.latest['MeterConnectionBand:Text'], '5 GHz (36)')
+        -- Losing the connection blanks the line without launching anything.
+        mock.wifi.ssid = ''
+        for _ = 1, 6 do mock:tick() end
+        equal(mock.latest['MeterConnectionBand:Text'], ''); equal(mock:count('!CommandMeasure'), 2)
+    end)
+    test('band reports unavailable instead of guessing when netsh has no band or no match', function()
+        for _, output in ipairs({'', 'garbage', 'Name : Wi-Fi\r\nSSID : Synthetic WLAN\r\nRadio type : 802.11n',
+            'Name : Wi-Fi\r\nSSID : Elsewhere\r\nBand : 5 GHz\r\nChannel : 36',
+            'Name : Wi-Fi\r\nSSID : Synthetic WLAN\r\nBand : fast\r\nChannel : x'}) do
+            local mock = controller(); mock.bandOutput = output
+            mock:tick(); mock.environment.ApplyBand()
+            equal(mock.latest['MeterConnectionBand:Text'], 'Band unavailable')
+        end
+    end)
+    test('band line adds the channel in parentheses, and shows a lone channel when there is no Band line', function()
+        local function line(output)
+            local mock = controller(); mock.bandOutput = output
+            mock:tick(); mock.environment.ApplyBand()
+            return mock.latest['MeterConnectionBand:Text']
+        end
+        equal(line('Name : Wi-Fi\r\nSSID : Synthetic WLAN\r\nBand : 2.4 GHz\r\nChannel : 9'), '2.4 GHz (9)')
+        equal(line('Name : Wi-Fi\r\nSSID : Synthetic WLAN\r\nBand : 5 GHz\r\nChannel : 149'), '5 GHz (149)')
+        equal(line('Name : Wi-Fi\r\nSSID : Synthetic WLAN\r\nBand : 6 GHz'), '6 GHz')
+        equal(line('Name : Wi-Fi\r\nSSID : Synthetic WLAN\r\nChannel : 6'), 'Channel 6')
+    end)
+    test('wired and Wi-Fi-off states never query', function()
+        local wired = controller(); wired.wifi.ssid = ''
+        wired:tick()
+        equal(wired.latest['MeterConnectionBand:Text'], ''); equal(wired:count('!CommandMeasure'), 0)
+        local off = controller({NetworkWiFiEnabled = '0'}); off:tick()
+        equal(off:count('!CommandMeasure'), 0)
+    end)
+    test('band query is one hidden RunCommand started by the controller, with no timer', function()
+        local run = sections(fixtures.moduleRoot .. '\\ConnectionMeasures.inc').MeasureConnectionBandRun
+        truth(run, 'band measure missing')
+        equal(run.Plugin, 'RunCommand'); equal(run.State, 'Hide'); equal(run.UpdateDivider, '-1')
+        contains(run.Program, 'netsh.exe'); equal(run.Parameter, 'wlan show interfaces')
+        contains(run.FinishAction, 'ApplyBand()')
     end)
     test('controller sanitizes text and clears unavailable signal while preserving real zero', function()
         local mock = controller()
@@ -321,8 +381,7 @@ function Suite.run(Core, Connection, fixtures)
         equal(mock.latest['MeterConnectionSignalBar:Shape2'], 'Line 0,0,0,0 | StrokeWidth 0')
         mock.adapter.status = -2
         mock:tick()
-        equal(mock.latest['MeterConnectionStatus:Text'], 'Lower layer down')
-        equal(mock.latest['MeterConnectionStatus:ToolTipText'], nil)
+        equal(mock.latest['MeterConnectionIP:Text'], '--'); contains(mock.latest['MeterConnectionName:Text'], 'Model')
     end)
     test('signal fill follows scaled shared thickness without fabricating unknown quality', function()
         local mock = controller()

@@ -33,8 +33,9 @@ try {
     if ($sourceEntry -notmatch '(?m)^Update=1000\r?$') { throw 'Combined native monitor must retain one-second update.' }
     if ($sourceRedirect -notmatch '(?m)^Update=-1\r?$' -or $sourceRedirect -match '(?m)^Measure=') { throw 'Legacy redirect must not collect telemetry or poll.' }
     $nativeDefinitions=(Get-Content -LiteralPath (Join-Path $moduleRoot 'Measures.inc') -Raw)+"`n"+(Get-Content -LiteralPath (Join-Path $moduleRoot 'ConnectionMeasures.inc') -Raw)
-    # 11 SysInfo: Network's 5 identity measures (shared with the connection rows) plus 6 connection-only fields.
-    if ([regex]::Matches($nativeDefinitions,'(?m)^Measure=SysInfo\r?$').Count -ne 11 -or
+    # 10 SysInfo: Network's 5 identity measures (shared with the connection rows) plus 5 connection-only fields.
+    # 20 measures in all: those, 2 Net, 5 WiFiStatus, 2 Script and the one RunCommand band query.
+    if ([regex]::Matches($nativeDefinitions,'(?m)^Measure=SysInfo\r?$').Count -ne 10 -or
         [regex]::Matches($nativeDefinitions,'(?m)^Measure=Net(In|Out)\r?$').Count -ne 2 -or
         [regex]::Matches($nativeDefinitions,'(?m)^Measure=WiFiStatus\r?$').Count -ne 5 -or
         [regex]::Matches($nativeDefinitions,'(?m)^Measure=Script\r?$').Count -ne 2 -or
@@ -49,28 +50,27 @@ try {
         if ($meterNames.Contains($name)) { throw ('Duplicate production meter: '+$name) }
         $meterNames.Add($name)
         if ($section.Groups[2].Value -match '(?m)^Meter=String\r?$') {
-            Add-Glyph $name '--' ($name -notin @('MeterNetworkAdapter','MeterConnectionName','MeterConnectionIP','MeterConnectionGateway','MeterConnectionSSID')) $true
+            Add-Glyph $name '--' ($name -notin @('MeterNetworkAdapter','MeterNetworkInRate','MeterNetworkOutRate','MeterConnectionName','MeterConnectionIP','MeterConnectionGateway','MeterConnectionSSID')) $true
         }
     }
     foreach ($caption in @('bits','bytes','units?')) { Add-Glyph 'MeterNetworkUnits' $caption }
     Add-Glyph 'MeterNetworkTitle' 'Network'
-    foreach ($caption in @('Up / 1 s samples','Up / sampling...','Disconnected','Not present','Down','Status unknown','Dormant','Testing','Selected NIC not found','Select one adapter','Adapter unavailable','Lower layer down','Sample unavailable')) { Add-Glyph 'MeterNetworkStatus' $caption }
     foreach ($direction in @('In','Out')) {
-        foreach ($caption in @('1023.9 Gbit/s','1023.9 GB/s','0.0 bit/s','Check units')) { Add-Glyph ('MeterNetwork'+$direction+'Rate') $caption }
-        foreach ($caption in @('Set positive graph ceiling','Ceiling 100.0 Mbit/s','Clipped: 100.0 Mbit/s')) { Add-Glyph ('MeterNetwork'+$direction+'Ceiling') $caption }
+        foreach ($caption in @('0.0 bit/s','28.3 kbit/s','Check units')) { Add-Glyph ('MeterNetwork'+$direction+'Rate') $caption }
+        # Terabit-scale extremes clip (ClipString) rather than widen the half-row readout.
+        foreach ($caption in @('280.7 kbit/s','1023.9 Gbit/s','1023.9 GB/s')) { Add-Glyph ('MeterNetwork'+$direction+'Rate') $caption $false }
     }
-    Add-Glyph 'MeterNetworkFooter' '60/60 samples / incl. LAN'
-    foreach ($caption in @('Detected','Not reported','Unknown')) { Add-Glyph 'MeterConnectionInternet' $caption }
-    foreach ($type in @('Ethernet','Wi-Fi','Other')) {
-        foreach ($state in @('Up','Down','Disconnected','Not present','Status unknown','Dormant','Testing','Unavailable')) { Add-Glyph 'MeterConnectionStatus' ($type+' / '+$state) }
-    }
-    foreach ($caption in @('Lower layer down','Selected NIC not found','Select one adapter','Adapter unavailable')) { Add-Glyph 'MeterConnectionStatus' $caption }
     foreach ($caption in @('Ethernet','Wi-Fi','Other')) { Add-Glyph 'MeterConnectionType' $caption }
+    foreach ($caption in @('2.4 GHz (9)','5 GHz (149)','6 GHz (233)','Channel 233','Checking band...','Band unavailable')) { Add-Glyph 'MeterConnectionBand' $caption }
     foreach ($caption in @('Check Wi-Fi settings','Synthetic WLAN')) { Add-Glyph 'MeterConnectionSSID' $caption }
     foreach ($caption in @('0%','100%','--','Pending','Unavailable')) { Add-Glyph 'MeterConnectionSignal' $caption }
-    foreach ($caption in @('Radio unavailable','Radio: Pending','Radio: 802.11ax','Radio: ir-band')) { Add-Glyph 'MeterConnectionRadio' $caption }
+    foreach ($caption in @('Protocol unavailable','Pending','Wi-Fi 4 (802.11n)','Wi-Fi 5 (802.11ac)','Wi-Fi 6 (802.11ax)','Wi-Fi 7 (802.11be)','802.11g','ir-band')) { Add-Glyph 'MeterConnectionRadio' $caption }
     foreach ($field in @('IP','Gateway')) { Add-Glyph ('MeterConnection'+$field) '255.255.255.255' }
-    foreach ($field in @('Rx','Tx')) { foreach ($unit in @('Mbit/s','Gbit/s','Tbit/s')) { Add-Glyph ('MeterConnection'+$field) ('1000.0 '+$unit) } }
+    foreach ($field in @('Rx','Tx')) {
+        foreach ($caption in @('1.0 Gbit/s')) { Add-Glyph ('MeterConnection'+$field) $caption }
+        # Wider capacity values clip (ClipString) in the half-line rather than overflow it.
+        foreach ($caption in @('866.7 Mbit/s','1000.0 Mbit/s','1000.0 Gbit/s','1000.0 Tbit/s')) { Add-Glyph ('MeterConnection'+$field) $caption $false }
+    }
     $cases=@()
     foreach ($width in $ColumnWidths) { foreach ($scale in @(0.75,1,1.25,1.5,2)) { foreach ($columns in @(1)) { # Network is fixed at one column; a saved Columns=2 is ignored.
         $cases += [pscustomobject]@{Width=$width;Scale=$scale;Columns=$columns;Thickness=6;Kind='layout';Selector='Best';WiFiEnabled='1';WiFiIndex='0'}

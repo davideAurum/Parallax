@@ -9,6 +9,10 @@ function Suite.run(Core, fixtures)
     local function truth(value, detail)
         if not value then error(detail or 'expected true', 2) end
     end
+    local function near(actual, expected, tolerance)
+        truth(type(actual) == 'number' and math.abs(actual - expected) <= tolerance,
+            'expected ' .. tostring(expected) .. ' +/- ' .. tolerance .. ', got ' .. tostring(actual))
+    end
     local function contains(actual, expected)
         truth(tostring(actual):find(expected, 1, true), 'expected ' .. tostring(actual) .. ' to contain ' .. expected)
     end
@@ -200,6 +204,24 @@ function Suite.run(Core, fixtures)
         equal(Core.ceiling('0.5'), 500000)
         for _, invalid in ipairs({'', 'abc', '0', '-1', '1e309'}) do equal(Core.ceiling(invalid), nil) end
     end)
+    test('auto scale rounds the window peak up to a 1-2-5 step with headroom and a quiet-link floor', function()
+        local function scale(peaks, units)
+            local history = {}
+            for i, p in ipairs(peaks) do history[i] = p end
+            return Core.autoCeiling(history, units)
+        end
+        equal(scale({}, 'bits'), 1000000); equal(scale({{0, 0}}, 'bits'), 1000000)
+        equal(scale({{900000, 0}}, 'bits'), 1000000)       -- 0.99 Mbit/s still fits the floor
+        equal(scale({{950000, 0}}, 'bits'), 2000000)       -- 1.045 Mbit/s with 10% headroom
+        equal(scale({{3000000, 0}}, 'bits'), 5000000)
+        equal(scale({{5000000, 0}}, 'bits'), 10000000)      -- exactly 5 leaves no headroom, so step up
+        equal(scale({{0, 40000000}}, 'bits'), 50000000)     -- either direction sets the axis
+        equal(scale({{800000000, 200000000}}, 'bits'), 1000000000)
+        equal(scale({{0, 0}}, 'bytes'), 800000)             -- 100 KB/s floor, in bit/s
+        equal(scale({{1600000, 0}}, 'bytes'), 4000000)      -- 200 KB/s peak -> 500 KB/s step
+        equal(scale({{0, 1e12}}, 'bits') / 1e12, 2)         -- very large peaks keep stepping
+        equal(scale({{0/0, math.huge}}, 'bits'), 1000000)   -- non-finite samples are ignored
+    end)
     test('empty and singleton graphs do not invent a predecessor', function()
         local empty, clipped = Core.path({}, 1, 100, 188, 42, 1)
         equal(empty, '1,1 | LineTo 1,1'); equal(clipped, false)
@@ -281,7 +303,7 @@ function Suite.run(Core, fixtures)
             return fixtures.moduleRoot .. '\\Core.lua'
         end
         function self:GetNumberOption(key, default)
-            return ({GraphWidth = 188, GraphHeight = 42, GraphScale = 1})[key] or default
+            return ({GraphWidth = 188, GraphHeight = 48, GraphScale = 1})[key] or default
         end
         local env = setmetatable({SKIN = skin, SELF = self, os = {time = function() return mock.now end}}, {__index = _G})
         local chunk = assert(loadfile(fixtures.moduleRoot .. '\\Network.lua'))
@@ -305,7 +327,6 @@ function Suite.run(Core, fixtures)
         equal(mock:count('!WriteKeyValue'), 0)
         equal(mock:count('!SetVariable'), 0)
         equal(mock:count('!Refresh'), 0)
-        contains(mock.latest['MeterNetworkFooter:Text'], '60/60 samples')
         for key in pairs(mock.latest) do truth(not key:match(':ToolTipText$'), 'controller set a tooltip: ' .. key) end
     end)
     test('traffic controller leaves adapter display to metadata and reports invalid fallback', function()
@@ -316,23 +337,35 @@ function Suite.run(Core, fixtures)
         equal(mock.latest['MeterNetworkAdapter:ToolTipText'], nil)
         mock.variables.NetworkInterface = 'Not found'
         mock:tick()
-        equal(mock.latest['MeterNetworkStatus:Text'], 'Selected NIC not found')
         equal(mock.latest['MeterNetworkInRate:Text'], '--')
     end)
     test('controller tolerates absent native measures without showing zero', function()
         local mock = controller(); mock.missing.MeasureNetworkGuid = true
         mock:tick()
-        equal(mock.latest['MeterNetworkStatus:Text'], 'Adapter unavailable')
         equal(mock.latest['MeterNetworkOutRate:Text'], '--')
     end)
-    test('controller graph ceiling and units errors remain explicit', function()
+    test('controller units errors remain explicit and a single history draws one trace per direction', function()
         local mock = controller()
-        mock.variables.NetworkInCeilingMbps = '0'
         mock.variables.NetworkUnits = 'invalid'
         mock:tick(); mock:tick(); mock:tick()
-        equal(mock.latest['MeterNetworkInCeiling:Text'], 'Set positive graph ceiling')
         equal(mock.latest['MeterNetworkInRate:Text'], 'Check units')
         equal(mock.latest['MeterNetworkInGraph:Shape2'], 'Line 1,1,1,1 | StrokeWidth 0')
+        equal(mock.latest['MeterNetworkOutGraph:Shape2'], 'Line 1,1,1,1 | StrokeWidth 0')
+    end)
+    test('both directions share one auto scale that follows the window and ignores saved ceilings', function()
+        -- The scale is not printed, so read it from where the newest IN sample lands: 4 px inset,
+        -- 44 px plot height (48 px graph), y = 2 + 44 * (1 - sample / ceiling).
+        local function lastY(mock) return tonumber(mock.latest['MeterNetworkInGraph:History']:match(',([%d.]+)$')) end
+        local mock = controller()   -- fixture saves ceilings of 100 and 25 Mbit/s; they no longer apply
+        for _ = 1, 3 do mock:tick() end
+        -- 8 Mbit/s in: the next 1-2-5 step above peak + 10% is 10 Mbit/s, so the sample sits at 80%.
+        near(lastY(mock), 2 + 44 * 0.2, 0.01)
+        mock.sample.inbound = 40000000; mock.sample.outbound = 0
+        mock:tick()
+        near(lastY(mock), 2 + 44 * 0.2, 0.01)    -- 40 Mbit/s against a 50 Mbit/s axis: the axis followed the peak
+        mock.variables.NetworkUnits = 'bytes'; mock:tick()
+        near(lastY(mock), 2 + 44 * 0.5, 0.01)    -- 5 MB/s against 10 MB/s: steps follow the display units
+        equal(mock.latest['MeterNetworkScale:Text'], nil, 'the scale is not printed')
     end)
     test('units action writes only the module choice and does not force sampling', function()
         local mock = controller(); mock:tick(); mock.calls = {}
@@ -389,7 +422,7 @@ function Suite.run(Core, fixtures)
         local traffic = sectionBodies(fixtures.moduleRoot .. '\\Meters.inc')
         local connection = sectionBodies(fixtures.moduleRoot .. '\\ConnectionMeters.inc')
         local idle = {}
-        for _, name in ipairs({'MeterNetworkTitle', 'MeterNetworkInLabel', 'MeterNetworkOutLabel'}) do
+        for _, name in ipairs({'MeterNetworkTitle', 'MeterNetworkInCaret', 'MeterNetworkOutCaret'}) do
             truth(traffic[name]:find('\nUpdateDivider=-1\n', 1, true) or traffic[name]:find('^UpdateDivider=-1\n'), name .. ' must idle')
             idle[name] = true
         end
@@ -401,7 +434,7 @@ function Suite.run(Core, fixtures)
                 idle[name] = true; styled = styled + 1
             end
         end
-        equal(styled, 6, 'six static connection row labels')
+        equal(styled, 3, 'three static connection row labels')
         -- No controller path may need these meters to apply a later !SetOption.
         local mock = controller()
         for _ = 1, 5 do mock:tick() end

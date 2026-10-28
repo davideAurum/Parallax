@@ -1,19 +1,6 @@
 -- Native Rainmeter owns telemetry. This script formats values and bounded history.
 -- No subprocesses, remote requests, or runtime state files.
 local Core, model, options
-local shortStates = {
-    ['Adapter up / 1 s samples'] = 'Up / 1 s samples',
-    ['Adapter up / sampling...'] = 'Up / sampling...',
-    ['Adapter disconnected'] = 'Disconnected',
-    ['Adapter not present'] = 'Not present',
-    ['Adapter down'] = 'Down',
-    ['Adapter status unknown'] = 'Status unknown',
-    ['Adapter dormant'] = 'Dormant',
-    ['Adapter testing'] = 'Testing',
-    ['Configured adapter not found'] = 'Selected NIC not found',
-    ['Select one adapter; index 0 unsupported'] = 'Select one adapter'
-}
-
 local function setting(key, default)
     return SKIN:GetVariable(key, default)
 end
@@ -53,26 +40,21 @@ function Update()
     local result = Core.step(model, input, os.time())
     local units = setting('NetworkUnits', 'bits'):lower()
     text('Units', units == 'bytes' and 'bytes' or units == 'bits' and 'bits' or 'units?')
-    text('Status', shortStates[result.state] or result.state)
-    option('Status', 'FontColor', setting(result.valid and 'GoodColor' or 'WarningColor', '143,155,173'))
     local width = SELF:GetNumberOption('GraphWidth', 248)
-    local height = SELF:GetNumberOption('GraphHeight', 42)
+    local height = SELF:GetNumberOption('GraphHeight', 48)
     local scale = SELF:GetNumberOption('GraphScale', 1)
+    -- Both traces share one axis that follows the largest sample in the window.
+    local ceiling = Core.autoCeiling(model.history, units)
     for index, direction in ipairs({'In', 'Out'}) do
         local rate = index == 1 and input.inbound or input.outbound
-        local ceiling = Core.ceiling(setting('Network' .. direction .. 'CeilingMbps', ''))
-        local path, clipped = Core.path(model.history, index, ceiling, width, height, scale)
+        local path = Core.path(model.history, index, ceiling, width, height, scale)
         text(direction .. 'Rate', result.valid and Core.rate(rate, units) or '--')
         option(direction .. 'Graph', 'History', path)
         option(direction .. 'Graph', 'Shape2', #model.history > 1 and ceiling
             and ('Path History | Stroke Color ' .. setting(index == 1 and 'NetworkInColor' or 'NetworkOutColor', '220,220,220')
                 .. ' | StrokeWidth ' .. tostring(scale) .. ' | Fill Color 0,0,0,0')
             or 'Line 1,1,1,1 | StrokeWidth 0')
-        text(direction .. 'Ceiling', ceiling
-            and ((clipped and 'Clipped: ' or 'Ceiling ') .. Core.rate(ceiling, units))
-            or 'Set positive graph ceiling')
     end
-    text('Footer', string.format('%d/60 samples / incl. LAN', #model.history))
     return result.valid and 1 or 0
 end
 

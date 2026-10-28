@@ -1,6 +1,10 @@
 -- Connection presentation only: native measures own every reported value.
 local Core, Connection, config, cache
 local ticks, bankDivider, wifiDivider, identity, lastResult
+-- Band comes from one hidden `netsh wlan show interfaces` run per Wi-Fi
+-- connection (SSID + protocol), never a timer. bandText: nil = running,
+-- false = unavailable, string = the whole line.
+local bandKey, bandSsid, bandText
 local wifiNames = {'SSID', 'Quality', 'PHY', 'Rx', 'Tx'}
 
 local function variable(key, default) return SKIN:GetVariable(key, default) end
@@ -32,6 +36,40 @@ local function divider(key)
     return math.floor(n)
 end
 
+local function renderBand()
+    text('Band', bandText or bandText == false and 'Band unavailable' or 'Checking band...')
+end
+
+-- Launch the band query when a Wi-Fi connection (SSID + protocol) appears or
+-- changes; blank while there is none.
+local function updateBand(view, wifi)
+    if not view.connected then
+        bandKey, bandSsid, bandText = nil, nil, nil
+        text('Band', '')
+        return
+    end
+    local key = view.ssid .. '|' .. tostring(wifi.phy)
+    if key ~= bandKey then
+        bandKey, bandSsid, bandText = key, view.ssid, nil
+        if SKIN:GetMeasure('MeasureConnectionBandRun') then
+            SKIN:Bang('!CommandMeasure', 'MeasureConnectionBandRun', 'Run')
+        else
+            bandText = false
+        end
+    end
+    renderBand()
+end
+
+-- RunCommand FinishAction: the output is cached on the measure.
+function ApplyBand()
+    if not bandKey then return end
+    local band, channel = Connection.parseBand(Core, read('MeasureConnectionBandRun', true), bandSsid)
+    -- "2.4 GHz (9)"; Windows builds without a Band line still report the channel.
+    bandText = band and (band .. (channel and (' (' .. channel .. ')') or ''))
+        or channel and ('Channel ' .. channel) or false
+    renderBand()
+end
+
 function Initialize()
     Core = dofile(SELF:GetOption('CoreFile'))
     Connection = dofile(SELF:GetOption('ConnectionCoreFile'))
@@ -42,6 +80,7 @@ function Initialize()
     -- controller runs every tick from the first.
     ticks, bankDivider, wifiDivider = -1, divider('BankDivider'), divider('WiFiDivider')
     identity, lastResult = nil, nil
+    bandKey, bandSsid, bandText = nil, nil, nil
     for _, suffix in ipairs(wifiNames) do
         local measure = 'MeasureConnectionWiFi' .. suffix
         SKIN:Bang('!SetOption', measure, 'WiFiIntfID', tostring(config.index))
@@ -74,7 +113,7 @@ function Update()
         selector = variable('NetworkInterface', 'Best'), alias = identity.alias,
         description = identity.description, guid = identity.guid,
         status = identity.status, state = identity.state, type = value('Type'),
-        internet = value('Internet'), ip = value('IP', true), gateway = value('Gateway', true),
+        ip = value('IP', true), gateway = value('Gateway', true),
         receiveSpeed = value('RxLink'), transmitSpeed = value('TxLink')
     }
     local wifi = {ssid = value('WiFiSSID', true), quality = value('WiFiQuality'),
@@ -83,11 +122,6 @@ function Update()
     text('Type', view.typeName)
     text('Name', view.name)
     text('SSID', view.ssid)
-    -- Keep the longest operational state readable; its link type is dropped to fit.
-    text('Status', view.status:gsub('^.+ / Lower layer down$', 'Lower layer down'))
-    color('Status', view.statusColor)
-    text('Internet', view.internet)
-    color('Internet', view.internetColor)
     text('IP', view.ip)
     text('Gateway', view.gateway)
     text('Rx', view.receiveLink)
@@ -95,6 +129,7 @@ function Update()
     text('Signal', view.signal)
     color('Signal', view.signalColor)
     text('Radio', view.radio)
+    updateBand(view, wifi)
     local width, height = SELF:GetNumberOption('SignalWidth', 188), SELF:GetNumberOption('SignalHeight', 3)
     option('SignalBar', 'Shape2', view.signalPercent ~= nil
         and ('Rectangle 0,0,' .. string.format('%.3f', width * view.signalPercent / 100) .. ',' .. tostring(height)

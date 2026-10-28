@@ -24,15 +24,48 @@ local knownPhy = {
     ['dsss'] = true, ['fhss'] = true, ['ir-band'] = true
 }
 
+-- Wi-Fi Alliance generation names. 802.11a/b/g/ad and the legacy PHYs have no
+-- generation shown, and 6E is a band, not a PHY, so ax is always "Wi-Fi 6".
+local generation = {
+    ['802.11n'] = 'Wi-Fi 4', ['802.11ac'] = 'Wi-Fi 5', ['802.11ax'] = 'Wi-Fi 6', ['802.11be'] = 'Wi-Fi 7'
+}
+
+local function protocol(phy)
+    local name = generation[phy:lower()]
+    return name and (name .. ' (' .. phy .. ')') or phy
+end
+
+-- Band and channel of the interface connected to `ssid`, from `netsh wlan show
+-- interfaces` output ("Band : 5 GHz" on Windows 11 24H2 and later, "Channel : 36"
+-- on Windows 10 and 11; the labels are English-only). Returns band, channel (either
+-- may be nil), or nothing when no block matches or it carries neither.
+function M.parseBand(Core, output, ssid)
+    ssid = trim(ssid)
+    if ssid == '' then return nil end
+    local blocks, current = {}, nil
+    for line in tostring(output or ''):gmatch('[^\r\n]+') do
+        local key, value = line:match('^%s*([%w ]-)%s*:%s*(.-)%s*$')
+        if key == 'Name' then current = {}; blocks[#blocks + 1] = current end
+        if current and key and current[key] == nil then current[key] = value end
+    end
+    for _, block in ipairs(blocks) do
+        if block.SSID and (Core.safe(block.SSID)) == ssid then
+            local band = block.Band and block.Band:match('^%d+%.?%d* GHz$')
+            local channel = block.Channel and block.Channel:match('^%d+$')
+            if band or channel then return band, channel end
+        end
+    end
+end
+
 function M.describe(Core, adapter, wifi, config)
     adapter, wifi = adapter or {}, wifi or {}
     config = config or M.configureWifi('0', '0')
     local result = {
-        typeName = '--', name = 'Adapter unavailable', status = 'Adapter unavailable',
-        internet = 'Unknown', ip = '--', gateway = '--', receiveLink = '--', transmitLink = '--',
+        typeName = '--', name = 'Adapter unavailable',
+        ip = '--', gateway = '--', receiveLink = '--', transmitLink = '--',
         -- Blank unless a Wi-Fi connection is reported (the panel has no channel: WiFiStatus offers none).
         ssid = '', signal = '--', radio = '', signalPercent = nil,
-        statusColor = 'WarningColor', internetColor = 'MutedColor', signalColor = 'MutedColor'
+        signalColor = 'MutedColor'
     }
     local function positive(value)
         return Core.finite(value) and value > 0
@@ -50,35 +83,19 @@ function M.describe(Core, adapter, wifi, config)
         return text
     end
 
-    -- Internet connectivity is an independent PC-wide Windows report, even if this NIC is down.
-    if adapter.internet == 1 then
-        result.internet, result.internetColor = 'Detected', 'GoodColor'
-    elseif adapter.internet == -1 then
-        result.internet, result.internetColor = 'Not reported', 'WarningColor'
-    end
-
-    local identity, identityError = Core.identity(adapter)
+    -- The adapter's operational state is Network's traffic status line; here a down
+    -- or disconnected NIC just shows no addresses or link rates.
+    local identity = Core.identity(adapter)
     if identity then
         local alias, description = trim(adapter.alias), trim(adapter.description)
         result.name = provided(description) and description or provided(alias) and alias or 'Selected adapter'
-        local typeName = adapter.type == 6 and 'Ethernet' or adapter.type == 71 and 'Wi-Fi' or 'Other'
-        result.typeName = typeName
-        local states = { [-3] = 'Not present', [-2] = 'Lower layer down', [-1] = 'Down',
-            [0] = 'Status unknown', [1] = 'Up', [2] = 'Dormant', [3] = 'Testing' }
-        local state = adapter.state == -1 and 'Disconnected' or states[adapter.status] or 'Unavailable'
-        result.status = typeName .. ' / ' .. state
+        result.typeName = adapter.type == 6 and 'Ethernet' or adapter.type == 71 and 'Wi-Fi' or 'Other'
         if adapter.status == 1 and adapter.state ~= -1 then
-            result.statusColor = 'GoodColor'
             result.ip, result.gateway = address(adapter.ip), address(adapter.gateway)
             result.receiveLink, result.transmitLink = link(adapter.receiveSpeed), link(adapter.transmitSpeed)
         end
     else
-        local shortErrors = {
-            ['Configured adapter not found'] = 'Selected NIC not found',
-            ['Select one adapter; index 0 unsupported'] = 'Select one adapter'
-        }
         result.name = 'Selected: ' .. trim(adapter.selector)
-        result.status = shortErrors[identityError] or identityError or 'Adapter unavailable'
     end
 
     local configIndexValid = Core.finite(config.index) and config.index >= 0 and config.index <= 63
@@ -92,10 +109,10 @@ function M.describe(Core, adapter, wifi, config)
         local usablePhy = knownPhy[phy:lower()] == true
         local connectionKnown = provided(ssid) and (usablePhy or positive(wifi.receiveRate) or positive(wifi.transmitRate))
         if provided(ssid) and pending then
-            result.ssid, result.signal, result.radio = ssid, 'Pending', 'Radio: Pending'
+            result.ssid, result.signal, result.radio = ssid, 'Pending', 'Pending'
         elseif connectionKnown then
-            result.ssid = ssid
-            result.radio = usablePhy and 'Radio: ' .. phy or 'Radio unavailable'
+            result.ssid, result.connected = ssid, true
+            result.radio = usablePhy and protocol(phy) or 'Protocol unavailable'
             if Core.finite(wifi.quality) and wifi.quality >= 0 and wifi.quality <= 100 then
                 result.signalPercent = wifi.quality
                 result.signal = string.format('%.0f%%', wifi.quality)

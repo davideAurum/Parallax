@@ -19,6 +19,25 @@ function M.ceiling(s)
     if M.finite(n) and n > 0 and M.finite(n * 1000000) then return n * 1000000 end
 end
 
+-- Automatic graph scale in bits/s: the largest sample in the window (either
+-- direction) plus 10% headroom, rounded up to a 1-2-5 step of the display
+-- units so the axis reads cleanly (bytes mode steps in B/s, not in bit/s).
+-- The floor keeps an idle link from magnifying noise: 1 Mbit/s, or 100 KB/s.
+function M.autoCeiling(history, units)
+    local factor = units == 'bytes' and 8 or 1
+    local peak = 0
+    for _, sample in ipairs(history) do
+        for _, n in ipairs(sample) do
+            if M.finite(n) and n > peak then peak = n end
+        end
+    end
+    local target = math.max(peak / factor * 1.1, units == 'bytes' and 1e5 or 1e6)
+    local decade = 10 ^ math.floor(math.log10(target))
+    for _, step in ipairs({1, 2, 5, 10}) do
+        if step * decade >= target * (1 - 1e-9) then return step * decade * factor end
+    end
+end
+
 function M.rate(bits, units)
     if not M.finite(bits) or bits < 0 then return '--' end
     local n, base, labels = bits, 1000, {'bit/s', 'kbit/s', 'Mbit/s', 'Gbit/s', 'Tbit/s'}

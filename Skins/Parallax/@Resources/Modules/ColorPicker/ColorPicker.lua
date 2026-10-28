@@ -1,18 +1,39 @@
 -- Work happens on open and user actions. The production skin has Update=-1.
-local C, mode, channels, original, ready, targetKey, originalAlpha
-local targets = {
-    AccentColor='Accent Color 1', AccentColor2='Accent Color 2',
-    TitleTextColor='Title Text Color', HeaderTextColor='Header Text Color',
-    TextColor='Body Text Color', BackgroundColor='Background Color',
-    BorderColor='Border Color', DividerColor='Divider Color',
-    TableHeaderBorderColor='Table header border'
-}
-local targetDefaults={TableHeaderBorderColor='50,50,50,255'}
+local C, T, mode, channels, original, ready, entry, originalAlpha
+local menu, menuOpen, menuTop = nil, false, 1
+local MENU_ROWS = 10
 local rows, stops = 48,24
 local names = {RGB={'R','G','B'},HSV={'H','S','V'},LAB={'L*','a*','b*'}}
 local limits = {RGB={{0,255},{0,255},{0,255}},HSV={{0,360},{0,100},{0,100}},LAB={{0,100},{-128,127},{-128,127}}}
-local descriptions = {RGB='R / G plane  |  B strip',HSV='S / V plane  |  Hue strip',LAB='a* / b* plane  |  L* strip  (D50)'}
 local function option(meter,key,value) SKIN:Bang('!SetOption',meter,key,tostring(value)) end
+local function resources() return SKIN:GetVariable('@') end
+
+-- [Variables] of User\<file>.inc as a table (the last assignment wins, as in
+-- Rainmeter). Module colors are stored there, not in the picker's own scope.
+local function readUserFile(file)
+    local values = {}
+    local handle = io.open(resources()..'User\\'..file..'.inc','rb')
+    if not handle then return values end
+    local text = handle:read('*a') or ''
+    handle:close()
+    local inVariables = false
+    for line in text:gmatch('[^\r\n]+') do
+        local section = line:match('^%s*%[([^%]]*)%]')
+        if section then inVariables = section:lower() == 'variables'
+        elseif inVariables and not line:match('^%s*;') then
+            local key, value = line:match('^%s*([%w_]+)%s*=%s*(.-)%s*$')
+            if key then values[key] = value end
+        end
+    end
+    return values
+end
+local function savedValue(target, files)
+    if target.file == 'Settings' then return SKIN:GetVariable(target.key, target.default) end
+    local values = files[target.file] or readUserFile(target.file)
+    files[target.file] = values
+    return values[target.key] or target.default
+end
+
 local function rgb()
     if mode == 'RGB' then return {channels[1]/255,channels[2]/255,channels[3]/255} end
     if mode == 'HSV' then return C.HsvToRgb({channels[1],channels[2]/100,channels[3]/100}) end
@@ -55,6 +76,55 @@ local function buildPlane()
     end
     SKIN:Bang('!UpdateMeter','MeterSpectrum')
 end
+
+-- Logical threads the CPU meter shows, as Thread Colors counts them.
+local function threadCount(files)
+    local detected = tonumber(os.getenv('NUMBER_OF_PROCESSORS')) or 1
+    detected = math.max(1, math.min(T.MaxThreads, math.floor(detected)))
+    files.CPU = files.CPU or readUserFile('CPU')
+    local limit = math.floor(tonumber(files.CPU.CPUCoreLimit) or 0)
+    limit = math.max(0, math.min(T.MaxThreads, limit))
+    return limit > 0 and math.min(detected, limit) or detected
+end
+local function menuIndex(key)
+    for index, item in ipairs(menu) do if item.key == key then return index end end
+    return 1
+end
+
+local function paintMenu()
+    local files = {}
+    local scale = tonumber(SKIN:GetVariable('Scale')) or 1
+    for i=1,MENU_ROWS do
+        local item = menu[menuTop+i-1]
+        local row, dot = 'MeterMenuRow'..i, 'MeterMenuDot'..i
+        if not item then
+            option(row,'Text',''); option(row,'SolidColor','0,0,0,1'); option(row,'MouseActionCursor',0)
+            option(dot,'Shape','Rectangle 0,0,1,1 | Fill Color 0,0,0,0 | StrokeWidth 0')
+        elseif item.kind == 'group' then
+            option(row,'Text',item.label); option(row,'SolidColor','0,0,0,1'); option(row,'MouseActionCursor',0)
+            option(row,'FontColor',SKIN:GetVariable('PickerMutedColor'))
+            option(dot,'Shape','Rectangle 0,0,1,1 | Fill Color 0,0,0,0 | StrokeWidth 0')
+        else
+            local target = T.Find(item.key)
+            local color = target and C.Parse(savedValue(target, files)) or {0,0,0}
+            option(row,'Text',item.label); option(row,'MouseActionCursor',1)
+            option(row,'FontColor',SKIN:GetVariable('PickerTextColor'))
+            option(row,'SolidColor',item.key == entry.key and '255,255,255,26' or '0,0,0,1')
+            option(dot,'Shape',string.format('Rectangle %.4f,%.4f,%.4f,%.4f,%.4f | Fill Color %s | Stroke Color 255,255,255,70 | StrokeWidth %.4f',
+                0.5*scale,0.5*scale,9*scale,9*scale,2*scale,C.String(color),scale))
+        end
+    end
+    local trackHeight = MENU_ROWS*19*scale
+    local thumb = 'Rectangle 0,0,1,1 | Fill Color 0,0,0,0 | StrokeWidth 0'
+    if #menu > MENU_ROWS then
+        local height = math.max(8*scale, trackHeight*MENU_ROWS/#menu)
+        local top = (menuTop-1)/(#menu-MENU_ROWS)*(trackHeight-height)
+        thumb = string.format('Rectangle 0,%.4f,%.4f,%.4f,%.4f | Fill Color 255,255,255,70 | StrokeWidth 0',top,2*scale,height,scale)
+    end
+    option('MeterMenuThumb','Shape',thumb)
+    SKIN:Bang('!UpdateMeterGroup','PickerMenu')
+end
+
 local function paint(rebuild)
     if not ready then return end
     if rebuild then buildPlane() end
@@ -63,19 +133,19 @@ local function paint(rebuild)
     option('MeterPreview','SolidColor',colorString)
     option('MeterHex','Text',C.Hex(color))
     option('MeterOriginal','SolidColor',C.String(original))
-    option('MeterTitle','Text',targets[targetKey])
-    option('MeterDescription','Text',descriptions[mode])
-    local message='Preview only. Apply saves this global color.'
-    if targetKey=='BackgroundColor' then message=string.format('Preview only. Background opacity stays %.0f%%.',originalAlpha/255*100) end
-    option('MeterStatus','Text',clipped and 'Outside sRGB: preview and Apply are clipped.' or message)
-    option('MeterStatus','FontColor',SKIN:GetVariable(clipped and 'WarningColor' or 'PickerMutedColor'))
+    option('MeterTarget','Text',entry.label)
+    local message,warn='',false
+    if clipped then message,warn='Outside sRGB: clipped',true
+    elseif entry.alpha then message=string.format('Opacity %.0f%% kept',originalAlpha/255*100) end
+    option('MeterStatus','Text',message)
+    option('MeterStatus','FontColor',SKIN:GetVariable(warn and 'WarningColor' or 'PickerMutedColor'))
     for _,m in ipairs({'RGB','HSV','LAB'}) do
         option('MeterMode'..m,'FontColor',SKIN:GetVariable(m==mode and 'PickerTextColor' or 'PickerMutedColor'))
-        option('MeterMode'..m,'SolidColor',m==mode and SKIN:GetVariable('TrackColor') or '0,0,0,1')
     end
     for i=1,3 do
         option('MeterChannelLabel'..i,'Text',names[mode][i])
-        local suffix=mode=='HSV' and (i==1 and ' deg' or '%') or ''
+        -- Hue is degrees; the label says H. (A degree sign would need a non-ASCII script.)
+        local suffix=mode=='HSV' and (i==1 and '' or '%') or ''
         option('MeterChannelValue'..i,'Text',string.format(mode=='LAB' and '%.1f' or '%.0f',channels[i])..suffix)
     end
     local gradient={'180'}
@@ -94,31 +164,69 @@ local function paint(rebuild)
     t=C.Clamp(t*sliceWidth,1,sliceWidth-2)
     option('MeterSliceMarker','Shape',string.format('Rectangle %.4f,0,2,%.4f | Fill Color 255,255,255 | Stroke Color 0,0,0 | StrokeWidth 1',t,sliceHeight))
     SKIN:Bang('!UpdateMeterGroup','PickerUI')
+    if menuOpen then paintMenu() end
     SKIN:Bang('!Redraw')
 end
+
+local function showMenu(open)
+    menuOpen = open
+    SKIN:Bang(open and '!HideMeterGroup' or '!ShowMeterGroup','PickerBody')
+    SKIN:Bang(open and '!ShowMeterGroup' or '!HideMeterGroup','PickerMenu')
+end
+
 function Initialize()
-    C=dofile(SKIN:GetVariable('@')..'Modules\\ColorPicker\\ColorMath.lua')
-    targetKey='AccentColor'
+    C=dofile(resources()..'Modules\\ColorPicker\\ColorMath.lua')
+    T=dofile(resources()..'Modules\\ColorPicker\\Targets.lua')
+    entry=T.Find('AccentColor')
     originalAlpha=255
-    original=C.Parse(SKIN:GetVariable(targetKey))
+    original=C.Parse(SKIN:GetVariable(entry.key))
     mode='HSV'; setChannels(original); ready=false
+    menuOpen=false; menuTop=1; menu=nil
 end
 function Update()
     return 0
 end
 -- OnRefreshAction runs after the initial meter dimensions have been resolved.
 function Render() ready=true; paint(true) end
--- Call after ActivateConfig, with the explicit Parallax\ColorPicker config.
--- A valid target discards the old preview. Invalid input has no side effects.
+-- Call after ActivateConfig, with the explicit Parallax\ColorPicker config
+-- (Launcher.lua does). A valid key discards the old preview; an invalid one
+-- changes nothing and is never put into an action.
 function OpenTarget(key)
-    if type(key)~='string' or not targets[key] then return false end
-    targetKey=key
-    local value=SKIN:GetVariable(targetKey,targetDefaults[targetKey])
+    local target=T.Find(key)
+    if not target then return false end
+    entry=target
+    local value=savedValue(entry,{})
     original=C.Parse(value)
-    originalAlpha=targetKey=='BackgroundColor' and C.Alpha(value) or 255
+    originalAlpha=entry.alpha and C.Alpha(value) or 255
     mode='HSV'; setChannels(original)
+    if menuOpen then showMenu(false) end
     paint(true)
     return true
+end
+-- The title's dropdown: every picker target in one scrolling list.
+function ToggleMenu()
+    if not ready then return end
+    if menuOpen then showMenu(false); paint(false); return end
+    menu=T.Menu(threadCount({}))
+    menuTop=math.max(1,math.min(math.max(1,#menu-MENU_ROWS+1),menuIndex(entry.key)-3))
+    showMenu(true)
+    paint(false)
+end
+function MenuScroll(delta)
+    delta=tonumber(delta)
+    if not menuOpen or not delta or delta~=delta then return end
+    local top=math.max(1,math.min(math.max(1,#menu-MENU_ROWS+1),menuTop+math.floor(delta)))
+    if top==menuTop then return end
+    menuTop=top
+    paintMenu()
+    SKIN:Bang('!Redraw')
+end
+function MenuPick(row)
+    row=tonumber(row)
+    if not menuOpen or not row or row<1 or row>MENU_ROWS then return false end
+    local item=menu[menuTop+math.floor(row)-1]
+    if not item or item.kind~='target' then return false end
+    return OpenTarget(item.key)
 end
 function SetMode(value)
     if not names[value] or value==mode then return end
@@ -149,12 +257,22 @@ function SelectSlice(x)
     else channels[1]=x*100 end
     paint(true)
 end
+-- Writes the one selected key to the file that stores it. Shared colors
+-- reload the suite; a module color reloads only that module. A CPU thread
+-- color is pushed to the running CPU meter instead, as Thread Colors does,
+-- and only the open Thread Colors panel reloads.
 function Apply()
-    if not targets[targetKey] then return false end
+    if not entry then return false end
     local value=C.String(rgb())
-    if targetKey=='BackgroundColor' then value=value..','..originalAlpha end
-    SKIN:Bang('!WriteKeyValue','Variables',targetKey,value,SKIN:GetVariable('@')..'User\\Settings.inc')
-    SKIN:Bang('!RefreshGroup','Parallax')
+    if entry.alpha then value=value..','..originalAlpha end
+    SKIN:Bang('!WriteKeyValue','Variables',entry.key,value,resources()..'User\\'..entry.file..'.inc')
+    if entry.thread then
+        SKIN:Bang('!SetVariableGroup',entry.key,value,'ParallaxCPU')
+        SKIN:Bang('!UpdateMeasureGroup','ParallaxCPUApply','*')
+        SKIN:Bang('!RefreshGroup','ParallaxCPUColors')
+    else
+        SKIN:Bang('!RefreshGroup',entry.refresh)
+    end
     SKIN:Bang('!DeactivateConfig','Parallax\\ColorPicker')
     return true
 end

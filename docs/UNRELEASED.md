@@ -6,6 +6,8 @@ Where things stand between releases: what is on `main` but not yet in a publishe
 
 ## On main, not in any release
 
+- The color picker is rebuilt as one simpler column titled "Color picker: \<target\>", with the target as a dropdown of every color variable (the 25 shared colors, Memory History Cover and CPU Thread 1–64). Swatches open it on their own variable beside the skin that holds them, through `Launcher.lua`; Global Settings' nine swatches and the CPU Thread Colors swatches are wired ([COLOR-PICKER.md](COLOR-PICKER.md)). Graph Background and Graph Grid now keep their alpha on Apply. The offline suites and the isolated native run pass, and the real Global Settings and CPU Thread Colors swatch actions ran end to end in isolated instances; nobody has clicked them in the live skins yet, and only the primary monitor was exercised.
+
 - Disk Meter's shipped drive selection is `C` again. It had shipped `C,D,G`, the maintainer's own drive letters, since 2026-09-13 ([IO.md](modules/IO.md#current-validation)). Only fresh installs change, because upgrades keep their saved selection.
 
 ## Open: Stage 1 (prove the upgrade path)

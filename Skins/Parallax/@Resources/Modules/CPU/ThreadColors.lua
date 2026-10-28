@@ -2,11 +2,8 @@
 -- color input process starts only after a user click and never on a poll.
 local state
 
-local palette = {
-    '235,55,75', '255,145,77', '240,225,40', '166,219,91',
-    '79,205,120', '60,200,194', '77,170,255', '122,139,255',
-    '182,130,255', '238,111,196', '245,139,168', '190,190,190'
-}
+-- Default thread colors; the picker's registry (Modules\ColorPicker\Targets.lua) owns them.
+local palette = {}
 
 local function set(meter, key, value)
     SKIN:Bang('!SetOption', meter, key, tostring(value))
@@ -100,6 +97,7 @@ local function render()
 end
 
 function Initialize()
+    palette = dofile(SKIN:GetVariable('@') .. 'Modules\\ColorPicker\\Targets.lua').ThreadPalette
     state = {
         userFile = SKIN:GetVariable('@') .. 'User\\CPU.inc',
         count = detectedThreadCount(),

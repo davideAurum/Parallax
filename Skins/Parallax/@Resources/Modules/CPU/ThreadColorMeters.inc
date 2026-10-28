@@ -37,7 +37,7 @@ H=(20*#Scale#)
 Shape=Rectangle (0.5*#Scale#),(0.5*#Scale#),(21*#Scale#),(19*#Scale#),(2*#Scale#) | Fill Color #CPUColor# | Stroke Color #BorderColor# | StrokeWidth #Scale#
 Hidden=1
 Group=CPUThreadColor1|CPUThreadColorsUI
-LeftMouseUpAction=[!CommandMeasure MeasureCPUThreadColors "BeginEdit(1)"]
+LeftMouseUpAction=[!CommandMeasure MeasureColorLauncher "Open('CPUThreadColor1','MeterThreadColorSwatch1')"]
 MouseActionCursor=1
 
 [MeterThreadColorLabel2]
@@ -79,7 +79,7 @@ H=(20*#Scale#)
 Shape=Rectangle (0.5*#Scale#),(0.5*#Scale#),(21*#Scale#),(19*#Scale#),(2*#Scale#) | Fill Color #CPUColor# | Stroke Color #BorderColor# | StrokeWidth #Scale#
 Hidden=1
 Group=CPUThreadColor2|CPUThreadColorsUI
-LeftMouseUpAction=[!CommandMeasure MeasureCPUThreadColors "BeginEdit(2)"]
+LeftMouseUpAction=[!CommandMeasure MeasureColorLauncher "Open('CPUThreadColor2','MeterThreadColorSwatch2')"]
 MouseActionCursor=1
 
 [MeterThreadColorLabel3]
@@ -121,7 +121,7 @@ H=(20*#Scale#)
 Shape=Rectangle (0.5*#Scale#),(0.5*#Scale#),(21*#Scale#),(19*#Scale#),(2*#Scale#) | Fill Color #CPUColor# | Stroke Color #BorderColor# | StrokeWidth #Scale#
 Hidden=1
 Group=CPUThreadColor3|CPUThreadColorsUI
-LeftMouseUpAction=[!CommandMeasure MeasureCPUThreadColors "BeginEdit(3)"]
+LeftMouseUpAction=[!CommandMeasure MeasureColorLauncher "Open('CPUThreadColor3','MeterThreadColorSwatch3')"]
 MouseActionCursor=1
 
 [MeterThreadColorLabel4]
@@ -163,7 +163,7 @@ H=(20*#Scale#)
 Shape=Rectangle (0.5*#Scale#),(0.5*#Scale#),(21*#Scale#),(19*#Scale#),(2*#Scale#) | Fill Color #CPUColor# | Stroke Color #BorderColor# | StrokeWidth #Scale#
 Hidden=1
 Group=CPUThreadColor4|CPUThreadColorsUI
-LeftMouseUpAction=[!CommandMeasure MeasureCPUThreadColors "BeginEdit(4)"]
+LeftMouseUpAction=[!CommandMeasure MeasureColorLauncher "Open('CPUThreadColor4','MeterThreadColorSwatch4')"]
 MouseActionCursor=1
 
 [MeterThreadColorLabel5]
@@ -205,7 +205,7 @@ H=(20*#Scale#)
 Shape=Rectangle (0.5*#Scale#),(0.5*#Scale#),(21*#Scale#),(19*#Scale#),(2*#Scale#) | Fill Color #CPUColor# | Stroke Color #BorderColor# | StrokeWidth #Scale#
 Hidden=1
 Group=CPUThreadColor5|CPUThreadColorsUI
-LeftMouseUpAction=[!CommandMeasure MeasureCPUThreadColors "BeginEdit(5)"]
+LeftMouseUpAction=[!CommandMeasure MeasureColorLauncher "Open('CPUThreadColor5','MeterThreadColorSwatch5')"]
 MouseActionCursor=1
 
 [MeterThreadColorLabel6]
@@ -247,7 +247,7 @@ H=(20*#Scale#)
 Shape=Rectangle (0.5*#Scale#),(0.5*#Scale#),(21*#Scale#),(19*#Scale#),(2*#Scale#) | Fill Color #CPUColor# | Stroke Color #BorderColor# | StrokeWidth #Scale#
 Hidden=1
 Group=CPUThreadColor6|CPUThreadColorsUI
-LeftMouseUpAction=[!CommandMeasure MeasureCPUThreadColors "BeginEdit(6)"]
+LeftMouseUpAction=[!CommandMeasure MeasureColorLauncher "Open('CPUThreadColor6','MeterThreadColorSwatch6')"]
 MouseActionCursor=1
 
 [MeterThreadColorLabel7]
@@ -289,7 +289,7 @@ H=(20*#Scale#)
 Shape=Rectangle (0.5*#Scale#),(0.5*#Scale#),(21*#Scale#),(19*#Scale#),(2*#Scale#) | Fill Color #CPUColor# | Stroke Color #BorderColor# | StrokeWidth #Scale#
 Hidden=1
 Group=CPUThreadColor7|CPUThreadColorsUI
-LeftMouseUpAction=[!CommandMeasure MeasureCPUThreadColors "BeginEdit(7)"]
+LeftMouseUpAction=[!CommandMeasure MeasureColorLauncher "Open('CPUThreadColor7','MeterThreadColorSwatch7')"]
 MouseActionCursor=1
 
 [MeterThreadColorLabel8]
@@ -331,7 +331,7 @@ H=(20*#Scale#)
 Shape=Rectangle (0.5*#Scale#),(0.5*#Scale#),(21*#Scale#),(19*#Scale#),(2*#Scale#) | Fill Color #CPUColor# | Stroke Color #BorderColor# | StrokeWidth #Scale#
 Hidden=1
 Group=CPUThreadColor8|CPUThreadColorsUI
-LeftMouseUpAction=[!CommandMeasure MeasureCPUThreadColors "BeginEdit(8)"]
+LeftMouseUpAction=[!CommandMeasure MeasureColorLauncher "Open('CPUThreadColor8','MeterThreadColorSwatch8')"]
 MouseActionCursor=1
 
 [MeterThreadColorLabel9]
@@ -373,7 +373,7 @@ H=(20*#Scale#)
 Shape=Rectangle (0.5*#Scale#),(0.5*#Scale#),(21*#Scale#),(19*#Scale#),(2*#Scale#) | Fill Color #CPUColor# | Stroke Color #BorderColor# | StrokeWidth #Scale#
 Hidden=1
 Group=CPUThreadColor9|CPUThreadColorsUI
-LeftMouseUpAction=[!CommandMeasure MeasureCPUThreadColors "BeginEdit(9)"]
+LeftMouseUpAction=[!CommandMeasure MeasureColorLauncher "Open('CPUThreadColor9','MeterThreadColorSwatch9')"]
 MouseActionCursor=1
 
 [MeterThreadColorLabel10]
@@ -415,7 +415,7 @@ H=(20*#Scale#)
 Shape=Rectangle (0.5*#Scale#),(0.5*#Scale#),(21*#Scale#),(19*#Scale#),(2*#Scale#) | Fill Color #CPUColor# | Stroke Color #BorderColor# | StrokeWidth #Scale#
 Hidden=1
 Group=CPUThreadColor10|CPUThreadColorsUI
-LeftMouseUpAction=[!CommandMeasure MeasureCPUThreadColors "BeginEdit(10)"]
+LeftMouseUpAction=[!CommandMeasure MeasureColorLauncher "Open('CPUThreadColor10','MeterThreadColorSwatch10')"]
 MouseActionCursor=1
 
 [MeterThreadColorLabel11]
@@ -457,7 +457,7 @@ H=(20*#Scale#)
 Shape=Rectangle (0.5*#Scale#),(0.5*#Scale#),(21*#Scale#),(19*#Scale#),(2*#Scale#) | Fill Color #CPUColor# | Stroke Color #BorderColor# | StrokeWidth #Scale#
 Hidden=1
 Group=CPUThreadColor11|CPUThreadColorsUI
-LeftMouseUpAction=[!CommandMeasure MeasureCPUThreadColors "BeginEdit(11)"]
+LeftMouseUpAction=[!CommandMeasure MeasureColorLauncher "Open('CPUThreadColor11','MeterThreadColorSwatch11')"]
 MouseActionCursor=1
 
 [MeterThreadColorLabel12]
@@ -499,7 +499,7 @@ H=(20*#Scale#)
 Shape=Rectangle (0.5*#Scale#),(0.5*#Scale#),(21*#Scale#),(19*#Scale#),(2*#Scale#) | Fill Color #CPUColor# | Stroke Color #BorderColor# | StrokeWidth #Scale#
 Hidden=1
 Group=CPUThreadColor12|CPUThreadColorsUI
-LeftMouseUpAction=[!CommandMeasure MeasureCPUThreadColors "BeginEdit(12)"]
+LeftMouseUpAction=[!CommandMeasure MeasureColorLauncher "Open('CPUThreadColor12','MeterThreadColorSwatch12')"]
 MouseActionCursor=1
 
 [MeterThreadColorLabel13]
@@ -541,7 +541,7 @@ H=(20*#Scale#)
 Shape=Rectangle (0.5*#Scale#),(0.5*#Scale#),(21*#Scale#),(19*#Scale#),(2*#Scale#) | Fill Color #CPUColor# | Stroke Color #BorderColor# | StrokeWidth #Scale#
 Hidden=1
 Group=CPUThreadColor13|CPUThreadColorsUI
-LeftMouseUpAction=[!CommandMeasure MeasureCPUThreadColors "BeginEdit(13)"]
+LeftMouseUpAction=[!CommandMeasure MeasureColorLauncher "Open('CPUThreadColor13','MeterThreadColorSwatch13')"]
 MouseActionCursor=1
 
 [MeterThreadColorLabel14]
@@ -583,7 +583,7 @@ H=(20*#Scale#)
 Shape=Rectangle (0.5*#Scale#),(0.5*#Scale#),(21*#Scale#),(19*#Scale#),(2*#Scale#) | Fill Color #CPUColor# | Stroke Color #BorderColor# | StrokeWidth #Scale#
 Hidden=1
 Group=CPUThreadColor14|CPUThreadColorsUI
-LeftMouseUpAction=[!CommandMeasure MeasureCPUThreadColors "BeginEdit(14)"]
+LeftMouseUpAction=[!CommandMeasure MeasureColorLauncher "Open('CPUThreadColor14','MeterThreadColorSwatch14')"]
 MouseActionCursor=1
 
 [MeterThreadColorLabel15]
@@ -625,7 +625,7 @@ H=(20*#Scale#)
 Shape=Rectangle (0.5*#Scale#),(0.5*#Scale#),(21*#Scale#),(19*#Scale#),(2*#Scale#) | Fill Color #CPUColor# | Stroke Color #BorderColor# | StrokeWidth #Scale#
 Hidden=1
 Group=CPUThreadColor15|CPUThreadColorsUI
-LeftMouseUpAction=[!CommandMeasure MeasureCPUThreadColors "BeginEdit(15)"]
+LeftMouseUpAction=[!CommandMeasure MeasureColorLauncher "Open('CPUThreadColor15','MeterThreadColorSwatch15')"]
 MouseActionCursor=1
 
 [MeterThreadColorLabel16]
@@ -667,7 +667,7 @@ H=(20*#Scale#)
 Shape=Rectangle (0.5*#Scale#),(0.5*#Scale#),(21*#Scale#),(19*#Scale#),(2*#Scale#) | Fill Color #CPUColor# | Stroke Color #BorderColor# | StrokeWidth #Scale#
 Hidden=1
 Group=CPUThreadColor16|CPUThreadColorsUI
-LeftMouseUpAction=[!CommandMeasure MeasureCPUThreadColors "BeginEdit(16)"]
+LeftMouseUpAction=[!CommandMeasure MeasureColorLauncher "Open('CPUThreadColor16','MeterThreadColorSwatch16')"]
 MouseActionCursor=1
 
 [MeterThreadColorLabel17]
@@ -709,7 +709,7 @@ H=(20*#Scale#)
 Shape=Rectangle (0.5*#Scale#),(0.5*#Scale#),(21*#Scale#),(19*#Scale#),(2*#Scale#) | Fill Color #CPUColor# | Stroke Color #BorderColor# | StrokeWidth #Scale#
 Hidden=1
 Group=CPUThreadColor17|CPUThreadColorsUI
-LeftMouseUpAction=[!CommandMeasure MeasureCPUThreadColors "BeginEdit(17)"]
+LeftMouseUpAction=[!CommandMeasure MeasureColorLauncher "Open('CPUThreadColor17','MeterThreadColorSwatch17')"]
 MouseActionCursor=1
 
 [MeterThreadColorLabel18]
@@ -751,7 +751,7 @@ H=(20*#Scale#)
 Shape=Rectangle (0.5*#Scale#),(0.5*#Scale#),(21*#Scale#),(19*#Scale#),(2*#Scale#) | Fill Color #CPUColor# | Stroke Color #BorderColor# | StrokeWidth #Scale#
 Hidden=1
 Group=CPUThreadColor18|CPUThreadColorsUI
-LeftMouseUpAction=[!CommandMeasure MeasureCPUThreadColors "BeginEdit(18)"]
+LeftMouseUpAction=[!CommandMeasure MeasureColorLauncher "Open('CPUThreadColor18','MeterThreadColorSwatch18')"]
 MouseActionCursor=1
 
 [MeterThreadColorLabel19]
@@ -793,7 +793,7 @@ H=(20*#Scale#)
 Shape=Rectangle (0.5*#Scale#),(0.5*#Scale#),(21*#Scale#),(19*#Scale#),(2*#Scale#) | Fill Color #CPUColor# | Stroke Color #BorderColor# | StrokeWidth #Scale#
 Hidden=1
 Group=CPUThreadColor19|CPUThreadColorsUI
-LeftMouseUpAction=[!CommandMeasure MeasureCPUThreadColors "BeginEdit(19)"]
+LeftMouseUpAction=[!CommandMeasure MeasureColorLauncher "Open('CPUThreadColor19','MeterThreadColorSwatch19')"]
 MouseActionCursor=1
 
 [MeterThreadColorLabel20]
@@ -835,7 +835,7 @@ H=(20*#Scale#)
 Shape=Rectangle (0.5*#Scale#),(0.5*#Scale#),(21*#Scale#),(19*#Scale#),(2*#Scale#) | Fill Color #CPUColor# | Stroke Color #BorderColor# | StrokeWidth #Scale#
 Hidden=1
 Group=CPUThreadColor20|CPUThreadColorsUI
-LeftMouseUpAction=[!CommandMeasure MeasureCPUThreadColors "BeginEdit(20)"]
+LeftMouseUpAction=[!CommandMeasure MeasureColorLauncher "Open('CPUThreadColor20','MeterThreadColorSwatch20')"]
 MouseActionCursor=1
 
 [MeterThreadColorLabel21]
@@ -877,7 +877,7 @@ H=(20*#Scale#)
 Shape=Rectangle (0.5*#Scale#),(0.5*#Scale#),(21*#Scale#),(19*#Scale#),(2*#Scale#) | Fill Color #CPUColor# | Stroke Color #BorderColor# | StrokeWidth #Scale#
 Hidden=1
 Group=CPUThreadColor21|CPUThreadColorsUI
-LeftMouseUpAction=[!CommandMeasure MeasureCPUThreadColors "BeginEdit(21)"]
+LeftMouseUpAction=[!CommandMeasure MeasureColorLauncher "Open('CPUThreadColor21','MeterThreadColorSwatch21')"]
 MouseActionCursor=1
 
 [MeterThreadColorLabel22]
@@ -919,7 +919,7 @@ H=(20*#Scale#)
 Shape=Rectangle (0.5*#Scale#),(0.5*#Scale#),(21*#Scale#),(19*#Scale#),(2*#Scale#) | Fill Color #CPUColor# | Stroke Color #BorderColor# | StrokeWidth #Scale#
 Hidden=1
 Group=CPUThreadColor22|CPUThreadColorsUI
-LeftMouseUpAction=[!CommandMeasure MeasureCPUThreadColors "BeginEdit(22)"]
+LeftMouseUpAction=[!CommandMeasure MeasureColorLauncher "Open('CPUThreadColor22','MeterThreadColorSwatch22')"]
 MouseActionCursor=1
 
 [MeterThreadColorLabel23]
@@ -961,7 +961,7 @@ H=(20*#Scale#)
 Shape=Rectangle (0.5*#Scale#),(0.5*#Scale#),(21*#Scale#),(19*#Scale#),(2*#Scale#) | Fill Color #CPUColor# | Stroke Color #BorderColor# | StrokeWidth #Scale#
 Hidden=1
 Group=CPUThreadColor23|CPUThreadColorsUI
-LeftMouseUpAction=[!CommandMeasure MeasureCPUThreadColors "BeginEdit(23)"]
+LeftMouseUpAction=[!CommandMeasure MeasureColorLauncher "Open('CPUThreadColor23','MeterThreadColorSwatch23')"]
 MouseActionCursor=1
 
 [MeterThreadColorLabel24]
@@ -1003,7 +1003,7 @@ H=(20*#Scale#)
 Shape=Rectangle (0.5*#Scale#),(0.5*#Scale#),(21*#Scale#),(19*#Scale#),(2*#Scale#) | Fill Color #CPUColor# | Stroke Color #BorderColor# | StrokeWidth #Scale#
 Hidden=1
 Group=CPUThreadColor24|CPUThreadColorsUI
-LeftMouseUpAction=[!CommandMeasure MeasureCPUThreadColors "BeginEdit(24)"]
+LeftMouseUpAction=[!CommandMeasure MeasureColorLauncher "Open('CPUThreadColor24','MeterThreadColorSwatch24')"]
 MouseActionCursor=1
 
 [MeterThreadColorLabel25]
@@ -1045,7 +1045,7 @@ H=(20*#Scale#)
 Shape=Rectangle (0.5*#Scale#),(0.5*#Scale#),(21*#Scale#),(19*#Scale#),(2*#Scale#) | Fill Color #CPUColor# | Stroke Color #BorderColor# | StrokeWidth #Scale#
 Hidden=1
 Group=CPUThreadColor25|CPUThreadColorsUI
-LeftMouseUpAction=[!CommandMeasure MeasureCPUThreadColors "BeginEdit(25)"]
+LeftMouseUpAction=[!CommandMeasure MeasureColorLauncher "Open('CPUThreadColor25','MeterThreadColorSwatch25')"]
 MouseActionCursor=1
 
 [MeterThreadColorLabel26]
@@ -1087,7 +1087,7 @@ H=(20*#Scale#)
 Shape=Rectangle (0.5*#Scale#),(0.5*#Scale#),(21*#Scale#),(19*#Scale#),(2*#Scale#) | Fill Color #CPUColor# | Stroke Color #BorderColor# | StrokeWidth #Scale#
 Hidden=1
 Group=CPUThreadColor26|CPUThreadColorsUI
-LeftMouseUpAction=[!CommandMeasure MeasureCPUThreadColors "BeginEdit(26)"]
+LeftMouseUpAction=[!CommandMeasure MeasureColorLauncher "Open('CPUThreadColor26','MeterThreadColorSwatch26')"]
 MouseActionCursor=1
 
 [MeterThreadColorLabel27]
@@ -1129,7 +1129,7 @@ H=(20*#Scale#)
 Shape=Rectangle (0.5*#Scale#),(0.5*#Scale#),(21*#Scale#),(19*#Scale#),(2*#Scale#) | Fill Color #CPUColor# | Stroke Color #BorderColor# | StrokeWidth #Scale#
 Hidden=1
 Group=CPUThreadColor27|CPUThreadColorsUI
-LeftMouseUpAction=[!CommandMeasure MeasureCPUThreadColors "BeginEdit(27)"]
+LeftMouseUpAction=[!CommandMeasure MeasureColorLauncher "Open('CPUThreadColor27','MeterThreadColorSwatch27')"]
 MouseActionCursor=1
 
 [MeterThreadColorLabel28]
@@ -1171,7 +1171,7 @@ H=(20*#Scale#)
 Shape=Rectangle (0.5*#Scale#),(0.5*#Scale#),(21*#Scale#),(19*#Scale#),(2*#Scale#) | Fill Color #CPUColor# | Stroke Color #BorderColor# | StrokeWidth #Scale#
 Hidden=1
 Group=CPUThreadColor28|CPUThreadColorsUI
-LeftMouseUpAction=[!CommandMeasure MeasureCPUThreadColors "BeginEdit(28)"]
+LeftMouseUpAction=[!CommandMeasure MeasureColorLauncher "Open('CPUThreadColor28','MeterThreadColorSwatch28')"]
 MouseActionCursor=1
 
 [MeterThreadColorLabel29]
@@ -1213,7 +1213,7 @@ H=(20*#Scale#)
 Shape=Rectangle (0.5*#Scale#),(0.5*#Scale#),(21*#Scale#),(19*#Scale#),(2*#Scale#) | Fill Color #CPUColor# | Stroke Color #BorderColor# | StrokeWidth #Scale#
 Hidden=1
 Group=CPUThreadColor29|CPUThreadColorsUI
-LeftMouseUpAction=[!CommandMeasure MeasureCPUThreadColors "BeginEdit(29)"]
+LeftMouseUpAction=[!CommandMeasure MeasureColorLauncher "Open('CPUThreadColor29','MeterThreadColorSwatch29')"]
 MouseActionCursor=1
 
 [MeterThreadColorLabel30]
@@ -1255,7 +1255,7 @@ H=(20*#Scale#)
 Shape=Rectangle (0.5*#Scale#),(0.5*#Scale#),(21*#Scale#),(19*#Scale#),(2*#Scale#) | Fill Color #CPUColor# | Stroke Color #BorderColor# | StrokeWidth #Scale#
 Hidden=1
 Group=CPUThreadColor30|CPUThreadColorsUI
-LeftMouseUpAction=[!CommandMeasure MeasureCPUThreadColors "BeginEdit(30)"]
+LeftMouseUpAction=[!CommandMeasure MeasureColorLauncher "Open('CPUThreadColor30','MeterThreadColorSwatch30')"]
 MouseActionCursor=1
 
 [MeterThreadColorLabel31]
@@ -1297,7 +1297,7 @@ H=(20*#Scale#)
 Shape=Rectangle (0.5*#Scale#),(0.5*#Scale#),(21*#Scale#),(19*#Scale#),(2*#Scale#) | Fill Color #CPUColor# | Stroke Color #BorderColor# | StrokeWidth #Scale#
 Hidden=1
 Group=CPUThreadColor31|CPUThreadColorsUI
-LeftMouseUpAction=[!CommandMeasure MeasureCPUThreadColors "BeginEdit(31)"]
+LeftMouseUpAction=[!CommandMeasure MeasureColorLauncher "Open('CPUThreadColor31','MeterThreadColorSwatch31')"]
 MouseActionCursor=1
 
 [MeterThreadColorLabel32]
@@ -1339,7 +1339,7 @@ H=(20*#Scale#)
 Shape=Rectangle (0.5*#Scale#),(0.5*#Scale#),(21*#Scale#),(19*#Scale#),(2*#Scale#) | Fill Color #CPUColor# | Stroke Color #BorderColor# | StrokeWidth #Scale#
 Hidden=1
 Group=CPUThreadColor32|CPUThreadColorsUI
-LeftMouseUpAction=[!CommandMeasure MeasureCPUThreadColors "BeginEdit(32)"]
+LeftMouseUpAction=[!CommandMeasure MeasureColorLauncher "Open('CPUThreadColor32','MeterThreadColorSwatch32')"]
 MouseActionCursor=1
 
 [MeterThreadColorLabel33]
@@ -1381,7 +1381,7 @@ H=(20*#Scale#)
 Shape=Rectangle (0.5*#Scale#),(0.5*#Scale#),(21*#Scale#),(19*#Scale#),(2*#Scale#) | Fill Color #CPUColor# | Stroke Color #BorderColor# | StrokeWidth #Scale#
 Hidden=1
 Group=CPUThreadColor33|CPUThreadColorsUI
-LeftMouseUpAction=[!CommandMeasure MeasureCPUThreadColors "BeginEdit(33)"]
+LeftMouseUpAction=[!CommandMeasure MeasureColorLauncher "Open('CPUThreadColor33','MeterThreadColorSwatch33')"]
 MouseActionCursor=1
 
 [MeterThreadColorLabel34]
@@ -1423,7 +1423,7 @@ H=(20*#Scale#)
 Shape=Rectangle (0.5*#Scale#),(0.5*#Scale#),(21*#Scale#),(19*#Scale#),(2*#Scale#) | Fill Color #CPUColor# | Stroke Color #BorderColor# | StrokeWidth #Scale#
 Hidden=1
 Group=CPUThreadColor34|CPUThreadColorsUI
-LeftMouseUpAction=[!CommandMeasure MeasureCPUThreadColors "BeginEdit(34)"]
+LeftMouseUpAction=[!CommandMeasure MeasureColorLauncher "Open('CPUThreadColor34','MeterThreadColorSwatch34')"]
 MouseActionCursor=1
 
 [MeterThreadColorLabel35]
@@ -1465,7 +1465,7 @@ H=(20*#Scale#)
 Shape=Rectangle (0.5*#Scale#),(0.5*#Scale#),(21*#Scale#),(19*#Scale#),(2*#Scale#) | Fill Color #CPUColor# | Stroke Color #BorderColor# | StrokeWidth #Scale#
 Hidden=1
 Group=CPUThreadColor35|CPUThreadColorsUI
-LeftMouseUpAction=[!CommandMeasure MeasureCPUThreadColors "BeginEdit(35)"]
+LeftMouseUpAction=[!CommandMeasure MeasureColorLauncher "Open('CPUThreadColor35','MeterThreadColorSwatch35')"]
 MouseActionCursor=1
 
 [MeterThreadColorLabel36]
@@ -1507,7 +1507,7 @@ H=(20*#Scale#)
 Shape=Rectangle (0.5*#Scale#),(0.5*#Scale#),(21*#Scale#),(19*#Scale#),(2*#Scale#) | Fill Color #CPUColor# | Stroke Color #BorderColor# | StrokeWidth #Scale#
 Hidden=1
 Group=CPUThreadColor36|CPUThreadColorsUI
-LeftMouseUpAction=[!CommandMeasure MeasureCPUThreadColors "BeginEdit(36)"]
+LeftMouseUpAction=[!CommandMeasure MeasureColorLauncher "Open('CPUThreadColor36','MeterThreadColorSwatch36')"]
 MouseActionCursor=1
 
 [MeterThreadColorLabel37]
@@ -1549,7 +1549,7 @@ H=(20*#Scale#)
 Shape=Rectangle (0.5*#Scale#),(0.5*#Scale#),(21*#Scale#),(19*#Scale#),(2*#Scale#) | Fill Color #CPUColor# | Stroke Color #BorderColor# | StrokeWidth #Scale#
 Hidden=1
 Group=CPUThreadColor37|CPUThreadColorsUI
-LeftMouseUpAction=[!CommandMeasure MeasureCPUThreadColors "BeginEdit(37)"]
+LeftMouseUpAction=[!CommandMeasure MeasureColorLauncher "Open('CPUThreadColor37','MeterThreadColorSwatch37')"]
 MouseActionCursor=1
 
 [MeterThreadColorLabel38]
@@ -1591,7 +1591,7 @@ H=(20*#Scale#)
 Shape=Rectangle (0.5*#Scale#),(0.5*#Scale#),(21*#Scale#),(19*#Scale#),(2*#Scale#) | Fill Color #CPUColor# | Stroke Color #BorderColor# | StrokeWidth #Scale#
 Hidden=1
 Group=CPUThreadColor38|CPUThreadColorsUI
-LeftMouseUpAction=[!CommandMeasure MeasureCPUThreadColors "BeginEdit(38)"]
+LeftMouseUpAction=[!CommandMeasure MeasureColorLauncher "Open('CPUThreadColor38','MeterThreadColorSwatch38')"]
 MouseActionCursor=1
 
 [MeterThreadColorLabel39]
@@ -1633,7 +1633,7 @@ H=(20*#Scale#)
 Shape=Rectangle (0.5*#Scale#),(0.5*#Scale#),(21*#Scale#),(19*#Scale#),(2*#Scale#) | Fill Color #CPUColor# | Stroke Color #BorderColor# | StrokeWidth #Scale#
 Hidden=1
 Group=CPUThreadColor39|CPUThreadColorsUI
-LeftMouseUpAction=[!CommandMeasure MeasureCPUThreadColors "BeginEdit(39)"]
+LeftMouseUpAction=[!CommandMeasure MeasureColorLauncher "Open('CPUThreadColor39','MeterThreadColorSwatch39')"]
 MouseActionCursor=1
 
 [MeterThreadColorLabel40]
@@ -1675,7 +1675,7 @@ H=(20*#Scale#)
 Shape=Rectangle (0.5*#Scale#),(0.5*#Scale#),(21*#Scale#),(19*#Scale#),(2*#Scale#) | Fill Color #CPUColor# | Stroke Color #BorderColor# | StrokeWidth #Scale#
 Hidden=1
 Group=CPUThreadColor40|CPUThreadColorsUI
-LeftMouseUpAction=[!CommandMeasure MeasureCPUThreadColors "BeginEdit(40)"]
+LeftMouseUpAction=[!CommandMeasure MeasureColorLauncher "Open('CPUThreadColor40','MeterThreadColorSwatch40')"]
 MouseActionCursor=1
 
 [MeterThreadColorLabel41]
@@ -1717,7 +1717,7 @@ H=(20*#Scale#)
 Shape=Rectangle (0.5*#Scale#),(0.5*#Scale#),(21*#Scale#),(19*#Scale#),(2*#Scale#) | Fill Color #CPUColor# | Stroke Color #BorderColor# | StrokeWidth #Scale#
 Hidden=1
 Group=CPUThreadColor41|CPUThreadColorsUI
-LeftMouseUpAction=[!CommandMeasure MeasureCPUThreadColors "BeginEdit(41)"]
+LeftMouseUpAction=[!CommandMeasure MeasureColorLauncher "Open('CPUThreadColor41','MeterThreadColorSwatch41')"]
 MouseActionCursor=1
 
 [MeterThreadColorLabel42]
@@ -1759,7 +1759,7 @@ H=(20*#Scale#)
 Shape=Rectangle (0.5*#Scale#),(0.5*#Scale#),(21*#Scale#),(19*#Scale#),(2*#Scale#) | Fill Color #CPUColor# | Stroke Color #BorderColor# | StrokeWidth #Scale#
 Hidden=1
 Group=CPUThreadColor42|CPUThreadColorsUI
-LeftMouseUpAction=[!CommandMeasure MeasureCPUThreadColors "BeginEdit(42)"]
+LeftMouseUpAction=[!CommandMeasure MeasureColorLauncher "Open('CPUThreadColor42','MeterThreadColorSwatch42')"]
 MouseActionCursor=1
 
 [MeterThreadColorLabel43]
@@ -1801,7 +1801,7 @@ H=(20*#Scale#)
 Shape=Rectangle (0.5*#Scale#),(0.5*#Scale#),(21*#Scale#),(19*#Scale#),(2*#Scale#) | Fill Color #CPUColor# | Stroke Color #BorderColor# | StrokeWidth #Scale#
 Hidden=1
 Group=CPUThreadColor43|CPUThreadColorsUI
-LeftMouseUpAction=[!CommandMeasure MeasureCPUThreadColors "BeginEdit(43)"]
+LeftMouseUpAction=[!CommandMeasure MeasureColorLauncher "Open('CPUThreadColor43','MeterThreadColorSwatch43')"]
 MouseActionCursor=1
 
 [MeterThreadColorLabel44]
@@ -1843,7 +1843,7 @@ H=(20*#Scale#)
 Shape=Rectangle (0.5*#Scale#),(0.5*#Scale#),(21*#Scale#),(19*#Scale#),(2*#Scale#) | Fill Color #CPUColor# | Stroke Color #BorderColor# | StrokeWidth #Scale#
 Hidden=1
 Group=CPUThreadColor44|CPUThreadColorsUI
-LeftMouseUpAction=[!CommandMeasure MeasureCPUThreadColors "BeginEdit(44)"]
+LeftMouseUpAction=[!CommandMeasure MeasureColorLauncher "Open('CPUThreadColor44','MeterThreadColorSwatch44')"]
 MouseActionCursor=1
 
 [MeterThreadColorLabel45]
@@ -1885,7 +1885,7 @@ H=(20*#Scale#)
 Shape=Rectangle (0.5*#Scale#),(0.5*#Scale#),(21*#Scale#),(19*#Scale#),(2*#Scale#) | Fill Color #CPUColor# | Stroke Color #BorderColor# | StrokeWidth #Scale#
 Hidden=1
 Group=CPUThreadColor45|CPUThreadColorsUI
-LeftMouseUpAction=[!CommandMeasure MeasureCPUThreadColors "BeginEdit(45)"]
+LeftMouseUpAction=[!CommandMeasure MeasureColorLauncher "Open('CPUThreadColor45','MeterThreadColorSwatch45')"]
 MouseActionCursor=1
 
 [MeterThreadColorLabel46]
@@ -1927,7 +1927,7 @@ H=(20*#Scale#)
 Shape=Rectangle (0.5*#Scale#),(0.5*#Scale#),(21*#Scale#),(19*#Scale#),(2*#Scale#) | Fill Color #CPUColor# | Stroke Color #BorderColor# | StrokeWidth #Scale#
 Hidden=1
 Group=CPUThreadColor46|CPUThreadColorsUI
-LeftMouseUpAction=[!CommandMeasure MeasureCPUThreadColors "BeginEdit(46)"]
+LeftMouseUpAction=[!CommandMeasure MeasureColorLauncher "Open('CPUThreadColor46','MeterThreadColorSwatch46')"]
 MouseActionCursor=1
 
 [MeterThreadColorLabel47]
@@ -1969,7 +1969,7 @@ H=(20*#Scale#)
 Shape=Rectangle (0.5*#Scale#),(0.5*#Scale#),(21*#Scale#),(19*#Scale#),(2*#Scale#) | Fill Color #CPUColor# | Stroke Color #BorderColor# | StrokeWidth #Scale#
 Hidden=1
 Group=CPUThreadColor47|CPUThreadColorsUI
-LeftMouseUpAction=[!CommandMeasure MeasureCPUThreadColors "BeginEdit(47)"]
+LeftMouseUpAction=[!CommandMeasure MeasureColorLauncher "Open('CPUThreadColor47','MeterThreadColorSwatch47')"]
 MouseActionCursor=1
 
 [MeterThreadColorLabel48]
@@ -2011,7 +2011,7 @@ H=(20*#Scale#)
 Shape=Rectangle (0.5*#Scale#),(0.5*#Scale#),(21*#Scale#),(19*#Scale#),(2*#Scale#) | Fill Color #CPUColor# | Stroke Color #BorderColor# | StrokeWidth #Scale#
 Hidden=1
 Group=CPUThreadColor48|CPUThreadColorsUI
-LeftMouseUpAction=[!CommandMeasure MeasureCPUThreadColors "BeginEdit(48)"]
+LeftMouseUpAction=[!CommandMeasure MeasureColorLauncher "Open('CPUThreadColor48','MeterThreadColorSwatch48')"]
 MouseActionCursor=1
 
 [MeterThreadColorLabel49]
@@ -2053,7 +2053,7 @@ H=(20*#Scale#)
 Shape=Rectangle (0.5*#Scale#),(0.5*#Scale#),(21*#Scale#),(19*#Scale#),(2*#Scale#) | Fill Color #CPUColor# | Stroke Color #BorderColor# | StrokeWidth #Scale#
 Hidden=1
 Group=CPUThreadColor49|CPUThreadColorsUI
-LeftMouseUpAction=[!CommandMeasure MeasureCPUThreadColors "BeginEdit(49)"]
+LeftMouseUpAction=[!CommandMeasure MeasureColorLauncher "Open('CPUThreadColor49','MeterThreadColorSwatch49')"]
 MouseActionCursor=1
 
 [MeterThreadColorLabel50]
@@ -2095,7 +2095,7 @@ H=(20*#Scale#)
 Shape=Rectangle (0.5*#Scale#),(0.5*#Scale#),(21*#Scale#),(19*#Scale#),(2*#Scale#) | Fill Color #CPUColor# | Stroke Color #BorderColor# | StrokeWidth #Scale#
 Hidden=1
 Group=CPUThreadColor50|CPUThreadColorsUI
-LeftMouseUpAction=[!CommandMeasure MeasureCPUThreadColors "BeginEdit(50)"]
+LeftMouseUpAction=[!CommandMeasure MeasureColorLauncher "Open('CPUThreadColor50','MeterThreadColorSwatch50')"]
 MouseActionCursor=1
 
 [MeterThreadColorLabel51]
@@ -2137,7 +2137,7 @@ H=(20*#Scale#)
 Shape=Rectangle (0.5*#Scale#),(0.5*#Scale#),(21*#Scale#),(19*#Scale#),(2*#Scale#) | Fill Color #CPUColor# | Stroke Color #BorderColor# | StrokeWidth #Scale#
 Hidden=1
 Group=CPUThreadColor51|CPUThreadColorsUI
-LeftMouseUpAction=[!CommandMeasure MeasureCPUThreadColors "BeginEdit(51)"]
+LeftMouseUpAction=[!CommandMeasure MeasureColorLauncher "Open('CPUThreadColor51','MeterThreadColorSwatch51')"]
 MouseActionCursor=1
 
 [MeterThreadColorLabel52]
@@ -2179,7 +2179,7 @@ H=(20*#Scale#)
 Shape=Rectangle (0.5*#Scale#),(0.5*#Scale#),(21*#Scale#),(19*#Scale#),(2*#Scale#) | Fill Color #CPUColor# | Stroke Color #BorderColor# | StrokeWidth #Scale#
 Hidden=1
 Group=CPUThreadColor52|CPUThreadColorsUI
-LeftMouseUpAction=[!CommandMeasure MeasureCPUThreadColors "BeginEdit(52)"]
+LeftMouseUpAction=[!CommandMeasure MeasureColorLauncher "Open('CPUThreadColor52','MeterThreadColorSwatch52')"]
 MouseActionCursor=1
 
 [MeterThreadColorLabel53]
@@ -2221,7 +2221,7 @@ H=(20*#Scale#)
 Shape=Rectangle (0.5*#Scale#),(0.5*#Scale#),(21*#Scale#),(19*#Scale#),(2*#Scale#) | Fill Color #CPUColor# | Stroke Color #BorderColor# | StrokeWidth #Scale#
 Hidden=1
 Group=CPUThreadColor53|CPUThreadColorsUI
-LeftMouseUpAction=[!CommandMeasure MeasureCPUThreadColors "BeginEdit(53)"]
+LeftMouseUpAction=[!CommandMeasure MeasureColorLauncher "Open('CPUThreadColor53','MeterThreadColorSwatch53')"]
 MouseActionCursor=1
 
 [MeterThreadColorLabel54]
@@ -2263,7 +2263,7 @@ H=(20*#Scale#)
 Shape=Rectangle (0.5*#Scale#),(0.5*#Scale#),(21*#Scale#),(19*#Scale#),(2*#Scale#) | Fill Color #CPUColor# | Stroke Color #BorderColor# | StrokeWidth #Scale#
 Hidden=1
 Group=CPUThreadColor54|CPUThreadColorsUI
-LeftMouseUpAction=[!CommandMeasure MeasureCPUThreadColors "BeginEdit(54)"]
+LeftMouseUpAction=[!CommandMeasure MeasureColorLauncher "Open('CPUThreadColor54','MeterThreadColorSwatch54')"]
 MouseActionCursor=1
 
 [MeterThreadColorLabel55]
@@ -2305,7 +2305,7 @@ H=(20*#Scale#)
 Shape=Rectangle (0.5*#Scale#),(0.5*#Scale#),(21*#Scale#),(19*#Scale#),(2*#Scale#) | Fill Color #CPUColor# | Stroke Color #BorderColor# | StrokeWidth #Scale#
 Hidden=1
 Group=CPUThreadColor55|CPUThreadColorsUI
-LeftMouseUpAction=[!CommandMeasure MeasureCPUThreadColors "BeginEdit(55)"]
+LeftMouseUpAction=[!CommandMeasure MeasureColorLauncher "Open('CPUThreadColor55','MeterThreadColorSwatch55')"]
 MouseActionCursor=1
 
 [MeterThreadColorLabel56]
@@ -2347,7 +2347,7 @@ H=(20*#Scale#)
 Shape=Rectangle (0.5*#Scale#),(0.5*#Scale#),(21*#Scale#),(19*#Scale#),(2*#Scale#) | Fill Color #CPUColor# | Stroke Color #BorderColor# | StrokeWidth #Scale#
 Hidden=1
 Group=CPUThreadColor56|CPUThreadColorsUI
-LeftMouseUpAction=[!CommandMeasure MeasureCPUThreadColors "BeginEdit(56)"]
+LeftMouseUpAction=[!CommandMeasure MeasureColorLauncher "Open('CPUThreadColor56','MeterThreadColorSwatch56')"]
 MouseActionCursor=1
 
 [MeterThreadColorLabel57]
@@ -2389,7 +2389,7 @@ H=(20*#Scale#)
 Shape=Rectangle (0.5*#Scale#),(0.5*#Scale#),(21*#Scale#),(19*#Scale#),(2*#Scale#) | Fill Color #CPUColor# | Stroke Color #BorderColor# | StrokeWidth #Scale#
 Hidden=1
 Group=CPUThreadColor57|CPUThreadColorsUI
-LeftMouseUpAction=[!CommandMeasure MeasureCPUThreadColors "BeginEdit(57)"]
+LeftMouseUpAction=[!CommandMeasure MeasureColorLauncher "Open('CPUThreadColor57','MeterThreadColorSwatch57')"]
 MouseActionCursor=1
 
 [MeterThreadColorLabel58]
@@ -2431,7 +2431,7 @@ H=(20*#Scale#)
 Shape=Rectangle (0.5*#Scale#),(0.5*#Scale#),(21*#Scale#),(19*#Scale#),(2*#Scale#) | Fill Color #CPUColor# | Stroke Color #BorderColor# | StrokeWidth #Scale#
 Hidden=1
 Group=CPUThreadColor58|CPUThreadColorsUI
-LeftMouseUpAction=[!CommandMeasure MeasureCPUThreadColors "BeginEdit(58)"]
+LeftMouseUpAction=[!CommandMeasure MeasureColorLauncher "Open('CPUThreadColor58','MeterThreadColorSwatch58')"]
 MouseActionCursor=1
 
 [MeterThreadColorLabel59]
@@ -2473,7 +2473,7 @@ H=(20*#Scale#)
 Shape=Rectangle (0.5*#Scale#),(0.5*#Scale#),(21*#Scale#),(19*#Scale#),(2*#Scale#) | Fill Color #CPUColor# | Stroke Color #BorderColor# | StrokeWidth #Scale#
 Hidden=1
 Group=CPUThreadColor59|CPUThreadColorsUI
-LeftMouseUpAction=[!CommandMeasure MeasureCPUThreadColors "BeginEdit(59)"]
+LeftMouseUpAction=[!CommandMeasure MeasureColorLauncher "Open('CPUThreadColor59','MeterThreadColorSwatch59')"]
 MouseActionCursor=1
 
 [MeterThreadColorLabel60]
@@ -2515,7 +2515,7 @@ H=(20*#Scale#)
 Shape=Rectangle (0.5*#Scale#),(0.5*#Scale#),(21*#Scale#),(19*#Scale#),(2*#Scale#) | Fill Color #CPUColor# | Stroke Color #BorderColor# | StrokeWidth #Scale#
 Hidden=1
 Group=CPUThreadColor60|CPUThreadColorsUI
-LeftMouseUpAction=[!CommandMeasure MeasureCPUThreadColors "BeginEdit(60)"]
+LeftMouseUpAction=[!CommandMeasure MeasureColorLauncher "Open('CPUThreadColor60','MeterThreadColorSwatch60')"]
 MouseActionCursor=1
 
 [MeterThreadColorLabel61]
@@ -2557,7 +2557,7 @@ H=(20*#Scale#)
 Shape=Rectangle (0.5*#Scale#),(0.5*#Scale#),(21*#Scale#),(19*#Scale#),(2*#Scale#) | Fill Color #CPUColor# | Stroke Color #BorderColor# | StrokeWidth #Scale#
 Hidden=1
 Group=CPUThreadColor61|CPUThreadColorsUI
-LeftMouseUpAction=[!CommandMeasure MeasureCPUThreadColors "BeginEdit(61)"]
+LeftMouseUpAction=[!CommandMeasure MeasureColorLauncher "Open('CPUThreadColor61','MeterThreadColorSwatch61')"]
 MouseActionCursor=1
 
 [MeterThreadColorLabel62]
@@ -2599,7 +2599,7 @@ H=(20*#Scale#)
 Shape=Rectangle (0.5*#Scale#),(0.5*#Scale#),(21*#Scale#),(19*#Scale#),(2*#Scale#) | Fill Color #CPUColor# | Stroke Color #BorderColor# | StrokeWidth #Scale#
 Hidden=1
 Group=CPUThreadColor62|CPUThreadColorsUI
-LeftMouseUpAction=[!CommandMeasure MeasureCPUThreadColors "BeginEdit(62)"]
+LeftMouseUpAction=[!CommandMeasure MeasureColorLauncher "Open('CPUThreadColor62','MeterThreadColorSwatch62')"]
 MouseActionCursor=1
 
 [MeterThreadColorLabel63]
@@ -2641,7 +2641,7 @@ H=(20*#Scale#)
 Shape=Rectangle (0.5*#Scale#),(0.5*#Scale#),(21*#Scale#),(19*#Scale#),(2*#Scale#) | Fill Color #CPUColor# | Stroke Color #BorderColor# | StrokeWidth #Scale#
 Hidden=1
 Group=CPUThreadColor63|CPUThreadColorsUI
-LeftMouseUpAction=[!CommandMeasure MeasureCPUThreadColors "BeginEdit(63)"]
+LeftMouseUpAction=[!CommandMeasure MeasureColorLauncher "Open('CPUThreadColor63','MeterThreadColorSwatch63')"]
 MouseActionCursor=1
 
 [MeterThreadColorLabel64]
@@ -2682,5 +2682,5 @@ H=(20*#Scale#)
 Shape=Rectangle (0.5*#Scale#),(0.5*#Scale#),(21*#Scale#),(19*#Scale#),(2*#Scale#) | Fill Color #CPUColor# | Stroke Color #BorderColor# | StrokeWidth #Scale#
 Hidden=1
 Group=CPUThreadColor64|CPUThreadColorsUI
-LeftMouseUpAction=[!CommandMeasure MeasureCPUThreadColors "BeginEdit(64)"]
+LeftMouseUpAction=[!CommandMeasure MeasureColorLauncher "Open('CPUThreadColor64','MeterThreadColorSwatch64')"]
 MouseActionCursor=1

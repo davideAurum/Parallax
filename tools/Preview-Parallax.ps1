@@ -141,7 +141,7 @@ try {
         $nativeReport = Get-Content -LiteralPath $reportPath -Raw
         if ($nativeReport -notmatch ('(?m)^Config=' + [regex]::Escape($entry.Config) + '\r?$')) { throw "Incorrect active config for $($entry.Module)." }
         if ($nativeReport -notmatch ('(?m)^File=' + [regex]::Escape($entry.File) + '\r?$')) { throw "Incorrect active variant for $($entry.Module)." }
-        $expectedColumns = if ($entry.Module -in @('Settings','ColorPicker','Welcome')) { 2 } elseif ($entry.Module -eq 'Update') { 1 } elseif ($UtilitySettings) { $null } else { $Columns }
+        $expectedColumns = if ($entry.Module -in @('Settings','Welcome')) { 2 } elseif ($entry.Module -in @('ColorPicker','Update')) { 1 } elseif ($UtilitySettings) { $null } else { $Columns }
         if ($null -ne $expectedColumns -and $nativeReport -notmatch ('(?m)^Columns=' + $expectedColumns + '\r?$')) { throw "Incorrect effective Columns for $($entry.Module)." }
     }
     $records = [Collections.Generic.List[object]]::new()

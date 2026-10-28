@@ -452,20 +452,24 @@ function CommitInput()
 end
 
 function Theme(name) return save(themes[name]) end
+-- Color swatches open the shared picker through MeasureColorLauncher
+-- (Modules\ColorPicker\Launcher.lua), which places it beside this panel at
+-- the clicked swatch. Each value meter's swatch is its Value -> Swatch sibling.
 function OpenColor(key)
     if editingKey or not colorTargets[key] then return false end
     CloseThemeMenu()
+    local launch = "Open('" .. key .. "','" .. colorTargets[key]:gsub('Value$', 'Swatch') .. "')"
+    local config = SKIN:GetVariable('CURRENTCONFIG', 'Parallax\\Settings') or 'Parallax\\Settings'
     if refreshOwed then
         -- Apply the pending change first. The picker opens on a delayed timer:
         -- WM_TIMER is the lowest-priority message, so it runs after every
         -- posted refresh, including an open picker's, which would otherwise
         -- reset the new target.
         refreshAll()
-        SKIN:Bang('[!Delay 1][!ActivateConfig "Parallax\\ColorPicker" "ColorPicker.ini"][!CommandMeasure MeasureColorPicker "OpenTarget(\'' .. key .. '\')" "Parallax\\ColorPicker"]')
+        SKIN:Bang('[!Delay 1][!CommandMeasure MeasureColorLauncher "' .. launch .. '" "' .. config .. '"]')
         return true
     end
-    SKIN:Bang('!ActivateConfig', 'Parallax\\ColorPicker', 'ColorPicker.ini')
-    SKIN:Bang('!CommandMeasure', 'MeasureColorPicker', "OpenTarget('"..key.."')", 'Parallax\\ColorPicker')
+    SKIN:Bang('!CommandMeasure', 'MeasureColorLauncher', launch, config)
     return true
 end
 function Accent(name)

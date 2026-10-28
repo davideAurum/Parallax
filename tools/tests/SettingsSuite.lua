@@ -155,10 +155,12 @@ function suite.run(sourcePath)
     reset(); env.CloseThemeMenu(); menuCommand('!HideMeterGroup')
     reset(); env.CloseThemeMenu(); check(#calls == 0, 'Repeated dismissal should be idle')
 
+    local swatchMeters = {AccentColor='MeterAccentSwatch',AccentColor2='MeterAccent2Swatch',TitleTextColor='MeterTitleColorSwatch',HeaderTextColor='MeterHeaderColorSwatch',TextColor='MeterBodyColorSwatch',
+        BackgroundColor='MeterBackgroundColorSwatch',BorderColor='MeterBorderColorSwatch',DividerColor='MeterDividerColorSwatch',TableHeaderBorderColor='MeterTableHeaderBorderColorSwatch'}
     for _, key in ipairs({'AccentColor','AccentColor2','TitleTextColor','HeaderTextColor','TextColor','BackgroundColor','BorderColor','DividerColor','TableHeaderBorderColor'}) do
         reset(); check(env.OpenColor(key), 'Valid color target rejected: '..key)
-        check(#calls==2 and calls[1][1]=='!ActivateConfig' and calls[1][2]=='Parallax\\ColorPicker' and calls[1][3]=='ColorPicker.ini','Picker activation differs')
-        check(calls[2][1]=='!CommandMeasure' and calls[2][2]=='MeasureColorPicker' and calls[2][3]=="OpenTarget('"..key.."')" and calls[2][4]=='Parallax\\ColorPicker','Picker must receive exact allowlisted key/config')
+        check(#calls==1 and calls[1][1]=='!CommandMeasure' and calls[1][2]=='MeasureColorLauncher' and calls[1][4]=='Parallax\\Settings','Swatch must call the launcher in this config')
+        check(calls[1][3]=="Open('"..key.."','"..swatchMeters[key].."')",'Launcher must receive the exact allowlisted key and its swatch meter')
     end
     for _, key in ipairs({'Unknown','AccentColor2][!Quit]',"TextColor');os.execute('bad')",'backgroundcolor','TableHeaderBorderColor][!Quit]','tableheaderbordercolor'}) do
         reset(); check(not env.OpenColor(key) and #calls==0,'Untrusted color target executed')
@@ -331,7 +333,7 @@ function suite.run(sourcePath)
     reset(); check(env.Adjust('CornerRadius',1), 'Rounding arrow rejected'); held = select(2, deferred())
     reset(); check(env.OpenColor('BorderColor'), 'Picker rejected with a refresh pending')
     check(#calls == 2 and calls[1][1] == '!RefreshGroup' and calls[1][2] == 'Parallax', 'The picker must apply the pending change first')
-    check(calls[2][1] == '[!Delay 1][!ActivateConfig "Parallax\\ColorPicker" "ColorPicker.ini"][!CommandMeasure MeasureColorPicker "OpenTarget(\'BorderColor\')" "Parallax\\ColorPicker"]',
+    check(calls[2][1] == '[!Delay 1][!CommandMeasure MeasureColorLauncher "Open(\'BorderColor\',\'MeterBorderColorSwatch\')" "Parallax\\Settings"]',
         'The picker must open after the posted refreshes, with the exact allowlisted target')
     reload(); stale(held, 'The picker flush left its superseded timer live')
     reset(); check(env.Adjust('FontSize',1), 'Body size arrow rejected'); held = select(2, deferred())

@@ -7,6 +7,7 @@ Where things stand between releases: what is on `main` but not yet in a publishe
 ## On main, not in any release
 
 - Disk Meter's shipped drive selection is `C` again. It had shipped `C,D,G`, the maintainer's own drive letters, since 2026-09-13 ([IO.md](modules/IO.md#current-validation)). Only fresh installs change, because upgrades keep their saved selection.
+- **Developer mode** (2026-10-28, not yet installed anywhere): Global Settings > Developer creates a second copy of the suite, `ParallaxDev`, that loads beside the release; each of its utilities shows a status icon after the title (red git-branch-plus when it differs from the release, green git-compare-arrows when it matches), and `tools\Sync-ParallaxDev.ps1 [-Watch]` mirrors the repository into it. Global Settings grows to 456 × 1005 (the new Developer section). Offline, isolated-native and geometry checks pass; the live installation, the first real creation (it refreshes Rainmeter once), multi-monitor placement and running two Media players are not exercised ([DEVMODE.md](DEVMODE.md#validation-record-2026-10-28-rainmeter-4528)).
 
 ## Open: Stage 1 (prove the upgrade path)
 
@@ -22,4 +23,5 @@ None of these is ticked in [ROADMAP.md](ROADMAP.md) yet. Upgrades alpha.2 → 4 
 
 - Before alpha.5, Media's Source/Queue workers could outlive Rainmeter and block upgrades. Copies at alpha.4 or earlier still have this. alpha.5 and later fix it, but the first upgrade from an old copy may need Rainmeter quit and those `powershell.exe` workers ended by hand ([UPDATES.md](UPDATES.md#upgrading-past-running-media-helpers)).
 - A Windows PowerShell helper that starts using `Get-FileHash` or a `Microsoft.PowerShell.Security` cmdlet needs the same `PSModulePath` reset as `UpdateInstall.ps1`.
+- Three Global Settings test fixtures were stale before developer mode: `Test-ThemeDropdown.ps1`, `Test-SettingsFields.ps1` and `Test-SettingsRefresh.ps1` still expected the 758 px panel and did not stage `Version.inc`, `Update\*` or `Idle\Link.lua`, so none could run since the Idle pause and Updates sections. On 2026-10-28 their file lists and heights were brought up to date; the first two pass, and `Test-SettingsRefresh.ps1` (run it with `powershell.exe`, not PowerShell 7) now stops at "Scale burst: pixels changed outside MeterGeometry/MeterScaleInput (row 761)", a row inside the Updates section that its before/after capture comparison does not allow for. It predates the Developer section (which starts below that row) and is still open.
 - Stage 2 onward (physical input, display, environment, provider and hardware passes) is untouched; see [ROADMAP.md](ROADMAP.md).

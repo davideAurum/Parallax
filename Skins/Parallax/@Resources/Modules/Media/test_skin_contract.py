@@ -1038,7 +1038,7 @@ class SkinContractTests(unittest.TestCase):
             self.assertNotIn('MeterPlayerName',sections)
             # Header.inc is the last module include; the idle stand-down hook
             # include (Hook0.inc while Idle pause is Off) follows it.
-            self.assertEqual([path.name for path in visited if 'Update' not in path.parts and path.name != 'Version.inc'][-2:],['Header.inc','Hook0.inc'])
+            self.assertEqual([path.name for path in visited if 'Update' not in path.parts and 'Dev' not in path.parts and path.name != 'Version.inc'][-2:],['Header.inc','Hook0.inc'])
             actual={name for name,section in sections.items() if 'Meter' in section and 'MediaPlayerIcons' in [group.strip() for group in resolve_style(sections,name).get('Group','').split('|')]}
             self.assertEqual(actual,names)
             self.assertFalse(any(re.fullmatch(r'MeterPlayer\w+Icon', name) for name in sections))
@@ -2193,7 +2193,7 @@ class SkinContractTests(unittest.TestCase):
                     ['@Resources/Modules/Media/Header.inc'])
                 # Header.inc is the last module include; the idle stand-down hook
                 # include (Hook0.inc while Idle pause is Off) follows it.
-                self.assertEqual([path.name for path in visited if 'Update' not in path.parts and path.name != 'Version.inc'][-2:],['Header.inc','Hook0.inc'])
+                self.assertEqual([path.name for path in visited if 'Update' not in path.parts and 'Dev' not in path.parts and path.name != 'Version.inc'][-2:],['Header.inc','Hook0.inc'])
                 measures=[name for name,section in sections.items() if 'Measure' in section and not name.startswith('MeasureParallaxUpdate')]
                 self.assertEqual(measures[-1],'MeasureMediaHeader')
                 if drawer!=2:
@@ -2211,7 +2211,7 @@ class SkinContractTests(unittest.TestCase):
                     '@Resources/Modules/Media/Header.inc'])
                 # Header.inc is the last module include; the idle stand-down hook
                 # include (Hook0.inc while Idle pause is Off) follows it.
-                self.assertEqual([path.name for path in visited if 'Update' not in path.parts and path.name != 'Version.inc'][-2:],['Header.inc','Hook0.inc'])
+                self.assertEqual([path.name for path in visited if 'Update' not in path.parts and 'Dev' not in path.parts and path.name != 'Version.inc'][-2:],['Header.inc','Hook0.inc'])
         # Flags a later include's geometry depends on are set BEFORE the first
         # include: a late override leaks stale values through forward references
         # in Rainmeter's final variable pass (found natively).

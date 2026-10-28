@@ -146,6 +146,13 @@ def run() -> None:
     for name, call in (("meterupdatechecknow", "CheckNow()"), ("meterupdateinstall", "Install()"), ("meterupdatenotes", "OpenNotes()")):
         assert options(name, sections).get("leftmouseupaction") == f'[!CommandMeasure MeasureParallaxUpdate "{call}"]', (name, "Updates button action")
     assert sections["meterupdatessection"]["text"] == "Updates", "Updates section heading"
+    # Developer (2026-10-28): Dev mode flips with either arrow or the centre; the buttons go to DevPanel.lua.
+    for name, direction in (("meterdevmodedecrease", -1), ("meterdevmodeincrease", 1), ("meterdevmodevalue", 1), ("meterdevmodeframe", 1)):
+        assert options(name, sections).get("leftmouseupaction") == f'[!CommandMeasure MeasureDevPanel "ToggleDev({direction})"]', (name, "Dev mode must use its toggle action")
+        assert options(name, sections).get("group") == "DevToggle", (name, "Dev mode row must hide as a group inside a developer copy")
+    for name, call in (("meterdevcompare", "Compare()"), ("meterdevreport", "OpenReport()")):
+        assert options(name, sections).get("leftmouseupaction") == f'[!CommandMeasure MeasureDevPanel "{call}"]', (name, "Developer button action")
+    assert sections["meterdevsection"]["text"] == "Developer", "Developer section heading"
     assert not any(key.startswith("tooltip") for name in sections if name.startswith("meteridlepause") for key in sections[name]), "No tooltips"
     for heading, rule, title in (("meterappearancesection", "meterappearancerule", "Appearance"), ("meterperformancesection", "meterperformancerule", "Performance")):
         assert sections[heading]["text"] == title, f"Missing settings section: {title}"
@@ -168,8 +175,8 @@ def run() -> None:
 
         assert var("Columns") == 2, "Settings must use double-column geometry after include overrides."
         # 758 before the Idle pause row (one 28 px row, 2026-10-23); 786 before
-        # the Updates section (2026-10-26).
-        assert var("PanelHeight") == 901, "Settings' local height was lost to default precedence."
+        # the Updates section (2026-10-26); 901 before the Developer section (2026-10-28).
+        assert var("PanelHeight") == 997, "Settings' local height was lost to default precedence."
         for thickness in (1, 1.25, 1.5, 2, 2.5, 6, 8.75, 12):
             scaled = dict(variables, databarthickness=str(thickness))
             expected = max(1, math.floor(thickness * scale + 0.5))
@@ -221,8 +228,8 @@ def run() -> None:
                     assert resolved.get("group") == "ThemeMenu", "Option must dismiss with the menu"
                 if "leftmouseupaction" in resolved:
                     minimum_button_margin = min(minimum_button_margin, var("ContentX") + var("ContentWidth") - x - w)
-        for base in (*NUMERIC_CONTROLS, "MeterRefresh", "MeterIdlePause", "MeterUpdateCheck"):
-            left, value, right = (control_boxes[(base + suffix).lower()] for suffix in ("Decrease", "Value" if base in ("MeterRefresh", "MeterIdlePause", "MeterUpdateCheck") else "Input", "Increase"))
+        for base in (*NUMERIC_CONTROLS, "MeterRefresh", "MeterIdlePause", "MeterUpdateCheck", "MeterDevMode"):
+            left, value, right = (control_boxes[(base + suffix).lower()] for suffix in ("Decrease", "Value" if base in ("MeterRefresh", "MeterIdlePause", "MeterUpdateCheck", "MeterDevMode") else "Input", "Increase"))
             resolved_frame = options((base + "Frame").lower(), sections)
             frame = tuple(number(resolved_frame.get(key, "0"), variables) for key in ("x", "y", "w", "h"))
             assert frame[0] >= var("ContentX") and frame[1] >= 0 and min(frame[2:]) > 0, (base, label, "Invalid frame bounds")
@@ -301,9 +308,33 @@ def run() -> None:
             overlap_w = min(a[0] + a[2], b[0] + b[2]) - max(a[0], b[0])
             overlap_h = min(a[1] + a[3], b[1] + b[3]) - max(a[1], b[1])
             assert overlap_w <= 1e-7 or overlap_h <= 1e-7, (first, second, label, "Updates controls overlap when an update is offered")
+        developer_rule_y = number(options("meterdevrule", sections)["y"], variables)
         for name in update_rows:
             top, bottom = offered[name][1], offered[name][1] + offered[name][3]
-            assert top > updates_rule_y + divider_half_width and bottom < footer_rule_y - divider_half_width, (name, label, "Updates control escaped its section")
+            assert top > updates_rule_y + divider_half_width and bottom < rectangles["meterdevsection"][0], (name, label, "Updates control escaped its section")
+        # Developer: heading clear of the Updates rows and of its own rule; the status line and the
+        # buttons the controller shows (hidden until a copy exists) sit between it and the footer rule.
+        assert rectangles["meterdevsection"][1] < developer_rule_y - divider_half_width, (label, "Developer heading touches its divider")
+        assert rectangles["meterdevsection"][0] > max(offered[name][1] + offered[name][3] for name in update_rows), (label, "Developer heading overlaps the Updates rows")
+        for name in ("meterdevcompare", "meterdevreport"):
+            resolved = options(name, sections)
+            x, y, w, h = (number(resolved.get(key, "0"), variables) for key in ("x", "y", "w", "h"))
+            pad = [number(item, variables) for item in resolved["padding"].split(",")]
+            w += pad[0] + pad[2]; h += pad[1] + pad[3]
+            assert resolved.get("stringalign", "").lower() == "right"
+            offered[name] = (x - w, y, w, h)
+            assert x <= var("ContentX") + var("ContentWidth") + 1e-7 and x - w >= var("ContentX"), (name, label, "outside content")
+        developer_rows = ("meterdevcopyvalue", "meterdevmodelabel", "meterdevmodedecrease", "meterdevmodevalue", "meterdevmodeincrease", "meterdevstatus", "meterdevcompare", "meterdevreport")
+        assert rectangles["meterdevcopyvalue"][1] < developer_rule_y - divider_half_width, (label, "Developer heading value touches its divider")
+        developer_boxes = {name: offered.get(name) or control_boxes[name] for name in developer_rows}
+        for first, second in itertools.combinations(developer_rows, 2):
+            a, b = developer_boxes[first], developer_boxes[second]
+            overlap_w = min(a[0] + a[2], b[0] + b[2]) - max(a[0], b[0])
+            overlap_h = min(a[1] + a[3], b[1] + b[3]) - max(a[1], b[1])
+            assert overlap_w <= 1e-7 or overlap_h <= 1e-7, (first, second, label, "Developer controls overlap")
+        for name in developer_rows[1:]:
+            box = developer_boxes[name]
+            assert box[1] > developer_rule_y + divider_half_width and box[1] + box[3] < footer_rule_y - divider_half_width, (name, label, "Developer control escaped its section")
         checked += 1
     print(f"Settings geometry passed: {checked} preset combinations; minimum padded-button right margin {max(0, minimum_button_margin):g} computed pixels.")
     print("Scope: declared INI geometry, include layering, text rectangles, and button padding. Font rendering, Windows DPI, and Lua execution remain untested.")

@@ -64,7 +64,7 @@ function Assert-State($Native,$Expected,[int]$Generation) {
     Require ($Native.Generation -eq "$Generation") 'Unexpected native refresh generation.'
     foreach ($key in 'Scale','ColumnWidth','Gutter','CornerRadius','TitleFontSize','HeaderFontSize','FontSize','BackgroundColor','BorderThickness','DividerThickness','TableHeaderBorderThickness','DataBarThickness') { Require ($Native[$key] -eq $Expected[$key]) "Native setting mismatch: $key" }
     Require ($Native.Columns -eq '2') 'Settings must retain two columns.'
-    Require ($Native.PanelHeight -eq '758') 'Unexpected Global Settings panel height.'
+    Require ($Native.PanelHeight -eq '997') 'Unexpected Global Settings panel height.'
     Require ($Native.BackgroundTransparencyVariable -eq '<unset>') 'Transparency must derive from BackgroundColor, not a separate variable.'
     $scale=[double]::Parse($Expected.Scale,[Globalization.CultureInfo]::InvariantCulture)
     $single=[int][Math]::Floor([int]$Expected.ColumnWidth*$scale+0.5)
@@ -83,11 +83,12 @@ function Assert-State($Native,$Expected,[int]$Generation) {
     Require ($Native.MeterBackgroundColorValue -eq $backgroundHex) 'Background color hex did not reflect persisted alpha.'
 }
 
-$sourceFiles=@('Settings\Settings.ini','@Resources\Defaults.inc','@Resources\Geometry.inc','@Resources\Styles.inc','@Resources\User\Settings.inc','@Resources\Scripts\Settings.lua','@Resources\Scripts\SettingsInput.ps1')
+$sourceFiles=@('Settings\Settings.ini','@Resources\Defaults.inc','@Resources\Geometry.inc','@Resources\Styles.inc','@Resources\User\Settings.inc','@Resources\Scripts\Settings.lua','@Resources\Version.inc','@Resources\Update\Feed.inc','@Resources\Update\Install.inc','@Resources\Update\Update.lua','@Resources\Update\State.inc','@Resources\Idle\Link.lua','@Resources\Dev\Panel.inc','@Resources\Dev\DevPanel.lua','@Resources\Dev\DevCommon.lua','@Resources\Scripts\SettingsInput.ps1')
 $sourceHashes=@{}
 foreach ($relative in $sourceFiles) {
     $source=Join-Path $sourceRoot $relative
     $sourceHashes[$relative]=(Get-FileHash -LiteralPath $source -Algorithm SHA256).Hash
+    $null=New-Item -ItemType Directory -Force -Path (Split-Path -Parent (Join-Path $parallaxRoot $relative))
     Copy-Item -LiteralPath $source -Destination (Join-Path $parallaxRoot $relative)
 }
 Copy-Item -LiteralPath "$sourceRoot\@Resources\Fonts" -Destination "$parallaxRoot\@Resources\Fonts" -Recurse

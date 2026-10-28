@@ -3,7 +3,10 @@
 param(
     [Parameter(Mandatory)][ValidatePattern('^[A-Za-z0-9][A-Za-z0-9._-]{0,63}$')][string]$Version,
     [string]$ProjectRoot = (Join-Path $PSScriptRoot '..'),
-    [switch]$RequireAllModules
+    [switch]$RequireAllModules,
+    # Developer-copy iteration (tools\Sync-ParallaxDev.ps1) only: skips the two static validation
+    # passes and the manifest's per-file SHA-256 (the copy needs neither). A release stage never uses it.
+    [switch]$SkipValidation
 )
 Set-StrictMode -Version Latest
 $ErrorActionPreference = 'Stop'
@@ -21,7 +24,7 @@ foreach ($path in @($ProjectRoot, (Join-Path $ProjectRoot 'Skins'), $skinRoot, $
         }
     }
 }
-$null = & (Join-Path $PSScriptRoot 'Test-Parallax.ps1') -SkinRoot $skinRoot -RequireAllModules:$RequireAllModules
+if (-not $SkipValidation) { $null = & (Join-Path $PSScriptRoot 'Test-Parallax.ps1') -SkinRoot $skinRoot -RequireAllModules:$RequireAllModules }
 $excluded = [Collections.Generic.List[object]]::new()
 $sourceFiles = @(Get-ParallaxFiles $skinRoot -ProductionOnly -ExcludedEntries $excluded | Sort-Object FullName)
 $allowedExtensions = @('.ini', '.inc', '.lua', '.png', '.jpg', '.jpeg', '.gif', '.bmp', '.ico', '.svg', '.wav', '.ogg', '.mp3', '.ttf', '.otf', '.txt', '.md')
@@ -31,6 +34,9 @@ $allowedExactPaths = [Collections.Generic.HashSet[string]]::new([StringComparer]
 foreach ($path in @(
     '@Resources\Scripts\SettingsInput.ps1',
     '@Resources\Scripts\UpdateInstall.ps1',
+    '@Resources\Dev\DevMode.ps1',
+    '@Resources\Dev\DevCopy.psm1',
+    '@Resources\Dev\Icons\Lucide\LICENSE',
     '@Resources\Modules\Chronometer\EventEditor.exe',
     '@Resources\Modules\Chronometer\EventEditor.cs',
     '@Resources\Modules\Chronometer\EventEditorForm.cs',
@@ -117,12 +123,12 @@ foreach ($entry in $selected) {
     $manifestFiles.Add([pscustomobject]@{
         Path = ('Skins\Parallax\' + $entry.Relative)
         Bytes = (Get-Item -LiteralPath $destination).Length
-        SHA256 = (Get-FileHash -LiteralPath $destination -Algorithm SHA256).Hash
+        SHA256 = $(if ($SkipValidation) { $null } else { (Get-FileHash -LiteralPath $destination -Algorithm SHA256).Hash })
     })
 }
 # Detect an include or Lua script accidentally omitted by staging rules.
 # A failing stage is left in place for inspection; a later attempt always uses a new folder.
-$null = & (Join-Path $PSScriptRoot 'Test-Parallax.ps1') -SkinRoot $stageSkinRoot -RequireAllModules:$RequireAllModules
+if (-not $SkipValidation) { $null = & (Join-Path $PSScriptRoot 'Test-Parallax.ps1') -SkinRoot $stageSkinRoot -RequireAllModules:$RequireAllModules }
 $variablesFiles = @($selected | Where-Object { $_.Relative -match '^@Resources[\\/]User[\\/].+\.inc$' } | ForEach-Object { 'Parallax\' + $_.Relative } | Sort-Object)
 if ($variablesFiles.Count -eq 0) { throw 'No persistent User/*.inc files selected; check the settings layout.' }
 $variablesValue = $variablesFiles -join ' | '

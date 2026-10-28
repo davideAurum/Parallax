@@ -53,7 +53,8 @@ foreach ($path in @(
     '@Resources\Modules\Media\Icons\Lucide\LICENSE',
     '@Resources\Modules\RAM\Icons\Lucide\LICENSE',
     '@Resources\Modules\IO\Icons\Lucide\LICENSE',
-    '@Resources\Modules\Visualizer\Icons\Lucide\LICENSE'
+    '@Resources\Modules\Visualizer\Icons\Lucide\LICENSE',
+    '@Resources\Modules\Network\Icons\Lucide\LICENSE'
 )) { $null = $allowedExactPaths.Add($path) }
 $selected = [Collections.Generic.List[object]]::new()
 foreach ($file in $sourceFiles) {

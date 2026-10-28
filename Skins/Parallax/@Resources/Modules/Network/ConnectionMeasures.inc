@@ -10,13 +10,6 @@ SysInfoData=#NetworkInterface#
 UpdateDivider=2
 DynamicVariables=1
 
-; Native Internet status is PC-wide; SysInfoData cannot scope it to one adapter.
-[MeasureConnectionInternet]
-Measure=SysInfo
-Group=ParallaxIdlePause
-SysInfoType=INTERNET_CONNECTIVITY
-UpdateDivider=2
-
 [MeasureConnectionIP]
 Measure=SysInfo
 Group=ParallaxIdlePause
@@ -110,3 +103,18 @@ SignalHeight=#DataBarThicknessPx#
 BankDivider=2
 WiFiDivider=5
 UpdateDivider=1
+
+; Wi-Fi band for the Band line. Inert until Connection.lua launches it, once per
+; Wi-Fi connection (SSID + protocol); never on a timer and never on a wired link.
+; State=Hide is the only silent launcher (a bang would flash a console).
+; UpdateDivider=-1: FinishAction forces the one update that reads the output.
+[MeasureConnectionBandRun]
+Measure=Plugin
+Plugin=RunCommand
+Program=%SystemRoot%\System32\netsh.exe
+Parameter=wlan show interfaces
+State=Hide
+OutputType=ANSI
+Timeout=5000
+UpdateDivider=-1
+FinishAction=[!UpdateMeasure MeasureConnectionBandRun][!CommandMeasure MeasureConnectionController "ApplyBand()"]

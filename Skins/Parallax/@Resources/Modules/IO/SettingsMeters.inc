@@ -48,12 +48,35 @@ AntiAlias=1
 ClipString=1
 StringAlign=Left
 X=#ContentX#
-W=(#ContentWidth#-78*#Scale#)
+W=(#ContentWidth#-164*#Scale#)
 MouseActionCursor=1
 
 [IOStyleSettingsDriveValue]
 X=(#ContentX#+#ContentWidth#-62*#Scale#)
 W=(56*#Scale#)
+
+[IOStyleSettingsDriveHex]
+; Per-drive overlay color: a click opens the one-line #RRGGBB editor over this field.
+FontFace=#FontFace#
+FontSize=(#FontSize#*#Scale#)
+FontWeight=500
+FontColor=#TextColor#
+AntiAlias=1
+ClipString=1
+StringAlign=Left
+X=(#ContentX#+#ContentWidth#-158*#Scale#)
+W=(60*#Scale#)
+H=(18*#Scale#)
+Padding=(3*#Scale#),#Scale#,(3*#Scale#),#Scale#
+SolidColor=#GraphBackgroundColor#
+MouseActionCursor=1
+
+[IOStyleSettingsDriveSwatch]
+X=(#ContentX#+#ContentWidth#-88*#Scale#)
+W=(22*#Scale#)
+H=(20*#Scale#)
+Shape=Rectangle (0.5*#Scale#),(0.5*#Scale#),(21*#Scale#),(19*#Scale#),(2*#Scale#) | Fill Color #TextColor# | Stroke Color #BorderColor# | StrokeWidth #Scale#
+MouseActionCursor=1
 
 [IOStyleSettingsRule]
 W=#ContentWidth#
@@ -181,6 +204,17 @@ MeterStyle=StyleUtilitySettingsValue|IOStyleSettingsValue|IOStyleSettingsDrive|I
 Text=Off
 LeftMouseUpAction=[!CommandMeasure MeasureIOSettings "ToggleDrive('A')"]
 
+[MeterIOSettingsDriveAHex]
+Meter=String
+MeterStyle=IOStyleSettingsDriveHex|IOStyleSettingsDrive|IOStyleSettingsGroup
+Text=#000000
+LeftMouseUpAction=[!CommandMeasure MeasureIOSettings "BeginColorInput('A')"]
+
+[MeterIOSettingsDriveASwatch]
+Meter=Shape
+MeterStyle=IOStyleSettingsDriveSwatch|IOStyleSettingsDrive|IOStyleSettingsGroup
+LeftMouseUpAction=[!CommandMeasure MeasureIOSettings "BeginColorInput('A')"]
+
 [MeterIOSettingsDriveBLabel]
 Meter=String
 MeterStyle=IOStyleSettingsDriveLabel|IOStyleSettingsDrive|IOStyleSettingsGroup
@@ -192,6 +226,17 @@ Meter=String
 MeterStyle=StyleUtilitySettingsValue|IOStyleSettingsValue|IOStyleSettingsDrive|IOStyleSettingsDriveValue|IOStyleSettingsGroup
 Text=Off
 LeftMouseUpAction=[!CommandMeasure MeasureIOSettings "ToggleDrive('B')"]
+
+[MeterIOSettingsDriveBHex]
+Meter=String
+MeterStyle=IOStyleSettingsDriveHex|IOStyleSettingsDrive|IOStyleSettingsGroup
+Text=#000000
+LeftMouseUpAction=[!CommandMeasure MeasureIOSettings "BeginColorInput('B')"]
+
+[MeterIOSettingsDriveBSwatch]
+Meter=Shape
+MeterStyle=IOStyleSettingsDriveSwatch|IOStyleSettingsDrive|IOStyleSettingsGroup
+LeftMouseUpAction=[!CommandMeasure MeasureIOSettings "BeginColorInput('B')"]
 
 [MeterIOSettingsDriveCLabel]
 Meter=String
@@ -205,6 +250,17 @@ MeterStyle=StyleUtilitySettingsValue|IOStyleSettingsValue|IOStyleSettingsDrive|I
 Text=Off
 LeftMouseUpAction=[!CommandMeasure MeasureIOSettings "ToggleDrive('C')"]
 
+[MeterIOSettingsDriveCHex]
+Meter=String
+MeterStyle=IOStyleSettingsDriveHex|IOStyleSettingsDrive|IOStyleSettingsGroup
+Text=#000000
+LeftMouseUpAction=[!CommandMeasure MeasureIOSettings "BeginColorInput('C')"]
+
+[MeterIOSettingsDriveCSwatch]
+Meter=Shape
+MeterStyle=IOStyleSettingsDriveSwatch|IOStyleSettingsDrive|IOStyleSettingsGroup
+LeftMouseUpAction=[!CommandMeasure MeasureIOSettings "BeginColorInput('C')"]
+
 [MeterIOSettingsDriveDLabel]
 Meter=String
 MeterStyle=IOStyleSettingsDriveLabel|IOStyleSettingsDrive|IOStyleSettingsGroup
@@ -216,6 +272,17 @@ Meter=String
 MeterStyle=StyleUtilitySettingsValue|IOStyleSettingsValue|IOStyleSettingsDrive|IOStyleSettingsDriveValue|IOStyleSettingsGroup
 Text=Off
 LeftMouseUpAction=[!CommandMeasure MeasureIOSettings "ToggleDrive('D')"]
+
+[MeterIOSettingsDriveDHex]
+Meter=String
+MeterStyle=IOStyleSettingsDriveHex|IOStyleSettingsDrive|IOStyleSettingsGroup
+Text=#000000
+LeftMouseUpAction=[!CommandMeasure MeasureIOSettings "BeginColorInput('D')"]
+
+[MeterIOSettingsDriveDSwatch]
+Meter=Shape
+MeterStyle=IOStyleSettingsDriveSwatch|IOStyleSettingsDrive|IOStyleSettingsGroup
+LeftMouseUpAction=[!CommandMeasure MeasureIOSettings "BeginColorInput('D')"]
 
 [MeterIOSettingsDriveELabel]
 Meter=String
@@ -229,6 +296,17 @@ MeterStyle=StyleUtilitySettingsValue|IOStyleSettingsValue|IOStyleSettingsDrive|I
 Text=Off
 LeftMouseUpAction=[!CommandMeasure MeasureIOSettings "ToggleDrive('E')"]
 
+[MeterIOSettingsDriveEHex]
+Meter=String
+MeterStyle=IOStyleSettingsDriveHex|IOStyleSettingsDrive|IOStyleSettingsGroup
+Text=#000000
+LeftMouseUpAction=[!CommandMeasure MeasureIOSettings "BeginColorInput('E')"]
+
+[MeterIOSettingsDriveESwatch]
+Meter=Shape
+MeterStyle=IOStyleSettingsDriveSwatch|IOStyleSettingsDrive|IOStyleSettingsGroup
+LeftMouseUpAction=[!CommandMeasure MeasureIOSettings "BeginColorInput('E')"]
+
 [MeterIOSettingsDriveFLabel]
 Meter=String
 MeterStyle=IOStyleSettingsDriveLabel|IOStyleSettingsDrive|IOStyleSettingsGroup
@@ -240,6 +318,17 @@ Meter=String
 MeterStyle=StyleUtilitySettingsValue|IOStyleSettingsValue|IOStyleSettingsDrive|IOStyleSettingsDriveValue|IOStyleSettingsGroup
 Text=Off
 LeftMouseUpAction=[!CommandMeasure MeasureIOSettings "ToggleDrive('F')"]
+
+[MeterIOSettingsDriveFHex]
+Meter=String
+MeterStyle=IOStyleSettingsDriveHex|IOStyleSettingsDrive|IOStyleSettingsGroup
+Text=#000000
+LeftMouseUpAction=[!CommandMeasure MeasureIOSettings "BeginColorInput('F')"]
+
+[MeterIOSettingsDriveFSwatch]
+Meter=Shape
+MeterStyle=IOStyleSettingsDriveSwatch|IOStyleSettingsDrive|IOStyleSettingsGroup
+LeftMouseUpAction=[!CommandMeasure MeasureIOSettings "BeginColorInput('F')"]
 
 [MeterIOSettingsDriveGLabel]
 Meter=String
@@ -253,6 +342,17 @@ MeterStyle=StyleUtilitySettingsValue|IOStyleSettingsValue|IOStyleSettingsDrive|I
 Text=Off
 LeftMouseUpAction=[!CommandMeasure MeasureIOSettings "ToggleDrive('G')"]
 
+[MeterIOSettingsDriveGHex]
+Meter=String
+MeterStyle=IOStyleSettingsDriveHex|IOStyleSettingsDrive|IOStyleSettingsGroup
+Text=#000000
+LeftMouseUpAction=[!CommandMeasure MeasureIOSettings "BeginColorInput('G')"]
+
+[MeterIOSettingsDriveGSwatch]
+Meter=Shape
+MeterStyle=IOStyleSettingsDriveSwatch|IOStyleSettingsDrive|IOStyleSettingsGroup
+LeftMouseUpAction=[!CommandMeasure MeasureIOSettings "BeginColorInput('G')"]
+
 [MeterIOSettingsDriveHLabel]
 Meter=String
 MeterStyle=IOStyleSettingsDriveLabel|IOStyleSettingsDrive|IOStyleSettingsGroup
@@ -264,6 +364,17 @@ Meter=String
 MeterStyle=StyleUtilitySettingsValue|IOStyleSettingsValue|IOStyleSettingsDrive|IOStyleSettingsDriveValue|IOStyleSettingsGroup
 Text=Off
 LeftMouseUpAction=[!CommandMeasure MeasureIOSettings "ToggleDrive('H')"]
+
+[MeterIOSettingsDriveHHex]
+Meter=String
+MeterStyle=IOStyleSettingsDriveHex|IOStyleSettingsDrive|IOStyleSettingsGroup
+Text=#000000
+LeftMouseUpAction=[!CommandMeasure MeasureIOSettings "BeginColorInput('H')"]
+
+[MeterIOSettingsDriveHSwatch]
+Meter=Shape
+MeterStyle=IOStyleSettingsDriveSwatch|IOStyleSettingsDrive|IOStyleSettingsGroup
+LeftMouseUpAction=[!CommandMeasure MeasureIOSettings "BeginColorInput('H')"]
 
 [MeterIOSettingsDriveILabel]
 Meter=String
@@ -277,6 +388,17 @@ MeterStyle=StyleUtilitySettingsValue|IOStyleSettingsValue|IOStyleSettingsDrive|I
 Text=Off
 LeftMouseUpAction=[!CommandMeasure MeasureIOSettings "ToggleDrive('I')"]
 
+[MeterIOSettingsDriveIHex]
+Meter=String
+MeterStyle=IOStyleSettingsDriveHex|IOStyleSettingsDrive|IOStyleSettingsGroup
+Text=#000000
+LeftMouseUpAction=[!CommandMeasure MeasureIOSettings "BeginColorInput('I')"]
+
+[MeterIOSettingsDriveISwatch]
+Meter=Shape
+MeterStyle=IOStyleSettingsDriveSwatch|IOStyleSettingsDrive|IOStyleSettingsGroup
+LeftMouseUpAction=[!CommandMeasure MeasureIOSettings "BeginColorInput('I')"]
+
 [MeterIOSettingsDriveJLabel]
 Meter=String
 MeterStyle=IOStyleSettingsDriveLabel|IOStyleSettingsDrive|IOStyleSettingsGroup
@@ -288,6 +410,17 @@ Meter=String
 MeterStyle=StyleUtilitySettingsValue|IOStyleSettingsValue|IOStyleSettingsDrive|IOStyleSettingsDriveValue|IOStyleSettingsGroup
 Text=Off
 LeftMouseUpAction=[!CommandMeasure MeasureIOSettings "ToggleDrive('J')"]
+
+[MeterIOSettingsDriveJHex]
+Meter=String
+MeterStyle=IOStyleSettingsDriveHex|IOStyleSettingsDrive|IOStyleSettingsGroup
+Text=#000000
+LeftMouseUpAction=[!CommandMeasure MeasureIOSettings "BeginColorInput('J')"]
+
+[MeterIOSettingsDriveJSwatch]
+Meter=Shape
+MeterStyle=IOStyleSettingsDriveSwatch|IOStyleSettingsDrive|IOStyleSettingsGroup
+LeftMouseUpAction=[!CommandMeasure MeasureIOSettings "BeginColorInput('J')"]
 
 [MeterIOSettingsDriveKLabel]
 Meter=String
@@ -301,6 +434,17 @@ MeterStyle=StyleUtilitySettingsValue|IOStyleSettingsValue|IOStyleSettingsDrive|I
 Text=Off
 LeftMouseUpAction=[!CommandMeasure MeasureIOSettings "ToggleDrive('K')"]
 
+[MeterIOSettingsDriveKHex]
+Meter=String
+MeterStyle=IOStyleSettingsDriveHex|IOStyleSettingsDrive|IOStyleSettingsGroup
+Text=#000000
+LeftMouseUpAction=[!CommandMeasure MeasureIOSettings "BeginColorInput('K')"]
+
+[MeterIOSettingsDriveKSwatch]
+Meter=Shape
+MeterStyle=IOStyleSettingsDriveSwatch|IOStyleSettingsDrive|IOStyleSettingsGroup
+LeftMouseUpAction=[!CommandMeasure MeasureIOSettings "BeginColorInput('K')"]
+
 [MeterIOSettingsDriveLLabel]
 Meter=String
 MeterStyle=IOStyleSettingsDriveLabel|IOStyleSettingsDrive|IOStyleSettingsGroup
@@ -312,6 +456,17 @@ Meter=String
 MeterStyle=StyleUtilitySettingsValue|IOStyleSettingsValue|IOStyleSettingsDrive|IOStyleSettingsDriveValue|IOStyleSettingsGroup
 Text=Off
 LeftMouseUpAction=[!CommandMeasure MeasureIOSettings "ToggleDrive('L')"]
+
+[MeterIOSettingsDriveLHex]
+Meter=String
+MeterStyle=IOStyleSettingsDriveHex|IOStyleSettingsDrive|IOStyleSettingsGroup
+Text=#000000
+LeftMouseUpAction=[!CommandMeasure MeasureIOSettings "BeginColorInput('L')"]
+
+[MeterIOSettingsDriveLSwatch]
+Meter=Shape
+MeterStyle=IOStyleSettingsDriveSwatch|IOStyleSettingsDrive|IOStyleSettingsGroup
+LeftMouseUpAction=[!CommandMeasure MeasureIOSettings "BeginColorInput('L')"]
 
 [MeterIOSettingsDriveMLabel]
 Meter=String
@@ -325,6 +480,17 @@ MeterStyle=StyleUtilitySettingsValue|IOStyleSettingsValue|IOStyleSettingsDrive|I
 Text=Off
 LeftMouseUpAction=[!CommandMeasure MeasureIOSettings "ToggleDrive('M')"]
 
+[MeterIOSettingsDriveMHex]
+Meter=String
+MeterStyle=IOStyleSettingsDriveHex|IOStyleSettingsDrive|IOStyleSettingsGroup
+Text=#000000
+LeftMouseUpAction=[!CommandMeasure MeasureIOSettings "BeginColorInput('M')"]
+
+[MeterIOSettingsDriveMSwatch]
+Meter=Shape
+MeterStyle=IOStyleSettingsDriveSwatch|IOStyleSettingsDrive|IOStyleSettingsGroup
+LeftMouseUpAction=[!CommandMeasure MeasureIOSettings "BeginColorInput('M')"]
+
 [MeterIOSettingsDriveNLabel]
 Meter=String
 MeterStyle=IOStyleSettingsDriveLabel|IOStyleSettingsDrive|IOStyleSettingsGroup
@@ -336,6 +502,17 @@ Meter=String
 MeterStyle=StyleUtilitySettingsValue|IOStyleSettingsValue|IOStyleSettingsDrive|IOStyleSettingsDriveValue|IOStyleSettingsGroup
 Text=Off
 LeftMouseUpAction=[!CommandMeasure MeasureIOSettings "ToggleDrive('N')"]
+
+[MeterIOSettingsDriveNHex]
+Meter=String
+MeterStyle=IOStyleSettingsDriveHex|IOStyleSettingsDrive|IOStyleSettingsGroup
+Text=#000000
+LeftMouseUpAction=[!CommandMeasure MeasureIOSettings "BeginColorInput('N')"]
+
+[MeterIOSettingsDriveNSwatch]
+Meter=Shape
+MeterStyle=IOStyleSettingsDriveSwatch|IOStyleSettingsDrive|IOStyleSettingsGroup
+LeftMouseUpAction=[!CommandMeasure MeasureIOSettings "BeginColorInput('N')"]
 
 [MeterIOSettingsDriveOLabel]
 Meter=String
@@ -349,6 +526,17 @@ MeterStyle=StyleUtilitySettingsValue|IOStyleSettingsValue|IOStyleSettingsDrive|I
 Text=Off
 LeftMouseUpAction=[!CommandMeasure MeasureIOSettings "ToggleDrive('O')"]
 
+[MeterIOSettingsDriveOHex]
+Meter=String
+MeterStyle=IOStyleSettingsDriveHex|IOStyleSettingsDrive|IOStyleSettingsGroup
+Text=#000000
+LeftMouseUpAction=[!CommandMeasure MeasureIOSettings "BeginColorInput('O')"]
+
+[MeterIOSettingsDriveOSwatch]
+Meter=Shape
+MeterStyle=IOStyleSettingsDriveSwatch|IOStyleSettingsDrive|IOStyleSettingsGroup
+LeftMouseUpAction=[!CommandMeasure MeasureIOSettings "BeginColorInput('O')"]
+
 [MeterIOSettingsDrivePLabel]
 Meter=String
 MeterStyle=IOStyleSettingsDriveLabel|IOStyleSettingsDrive|IOStyleSettingsGroup
@@ -360,6 +548,17 @@ Meter=String
 MeterStyle=StyleUtilitySettingsValue|IOStyleSettingsValue|IOStyleSettingsDrive|IOStyleSettingsDriveValue|IOStyleSettingsGroup
 Text=Off
 LeftMouseUpAction=[!CommandMeasure MeasureIOSettings "ToggleDrive('P')"]
+
+[MeterIOSettingsDrivePHex]
+Meter=String
+MeterStyle=IOStyleSettingsDriveHex|IOStyleSettingsDrive|IOStyleSettingsGroup
+Text=#000000
+LeftMouseUpAction=[!CommandMeasure MeasureIOSettings "BeginColorInput('P')"]
+
+[MeterIOSettingsDrivePSwatch]
+Meter=Shape
+MeterStyle=IOStyleSettingsDriveSwatch|IOStyleSettingsDrive|IOStyleSettingsGroup
+LeftMouseUpAction=[!CommandMeasure MeasureIOSettings "BeginColorInput('P')"]
 
 [MeterIOSettingsDriveQLabel]
 Meter=String
@@ -373,6 +572,17 @@ MeterStyle=StyleUtilitySettingsValue|IOStyleSettingsValue|IOStyleSettingsDrive|I
 Text=Off
 LeftMouseUpAction=[!CommandMeasure MeasureIOSettings "ToggleDrive('Q')"]
 
+[MeterIOSettingsDriveQHex]
+Meter=String
+MeterStyle=IOStyleSettingsDriveHex|IOStyleSettingsDrive|IOStyleSettingsGroup
+Text=#000000
+LeftMouseUpAction=[!CommandMeasure MeasureIOSettings "BeginColorInput('Q')"]
+
+[MeterIOSettingsDriveQSwatch]
+Meter=Shape
+MeterStyle=IOStyleSettingsDriveSwatch|IOStyleSettingsDrive|IOStyleSettingsGroup
+LeftMouseUpAction=[!CommandMeasure MeasureIOSettings "BeginColorInput('Q')"]
+
 [MeterIOSettingsDriveRLabel]
 Meter=String
 MeterStyle=IOStyleSettingsDriveLabel|IOStyleSettingsDrive|IOStyleSettingsGroup
@@ -384,6 +594,17 @@ Meter=String
 MeterStyle=StyleUtilitySettingsValue|IOStyleSettingsValue|IOStyleSettingsDrive|IOStyleSettingsDriveValue|IOStyleSettingsGroup
 Text=Off
 LeftMouseUpAction=[!CommandMeasure MeasureIOSettings "ToggleDrive('R')"]
+
+[MeterIOSettingsDriveRHex]
+Meter=String
+MeterStyle=IOStyleSettingsDriveHex|IOStyleSettingsDrive|IOStyleSettingsGroup
+Text=#000000
+LeftMouseUpAction=[!CommandMeasure MeasureIOSettings "BeginColorInput('R')"]
+
+[MeterIOSettingsDriveRSwatch]
+Meter=Shape
+MeterStyle=IOStyleSettingsDriveSwatch|IOStyleSettingsDrive|IOStyleSettingsGroup
+LeftMouseUpAction=[!CommandMeasure MeasureIOSettings "BeginColorInput('R')"]
 
 [MeterIOSettingsDriveSLabel]
 Meter=String
@@ -397,6 +618,17 @@ MeterStyle=StyleUtilitySettingsValue|IOStyleSettingsValue|IOStyleSettingsDrive|I
 Text=Off
 LeftMouseUpAction=[!CommandMeasure MeasureIOSettings "ToggleDrive('S')"]
 
+[MeterIOSettingsDriveSHex]
+Meter=String
+MeterStyle=IOStyleSettingsDriveHex|IOStyleSettingsDrive|IOStyleSettingsGroup
+Text=#000000
+LeftMouseUpAction=[!CommandMeasure MeasureIOSettings "BeginColorInput('S')"]
+
+[MeterIOSettingsDriveSSwatch]
+Meter=Shape
+MeterStyle=IOStyleSettingsDriveSwatch|IOStyleSettingsDrive|IOStyleSettingsGroup
+LeftMouseUpAction=[!CommandMeasure MeasureIOSettings "BeginColorInput('S')"]
+
 [MeterIOSettingsDriveTLabel]
 Meter=String
 MeterStyle=IOStyleSettingsDriveLabel|IOStyleSettingsDrive|IOStyleSettingsGroup
@@ -408,6 +640,17 @@ Meter=String
 MeterStyle=StyleUtilitySettingsValue|IOStyleSettingsValue|IOStyleSettingsDrive|IOStyleSettingsDriveValue|IOStyleSettingsGroup
 Text=Off
 LeftMouseUpAction=[!CommandMeasure MeasureIOSettings "ToggleDrive('T')"]
+
+[MeterIOSettingsDriveTHex]
+Meter=String
+MeterStyle=IOStyleSettingsDriveHex|IOStyleSettingsDrive|IOStyleSettingsGroup
+Text=#000000
+LeftMouseUpAction=[!CommandMeasure MeasureIOSettings "BeginColorInput('T')"]
+
+[MeterIOSettingsDriveTSwatch]
+Meter=Shape
+MeterStyle=IOStyleSettingsDriveSwatch|IOStyleSettingsDrive|IOStyleSettingsGroup
+LeftMouseUpAction=[!CommandMeasure MeasureIOSettings "BeginColorInput('T')"]
 
 [MeterIOSettingsDriveULabel]
 Meter=String
@@ -421,6 +664,17 @@ MeterStyle=StyleUtilitySettingsValue|IOStyleSettingsValue|IOStyleSettingsDrive|I
 Text=Off
 LeftMouseUpAction=[!CommandMeasure MeasureIOSettings "ToggleDrive('U')"]
 
+[MeterIOSettingsDriveUHex]
+Meter=String
+MeterStyle=IOStyleSettingsDriveHex|IOStyleSettingsDrive|IOStyleSettingsGroup
+Text=#000000
+LeftMouseUpAction=[!CommandMeasure MeasureIOSettings "BeginColorInput('U')"]
+
+[MeterIOSettingsDriveUSwatch]
+Meter=Shape
+MeterStyle=IOStyleSettingsDriveSwatch|IOStyleSettingsDrive|IOStyleSettingsGroup
+LeftMouseUpAction=[!CommandMeasure MeasureIOSettings "BeginColorInput('U')"]
+
 [MeterIOSettingsDriveVLabel]
 Meter=String
 MeterStyle=IOStyleSettingsDriveLabel|IOStyleSettingsDrive|IOStyleSettingsGroup
@@ -432,6 +686,17 @@ Meter=String
 MeterStyle=StyleUtilitySettingsValue|IOStyleSettingsValue|IOStyleSettingsDrive|IOStyleSettingsDriveValue|IOStyleSettingsGroup
 Text=Off
 LeftMouseUpAction=[!CommandMeasure MeasureIOSettings "ToggleDrive('V')"]
+
+[MeterIOSettingsDriveVHex]
+Meter=String
+MeterStyle=IOStyleSettingsDriveHex|IOStyleSettingsDrive|IOStyleSettingsGroup
+Text=#000000
+LeftMouseUpAction=[!CommandMeasure MeasureIOSettings "BeginColorInput('V')"]
+
+[MeterIOSettingsDriveVSwatch]
+Meter=Shape
+MeterStyle=IOStyleSettingsDriveSwatch|IOStyleSettingsDrive|IOStyleSettingsGroup
+LeftMouseUpAction=[!CommandMeasure MeasureIOSettings "BeginColorInput('V')"]
 
 [MeterIOSettingsDriveWLabel]
 Meter=String
@@ -445,6 +710,17 @@ MeterStyle=StyleUtilitySettingsValue|IOStyleSettingsValue|IOStyleSettingsDrive|I
 Text=Off
 LeftMouseUpAction=[!CommandMeasure MeasureIOSettings "ToggleDrive('W')"]
 
+[MeterIOSettingsDriveWHex]
+Meter=String
+MeterStyle=IOStyleSettingsDriveHex|IOStyleSettingsDrive|IOStyleSettingsGroup
+Text=#000000
+LeftMouseUpAction=[!CommandMeasure MeasureIOSettings "BeginColorInput('W')"]
+
+[MeterIOSettingsDriveWSwatch]
+Meter=Shape
+MeterStyle=IOStyleSettingsDriveSwatch|IOStyleSettingsDrive|IOStyleSettingsGroup
+LeftMouseUpAction=[!CommandMeasure MeasureIOSettings "BeginColorInput('W')"]
+
 [MeterIOSettingsDriveXLabel]
 Meter=String
 MeterStyle=IOStyleSettingsDriveLabel|IOStyleSettingsDrive|IOStyleSettingsGroup
@@ -456,6 +732,17 @@ Meter=String
 MeterStyle=StyleUtilitySettingsValue|IOStyleSettingsValue|IOStyleSettingsDrive|IOStyleSettingsDriveValue|IOStyleSettingsGroup
 Text=Off
 LeftMouseUpAction=[!CommandMeasure MeasureIOSettings "ToggleDrive('X')"]
+
+[MeterIOSettingsDriveXHex]
+Meter=String
+MeterStyle=IOStyleSettingsDriveHex|IOStyleSettingsDrive|IOStyleSettingsGroup
+Text=#000000
+LeftMouseUpAction=[!CommandMeasure MeasureIOSettings "BeginColorInput('X')"]
+
+[MeterIOSettingsDriveXSwatch]
+Meter=Shape
+MeterStyle=IOStyleSettingsDriveSwatch|IOStyleSettingsDrive|IOStyleSettingsGroup
+LeftMouseUpAction=[!CommandMeasure MeasureIOSettings "BeginColorInput('X')"]
 
 [MeterIOSettingsDriveYLabel]
 Meter=String
@@ -469,6 +756,17 @@ MeterStyle=StyleUtilitySettingsValue|IOStyleSettingsValue|IOStyleSettingsDrive|I
 Text=Off
 LeftMouseUpAction=[!CommandMeasure MeasureIOSettings "ToggleDrive('Y')"]
 
+[MeterIOSettingsDriveYHex]
+Meter=String
+MeterStyle=IOStyleSettingsDriveHex|IOStyleSettingsDrive|IOStyleSettingsGroup
+Text=#000000
+LeftMouseUpAction=[!CommandMeasure MeasureIOSettings "BeginColorInput('Y')"]
+
+[MeterIOSettingsDriveYSwatch]
+Meter=Shape
+MeterStyle=IOStyleSettingsDriveSwatch|IOStyleSettingsDrive|IOStyleSettingsGroup
+LeftMouseUpAction=[!CommandMeasure MeasureIOSettings "BeginColorInput('Y')"]
+
 [MeterIOSettingsDriveZLabel]
 Meter=String
 MeterStyle=IOStyleSettingsDriveLabel|IOStyleSettingsDrive|IOStyleSettingsGroup
@@ -480,6 +778,17 @@ Meter=String
 MeterStyle=StyleUtilitySettingsValue|IOStyleSettingsValue|IOStyleSettingsDrive|IOStyleSettingsDriveValue|IOStyleSettingsGroup
 Text=Off
 LeftMouseUpAction=[!CommandMeasure MeasureIOSettings "ToggleDrive('Z')"]
+
+[MeterIOSettingsDriveZHex]
+Meter=String
+MeterStyle=IOStyleSettingsDriveHex|IOStyleSettingsDrive|IOStyleSettingsGroup
+Text=#000000
+LeftMouseUpAction=[!CommandMeasure MeasureIOSettings "BeginColorInput('Z')"]
+
+[MeterIOSettingsDriveZSwatch]
+Meter=Shape
+MeterStyle=IOStyleSettingsDriveSwatch|IOStyleSettingsDrive|IOStyleSettingsGroup
+LeftMouseUpAction=[!CommandMeasure MeasureIOSettings "BeginColorInput('Z')"]
 
 [MeterIOSettingsGraphSection]
 Meter=String

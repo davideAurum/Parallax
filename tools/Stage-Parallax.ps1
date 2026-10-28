@@ -40,6 +40,7 @@ foreach ($path in @(
     '@Resources\Modules\GPU\DiscoverExports.ps1.txt',
     '@Resources\Modules\GPU\AdapterInfo.cs.txt',
     '@Resources\Modules\GPU\DriverTemperature.cs.txt',
+    '@Resources\Modules\IO\DriveColorInput.ps1',
     '@Resources\Modules\IO\DriveModels.ps1.txt',
     '@Resources\Modules\IO\Eject.ps1',
     '@Resources\Modules\RAM\MemoryInfo.ps1.txt',

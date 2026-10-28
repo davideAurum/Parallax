@@ -158,9 +158,9 @@ def check_drive_bank():
             elif field == "Drive":
                 assert options["Text"] == letter + ":", (name, "drive label")
                 assert options["LeftMouseUpAction"] == '["' + letter + ':\\"]', (name, "opens the drive root")
-                assert options["InlineSetting"] == "Underline" and options["InlinePattern"] == "^.:", (name, "link-style letter")
+                assert options["InlineSetting"] == "Underline" and options["InlinePattern"] == "^\\d", (name, "idle name has no underline")
                 assert options["MouseOverAction"] == '[!SetOption ' + name + ' InlinePattern ".*"][!UpdateMeter ' + name + '][!Redraw]', (name, "hover underlines the name")
-                assert options["MouseLeaveAction"] == '[!SetOption ' + name + ' InlinePattern "^.:"][!UpdateMeter ' + name + '][!Redraw]', (name, "leave restores the letter")
+                assert options["MouseLeaveAction"] == '[!SetOption ' + name + ' InlinePattern "^\\d"][!UpdateMeter ' + name + '][!Redraw]', (name, "leave removes the underline")
                 assert options["ClipString"] == "1" and "H" not in options, (name, "one-line automatic height with ellipsis")
             elif field in ("Capacity", "DiskRead", "DiskWrite", "Load"):
                 assert options["ClipString"] == "1" and "H" not in options, (name, "single-line summary cell")
@@ -395,6 +395,25 @@ def check_settings_layout(bounds, sections, variables, scale):
             assert options["Hidden"] == "1" and options["Y"] == "0", (name, "hidden settings drive row must start at Y=0")
             assert options["LeftMouseUpAction"] == '[!CommandMeasure MeasureIOSettings "ToggleDrive(\'' + letter + '\')"]', (name, "drive toggle binding")
         assert "MeterIOSettingsDrive" + letter in cells
+        # Inline overlay color: name | hex box | swatch | On/Off toggle share one row, in that order.
+        base = "MeterIOSettingsDrive" + letter
+        hex_name, swatch_name = base + "Hex", base + "Swatch"
+        color_action = '[!CommandMeasure MeasureIOSettings "BeginColorInput(\'' + letter + '\')"]'
+        for name in (hex_name, swatch_name):
+            options = resolved_options(name, sections)
+            assert options["Hidden"] == "1" and options["Y"] == "0", (name, "hidden settings color cell must start at Y=0")
+            assert options["LeftMouseUpAction"] == color_action, (name, "color editor binding")
+            assert options["Group"] == "IOSettingsUI" and options.get("MouseActionCursor") == "1", (name, "interactive color cell")
+        label, hexbox, swatch, toggle = (bounds[name] for name in (base + "Label", hex_name, swatch_name, base))
+        assert math.isclose(hexbox[2], 66 * scale, abs_tol=.001) and math.isclose(hexbox[3], 20 * scale, abs_tol=.001), (letter, "hex box size")
+        assert math.isclose(swatch[2], 22 * scale, abs_tol=.001) and math.isclose(swatch[3], 20 * scale, abs_tol=.001), (letter, "swatch size")
+        assert math.isclose(toggle[0] + toggle[2], content_right, abs_tol=.001), (letter, "toggle stays flush with the right content edge")
+        assert math.isclose(swatch[0] + swatch[2] + 4 * scale, toggle[0], abs_tol=.001), (letter, "swatch/toggle gap")
+        assert math.isclose(hexbox[0] + hexbox[2] + 4 * scale, swatch[0], abs_tol=.001), (letter, "hex/swatch gap")
+        assert label[0] + label[2] + 6 * scale <= hexbox[0] + .001, (letter, "name/hex clearance")
+        assert math.isclose(hexbox[1], toggle[1], abs_tol=.001) and math.isclose(swatch[1], toggle[1], abs_tol=.001), (letter, "color cells share the toggle row")
+        hex_options = resolved_options(hex_name, sections)
+        assert hex_options["ClipString"] == "1" and hex_options["FontFace"] == "#FontFace#" and hex_options["FontColor"] == "#TextColor#", (letter, "hex text styling")
     assert not any(name.endswith("Row") and "Meter" in section for name, section in sections.items()), "settings must use compact value cells, not full-width row backgrounds"
     check_settings_steppers(bounds, sections, variables, scale)
 

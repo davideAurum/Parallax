@@ -3,7 +3,7 @@
 -- Drive models use the bundled helper only at load or explicit user actions.
 -- No polling or free-form action interpolation.
 -- Only explicit controls persist known values to the module's User include.
-local state, Names
+local state, Names, Colors
 local defaults = {
     IODiskQuota = '0', IODiskUnits = 'bytes', IODiskMaxMiBs = '500',
     IODiskDrives = 'C', IOGraphMode = 'combined', IODriveNames = 'volume'
@@ -101,11 +101,14 @@ local function layout(detected, selected)
     inset = math.max(0, inset)
     gap = math.max(0, gap)
     local cursor = 184
+    state.listed = {}
     for code = string.byte('A'), string.byte('Z') do
         local letter = string.char(code)
         local base = 'MeterIOSettingsDrive' .. letter
         local visible = detected[letter] ~= nil or selected[letter] == true
-        for _, suffix in ipairs({ 'Label', '' }) do
+        state.listed[letter] = visible
+        -- Name, overlay color (hex box and swatch) and the On/Off toggle share one row.
+        for _, suffix in ipairs({ 'Label', '', 'Hex', 'Swatch' }) do
             local meter = base .. suffix
             SKIN:Bang('!SetOption', meter, 'Hidden', visible and '0' or '1')
             if visible then
@@ -174,6 +177,12 @@ local function render()
         local name = Names.Format(SKIN, letter, namesMode())
         text(meter, selected[letter] and 'On' or 'Off')
         text(meter .. 'Label', letter .. ':' .. (name ~= '' and (' ' .. name) or ''))
+        local color = Colors.Get(SKIN, letter)
+        -- Canonical #RRGGBB built here, so it skips text()'s '#' neutralizing.
+        SKIN:Bang('!SetOption', meter .. 'Hex', 'Text', Colors.Hex(color))
+        SKIN:Bang('!SetOption', meter .. 'Swatch', 'Shape',
+            'Rectangle (0.5*#Scale#),(0.5*#Scale#),(21*#Scale#),(19*#Scale#),(2*#Scale#) | Fill Color '
+            .. color .. ' | Stroke Color #BorderColor# | StrokeWidth #Scale#')
     end
     local mode = graphLabels[state.IOGraphMode] and state.IOGraphMode or defaults.IOGraphMode
     text('MeterIOSettingsGraphValue', graphLabels[mode])
@@ -211,6 +220,7 @@ function Initialize()
         state[key] = SKIN:GetVariable(key, value)
     end
     Names = dofile(SKIN:GetVariable('@') .. 'Modules\\IO\\Names.lua')
+    Colors = dofile(SKIN:GetVariable('@') .. 'Modules\\IO\\DriveColors.lua')
     Names.Query(SKIN, namesMode())
 end
 
@@ -359,7 +369,7 @@ function CycleLimit(step)
 end
 
 function BeginLimitInput()
-    if not state or state.editingCap then return false end
+    if not state or state.editingCap or state.editingColor then return false end
     local meter = SKIN:GetMeter('MeterIOSettingsLimitFrame')
     if not meter then return false end
     local current = tonumber(state.IODiskMaxMiBs)
@@ -408,6 +418,55 @@ function FinishLimitInput()
     local stored = value / 1.048576
     if not finite(stored) or stored <= 0 then return false end
     return save({ IODiskMaxMiBs = string.format('%.17g', stored):gsub(',', '.') })
+end
+
+-- A drive's overlay color is edited in place: clicking its hex box or swatch opens
+-- the one-line #RRGGBB input over the box. The helper starts only on that click and
+-- returns data only; the reply is validated here before anything is saved.
+function BeginColorInput(letter)
+    if not state or state.editingCap or state.editingColor
+        or type(letter) ~= 'string' or not letter:match('^[A-Z]$') or not (state.listed or {})[letter] then
+        return false
+    end
+    local meter = SKIN:GetMeter('MeterIOSettingsDrive' .. letter .. 'Hex')
+    if not meter then return false end
+    local scale = math.max(.75, math.min(2, geometryNumber('Scale', 1)))
+    local x, y = SKIN:GetX() + meter:GetX(), SKIN:GetY() + meter:GetY()
+    local width, height = meter:GetW(), meter:GetH()
+    if not finite(x) or not finite(y) or not finite(width) or not finite(height) or width <= 0 or height <= 0
+        or x < -100000 or x > 100000 or y < -100000 or y > 100000 then return false end
+    state.editingColor = letter
+    -- Fixed helper file; the only variable parts are the canonical hex and bounds.
+    local args = string.format('-NoProfile -NonInteractive -STA -WindowStyle Hidden -ExecutionPolicy RemoteSigned -File "DriveColorInput.ps1" -Initial "%s" -X %d -Y %d -Width %d -Height %d -Scale %.4f',
+        Colors.Hex(Colors.Get(SKIN, letter)), math.floor(x), math.floor(y),
+        math.max(40, math.min(2048, math.floor(width))), math.max(12, math.min(512, math.floor(height))), scale)
+    SKIN:Bang('!SetOption', 'MeasureIOSettingsColorInput', 'Parameter', args)
+    SKIN:Bang('!UpdateMeasure', 'MeasureIOSettingsColorInput')
+    SKIN:Bang('!CommandMeasure', 'MeasureIOSettingsColorInput', 'Run')
+    return true
+end
+
+function FinishColorInput()
+    if not state or not state.editingColor then return false end
+    local letter = state.editingColor
+    state.editingColor = nil
+    local ok, output = pcall(function()
+        local measure = SKIN:GetMeasure('MeasureIOSettingsColorInput')
+        return measure and measure:GetStringValue() or ''
+    end)
+    if not ok or type(output) ~= 'string' or #output > 80 then return false end
+    output = output:gsub('[\r\n]+$', '')
+    local value = Colors.Normalize(output:match('^PARALLAX_IO_COLOR_V1|ok|([0-9]+,[0-9]+,[0-9]+)$'), nil)
+    if not value or value == Colors.Get(SKIN, letter) then return false end
+    local key = 'IODriveColor' .. letter
+    SKIN:Bang('!SetVariable', key, value)
+    SKIN:Bang('!WriteKeyValue', 'Variables', key, value, state.userFile)
+    -- Publish to the running monitor and repaint its overlay at once; no refresh.
+    SKIN:Bang('!SetVariableGroup', key, value, 'ParallaxIO')
+    SKIN:Bang('!CommandMeasure', 'MeasureIO', 'ApplyColors()', 'Parallax\\IO')
+    state.notice = 'Saved. Colors show in Overlay graph mode (solid read, dashed write).'
+    render()
+    return true
 end
 
 function Open()

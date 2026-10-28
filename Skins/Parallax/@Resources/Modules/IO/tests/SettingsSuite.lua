@@ -52,6 +52,7 @@ function Suite.run(productionPath)
             refreshes = {}, options = {}, activations = {}, closes = {},
             inventoryRefreshes = {}, modelQueries = {}, namePublishes = {}, mainNamesCalls = {}, types = {}, labels = {},
             inputRuns = {}, inputUpdates = {}, inputOutput = '', inputMeterAvailable = true,
+            colorRuns = {}, colorUpdates = {}, colorPublishes = {}, monitorApplies = {}, colorOutput = '', hexW = 66,
             skinX = 100, skinY = 200, frameW = 104, frameH = 20 }
         for key, value in pairs(vars) do f.persisted[key] = value end
         for code = 65, 90 do f.types[string.char(code)] = 1 end
@@ -68,6 +69,12 @@ function Suite.run(productionPath)
         function skin:GetX() return f.skinX end
         function skin:GetY() return f.skinY end
         function skin:GetMeter(name)
+            if name:match('^MeterIOSettingsDrive[A-Z]Hex$') then
+                if not f.inputMeterAvailable then return nil end
+                return { GetX = function() return 280 end,
+                    GetY = function() return tonumber((f.options[name] or {}).Y) or 304 end,
+                    GetW = function() return f.hexW end, GetH = function() return 20 end }
+            end
             assert(name == 'MeterIOSettingsLimitFrame', 'numeric editor requested an unexpected meter')
             if not f.inputMeterAvailable then return nil end
             return { GetX = function() return 150 end,
@@ -77,6 +84,9 @@ function Suite.run(productionPath)
         function skin:GetMeasure(name)
             if name == 'MeasureIOSettingsNumberInput' then
                 return { GetStringValue = function() return f.inputOutput end }
+            end
+            if name == 'MeasureIOSettingsColorInput' then
+                return { GetStringValue = function() return f.colorOutput end }
             end
             if name == 'MeasureIOModelQuery' then
                 return { GetStringValue = function() return f.modelOutput end }
@@ -99,34 +109,44 @@ function Suite.run(productionPath)
                 local textOption = args[2] == 'Text'
                 local drivePart = args[1]:match('^MeterIOSettingsDrive[A-Z]$')
                     or args[1]:match('^MeterIOSettingsDrive[A-Z]Label$')
+                    or args[1]:match('^MeterIOSettingsDrive[A-Z]Hex$')
+                    or args[1]:match('^MeterIOSettingsDrive[A-Z]Swatch$')
+                local swatchShape = args[1]:match('^MeterIOSettingsDrive[A-Z]Swatch$') and args[2] == 'Shape'
                 local quotaPart = args[1] == 'MeterIOSettingsQuotaLabel'
                     or args[1] == 'MeterIOSettingsQuotaValue'
                 local limitArrow = args[1] == 'MeterIOSettingsLimitDecrease' or args[1] == 'MeterIOSettingsLimitIncrease'
                 local arrowOption = limitArrow and (args[2] == 'FontColor' or args[2] == 'MouseActionCursor' or args[2] == 'LeftMouseUpAction')
-                local inputOption = args[1] == 'MeasureIOSettingsNumberInput' and args[2] == 'Parameter'
+                local inputOption = (args[1] == 'MeasureIOSettingsNumberInput' or args[1] == 'MeasureIOSettingsColorInput')
+                    and args[2] == 'Parameter'
                 local geometryOption = args[1]:match('^MeterIOSettings') and args[2] == 'Y'
                     or (drivePart or quotaPart) and args[2] == 'Hidden'
                     or args[1] == 'MeterBounds' and args[2] == 'H'
-                assert(textOption or geometryOption or arrowOption or inputOption, 'unsupported settings option mutation')
+                assert(textOption or geometryOption or arrowOption or inputOption or swatchShape, 'unsupported settings option mutation')
                 assert(type(args[3]) == 'string', 'display and geometry values must be strings')
                 f.options[args[1]] = f.options[args[1]] or {}
                 f.options[args[1]][args[2]] = args[3]
             elseif command == '!SetVariable' then
-                assert(allowed[args[1]] or args[1] == 'PanelHeightPx',
+                assert(allowed[args[1]] or args[1] == 'PanelHeightPx' or args[1]:match('^IODriveColor[A-Z]$'),
                     'non-IO or unsupported variable mutation')
                 assert(type(args[2]) == 'string', 'variable value must be a string')
                 assert(select('#', ...) == 2, 'variable update must target only this settings skin')
                 vars[args[1]] = args[2]
             elseif command == '!SetVariableGroup' then
-                assert(select('#', ...) == 3 and args[1] == 'IODriveNames' and args[3] == 'ParallaxIO',
-                    'name publication escaped the IO variable/group')
-                assert(args[2] == 'letters' or args[2] == 'volume' or args[2] == 'model' or args[2] == 'both',
-                    'name publication must use an allowlisted mode')
-                f.namePublishes[#f.namePublishes + 1] = args[2]
+                assert(select('#', ...) == 3 and args[3] == 'ParallaxIO'
+                    and (args[1] == 'IODriveNames' or args[1]:match('^IODriveColor[A-Z]$')),
+                    'publication escaped the IO variable/group')
+                if args[1] == 'IODriveNames' then
+                    assert(args[2] == 'letters' or args[2] == 'volume' or args[2] == 'model' or args[2] == 'both',
+                        'name publication must use an allowlisted mode')
+                    f.namePublishes[#f.namePublishes + 1] = args[2]
+                else
+                    assert(args[2]:match('^%d+,%d+,%d+$'), 'color publication must be canonical R,G,B')
+                    f.colorPublishes[#f.colorPublishes + 1] = { key = args[1], value = args[2] }
+                end
             elseif command == '!WriteKeyValue' then
                 assert(select('#', ...) == 4, 'write requires exact scalar arguments')
                 assert(args[1] == 'Variables', 'write must use the Variables section')
-                assert(allowed[args[2]], 'non-IO or unsupported key persisted')
+                assert(allowed[args[2]] or args[2]:match('^IODriveColor[A-Z]$'), 'non-IO or unsupported key persisted')
                 assert(type(args[3]) == 'string', 'persisted value must be a string')
                 assert(not args[3]:find('[%c#%[%]]'), 'unsafe syntax in persisted value')
                 assert(args[4] == userFile, 'write escaped User/IO.inc')
@@ -160,20 +180,32 @@ function Suite.run(productionPath)
                     assert(args[2] == 'Run', 'helper dispatch must use the fixed Run command')
                     if args[1] == 'MeasureIOSettingsNumberInput' then
                         f.inputRuns[#f.inputRuns + 1] = args[1]
+                    elseif args[1] == 'MeasureIOSettingsColorInput' then
+                        f.colorRuns[#f.colorRuns + 1] = f.options.MeasureIOSettingsColorInput.Parameter
                     else
                         assert(args[1] == 'MeasureIOModelQuery', 'unexpected local helper target')
                         f.modelQueries[#f.modelQueries + 1] = { target = args[1], action = args[2] }
                     end
                 else
                     assert(select('#', ...) == 3 and args[1] == 'MeasureIO' and args[3] == 'Parallax\\IO'
-                        and (args[2] == 'ApplyNamesMode()' or args[2] == 'RefreshNamesInventory()'),
-                        'name update must use a fixed callback in the monitor config')
-                    f.mainNamesCalls[#f.mainNamesCalls + 1] = args[2]
+                        and (args[2] == 'ApplyNamesMode()' or args[2] == 'RefreshNamesInventory()'
+                            or args[2] == 'ApplyColors()'),
+                        'monitor update must use a fixed callback in the monitor config')
+                    if args[2] == 'ApplyColors()' then
+                        f.monitorApplies[#f.monitorApplies + 1] = args[2]
+                    else
+                        f.mainNamesCalls[#f.mainNamesCalls + 1] = args[2]
+                    end
                 end
             elseif command == '!UpdateMeasure' then
-                assert(select('#', ...) == 1 and args[1] == 'MeasureIOSettingsNumberInput',
-                    'numeric input must update only its fixed local result measure')
-                f.inputUpdates[#f.inputUpdates + 1] = args[1]
+                assert(select('#', ...) == 1 and (args[1] == 'MeasureIOSettingsNumberInput'
+                    or args[1] == 'MeasureIOSettingsColorInput'),
+                    'input must update only its fixed local result measure')
+                if args[1] == 'MeasureIOSettingsColorInput' then
+                    f.colorUpdates[#f.colorUpdates + 1] = args[1]
+                else
+                    f.inputUpdates[#f.inputUpdates + 1] = args[1]
+                end
             elseif command == '!UpdateMeter' then
                 assert(select('#', ...) == 1 and (args[1] == 'MeterBounds' or args[1] == 'MeterPanel'),
                     'meter update escaped the settings bounds and panel')
@@ -191,8 +223,10 @@ function Suite.run(productionPath)
             { __index = _G })
         env._G = env
         env.dofile = function(path)
-            assert(path == resourceRoot .. 'Modules\\IO\\Names.lua', 'settings loaded an unexpected script')
-            local namesPath, replaced = productionPath:gsub('Settings%.lua$', 'Names.lua')
+            assert(path == resourceRoot .. 'Modules\\IO\\Names.lua'
+                or path == resourceRoot .. 'Modules\\IO\\DriveColors.lua', 'settings loaded an unexpected script')
+            local sibling = path:match('DriveColors%.lua$') and 'DriveColors.lua' or 'Names.lua'
+            local namesPath, replaced = productionPath:gsub('Settings%.lua$', sibling)
             assert(replaced == 1, 'production settings path must identify Settings.lua')
             local namesChunk, namesError = loadfile(namesPath)
             assert(namesChunk, namesError)
@@ -206,7 +240,8 @@ function Suite.run(productionPath)
         for _, name in ipairs({ 'Initialize', 'Update', 'Toggle', 'CycleUnits',
             'CycleLimit', 'Open', 'Apply', 'Close', 'ToggleDrive', 'SelectAllDrives',
             'SelectCDrive', 'ToggleAllDrives', 'CycleGraphMode', 'RefreshInventory',
-            'CycleNamesMode', 'NamesReady', 'BeginLimitInput', 'FinishLimitInput' }) do
+            'CycleNamesMode', 'NamesReady', 'BeginLimitInput', 'FinishLimitInput',
+            'BeginColorInput', 'FinishColorInput' }) do
             assert(type(env[name]) == 'function', 'settings entrypoint missing: ' .. name)
         end
         f.env = env
@@ -216,6 +251,7 @@ function Suite.run(productionPath)
             self.modelQueries = {}
             self.namePublishes, self.mainNamesCalls = {}, {}
             self.inputRuns, self.inputUpdates = {}, {}
+            self.colorRuns, self.colorUpdates, self.colorPublishes, self.monitorApplies = {}, {}, {}, {}
         end
         function f:reload() return fixture(self.persisted, self.types, nil, { labels = self.labels, modelOutput = self.modelOutput }) end
         function f:text(meter) return (self.options[meter] or {}).Text end
@@ -237,6 +273,10 @@ function Suite.run(productionPath)
         equal(#f.mainNamesCalls, 0, 'unexpected monitor names callback')
         equal(#f.inputRuns, 0, 'unexpected numeric editor process')
         equal(#f.inputUpdates, 0, 'unexpected numeric input update')
+        equal(#f.colorRuns, 0, 'unexpected color editor process')
+        equal(#f.colorUpdates, 0, 'unexpected color input update')
+        equal(#f.colorPublishes, 0, 'unexpected color publication')
+        equal(#f.monitorApplies, 0, 'unexpected monitor color callback')
     end
 
     local function saved(f, expected)
@@ -1015,6 +1055,109 @@ function Suite.run(productionPath)
         equal(#f.closes, 0)
     end)
 
+    test('each listed drive shows its overlay color hex and swatch on its own row', function()
+        local f = fixture({ IODiskDrives = 'C,F', IODriveColorF = '#FF8000', IODriveColorD = 'bad' },
+            { C = 4, D = 3, F = 6 })
+        local Colors = dofile((productionPath:gsub('Settings%.lua$', 'DriveColors.lua')))
+        for code = 65, 90 do
+            local letter = string.char(code)
+            local base = 'MeterIOSettingsDrive' .. letter
+            local listed = letter == 'C' or letter == 'D' or letter == 'F'
+            for _, part in ipairs({ 'Hex', 'Swatch' }) do
+                equal(tonumber((f.options[base .. part] or {}).Hidden or '1'), listed and 0 or 1, base .. part .. ' visibility')
+            end
+            if listed then
+                -- One row: the name, hex box, swatch and toggle share a Y, so the color sits beside its drive.
+                local y = numericOption(f, base, 'Y')
+                equal(numericOption(f, base .. 'Hex', 'Y'), y, letter .. ' hex row')
+                equal(numericOption(f, base .. 'Swatch', 'Y'), y, letter .. ' swatch row')
+                equal(numericOption(f, base .. 'Label', 'Y'), y + 2, letter .. ' name row')
+            else
+                equal(numericOption(f, base .. 'Hex', 'Y'), 0)
+                equal(numericOption(f, base .. 'Swatch', 'Y'), 0)
+            end
+        end
+        -- A saved color wins; an invalid or absent one shows the letter's fixed default.
+        equal(f:text('MeterIOSettingsDriveFHex'), '#FF8000')
+        check(f.options.MeterIOSettingsDriveFSwatch.Shape:find('Fill Color 255,128,0', 1, true), 'swatch fill')
+        equal(f:text('MeterIOSettingsDriveDHex'), Colors.Hex(Colors.Default('D')), 'invalid saved color falls back')
+        equal(f:text('MeterIOSettingsDriveCHex'), Colors.Hex(Colors.Default('C')))
+        idle(f)
+    end)
+
+    local function colorSubmission(f, letter, output)
+        f:clear()
+        equal(f.env.BeginColorInput(letter), true)
+        f:clear()
+        f.colorOutput = type(output) == 'function' and output() or output
+        return f.env.FinishColorInput()
+    end
+
+    test('clicking a drive color opens one fixed hex editor over its box', function()
+        local f = fixture({ IODiskDrives = 'C,D' }, { C = 4, D = 3 })
+        for _, bad in ipairs({ 'Z', 'c', '', 'CD', 3, false }) do
+            equal(f.env.BeginColorInput(bad), false, 'refused ' .. tostring(bad))
+        end
+        idle(f)
+        equal(f.env.BeginColorInput('D'), true)
+        equal(#f.colorRuns, 1)
+        equal(#f.colorUpdates, 1)
+        local args = f.colorRuns[1]
+        check(args:find('-File "DriveColorInput.ps1" -Initial "#', 1, true), 'fixed helper file')
+        check(args:find('-X 380 -Y ', 1, true), 'x from the hex box')
+        check(args:find('-Width 66 -Height 20 -Scale 1.0000', 1, true), 'bounds from the hex box')
+        check(args:find('-ExecutionPolicy RemoteSigned', 1, true), 'same policy as the numeric editor')
+        equal(f.env.BeginColorInput('C'), false, 'a second color edit waits for the first')
+        equal(f.env.BeginLimitInput(), false, 'the cap editor waits for the color editor')
+        equal(#f.colorRuns, 1)
+        local narrow = fixture({ IODiskDrives = 'C' }, { C = 4 })
+        narrow.hexW = 40
+        equal(narrow.env.BeginColorInput('C'), true)
+        check(narrow.colorRuns[1]:find('-Width 40 ', 1, true), 'minimum width')
+        local gone = fixture({ IODiskDrives = 'C' }, { C = 4 })
+        gone.inputMeterAvailable = false
+        equal(gone.env.BeginColorInput('C'), false, 'missing meter')
+    end)
+
+    test('a valid color persists, publishes to the monitor group and repaints Disk Meter once', function()
+        local f = fixture({ IODiskDrives = 'C,D' }, { C = 4, D = 3 })
+        equal(colorSubmission(f, 'D', 'PARALLAX_IO_COLOR_V1|ok|255,128,0\r\n'), true)
+        equal(#f.writes, 1)
+        equal(f.writes[1].key, 'IODriveColorD')
+        equal(f.writes[1].value, '255,128,0')
+        equal(f.persisted.IODriveColorD, '255,128,0')
+        equal(f.vars.IODriveColorD, '255,128,0')
+        equal(#f.colorPublishes, 1)
+        equal(f.colorPublishes[1].key, 'IODriveColorD')
+        equal(#f.monitorApplies, 1, 'the monitor repaints without a refresh')
+        equal(#f.refreshes, 0)
+        equal(#f.mainNamesCalls, 0)
+        equal(f:text('MeterIOSettingsDriveDHex'), '#FF8000')
+        check(f.options.MeterIOSettingsDriveDSwatch.Shape:find('Fill Color 255,128,0', 1, true), 'swatch follows')
+        check(f:text('MeterIOSettingsNotice'):find('Overlay', 1, true), 'notice explains where colors show')
+        local reloaded = f:reload()
+        equal(reloaded:text('MeterIOSettingsDriveDHex'), '#FF8000', 'saved color survives reopening')
+    end)
+
+    test('color results that are cancelled, malformed or unchanged change nothing', function()
+        local Colors = dofile((productionPath:gsub('Settings%.lua$', 'DriveColors.lua')))
+        for _, output in ipairs({ 'PARALLAX_IO_COLOR_V1|cancel|', '', 'PARALLAX_IO_COLOR_V1|ok|256,0,0',
+            'PARALLAX_IO_COLOR_V1|ok|1,2', 'PARALLAX_CPU_COLOR_V1|ok|1,2,3', 'PARALLAX_IO_COLOR_V1|ok|[!Quit]',
+            'PARALLAX_IO_COLOR_V1|ok|1,2,3|extra', 'PARALLAX_IO_COLOR_V1|ok|#Scale#', string.rep('9', 100),
+            function() return 'PARALLAX_IO_COLOR_V1|ok|' .. Colors.Default('C') end }) do
+            local f = fixture({ IODiskDrives = 'C' }, { C = 4 })
+            equal(colorSubmission(f, 'C', output), false)
+            idle(f)
+            equal(f.persisted.IODriveColorC, nil)
+        end
+        local f = fixture({ IODiskDrives = 'C' }, { C = 4 })
+        equal(f.env.FinishColorInput(), false, 'a result is only read after a request')
+        equal(colorSubmission(f, 'C', 'PARALLAX_IO_COLOR_V1|ok|1,2,3'), true)
+        f:clear()
+        equal(f.env.FinishColorInput(), false, 'a result is consumed once')
+        idle(f)
+    end)
+
     test('explicit Apply refreshes the IO group then only its own settings config', function()
         local f = fixture()
         equal(f.env.Apply(), true)
@@ -1093,7 +1236,9 @@ function Suite.run(productionPath)
         for meter, options in pairs(f.options) do
             for key, value in pairs(options) do
                 if key == 'Text' then
-                    check(not value:find('[%c#%[%]]'), meter .. '.' .. key .. ' has expression delimiters')
+                    -- A drive's color hex is canonical #RRGGBB built from validated numbers, never saved text.
+                    local hexCell = meter:match('^MeterIOSettingsDrive[A-Z]Hex$') and value:match('^#%x%x%x%x%x%x$')
+                    check(hexCell or not value:find('[%c#%[%]]'), meter .. '.' .. key .. ' has expression delimiters')
                 end
             end
         end

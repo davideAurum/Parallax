@@ -24,7 +24,7 @@ Every stage creates a fresh `build\Parallax-<version>-<UTC timestamp>-<random>` 
 
 Review `stage-manifest.json` for included paths, SHA-256 hashes, and exclusions. `variables-files.txt` gives the exact preservation field for this stage. Only skin source, Lua, supported image/audio/font assets, and text documentation are allowed by default. Hidden, private, credential, token, cache, runtime, temporary, and log paths are excluded. Developer and runtime directories are pruned before traversal by both validator and staging; the manifest records excluded directory roots without enumerating their contents. Reparse points in the production tree are rejected. `User` ships only `.inc` files containing clean defaults. A heuristic rejects nonempty credential-shaped INI options without printing their values. These checks cannot detect every secret; inspect release inputs, never stage from a live personalized installation, and keep authentication data outside the distributable tree.
 
-The twenty reviewed helper and build-source path exceptions are exactly these files, relative to `Skins\Parallax`:
+The twenty-one reviewed helper and build-source path exceptions are exactly these files, relative to `Skins\Parallax`:
 
 ```text
 @Resources\Scripts\SettingsInput.ps1
@@ -38,6 +38,7 @@ The twenty reviewed helper and build-source path exceptions are exactly these fi
 @Resources\Modules\GPU\DiscoverExports.ps1.txt
 @Resources\Modules\GPU\AdapterInfo.cs.txt
 @Resources\Modules\GPU\DriverTemperature.cs.txt
+@Resources\Modules\IO\DriveColorInput.ps1
 @Resources\Modules\IO\DriveModels.ps1.txt
 @Resources\Modules\IO\Eject.ps1
 @Resources\Modules\RAM\MemoryInfo.ps1.txt

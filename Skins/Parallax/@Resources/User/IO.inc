@@ -12,5 +12,7 @@ IODiskDrives=C
 IOGraphMode=combined
 ; letters, volume (Windows label), model (device model), or both.
 IODriveNames=volume
+; Optional IODriveColorA through IODriveColorZ values (R,G,B) are saved by the color boxes beside each drive in Disk Meter settings.
+; An absent letter uses its fixed default color in Overlay graph mode.
 IODiskQuota=0
 IODiskMaxMiBs=500

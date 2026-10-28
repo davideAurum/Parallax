@@ -2,8 +2,8 @@
 -- The optional model-name query runs once at initialization, never for telemetry.
 local cache, history, lastObservationTime, shapeCount
 local selected, selectedKey, graphMode, graphDrives, selectionKind
-local capacityEnabled, ratesEnabled, layoutKey
-local Names
+local capacityEnabled, ratesEnabled, layoutKey, graphTop
+local Names, Colors
 -- Slow state (selection, banks, layout, names, capacities) is recomputed only
 -- when its inputs can have changed; see Update. numbers memoizes parsed
 -- numeric variables by their raw text.
@@ -238,16 +238,10 @@ local function syncSelection()
     updateBanks()
 end
 
--- A letter always has the same overlay color, regardless of selection order.
+-- A letter always has the same overlay color, regardless of selection order:
+-- its saved IODriveColor<letter> (Drive Colors editor) or its fixed default.
 local function driveColor(letter)
-    local hue = ((string.byte(letter) - 65) * 0.61803398875 % 1) * 6
-    local sector, fraction = math.floor(hue), hue - math.floor(hue)
-    local value, saturation = 0.95, 0.65
-    local p, q, t = value * (1 - saturation), value * (1 - saturation * fraction), value * (1 - saturation * (1 - fraction))
-    local channels = {{value,t,p},{q,value,p},{p,value,t},{p,q,value},{t,p,value},{value,p,q}}
-    local color = channels[sector + 1]
-    return string.format('%d,%d,%d', math.floor(color[1] * 255 + 0.5),
-        math.floor(color[2] * 255 + 0.5), math.floor(color[3] * 255 + 0.5))
+    return Colors.Get(SKIN, letter)
 end
 
 local function layout()
@@ -345,6 +339,7 @@ local function layout()
     option('MeterIOEmpty', 'Y', inset + 24 * scale)
     visible('MeterIOEmpty', #selected == 0)
     local graphY = inset + (graphBase + legendRows * 18) * scale
+    graphTop = graphY
     option('MeterIODiskGraphTrack', 'Y', graphY)
     option('MeterIODiskGraph', 'Y', graphY)
     option('MeterIODiskGraphTrack', 'Shape3',
@@ -424,12 +419,30 @@ local function observe(sample)
     appendObservation(sample)
 end
 
+-- Split autoscale moves its zero line, and the 0 marker with it, to wherever the
+-- read/write division of the fixed-height graph puts it. Both options are
+-- cached, so a stable split sends nothing. layout() writes the centered
+-- defaults; the graph() call that follows every layout moves them back.
+local function placeZero(zero, scale)
+    local moved = option('MeterIODiskGraphTrack', 'Shape3', string.format(
+        'Line 1,%.3f,(#ContentWidth#-1),%.3f | Stroke Color #MutedColor# | StrokeWidth 1', zero, zero))
+    if graphTop then
+        -- The 14px marker box centers on the zero line.
+        moved = option('MeterIOGraphZero', 'Y', string.format('%.3f', graphTop + zero - 7 * scale)) or moved
+    end
+    if moved then
+        SKIN:Bang('!UpdateMeter', 'MeterIOGraphZero')
+        SKIN:Bang('!UpdateMeter', 'MeterIODiskGraphTrack')
+    end
+end
+
 local function graph()
     local series = {}
     if graphMode == 'overlay' then
         for _, letter in ipairs(graphDrives) do
+            local color = driveColor(letter)
             for _, direction in ipairs({'Read', 'Write'}) do
-                series[#series + 1] = {letter = letter, direction = direction, color = driveColor(letter),
+                series[#series + 1] = {letter = letter, direction = direction, color = color,
                     dashed = direction == 'Write'}
             end
         end
@@ -457,11 +470,38 @@ local function graph()
     local inset = scale and math.max(2, 2 * scale) or 2
     local geometryValid = scale and scale > 0 and width and width > 2 * inset and height > 2 * inset
     local shapes, paths = {}, {}
-    local peak = 0
+    local peak, readPeak, writePeak = 0, 0, 0
     for _, sample in ipairs(history) do
-        for _, trace in ipairs(series) do peak = math.max(peak, valueFor(sample, trace) or 0) end
+        for _, trace in ipairs(series) do
+            local value = valueFor(sample, trace) or 0
+            peak = math.max(peak, value)
+            if trace.direction == 'Read' then readPeak = math.max(readPeak, value)
+            else writePeak = math.max(writePeak, value) end
+        end
     end
     local top = ceiling and math.min(ceiling, math.max(65536, math.min(peak, ceiling) * 1.15)) or nil
+    -- Split autoscale: the graph keeps its height and both directions keep one
+    -- shared scale, but the zero line moves to give the busier direction more of
+    -- it. Each direction needs its own peak plus the usual 15% headroom and
+    -- 65,536-byte/s minimum (within the cap); reads get that share of the usable
+    -- height, held to 25-75% so the quieter side stays readable, in 5% steps so
+    -- the zero line does not shimmer as old peaks scroll out. Quiet or equal
+    -- directions leave zero at the exact frame midpoint.
+    local zero, upPixels, downPixels, perPixel
+    if graphMode == 'split' and ceiling and geometryValid then
+        local function need(value)
+            return math.min(ceiling, math.max(65536, math.min(value, ceiling) * 1.15))
+        end
+        local readNeed, writeNeed = need(readPeak), need(writePeak)
+        local share = readNeed / (readNeed + writeNeed)
+        share = math.floor(math.max(.25, math.min(.75, share)) * 20 + .5) / 20
+        local usable = height - 2 * inset
+        upPixels = usable * share
+        downPixels = usable - upPixels
+        zero = inset + upPixels
+        perPixel = math.max(readNeed / upPixels, writeNeed / downPixels)
+        placeZero(zero, scale)
+    end
     if ceiling and geometryValid then
         width = math.floor(width)
         local step = (width - 2 * inset) / (historySlots - 1)
@@ -474,9 +514,10 @@ local function graph()
                 if value ~= nil then
                     local ratio = math.min(value / top, 1)
                     local y = height - inset - ratio * (height - 2 * inset)
-                    if graphMode == 'split' then
-                        y = height / 2 + (trace.direction == 'Read' and -1 or 1)
-                            * ratio * (height / 2 - inset)
+                    if zero then
+                        local pixels = value / perPixel
+                        y = trace.direction == 'Read' and (zero - math.min(pixels, upPixels))
+                            or (zero + math.min(pixels, downPixels))
                     end
                     points[#points + 1] = {
                         x = inset + (historySlots - #history + index - 1) * step,
@@ -596,7 +637,7 @@ function Initialize()
     for _, letter in ipairs(letters) do cache['IORow' .. letter] = false end
     history, lastObservationTime, shapeCount = {}, nil, 0
     selected, selectedKey, graphMode, graphDrives, selectionKind = {}, nil, nil, {}, 'C'
-    capacityEnabled, ratesEnabled, layoutKey = {}, {}, nil
+    capacityEnabled, ratesEnabled, layoutKey, graphTop = {}, {}, nil, nil
     numbers = {}
     -- Inventory, label and capacity measures share this divider (Inventory.inc,
     -- Native.inc). They update on their first tick after load, then every
@@ -608,6 +649,7 @@ function Initialize()
     inventoryDivider = (divider and divider <= 86400) and divider or 1
     ticks, phases, pendingSlow, slowInputs = -1, { [0] = true }, true, nil
     Names = dofile(variable('@', '') .. 'Modules\\IO\\Names.lua')
+    Colors = dofile(variable('@', '') .. 'Modules\\IO\\DriveColors.lua')
     Names.Query(SKIN, nameMode())
 end
 
@@ -642,6 +684,20 @@ function ApplyNamesMode()
     if not Names then return 0 end
     Names.Query(SKIN, nameMode())
     repaintNameLayout()
+    return 0
+end
+
+-- Called by the Drive Colors editor after it saves a color. Traces re-read the
+-- variables every update; only the overlay legend needs an immediate repaint.
+function ApplyColors()
+    if not Colors or graphMode ~= 'overlay' then return 0 end
+    for _, letter in ipairs(selected) do
+        local legend = 'MeterIOLegend' .. letter
+        if option(legend, 'FontColor', driveColor(letter)) then SKIN:Bang('!UpdateMeter', legend) end
+    end
+    graph()
+    SKIN:Bang('!UpdateMeter', 'MeterIODiskGraph')
+    SKIN:Bang('!Redraw')
     return 0
 end
 

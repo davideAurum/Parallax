@@ -138,6 +138,31 @@ try {
     $r = Invoke-Cli @('-Action', 'Enable', '-SkinsPath', ($skins + '\.'), '-NoPlace')
     Assert-Equal $r.Lines[0] 'RESULT|OK|Enable|0|0|' 'a second Enable adopts the existing copy (no clone)'
 
+    # ---- a new release since the copy was made: Enable rebuilds it, keeping the old copy -------------------------
+    $releaseVersion = (Select-String -LiteralPath (Join-Path $release '@Resources\Version.inc') -Pattern '^ParallaxVersion=(.+)$').Matches[0].Groups[1].Value.Trim()
+    Assert-That ($userSettings -match ('(?m)^ParallaxDevBase=' + [regex]::Escape($releaseVersion) + '\s*$')) 'the copy records the release it was cloned from'
+    Assert-Equal $s['DevBaseVersion'] $releaseVersion 'status: base version'
+    $upgrade = Join-Path $work 'Skins3'
+    $null = New-Item -ItemType Directory -Path $upgrade
+    Copy-Item -LiteralPath $release -Destination (Join-Path $upgrade 'Parallax') -Recurse
+    $null = Invoke-Cli @('-Action', 'Enable', '-SkinsPath', ($upgrade + '\.'), '-NoPlace')
+    $upgradeDev = Join-Path $upgrade 'ParallaxDev'
+    Add-Content -LiteralPath (Join-Path $upgradeDev 'CPU\Marker.inc') -Value '; edit made in the old copy'
+    Edit-Text (Join-Path $upgrade 'Parallax\@Resources\Version.inc') { param($t) $t -replace '(?m)^ParallaxVersion=.*', 'ParallaxVersion=9.9.9-test' }
+    $r = Invoke-Cli @('-Action', 'Enable', '-SkinsPath', ($upgrade + '\.'), '-NoPlace')
+    Assert-Equal $r.Exit 0 'Enable after a release change exits 0'
+    Assert-That ($r.Lines[0] -match 'backup @ParallaxDev-backup-.*; was .*, release is 9\.9\.9-test; rebuilt \d+ files$') 'Enable reports the rebuild (so the panel needs no Rainmeter refresh)'
+    Assert-That ($r.Lines[0] -notmatch 'cloned') 'a rebuild is not reported as a new clone'
+    Assert-That (-not (Test-Path -LiteralPath (Join-Path $upgradeDev 'CPU\Marker.inc'))) 'the rebuilt copy starts from the new release'
+    $kept = @(Get-ChildItem -LiteralPath $upgrade -Directory | Where-Object Name -like '@ParallaxDev-backup-*')
+    Assert-Equal $kept.Count 1 'the old copy was kept as one backup'
+    Assert-That (Test-Path -LiteralPath (Join-Path $kept[0].FullName 'CPU\Marker.inc')) 'the backup holds the edit made in the old copy'
+    Assert-Equal (Get-Status $upgradeDev)['DevBaseVersion'] '9.9.9-test' 'the rebuilt copy is based on the new release'
+    $r = Invoke-Cli @('-Action', 'Enable', '-SkinsPath', ($upgrade + '\.'), '-NoPlace')
+    Assert-Equal $r.Lines[0] 'RESULT|OK|Enable|0|0|' 'an up-to-date copy is not rebuilt again'
+    $r = Invoke-Cli @('-Action', 'Reset', '-SkinsPath', ($upgrade + '\.'), '-NoPlace')
+    Assert-That ($r.Lines[0] -match 'rebuilt \d+ files$') 'Reset rebuilds an up-to-date copy too'
+
     # ---- Compare ----------------------------------------------------------------------------------------------------
     $cpuIni = Join-Path $dev 'CPU\CPU.ini'
     Edit-Text $cpuIni { param($t) $t + "`r`n; edited`r`n" }

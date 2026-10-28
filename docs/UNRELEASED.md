@@ -6,7 +6,7 @@ Where things stand between releases: what is on `main` but not yet in a publishe
 
 ## On main, not in any release
 
-Nothing yet. Everything on `main` is in alpha.11.
+- **Developer mode follow-ups** (2026-10-28): Media's status icon now lines up with its title; developer tooling under `@Resources\Dev` no longer turns every icon red (only utility files, shared files and the hook includes do); and a copy cloned from an earlier release is rebuilt on the next turn-on, with the old one kept as `@ParallaxDev-backup-<time>`. The panel shows `Out of date: from <version>` and gains a **Reset** button. The offline suites (180 Lua, 122 PowerShell) and the isolated native run (24 checks, including the rebuild and Reset with no Rainmeter refresh) pass; none of it has been installed. An isolated test also showed Rainmeter lists `@`-prefixed and hidden-attribute folders, so a shipped dormant copy could not be hidden ([DEVMODE.md](DEVMODE.md)).
 
 ## Open: Stage 1 (prove the upgrade path)
 

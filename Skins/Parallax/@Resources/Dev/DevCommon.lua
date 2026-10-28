@@ -14,7 +14,7 @@ function M.parseStatus(text)
     if type(text) ~= 'string' then return nil end
     local values = {}
     for key, value in text:gmatch('([%w_]+)=([^\r\n]*)') do
-        if key == 'DevReleaseVersion' then
+        if key == 'DevReleaseVersion' or key == 'DevBaseVersion' then
             values[key] = value:gsub('^%s+', ''):gsub('%s+$', '')
         elseif key:match('^Dev') then
             values[key] = tonumber(value)

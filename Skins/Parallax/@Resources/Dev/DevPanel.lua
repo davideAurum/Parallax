@@ -18,7 +18,8 @@ local RUN = 'MeasureDevPanelRun'
 
 local TOGGLE_GROUP = 'DevToggle'
 local COPY_GROUP = 'DevCopyUI'
-local UPDATED = { 'MeterDevCopyValue', 'MeterDevModeValue', 'MeterDevStatus', 'MeterDevCompare', 'MeterDevReport' }
+local UPDATED = { 'MeterDevCopyValue', 'MeterDevModeValue', 'MeterDevStatus', 'MeterDevCompare', 'MeterDevReport', 'MeterDevReset' }
+local resetWasOn = false
 
 function Initialize()
     common = dofile(SKIN:GetVariable('@') .. 'Dev\\DevCommon.lua')
@@ -45,6 +46,15 @@ local function readFile(path)
     return text
 end
 
+-- The release the copy was cloned from, when it is not the installed one. Dev mode rebuilds
+-- such a copy on its next turn-on; the Reset button does it now. Never in the copy itself.
+local function staleBase(status)
+    if isCopy or type(status) ~= 'table' then return nil end
+    local base, installed = status.DevBaseVersion, SKIN:GetVariable('ParallaxVersion', '')
+    if base == nil or base == '' or installed == '' or base == installed then return nil end
+    return base
+end
+
 local EXPLAIN = {
     Foreign = 'ParallaxDev is not a dev copy.',
     NoRelease = 'This release was not found.',
@@ -57,9 +67,11 @@ local function statusText()
     if busy == 'enable' then return 'Creating the copy...', false end
     if busy == 'disable' then return 'Unloading the copy...', false end
     if busy == 'compare' then return 'Comparing...', false end
+    if busy == 'unload' or busy == 'reset' then return 'Rebuilding the copy...', false end
     if note then return note.text, note.error end
     local status = common.parseStatus(readFile(copyFile('Status.inc')))
     if not status then return 'No dev copy yet.', false end
+    if staleBase(status) then return 'Out of date: from ' .. staleBase(status), true end
     local count = common.differingUtilities(status)
     if count == nil then
         return isCopy and 'Not compared yet.' or (mode == '1' and 'Not compared yet.' or 'Dev copy is off.'), false
@@ -82,6 +94,8 @@ local function render()
     local hasCopy = readFile(copyFile('Status.inc')) ~= nil
     SKIN:Bang((hasCopy or isCopy) and '!ShowMeter' or '!HideMeter', 'MeterDevCompare')
     SKIN:Bang(readFile(copyFile('Diff.txt')) ~= nil and '!ShowMeter' or '!HideMeter', 'MeterDevReport')
+    -- Reset rebuilds the copy from the installed release; the copy cannot rebuild itself.
+    SKIN:Bang((hasCopy and not isCopy) and '!ShowMeter' or '!HideMeter', 'MeterDevReset')
     for _, name in ipairs(UPDATED) do SKIN:Bang('!UpdateMeter', name) end
     SKIN:Bang('!Redraw')
 end
@@ -138,6 +152,27 @@ function Compare()
     return run('Compare')
 end
 
+-- Rebuilds the copy from the installed release; the old one is kept as @ParallaxDev-backup-<time>.
+-- With dev mode on, the copy's utilities are unloaded first (the helper moves the folder), then
+-- reloaded from the new copy. No Rainmeter refresh: the folder is replaced in place.
+function Reset()
+    if isCopy or busy then return false end
+    if readFile(copyFile('Status.inc')) == nil then
+        note = { text = 'No dev copy yet.', error = false }
+        render()
+        return false
+    end
+    resetWasOn = (mode == '1')
+    busy = resetWasOn and 'unload' or 'reset'
+    return run(resetWasOn and 'Disable' or 'Reset')
+end
+
+function ResetRun()
+    if isCopy then return false end
+    busy = 'reset'
+    return run('Reset')
+end
+
 function OpenReport()
     local path = copyFile('Diff.txt')
     if path:find('"', 1, true) or readFile(path) == nil then return false end
@@ -161,6 +196,31 @@ function Finished()
         return false
     end
     note = nil
+    if (result.detail or ''):find('rebuilt', 1, true) then
+        note = { text = 'Rebuilt from the installed release; the old copy was kept as a backup.', error = false }
+    end
+    if action == 'unload' then
+        -- Step one of Reset with dev mode on: unload the copy's utilities, then rebuild.
+        for _, entry in ipairs(result.configs) do SKIN:Bang('!DeactivateConfig', entry.config) end
+        busy = 'unload'
+        render()
+        SKIN:Bang('[!Delay 800][!CommandMeasure ' .. SELF:GetName() .. ' "ResetRun()"]')
+        return true
+    elseif action == 'reset' then
+        -- Reload the rebuilt copy's utilities only if dev mode was on; the helper lists the
+        -- release's loaded utilities either way.
+        if resetWasOn then
+            for _, entry in ipairs(result.configs) do
+                SKIN:Bang('!ActivateConfig', entry.config, entry.file)
+                if entry.x and entry.y then
+                    SKIN:Bang(string.format('[!Delay 300][!Move %d %d "%s"]', entry.x, entry.y, entry.config))
+                end
+            end
+        end
+        resetWasOn = false
+        render()
+        return true
+    end
     if action == 'enable' then
         saveMode('1')
         if (result.detail or ''):find('cloned', 1, true) then

@@ -5,9 +5,10 @@
 #   RESULT|OK|<action>|<changed files>|<utilities that differ>|<detail>
 #   RESULT|ERR|<code>|<message>            (exit code 1)
 #   CONFIG|<config>|<ini file>|<x or ->|<y or ->     configs to load (Enable, Reset) or unload (Disable)
-# Actions: Enable (create the copy if missing, compare, list configs to load), Disable (list configs
-# to unload; files stay), Compare, Sync (mirror -SourceRoot into the copy, then compare), Reset (set the
-# copy aside as @ParallaxDev-backup-<time> and clone the release again).
+# Actions: Enable (create the copy if missing, rebuild it when it was cloned from an earlier release,
+# compare, list configs to load), Disable (list configs to unload; files stay), Compare, Sync (mirror
+# -SourceRoot into the copy, then compare), Reset (set the copy aside as @ParallaxDev-backup-<time> and
+# clone the release again).
 [CmdletBinding()]
 param(
     [Parameter(Mandatory)][ValidateSet('Enable', 'Disable', 'Compare', 'Sync', 'Reset')][string]$Action,

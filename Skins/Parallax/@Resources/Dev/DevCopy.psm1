@@ -216,6 +216,24 @@ function Test-ParallaxDevIdentity {
     return [regex]::IsMatch((Read-ParallaxDevText ([IO.File]::ReadAllBytes($path))).Text, '(?im)^ParallaxDevBuild=1[ \t]*\r?$')
 }
 
+# The release version the copy was cloned from (ParallaxDevBase); a copy made before
+# that key existed falls back to its own Version.inc.
+function Get-ParallaxDevBase {
+    param([Parameter(Mandatory)][string]$DevRoot)
+    $path = Join-Path $DevRoot $script:IdentityPath
+    if (Test-Path -LiteralPath $path -PathType Leaf) {
+        $match = [regex]::Match((Read-ParallaxDevText ([IO.File]::ReadAllBytes($path))).Text, '(?m)^ParallaxDevBase=([^\r\n]+)')
+        if ($match.Success) { return $match.Groups[1].Value.Trim() }
+    }
+    return Get-ParallaxDevVersion $DevRoot
+}
+
+# True when the installed release is not the one the copy was cloned from.
+function Test-ParallaxDevStale {
+    param([Parameter(Mandatory)][string]$ReleaseRoot, [Parameter(Mandatory)][string]$DevRoot)
+    return (Get-ParallaxDevBase $DevRoot) -ne (Get-ParallaxDevVersion $ReleaseRoot)
+}
+
 function Set-ParallaxDevIdentity {
     param([Parameter(Mandatory)][string]$DevRoot, [switch]$StopUpdateChecks)
     $path = Join-Path $DevRoot $script:IdentityPath
@@ -250,8 +268,8 @@ function Remove-ParallaxDevTemp {
 
 # ---- clone and mirror --------------------------------------------------------
 
-# Builds the copy beside a temporary name (an @-folder, which Rainmeter does not
-# list as a skin) and moves it into place whole, so a failure leaves no
+# Builds the copy beside a temporary name (an @-folder; Rainmeter lists those too, but
+# the name is not ParallaxDev) and moves it into place whole, so a failure leaves no
 # half-copied ParallaxDev behind.
 function New-ParallaxDevCopy {
     param([Parameter(Mandatory)][string]$ReleaseRoot, [Parameter(Mandatory)][string]$DevRoot)
@@ -268,6 +286,9 @@ function New-ParallaxDevCopy {
             Write-ParallaxDevFile $temp $relative $bytes $item.LastWriteTimeUtc
         }
         Set-ParallaxDevIdentity $temp -StopUpdateChecks
+        # The release this copy was cloned from. A sync never changes it (User files are kept),
+        # so it still says which release the copy is based on after the repository is mirrored in.
+        Set-ParallaxDevIncValue (Join-Path $temp $script:IdentityPath) 'ParallaxDevBase' (Get-ParallaxDevVersion $ReleaseRoot)
         [IO.Directory]::Move($temp, $DevRoot)
     } catch {
         Remove-ParallaxDevTemp $temp $skins
@@ -349,6 +370,7 @@ function Write-ParallaxDevStatus {
         '; Written by @Resources\Dev\DevMode.ps1 (Compare) and read by DevStatus.lua. Not a' + $eol +
         '; preference; the comparison ignores it.' + $eol + '[Variables]' + $eol +
         'DevComparedAt=' + $now.ToUnixTimeSeconds() + $eol + 'DevReleaseVersion=' + $ReleaseVersion + $eol +
+        'DevBaseVersion=' + (Get-ParallaxDevBase $DevRoot) + $eol +
         'DevDiffTotal=' + @($Changes).Count + $eol + 'DevDiffShared=' + $counts['Shared'] + $eol + 'DevDiffSuite=' + $counts['Suite'] + $eol
     foreach ($monitor in $script:Monitors) { $status += "DevDiff$monitor=" + $counts[$monitor] + $eol }
     $report = "Parallax developer copy against release $ReleaseVersion$eol" +
@@ -494,15 +516,25 @@ function Invoke-ParallaxDev {
         Assert-ParallaxDevRelease $paths.Release
         $detail = ''
         if ($Action -in 'Enable', 'Sync', 'Reset') {
-            if ($Action -eq 'Reset' -and (Test-Path -LiteralPath $paths.Dev)) {
+            # Reset always rebuilds an existing copy; Enable rebuilds one that was cloned from an
+            # earlier release (an install since), so the copy is never silently out of date.
+            $rebuild = $false
+            if (Test-Path -LiteralPath $paths.Dev) {
+                if ($Action -eq 'Reset') { $rebuild = $true }
+                elseif ($Action -eq 'Enable' -and (Test-ParallaxDevIdentity $paths.Dev) -and (Test-ParallaxDevStale $paths.Release $paths.Dev)) { $rebuild = $true }
+            }
+            if ($rebuild) {
                 if (-not (Test-ParallaxDevIdentity $paths.Dev)) { throw "Foreign|$($paths.Dev) is not a Parallax developer copy." }
+                $was = Get-ParallaxDevBase $paths.Dev
                 $backup = Join-Path $paths.Skins ('@' + $paths.DevName + '-backup-' + (Get-Date -Format 'yyyyMMddTHHmmss'))
                 [IO.Directory]::Move($paths.Dev, $backup)
-                $detail = 'backup ' + [IO.Path]::GetFileName($backup)
+                $detail = 'backup ' + [IO.Path]::GetFileName($backup) + "; was $was, release is " + (Get-ParallaxDevVersion $paths.Release)
             }
             if (-not (Test-Path -LiteralPath $paths.Dev)) {
                 $count = New-ParallaxDevCopy $paths.Release $paths.Dev
-                $detail = (@($detail, "cloned $count files") | Where-Object { $_ }) -join '; '
+                # 'rebuilt' replaces a folder Rainmeter already lists, so it needs no refresh; 'cloned' is new.
+                $word = if ($rebuild) { 'rebuilt' } else { 'cloned' }
+                $detail = (@($detail, "$word $count files") | Where-Object { $_ }) -join '; '
             } elseif (-not (Test-ParallaxDevIdentity $paths.Dev)) {
                 throw "Foreign|$($paths.Dev) exists but is not a Parallax developer copy."
             }
@@ -571,7 +603,7 @@ function Invoke-ParallaxDev {
 }
 
 Export-ModuleMember -Function Get-ParallaxDevMonitors, Read-ParallaxDevText, ConvertTo-ParallaxDevBytes, ConvertTo-ParallaxDevRewrite,
-    Get-ParallaxDevHash, Get-ParallaxDevPaths, Get-ParallaxDevFiles, Get-ParallaxDevArea, Test-ParallaxDevTooling, Get-ParallaxDevVersion,
+    Get-ParallaxDevHash, Get-ParallaxDevPaths, Get-ParallaxDevFiles, Get-ParallaxDevArea, Test-ParallaxDevTooling, Get-ParallaxDevVersion, Get-ParallaxDevBase, Test-ParallaxDevStale,
     Set-ParallaxDevIncValue, Test-ParallaxDevIdentity, Set-ParallaxDevIdentity, New-ParallaxDevCopy, Sync-ParallaxDevCopy,
     Compare-ParallaxDev, Write-ParallaxDevStatus, Get-ParallaxDevActiveConfigs, Get-ParallaxDevConfigFile,
     Get-ParallaxDevPlacements, Get-ParallaxDevLiveWindows, Get-ParallaxDevWorkAreas, Invoke-ParallaxDev

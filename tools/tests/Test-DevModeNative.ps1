@@ -193,9 +193,34 @@ try {
     Send-Bang '!CommandMeasure MeasureDevPanel "ToggleDev(-1)" "Parallax\Settings"'
     Wait-Until { @(Get-OwnWindows | Where-Object { $_.Config -like 'ParallaxDev\*' }).Count -eq 0 } 60 'the copy''s utilities to unload'
     Assert-That (Test-Path -LiteralPath $dev) 'the copy''s files stay'
+    # The key is written by a bang queued just before the unload, so allow it a moment.
+    Wait-Until { (Get-Content -LiteralPath (Join-Path $release '@Resources\User\Settings.inc') -Raw) -match '(?m)^DevMode=0' } 15 'DevMode=0 to be saved'
     Assert-That ((Get-Content -LiteralPath (Join-Path $release '@Resources\User\Settings.inc') -Raw) -match '(?m)^DevMode=0') 'DevMode=0 saved'
     Assert-That (@(Get-OwnWindows | Where-Object { $_.Config -like 'Parallax\*' }).Count -eq ($Modules.Count + 1)) 'the release windows are untouched'
     Save-Capture (Get-OwnWindows | Where-Object Config -eq 'Parallax\Settings') 'settings-off-again' | Out-Null
+
+    # ---- a new release since the copy was made: Dev mode On rebuilds it in place, with no Rainmeter refresh -----------
+    $refreshes = { @(Read-Log | Where-Object { $_ -match 'Harness\\Harness\.ini: Refreshing skin' }).Count }
+    $refreshesBefore = & $refreshes
+    $versionInc = Join-Path $release '@Resources\Version.inc'
+    [IO.File]::WriteAllText($versionInc, [regex]::Replace([IO.File]::ReadAllText($versionInc), '(?m)^ParallaxVersion=.*', 'ParallaxVersion=9.9.9-native'))
+    Add-Content -LiteralPath (Join-Path $dev 'CPU\Marker.inc') -Value '; edit in the old copy'
+    Send-Bang '!CommandMeasure MeasureDevPanel "ToggleDev(1)" "Parallax\Settings"'
+    Wait-Until { @(Get-OwnWindows | Where-Object { $_.Config -like 'ParallaxDev\*' }).Count -eq $Modules.Count } 90 'the rebuilt copy''s utilities to load'
+    Assert-That (-not (Test-Path -LiteralPath (Join-Path $dev 'CPU\Marker.inc'))) 'the copy was rebuilt from the new release'
+    Assert-That (@(Get-ChildItem -LiteralPath $skins -Directory | Where-Object Name -like '@ParallaxDev-backup-*').Count -eq 1) 'the old copy was kept as a backup'
+    Assert-That ((Get-Content -LiteralPath (Join-Path $dev '@Resources\User\Settings.inc') -Raw) -match '(?m)^ParallaxDevBase=9\.9\.9-native') 'the rebuilt copy is based on the new release'
+    Assert-That ((& $refreshes) -eq $refreshesBefore) 'a rebuild needed no Rainmeter refresh'
+
+    # ---- the Reset button with dev mode on: unload, rebuild, reload ------------------------------------------------------
+    Add-Content -LiteralPath (Join-Path $dev 'CPU\Marker.inc') -Value '; edit before Reset'
+    Send-Bang '!CommandMeasure MeasureDevPanel "Reset()" "Parallax\Settings"'
+    Wait-Until { @(Get-ChildItem -LiteralPath $skins -Directory | Where-Object Name -like '@ParallaxDev-backup-*').Count -eq 2 } 90 'Reset to back the copy up'
+    Wait-Until { @(Get-OwnWindows | Where-Object { $_.Config -like 'ParallaxDev\*' }).Count -eq $Modules.Count } 90 'the reset copy''s utilities to reload'
+    Assert-That (-not (Test-Path -LiteralPath (Join-Path $dev 'CPU\Marker.inc'))) 'Reset rebuilt the copy'
+    Assert-That ((& $refreshes) -eq $refreshesBefore) 'Reset needed no Rainmeter refresh'
+    Send-Bang '!CommandMeasure MeasureDevPanel "ToggleDev(-1)" "Parallax\Settings"'
+    Wait-Until { @(Get-OwnWindows | Where-Object { $_.Config -like 'ParallaxDev\*' }).Count -eq 0 } 60 'the copy''s utilities to unload again'
     $problems = @(Read-Log | Where-Object { $_ -match '^(ERRO|WARN)' })
     foreach ($line in $problems) { Write-Host "  log: $line" }
     Assert-That (@($problems | Where-Object { $_ -match '^ERRO' }).Count -eq 0) 'the Rainmeter log has no errors'

@@ -37,7 +37,9 @@ local function glyphChecks()
         local pad={}
         for token in target:GetOption('Padding','0,0,0,0'):gmatch('[^,]+') do pad[#pad+1]=math.floor(formula(token)) end
         local aw,ah=target:GetW()-pad[1]-pad[3],target:GetH()-pad[2]-pad[4]
-        if w<=0 or h<=0 or (spec.width and w>aw) or h>ah then
+        -- A blank line (SSID/radio without a Wi-Fi connection) legitimately has no glyphs.
+        local blank=probe:GetOption('Text')==''
+        if (not blank and (w<=0 or h<=0)) or (spec.width and w>aw) or h>ah then
             failures[#failures+1]=string.format('%s:%s=%dx%d/%dx%d',names[target],probe:GetOption('Text'),w,h,aw,ah)
         end
         spec.glyphHeight=h
@@ -90,9 +92,9 @@ local function header()
     assert(icon:GetX(false)+icon:GetW()<=title:GetX(false),'Icon overlaps title')
     assert(title:GetX(false)+title:GetW()<=units:GetX(false),'Title overlaps units')
     assert(units:GetX(false)+units:GetW()<=gear:GetX(false),'Units overlap gear')
-    for _,target in ipairs({units,gear}) do before(target,c('Adapter')) end
+    for _,target in ipairs({units,gear}) do before(target,c('Identity')) end
     for _,spec in ipairs(probes) do
-        if names[spec.target]=='MeterNetworkTitle' then assert(center+math.ceil(spec.glyphHeight/2)<=c('Adapter'):GetY(false)+1,'Title glyphs collide with adapter row') end
+        if names[spec.target]=='MeterNetworkTitle' then assert(center+math.ceil(spec.glyphHeight/2)<=c('Identity'):GetY(false)+1,'Title glyphs collide with identity panel') end
     end
     for index=1,7 do
         local shape=icon:GetOption(index==1 and 'Shape' or 'Shape'..index)
@@ -116,7 +118,7 @@ local function layout()
     local expectedW=columns*(math.floor(cw*scale+0.5)+gap);local expectedH=panelPx+gap
     assert(SKIN:GetW()==expectedW and SKIN:GetH()==expectedH,'Combined native dimensions differ')
     for index=1,SELF:GetNumberOption('MeterCount') do bounds(meter(SELF:GetOption('MeterName'..index)),expectedW,expectedH) end
-    for _,name in ipairs({'MeterConnectionBounds','MeterConnectionPanel','MeterConnectionTitle','MeterConnectionIcon','MeterConnectionWidth','MeterNetworkAdapter'}) do
+    for _,name in ipairs({'MeterConnectionBounds','MeterConnectionPanel','MeterConnectionTitle','MeterConnectionIcon','MeterConnectionWidth','MeterConnectionAdapter','MeterConnectionDescription','MeterConnectionWiFi','MeterNetworkAdapter'}) do
         assert(not SKIN:GetMeter(name),'Combined monitor retains duplicate UI '..name)
     end
     local maximum=SELF:GetOption('Typography')=='maximum'
@@ -130,37 +132,39 @@ local function layout()
         role(n(direction..'Ceiling'),'FontSize','TextColor')
     end
     role(n('Status'),'FontSize');role(n('Footer'),'FontSize','TextColor')
-    for _,suffix in ipairs({'Adapter','Description','Status','InternetLabel','Internet','IPLabel','IP','GatewayLabel','Gateway','RxLabel','Rx','TxLabel','Tx','WiFi','SignalLabel','Signal','Radio'}) do role(c(suffix),'FontSize') end
-    for _,suffix in ipairs({'Adapter','Description','InternetLabel','IPLabel','IP','GatewayLabel','Gateway','RxLabel','TxLabel','WiFi','SignalLabel','Radio'}) do role(c(suffix),'FontSize','TextColor') end
+    for _,suffix in ipairs({'Type','Name','SSID','Radio','Status','InternetLabel','Internet','IPLabel','IP','GatewayLabel','Gateway','RxLabel','Rx','TxLabel','Tx','SignalLabel','Signal'}) do role(c(suffix),'FontSize') end
+    for _,suffix in ipairs({'Type','Name','InternetLabel','IPLabel','IP','GatewayLabel','Gateway','RxLabel','TxLabel','SignalLabel'}) do role(c(suffix),'FontSize','TextColor') end
+    for _,suffix in ipairs({'SSID','Radio'}) do role(c(suffix),'FontSize','AccentColor') end
     role(c('Rx'),'FontSize','NetworkInColor');role(c('Tx'),'FontSize','NetworkOutColor')
-    for suffix,y in pairs({Adapter=26,Description=44,Status=62,Internet=80,IP=98,Gateway=116,Rx=134,Tx=152,WiFi=180,Signal=198,SignalBar=218}) do
+    for suffix,y in pairs({Identity=26,Type=26,Name=44,SSID=62,Radio=80,Status=100,Internet=118,IP=136,Gateway=154,Rx=172,Tx=190,Signal=218,SignalBar=238}) do
         same(option(c(suffix),'Y'),variable('Inset')+y*scale,'Connection '..suffix..' Y')
     end
-    same(option(c('Radio'),'Y'),variable('Inset')+220*scale+bar,'Radio follows rounded bar')
     for suffix,y in pairs({TrafficRule=242,Status=246,InLabel=266,InRate=266,InCeiling=284,InGrid=304,InGraph=304,
         OutLabel=352,OutRate=352,OutCeiling=370,OutGrid=390,OutGraph=390,Footer=436}) do
         same(option(n(suffix),'Y'),variable('Inset')+y*scale+bar,'Traffic '..suffix..' Y')
     end
-    local connectionRows={'Adapter','Description','Status','Internet','IP','Gateway','Rx','Tx'}
+    for _,pair in ipairs({{'Type','Name'},{'Name','SSID'},{'SSID','Radio'},{'Radio','Status'}}) do before(c(pair[1]),c(pair[2])) end
+    local identity=c('Identity');assert(c('Type'):GetY(false)>=identity:GetY(false) and c('Radio'):GetY(false)+c('Radio'):GetH()<=identity:GetY(false)+identity:GetH(),'Panel lines escape the identity box')
+    local connectionRows={'Identity','Status','Internet','IP','Gateway','Rx','Tx'}
     for index=1,#connectionRows-1 do before(c(connectionRows[index]),c(connectionRows[index+1])) end
     for _,suffix in ipairs({'Internet','IP','Gateway','Rx','Tx','Signal'}) do
         local label,value=c(suffix..'Label'),c(suffix)
         assert(label:GetX(false)+label:GetW()<=value:GetX(false),suffix..' label overlaps value')
     end
-    before(c('WiFi'),c('Signal'));before(c('Signal'),c('SignalBar'));before(c('SignalBar'),c('Radio'))
+    before(c('Signal'),c('SignalBar'))
     local connController=assert(SKIN:GetMeasure('MeasureConnectionController'))
     local track=c('SignalBar');local trackW,trackH=rectangle(track:GetOption('Shape'))
     same(trackW,variable('ContentWidth'),'Painted signal width');same(trackH,bar,'Painted signal height')
     same(option(track,'H'),bar,'Native bar H option');assert(track:GetH()==bar and bar>=1,'Native bar must have visible whole-pixel height')
     same(connController:GetNumberOption('SignalHeight'),bar,'Controller signal height');same(connController:GetNumberOption('SignalWidth'),trackW,'Controller signal width')
-    assert(c('Radio'):GetY(false)-track:GetY(false)-bar>0,'Painted signal touches Radio row')
+    assert(n('TrafficRule'):GetY(false)-track:GetY(false)-bar>0,'Painted signal touches the traffic divider')
     local signal=c('Signal'):GetOption('Text');local known=signal:match('^%d+%%$')~=nil
     assert(known==(connController:GetValue()==1),'Signal text and known state differ')
     if known then
         local fillW,fillH=rectangle(track:GetOption('Shape2'))
         assert(fillW>=0 and fillW<=trackW+0.001,'Measured fill escapes track');same(fillH,bar,'Measured signal fill height')
     else assert(track:GetOption('Shape2')=='Line 0,0,0,0 | StrokeWidth 0','Unknown signal has fabricated fill') end
-    for _,spec in ipairs({{c('Rule'),c('Tx'),c('WiFi')},{n('TrafficRule'),c('Radio'),n('Status')}}) do
+    for _,spec in ipairs({{c('Rule'),c('Tx'),c('Signal')},{n('TrafficRule'),c('SignalBar'),n('Status')}}) do
         local rule,previous,following=spec[1],spec[2],spec[3]
         local stroke=formula(assert(rule:GetOption('Shape'):match('StrokeWidth%s+([^|]+)')))
         same(stroke,variable('DividerThickness')*scale,'Section divider thickness')
@@ -228,8 +232,8 @@ local function providers()
         else assert(shape=='Line 1,1,1,1 | StrokeWidth 0','Missing/singleton history fabricated a segment') end
     end
     if disabled then assert(not c('Signal'):GetOption('Text'):match('%d'),'Unavailable Wi-Fi invents numeric signal') end
-    if kind=='wifi-off' then assert(c('WiFi'):GetOption('Text')=='Wi-Fi off in module','Wi-Fi off state missing') end
-    if kind=='invalid-wifi' then assert(c('WiFi'):GetOption('Text')=='Check Wi-Fi settings','Malformed Wi-Fi state missing') end
+    if kind=='wifi-off' then assert(c('SSID'):GetOption('Text')=='' and c('Radio'):GetOption('Text')=='','Wi-Fi off state must leave the SSID and radio lines blank') end
+    if kind=='invalid-wifi' then assert(c('SSID'):GetOption('Text')=='Check Wi-Fi settings','Malformed Wi-Fi state missing') end
     return controller:GetValue(),conn:GetValue(),count
 end
 function Update()

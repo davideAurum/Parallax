@@ -6,7 +6,7 @@ This is still a prototype. Installed Rainmeter 4.5.26.3894 supplies the native r
 
 ## Delivered behavior
 
-The single Network header contains the original three-node icon, `bits`/`bytes` control and a settings gear in the right corner that opens the Network settings window. The meter is fixed at one column (no `1x`/`2x` control). Below it are the selected adapter alias/model and operational state, Windows' PC-wide Internet report, local address/gateway, reported receive/transmit link speeds, Wi-Fi SSID/quality/radio, then current inbound/outbound rates and separate histories. The traffic sampling state and sample count stay visible.
+The single Network header contains the original three-node icon, `bits`/`bytes` control and a settings gear in the right corner that opens the Network settings window. The meter is fixed at one column (no `1x`/`2x` control). Below it a CPU-style identity panel holds four lines: link type (Ethernet, Wi-Fi or Other), the adapter model name, the Wi-Fi SSID and the Wi-Fi radio standard (for example `Radio: 802.11ax`). The SSID and radio lines are blank without a Wi-Fi connection; an invalid Wi-Fi source shows `Check Wi-Fi settings` on the SSID line. There is no channel line: Rainmeter's `WiFiStatus` offers no channel field, so the radio standard stands in. Then come the operational state, Windows' PC-wide Internet report, local address/gateway, reported receive/transmit link speeds, Wi-Fi signal quality, then current inbound/outbound rates and separate histories. The traffic sampling state and sample count stay visible.
 
 Click the adapter name or use **Network settings** in the context menu to open the editor. The context menu also retains Global Settings, the module settings-file editor and Windows Wi-Fi settings. There is one monitor width preference; the Connection block no longer has its own title, frame, width control or navigation action.
 
@@ -28,7 +28,7 @@ DataBarThicknessPx = Max(1, Round(DataBarThickness * Scale))
 
 At scale 1 and the default 6 px bar, the panel paints 470 logical pixels high. At column width 220 with the default gutter, the window is 228×478 for one column or 456×478 for two. Larger saved minimums remain honored. The legacy Connection height and width do not enlarge or resize the merged monitor.
 
-The Wi-Fi track begins at logical Y=218. Radio follows at `Inset + 220*Scale + DataBarThicknessPx`; traffic content then moves by the same rendered bar height. Both track and valid fill use the shared rounded height, including the one-pixel minimum. The footer ends above the maximum inside border. Scaling a bar does not change quality, cadence or graph history.
+The identity panel is a 72-logical-pixel box at Y=26 with four 18-pixel lines, the status line follows at Y=100, and the connection rows run from Y=118 (Internet) to Y=190 (Link TX). The Wi-Fi track begins at logical Y=238; traffic content then moves by the same rendered bar height. Both track and valid fill use the shared rounded height, including the one-pixel minimum. The footer ends above the maximum inside border. Scaling a bar does not change quality, cadence or graph history.
 
 ## Sources, identity and states
 
@@ -88,7 +88,7 @@ Numeric entry launches the existing shared PowerShell/WinForms helper once throu
 
 The adapter field and **Edit settings file** use the existing Notepad editor, retaining exact custom ceilings/indexes and saved-height formulas. Save, then **Apply saved file** to refresh Network and settings. It does not activate a closed monitor. **Show Network**, Global Settings and Close are navigation actions without writes; Close leaves Network running. No standalone Connection options or commands remain.
 
-There is no saved visibility choice to collapse: disabling Wi-Fi queries keeps visible module-off/unavailable rows. Its source/recovery settings remain accessible. Unloaded skins, disconnected adapters and missing providers do not define visibility. Settings uses `Update=-1` with no collection work.
+There is no saved visibility choice to collapse: disabling Wi-Fi queries blanks the SSID and radio lines and shows `--` for signal. Its source/recovery settings remain accessible. Unloaded skins, disconnected adapters and missing providers do not define visibility. Settings uses `Update=-1` with no collection work.
 
 Numeric selector zero, signed/fractional/exponential selector syntax and indexes outside the positive signed 32-bit range are unsupported. Numeric aliases are interpreted as indexes by native Rainmeter. Prefer a unique alias when descriptions collide; indexes can change after hardware changes.
 
@@ -124,7 +124,7 @@ Economy mode preserves the native/controller intervals. On-demand developer test
 
 With Global Settings **Idle pause** on (5, 10 or 30 minutes; default Off), Network pauses after that long without keyboard or mouse input ([shared design](../ARCHITECTURE.md#idle-stand-down)).
 
-- **While paused:** the status line is hidden and **Paused (idle)** takes its place (the title row keeps its unit and width buttons, which stay usable). The IN and OUT rates are hidden (their labels stay); the histories and connection rows stay visible, frozen at the pause; its 20 periodic measures (NetIn/NetOut, SysInfo, WiFiStatus and both controllers) are paused and every repainting meter sits at UpdateDivider -1.
+- **While paused:** the status line is hidden and **Paused (idle)** takes its place (the title row keeps its unit button and settings gear, which stay usable). The IN and OUT rates are hidden (their labels stay); the histories and connection rows stay visible, frozen at the pause; its 20 periodic measures (NetIn/NetOut, SysInfo, WiFiStatus and both controllers) are paused and every repainting meter sits at UpdateDivider -1.
 - **On the first input:** measures update before anything is shown. NetIn/NetOut report the bytes accumulated over the whole pause on their first update, so `Core.lua` treats the paused time as a clock gap (more than 3 s): the history restarts and the next two samples read **sampling...** before 1 s samples resume. No pause-long delta is ever shown as a rate. No controller call is needed.
 - **Still running while paused:** the skin's 1 s timer and, because Network loads SysInfo and Net measures, Rainmeter's own per-tick network interface table read (`GetIfTable2`, about 2 ms a second here); the 17 measures with DynamicVariables still re-read their options each tick while paused (Rainmeter re-reads a paused measure's dynamic options). A deeper stand-down that unloads them is a possible later option.
 

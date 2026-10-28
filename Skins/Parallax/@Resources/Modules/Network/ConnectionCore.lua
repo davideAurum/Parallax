@@ -28,9 +28,10 @@ function M.describe(Core, adapter, wifi, config)
     adapter, wifi = adapter or {}, wifi or {}
     config = config or M.configureWifi('0', '0')
     local result = {
-        adapter = 'Adapter unavailable', description = '--', status = 'Adapter unavailable',
+        typeName = '--', name = 'Adapter unavailable', status = 'Adapter unavailable',
         internet = 'Unknown', ip = '--', gateway = '--', receiveLink = '--', transmitLink = '--',
-        wifiName = 'Wi-Fi unavailable', signal = '--', radio = 'Radio unavailable', signalPercent = nil,
+        -- Blank unless a Wi-Fi connection is reported (the panel has no channel: WiFiStatus offers none).
+        ssid = '', signal = '--', radio = '', signalPercent = nil,
         statusColor = 'WarningColor', internetColor = 'MutedColor', signalColor = 'MutedColor'
     }
     local function positive(value)
@@ -59,9 +60,9 @@ function M.describe(Core, adapter, wifi, config)
     local identity, identityError = Core.identity(adapter)
     if identity then
         local alias, description = trim(adapter.alias), trim(adapter.description)
-        result.adapter = provided(alias) and alias or provided(description) and description or 'Selected adapter'
-        result.description = provided(description) and description or '--'
+        result.name = provided(description) and description or provided(alias) and alias or 'Selected adapter'
         local typeName = adapter.type == 6 and 'Ethernet' or adapter.type == 71 and 'Wi-Fi' or 'Other'
+        result.typeName = typeName
         local states = { [-3] = 'Not present', [-2] = 'Lower layer down', [-1] = 'Down',
             [0] = 'Status unknown', [1] = 'Up', [2] = 'Dormant', [3] = 'Testing' }
         local state = adapter.state == -1 and 'Disconnected' or states[adapter.status] or 'Unavailable'
@@ -76,7 +77,7 @@ function M.describe(Core, adapter, wifi, config)
             ['Configured adapter not found'] = 'Selected NIC not found',
             ['Select one adapter; index 0 unsupported'] = 'Select one adapter'
         }
-        result.adapter = 'Selected: ' .. trim(adapter.selector)
+        result.name = 'Selected: ' .. trim(adapter.selector)
         result.status = shortErrors[identityError] or identityError or 'Adapter unavailable'
     end
 
@@ -84,18 +85,16 @@ function M.describe(Core, adapter, wifi, config)
         and config.index == math.floor(config.index)
 
     if config.error or not configIndexValid or type(config.enabled) ~= 'boolean' then
-        result.wifiName = 'Check Wi-Fi settings'
-    elseif not config.enabled then
-        result.wifiName = 'Wi-Fi off in module'
-    else
+        result.ssid = 'Check Wi-Fi settings'
+    elseif config.enabled then
         local ssid, phy = trim(wifi.ssid), trim(wifi.phy)
         local pending = ssid:lower():match('%(authorizing%.%.%.%)$') or ssid:lower():match('%(connecting%.%.%.%)$')
         local usablePhy = knownPhy[phy:lower()] == true
         local connectionKnown = provided(ssid) and (usablePhy or positive(wifi.receiveRate) or positive(wifi.transmitRate))
         if provided(ssid) and pending then
-            result.wifiName, result.signal, result.radio = 'Wi-Fi: ' .. ssid, 'Pending', 'Radio: Pending'
+            result.ssid, result.signal, result.radio = ssid, 'Pending', 'Radio: Pending'
         elseif connectionKnown then
-            result.wifiName = 'Wi-Fi: ' .. ssid
+            result.ssid = ssid
             result.radio = usablePhy and 'Radio: ' .. phy or 'Radio unavailable'
             if Core.finite(wifi.quality) and wifi.quality >= 0 and wifi.quality <= 100 then
                 result.signalPercent = wifi.quality

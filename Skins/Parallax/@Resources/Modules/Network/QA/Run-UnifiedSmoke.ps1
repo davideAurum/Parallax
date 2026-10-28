@@ -49,7 +49,7 @@ try {
         if ($meterNames.Contains($name)) { throw ('Duplicate production meter: '+$name) }
         $meterNames.Add($name)
         if ($section.Groups[2].Value -match '(?m)^Meter=String\r?$') {
-            Add-Glyph $name '--' ($name -notin @('MeterNetworkAdapter','MeterConnectionAdapter','MeterConnectionDescription','MeterConnectionIP','MeterConnectionGateway','MeterConnectionWiFi')) $true
+            Add-Glyph $name '--' ($name -notin @('MeterNetworkAdapter','MeterConnectionName','MeterConnectionIP','MeterConnectionGateway','MeterConnectionSSID')) $true
         }
     }
     foreach ($caption in @('bits','bytes','units?')) { Add-Glyph 'MeterNetworkUnits' $caption }
@@ -65,7 +65,8 @@ try {
         foreach ($state in @('Up','Down','Disconnected','Not present','Status unknown','Dormant','Testing','Unavailable')) { Add-Glyph 'MeterConnectionStatus' ($type+' / '+$state) }
     }
     foreach ($caption in @('Lower layer down','Selected NIC not found','Select one adapter','Adapter unavailable')) { Add-Glyph 'MeterConnectionStatus' $caption }
-    foreach ($caption in @('Wi-Fi unavailable','Check Wi-Fi settings','Wi-Fi off in module')) { Add-Glyph 'MeterConnectionWiFi' $caption }
+    foreach ($caption in @('Ethernet','Wi-Fi','Other')) { Add-Glyph 'MeterConnectionType' $caption }
+    foreach ($caption in @('Check Wi-Fi settings','Synthetic WLAN')) { Add-Glyph 'MeterConnectionSSID' $caption }
     foreach ($caption in @('0%','100%','--','Pending','Unavailable')) { Add-Glyph 'MeterConnectionSignal' $caption }
     foreach ($caption in @('Radio unavailable','Radio: Pending','Radio: 802.11ax','Radio: ir-band')) { Add-Glyph 'MeterConnectionRadio' $caption }
     foreach ($field in @('IP','Gateway')) { Add-Glyph ('MeterConnection'+$field) '255.255.255.255' }

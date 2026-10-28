@@ -26,6 +26,14 @@ function Suite.run(productionPath)
         if not value then error(message or 'expected true', 2) end
     end
 
+    local function near(actual, expected, message)
+        assertions = assertions + 1
+        if type(actual) ~= 'number' or math.abs(actual - expected) > 0.0015 then
+            error((message or 'value') .. ': expected ' .. tostring(expected)
+                .. ', got ' .. tostring(actual), 2)
+        end
+    end
+
     local function contains(value, fragment, message)
         truth(type(value) == 'string' and value:find(fragment, 1, true) ~= nil,
             message or ('expected text to contain ' .. fragment))
@@ -186,8 +194,9 @@ function Suite.run(productionPath)
         local blockedLibrary = setmetatable({}, { __index = function() return forbidden end })
         local env
         local function trustedNames(path)
-            assert(path == vars['@'] .. 'Modules\\IO\\Names.lua', 'unexpected library load')
-            local library = assert(loadfile(namesPath))
+            local colors = path == vars['@'] .. 'Modules\\IO\\DriveColors.lua'
+            assert(colors or path == vars['@'] .. 'Modules\\IO\\Names.lua', 'unexpected library load')
+            local library = assert(loadfile(colors and namesPath:gsub('Names%.lua$', 'DriveColors.lua') or namesPath))
             setfenv(library, env)
             return library()
         end
@@ -1126,6 +1135,37 @@ function Suite.run(productionPath)
         equal(#f:traces()[1].points, 1)
     end)
 
+    test('saved drive colors replace the default overlay colors and apply without a refresh', function()
+        local samples = { MeasureIODiskReadC = 1e6, MeasureIODiskWriteC = 2e6,
+            MeasureIOTypeD = 4, MeasureIODiskReadD = 3e6, MeasureIODiskWriteD = 4e6 }
+        local plain = fixture({ IODiskDrives = 'C,D', IOGraphMode = 'overlay' }, samples)
+        plain:tick()
+        local defaults = plain:traces()
+        -- A hex value is canonicalized; an invalid value falls back to the letter's default.
+        local f = fixture({ IODiskDrives = 'C,D', IOGraphMode = 'overlay',
+            IODriveColorC = '#FF8000', IODriveColorD = 'not a color' }, samples)
+        f:tick()
+        local traces = f:traces()
+        equal(traces[1].color, '255,128,0')
+        equal(traces[2].color, '255,128,0', 'read and write share the drive color')
+        equal(f.options.MeterIOLegendC.FontColor, '255,128,0')
+        equal(traces[3].color, defaults[3].color, 'invalid saved color must use the default')
+        equal(f.options.MeterIOLegendD.FontColor, defaults[3].color)
+        -- The editor sets the variable and calls ApplyColors: legend and traces repaint at once.
+        f.vars.IODriveColorD = '1,2,3'
+        equal(f.env.ApplyColors(), 0)
+        equal(f.options.MeterIOLegendD.FontColor, '1,2,3')
+        equal(f:traces()[3].color, '1,2,3')
+        equal(f:traces()[4].color, '1,2,3')
+        -- Outside overlay mode the colors are unused, so applying them changes nothing.
+        f.vars.IOGraphMode = 'combined'
+        f:tick()
+        f.vars.IODriveColorD = '9,9,9'
+        equal(f.env.ApplyColors(), 0)
+        equal(f.options.MeterIOLegendD.FontColor, '1,2,3')
+        equal(f:traces()[1].color, '10,20,30', 'combined mode keeps the read/write colors')
+    end)
+
     test('an upgraded copy ignores the old saved PanelHeight and fits its drives', function()
         -- Every release before alpha.10 saved PanelHeight=157 in User\IO.inc.
         local f = fixture({ PanelHeight = '157' })
@@ -1183,9 +1223,14 @@ function Suite.run(productionPath)
         equal(#traces, 2)
         equal(#traces[1].points, 2)
         equal(#traces[2].points, 2)
-        equal(traces[1].points[2].y, 31)
-        equal(traces[2].points[2].y, 31)
-        truth(traces[1].points[1].y < 31 and traces[2].points[1].y > 31)
+        -- Reads peaked at 2 MB/s and writes at 4 MB/s, so the autoscaler gives writes
+        -- 65% of the usable height (zero 22.3 px down from the 2 px inset); a current
+        -- null still plots on whatever baseline the zero line has moved to.
+        near(traces[1].points[2].y, 22.3)
+        near(traces[2].points[2].y, 22.3)
+        near(tonumber(f.options.MeterIOGraphZero.Y) + 7 - tonumber(f.options.MeterIODiskGraph.Y), 22.3,
+            'the 0 marker follows the zero line')
+        truth(traces[1].points[1].y < 22.3 and traces[2].points[1].y > 22.3)
         truth(traces[1].points[2].x - traces[1].points[1].x > 10,
             'missed observations must preserve their time positions')
         contains(traces[1].shape, 'Path IOHistoryPath')
@@ -1215,7 +1260,8 @@ function Suite.run(productionPath)
             equal(f:traces()[1].points[1].y, inset)
             equal(f:traces()[2].points[1].y, height - inset)
             contains(f.options.MeterIODiskGraphTrack.Shape3, 'Stroke Color #MutedColor#')
-            contains(f.options.MeterIODiskGraphTrack.Shape3, '(#IOGraphHeight#*#Scale#/2)')
+            -- Both directions need the whole capped range, so zero stays at the midpoint.
+            contains(f.options.MeterIODiskGraphTrack.Shape3, string.format('Line 1,%.3f,', height / 2))
             for index, suffix in ipairs({'Positive', 'Zero', 'Negative'}) do
                 local meter = 'MeterIOGraph' .. suffix
                 local options = f.options[meter]
@@ -1258,6 +1304,66 @@ function Suite.run(productionPath)
         equal(small:text('MeterIODiskReadC'), '1.0 MB/s')
     end)
 
+    test('split autoscale divides the fixed-height graph by direction at one shared scale', function()
+        local function zeroOf(f, scale)
+            return tonumber(f.options.MeterIOGraphZero.Y) + 7 * (scale or 1) - tonumber(f.options.MeterIODiskGraph.Y)
+        end
+        -- Quiet or equal traffic keeps zero on the exact frame midpoint.
+        local quiet = fixture({ IOGraphMode = 'split' }, { MeasureIODiskReadC = 0, MeasureIODiskWriteC = 0 })
+        near(zeroOf(quiet), 31)
+        local panel, graphY = quiet.vars.PanelHeightPx, quiet.options.MeterIODiskGraph.Y
+        local equalTraffic = fixture({ IOGraphMode = 'split' }, { MeasureIODiskReadC = 5e6, MeasureIODiskWriteC = 5e6 })
+        near(zeroOf(equalTraffic), 31)
+        -- Reads 4x writes: reads get 80% of the need, clamped to the 75% maximum (zero 45.5).
+        local f = fixture({ IOGraphMode = 'split' }, { MeasureIODiskReadC = 40e6, MeasureIODiskWriteC = 10e6 })
+        near(zeroOf(f), 45.5)
+        -- The panel and graph box are untouched; only the division inside the frame moved.
+        equal(f.vars.PanelHeightPx, panel, 'panel height must not change')
+        equal(f.options.MeterIODiskGraph.Y, graphY, 'graph position must not change')
+        local read, write = f:traces()[1].points[1].y, f:traces()[2].points[1].y
+        -- One scale: pixels per byte match above and below zero.
+        local ratio = (45.5 - read) / (write - 45.5)
+        near(ratio, 4, 'read:write pixels must equal read:write bytes')
+        truth(read >= 2 and write <= 60, 'traces stay inside the inset frame')
+        -- Writes 2x reads: share .333 snaps to .35, zero 22.3 (moves up).
+        local w = fixture({ IOGraphMode = 'split' }, { MeasureIODiskReadC = 10e6, MeasureIODiskWriteC = 20e6 })
+        near(zeroOf(w), 22.3)
+        -- Slightly unequal traffic snaps to the 5% grid, so small peak changes do not move zero.
+        local steady = fixture({ IOGraphMode = 'split' }, { MeasureIODiskReadC = 10e6, MeasureIODiskWriteC = 10.2e6 })
+        near(zeroOf(steady), 31)
+        -- Moving zero sends one update; a stable split then sends nothing for it.
+        f:tick()
+        local before = #f.calls
+        f:tick()
+        for index = before + 1, #f.calls do
+            local call = f.calls[index]
+            truth(call[2] ~= 'MeterIOGraphZero' and call[2] ~= 'MeterIODiskGraphTrack',
+                'a stable zero line must not resend its options')
+        end
+        -- When the busy direction scrolls out of the 60-sample history, zero returns to the middle.
+        f.values.MeasureIODiskReadC, f.values.MeasureIODiskWriteC = 0, 0
+        for _ = 1, 60 do f:tick() end
+        near(zeroOf(f), 31)
+        for _, trace in ipairs(f:traces()) do
+            for _, point in ipairs(trace.points) do near(point.y, 31) end
+        end
+        -- Leaving split restores the grid-colored centered line and hides the markers.
+        f.vars.IOGraphMode = 'combined'
+        f:tick()
+        contains(f.options.MeterIODiskGraphTrack.Shape3, 'Stroke Color #GridColor#')
+        contains(f.options.MeterIODiskGraphTrack.Shape3, '(#IOGraphHeight#*#Scale#/2)')
+        -- Fractional scales: the 0 marker box stays centered on the moved line.
+        for _, scale in ipairs({0.75, 1.25, 2}) do
+            local g = fixture({ IOGraphMode = 'split', Scale = tostring(scale), ContentWidth = tostring(168 * scale),
+                Inset = tostring(4 * scale), ContentX = tostring(10 * scale) },
+                { MeasureIODiskReadC = 40e6, MeasureIODiskWriteC = 10e6 })
+            local inset, height = math.max(2, 2 * scale), 62 * scale
+            near(zeroOf(g, scale), inset + (height - 2 * inset) * .75)
+            local box = tonumber(g.options.MeterIOGraphZero.Y) - tonumber(g.options.MeterIODiskGraph.Y)
+            truth(box >= 0 and box + 14 * scale <= height + .001, 'marker box stays inside the frame')
+        end
+    end)
+
     test('split mode transitions reset history while metadata reflow preserves observations and empty scope stays blank', function()
         local f = fixture(nil, { MeasureIODiskReadC = 1e6 })
         f:tick()
@@ -1265,12 +1371,13 @@ function Suite.run(productionPath)
         f.vars.IOGraphMode = 'split'
         f:tick()
         equal(#f:traces()[1].points, 1)
-        equal(f:traces()[2].points[1].y, 31)
+        -- Read-only traffic: reads take the maximum 75% share, so zero sits 45.5 px down.
+        equal(f:traces()[2].points[1].y, 45.5)
         f.vars.DataBarThickness = '12'
         local before = #f.calls
         f:applyNamesMode()
         equal(#f:traces()[1].points, 1, 'cached split reflow must not add an observation')
-        equal(tonumber(f.options.MeterIOGraphZero.Y), 118)
+        near(tonumber(f.options.MeterIOGraphZero.Y), 132.5, 'the moved zero marker survives a layout reflow')
         local updated, redraw = {}, false
         for index = before + 1, #f.calls do
             local call = f.calls[index]

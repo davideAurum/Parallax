@@ -74,8 +74,12 @@ function Place()
     if x > limit then x = limit end
     if x < left then x = left end
     x = math.floor(x + 0.5)
+    -- A title that sits below the shared title row (Media's, under its header offset)
+    -- names that offset in ParallaxDevTitleYOffset; every other utility leaves it unset.
+    local top = number('TitleRowCenterY') + number('ParallaxDevTitleYOffset') - size / 2
     for _, name in ipairs({ DIFFER, SAME, UNKNOWN }) do
         SKIN:Bang('!SetOption', name, 'X', tostring(x))
+        SKIN:Bang('!SetOption', name, 'Y', tostring(top))
         SKIN:Bang(name == iconFor(state) and '!ShowMeter' or '!HideMeter', name)
     end
     SKIN:Bang('!UpdateMeter', iconFor(state))

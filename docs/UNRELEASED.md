@@ -6,7 +6,8 @@ Where things stand between releases: what is on `main` but not yet in a publishe
 
 ## On main, not in any release
 
-Nothing yet. Everything on `main` is in alpha.12.
+- **Developer mode shows the Visualizer's icon** (2026-10-28, pushed in `8f821b5`): its meters came from an include after the dev hook and painted over the icon; the hook now sits last in `Visualizer.ini`. Checked on the maintainer's live dev copy.
+- **Developer mode progress bar** (2026-10-28): a thin bar under the Developer status line follows Dev mode on and off, Compare and Reset, with the step named in the status line (`Building the copy 120/275`, `Loading 3/8`). The helper reports through `%TEMP%\ParallaxDevProgress.txt`; loading and unloading step through the utilities. The offline suites (218 Lua, 126 PowerShell) and the isolated native run (26 checks, including the bar being drawn during Reset) pass; not installed ([DEVMODE.md](DEVMODE.md)).
 
 ## Open: Stage 1 (prove the upgrade path)
 

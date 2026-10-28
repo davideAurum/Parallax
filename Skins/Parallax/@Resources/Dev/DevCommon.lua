@@ -99,6 +99,45 @@ function M.commandArguments(root, skinsPath, release, action, settingsPath, extr
     return args .. (extra and (' ' .. extra) or '')
 end
 
+-- The helper's progress file: one line, "<phase>|<done>|<total>". Nil for anything else.
+function M.parseProgress(text)
+    if type(text) ~= 'string' then return nil end
+    local phase, done, total = text:match('^%s*(%a+)|(%d+)|(%d+)')
+    if not phase then return nil end
+    return phase, tonumber(done), tonumber(total)
+end
+
+-- How far through its own work the helper is, 0 to 1, from the phase it last reported: the
+-- clone counts files; the later phases are markers, not measurements.
+function M.helperFraction(phase, done, total)
+    if phase == 'build' and total and total > 0 then return 0.05 + 0.75 * math.min(1, done / total) end
+    if phase == 'compare' then return 0.85 end
+    if phase == 'list' then return 0.95 end
+    return 0
+end
+
+-- One bar for a whole action. Each flow is its stages in order with a share of the bar each;
+-- the stage in progress reports a fraction of its own share.
+M.FLOWS = {
+    enable = { { 'helper', 0.6 }, { 'load', 0.4 } },
+    disable = { { 'helper', 0.4 }, { 'unload', 0.6 } },
+    resetOn = { { 'unload', 0.2 }, { 'helper', 0.6 }, { 'load', 0.2 } },
+    reset = { { 'helper', 1 } },
+    compare = { { 'helper', 1 } },
+}
+
+function M.overall(flow, stage, fraction)
+    local stages = M.FLOWS[flow]
+    if not stages then return 0 end
+    fraction = math.max(0, math.min(1, fraction or 0))
+    local before = 0
+    for _, entry in ipairs(stages) do
+        if entry[1] == stage then return before + entry[2] * fraction end
+        before = before + entry[2]
+    end
+    return 0
+end
+
 -- Clock text for the status line, from a unix time.
 function M.clock(stamp, format)
     if not stamp or stamp <= 0 then return nil end

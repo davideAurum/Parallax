@@ -19,7 +19,9 @@ param(
     [string]$SourceRoot,
     # Rainmeter's settings folder (Rainmeter.ini), read to find which configs are loaded.
     [string]$SettingsPath,
-    [switch]$NoPlace
+    [switch]$NoPlace,
+    # Where to write "<phase>|<done>|<total>" while working (the Global Settings progress bar reads it).
+    [string]$ProgressFile
 )
 Set-StrictMode -Version Latest
 $ErrorActionPreference = 'Stop'

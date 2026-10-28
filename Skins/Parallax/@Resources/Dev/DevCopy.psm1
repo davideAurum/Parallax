@@ -268,11 +268,19 @@ function Remove-ParallaxDevTemp {
 
 # ---- clone and mirror --------------------------------------------------------
 
+# One line, "<phase>|<done>|<total>", rewritten as the helper moves through its work so the
+# Global Settings progress bar can follow it. Best effort: a failed write never fails the run.
+function Write-ParallaxDevProgress {
+    param([string]$Path, [string]$Phase, [int]$Done, [int]$Total)
+    if (-not $Path) { return }
+    try { [IO.File]::WriteAllText($Path, "$Phase|$Done|$Total") } catch { }
+}
+
 # Builds the copy beside a temporary name (an @-folder; Rainmeter lists those too, but
 # the name is not ParallaxDev) and moves it into place whole, so a failure leaves no
 # half-copied ParallaxDev behind.
 function New-ParallaxDevCopy {
-    param([Parameter(Mandatory)][string]$ReleaseRoot, [Parameter(Mandatory)][string]$DevRoot)
+    param([Parameter(Mandatory)][string]$ReleaseRoot, [Parameter(Mandatory)][string]$DevRoot, [string]$ProgressFile)
     Assert-ParallaxDevRelease $ReleaseRoot
     if (Test-Path -LiteralPath $DevRoot) { throw "Exists|$DevRoot already exists." }
     $skins = Split-Path -Parent $DevRoot
@@ -280,11 +288,16 @@ function New-ParallaxDevCopy {
     $files = Get-ParallaxDevFiles $ReleaseRoot
     try {
         $null = New-Item -ItemType Directory -Path $temp
+        $done = 0
+        Write-ParallaxDevProgress $ProgressFile 'build' 0 $files.Count
         foreach ($relative in $files.Keys) {
             $item = $files[$relative]
+            $done++
+            if ($done % 8 -eq 0) { Write-ParallaxDevProgress $ProgressFile 'build' $done $files.Count }
             $bytes = ConvertTo-ParallaxDevRewrite ([IO.File]::ReadAllBytes($item.FullName)) $item.Extension
             Write-ParallaxDevFile $temp $relative $bytes $item.LastWriteTimeUtc
         }
+        Write-ParallaxDevProgress $ProgressFile 'build' $files.Count $files.Count
         Set-ParallaxDevIdentity $temp -StopUpdateChecks
         # The release this copy was cloned from. A sync never changes it (User files are kept),
         # so it still says which release the copy is based on after the repository is mirrored in.
@@ -508,7 +521,8 @@ function Invoke-ParallaxDev {
         [string]$Release = 'Parallax',
         [string]$SourceRoot,
         [string]$SettingsPath,
-        [switch]$NoPlace
+        [switch]$NoPlace,
+        [string]$ProgressFile
     )
     $lines = New-Object Collections.Generic.List[string]
     try {
@@ -531,7 +545,7 @@ function Invoke-ParallaxDev {
                 $detail = 'backup ' + [IO.Path]::GetFileName($backup) + "; was $was, release is " + (Get-ParallaxDevVersion $paths.Release)
             }
             if (-not (Test-Path -LiteralPath $paths.Dev)) {
-                $count = New-ParallaxDevCopy $paths.Release $paths.Dev
+                $count = New-ParallaxDevCopy $paths.Release $paths.Dev $ProgressFile
                 # 'rebuilt' replaces a folder Rainmeter already lists, so it needs no refresh; 'cloned' is new.
                 $word = if ($rebuild) { 'rebuilt' } else { 'cloned' }
                 $detail = (@($detail, "$word $count files") | Where-Object { $_ }) -join '; '
@@ -549,6 +563,7 @@ function Invoke-ParallaxDev {
             throw "Foreign|$($paths.Dev) is not a Parallax developer copy."
         }
 
+        Write-ParallaxDevProgress $ProgressFile 'compare' 0 1
         $changes = @(Compare-ParallaxDev $paths.Release $paths.Dev)
         $counts = Write-ParallaxDevStatus $paths.Dev (Get-ParallaxDevVersion $paths.Release) $changes
         $differing = @($script:Monitors | Where-Object { $counts[$_] -gt 0 -or $counts['Shared'] -gt 0 }).Count
@@ -556,6 +571,7 @@ function Invoke-ParallaxDev {
         # Enable and Reset list the release's loaded utilities to load the copy beside; the other
         # actions list the copy's own loaded configs (to unload, or to tell to re-read the status).
         if ($true) {
+            Write-ParallaxDevProgress $ProgressFile 'list' 0 1
             $active = Get-ParallaxDevActiveConfigs $SettingsPath
             $wanted = New-Object Collections.Generic.List[object]
             foreach ($monitor in $script:Monitors) {

@@ -215,8 +215,29 @@ try {
     # ---- the Reset button with dev mode on: unload, rebuild, reload ------------------------------------------------------
     Add-Content -LiteralPath (Join-Path $dev 'CPU\Marker.inc') -Value '; edit before Reset'
     Send-Bang '!CommandMeasure MeasureDevPanel "Reset()" "Parallax\Settings"'
-    Wait-Until { @(Get-ChildItem -LiteralPath $skins -Directory | Where-Object Name -like '@ParallaxDev-backup-*').Count -eq 2 } 90 'Reset to back the copy up'
-    Wait-Until { @(Get-OwnWindows | Where-Object { $_.Config -like 'ParallaxDev\*' }).Count -eq $Modules.Count } 90 'the reset copy''s utilities to reload'
+    # The progress bar sits under the Developer status line (rows 926 to 929; the buttons' descenders end
+    # at about 924). Its track is a faint
+    # grey (a channel of about 40 over the dark panel); the fill is the accent, so a channel above 120
+    # there is the fill. Sample the Settings window until the copy is back.
+    $barSeen = $false
+    $barShot = $null
+    $deadline = [DateTime]::UtcNow.AddSeconds(90)
+    while ([DateTime]::UtcNow -lt $deadline) {
+        $settingsWindow = Get-OwnWindows | Where-Object Config -eq 'Parallax\Settings'
+        $shot = Save-Capture $settingsWindow 'reset-progress'
+        for ($y = 926; $y -le 930 -and -not $barSeen; $y++) { for ($x = 0; $x -lt $shot.Bitmap.Width; $x++) {
+            $c = $shot.Bitmap.GetPixel($x, $y)
+            if ([Math]::Max($c.R, [Math]::Max($c.G, $c.B)) -gt 120) { $barSeen = $true; break }
+        } }
+        if ($barSeen -and -not $barShot) { $barShot = Join-Path $captures 'reset-bar-seen.png'; Copy-Item -LiteralPath $shot.Path -Destination $barShot }
+        $shot.Bitmap.Dispose()
+        $done = (@(Get-ChildItem -LiteralPath $skins -Directory | Where-Object Name -like '@ParallaxDev-backup-*').Count -eq 2) -and
+            (@(Get-OwnWindows | Where-Object { $_.Config -like 'ParallaxDev\*' }).Count -eq $Modules.Count)
+        if ($done) { break }
+        Start-Sleep -Milliseconds 120
+    }
+    Assert-That $done 'Reset finished: the copy was backed up and its utilities reloaded'
+    Assert-That $barSeen 'the progress bar was drawn while Reset ran'
     Assert-That (-not (Test-Path -LiteralPath (Join-Path $dev 'CPU\Marker.inc'))) 'Reset rebuilt the copy'
     Assert-That ((& $refreshes) -eq $refreshesBefore) 'Reset needed no Rainmeter refresh'
     Send-Bang '!CommandMeasure MeasureDevPanel "ToggleDev(-1)" "Parallax\Settings"'

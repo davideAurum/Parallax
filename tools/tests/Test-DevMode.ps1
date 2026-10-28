@@ -163,6 +163,19 @@ try {
     $r = Invoke-Cli @('-Action', 'Reset', '-SkinsPath', ($upgrade + '\.'), '-NoPlace')
     Assert-That ($r.Lines[0] -match 'rebuilt \d+ files$') 'Reset rebuilds an up-to-date copy too'
 
+    # ---- progress file: the clone reports files, the helper reports its phases --------------------------------------
+    $progress = Join-Path $work 'progress.txt'
+    $fresh = Join-Path $work 'Skins4'
+    $null = New-Item -ItemType Directory -Path $fresh
+    Copy-Item -LiteralPath $release -Destination (Join-Path $fresh 'Parallax') -Recurse
+    $cloned = New-ParallaxDevCopy (Join-Path $fresh 'Parallax') (Join-Path $fresh 'ParallaxDev') $progress
+    Assert-Equal ([IO.File]::ReadAllText($progress)) "build|$cloned|$cloned" 'the clone finishes by reporting every file'
+    $r = Invoke-Cli @('-Action', 'Compare', '-SkinsPath', ($fresh + '\.'), '-ProgressFile', $progress)
+    Assert-Equal $r.Exit 0 'a progress file does not change the result'
+    Assert-Equal ([IO.File]::ReadAllText($progress)) 'list|0|1' 'the helper ends on its last phase'
+    $r = Invoke-Cli @('-Action', 'Compare', '-SkinsPath', ($fresh + '\.'), '-ProgressFile', (Join-Path $work 'no\such\folder\p.txt'))
+    Assert-Equal $r.Exit 0 'an unwritable progress file never fails the run'
+
     # ---- Compare ----------------------------------------------------------------------------------------------------
     $cpuIni = Join-Path $dev 'CPU\CPU.ini'
     Edit-Text $cpuIni { param($t) $t + "`r`n; edited`r`n" }

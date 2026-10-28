@@ -51,8 +51,9 @@ Both folders are walked and every file is classified:
 | --- | --- | --- |
 | Utility | `<Utility>\**` and `@Resources\Modules\<Utility>\**` for Chronometer, CPU, GPU, IO, Media, Network, RAM, Visualizer | Turns that utility's icon red. |
 | Suite | `Settings\`, `ColorPicker\`, `Welcome\`, `Update\`, `Idle\` configs, `Modules\ColorPicker`, `Modules\Welcome`, `Scripts\Settings.lua`, `Scripts\UpdateInstall.ps1`, `Update\Install.inc` | Counted and reported; turns no utility red. |
-| Shared | Everything else (`Defaults.inc`, `Styles.inc`, `Geometry.inc`, `Version.inc`, fonts, `Scripts\SettingsInput.ps1`, `Idle\`, `Update\` hooks, `Dev\` itself) | Turns **every** utility red: a shared file changes how all of them look or run. |
+| Shared | Everything else (`Defaults.inc`, `Styles.inc`, `Geometry.inc`, `Version.inc`, fonts, `Scripts\SettingsInput.ps1`, `Idle\`, `Update\` hooks, `Dev\Hook0.inc` and `Hook1.inc`) | Turns **every** utility red: a shared file changes how all of them look or run. |
 | Ignored | `@Resources\User\**`, `Update\State.inc`, `Modules\Media\CaptureState.inc`, `Dev\Status.inc`, `Dev\Diff.txt` | Never compared, never overwritten by a sync. |
+| Tooling | The rest of `Dev\` (`DevStatus.lua`, `DevPanel.lua`, `DevCommon.lua`, `DevMode.ps1`, `DevCopy.psm1`, `Panel.inc`, `Icons\`) | Never compared, so editing the icon code turns no utility red; a sync still mirrors it into the copy. |
 
 The release side is rewritten the same way before it is hashed, so the rewrite itself never counts. Text files compare as SHA-256 of the decoded text with CRLF and LF treated alike (a BOM or encoding change is a difference); UTF-16 and binary files compare byte for byte. A file only in the copy is `A`, one only in the release `D`, otherwise `M`. A cross-utility dependency (Media's drawer reading Visualizer includes) is not tracked: the Visualizer's icon turns red for its own files only.
 

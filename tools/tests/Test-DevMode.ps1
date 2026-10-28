@@ -71,7 +71,9 @@ try {
         @('@Resources\Idle\Hook.inc', 'Shared'), @('@Resources\Fonts\x.ttf', 'Shared'), @('@Resources\Dev\Hook1.inc', 'Shared'),
         @('@Resources\User\CPU.inc', '<ignored>'), @('@Resources\User\Settings.inc', '<ignored>'),
         @('@Resources\Update\State.inc', '<ignored>'), @('@Resources\Dev\Status.inc', '<ignored>'),
-        @('@Resources\Dev\Diff.txt', '<ignored>'), @('@Resources\Modules\Media\CaptureState.inc', '<ignored>')
+        @('@Resources\Dev\Diff.txt', '<ignored>'), @('@Resources\Dev\DevStatus.lua', '<ignored>'),
+        @('@Resources\Dev\DevCopy.psm1', '<ignored>'), @('@Resources\Dev\Icons\Lucide\README.md', '<ignored>'),
+        @('@Resources\Dev\Hook0.inc', 'Shared'),@('@Resources\Modules\Media\CaptureState.inc', '<ignored>')
     )) { Assert-Equal (& $area $case[0]) $case[1] "area of $($case[0])" }
 
     $hash = { param([string]$Text, [string]$Ext = '.ini') Get-ParallaxDevHash ([Text.Encoding]::UTF8.GetBytes($Text)) $Ext }

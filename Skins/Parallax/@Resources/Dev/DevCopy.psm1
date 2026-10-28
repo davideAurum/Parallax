@@ -144,12 +144,24 @@ function Get-ParallaxDevFiles {
     return $map
 }
 
+# Developer tooling (icon script, panel, helpers, Lucide shapes) changes no utility's
+# behavior, so it never turns an icon red: Get-ParallaxDevArea returns $null for it and
+# the comparison skips it. Unlike user and runtime files, a sync still mirrors it. The
+# hook includes stay compared (Hook0 is what a release runs); Status.inc and Diff.txt
+# are runtime output.
+function Test-ParallaxDevTooling {
+    param([Parameter(Mandatory)][string]$Relative)
+    $path = $Relative.Replace('/', '\')
+    return ($path -imatch '^@Resources\\Dev\\' -and $path -inotmatch '^@Resources\\Dev\\(Hook\d\.inc|Status\.inc|Diff\.txt)$')
+}
+
 # $null for ignored files; otherwise the area a difference belongs to: a utility
 # name, 'Suite' (Settings, ColorPicker, Welcome, Update, Idle) or 'Shared'.
 function Get-ParallaxDevArea {
     param([Parameter(Mandatory)][string]$Relative)
     $path = $Relative.Replace('/', '\')
     if ($path -imatch '^@Resources\\User\\') { return $null }
+    if (Test-ParallaxDevTooling $path) { return $null }
     foreach ($ignored in $script:IgnoredPaths) { if ($path -ieq $ignored) { return $null } }
     foreach ($suite in $script:SuitePaths) { if ($path -ieq $suite) { return 'Suite' } }
     if ($path -match '^(?<top>[^\\]+)\\') {
@@ -276,7 +288,7 @@ function Sync-ParallaxDevCopy {
     $updated = 0; $removed = 0
     foreach ($relative in $source.Keys) {
         $area = Get-ParallaxDevArea $relative
-        if ($null -eq $area -and $dev.ContainsKey($relative)) { continue }
+        if ($null -eq $area -and $dev.ContainsKey($relative) -and -not (Test-ParallaxDevTooling $relative)) { continue }
         $item = $source[$relative]
         $bytes = ConvertTo-ParallaxDevRewrite ([IO.File]::ReadAllBytes($item.FullName)) $item.Extension
         if ($dev.ContainsKey($relative)) {
@@ -287,7 +299,7 @@ function Sync-ParallaxDevCopy {
         $updated++
     }
     foreach ($relative in @($dev.Keys)) {
-        if ($source.ContainsKey($relative) -or $null -eq (Get-ParallaxDevArea $relative)) { continue }
+        if ($source.ContainsKey($relative) -or ($null -eq (Get-ParallaxDevArea $relative) -and -not (Test-ParallaxDevTooling $relative))) { continue }
         Remove-Item -LiteralPath $dev[$relative].FullName -Force
         $removed++
     }
@@ -559,7 +571,7 @@ function Invoke-ParallaxDev {
 }
 
 Export-ModuleMember -Function Get-ParallaxDevMonitors, Read-ParallaxDevText, ConvertTo-ParallaxDevBytes, ConvertTo-ParallaxDevRewrite,
-    Get-ParallaxDevHash, Get-ParallaxDevPaths, Get-ParallaxDevFiles, Get-ParallaxDevArea, Get-ParallaxDevVersion,
+    Get-ParallaxDevHash, Get-ParallaxDevPaths, Get-ParallaxDevFiles, Get-ParallaxDevArea, Test-ParallaxDevTooling, Get-ParallaxDevVersion,
     Set-ParallaxDevIncValue, Test-ParallaxDevIdentity, Set-ParallaxDevIdentity, New-ParallaxDevCopy, Sync-ParallaxDevCopy,
     Compare-ParallaxDev, Write-ParallaxDevStatus, Get-ParallaxDevActiveConfigs, Get-ParallaxDevConfigFile,
     Get-ParallaxDevPlacements, Get-ParallaxDevLiveWindows, Get-ParallaxDevWorkAreas, Invoke-ParallaxDev

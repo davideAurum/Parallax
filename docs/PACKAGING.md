@@ -178,4 +178,24 @@ This is a conservative linter, not Rainmeter's parser. It does not reproduce eve
 - Review author credit, license, third-party notices, minimum requirements, release notes, generated Variables files list, and manifest. Resolve `packaging/release.json` placeholders.
 - Record the final artifact's SHA-256 and the tested Rainmeter/Windows versions. A stage alone does not satisfy this gate.
 
-The scripts do not install Rainmeter, download or bundle plugins, write into the real Rainmeter skin path, launch Skin Installer or Skin Packager, or publish releases. Installation, upgrade testing and publishing remain explicit release work after validation.
+The scripts do not install Rainmeter, download or bundle plugins, write into the real Rainmeter skin path, launch Skin Installer or Skin Packager, or publish releases. Installation, upgrade testing and publishing remain explicit release work after validation. The one exception is the upgrade-safety test below, which runs only when invoked with `-Run`.
+
+## Upgrade-safety test
+
+`tools/Test-ParallaxUpgrade.ps1` (added 2026-10-28; run it with `powershell.exe`) is the scripted form of the "upgrades keep settings" release gate. Without `-Run` it is a dry run: it checks the preconditions, backs up the installed `User\*.inc` and Rainmeter.ini to `build\upgrade-test-<time>\before`, builds a candidate package, and prints the probes. With `-Run`, against the installed release, it:
+
+1. writes seven probe values through Rainmeter's own `!WriteKeyValue`, including a non-ASCII countdown label and an emptied label;
+2. presses **Cancel** in Skin Installer and checks that Rainmeter kept running and no installed file changed;
+3. presses **Install**, then checks every `User\*.inc` line by line against the candidate's file with each old value carried over, plus a key that only the candidate has (`UpgradeTestNewDefault`), and checks every other shipped file against the candidate;
+4. reinstalls the published release package, checks that the test-only key is gone and the probes survived again, then copies the backed-up settings back byte for byte.
+
+Skin Installer is opened through Explorer, as a double-click opens it. Its controls reach UI Automation only as panes with their Win32 class names and no Invoke pattern. So each button is found by class and caption and pressed with the `WM_COMMAND`/`BN_CLICKED` message its own click sends. First full pass: 2026-10-28, 48 of 48 checks ([ROADMAP.md](ROADMAP.md#stage-2-before-beta1-010-alphan)).
+
+**How Skin Installer 4.5.28 carries settings over.** This is `KeepVariables` in Rainmeter's `Library/DialogInstall.cpp` at tag `v4.5.28.3936`. It copies the old folder to `Skins\@Backup`, extracts the package, then for each Variables file reads both `[Variables]` sections with `GetPrivateProfileSection` and writes each old value back with `WritePrivateProfileString`, but only when the key also exists in the new file:
+
+- A key the new version removes is dropped.
+- A key the new version adds keeps its packaged default.
+- An empty value is carried over as `Key=`.
+- Only the first 32,767 characters of each section are read, so the test also fails when any settings section approaches that size. Every section is under 2,000 characters today.
+- Skin Installer closes Rainmeter by finding its first control window. With a second Rainmeter process open, for example a preview instance, it can close the wrong one, so the test refuses to run until only one is running.
+- Files the loaded skins rewrite on their own (`Update\State.inc`, `Media\CaptureState.inc`, `Visualizer\StandbyState.inc`, `*.state`) are reported when they change, not counted as failures.

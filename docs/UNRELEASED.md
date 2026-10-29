@@ -12,7 +12,7 @@ Nothing yet. Everything on `main` is in alpha.13.
 
 Re-scoped on 2026-10-28: features are frozen, the customization items moved to after 1.0, and the soak, the `IO.ini` gate and the full sweep moved to the RC. Details and each item's "done when" are in [ROADMAP.md Stage 2](ROADMAP.md#stage-2-before-beta1-010-alphan). Where and how to announce the beta is in [LAUNCH.md](LAUNCH.md). None is ticked yet.
 
-- [ ] Upgrades keep settings: a scripted change → upgrade → diff of `User/*.inc`, plus a cancelled Skin Installer leaving the old version intact. Upgrades alpha.2 → 4 → 5 → 6 worked on the maintainer's install, but values were never checked one by one.
+- [x] Upgrades keep settings. **Done 2026-10-28:** `tools/Test-ParallaxUpgrade.ps1 -Run` passed 48 of 48 checks on the live install: Cancel changed nothing, Install carried over all seven probes (a non-ASCII label and an empty label among them), and a new key arrived with its default. Details, and what it doesn't cover, are in [ROADMAP.md Stage 2](ROADMAP.md#stage-2-before-beta1-010-alphan) and [PACKAGING.md](PACKAGING.md#upgrade-safety-test).
 - [ ] First run as a stranger, in a second, standard Windows account.
 - [ ] Display check at 1080p and 100% scaling.
 - [ ] Laptop, and institutional PC (portable Rainmeter, no admin rights, if IT rules allow it). Start the hardware table.

@@ -6,7 +6,8 @@ Where things stand between releases: what is on `main` but not yet in a publishe
 
 ## On main, not in any release
 
-Nothing yet. Everything on `main` is in alpha.13.
+- GPU Meter reads an integrated GPU when Windows exposes no discrete one: its name, shared memory against the Windows limit, dedicated memory, and Core and Video load from DXCore. Temperature, power and clock read Unsupported there. A discrete GPU always wins. See [Integrated GPU mode](modules/GPU.md#integrated-gpu-mode-2026-11-06).
+- `Run-SettingsSmoke.ps1` stages `Dev\Hook0.inc` again, so the native GPU harness passes.
 
 ## Open: before 0.2.0-beta.1
 

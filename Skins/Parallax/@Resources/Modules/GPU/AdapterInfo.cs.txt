@@ -28,6 +28,7 @@ public static class ParallaxGpuInfo
     private const uint InstanceLuid = 0;
     private const uint DriverDescription = 2;
     private const uint DedicatedAdapterMemory = 7;
+    private const uint SharedSystemMemory = 9;
     private const uint IsHardware = 11;
     private const uint IsIntegrated = 12;
     private const uint HighPerformance = 2;
@@ -121,11 +122,13 @@ public static class ParallaxGpuInfo
     // One-line success protocol, exactly eight fields:
     // OK|model|memoryBytes|memoryType|memoryVendor|memorySource|baseKHz|boostKHz
     // An unknown individual field is "?". PHYSICAL means driver-reported
-    // physical framebuffer; DEDICATED means DXCore dedicated-adapter bytes.
+    // physical framebuffer; DEDICATED means DXCore dedicated-adapter bytes;
+    // INTEGRATED means DXCore's shared-system-memory limit of an integrated GPU.
     // Base/boost are independent driver-reported graphics clock specifications,
     // never the current clock, memory clock, or an observed maximum.
     // Other results remain NONE, UNAVAILABLE, or AMBIGUOUS.
-    // "Main" means the first discrete GPU in Windows' high-performance order.
+    // "Main" means the first discrete GPU in Windows' high-performance order,
+    // or the first integrated GPU when Windows exposes no discrete one.
     // This list covers D3D12 graphics adapters; it is not a display-ownership query.
     // Memory type/vendor are queried from the selected hardware, never inferred
     // from a model name or a machine-specific profile.
@@ -146,6 +149,7 @@ public static class ParallaxGpuInfo
         IntPtr factory = IntPtr.Zero;
         IntPtr list = IntPtr.Zero;
         IntPtr selected = IntPtr.Zero;
+        IntPtr integrated = IntPtr.Zero;
         try
         {
             Guid factoryId = FactoryId;
@@ -159,7 +163,7 @@ public static class ParallaxGpuInfo
 
             uint count = Method<GetCount>(list, 4)(list);
             if (count > 512) return "UNAVAILABLE";
-            int discreteCount = 0;
+            int discreteCount = 0, integratedCount = 0;
             for (uint index = 0; index < count; ++index)
             {
                 IntPtr adapter = IntPtr.Zero;
@@ -169,7 +173,16 @@ public static class ParallaxGpuInfo
                     Check(Method<GetAdapter>(list, 3)(list, index, ref adapterId, out adapter));
                     if (!Method<GetFlag>(adapter, 3)(adapter)) return "UNAVAILABLE";
                     if (!ReadBoolean(adapter, IsHardware)) continue;
-                    if (ReadBoolean(adapter, IsIntegrated)) continue;
+                    if (ReadBoolean(adapter, IsIntegrated))
+                    {
+                        ++integratedCount;
+                        if (integrated == IntPtr.Zero)
+                        {
+                            Marshal.AddRef(adapter);
+                            integrated = adapter;
+                        }
+                        continue;
+                    }
                     ++discreteCount;
                     if (selected == IntPtr.Zero)
                     {
@@ -184,21 +197,30 @@ public static class ParallaxGpuInfo
             }
             // Device arrival/removal during enumeration invalidates this snapshot.
             if (Method<GetFlag>(list, 5)(list)) return "UNAVAILABLE";
-            if (discreteCount == 0) return "NONE";
-            if (!canSort && discreteCount > 1) return "AMBIGUOUS";
+            if (discreteCount == 0 && integratedCount == 0) return "NONE";
+            // A discrete GPU always wins, so one that gains a working driver is
+            // selected at the next load with no setting to change.
+            bool useIntegrated = discreteCount == 0;
+            if (!canSort && (useIntegrated ? integratedCount : discreteCount) > 1) return "AMBIGUOUS";
+            if (useIntegrated)
+            {
+                selected = integrated;
+                integrated = IntPtr.Zero;
+            }
             string name = ReadName(selected);
             if (String.IsNullOrEmpty(name)) return "UNAVAILABLE";
             ulong value;
-            string memory = TryReadUInt64(selected, DedicatedAdapterMemory, out value) && value > 0
+            string memory = TryReadUInt64(selected, useIntegrated ? SharedSystemMemory : DedicatedAdapterMemory, out value) && value > 0
                 ? value.ToString(CultureInfo.InvariantCulture) : "?";
             string memoryType = "?", memoryVendor = "?";
-            string memorySource = "DEDICATED";
+            string memorySource = useIntegrated ? "INTEGRATED" : "DEDICATED";
             string baseClock = "?", boostClock = "?";
             string adapterIdentity = "?";
             if (TryReadUInt64(selected, InstanceLuid, out value))
             {
                 adapterIdentity = value.ToString("X16", CultureInfo.InvariantCulture);
-                ReadNvidiaMetadata(value, ref memory, ref memoryType, ref memoryVendor, ref memorySource, ref baseClock, ref boostClock);
+                if (!useIntegrated)
+                    ReadNvidiaMetadata(value, ref memory, ref memoryType, ref memoryVendor, ref memorySource, ref baseClock, ref boostClock);
             }
             if (!Method<GetFlag>(selected, 3)(selected) || Method<GetFlag>(list, 5)(list)) return "UNAVAILABLE";
             string metadata = String.Join("|", new string[] { "OK", name, memory, memoryType, memoryVendor, memorySource, baseClock, boostClock });
@@ -207,12 +229,13 @@ public static class ParallaxGpuInfo
         catch
         {
             // Old Windows, unsupported properties, unavailable drivers and query
-            // failures must never silently select an integrated or guessed GPU.
+            // failures must never silently select a guessed GPU.
             return "UNAVAILABLE";
         }
         finally
         {
             if (selected != IntPtr.Zero) Marshal.Release(selected);
+            if (integrated != IntPtr.Zero) Marshal.Release(integrated);
             if (list != IntPtr.Zero) Marshal.Release(list);
             if (factory != IntPtr.Zero) Marshal.Release(factory);
         }

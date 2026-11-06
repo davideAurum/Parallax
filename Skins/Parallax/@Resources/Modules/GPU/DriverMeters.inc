@@ -1,6 +1,8 @@
 ; Engine activity table and memory rows, fed by Temperature.lua from the direct
 ; driver sample. Activity domains are independent busy-time percentages and
 ; are never summed; dedicated VRAM and shared residency are memory amounts.
+; On an integrated GPU Temperature.lua relabels the two memory rows Shared: and
+; Dedicated:, so the second row's label is wide enough for either text.
 ;
 ; The Engine table follows the CPU thread table: a header row and underline,
 ; then 16 px rows of label / bar / centered percentage, closed by a divider.
@@ -194,7 +196,7 @@ Meter=String
 Group=ParallaxIdleFreeze
 MeterStyle=StyleLabel
 Y=(#Inset#+(250+#GPUBarExtra#)*#Scale#)
-W=(50*#Scale#)
+W=(70*#Scale#)
 H=(18*#Scale#)
 Text=Shared:
 
@@ -204,7 +206,7 @@ MeterStyle=StyleLabel
 Group=GPUDriverReadout|ParallaxIdleFreeze
 X=(#ContentX#+#ContentWidth#)
 Y=(#Inset#+(250+#GPUBarExtra#)*#Scale#)
-W=(#ContentWidth#-54*#Scale#)
+W=(#ContentWidth#-74*#Scale#)
 H=(18*#Scale#)
 StringAlign=Right
 Text=--

@@ -3,19 +3,31 @@ PARALLAX GPU - SENSOR MAPPING
 GPU OVERVIEW
 
 The inset beneath the header identifies Windows' preferred high-performance
-discrete graphics adapter. A one-time query at skin load/refresh reads the
-Windows DXCore hardware and integrated flags, excluding integrated and
-software graphics. It does not guess from a vendor name or memory size.
+discrete graphics adapter, or its integrated adapter when Windows exposes no
+discrete one. A one-time query at skin load/refresh reads the Windows DXCore
+hardware and integrated flags, excluding software graphics. It does not guess
+from a vendor name or memory size. A discrete GPU always wins: if one gains a
+working driver, the next load or refresh selects it.
 An external GPU may be preferred over an internal discrete GPU; this is not
 necessarily the display-driving adapter.
 
 The original AdapterInfo.cs.txt source is compiled by Windows PowerShell
 once per refresh. No plugin download or dependency installation is needed.
 This metadata requires DXCore and a compatible D3D12 graphics driver.
-Unsupported/query-failure states display GPU name unavailable. No match
-displays No discrete GPU found; multiple discrete adapters without supported
-performance ordering display Multiple discrete GPUs. Refresh to retry after
-hardware or driver changes. No integrated adapter is used as a fallback.
+Unsupported/query-failure states display GPU name unavailable. No hardware
+adapter displays No GPU found; several candidates without supported
+performance ordering display Multiple GPUs. Refresh to retry after hardware
+or driver changes.
+
+An integrated adapter reads differently. The detail line shows its Windows
+shared-memory limit, the bar row is relabeled Shared: and reads shared memory
+in use over that limit, and the row below is relabeled Dedicated:. Core, Video,
+the header and History come from Windows' DXCore engine running time: Core is
+the 3D and Compute engines and Video the video engines, each at its busiest
+engine, so a video-only load reads on Video and can leave the header below
+Task Manager's overall figure. Memory and Bus have no such source and read --.
+Temperature, Power and Clock read Unsupported; the Power and Clock overrides
+below still work.
 
 The detail beneath the name shows that same GPU's total dedicated video
 memory and type, detected automatically. When the installed NVIDIA driver offers
@@ -86,7 +98,7 @@ translation; unload conflicting GPU skins and refresh to troubleshoot.
 
 DIRECT GPU TEMPERATURE
 
-Temperature reads the detected discrete GPU directly through the installed
+Temperature reads the selected discrete GPU directly through the installed
 NVIDIA driver. It needs no HWiNFO export or sensor mapping. GPU Settings shows
 Driver; Refresh restarts detection. AMD/Intel direct temperature providers are
 not implemented. Unsupported or failed readings remain explicitly unavailable.

@@ -76,6 +76,16 @@ local function clockOverview(parts)
     return ' @ -- MHz'
 end
 
+-- An integrated GPU has no VRAM of its own and no published clocks: it draws
+-- on system RAM, up to the limit Windows reports.
+local function integratedOverview(parts)
+    local bytes = parts[2]:match('^%d+$') and tonumber(parts[2])
+    if finite(bytes) and bytes > 0 and bytes <= 9007199254740991 then
+        return 'Integrated, ' .. capacity(bytes) .. ' shared'
+    end
+    return 'Integrated, shared memory'
+end
+
 local function adapterInfo()
     if infoComplete then return nil end
     local source = measure('MeasureGPUInfo')
@@ -93,10 +103,13 @@ local function adapterInfo()
     if name and trim(name) ~= '' and (parts[5] == 'PHYSICAL' or parts[5] == 'DEDICATED') then
         return name, memoryOverview(parts) .. clockOverview(parts)
     end
-    -- No integrated, software or arbitrarily chosen adapter is ever substituted.
+    if name and trim(name) ~= '' and parts[5] == 'INTEGRATED' then
+        return name, integratedOverview(parts)
+    end
+    -- No software or arbitrarily chosen adapter is ever substituted.
     local details = memoryOverview(nil) .. clockOverview(nil)
-    if status == 1 and result == 'NONE' then return 'No discrete GPU found', details end
-    if status == 1 and result == 'AMBIGUOUS' then return 'Multiple discrete GPUs', details end
+    if status == 1 and result == 'NONE' then return 'No GPU found', details end
+    if status == 1 and result == 'AMBIGUOUS' then return 'Multiple GPUs', details end
     return 'GPU name unavailable', details
 end
 

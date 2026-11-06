@@ -34,6 +34,9 @@ foreach ($name in @('Settings.inc','GPU.inc')) {
 # comment-only Idle hook variant.
 $null=New-Item -ItemType Directory -Path (Join-Path $parallaxRoot '@Resources\Idle')
 Copy-Item -LiteralPath (Join-Path $sourceSkin '@Resources\Idle\Hook0.inc') -Destination (Join-Path $parallaxRoot '@Resources\Idle')
+# GPU.ini includes the release's comment-only Dev hook since 2026-10-28.
+$null=New-Item -ItemType Directory -Path (Join-Path $parallaxRoot '@Resources\Dev')
+Copy-Item -LiteralPath (Join-Path $sourceSkin '@Resources\Dev\Hook0.inc') -Destination (Join-Path $parallaxRoot '@Resources\Dev')
 # The update hook (Auto check Daily by default) and the files it loads.
 $null=New-Item -ItemType Directory -Path (Join-Path $parallaxRoot '@Resources\Update')
 foreach ($name in @('Version.inc','Update\Hook1.inc','Update\Feed.inc','Update\Update.lua','Update\State.inc','Idle\Link.lua')) { Copy-Item -LiteralPath (Join-Path $sourceSkin ('@Resources\'+$name)) -Destination (Join-Path $parallaxRoot ('@Resources\'+$name)) }
@@ -618,7 +621,7 @@ try {
             $metadataPath=Join-Path $runRoot 'metadata-observed.txt'
             (Text-Matches $metadataPath '(?m)^MeterAdapterName=.+') -and
                 -not (Text-Matches $metadataPath 'Checking\.\.\.') -and
-                (-not $MaxTypography -or -not (Text-Matches $metadataPath 'GPU name unavailable|No discrete GPU|Multiple discrete GPUs'))
+                (-not $MaxTypography -or -not (Text-Matches $metadataPath 'GPU name unavailable|No GPU found|Multiple GPUs'))
         } 'GPU metadata did not complete for capture.' 30
     }
     if ($CaptureOnly) {

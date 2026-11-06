@@ -128,7 +128,7 @@ $outer=@"
         }
         finally{Delete(paths.Data);Delete(paths.Lease);Delete(paths.Temporary);}
         count+=ProcessNameFixtures();count+=Driver.ThermalFixtures();
-        count+=Driver.MemoryFixtures();count+=Driver.PowerClockFixtures();
+        count+=Driver.MemoryFixtures();count+=Driver.PowerClockFixtures();count+=Driver.IntegratedFixtures();
         Frame frame=new Frame("OK");frame.Temperature=0;frame.Physical=8192;frame.Allocatable=8000;frame.Available=0;
         frame.SharedCommitted=0;frame.SharedResident=1;frame.Utilization[0]=0;frame.Utilization[2]=100;frame.PowerMilliwatts=13299;frame.GraphicsClockKHz=607500;
         string[] fields=Snapshot(token,3,1002,frame,luid,"?").Split('|');
@@ -434,6 +434,74 @@ $inner=@"
         internal static string FixtureOpenStatus;
         internal static ManualResetEvent FixtureOpened=new ManualResetEvent(false);
         internal static Queue<bool> FixtureIdentity;
+        internal static int IntegratedFixtures()
+        {
+            int count=0;Action<bool,string> check=delegate(bool value,string label){++count;if(!value)throw new Exception("Integrated fixture: "+label);};
+            Driver driver=new Driver(1);driver.opened=true;driver.integrated=true;driver.sharedSupport="OK";
+            // The engine names a real Iris Xe reports, plus Compute and a lowercase video engine.
+            string[] names=new string[]{"3D","Video Decode","Copy","Video Processing","Video Decode 1",""," 1","Overlay","Compute 0","video encode"};
+            driver.SelectEngines(names);
+            uint[] expectedIds=new uint[]{0,1,3,4,8,9};bool[] expectedCore=new bool[]{true,false,false,false,true,false};
+            check(driver.engineSupport=="OK"&&driver.engineIds.Length==6,"only Core and Video engines are sampled");
+            for(int i=0;i<6;++i)check(driver.engineIds[i]==expectedIds[i]&&driver.engineIsCore[i]==expectedCore[i],"engine classification");
+            ulong[] running=new ulong[10];int status=0,calls=0;
+            QueryState engine=delegate(IntPtr adapter,uint state,UIntPtr inputSize,IntPtr input,UIntPtr outputSize,IntPtr output)
+            {
+                ++calls;check(state==4&&inputSize.ToUInt64()==12&&outputSize.ToUInt64()==8,"engine state ABI");
+                check(Marshal.ReadInt32(input)==0&&Marshal.ReadInt32(input,8)==0,"physical index zero, no process");
+                Marshal.WriteInt64(output,unchecked((long)running[Marshal.ReadInt32(input,4)]));return status;
+            };
+            driver.engineQuery=engine;
+            // One hundred seconds ago, so a late thread cannot move a percentage.
+            Action backdate=delegate(){driver.engineStamp=System.Diagnostics.Stopwatch.GetTimestamp()-100*System.Diagnostics.Stopwatch.Frequency;};
+            Frame frame=new Frame("UNAVAILABLE");
+            check(driver.ReadEngines(frame)=="STARTING"&&calls==6&&!frame.Utilization[0].HasValue,"a first sample has no reading");
+            backdate();running[0]+=50000000;running[8]+=20000000;running[1]+=7000000;running[3]+=30000000;running[2]+=90000000;
+            frame=new Frame("UNAVAILABLE");
+            check(driver.ReadEngines(frame)=="OK"&&frame.Utilization[0]==50&&frame.Utilization[2]==30,"each row is its busiest engine, never a sum, and Copy has no row");
+            check(!frame.Utilization[1].HasValue&&!frame.Utilization[3].HasValue,"no Memory or Bus reading");
+            backdate();frame=new Frame("UNAVAILABLE");
+            check(driver.ReadEngines(frame)=="OK"&&frame.Utilization[0]==0&&frame.Utilization[2]==0,"idle engines read a real zero");
+            backdate();running[0]+=250000000;frame=new Frame("UNAVAILABLE");
+            check(driver.ReadEngines(frame)=="OK"&&frame.Utilization[0]==100,"time past the interval clamps to 100");
+            running[0]-=1;frame=new Frame("UNAVAILABLE");
+            check(driver.ReadEngines(frame)=="UNAVAILABLE","a counter that went backwards is never a reading");
+            frame=new Frame("UNAVAILABLE");
+            check(driver.ReadEngines(frame)=="STARTING","the comparison restarts after a backwards counter");
+            status=-1;frame=new Frame("UNAVAILABLE");
+            check(driver.ReadEngines(frame)=="UNAVAILABLE","a failed query is unavailable");status=0;
+            frame=new Frame("UNAVAILABLE");
+            check(driver.ReadEngines(frame)=="STARTING","the comparison restarts after a failed query");
+            driver.engineQuery=null;frame=new Frame("UNAVAILABLE");
+            check(driver.ReadEngines(frame)=="UNSUPPORTED","a missing query is unsupported");driver.engineQuery=engine;
+            driver.SelectEngines(new string[]{"Copy","","Overlay"});int before=calls;frame=new Frame("UNAVAILABLE");
+            check(driver.engineSupport=="UNSUPPORTED"&&driver.ReadEngines(frame)=="UNSUPPORTED"&&calls==before,"no row engines means unsupported and no queries");
+            ulong resident=0;int type=-1;
+            driver.sharedProperty=delegate(IntPtr adapter,uint property,UIntPtr size,IntPtr output){Marshal.WriteInt32(output,1);return 0;};
+            driver.sharedQuery=delegate(IntPtr adapter,uint state,UIntPtr inputSize,IntPtr input,UIntPtr outputSize,IntPtr output)
+            {
+                check(state==2&&inputSize.ToUInt64()==8&&outputSize.ToUInt64()==16&&Marshal.ReadInt32(input)==0,"usage state ABI");
+                type=Marshal.ReadInt32(input,4);Marshal.WriteInt64(output,unchecked((long)resident));Marshal.WriteInt64(output,8,unchecked((long)resident));return 0;
+            };
+            driver.dedicatedBytes=134217728;frame=new Frame("UNAVAILABLE");
+            check(driver.ReadMemory(frame)=="OK"&&type==0&&frame.Physical==134217728&&frame.Available==134217728,"dedicated use reads a real zero from the dedicated type");
+            resident=1000000;frame=new Frame("UNAVAILABLE");
+            check(driver.ReadMemory(frame)=="OK"&&frame.Available==133217728,"dedicated use");
+            resident=200000000;frame=new Frame("UNAVAILABLE");
+            check(driver.ReadMemory(frame)=="OK"&&frame.Available==0,"use past the reported size cannot underflow");
+            driver.dedicatedBytes=0;frame=new Frame("UNAVAILABLE");
+            check(driver.ReadMemory(frame)=="UNSUPPORTED","no dedicated memory is unsupported, not full");
+            driver.dedicatedBytes=134217728;resident=1201614848;frame=new Frame("UNAVAILABLE");
+            check(driver.ReadShared(frame)=="OK"&&type==1&&frame.SharedResident==1201614848,"shared use still reads the shared type");
+            driver.SelectEngines(names);driver.engineTimes=null;
+            FixtureIdentity=new Queue<bool>(new bool[]{true,true,true});Frame combined=driver.ReadFrame();
+            check(combined.TemperatureStatus=="UNSUPPORTED"&&combined.PowerStatus=="UNSUPPORTED"&&combined.ClockStatus=="UNSUPPORTED","an integrated adapter has no vendor readings");
+            check(combined.MemoryStatus=="OK"&&combined.SharedStatus=="OK"&&combined.UtilizationStatus=="STARTING"&&FixtureIdentity.Count==1,"DXCore readings run inside the frame's identity checks");
+            string[] fields=Snapshot(new String('a',32),1,Now(),combined,"00000000000105AB","?").Split('|');
+            check(fields.Length==27&&fields[16]=="STARTING"&&fields[17]=="?"&&fields[10]=="134217728","a starting load row is published with no value");
+            FixtureIdentity=null;driver.Dispose();
+            return count;
+        }
         internal static int ThermalFixtures()
         {
             int count=0,calls=0;Action<bool,string> check=delegate(bool ok,string label){++count;if(!ok)throw new Exception(label);};

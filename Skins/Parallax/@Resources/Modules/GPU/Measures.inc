@@ -186,7 +186,8 @@ UpdateDivider=(Max(1,Ceil(#SensorInterval#/Max(1,#MetricsInterval#))))
 Disabled=1
 
 ; One metadata query on load/refresh, never a recurring telemetry process.
-; Original helper selects a discrete DXCore adapter, queries its metadata, and
+; Original helper selects a DXCore adapter (a discrete GPU, or an integrated one
+; when Windows exposes no discrete GPU), queries its metadata, and
 ; provides the exact adapter identity to the direct telemetry provider.
 [MeasureGPUInfo]
 Measure=Plugin

@@ -1,6 +1,8 @@
 // Original Parallax resident GPU telemetry provider. Compiled by the existing
 // hidden PowerShell host; it launches no processes and never reads HWiNFO.
 // Identity: https://github.com/microsoft/DirectX-Headers/blob/main/include/directx/dxcore_interface.h
+// Integrated adapters (engine running time, memory usage), same header and
+// https://learn.microsoft.com/en-us/windows/win32/api/dxcore_interface/ne-dxcore_interface-dxcoreadapterstate
 // NVAPI ABI/IDs: https://github.com/NVIDIA/nvapi/blob/main/nvapi.h
 // https://github.com/NVIDIA/nvapi/blob/main/nvapi_interface.h
 // Memory ABI: https://github.com/NVIDIA/nvapi/blob/main/nvapi_lite_common.h
@@ -794,6 +796,7 @@ public static class ParallaxGpuTemperature
         private static readonly Guid FactoryId = new Guid("78ee5945-c36e-4b13-a669-005dd11c0f06");
         private static readonly Guid ListId = new Guid("526c7776-40e9-459b-b711-f32ad76dfc28");
         private static readonly Guid AdapterId = new Guid("f0db4c7f-fe5a-42a2-bd62-f2a6cf6fc83e");
+        private static readonly Guid Adapter1Id = new Guid("a0783366-cfa3-43be-9d79-55b2da97c63c");
         private static readonly Guid GraphicsAttribute = new Guid("0c9ece4d-2f6e-4f01-8c96-e89e331b47b1");
         private readonly ulong requestedLuid;
         private IntPtr factory, list, adapter, module, luidBuffer, physical, logical;
@@ -818,6 +821,17 @@ public static class ParallaxGpuTemperature
         private QueryState sharedQuery;
         private string nvidiaStatus = "UNSUPPORTED", sharedSupport = "UNSUPPORTED";
         private bool initialized, opened, disposed, nvidiaBound;
+        // Integrated adapters read DXCore instead of a vendor driver. Only engines
+        // that have a table row are sampled; see SelectEngines.
+        private const int MaximumEngines = 64;
+        private bool integrated;
+        private ulong dedicatedBytes;
+        private QueryState engineQuery;
+        private uint[] engineIds = new uint[0];
+        private bool[] engineIsCore = new bool[0];
+        private ulong[] engineTimes;
+        private long engineStamp;
+        private string engineSupport = "UNSUPPORTED";
         internal string NameHex = "?";
         internal Driver(ulong luid) { requestedLuid = luid; }
 
@@ -841,8 +855,9 @@ public static class ParallaxGpuTemperature
                         if (!Method<GetFlag>(candidate, 3)(candidate)) return "DEVICE_CHANGED";
                         ulong luid;
                         if (!ReadLuid(candidate, out luid) || luid != requestedLuid) continue;
-                        if (!ReadBoolean(candidate, 11) || ReadBoolean(candidate, 12)) return "UNSUPPORTED";
+                        if (!ReadBoolean(candidate, 11)) return "UNSUPPORTED";
                         if (adapter != IntPtr.Zero) return "UNAVAILABLE";
+                        integrated = ReadBoolean(candidate, 12);
                         Marshal.AddRef(candidate);
                         adapter = candidate;
                     }
@@ -852,8 +867,13 @@ public static class ParallaxGpuTemperature
                 NameHex = ReadNameHex(adapter);
                 ConfigureShared();
                 opened = true;
-                nvidiaStatus = OpenNvidia();
-                if (nvidiaStatus == "OK") powerSupport = OpenPower();
+                // Integrated adapters leave every NVIDIA-backed reading UNSUPPORTED.
+                if (integrated) ConfigureEngines();
+                else
+                {
+                    nvidiaStatus = OpenNvidia();
+                    if (nvidiaStatus == "OK") powerSupport = OpenPower();
+                }
                 return IdentityMatches() ? "OK" : "DEVICE_CHANGED";
             }
             catch (DllNotFoundException) { return "UNSUPPORTED"; }
@@ -959,6 +979,7 @@ public static class ParallaxGpuTemperature
         private string ReadMemory(Frame frame)
         {
             if (!opened || disposed) return "UNAVAILABLE";
+            if (integrated) return ReadDedicated(frame);
             try
             {
                 if (nvidiaStatus != "OK") return NvidiaUnavailable();
@@ -1014,6 +1035,27 @@ public static class ParallaxGpuTemperature
 
         private string ReadShared(Frame frame)
         {
+            ulong committed, resident;
+            string status = ReadUsage(1, out committed, out resident); // DXCoreMemoryType.Shared.
+            if (status != "OK") return status;
+            frame.SharedCommitted = committed; frame.SharedResident = resident;
+            return "OK";
+        }
+
+        // An integrated adapter's dedicated size comes from DXCore at open, so a
+        // machine with none reads Unsupported rather than a full or empty pool.
+        private string ReadDedicated(Frame frame)
+        {
+            if (dedicatedBytes == 0) return "UNSUPPORTED";
+            ulong committed, resident;
+            string status = ReadUsage(0, out committed, out resident); // DXCoreMemoryType.Dedicated.
+            if (status != "OK") return status;
+            return StoreMemory(frame, dedicatedBytes, dedicatedBytes, dedicatedBytes - Math.Min(resident, dedicatedBytes));
+        }
+
+        private string ReadUsage(int memoryType, out ulong committed, out ulong resident)
+        {
+            committed = resident = 0;
             if (!opened || disposed) return "UNAVAILABLE";
             IntPtr input = IntPtr.Zero, output = IntPtr.Zero;
             try
@@ -1027,14 +1069,13 @@ public static class ParallaxGpuTemperature
                 if (status < 0) return "UNAVAILABLE";
                 if (Marshal.ReadInt32(output) != 1) return "UNSUPPORTED";
                 Marshal.Copy(new byte[16], 0, output, 16);
-                Marshal.WriteInt32(input, 4, 1); // Physical index 0, DXCoreMemoryType.Shared.
+                Marshal.WriteInt32(input, 4, memoryType); // Physical index 0, then the type.
                 status = sharedQuery(adapter, 2, new UIntPtr(8), input, new UIntPtr(16), output);
                 if (status < 0) return "UNAVAILABLE";
-                ulong committed = unchecked((ulong)Marshal.ReadInt64(output));
-                ulong resident = unchecked((ulong)Marshal.ReadInt64(output, 8));
+                committed = unchecked((ulong)Marshal.ReadInt64(output));
+                resident = unchecked((ulong)Marshal.ReadInt64(output, 8));
                 // Different accounting quantities; resident can exceed committed.
                 if (committed > (ulong)MaximumSequence || resident > (ulong)MaximumSequence) return "UNAVAILABLE";
-                frame.SharedCommitted = committed; frame.SharedResident = resident;
                 return "OK";
             }
             catch { return "UNAVAILABLE"; }
@@ -1045,9 +1086,145 @@ public static class ParallaxGpuTemperature
             }
         }
 
+        // Runs once at open. The engine list and dedicated size are fixed for the
+        // adapter's lifetime; running time is the only per-sample query. Anything
+        // missing here leaves the load rows unsupported and the rest of the sample
+        // unaffected. Engine count and names need IDXCoreAdapter1.
+        private void ConfigureEngines()
+        {
+            IntPtr adapter1 = IntPtr.Zero, input = IntPtr.Zero, output = IntPtr.Zero;
+            try
+            {
+                ulong dedicated;
+                if (ReadUInt64(adapter, 7, out dedicated) && dedicated <= (ulong)MaximumSequence) dedicatedBytes = dedicated;
+                if (!Method<Supports>(adapter, 5)(adapter, 16) || !Method<Supports>(adapter, 5)(adapter, 17) ||
+                    !Method<Supports>(adapter, 8)(adapter, 4)) return;
+                Guid id = Adapter1Id;
+                if (Marshal.QueryInterface(adapter, ref id, out adapter1) < 0) return;
+                GetPropertyWithInput property = Method<GetPropertyWithInput>(adapter1, 13);
+                input = Marshal.AllocHGlobal(4); output = Marshal.AllocHGlobal(4);
+                Marshal.WriteInt32(input, 0); Marshal.WriteInt32(output, 0); // Physical index 0.
+                if (property(adapter1, 16, new UIntPtr(4), input, new UIntPtr(4), output) < 0) return;
+                uint count = unchecked((uint)Marshal.ReadInt32(output));
+                if (count == 0 || count > MaximumEngines) return;
+                string[] names = new string[count];
+                for (uint index = 0; index < count; ++index) names[index] = ReadEngineName(property, adapter1, index);
+                engineQuery = Method<QueryState>(adapter, 9);
+                SelectEngines(names);
+            }
+            catch { engineSupport = "UNAVAILABLE"; }
+            finally
+            {
+                if (input != IntPtr.Zero) Marshal.FreeHGlobal(input);
+                if (output != IntPtr.Zero) Marshal.FreeHGlobal(output);
+                if (adapter1 != IntPtr.Zero) Marshal.Release(adapter1);
+            }
+        }
+
+        // DXCoreEngineNamePropertyInput: physical and engine index, name length,
+        // then the caller's buffer pointer at its natural alignment. An engine
+        // whose name cannot be read simply has no row.
+        private static string ReadEngineName(GetPropertyWithInput property, IntPtr adapter1, uint engine)
+        {
+            const int Characters = 64;
+            int size = IntPtr.Size == 8 ? 24 : 16;
+            IntPtr input = IntPtr.Zero, output = IntPtr.Zero, name = IntPtr.Zero;
+            try
+            {
+                input = Marshal.AllocHGlobal(size); output = Marshal.AllocHGlobal(4);
+                name = Marshal.AllocHGlobal((Characters + 1) * 2);
+                Marshal.Copy(new byte[size], 0, input, size);
+                Marshal.Copy(new byte[(Characters + 1) * 2], 0, name, (Characters + 1) * 2);
+                Marshal.WriteInt32(input, 4, unchecked((int)engine));
+                Marshal.WriteInt32(input, 8, Characters);
+                Marshal.WriteIntPtr(input, IntPtr.Size == 8 ? 16 : 12, name);
+                Marshal.WriteInt32(output, 0);
+                if (property(adapter1, 17, new UIntPtr((uint)size), input, new UIntPtr(4), output) < 0) return "";
+                return Marshal.PtrToStringUni(name) ?? "";
+            }
+            finally
+            {
+                if (input != IntPtr.Zero) Marshal.FreeHGlobal(input);
+                if (output != IntPtr.Zero) Marshal.FreeHGlobal(output);
+                if (name != IntPtr.Zero) Marshal.FreeHGlobal(name);
+            }
+        }
+
+        // Core is the 3D and Compute engines, the counterpart of NVIDIA's GPU
+        // domain; Video is every video engine. Copy, Overlay and unnamed engines
+        // have no row, so a load only they carry does not lift the header.
+        private void SelectEngines(string[] names)
+        {
+            List<uint> ids = new List<uint>();
+            List<bool> core = new List<bool>();
+            for (uint index = 0; index < names.Length; ++index)
+            {
+                string name = names[index] ?? "";
+                bool isCore = name.StartsWith("3D", StringComparison.OrdinalIgnoreCase) ||
+                    name.StartsWith("Compute", StringComparison.OrdinalIgnoreCase);
+                if (!isCore && !name.StartsWith("Video", StringComparison.OrdinalIgnoreCase)) continue;
+                ids.Add(index);
+                core.Add(isCore);
+            }
+            engineIds = ids.ToArray();
+            engineIsCore = core.ToArray();
+            engineSupport = engineIds.Length > 0 ? "OK" : "UNSUPPORTED";
+        }
+
+        // Busy time since the previous sample: running-time delta over elapsed
+        // time, the figure Windows' GPU Engine counters give for the same engine.
+        // A row shows its busiest engine, never a sum. The first sample has
+        // nothing to compare with; a counter that went backwards (a driver reset)
+        // or a failed read restarts the comparison.
+        private string ReadEngines(Frame frame)
+        {
+            if (engineSupport != "OK") return engineSupport;
+            if (engineQuery == null) return "UNSUPPORTED";
+            IntPtr input = IntPtr.Zero, output = IntPtr.Zero;
+            try
+            {
+                input = Marshal.AllocHGlobal(12); output = Marshal.AllocHGlobal(8);
+                Marshal.Copy(new byte[12], 0, input, 12); // Physical index 0; no process ID.
+                ulong[] times = new ulong[engineIds.Length];
+                long stamp = System.Diagnostics.Stopwatch.GetTimestamp();
+                for (int index = 0; index < times.Length; ++index)
+                {
+                    Marshal.WriteInt32(input, 4, unchecked((int)engineIds[index]));
+                    Marshal.WriteInt64(output, 0);
+                    if (engineQuery(adapter, 4, new UIntPtr(12), input, new UIntPtr(8), output) < 0)
+                    {
+                        engineTimes = null;
+                        return "UNAVAILABLE";
+                    }
+                    times[index] = unchecked((ulong)Marshal.ReadInt64(output));
+                }
+                ulong[] last = engineTimes;
+                long lastStamp = engineStamp;
+                engineTimes = times; engineStamp = stamp;
+                if (last == null) return "STARTING";
+                double elapsed = (stamp - lastStamp) * 1000000.0 / System.Diagnostics.Stopwatch.Frequency;
+                if (elapsed <= 0) return "UNAVAILABLE";
+                for (int index = 0; index < times.Length; ++index)
+                {
+                    if (times[index] < last[index]) { engineTimes = null; return "UNAVAILABLE"; }
+                    uint percent = (uint)Math.Min(100.0, Math.Round((times[index] - last[index]) / elapsed * 100.0));
+                    int slot = engineIsCore[index] ? 0 : 2; // The Core and Video domains.
+                    if (!frame.Utilization[slot].HasValue || percent > frame.Utilization[slot].Value) frame.Utilization[slot] = percent;
+                }
+                return "OK";
+            }
+            catch { engineTimes = null; return "UNAVAILABLE"; }
+            finally
+            {
+                if (input != IntPtr.Zero) Marshal.FreeHGlobal(input);
+                if (output != IntPtr.Zero) Marshal.FreeHGlobal(output);
+            }
+        }
+
         private string ReadUtilization(Frame frame)
         {
             if (!opened || disposed) return "UNAVAILABLE";
+            if (integrated) return ReadEngines(frame);
             try
             {
                 if (utilization == null || nvidiaStatus != "OK") return NvidiaUnavailable();
@@ -1356,18 +1533,20 @@ public static class ParallaxGpuTemperature
             }
         }
 
-        private static bool ReadLuid(IntPtr adapter, out ulong value)
+        private static bool ReadLuid(IntPtr adapter, out ulong value) { return ReadUInt64(adapter, 0, out value); }
+
+        private static bool ReadUInt64(IntPtr adapter, uint property, out ulong value)
         {
             value = 0;
             IntPtr buffer = IntPtr.Zero;
             try
             {
-                if (!Method<Supports>(adapter, 5)(adapter, 0)) return false;
+                if (!Method<Supports>(adapter, 5)(adapter, property)) return false;
                 UIntPtr size;
-                Check(Method<GetPropertySize>(adapter, 7)(adapter, 0, out size));
+                Check(Method<GetPropertySize>(adapter, 7)(adapter, property, out size));
                 if (size.ToUInt64() != 8) return false;
                 buffer = Marshal.AllocHGlobal(8);
-                Check(Method<GetProperty>(adapter, 6)(adapter, 0, size, buffer));
+                Check(Method<GetProperty>(adapter, 6)(adapter, property, size, buffer));
                 value = unchecked((ulong)Marshal.ReadInt64(buffer));
                 return true;
             }
@@ -1453,6 +1632,8 @@ public static class ParallaxGpuTemperature
         private delegate int GetPropertySize(IntPtr self, uint property, out UIntPtr size);
         [UnmanagedFunctionPointer(CallingConvention.StdCall)]
         private delegate int QueryState(IntPtr self, uint state, UIntPtr inputSize, IntPtr input, UIntPtr outputSize, IntPtr output);
+        [UnmanagedFunctionPointer(CallingConvention.StdCall)]
+        private delegate int GetPropertyWithInput(IntPtr self, uint property, UIntPtr inputSize, IntPtr input, UIntPtr outputSize, IntPtr output);
         [UnmanagedFunctionPointer(CallingConvention.Cdecl)] private delegate IntPtr NvidiaQueryInterface(uint id);
         [UnmanagedFunctionPointer(CallingConvention.Cdecl)] private delegate int NvidiaLifecycle();
         [UnmanagedFunctionPointer(CallingConvention.Cdecl)]

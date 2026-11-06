@@ -47,7 +47,7 @@ function Suite.run(path)
         MeterGPUVRAMBar = true, MeterGPUSharedValue = true, MeterGPULoadValue = true,
         MeterGPUControllerLoadValue = true, MeterGPUVideoLoadValue = true, MeterGPUBusLoadValue = true,
         MeterGPULoadBar = true, MeterGPUControllerLoadBar = true, MeterGPUVideoLoadBar = true, MeterGPUBusLoadBar = true,
-        MeterPowerValue = true, MeterClockValue = true}
+        MeterPowerValue = true, MeterClockValue = true, MeterGPUVRAMLabel = true, MeterGPUSharedLabel = true}
     local loadMeters = {'MeterGPULoadValue', 'MeterGPUControllerLoadValue',
         'MeterGPUVideoLoadValue', 'MeterGPUBusLoadValue'}
     local loadBars = {'MeterGPULoadBar', 'MeterGPUControllerLoadBar',
@@ -1323,7 +1323,69 @@ function Suite.run(path)
         f.now = 1060; for second = 1003, 1060 do f.now = second; f:sample({[27] = game}); f:update() end
         eq(f.files[leasePath], token .. '|1057|3|7'); eq(f.names, 'GPU_NAMES|1|1060|' .. game)
     end)
-    test('without one discrete GPU the same host runs for process names only', function()
+    local integratedMetadata = 'OK|Integrated Fixture|8491673600|?|?|INTEGRATED|?|?\nGPU_ADAPTER|1|' .. luid
+    -- What the resident helper publishes for an integrated adapter.
+    local function integratedSample(overrides)
+        local values = {[6] = 'UNSUPPORTED', [7] = '?', [11] = '134217728', [12] = '134217728', [13] = '134217728',
+            [15] = '1196683264', [16] = '1201614848', [18] = '8', [19] = '?', [20] = '3', [21] = '?',
+            [22] = 'UNSUPPORTED', [23] = '?', [24] = 'UNSUPPORTED', [25] = '?'}
+        for key, value in pairs(overrides or {}) do values[key] = value end
+        return values
+    end
+    test('an integrated adapter runs a full session with its own memory rows and engine load', function()
+        local f = fixture({metadata = integratedMetadata})
+        contains(f.parameters[launcher], "''@T@'',''" .. luid .. "'',2000)")
+        eq(f:text('MeterGPUVRAMLabel'), 'Shared:'); eq(f:text('MeterGPUSharedLabel'), 'Dedicated:')
+        f:live(integratedSample())
+        eq(f.meter.Text, 'Unsupported'); eq(f:text('MeterPowerValue'), 'Unsupported'); eq(f:text('MeterClockValue'), 'Unsupported')
+        eq(f:text('MeterGPUVRAMValue'), '1.2/8.5 GB'); eq(f:text('MeterGPUSharedValue'), '0 MB')
+        eq(string.format('%.3f', (f:bar())), string.format('%.3f', 200 * 1201614848 / 8491673600), 'bar is use over the Windows limit')
+        eq(f:text('MeterActivityValue'), '8%'); eq(f:text('MeterGPULoadValue'), '8%'); eq(f:text('MeterGPUVideoLoadValue'), '3%')
+        eq(f:text('MeterGPUControllerLoadValue'), '--', 'no memory controller reading')
+        eq(f:text('MeterGPUBusLoadValue'), '--', 'no bus reading')
+        eq((f:bar('MeterGPUControllerLoadBar')), 0); eq((f:bar('MeterGPUBusLoadBar')), 0)
+        eq(f.history[#f.history], 8, 'History traces Core'); eq((f:update()), 8)
+    end)
+    test('an integrated load row waits for its second sample instead of reading zero', function()
+        local f = fixture({metadata = integratedMetadata})
+        f:live(integratedSample({[17] = 'STARTING', [18] = '?', [20] = '?'}))
+        eq(f:text('MeterActivityValue'), '--'); eq(f:text('MeterGPULoadValue'), '--'); eq(f:text('MeterGPUVideoLoadValue'), '--')
+        eq(f:text('MeterGPUVRAMValue'), '1.2/8.5 GB', 'memory does not wait for the load comparison')
+        eq(#f.history, 0, 'a starting sample adds no History point')
+        f.now = 1002; f:sample(integratedSample({[4] = '2'})); f:update()
+        eq(f:text('MeterActivityValue'), '8%'); eq(#f.history, 1); eq(f.history[1], 8)
+    end)
+    test('an integrated bar never overflows and needs a usable limit', function()
+        local f = fixture({metadata = integratedMetadata})
+        f:live(integratedSample({[15] = '9000000000', [16] = '9000000000'}))
+        eq(f:text('MeterGPUVRAMValue'), '9.0/8.5 GB'); eq((f:bar()), 200, 'full, not past the track')
+        f = fixture({metadata = (integratedMetadata:gsub('8491673600', '?'))})
+        f:live(integratedSample())
+        eq(f:text('MeterGPUVRAMValue'), '1.20 GB', 'the amount stays without a limit'); eq((f:bar()), 0)
+    end)
+    test('unavailable integrated memory reads -- and never a zero', function()
+        local f = fixture({metadata = integratedMetadata})
+        f:live(integratedSample({[10] = 'UNSUPPORTED', [11] = '?', [12] = '?', [13] = '?', [14] = 'UNAVAILABLE', [15] = '?', [16] = '?'}))
+        eq(f:text('MeterGPUVRAMValue'), '--'); eq(f:text('MeterGPUSharedValue'), '--'); eq((f:bar()), 0)
+    end)
+    test('explicit HWiNFO overrides still apply on an integrated adapter', function()
+        local options = manualOptions(true, true)
+        options.metadata = integratedMetadata
+        local f = fixture(options); f:live(integratedSample())
+        eq(f:text('MeterPowerValue'), '77.7 W'); eq(f:text('MeterClockValue'), '1234.5 MHz'); eq(f.meter.Text, 'Unsupported')
+    end)
+    test('a discrete adapter keeps its VRAM and Shared rows, including after an integrated load', function()
+        local f = fixture(); f:live()
+        eq(f:text('MeterGPUVRAMLabel'), nil, 'no label write'); eq(f:text('MeterGPUSharedLabel'), nil, 'no label write')
+        eq(f:text('MeterGPUVRAMValue'), '2.1/8.6 GB'); eq(f:text('MeterGPUSharedValue'), '182 MB')
+        f = fixture({metadata = integratedMetadata}); f:live(integratedSample())
+        f.outputs[info] = metadata
+        f.initializing = true; f.env.Initialize(); f.initializing = false; f:update()
+        f.statuses[launcher] = -1; f:live()
+        eq(f:text('MeterGPUVRAMValue'), '2.1/8.6 GB', 'a refresh after a new driver reads the discrete adapter')
+        eq(f:text('MeterGPUSharedValue'), '182 MB')
+    end)
+    test('without one selected GPU the same host runs for process names only', function()
         local map = '7,' .. hex('game.exe') .. ';42,' .. hex('tool.exe')
         for _, output in ipairs({'NONE', (metadata:gsub('OK|', 'AMBIGUOUS|', 1))}) do
             local f = fixture({metadata = output, pids = '7,42'})

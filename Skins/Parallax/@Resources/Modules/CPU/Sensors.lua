@@ -64,8 +64,12 @@ local function resetBindings()
     state.coreBindings = {Temperature={}, Voltage={}}
     state.coreIds = {}
     state.prime = true
-    SKIN:Bang('!DisableMeasure', 'MeasureCPUSensorNamesUser')
-    SKIN:Bang('!DisableMeasure', 'MeasureCPUSensorNamesMachine')
+    state.watching = false
+    state.sensorsClosed = false
+    for _, name in ipairs({'MeasureCPUSensorNamesUser', 'MeasureCPUSensorNamesMachine'}) do
+        SKIN:Bang('!SetOption', name, 'Disabled', '1')
+        SKIN:Bang('!DisableMeasure', name)
+    end
     for _, kind in ipairs({'Temperature', 'Voltage', 'Clock', 'Fan', 'MotherboardFan'}) do
         for _, field in ipairs(fields) do
             SKIN:Bang('!SetOption', 'MeasureCPUSensor' .. kind .. field, 'Disabled', '1')
@@ -180,7 +184,8 @@ end
 -- HWiNFO polls its sensors, and writes this export, only while its Sensors
 -- window is open (minimised is fine), so the footer names that fix. The text
 -- is 10.64 em in IBM Plex Sans Medium and fits the narrowest footer (12.5 em
--- at width 180) at the 10 pt body maximum and every scale.
+-- at width 180) at the 10 pt body maximum and every scale. The same text covers
+-- an export that is missing altogether, the other result of a closed window.
 local exportStaleSeconds = 60
 local exportStaleStatus = 'HWiNFO: open Sensors'
 local exportKinds = {'Temperature', 'Voltage', 'Clock', 'Fan', 'MotherboardFan'}
@@ -262,7 +267,9 @@ local function render(paint)
     end
     if coreReady then
         if #state.coreIds == 0 then
-            status = (clock or fan or motherboardFan) and 'HWiNFO: no per-core exports' or 'HWiNFO: Gadget exports unavailable'
+            status = (clock or fan or motherboardFan) and 'HWiNFO: no per-core exports'
+                or state.sensorsClosed and exportStaleStatus
+                or 'HWiNFO: Gadget exports unavailable'
         elseif coreReadings == 0 then
             status = 'HWiNFO: core readings unavailable'
         else
@@ -342,8 +349,34 @@ function Reconnect()
     render()
 end
 
+-- A value list keeps the key handle it opened, and Rainmeter's ValueList read
+-- never drops one whose key was deleted, so it reads empty even after HWiNFO
+-- recreates the key. Only an option re-read reopens it, which SetOption forces.
+local function enableList(name)
+    SKIN:Bang('!SetOption', name, 'Disabled', '0')
+    SKIN:Bang('!EnableMeasure', name)
+end
+
+-- With nothing bound there is no reading to go stale, and neither a closed
+-- Sensors window opening nor a HWiNFO that has only just started changes
+-- anything discovery watches. The value lists are native reads that launch
+-- nothing; Update() runs one discovery when a new list appears.
+local function watchExports()
+    local hive = SKIN:GetVariable('CPUSensorHive', 'Auto')
+    state.watching = true
+    if hive ~= 'HKLM' then enableList('MeasureCPUSensorNamesUser') end
+    if hive ~= 'HKCU' then enableList('MeasureCPUSensorNamesMachine') end
+end
+
+local function exportList()
+    local listed = text('MeasureCPUSensorNamesUser') .. '|' .. text('MeasureCPUSensorNamesMachine')
+    -- An empty value list reads as the measure's numeric 0, so only a real
+    -- export name counts as a list.
+    return listed:find('Sensor%d') and listed or nil
+end
+
 local function bindNative(kind, binding, core)
-    SKIN:Bang('!EnableMeasure', binding.hive == 'HKEY_CURRENT_USER' and 'MeasureCPUSensorNamesUser' or 'MeasureCPUSensorNamesMachine')
+    enableList(binding.hive == 'HKEY_CURRENT_USER' and 'MeasureCPUSensorNamesUser' or 'MeasureCPUSensorNamesMachine')
     local prefix = core ~= nil and ('MeasureCPUSensorCore' .. kind) or ('MeasureCPUSensor' .. kind)
     local suffix = core ~= nil and tostring(core + 1) or ''
     for _, field in ipairs(fields) do
@@ -375,10 +408,13 @@ function ApplyDiscovery()
     end
     local coreCandidates = {Temperature={}, Voltage={}}
     local coreRecords = 0
+    local sensorsClosed = false
     for line in output:gmatch('[^\r\n]+') do
         local parts = {}
         for part in (line .. '|'):gmatch('(.-)|') do parts[#parts + 1] = part end
-        if parts[1] == 'CORE' and coreRecords < 128 then
+        if parts[1] == 'EXPORT' then
+            sensorsClosed = parts[2] == 'CLOSED'
+        elseif parts[1] == 'CORE' and coreRecords < 128 then
             coreRecords = coreRecords + 1
             local kind = parts[2] == 'TEMP' and 'Temperature' or parts[2] == 'VOLT' and 'Voltage'
             local core = parts[3] and parts[3]:match('^%d+$') and tonumber(parts[3])
@@ -442,6 +478,12 @@ function ApplyDiscovery()
         end
         if found then state.coreIds[#state.coreIds + 1] = core end
     end
+    if #state.coreIds == 0 and next(state.bindings) == nil then
+        state.sensorsClosed = sensorsClosed
+        watchExports()
+    else
+        state.watchedList = nil
+    end
     state.prime = true
     -- These queued native reads precede PrimeComplete; no synchronous option reads.
     SKIN:Bang('!UpdateMeasureGroup', 'CPUSensorNative')
@@ -450,6 +492,9 @@ end
 
 function PrimeComplete()
     state.prime = false
+    -- This discovery already judged the exports now listed, so only a different
+    -- list earns another. After a closed result any list at all is new.
+    if state.watching and not state.sensorsClosed then state.watchedList = exportList() end
     render()
 end
 
@@ -495,6 +540,17 @@ function Update()
         state.pending = false
         state.prime = false
         if state.reconnectQueued then Reconnect() end
+    end
+    if state.watching and not state.pending then
+        -- One discovery per change to a real list, whatever that discovery
+        -- finds, so no result can turn this into repeated process launches.
+        local listed = exportList()
+        local changed = listed and listed ~= state.watchedList
+        state.watchedList = listed
+        if changed then
+            Reconnect()
+            return 0
+        end
     end
     render(false)
     return 0

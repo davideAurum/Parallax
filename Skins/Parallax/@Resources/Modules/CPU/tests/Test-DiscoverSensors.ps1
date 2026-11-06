@@ -15,7 +15,8 @@ $sourceAst = [System.Management.Automation.Language.Parser]::ParseFile(
 if ($parseErrors.Count -gt 0) { throw ($parseErrors | Out-String) }
 
 foreach ($functionName in @('ConvertTo-CPUPrecisionValue', 'Get-CPUPrecisionResponse', 'Invoke-CPUPrecisionInput',
-        'ConvertTo-CPUSensorCandidate', 'Select-CPUExport', 'Format-CPUExportCandidates', 'Format-CPUCoreCandidates')) {
+        'ConvertTo-CPUSensorCandidate', 'Select-CPUExport', 'Format-CPUExportCandidates', 'Format-CPUCoreCandidates',
+        'Test-CPUExportClosed')) {
     $definitions = @($sourceAst.FindAll({
         param($node)
         $node -is [System.Management.Automation.Language.FunctionDefinitionAst] -and
@@ -75,6 +76,11 @@ $fan = New-Fixture 29 'DELL EC: Example System' 'CPU' '2529' '2,529 RPM'
 $motherboardFan = New-Fixture 30 'DELL EC: Example System' 'Mainboard' '1049' '1,049 RPM'
 
 Assert-Fixture ($temperature.Kind -eq 'TEMP' -and $temperature.Unit -eq 'C') 'CPU package temperature'
+Assert-Fixture (Test-CPUExportClosed -ExportValueCounts @(0, 0) -ReportingPreference 1) 'reporting on with no export means Sensors is closed'
+Assert-Fixture (-not (Test-CPUExportClosed -ExportValueCounts @(104, 0) -ReportingPreference 1)) 'a listed export is not closed'
+Assert-Fixture (-not (Test-CPUExportClosed -ExportValueCounts @(0, 104) -ReportingPreference 1)) 'an export in the other hive is a scope problem, not a closed window'
+Assert-Fixture (-not (Test-CPUExportClosed -ExportValueCounts @(0, 0) -ReportingPreference 0)) 'reporting off stays a setup problem'
+Assert-Fixture (-not (Test-CPUExportClosed -ExportValueCounts @(0, 0) -ReportingPreference $null)) 'no saved reporting preference stays a setup problem'
 Assert-Fixture ($vid.VoltageKind -eq 'VID') 'VID stays requested voltage'
 Assert-Fixture ((Select-CPUExport @($vid, $vcore) 'VOLT' -1) -match '\|2\|.*\|V\|VCORE$') 'measured Vcore preferred'
 Assert-Fixture ((Select-CPUExport @($vid, $vcore) 'VOLT' 1) -match '\|1\|.*\|V\|VID$') 'explicit VID valid'

@@ -154,7 +154,7 @@ def validate_settings_shared_width():
 
 
 def validate_thread_colors():
-    """Check the bounded CPU-only hex/swatch editor without loading Rainmeter."""
+    """Check the CPU-only hex editor and its picker swatches without loading Rainmeter."""
     saved_sections, saved_variables, saved_visited = sections.copy(), variables.copy(), visited.copy()
     cases = 0
     try:
@@ -166,6 +166,7 @@ def validate_thread_colors():
         assert number("#Columns#") == 2
         assert number("#PanelHeight#") == 100
         assert sections["MeasureCPUThreadColors"]["ScriptFile"] == "#@#Modules\\CPU\\ThreadColors.lua"
+        assert sections["MeasureColorLauncher"]["ScriptFile"] == "#@#Modules\\ColorPicker\\Launcher.lua"
         assert sections["MeasureCPUThreadColorInput"]["Plugin"] == "RunCommand"
         assert 'CommitInput()' in sections["MeasureCPUThreadColorInput"]["FinishAction"]
         title, close = effective("MeterThreadColorsTitle"), effective("MeterThreadColorsClose")
@@ -175,9 +176,15 @@ def validate_thread_colors():
             label = effective(f"MeterThreadColorLabel{index}")
             value = effective(f"MeterThreadColorValue{index}")
             swatch = effective(f"MeterThreadColorSwatch{index}")
-            expected_action = f'[!CommandMeasure MeasureCPUThreadColors "BeginEdit({index})"]'
+            # The label and hex text open the typed hex editor; the swatch opens the shared picker.
+            hex_editor_action = f'[!CommandMeasure MeasureCPUThreadColors "BeginEdit({index})"]'
+            picker_action = (
+                '[!CommandMeasure MeasureColorLauncher '
+                f'''"Open('CPUThreadColor{index}','MeterThreadColorSwatch{index}')"]'''
+            )
             assert label["Hidden"] == value["Hidden"] == swatch["Hidden"] == "1"
-            assert label["LeftMouseUpAction"] == value["LeftMouseUpAction"] == swatch["LeftMouseUpAction"] == expected_action
+            assert label["LeftMouseUpAction"] == value["LeftMouseUpAction"] == hex_editor_action
+            assert swatch["LeftMouseUpAction"] == picker_action
             assert f"CPUThreadColor{index}" in label["Group"].split("|")
             assert value["FontColor"] == "#TextColor#" and value["SolidColor"] == "#GraphBackgroundColor#"
             assert value["StringAlign"] == "Left"

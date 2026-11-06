@@ -8,6 +8,7 @@
 # FAN|HKEY_CURRENT_USER|index|UTF8-hex sensor|UTF8-hex label|RPM
 # MBFAN|HKEY_CURRENT_USER|index|UTF8-hex sensor|UTF8-hex label|RPM
 # STATUS|human-readable ASCII explanation (one line for each unavailable kind)
+# EXPORT|CLOSED when Gadget reporting is on in HWiNFO but neither hive lists an export
 # With -List or positive -RequestId, append REQUEST|id. With -List only, also
 # append STATE|RUNNING or STOPPED, then up to 128 records:
 # CAND|TEMP, VOLT, CLOCK, FAN or MBFAN|hive|index|UTF8-hex sensor|UTF8-hex label|unit|VCORE or VID
@@ -355,6 +356,39 @@ function Get-CPUExportCandidates {
     }
 }
 
+function Get-CPUKeyState {
+    # Read-only, native 64-bit view. A missing or unreadable key reports no values.
+    param([Microsoft.Win32.RegistryHive] $HiveId, [string] $Path, [string] $ValueName = '')
+
+    $base = $null
+    $key = $null
+    try {
+        $base = [Microsoft.Win32.RegistryKey]::OpenBaseKey($HiveId,
+            [Microsoft.Win32.RegistryView]::Registry64)
+        $key = $base.OpenSubKey($Path, $false)
+        if ($null -ne $key) { return @{ Count = $key.ValueCount; Value = $key.GetValue($ValueName) } }
+    }
+    catch {
+        # Same result as a missing key; no registry detail reaches Lua.
+    }
+    finally {
+        if ($null -ne $key) { $key.Dispose() }
+        if ($null -ne $base) { $base.Dispose() }
+    }
+    return @{ Count = 0; Value = $null }
+}
+
+function Test-CPUExportClosed {
+    # HWiNFO writes the Gadget export only while its Sensors window is open. With
+    # reporting on, an export missing from both hives therefore means that window
+    # is closed, not that setup is unfinished. Both hives count whatever the search
+    # scope: an export in the other hive is a scope problem, not a closed window.
+    param([int[]] $ExportValueCounts, [AllowNull()][object] $ReportingPreference)
+
+    return $ReportingPreference -eq 1 -and
+        @($ExportValueCounts | Where-Object { $_ -gt 0 }).Count -eq 0
+}
+
 function Select-CPUExport {
     param([object[]] $Candidates, [string] $Kind, [int] $RequestedIndex)
 
@@ -466,6 +500,13 @@ Select-CPUExport -Candidates $candidates -Kind 'VOLT' -RequestedIndex $VoltageIn
 Select-CPUExport -Candidates $candidates -Kind 'CLOCK' -RequestedIndex -1
 Select-CPUExport -Candidates $candidates -Kind 'FAN' -RequestedIndex -1
 Select-CPUExport -Candidates $candidates -Kind 'MBFAN' -RequestedIndex -1
+$exportValueCounts = @(foreach ($hiveId in @('CurrentUser', 'LocalMachine')) {
+    (Get-CPUKeyState -HiveId $hiveId -Path 'SOFTWARE\HWiNFO64\VSB').Count
+})
+$reporting = (Get-CPUKeyState -HiveId 'CurrentUser' -Path 'SOFTWARE\HWiNFO64\Sensors' -ValueName 'EnableVSB').Value
+if (Test-CPUExportClosed -ExportValueCounts $exportValueCounts -ReportingPreference $reporting) {
+    'EXPORT|CLOSED'
+}
 if ($List -or $RequestId -gt 0) {
     # Echo caller correlation as data; a late result cannot finish a newer scan.
     'REQUEST|' + $RequestId

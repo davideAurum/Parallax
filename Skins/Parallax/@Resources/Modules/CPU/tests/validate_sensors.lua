@@ -97,7 +97,8 @@ local function newMock(sensorPath, options)
         variables={CPUSensorsEnabled=options.enabled or '1', CPUSensorHive=options.hive or 'Auto',
             CPUTemperatureIndex=options.temperatureIndex or '-1', CPUVoltageIndex=options.voltageIndex or '-1',
             CPUTemperatureDecimals=options.temperatureDecimals or '0', CPUVoltageDecimals=options.voltageDecimals or '3'},
-        registry={[HIVE_USER]={}, [HIVE_MACHINE]={}}, measures={}, meters={}, native={},
+        registry={[HIVE_USER]={}, [HIVE_MACHINE]={}}, keyEpoch={[HIVE_USER]=0, [HIVE_MACHINE]=0},
+        measures={}, meters={}, native={},
         queue={}, now=1000, running=options.running == nil and 1 or options.running,
         runs=0, serial=0, requests={}, nativeReads=0, paints=0
     }
@@ -155,15 +156,22 @@ local function newMock(sensorPath, options)
         if item.readOptionsPending then
             item.enabled = item.options.Disabled ~= '1'
             item.readOptionsPending = false
+            item.openedEpoch = nil
         end
         if not item.enabled then return end
         if item.name == 'MeasureCPUHWiNFORunning' then
             item.value = self.running
         elseif item.hive then
+            -- As in Rainmeter's MeasureRegistry: a missing key is retried every
+            -- update, but a ValueList read never drops a handle whose key was
+            -- deleted, so it stays empty until options are re-read.
+            if not item.openedEpoch and next(self.registry[item.hive]) then item.openedEpoch = self.keyEpoch[item.hive] end
             local names = {}
-            for key in pairs(self.registry[item.hive]) do names[#names + 1] = key end
+            local deleted = item.openedEpoch and item.openedEpoch ~= self.keyEpoch[item.hive]
+            for key in pairs(deleted and {} or self.registry[item.hive]) do names[#names + 1] = key end
             table.sort(names)
-            item.string = table.concat(names, '|')
+            -- An empty list has no string, so Rainmeter reads the numeric 0.
+            item.string = #names > 0 and table.concat(names, '|') or '0'
         else
             local exports = self.registry[item.options.RegHKey] or {}
             -- Real Registry measures may return zero for a missing field; the
@@ -231,6 +239,11 @@ local function newMock(sensorPath, options)
     end
     function context:install(data)
         self.registry[data.hive] = data.registry
+        self:refreshNative()
+    end
+    function context:deleteKey(hive)
+        self.registry[hive] = {}
+        self.keyEpoch[hive] = self.keyEpoch[hive] + 1
         self:refreshNative()
     end
     function context:complete(data, status, serial)
@@ -990,6 +1003,120 @@ function suite.Run(sensorPath)
         local context = connect(sensorPath, {aggregate=false, cores={}})
         hold(context, 90)
         equal(context:text('MeterSensors'), 'HWiNFO: Gadget exports unavailable')
+    end)
+    local closedSensors = {output='HWINFOV1\nEXPORT|CLOSED\n', correlate=true}
+    local function connectClosed(options)
+        local context = newMock(sensorPath, options)
+        context:call('SetThreadPage', 1)
+        context:call('Reconnect')
+        context:complete(closedSensors)
+        return context
+    end
+    test('a closed Sensors window is named and its export reconnects by itself', function()
+        local context = connectClosed()
+        equal(context:text('MeterSensors'), 'HWiNFO: open Sensors')
+        hold(context, 90)
+        equal(context:text('MeterSensors'), 'HWiNFO: open Sensors')
+        equal(context.runs, 1, 'a missing export launches no repeated discovery')
+        local data = fixture({cores={{id=0}, {id=1}}})
+        context:install(data)
+        context:call('Update')
+        equal(context.runs, 2, 'the export appearing launches one discovery')
+        equal(context:text('MeterSensors'), 'HWiNFO: connecting...')
+        context:complete(data)
+        equal(context:text('MeterSensors'), 'HWiNFO: connected, 2 cores')
+        threadReading(context, 1, '65', '1.250')
+        context.now = context.now + 2
+        context:change(HIVE_USER, 'ValueRaw3', '66')
+        hold(context, 10)
+        equal(context.runs, 2, 'a bound export launches nothing further')
+    end)
+    test('an export missing with reporting off keeps the setup message, then still reconnects', function()
+        -- The helper omits EXPORT|CLOSED when reporting is off or was never saved.
+        local context = connect(sensorPath, {aggregate=false, cores={}})
+        equal(context:text('MeterSensors'), 'HWiNFO: Gadget exports unavailable')
+        local data = fixture()
+        context:install(data)
+        context:call('Update')
+        equal(context.runs, 2, 'turning reporting on needs no manual reconnect')
+        context:complete(data)
+        equal(context:text('MeterSensors'), 'HWiNFO: connected, 1 core')
+    end)
+    test('an export HWiNFO started writing late is picked up after a restart discovery', function()
+        local context, data = connect(sensorPath)
+        context:deleteKey(HIVE_USER)
+        context.running = 0; context:refreshNative(); context:call('Update')
+        equal(context:text('MeterSensors'), 'HWiNFO: not running')
+        context.running = 1; context:refreshNative(); context:call('Update')
+        equal(context.runs, 2, 'restart rediscovers')
+        -- Discovery can finish before the restarted HWiNFO has written anything.
+        context:complete(closedSensors)
+        equal(context:text('MeterSensors'), 'HWiNFO: open Sensors')
+        context:install(data)
+        context:call('Update')
+        equal(context.runs, 3, 'the recreated key is seen through a fresh handle')
+        context:complete(data)
+        equal(context:text('MeterSensors'), 'HWiNFO: connected, 1 core')
+        threadReading(context, 1, '65', '1.250')
+    end)
+    test('the same list returning after a closed result still reconnects', function()
+        local context, data = connect(sensorPath, {aggregate=false, cores={}})
+        data = fixture()
+        context:install(data); context:call('Update')
+        context:complete(data)
+        context:deleteKey(HIVE_USER)
+        context:call('Reconnect')
+        context:complete(closedSensors)
+        context:install(data)
+        context:call('Update')
+        equal(context.runs, 4)
+        context:complete(data)
+        equal(context:text('MeterSensors'), 'HWiNFO: connected, 1 core')
+    end)
+    test('a list that discovery still reports as closed launches one discovery, never a loop', function()
+        local context = connectClosed()
+        context:install(fixture())
+        context:call('Update')
+        equal(context.runs, 2, 'a new list earns one discovery')
+        context:complete(closedSensors)
+        hold(context, 30)
+        equal(context.runs, 2, 'the same list earns no second discovery')
+        equal(context:text('MeterSensors'), 'HWiNFO: open Sensors')
+    end)
+    test('exports with nothing supported run one discovery per changed list', function()
+        local context = newMock(sensorPath)
+        local data = fixture({aggregate=false, cores={}})
+        data.registry = {Sensor1='GPU [#0]: Fixture', Label1='GPU Temperature', Value1='50 C', ValueRaw1='50'}
+        context:install(data)
+        context:call('Reconnect')
+        context:complete(data)
+        hold(context, 10)
+        equal(context.runs, 1, 'an unchanged list earns no second discovery')
+        equal(context:text('MeterSensors'), 'HWiNFO: Gadget exports unavailable')
+        context:change(HIVE_USER, 'Sensor2', 'GPU [#0]: Fixture')
+        equal(context.runs, 2, 'a changed list earns one')
+        context:complete(data)
+        hold(context, 10)
+        equal(context.runs, 2)
+    end)
+    test('the export watch follows the search scope and stops with sensors off', function()
+        local context = connectClosed({hive='HKLM'})
+        equal(context.measures.MeasureCPUSensorNamesUser.enabled, false, 'current-user list stays off')
+        equal(context.measures.MeasureCPUSensorNamesMachine.enabled, true, 'machine list watches')
+        context:setEnabled(false)
+        equal(context.measures.MeasureCPUSensorNamesMachine.enabled, false, 'sensors off ends the watch')
+        context:install(fixture({hive=HIVE_MACHINE}))
+        hold(context, 10)
+        equal(context.runs, 1, 'no discovery while sensors are off')
+        equal(context:text('MeterSensors'), 'HWiNFO sensors: off')
+    end)
+    test('a failed discovery starts no watch, so a blocked helper cannot loop', function()
+        local context = newMock(sensorPath)
+        context:install(fixture())
+        context:call('Reconnect')
+        context:complete({output='BROKEN\n', correlate=true})
+        hold(context, 20)
+        equal(context.runs, 1, 'one explicit attempt only')
     end)
     test('the HWiNFO clock is untagged and the Windows aggregate is named Windows', function()
         local context, data = connect(sensorPath, {nativeClock=3870})

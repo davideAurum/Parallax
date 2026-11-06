@@ -377,10 +377,12 @@ function ApplySensorScan()
     local clock
     local messages = {}
     local records = 0
+    local sensorsClosed = false
     for line in output:gmatch('[^\r\n]+') do
         local parts = {}
         for part in (line .. '|'):gmatch('(.-)|') do parts[#parts + 1] = part end
         if parts[1] == 'STATE' and (parts[2] == 'RUNNING' or parts[2] == 'STOPPED') then process = parts[2]
+        elseif parts[1] == 'EXPORT' then sensorsClosed = parts[2] == 'CLOSED'
         elseif parts[1] == 'CORE' then
             local core = parts[3] and parts[3]:match('^%d+$') and tonumber(parts[3])
             local candidate = parseCandidate({parts[2], parts[4], parts[5], parts[6], parts[7], parts[8], parts[9]}, 1)
@@ -442,7 +444,8 @@ function ApplySensorScan()
         elseif voltage then state.scanDetail = 'Voltage export found. Enable CPU Package temperature in HWiNFO Gadget reporting.'
         elseif temperature then state.scanDetail = 'Temperature export found. Enable Vcore or Core VIDs in HWiNFO Gadget reporting.'
         else
-            state.scanDetail = state.CPUSensorHive ~= 'Auto' and 'No exports in this search scope. Choose Automatic, then scan again.'
+            state.scanDetail = sensorsClosed and 'The HWiNFO Sensors window is closed, so nothing is exported. Open Sensors, then scan again.'
+                or state.CPUSensorHive ~= 'Auto' and 'No exports in this search scope. Choose Automatic, then scan again.'
                 or 'No Gadget exports found. Enable Remember Preferences and Gadget reporting in HWiNFO, report each value, click OK, then Quit & Save once.'
         end
         if ambiguous then state.scanDetail = 'Conflicting exports use the same number. Choose Current user or All users in Search scope, then pick a sensor.'

@@ -23,6 +23,12 @@ Import-Module (Join-Path $PSScriptRoot 'QueueAuth.psm1') -Force -DisableNameChec
 Import-Module (Join-Path $PSScriptRoot 'QueueCore.psm1') -Force -DisableNameChecking
 Import-Module (Join-Path (Split-Path -Parent $PSScriptRoot) 'ProviderOwner.psm1') -Force -DisableNameChecking
 $script:ProviderPath = $PSCommandPath
+# Saved covers: at most this many, most recently used first.
+$script:CoverLimit = 60
+# A cover URL whose download failed is not tried again for this long, so a
+# broken or unreachable image costs one attempt per five minutes, not one per read.
+$script:CoverRetrySeconds = 300
+$script:CoverRetryAt = @{}
 
 function Show-QueueHelp {
     Write-Output @'
@@ -246,6 +252,107 @@ function Invoke-QueuePlay {
     } finally { $auth = $null }
 }
 
+function Find-QueueCover {
+    # A cover saved by an earlier read is reused, and its write time renewed so
+    # pruning counts it as recently used. Returns its file name, or ''. An
+    # entry that is not a plain, plausibly sized file is removed instead.
+    param([string]$CoverRoot, [string]$Key)
+    foreach ($extension in @('jpg','png')) {
+        $name = $Key + '.' + $extension
+        $path = Join-Path $CoverRoot $name
+        if (-not [IO.File]::Exists($path)) { continue }
+        $file = [IO.FileInfo]::new($path)
+        if (($file.Attributes -band [IO.FileAttributes]::ReparsePoint) -or $file.Length -lt 8 -or $file.Length -gt 262144) {
+            try { $file.Delete() } catch {}
+            continue
+        }
+        try { $file.LastWriteTimeUtc = [DateTime]::UtcNow } catch {}
+        return $name
+    }
+    return ''
+}
+
+function Limit-QueueCovers {
+    # Keeps the most recently used covers, and always every cover named in the
+    # snapshot about to be published. Only cover files and this helper's own
+    # leftover temporary files are ever deleted; anything else is left alone.
+    param([string]$CoverRoot, [string[]]$Keep = @(), [int]$Limit = $script:CoverLimit)
+    $kept = 0
+    foreach ($file in @([IO.DirectoryInfo]::new($CoverRoot).GetFiles() | Sort-Object -Property LastWriteTimeUtc -Descending)) {
+        try {
+            if ($file.Name -cmatch '\A\.cover-[0-9a-f]{32}\.tmp\z') { $file.Delete(); continue }
+            if ($file.Name -cnotmatch '\A[0-9a-f]{40}\.(?:jpg|png)\z') { continue }
+            if ($Keep -ccontains $file.Name -or $kept -lt $Limit) { $kept++; continue }
+            $file.Delete()
+        } catch {}
+    }
+}
+
+function Update-QueueCovers {
+    # The download step of a successful queue read, for the shown rows only.
+    # It runs before the snapshot exists, so the snapshot names only covers
+    # already on disk, and it never fails the read: a row whose cover is
+    # missing, refused, oversized or slow just has none. Stop ends the
+    # downloads, and so does a request that got no response at all (the CDN
+    # is unreachable; waiting on the rest would only hold up Stop and clicks).
+    # Covers already saved are still reused either way.
+    param([string]$Root, [object[]]$Items = @(), [long]$Now = (Get-QueueUnixTime))
+    try {
+        $folder = Join-Path $Root 'covers'
+        $wanted = @($Items | Where-Object { $_.ImageUrl })
+        if ($wanted.Count -eq 0 -and -not [IO.Directory]::Exists($folder)) { return }
+        # The same private, current-user-only directory handling as the data
+        # root itself (and a covers entry that is a link is refused).
+        $covers = Initialize-QueuePrivateDirectory -DataRoot $folder
+    } catch { return }
+    if ($script:CoverRetryAt.Count -gt 64) { $script:CoverRetryAt.Clear() }
+    $download = $true
+    foreach ($item in $Items) {
+        $url = ''
+        try {
+            $url = [string]$item.ImageUrl
+            if (-not $url) { continue }
+            $key = Get-QueueImageKey $url
+            $item.Image = Find-QueueCover $covers $key
+            if ($item.Image -or -not $download) { continue }
+            if ($script:CoverRetryAt.ContainsKey($url) -and $script:CoverRetryAt[$url] -gt $Now) { continue }
+            if (Test-QueueStop $Root) { $download = $false; continue }
+            # The URL alone: the cover request never carries the Spotify token.
+            $response = Invoke-QueueImageRequest -Uri $url
+            $extension = ''
+            if ($response.StatusCode -eq 200) { $extension = Get-QueueImageExtension $response.ContentType $response.Bytes }
+            if ($extension) {
+                $name = $key + '.' + $extension
+                Write-QueueCoverFile -CoverRoot $covers -Name $name -Bytes $response.Bytes
+                $item.Image = $name
+                $script:CoverRetryAt.Remove($url)
+            } else {
+                $script:CoverRetryAt[$url] = $Now + $script:CoverRetrySeconds
+                if ($response.StatusCode -eq 0) { $download = $false }
+            }
+        } catch {
+            $item.Image = ''
+            if ($url) { $script:CoverRetryAt[$url] = $Now + $script:CoverRetrySeconds }
+        }
+    }
+    try { Limit-QueueCovers $covers @($Items | ForEach-Object { [string]$_.Image } | Where-Object { $_ }) } catch {}
+}
+
+function Remove-QueueCovers {
+    # Saved covers are listening history too, so Disconnect removes them with
+    # the tokens and rows. A covers entry that is a link (junction or symbolic
+    # link) is removed itself; its target is never entered.
+    param([string]$Root)
+    $path = Join-Path $Root 'covers'
+    $attributes = [IO.FileAttributes]0
+    try { $attributes = [IO.File]::GetAttributes($path) }
+    catch [IO.FileNotFoundException] { return }
+    catch [IO.DirectoryNotFoundException] { return }
+    if (($attributes -band [IO.FileAttributes]::Directory) -eq 0) { [IO.File]::Delete($path); return }
+    if (($attributes -band [IO.FileAttributes]::ReparsePoint) -ne 0) { [IO.Directory]::Delete($path, $false); return }
+    [IO.Directory]::Delete($path, $true)
+}
+
 function Invoke-QueueCycle {
     param([string]$Root, [int]$Interval, [int]$FailureCount = 0, [AllowEmptyString()][string]$Notice = '')
     try {
@@ -263,6 +370,9 @@ function Invoke-QueueCycle {
         if ($decision.State -eq 'response_requires_validation') {
             try {
                 $items = ConvertTo-QueueItems (ConvertFrom-QueueJson $response.Body)
+                # Covers are saved before the snapshot is built, so it names
+                # only files that exist. This step cannot fail the read.
+                try { Update-QueueCovers -Root $Root -Items $items.Items -Now $now } catch {}
                 $lifetime = [Math]::Min(300, [Math]::Max(90, $Interval*2))
                 $snapshot = New-QueueSnapshot -State ready -Items $items.Items -Now $now -LifetimeSeconds $lifetime -Control $control -Notice $Notice
                 return [pscustomobject]@{ Snapshot=$snapshot; NextAt=($now+$Interval); Pause=$false; Success=$true }
@@ -460,8 +570,21 @@ function Invoke-QueueCommand {
             }
             if ($Command -eq 'Disconnect') {
                 Clear-QueueTokens -DataRoot $DataRoot
+                # Rows go first, so the reader stops naming covers before they are deleted.
                 Publish-QueueSnapshot $DataRoot (New-QueueSnapshot -State onboarding_required)
-                if (-not $Quiet) { Write-Output 'Disconnected. Local tokens and queue rows removed. App configuration is retained; you can also revoke access in Spotify account settings.' }
+                # One retry covers a cover briefly held open (Rainmeter loading it, a
+                # scanner). A folder that still will not go leaves the onboarding
+                # state in place; an interactive Disconnect says so.
+                $coversRemoved = $true
+                try { Remove-QueueCovers $DataRoot }
+                catch {
+                    Start-Sleep -Milliseconds 250
+                    try { Remove-QueueCovers $DataRoot } catch { $coversRemoved = $false }
+                }
+                if (-not $Quiet) {
+                    if ($coversRemoved) { Write-Output 'Disconnected. Local tokens, queue rows and saved covers removed. App configuration is retained; you can also revoke access in Spotify account settings.' }
+                    else { Write-Output ('Disconnected. Local tokens and queue rows removed, but saved covers could not all be deleted from ' + (Join-Path $DataRoot 'covers') + '. Disconnect again to retry. App configuration is retained; you can also revoke access in Spotify account settings.') }
+                }
                 return
             }
             if ($Command -in @('Configure','Connect')) {

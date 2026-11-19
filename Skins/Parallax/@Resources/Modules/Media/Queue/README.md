@@ -82,8 +82,8 @@ seconds; `-PollSeconds` accepts 30 through 150. Rainmeter reads its local snapsh
 every second and never launches a process for polling.
 
 **Stop** disables restart recovery, asks the helper to exit and clears rows after the in-flight request.
-**Disconnect** in the context menu stops it, deletes local tokens, and replaces
-the cache with an empty onboarding state. It also disables recovery. Public app configuration and retry
+**Disconnect** in the context menu stops it, deletes local tokens, replaces
+the cache with an empty onboarding state and deletes the `covers` folder. It also disables recovery. Public app configuration and retry
 barriers remain. Access can also be revoked in Spotify account app settings.
 Closing the skin alone does not stop the helper; use Stop when finished. There
 is no automatic startup task or service. Previously enabled collection resumes
@@ -158,23 +158,53 @@ Runtime files stay outside skins in `%LOCALAPPDATA%\Parallax\Media\Spotify\`:
 
 - `client.json`: public Client ID only.
 - `tokens.dpapi`: tokens encrypted for the current Windows user.
-- `queue.snapshot`: up to five titles and artists/shows, status, and expiry.
+- `queue.snapshot`: up to five titles and artists/shows, their cover file
+  names, status, and expiry.
 - `queue.retry.json`: retry time and quota pause.
 - `auth.lock`, `stop.request`: coordination.
 - `action.request`: one pending row click or Refresh, consumed by the helper.
+- `covers\<sha1>.jpg|png`: cover thumbnails of shown queue rows (added
+  2026-11-19), at most the 60 most recently used.
 
 The directory uses a current-user-only ACL. Storage rejects reparse paths and
 unsafe profile/skin roots. Atomic replacement keeps no plaintext token backup.
+
+**Covers.** After each successful queue read, and before publishing its
+snapshot, the helper saves a thumbnail for each shown row (at most five). A
+track uses its album's images, an episode its own, else its show's; of those it
+takes the smallest at least 48 px wide (Spotify lists 640/300/64 px for
+albums), or the last listed when no width qualifies. The file name is the
+lowercase SHA-1 of the image URL plus `.jpg` or `.png` from the response's
+Content-Type. A saved cover is reused, and its write time renewed, instead of
+downloaded again. A new one is fetched with a plain HTTPS GET only when the URL
+host is `i.scdn.co` or ends in `.scdn.co` or `.spotifycdn.com` (no user info,
+no explicit port, no redirects followed), carrying no Authorization header,
+token, cookie or credential: the CDN is public and the Spotify token is only
+ever sent to `api.spotify.com`. Each download has 5 s in total and at most
+256 KB; the body must be `image/jpeg` or `image/png` and start with that
+format's signature. It is written to a temporary file and moved into place,
+inside a `covers` folder created with the same current-user-only ACL and
+reparse checks as the data root. Any failure leaves only that row without a
+cover, never fails the read, and is not retried for five minutes; a download
+that gets no response at all ends the remaining downloads for that read, and
+Stop ends them too. After the downloads the folder is pruned to the 60 most
+recently used covers, never removing one the snapshot about to be published
+names. This adds no Spotify Web API request, process or polling. Cover
+downloads were verified only against a synthetic CDN; the live CDN is
+unverified from these tests.
 Tokens and raw service errors are never printed or written into the display
 cache. DPAPI protects stored data for this Windows user; it does not isolate it
 from other software running as that user.
 Source: [Windows DPAPI](https://learn.microsoft.com/en-us/windows/win32/api/dpapi/nf-dpapi-cryptprotectdata).
 
-The reader accepts only bounded inert ASCII `PARALLAX_QUEUE_V3` (or the older
-`PARALLAX_QUEUE_V2`): header; state, observed, valid_until, retry_not_before,
-count; in V3, control (0/1) and notice (one fixed outcome name or empty); and
-exactly five titleN/detailN pairs encoded as UTF-8 hex. Unused fields are empty. Nonready states contain no
-rows or observation/expiry. Unknown/duplicate keys, invalid Unicode, oversized
+The helper writes `PARALLAX_QUEUE_V4`. The reader accepts only bounded inert
+ASCII V4, V3 or the older `PARALLAX_QUEUE_V2`: header; state, observed,
+valid_until, retry_not_before, count; from V3, control (0/1) and notice (one
+fixed outcome name or empty); exactly five titleN/detailN pairs encoded as UTF-8
+hex; and in V4, after detail5, image1..image5, each empty or a bare cover file
+name matching `^[0-9a-f]{40}\.(jpg|png)$` in the `covers` folder (V2/V3 rows
+have no cover). Unused fields are empty. Nonready states contain no
+rows, covers or observation/expiry. Unknown/duplicate keys, invalid Unicode, oversized
 files/fields, and invalid timestamps are rejected. Limits: 32,768-byte snapshot,
 512 UTF-8 bytes per title/detail, 1,048,576-byte API JSON, depth 24. Metadata is never
 interpreted as INI, Lua, actions, or URLs. Controls and bidi characters are filtered;
@@ -197,8 +227,9 @@ from working. All fixtures are synthetic, stored in isolated temporary folders.
 Native reader/view tests use an existing Rainmeter installation and their own
 absolute config, skin copy, and process; live skins are not altered.
 
-On 2026-09-11, auth passed 63 cases, core passed 59 assertions, and provider passed 68
-assertions. Coverage includes callback rejection/replay/deadline, token rotation,
+On 2026-11-19 (covers, snapshot V4), auth passed 63 cases, core 148 assertions,
+provider 319 and the reader 10,531 in 27 scenarios; on 2026-09-11 core had 59 and
+provider 68. Coverage includes callback rejection/replay/deadline, token rotation,
 six-month expiry, corruption/ACL/reparse checks, malformed JSON, duplicates,
 episodes, scopes/401/403/429, persisted waits, duplicate worker prevention, stop
 during a response, disconnect cleanup, restart cadence and server waits received

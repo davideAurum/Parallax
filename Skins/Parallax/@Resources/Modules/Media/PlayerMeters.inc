@@ -90,14 +90,16 @@ Group=MediaTrack
 Hidden=1
 UpdateDivider=-1
 
+; Song, artist and album icons use Accent 1 (user request 2026-11-19, with
+; album colors; it applies whether album colors are on or off).
 [MeterSongIcon]
 Meter=Shape
 MeterStyle=MediaMetadataIconStyle
 Y=(#MediaMetadataY#+5*#Scale#)
 ; Lucide music, adapted from SVG. Attribution/license: Icons\Lucide\README.md.
-Shape=Path LucideMusicPath | Fill Color 0,0,0,0 | Stroke Color #MutedColor# | StrokeWidth (2*#MediaLucideScale#) | StrokeStartCap Round | StrokeEndCap Round | StrokeLineJoin Round
-Shape2=Ellipse (6*#MediaLucideScale#),(18*#MediaLucideScale#),(3*#MediaLucideScale#),(3*#MediaLucideScale#) | Fill Color 0,0,0,0 | Stroke Color #MutedColor# | StrokeWidth (2*#MediaLucideScale#)
-Shape3=Ellipse (18*#MediaLucideScale#),(16*#MediaLucideScale#),(3*#MediaLucideScale#),(3*#MediaLucideScale#) | Fill Color 0,0,0,0 | Stroke Color #MutedColor# | StrokeWidth (2*#MediaLucideScale#)
+Shape=Path LucideMusicPath | Fill Color 0,0,0,0 | Stroke Color #AccentColor# | StrokeWidth (2*#MediaLucideScale#) | StrokeStartCap Round | StrokeEndCap Round | StrokeLineJoin Round
+Shape2=Ellipse (6*#MediaLucideScale#),(18*#MediaLucideScale#),(3*#MediaLucideScale#),(3*#MediaLucideScale#) | Fill Color 0,0,0,0 | Stroke Color #AccentColor# | StrokeWidth (2*#MediaLucideScale#)
+Shape3=Ellipse (18*#MediaLucideScale#),(16*#MediaLucideScale#),(3*#MediaLucideScale#),(3*#MediaLucideScale#) | Fill Color 0,0,0,0 | Stroke Color #AccentColor# | StrokeWidth (2*#MediaLucideScale#)
 LucideMusicPath=(9*#MediaLucideScale#),(18*#MediaLucideScale#) | LineTo (9*#MediaLucideScale#),(5*#MediaLucideScale#) | LineTo (21*#MediaLucideScale#),(3*#MediaLucideScale#) | LineTo (21*#MediaLucideScale#),(16*#MediaLucideScale#)
 
 [MeterArtistIcon]
@@ -105,12 +107,12 @@ Meter=Shape
 MeterStyle=MediaMetadataIconStyle
 Y=(#MediaMetadataY#+#MediaMetadataPitch#+5*#Scale#)
 ; Lucide user-round-group. Rainmeter's counter-clockwise flag is 1 (SVG uses 0).
-Shape=Path LucideArtistBodyPath | Fill Color 0,0,0,0 | Stroke Color #MutedColor# | StrokeWidth (2*#MediaLucideScale#) | StrokeStartCap Round | StrokeEndCap Round | StrokeLineJoin Round
-Shape2=Path LucideArtistRightPath | Fill Color 0,0,0,0 | Stroke Color #MutedColor# | StrokeWidth (2*#MediaLucideScale#) | StrokeStartCap Round | StrokeEndCap Round | StrokeLineJoin Round
-Shape3=Path LucideArtistLeftPath | Fill Color 0,0,0,0 | Stroke Color #MutedColor# | StrokeWidth (2*#MediaLucideScale#) | StrokeStartCap Round | StrokeEndCap Round | StrokeLineJoin Round
-Shape4=Ellipse (12*#MediaLucideScale#),(13*#MediaLucideScale#),(3*#MediaLucideScale#),(3*#MediaLucideScale#) | Fill Color 0,0,0,0 | Stroke Color #MutedColor# | StrokeWidth (2*#MediaLucideScale#)
-Shape5=Ellipse (18.5*#MediaLucideScale#),(4.5*#MediaLucideScale#),(2.5*#MediaLucideScale#),(2.5*#MediaLucideScale#) | Fill Color 0,0,0,0 | Stroke Color #MutedColor# | StrokeWidth (2*#MediaLucideScale#)
-Shape6=Ellipse (5.5*#MediaLucideScale#),(4.5*#MediaLucideScale#),(2.5*#MediaLucideScale#),(2.5*#MediaLucideScale#) | Fill Color 0,0,0,0 | Stroke Color #MutedColor# | StrokeWidth (2*#MediaLucideScale#)
+Shape=Path LucideArtistBodyPath | Fill Color 0,0,0,0 | Stroke Color #AccentColor# | StrokeWidth (2*#MediaLucideScale#) | StrokeStartCap Round | StrokeEndCap Round | StrokeLineJoin Round
+Shape2=Path LucideArtistRightPath | Fill Color 0,0,0,0 | Stroke Color #AccentColor# | StrokeWidth (2*#MediaLucideScale#) | StrokeStartCap Round | StrokeEndCap Round | StrokeLineJoin Round
+Shape3=Path LucideArtistLeftPath | Fill Color 0,0,0,0 | Stroke Color #AccentColor# | StrokeWidth (2*#MediaLucideScale#) | StrokeStartCap Round | StrokeEndCap Round | StrokeLineJoin Round
+Shape4=Ellipse (12*#MediaLucideScale#),(13*#MediaLucideScale#),(3*#MediaLucideScale#),(3*#MediaLucideScale#) | Fill Color 0,0,0,0 | Stroke Color #AccentColor# | StrokeWidth (2*#MediaLucideScale#)
+Shape5=Ellipse (18.5*#MediaLucideScale#),(4.5*#MediaLucideScale#),(2.5*#MediaLucideScale#),(2.5*#MediaLucideScale#) | Fill Color 0,0,0,0 | Stroke Color #AccentColor# | StrokeWidth (2*#MediaLucideScale#)
+Shape6=Ellipse (5.5*#MediaLucideScale#),(4.5*#MediaLucideScale#),(2.5*#MediaLucideScale#),(2.5*#MediaLucideScale#) | Fill Color 0,0,0,0 | Stroke Color #AccentColor# | StrokeWidth (2*#MediaLucideScale#)
 LucideArtistBodyPath=(17*#MediaLucideScale#),(21*#MediaLucideScale#) | ArcTo (7*#MediaLucideScale#),(21*#MediaLucideScale#),(5*#MediaLucideScale#),(5*#MediaLucideScale#),0,1,0
 LucideArtistRightPath=(22*#MediaLucideScale#),(10.5*#MediaLucideScale#) | ArcTo (16.493*#MediaLucideScale#),(7.632*#MediaLucideScale#),(3.5*#MediaLucideScale#),(3.5*#MediaLucideScale#),0,1,0
 LucideArtistLeftPath=(7.507*#MediaLucideScale#),(7.632*#MediaLucideScale#) | ArcTo (2*#MediaLucideScale#),(10.5*#MediaLucideScale#),(3.5*#MediaLucideScale#),(3.5*#MediaLucideScale#),0,1,0
@@ -120,10 +122,10 @@ Meter=Shape
 MeterStyle=MediaMetadataIconStyle
 Y=(#MediaMetadataY#+2*#MediaMetadataPitch#+5*#Scale#)
 ; Lucide disc-3, including its original cubic curves. See Icons\Lucide\README.md.
-Shape=Ellipse (12*#MediaLucideScale#),(12*#MediaLucideScale#),(10*#MediaLucideScale#),(10*#MediaLucideScale#) | Fill Color 0,0,0,0 | Stroke Color #MutedColor# | StrokeWidth (2*#MediaLucideScale#)
-Shape2=Path LucideDiscUpperPath | Fill Color 0,0,0,0 | Stroke Color #MutedColor# | StrokeWidth (2*#MediaLucideScale#) | StrokeStartCap Round | StrokeEndCap Round | StrokeLineJoin Round
-Shape3=Ellipse (12*#MediaLucideScale#),(12*#MediaLucideScale#),(2*#MediaLucideScale#),(2*#MediaLucideScale#) | Fill Color 0,0,0,0 | Stroke Color #MutedColor# | StrokeWidth (2*#MediaLucideScale#)
-Shape4=Path LucideDiscLowerPath | Fill Color 0,0,0,0 | Stroke Color #MutedColor# | StrokeWidth (2*#MediaLucideScale#) | StrokeStartCap Round | StrokeEndCap Round | StrokeLineJoin Round
+Shape=Ellipse (12*#MediaLucideScale#),(12*#MediaLucideScale#),(10*#MediaLucideScale#),(10*#MediaLucideScale#) | Fill Color 0,0,0,0 | Stroke Color #AccentColor# | StrokeWidth (2*#MediaLucideScale#)
+Shape2=Path LucideDiscUpperPath | Fill Color 0,0,0,0 | Stroke Color #AccentColor# | StrokeWidth (2*#MediaLucideScale#) | StrokeStartCap Round | StrokeEndCap Round | StrokeLineJoin Round
+Shape3=Ellipse (12*#MediaLucideScale#),(12*#MediaLucideScale#),(2*#MediaLucideScale#),(2*#MediaLucideScale#) | Fill Color 0,0,0,0 | Stroke Color #AccentColor# | StrokeWidth (2*#MediaLucideScale#)
+Shape4=Path LucideDiscLowerPath | Fill Color 0,0,0,0 | Stroke Color #AccentColor# | StrokeWidth (2*#MediaLucideScale#) | StrokeStartCap Round | StrokeEndCap Round | StrokeLineJoin Round
 LucideDiscUpperPath=(6*#MediaLucideScale#),(12*#MediaLucideScale#) | CurveTo (7.8*#MediaLucideScale#),(7.8*#MediaLucideScale#),(6*#MediaLucideScale#),(10.3*#MediaLucideScale#),(6.7*#MediaLucideScale#),(8.8*#MediaLucideScale#)
 LucideDiscLowerPath=(18*#MediaLucideScale#),(12*#MediaLucideScale#) | CurveTo (16.2*#MediaLucideScale#),(16.2*#MediaLucideScale#),(18*#MediaLucideScale#),(13.7*#MediaLucideScale#),(17.3*#MediaLucideScale#),(15.2*#MediaLucideScale#)
 

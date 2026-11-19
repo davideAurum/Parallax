@@ -20,6 +20,12 @@ The user selected these Lucide icons on 2026-09-12:
 | Shuffle (added 2026-10-27) | [shuffle](https://lucide.dev/icons/shuffle) |
 | Repeat off / all (added 2026-10-27) | [repeat](https://lucide.dev/icons/repeat) |
 | Repeat one (added 2026-10-27) | [repeat-1](https://lucide.dev/icons/repeat-1) |
+| Queue Refresh (added 2026-11-19) | [refresh-cw](https://lucide.dev/icons/refresh-cw) |
+
+`refresh-cw.svg` (added 2026-11-19) is likewise the unmodified upstream file
+from the pinned revision below. `Queue/QueueControlHost.inc` draws it at
+`14 * Scale / 24` with the 2-unit round stroke in `AccentColor`, its arcs again
+reversing the sweep flag.
 
 The three icons added on 2026-10-27 are unmodified upstream files from the same
 pinned revision below. `TransportIcons.inc` draws them at `18 * Scale / 24` on

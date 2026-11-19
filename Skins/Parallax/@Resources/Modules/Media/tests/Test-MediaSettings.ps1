@@ -32,6 +32,7 @@ $sourceMap = [ordered]@{
     'Media\Settings\Settings.ini' = (Join-Path $skinSource 'Media\Settings\Settings.ini')
     '@Resources\Defaults.inc' = (Join-Path $resourcesRoot 'Defaults.inc')
     '@Resources\Idle\Hook0.inc' = (Join-Path $resourcesRoot 'Idle\Hook0.inc')
+    '@Resources\Dev\Hook0.inc' = (Join-Path $resourcesRoot 'Dev\Hook0.inc')
     '@Resources\Version.inc' = (Join-Path $resourcesRoot 'Version.inc')
     '@Resources\Update\Hook1.inc' = (Join-Path $resourcesRoot 'Update\Hook1.inc')
     '@Resources\Update\Feed.inc' = (Join-Path $resourcesRoot 'Update\Feed.inc')
@@ -179,6 +180,11 @@ function Install-RunCommandFixtures([string]$CaseRoot) {
     # Provider controls are dormant in the visual scenarios, but replace every
     # copied RunCommand host so a fixture can never launch a real helper.
     Write-TestFile (Join-Path $CaseRoot '@Resources\Modules\Media\ProviderControlFixture.lua') "function Update() return 1 end`nfunction Run() end`n"
+    # Album colors load the bundled Chameleon plugin; the visual fixtures keep
+    # the theme instead (its colour rules have their own suite), so the guard
+    # below can keep rejecting every Plugin= line.
+    $albumColors=Join-Path $CaseRoot '@Resources\Modules\Media\AlbumColors1.inc'
+    if (Test-Path -LiteralPath $albumColors) { Write-TestFile $albumColors "; Fixture: album colors off (no plugin in UI fixtures).`n" }
     # Lifecycle.inc's resume hosts are inert, but are replaced too so the
     # fixture guard below can keep rejecting every Plugin= line.
     $names=@('MeasureMediaSourceControl','MeasureMediaQueueControl','MeasureQueueProviderControl',

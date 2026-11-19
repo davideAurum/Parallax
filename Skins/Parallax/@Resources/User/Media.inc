@@ -21,3 +21,12 @@ VisualizerDrawer=1
 ; other number means 20. With 0 and the spectrum drawer closed, Media updates
 ; once per MediaInterval instead of every 50 ms.
 MediaTitleAnimation=20
+; Queue drawer row size: 1 Normal (36 px rows, 32 px covers, song above
+; artist; the default) or 0 Compact (18 px rows, 16 px covers, one line).
+QueueRowSize=1
+; Album colors: 1 lets the current cover recolor the player (title icon,
+; progress bar, song/artist/album text and a tint on the gray surfaces); 0
+; keeps the theme. Needs the bundled Chameleon plugin.
+MediaAlbumColors=1
+; How far the gray surfaces lean toward the cover's main color, 0-30 (%).
+MediaAlbumTint=10

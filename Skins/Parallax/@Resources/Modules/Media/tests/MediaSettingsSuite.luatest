@@ -136,7 +136,7 @@ local function media_geometry(expanded, rows)
     local toggles=need<=room
     local transport_x=centered+(toggles and need or 0)
     local queue_top=math.max(cover_y+cover,body)+4*scale
-    local queue_bottom=queue_top+(1+rows)*18*scale+5*scale
+    local queue_bottom=queue_top+18*scale+rows*36*scale+5*scale
     local drawer_bottom=expanded and queue_bottom+8*scale or body
     local overhang=math.max(cover_y+cover,body+(size+2*pad)/2)
     local window=math.max(lift+body+gap,math.ceil(lift+overhang+2*inset),math.ceil(lift+drawer_bottom+2*inset))
@@ -168,7 +168,7 @@ local function dimensions(expanded, rows)
     local columns=is_settings() and 2 or SELF:GetNumberOption('ExpectedColumns')
     local gap=2*math.floor(tonumber(SKIN:GetVariable('Gutter'))*scale/2+0.5)
     local expected_w=columns*(math.floor(width*scale+0.5)+gap)
-    local expected_h=is_settings() and math.floor((expanded and 814 or 758)*scale+0.5)+gap or media_geometry(expanded,rows).window
+    local expected_h=is_settings() and math.floor((expanded and 898 or 814)*scale+0.5)+gap or media_geometry(expanded,rows).window
     local detail=''
     if is_settings() and SKIN:GetH()~=expected_h then
         local bounds,panel=SKIN:GetMeter('MeterBounds'),SKIN:GetMeter('MeterPanel')
@@ -381,17 +381,24 @@ local function accordion(expanded, count, details)
     -- so a part counts as shown when it has any native extent.
     local function shown(meter) return meter:GetW()>0 or meter:GetH()>0 end
     for index=1,5 do
-        local parts={'MeterQueueRow'..index,'MeterQueueNumber'..index,'MeterQueueDivider'..index}
+        -- Song line, hit surface, cover tile and mask; Normal rows (36S) put
+        -- the artist on its own line. Offsets: InlineQueueGeometry.inc.
+        local parts={'MeterQueueRow'..index,'MeterQueueHit'..index,'MeterQueueTile'..index,'MeterQueueArtMask'..index}
+        local offsets={['MeterQueueRow'..index]=scale,['MeterQueueHit'..index]=0,
+            ['MeterQueueTile'..index]=2*scale,['MeterQueueArtMask'..index]=2*scale}
         if expanded and index<=count then
             for _,name in ipairs(parts) do
                 local meter=assert(SKIN:GetMeter(name))
                 check(shown(meter),'Expanded row part hidden: '..name)
-                check(math.abs(meter:GetY(true)-(g.top+g.rows_y+18*(index-1)*scale))<=1,'Queue row is not on the drawer pitch: '..name)
+                check(math.abs(meter:GetY(true)-(g.top+g.rows_y+36*(index-1)*scale+offsets[name]))<=1,'Queue row is not on the drawer pitch: '..name)
                 inside(name,width,height)
             end
-            check(text(parts[1])=='Synthetic item '..index..(details and (' / Test artist '..index) or ''),'Row detail preference ignored')
-            check(text(parts[2])==tostring(index),'Queue position digit changed')
-            check(SKIN:GetMeter(parts[1]):GetOption('InlinePattern')==(details and ('Test artist '..index..'$') or '$^'),'Artist accent is not the literal row tail: '..index)
+            check(text(parts[1])=='Synthetic item '..index,'Normal rows keep the song alone')
+            local artist=SKIN:GetMeter('MeterQueueArtist'..index)
+            check(shown(artist)==details,'Artist line does not follow the detail preference: '..index)
+            if details then check(text('MeterQueueArtist'..index)=='Test artist '..index,'Artist line text wrong: '..index) end
+            check(SKIN:GetMeter(parts[1]):GetOption('InlinePattern')=='$^','Normal rows carry no inline accent: '..index)
+            check(not shown(SKIN:GetMeter('MeterQueueArt'..index)),'Cover shown without a V4 image: '..index)
         else
             for _,name in ipairs(parts) do
                 local meter=assert(SKIN:GetMeter(name))
@@ -401,7 +408,7 @@ local function accordion(expanded, count, details)
             check(text(parts[1])=='','Collapsed or excess row retains text: '..index)
         end
     end
-    for _,name in ipairs({'MeterQueueHeaderNumber','MeterQueueHeaderTrack','MeterQueueHeaderDivider','MeterQueueHeaderRule'}) do
+    for _,name in ipairs({'MeterQueueHeaderTrack','MeterQueueHeaderRule'}) do
         local meter=assert(SKIN:GetMeter(name))
         check(shown(meter)==expanded,'Queue header visibility does not follow expansion: '..name)
         if expanded then inside(name,width,height) end
@@ -499,15 +506,16 @@ local function settings_bounds(expanded)
         'MeterSamplingRule','MeterSourceRule','MeterSourceGuidance','MeterQueueGuidance','MeterLinksHeading'}) do inside(name,width,height) end
     local scale=SELF:GetNumberOption('ExpectedScale')
     local inset=math.floor(tonumber(SKIN:GetVariable('Gutter'))*scale/2+0.5)
-    for _,stem in ipairs({'Width','VisualizerDrawer','TitleAnimation','QueueExpanded','QueueRows','QueueDetails','QueuePoll'}) do
+    for _,stem in ipairs({'Width','VisualizerDrawer','TitleAnimation','AlbumColors','AlbumTint','QueueExpanded','QueueRows',
+        'QueueDetails','QueueRowSize','QueuePoll'}) do
         local label,value=SKIN:GetMeter('Meter'..stem..'Label'),SKIN:GetMeter('Meter'..stem..'Value')
-        local numeric=stem=='Width' or stem=='QueueRows' or stem=='QueuePoll'
+        local numeric=stem=='Width' or stem=='QueueRows' or stem=='QueuePoll' or stem=='AlbumTint'
         -- The three-way Spectrum drawer and Title animation choices use the
         -- same previous/value/next group as the numbers; the drawer's field is
         -- 76px so Collapsed/Expanded fit, Off / 10 fps / 20 fps keep 56.
-        local stepper=numeric or stem=='VisualizerDrawer' or stem=='TitleAnimation'
-        local field=stem=='VisualizerDrawer' and 76 or 56
-        local hidden=not expanded and (stem=='QueueRows' or stem=='QueueDetails')
+        local stepper=numeric or stem=='VisualizerDrawer' or stem=='TitleAnimation' or stem=='AlbumColors' or stem=='QueueRowSize'
+        local field=(stem=='VisualizerDrawer' or stem=='QueueRowSize') and 76 or 56
+        local hidden=not expanded and (stem=='QueueRows' or stem=='QueueDetails' or stem=='QueueRowSize')
         local meters={label,value}
         if stepper then for _,part in ipairs({'Decrease','Frame','Increase'}) do
             local meter=assert(SKIN:GetMeter('Meter'..stem..part));meters[#meters+1]=meter;inside('Meter'..stem..part,width,height)
@@ -545,7 +553,8 @@ local function settings_bounds(expanded)
     for name,y in pairs({MeterVisualizerDrawerLabel=130,MeterVisualizerDrawerDecrease=129,MeterVisualizerDrawerFrame=128,
         MeterVisualizerDrawerValue=129,MeterVisualizerDrawerIncrease=129,MeterTitleAnimationLabel=158,MeterTitleAnimationDecrease=157,
         MeterTitleAnimationFrame=156,MeterTitleAnimationValue=157,MeterTitleAnimationIncrease=157,
-        MeterQueueExpandedLabel=186,MeterQueueExpandedValue=184}) do
+        MeterAlbumColorsLabel=186,MeterAlbumColorsFrame=184,MeterAlbumTintLabel=214,MeterAlbumTintFrame=212,
+        MeterQueueExpandedLabel=242,MeterQueueExpandedValue=240}) do
         check(math.abs(SKIN:GetMeter(name):GetY(true)-(inset+y*scale))<=1,'Display row moved: '..name)
     end
     -- The wider drawer group shares the numeric groups' left column.
@@ -553,14 +562,15 @@ local function settings_bounds(expanded)
         check(SKIN:GetMeter('MeterVisualizerDrawer'..part):GetX()==SKIN:GetMeter('MeterWidth'..part):GetX(),'Spectrum drawer stepper left column differs: '..part)
         check(SKIN:GetMeter('MeterTitleAnimation'..part):GetX()==SKIN:GetMeter('MeterWidth'..part):GetX(),'Title animation stepper left column differs: '..part)
     end
-    local shift=expanded and 0 or 56
+    local shift=expanded and 0 or 84
     -- The shared Spectrum steppers (Visualizer\SettingsShared.inc) follow the
-    -- queue rows; every later section sits 204 lower than before them.
-    for name,y in pairs({MeterVisualizerSettingsAppearance=274,MeterVisualizerSettingsHeightRow=300,
-        MeterVisualizerSettingsBaselineRow=412,MeterVisualizerSettingsQualityRow=300,MeterVisualizerSettingsAnimation=362,
-        MeterVisualizerSettingsDecayRow=444,
-        MeterSamplingHeading=478,MeterQueuePollValue=505,MeterStatus=532,
-        MeterSourceLabel=562,MeterSourceStart=599,MeterQueueHeading=646,MeterSignIn=683,MeterLinksHeading=758}) do
+    -- queue rows; every later section sits 204 lower than before them, and
+    -- 84 more since Album colors, Album tint and Row size (2026-11-19).
+    for name,y in pairs({MeterVisualizerSettingsAppearance=358,MeterVisualizerSettingsHeightRow=384,
+        MeterVisualizerSettingsBaselineRow=496,MeterVisualizerSettingsQualityRow=384,MeterVisualizerSettingsAnimation=446,
+        MeterVisualizerSettingsDecayRow=528,
+        MeterSamplingHeading=562,MeterQueuePollValue=589,MeterStatus=616,
+        MeterSourceLabel=646,MeterSourceStart=683,MeterQueueHeading=730,MeterSignIn=767,MeterLinksHeading=842}) do
         local meter=SKIN:GetMeter(name)
         check(meter:GetW()>0 and meter:GetH()>0,'Recovery/sampling control hidden: '..name)
         check(math.abs(meter:GetY(true)-(inset+(y-shift)*scale))<=1,'Dependent settings did not reflow: '..name)
@@ -765,7 +775,7 @@ local function settings_stage()
         check(prefs.QueueExpanded=='0' and prefs.QueueRowLimit=='3' and prefs.QueueShowDetails=='0','Collapse discarded saved display values')
         settle(5)
     elseif stage==5 then
-        check(settings_expanded_height-SKIN:GetH()==math.floor(56*SELF:GetNumberOption('ExpectedScale')+0.5),'Collapse did not reclaim 56 logical pixels')
+        check(settings_expanded_height-SKIN:GetH()==math.floor(84*SELF:GetNumberOption('ExpectedScale')+0.5),'Collapse did not reclaim 84 logical pixels')
         advance(6)
     elseif stage==6 then
         check(prefs.QueueExpanded=='0' and prefs.QueueRowLimit=='3' and prefs.QueueShowDetails=='0','Collapsed preferences did not survive reopen')
@@ -1083,7 +1093,7 @@ artwork_bounds=function(expanded)
     -- The queue is the drawer's content: indented by the sheet's 8px padding
     -- from the surface, ending 8px inside the content column's right edge, and
     -- starting 4px below whichever of the artwork and the panel hangs lower.
-    local queue_x=inset+g.surface_x+8*scale
+    local queue_x=inset+8*scale
     local queue_right=inset+g.content_right-8*scale
     if expanded then
         local queue_names={'MeterQueueHeaderTrack'}
@@ -1091,15 +1101,15 @@ artwork_bounds=function(expanded)
         for _,name in ipairs(queue_names) do
             local meter=SKIN:GetMeter(name)
             inside(name,width,height)
-            check(math.abs(meter:GetX(true)-(queue_x+22*scale))<=1,'Queue text column alignment wrong: '..name)
-            -- The header's column labels stop short of its Refresh action.
-            local right=name=='MeterQueueHeaderTrack' and queue_right-56*scale or queue_right
+            check(math.abs(meter:GetX(true)-(queue_x+38*scale))<=1,'Queue text column alignment wrong: '..name)
+            -- The header's column labels stop short of its Refresh icon (Media.ini only).
+            local right=name=='MeterQueueHeaderTrack' and queue_right-(hosted() and 18*scale or 0) or queue_right
             check(math.abs(meter:GetX(true)+meter:GetW()-right)<=1,'Queue width wrong: '..name)
             check(meter:GetY(true)>=art_y+art_size+4*scale-1 and meter:GetY(true)>=g.top+g.body+4*scale-1,'Queue is not below the artwork and panel: '..name)
         end
         for row=1,5 do
-            local number=SKIN:GetMeter('MeterQueueNumber'..row)
-            check(number:GetOption('StringAlign')=='Right' and math.abs(number:GetX(true)-(queue_x+16*scale))<=1,'Queue position column alignment wrong: '..row)
+            local tile=SKIN:GetMeter('MeterQueueTile'..row)
+            check(math.abs(tile:GetX(true)-queue_x)<=1 and math.abs(tile:GetW()-32*scale)<=1,'Queue cover column wrong: '..row)
         end
         check(math.abs(SKIN:GetMeter('MeterQueueHeaderTrack'):GetY(true)-(g.top+g.queue_top))<=1,'Queue header is not at the drawer top')
     end

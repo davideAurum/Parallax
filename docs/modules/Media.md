@@ -69,10 +69,11 @@ user-selected Lucide metadata and playback icons are attributed below.
 | Fonts and icons — bundled | Private IBM Plex Sans fonts ([license](../../Skins/Parallax/@Resources/Licenses/IBM-Plex-OFL.txt)); native Shape adaptations of Lucide artwork ([provenance and licenses](../../Skins/Parallax/@Resources/Modules/Media/Icons/Lucide/README.md)). | No download, system font installation or SVG-rendering plugin required. |
 | Typed numeric settings — bundled | Rainmeter's bundled RunCommand plugin, Windows PowerShell/.NET WinForms and the shared `Scripts/SettingsInput.ps1` overlay. | An explicit numeric-field click starts one temporary editor. Fixed numeric/cancel output is revalidated before saving; invalid, cancelled, unrequested or hidden-field results do not save. No polling or provider starts. |
 | Playback metadata and controls — optional, plugin bundled | [WebNowPlaying](https://wnp.keifufu.dev/rainmeter/getting-started) plugin 2.0.7.0 (MIT License, keifufu and Trevor Hamilton), bundled in the Parallax `.rmskin` from `packaging/Plugins/WebNowPlaying` and installed by Skin Installer unless a newer version is present ([license](../../Skins/Parallax/@Resources/Licenses/WebNowPlaying-LICENSE.txt), [provenance](../../packaging/Plugins/WebNowPlaying/README.md)); a supported player. Browser playback additionally requires the separately installed WebNowPlaying browser extension; desktop adapters are also separate. A development copy of the skin without the package needs a manual plugin install (2.x+). | Sampled on the skin update; `MediaInterval` does not throttle WNP internally. Inactive connections show no active media; unsupported controls remain disabled. Setup unloads the optional plugin. Since 2026-10-27 the shuffle and repeat toggles read WNP's `Shuffle`, `Repeat`, `SupportsToggleShuffleActive` and `SupportsToggleRepeatMode` player types and send its `Shuffle` and `Repeat` commands; a player that does not report support shows them muted and unclickable. Whether a given player (Spotify desktop included) reports that support is unverified. |
+| Album colors — optional, plugin bundled (2026-11-19) | [Chameleon](https://github.com/socks-the-fox/chameleon) plugin 1.6.5.0 (3-clause BSD, Socks the Fox), bundled in the `.rmskin` from `packaging/Plugins/Chameleon` ([license](../../Skins/Parallax/@Resources/Licenses/Chameleon-LICENSE.txt), [provenance and open license question](../../packaging/Plugins/Chameleon/README.md)); `Modules/Media/AlbumColors1.inc` and `AlbumColors.lua`; WebNowPlaying's cover file. | Only while `MediaAlbumColors=1` (default; `0` loads the comment-only `AlbumColors0.inc`). Four plugin measures and one script at `MediaLegacyDivider` (the 1-second provider cadence), never on the 50 ms tick; Chameleon re-samples on its own when WebNowPlaying overwrites the cover (measured ~1 s). A recolor runs only when the sampled colors or the shown text change: `!SetOption` on fixed meters plus forced updates and one redraw (measured ~2 ms), no DynamicVariables on any meter and no refresh. A grayscale or missing cover, or a missing plugin, keeps the theme; Media settings then says the plugin is missing. See [Album colors](#album-colors-2026-11-19). |
 | Spotify source identification — optional | Bundled `SourceProvider.ps1` and the shared `ProviderOwner.psm1` owner lease, Rainmeter's bundled RunCommand plugin, Windows PowerShell 5.1, built-in .NET and Windows media-session APIs. No Spotify authentication or network request. | Explicit Start uses a dormant `State=Hide` RunCommand control and enables one persistent observer targeting a 2-second collection cadence, with load-time recovery through `MediaLifecycle.lua`/`Lifecycle.inc`. Stop uses the same hidden event-only path. Between collections the observer waits on its owner Rainmeter and a stop event, not a poll, and rewrites its snapshot every cycle while Spotify plays and otherwise only on change, plus a heartbeat about every 4 seconds. Observations expire after 6 seconds. Missing or inconclusive evidence leaves generic Windows playback identified as `Unknown`. |
 | Idle pause — optional, bundled suite component | The hidden `Parallax\Idle` input-idle coordinator (built-in SysInfo `IDLE_TIME`) through `@Resources/Idle/Hook.inc` and `StandDown.lua`; `Modules/Media/CaptureState.inc` (`MediaStandby`) written only by `MediaOptions.lua`. | Only while Global Settings **Idle pause** is 5, 10 or 30 minutes (default Off). Media.ini reloads once into standby (provider cadence, drawer parked) and freezes; input reloads it once back. Setup and Queue freeze in place. Off loads a comment-only include; a standby state saved while the pause is Off is cleared at the next Media.ini load. No coordinator sync 10 s after a standby load, or no beat for 3 minutes, returns to live. See [Idle pause](#idle-pause). |
 | Update check — optional, bundled suite component | Automatic update check: Rainmeter's built-in WebParser and the bundled `@Resources/Update/Hook1.inc` (`Update.lua`, `Feed.inc`, `State.inc`, `Version.inc`). | Optional bundled suite component, on by default: Global Settings **Updates** > **Auto check** Daily (`UpdateCheck=1`). Off loads the comment-only `Hook0.inc`. About once a day, one request for the release feed on github.com, made by whichever loaded utility finds the check due (60 s after a load, then an hourly `[!Delay]` look); a newer release opens the `Parallax\Update` prompt. No meter, process or plugin; offline and failed checks are recorded quietly and retried after an hour. See [Updates](../UPDATES.md). |
-| Spotify queue — optional | Bundled `QueueProvider.ps1`, `QueueCore.psm1`, `QueueAuth.psm1` and the shared `ProviderOwner.psm1` owner lease; Rainmeter's bundled RunCommand plugin; Windows PowerShell 5.1/.NET; network access; Spotify Developer app public Client ID and user-authorized PKCE sign-in. The [queue setup guide](../../Skins/Parallax/@Resources/Modules/Media/Queue/README.md) records Development Mode prerequisites, including owner Premium and user allowlisting. No client secret. | Start, Stop, Restart and Disconnect use dormant `State=Hide` RunCommand controls with a fixed allowlist and do not overlap. One opt-in worker requests every 30 seconds by default, configurable to 30–150 seconds, subject to backoff/quota pauses. Sign in deliberately retains a visible setup console/browser flow. Passive views read local snapshots on their update. Missing, stopped, expired or failed data produces explicit status and suppresses rows. Since 2026-10-27, clicking a row or **Refresh** runs one short hidden `QueueProvider.ps1 -Command Play`/`Refresh` on a dormant `State=Hide` RunCommand host (`Queue/QueueControlHost.inc` in Media.ini; Queue.ini's existing host); it only hands a request file to the running worker and exits. Skipping needs the optional `user-modify-playback-state` permission, now requested at sign-in; a grant without it keeps reading the queue but rows are not clickable until you sign in again. Spotify's skip endpoint acts on the account's active device and needs Premium. |
+| Spotify queue — optional | Bundled `QueueProvider.ps1`, `QueueCore.psm1`, `QueueAuth.psm1` and the shared `ProviderOwner.psm1` owner lease; Rainmeter's bundled RunCommand plugin; Windows PowerShell 5.1/.NET; network access; Spotify Developer app public Client ID and user-authorized PKCE sign-in. The [queue setup guide](../../Skins/Parallax/@Resources/Modules/Media/Queue/README.md) records Development Mode prerequisites, including owner Premium and user allowlisting. No client secret. | Start, Stop, Restart and Disconnect use dormant `State=Hide` RunCommand controls with a fixed allowlist and do not overlap. One opt-in worker requests every 30 seconds by default, configurable to 30–150 seconds, subject to backoff/quota pauses. Sign in deliberately retains a visible setup console/browser flow. Passive views read local snapshots on their update. Missing, stopped, expired or failed data produces explicit status and suppresses rows. Since 2026-10-27, clicking a row or **Refresh** runs one short hidden `QueueProvider.ps1 -Command Play`/`Refresh` on a dormant `State=Hide` RunCommand host (`Queue/QueueControlHost.inc` in Media.ini; Queue.ini's existing host); it only hands a request file to the running worker and exits. Skipping needs the optional `user-modify-playback-state` permission, now requested at sign-in; a grant without it keeps reading the queue but rows are not clickable until you sign in again. Spotify's skip endpoint acts on the account's active device and needs Premium. Since 2026-11-19 each read also fetches the shown items' covers (Spotify's smallest image, 64 px for albums) once from Spotify's image CDN only (`*.scdn.co`, `*.spotifycdn.com`), over HTTPS, without the token, at most 256 KB and 5 s each, into `covers\` beside the snapshot (current-user ACL, pruned to 60 files, deleted on Disconnect); a failed URL waits 5 minutes. The snapshot is `PARALLAX_QUEUE_V4`. No new Spotify API call or process. |
 
 Both provider helpers require an explicit initial Start (or successful queue sign-in).
 They save private enabled intent and can resume once when their Media view loads
@@ -118,6 +119,9 @@ The user file ships these defaults in `[Variables]`:
 | `QueueShowDetails` | `1` | Show artist/podcast details beside titles; 0 hides them. |
 | `QueuePollSeconds` | `30` | Spotify request interval in whole seconds, 30–150; arrow step 1 or typed value. |
 | `VisualizerDrawer` | `1` | Spectrum drawer above the player: `0` hidden, `1` tab only, `2` open (captures the output device). Literal digits only. |
+| `QueueRowSize` | `1` | Queue drawer rows: `1` Normal (36-pixel rows, 32-pixel covers, song above artist) or `0` Compact (18-pixel rows, 16-pixel covers, one `Song / Artist` line). Any value but a literal `0` reads as Normal. Media settings' Queue row size (shown with the other queue details). |
+| `MediaAlbumColors` | `1` | Album colors: the current cover recolors the player. `0` keeps the theme and loads no plugin. Literal digits only (the value names the include). |
+| `MediaAlbumTint` | `10` | How far the gray surfaces lean toward the cover's main color, `0`–`30` %. |
 | `MediaTitleAnimation` | `20` | Title icon animation while a WebNowPlaying player reports Playing: `20` or `10` frames per second, or `0` for a static icon. Any other number means 20; use literal digits. With `0` and the drawer closed, Media updates once per `MediaInterval` instead of every 50 ms. Media settings' Title animation row. |
 
 Global colors, font, and scale flow through the shared defaults/settings; a user
@@ -205,8 +209,10 @@ expand the section. The icon becomes List Minus while expanded; clicking again
 collapses it. The icon's 18-pixel hit target stays within the existing footer
 row. The label reserves 42 logical pixels for the largest supported header
 font; the adjacent status begins six pixels farther right to leave room.
-The expanded panel adds `8 + 18 * QueueRowLimit` logical pixels to its base height
-(98 at five rows). The extra rows are read from the same validated Spotify cache.
+Since the drawer replaced the inline footer (`MediaQueueHidden=1`), opening it
+grows the window below the panel instead: an 18-pixel header, a 5-pixel rule
+gap and `QueueRowLimit` rows of 36 (Normal) or 18 (Compact) logical pixels,
+plus the sheet's padding. (The inline footer once added `8 + 18 * QueueRowLimit`.) The extra rows are read from the same validated Spotify cache.
 Collapsed and unused rows move inside the existing bounds as well as being hidden,
 because Rainmeter includes hidden meter positions in its dynamic window size.
 The independent Queue config remains available from the settings panel.
@@ -214,8 +220,9 @@ The compact Media footer shortens long status phrases to Storage error,
 Spotify error, Queue error, Quota reached or Stopped so they fit at the maximum
 body size. The standalone Queue panel retains the full status wording.
 
-The settings panel is always two pitches wide. It is 814 logical pixels tall
-with Queue expanded and 758 with Queue collapsed (786/730 before the Title
+The settings panel is always two pitches wide. It is 898 logical pixels tall
+with Queue expanded and 814 with Queue collapsed (814/758 before the Album
+colors, Album tint % and Queue row size rows of 2026-11-19, 786/730 before the Title
 animation row, 582/526 before the Spectrum section, 554/498 before the
 Spectrum drawer row). That row sits directly under Panel columns: a wrapping previous/value/next
 group for Hidden, Collapsed and Expanded with a 76 px field (the shared stepper
@@ -1266,7 +1273,11 @@ items before it are skipped past (so they leave the queue). Remove and reorder a
 - **Snapshot V3.** `PARALLAX_QUEUE_V3` adds `control=0|1` and
   `notice=<enum>` after `count`. The reader still accepts V2, which reads as
   not clickable with no notice. Nonready snapshots must carry `control=0` and
-  an empty notice.
+  an empty notice. Since 2026-11-19 the helper writes `PARALLAX_QUEUE_V4`, which
+  adds `image1`..`image5` (each row's cover file name, or empty); the reader
+  accepts V2, V3 and V4. Refresh is now a Lucide `refresh-cw` icon, and a V3+
+  snapshot whose grant lacks playback control puts **Sign in again** in the
+  header (see [Queue covers and album colors](#queue-covers-and-album-colors-2026-11-19)).
 - **Not verified live.** No real Spotify skip, device, or a Premium versus Free
   account has been exercised; all checks are synthetic.
 
@@ -1292,6 +1303,74 @@ Sources: [quota modes](https://developer.spotify.com/documentation/web-api/conce
 [rate limits](https://developer.spotify.com/documentation/web-api/concepts/rate-limits).
 
 ## Validation report
+
+### Queue covers and album colors (2026-11-19)
+
+User request: cover thumbnails in the queue, clickable rows, a Refresh icon
+and colors that follow the current song, toggleable in settings. Decided with
+mockups, then built under the instruction to proceed on the recommended
+options; every decision and how to walk it back is in the
+[decision log](../superpowers/specs/2026-11-19-media-queue-art-and-album-colors-design.md).
+
+**Queue drawer.** The sheet now starts at the big cover's left edge
+(`MediaQueueDrawerLeft`) and runs behind it. The `#` column and its `|`
+dividers are gone; each row is a hit surface (click and a 7% white hover lift,
+clickable rows only), a cover tile, a rounded mask holding the cover image,
+the song line and, in Normal rows, an artist line in Accent 2. Normal is the
+default (36S rows, 32S covers); Compact keeps 18S rows with 16S covers and the
+inline accented artist. Refresh is Lucide `refresh-cw` (18S box, Accent 1).
+When the queue reads fine but the sign-in lacks playback control (a V3+
+snapshot with `control=0`), the header says **Sign in again**; V2 snapshots and
+Setup never do. Setup shares the rows (covers, no clicks, no Refresh); the
+standalone Queue panel is unchanged. The helper writes `PARALLAX_QUEUE_V4`
+(V3 plus `image1`..`image5`) and downloads covers as listed under
+Dependencies.
+
+### Album colors (2026-11-19)
+
+Follows the cover: the title icon, the progress fill, the queue notch icon, a
+left-to-right two-color gradient on the song/artist/album text that ends
+where each line's words end (measured by transparent probe meters, because
+`GradientColor` spans the meter box), the open spectrum drawer's bars, and a
+`MediaAlbumTint` % tint on the lighter gray surfaces (queue and spectrum
+sheets, progress track, panel border, shuffle face when off). Keeps the
+theme: the black panel fill, the transport buttons, the song/artist/album
+icons (now Accent 1 in both modes) and the queue rows. Color rules
+(`AlbumColors.lua`): Chameleon `Light1`, `Light2` and `Average` only; under 18%
+saturation the theme stays; text lightness at least 68%.
+
+Spike (isolated Rainmeter 4.5.28, Chameleon 1.6.5 x64, synthetic covers):
+same-path re-sampling about 1 s after an overwrite; `Background*`,
+`Foreground*` and `Dark*` fell back to white/black between good samples;
+13-meter recolor about 2 ms.
+
+**Checks run.** `Test-QueueReader.ps1`: 10,531 assertions, 27 scenarios
+(new V4/Normal/hover/sign-in scenario). `Test-QueueCore.ps1` 148,
+`Test-QueueProvider.ps1` 319 (covers: selection, host allowlist, size cap,
+signatures, cache reuse, prune, Disconnect), `Test-QueueAuth.ps1` unchanged.
+`tests/AlbumColorsSuite.luatest`: 63 (offline LuaJIT). `test_skin_contract.py`:
+34 tests OK. `Test-Media.ps1` PASS. `Test-MediaSettings.ps1`
+`-SettingsFocused`, `-QueueTogglePlayersOnly`, `-ArtworkFocused` PASS
+(the harness, like `Test-MediaTransport.ps1`, now also copies
+`@Resources\Dev\Hook0.inc`, missing since developer mode, and stubs
+`AlbumColors1.inc` so its no-plugin guard holds). `Test-MediaTransport.ps1
+-Columns 1|2` PASS. `Test-QueueView.ps1` PASS. `Test-Parallax.ps1
+-RequireAllModules`: 25 configs, 138 files, 0 errors. A throwaway native
+preview (isolated Rainmeter, stand-in player data, synthetic V4 queue,
+Chameleon loaded) rendered warm, cool and grayscale covers, Normal and
+Compact rows and the open drawer; on the warm cover each line's ink ran
+coral to gold and ended at the word's end.
+
+Media settings grew three rows: Album colors and Album tint % after Title
+animation, and Queue row size after Queue details. The panel is 898 logical
+pixels tall with Queue expanded and 814 collapsed (814/758 before).
+
+**Not verified.** Real Spotify thumbnails (the CDN download's success path has
+never run against Spotify), real WebNowPlaying covers through Chameleon, the
+spectrum bars' cover gradient (the preview's output was idle), the hover
+highlight on screen, the look at 150% on the live desktop, and the full
+`Test-MediaSettings.ps1` matrix. libChameleon's missing license is an open
+release question.
 
 ### Shuffle, repeat and clickable queue (2026-10-27)
 

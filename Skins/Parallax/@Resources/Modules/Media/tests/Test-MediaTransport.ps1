@@ -45,6 +45,7 @@ $sourceMap = [ordered]@{
     'Media\Media.ini' = (Join-Path $skinSource 'Media\Media.ini')
     '@Resources\Defaults.inc' = (Join-Path $resourcesRoot 'Defaults.inc')
     '@Resources\Idle\Hook0.inc' = (Join-Path $resourcesRoot 'Idle\Hook0.inc')
+    '@Resources\Dev\Hook0.inc' = (Join-Path $resourcesRoot 'Dev\Hook0.inc')
     '@Resources\Version.inc' = (Join-Path $resourcesRoot 'Version.inc')
     '@Resources\Update\Hook1.inc' = (Join-Path $resourcesRoot 'Update\Hook1.inc')
     '@Resources\Update\Feed.inc' = (Join-Path $resourcesRoot 'Update\Feed.inc')
@@ -123,6 +124,10 @@ foreach ($entryFile in Get-ChildItem -LiteralPath $parallax -Recurse -File | Whe
     $updated = $updated.Replace($readerLine, $readerLine + "`nQueueCachePath=$runRoot\no-queue.snapshot")
     if ($updated -ne $text) { Write-TestFile $entryFile.FullName $updated }
 }
+# Album colors load the bundled Chameleon plugin; this fixture keeps the theme,
+# so the guard below can keep rejecting every Plugin= line.
+$albumColors = Join-Path $parallax '@Resources\Modules\Media\AlbumColors1.inc'
+if (Test-Path -LiteralPath $albumColors) { Write-TestFile $albumColors "; Fixture: album colors off (no plugin in fixtures).`n" }
 foreach ($fixture in Get-ChildItem -LiteralPath $parallax -Recurse -File | Where-Object { $_.Extension -in @('.ini', '.inc') }) {
     $fixtureText = [IO.File]::ReadAllText($fixture.FullName)
     if ($fixtureText -match '(?m)^\s*Plugin\s*=' -or $fixtureText -match '(?im)^\s*ScriptFile=.*SourceReader\.lua') { throw "A fixture still loads a plugin or the source reader: $($fixture.FullName)" }

@@ -387,7 +387,7 @@ def pre_drawer_geometry(width, scale, columns, expanded, rows, bar_thickness=6):
     transport_bottom=body+(34*scale+2*5*scale)/2
     overhang_bottom=max(cover_bottom,transport_bottom)
     queue_top=max(cover_bottom,body)+4*scale
-    queue_bottom=queue_top+(1+rows)*18*scale+5*scale
+    queue_bottom=queue_top+18*scale+rows*QUEUE_ROW_PITCH*scale+5*scale
     drawer_bottom=queue_bottom+8*scale if expanded else body
     window=max(max(body+gap,math.ceil(overhang_bottom+2*inset)),
                math.ceil(drawer_bottom+2*inset))
@@ -483,7 +483,7 @@ def media_drawer_geometry(width, scale, columns, expanded, rows, bar_thickness=6
     transport_bottom=panel_bottom+(34*scale+2*5*scale)/2
     overhang_bottom=max(cover_bottom,transport_bottom)
     queue_top=max(cover_bottom,panel_bottom)+4*scale
-    queue_bottom=queue_top+(1+rows)*18*scale+5*scale
+    queue_bottom=queue_top+18*scale+rows*QUEUE_ROW_PITCH*scale+5*scale
     drawer_bottom=queue_bottom+8*scale if expanded else panel_bottom
     window=lift+max(max(body+gap,math.ceil(overhang_bottom+2*inset)),
                     math.ceil(drawer_bottom+2*inset))
@@ -900,6 +900,13 @@ def meter_bounds(style, value):
     return Bounds(x, y, x + width, y + height)
 
 
+# User\Media.inc QueueRowSize ships as 1 (Normal): 36S rows under the 18S
+# header (2026-11-19). Compact (0) keeps the old 18S rows.
+QUEUE_ROW_PITCH = 36
+QUEUE_PART_OFFSETS = {'Row': '+#MediaQueueTitleOffset#', 'Hit': '', 'Tile': '+#MediaQueueThumbInset#',
+                      'ArtMask': '+#MediaQueueThumbInset#', 'Artist': '+#MediaQueueArtistOffset#'}
+
+
 def layouts():
     for name in CONFIGS:
         for column_width in WIDTHS:
@@ -920,21 +927,22 @@ def layout_states():
 
 def presentation_style(sections, meter, config, expanded, row_limit):
     style = resolve_style(sections, meter)
+    row = re.fullmatch(r'MeterQueue(Row|Hit|Tile|ArtMask|Artist)([1-5])', meter)
+    if config in ('Setup.ini','Media.ini') and row:
+        assert style['Y'] == '#Inset#', 'Hidden anchors must not grow native window bounds'
+        if expanded and int(row[2]) <= row_limit:
+            # QueueReader applies this trusted coordinate only for active rows,
+            # stepping from the drawer's first row rather than the panel body,
+            # plus each part's place in its row (InlineQueueGeometry.inc).
+            # The native matrix independently verifies the actual Lua result.
+            style['Y'] = f'(#MediaQueueRowsY#+{int(row[2])-1}*#MediaQueueRowPitch#{QUEUE_PART_OFFSETS[row[1]]})'
     if 'Container' in style:
         # Rainmeter resolves child coordinates relative to its container.
         # See Library/Meter.cpp GetX/GetY in rainmeter/rainmeter.
-        parent = resolve_style(sections, style['Container'])
+        parent = presentation_style(sections, style['Container'], config, expanded, row_limit)
         assert parent['Meter'] == 'Shape' and 'Container' not in parent
         for axis in ('X', 'Y'):
             style[axis] = f"({parent.get(axis, '0')}+{style.get(axis, '0')})"
-    row = re.fullmatch(r'MeterQueueRow([1-5])', meter)
-    if config in ('Setup.ini','Media.ini') and row:
-        assert style['Y'] == '#Inset#', 'Hidden anchors must not grow native window bounds'
-        if expanded and int(row[1]) <= row_limit:
-            # QueueReader applies this trusted coordinate only for active rows,
-            # stepping from the drawer's first row rather than the panel body.
-            # The native matrix independently verifies the actual Lua result.
-            style['Y'] = f'(#MediaQueueRowsY#+{int(row[1])-1}*#MediaQueueRowPitch#)'
     return style
 
 
@@ -950,7 +958,8 @@ def value_of(expand, band=1):
 def parked(style, expanded):
     """Queue meters parked at #Inset# while hidden never follow the player."""
     y = style.get('Y', '0')
-    return y == '#Inset#' or (not expanded and y in ('#MediaQueueHeaderY#', '#MediaQueueDividerY#'))
+    # A cover image sits in its parked mask: (#Inset#+0) once resolved.
+    return y in ('#Inset#', '(#Inset#+0)') or (not expanded and y in ('#MediaQueueHeaderY#', '#MediaQueueDividerY#'))
 
 
 def presented_boxes(sections, value, config, expanded, rows, skip=()):
@@ -1133,8 +1142,8 @@ class SkinContractTests(unittest.TestCase):
         # divider to the 1-second provider cadence. It also applies to
         # measures, so every measure states its own divider.
         static = ('MeterQueueDrawer','MeterQueueHeading','MeterQueueRule','MeterNoMedia','MeterCoverPlaceholder',
-                  'MeterCoverLabel','MeterTimingUnavailable','MeterQueueHeaderNumber','MeterQueueHeaderTrack',
-                  'MeterPlayerIcon','MeterMediaIcon')+tuple(f'MeterQueue{kind}{row}' for kind in ('Number','Row') for row in range(1,6))
+                  'MeterCoverLabel','MeterTimingUnavailable','MeterQueueHeaderTrack',
+                  'MeterPlayerIcon','MeterMediaIcon')+tuple(f'MeterQueue{kind}{row}' for kind in ('Hit','Tile','ArtMask','Art','Row','Artist') for row in range(1,6))
         # The open drawer adds no periodic meter either: its mask joins only
         # with signal (Capture.inc), and the output row repaints on change.
         for drawer in DRAWER_STATES:
@@ -1572,8 +1581,9 @@ class SkinContractTests(unittest.TestCase):
         self.assertEqual(sections['Variables']['MediaSettingsQueueDetailsVisible'],'0')
         # The Spectrum drawer row added 28 to both heights (554/498 before);
         # the shared Spectrum steppers then added 204 (582/526 before), and the
-        # Title animation row another 28 (786/730 before).
-        self.assertEqual(numeric(expand('#SettingsPanelHeight#')),758)
+        # Title animation row another 28 (786/730 before), then Album colors,
+        # Album tint and the queue's Row size row 84 more (814/758 before).
+        self.assertEqual(numeric(expand('#SettingsPanelHeight#')),814)
         self.assertEqual(sections['Variables']['VisualizerDrawer'],'1')
         # Entrypoint fallback for preserved files without the key.
         self.assertEqual(sections['Variables']['MediaTitleAnimation'],'20')
@@ -1638,8 +1648,8 @@ class SkinContractTests(unittest.TestCase):
         # Settings.lua rebuilds the same heights at runtime and owns the cycle.
         # Static text checks only; MediaSettingsSuite.luatest runs the script.
         controller=(RESOURCES/'Modules'/'Media'/'Settings.lua').read_text(encoding='ascii')
-        self.assertIn('local settingsHeight = 814 - collapsedHeight',controller)
-        self.assertIn("SKIN:Bang('!SetVariable', 'VisualizerSettingsTop', 200 - collapsedHeight)",controller)
+        self.assertIn('local settingsHeight = 898 - collapsedHeight',controller)
+        self.assertIn("SKIN:Bang('!SetVariable', 'VisualizerSettingsTop', 284 - collapsedHeight)",controller)
         self.assertIn("MediaTitleAnimation = { '0', '10', '20' }",controller)
         self.assertIn("animationNames = { ['0'] = 'Off', ['10'] = '10 fps', ['20'] = '20 fps' }",controller)
         self.assertIn("MediaTitleAnimation = '20'",controller)
@@ -1658,8 +1668,8 @@ class SkinContractTests(unittest.TestCase):
                             val=lambda expression:numeric(expand(expression))
                             box=lambda name:meter_bounds(resolve_style(sections,name),val)
                             panel=Bounds(val('#Inset#'),val('#Inset#'),val('#WindowWidth#')-val('#Inset#'),val('#WindowHeight#')-val('#Inset#'))
-                            shift=0 if expanded else 56
-                            self.assertEqual(val('#WindowHeight#'),math.floor((814-shift)*scale+0.5)+val('#Gap#'))
+                            shift=0 if expanded else 84
+                            self.assertEqual(val('#WindowHeight#'),math.floor((898-shift)*scale+0.5)+val('#Gap#'))
                             self.assertEqual(variables['Columns'],str(columns))
                             self.assertEqual(variables['PanelHeight'],'162')
                             for name,section in sections.items():
@@ -1667,18 +1677,21 @@ class SkinContractTests(unittest.TestCase):
                             # The Spectrum drawer row took Queue section's old slot,
                             # then the Title animation row the next: every later row
                             # moved down by exactly 28 each time.
-                            for stem,y in [('Width',100),('VisualizerDrawer',128),('TitleAnimation',156),('QueueExpanded',184),
-                                           ('QueueRows',212),('QueueDetails',240),('QueuePoll',504)]:
+                            # Album colors and Album tint (2026-11-19) then took
+                            # the next two slots and Row size joined the queue rows.
+                            for stem,y in [('Width',100),('VisualizerDrawer',128),('TitleAnimation',156),('AlbumColors',184),
+                                           ('AlbumTint',212),('QueueExpanded',240),('QueueRows',268),('QueueDetails',296),
+                                           ('QueueRowSize',324),('QueuePoll',588)]:
                                 label,value='Meter'+stem+'Label','Meter'+stem+'Value'
-                                numeric_field=stem in ('Width','QueueRows','QueuePoll')
+                                numeric_field=stem in ('Width','QueueRows','QueuePoll','AlbumTint')
                                 # Number fields and the categorical choices share the
                                 # previous/value/next group; the drawer's field is 76
                                 # wide (Collapsed/Expanded at max type), while Title
                                 # animation keeps the default 56 (Off / 10 fps / 20 fps).
-                                stepper=numeric_field or stem in ('VisualizerDrawer','TitleAnimation')
-                                field=76 if stem=='VisualizerDrawer' else 56
+                                stepper=numeric_field or stem in ('VisualizerDrawer','TitleAnimation','AlbumColors','QueueRowSize')
+                                field=76 if stem in ('VisualizerDrawer','QueueRowSize') else 56
                                 parts=[label,value]+(['Meter'+stem+p for p in ('Decrease','Frame','Increase')] if stepper else [])
-                                hidden=not expanded and stem in ('QueueRows','QueueDetails')
+                                hidden=not expanded and stem in ('QueueRows','QueueDetails','QueueRowSize')
                                 if hidden:
                                     for name in parts:
                                         style=resolve_style(sections,name)
@@ -1726,21 +1739,21 @@ class SkinContractTests(unittest.TestCase):
                                     self.assertEqual(resolve_style(sections,value)['FontColor'],'#TextColor#')
                                     self.assertEqual(resolve_style(sections,'Meter'+stem+'Decrease')['FontColor'],'#AccentColor#')
                                 else: self.assertEqual(resolve_style(sections,value)['SolidColor'],'#GraphBackgroundColor#')
-                            for name,y in [('MeterSamplingHeading',478),('MeterStatus',532),('MeterSourceLabel',562),
-                                           ('MeterQueueHeading',646),('MeterLinksHeading',758)]:
+                            for name,y in [('MeterSamplingHeading',562),('MeterStatus',616),('MeterSourceLabel',646),
+                                           ('MeterQueueHeading',730),('MeterLinksHeading',842)]:
                                 self.assertAlmostEqual(box(name).top,val('#Inset#')+(y-shift)*scale)
                             # Spectrum: Audio settings' steppers on its two-column
                             # grid, on Media's 28px pitch below the queue rows.
-                            # Headings at 274 (Animation 362), rules 21 below.
-                            for name,y in [('MeterVisualizerSettingsAppearance',274),('MeterVisualizerSettingsPerformance',274),
-                                           ('MeterVisualizerSettingsAnimation',362)]:
+                            # Headings at 358 (Animation 446), rules 21 below.
+                            for name,y in [('MeterVisualizerSettingsAppearance',358),('MeterVisualizerSettingsPerformance',358),
+                                           ('MeterVisualizerSettingsAnimation',446)]:
                                 self.assertAlmostEqual(val(resolve_style(sections,name)['Y']),val('#Inset#')+(y-shift)*scale,msg=name)
                                 self.assertAlmostEqual(val(resolve_style(sections,name+'Rule')['Y']),val('#Inset#')+(y+21-shift)*scale,msg=name)
                             self.assertEqual(expand(sections['MeterVisualizerSettingsAppearance']['Text']),'Spectrum')
                             left_x,right_x=val('#ContentX#'),val('#VisualizerSettingsRightX#')
-                            spectrum_rows=[('Height',left_x,300),('Spacing',left_x,328),('Color',left_x,356),('Radius',left_x,384),
-                                           ('Baseline',left_x,412),('Quality',right_x,300),('Cadence',right_x,328),
-                                           ('Sensitivity',right_x,388),('Attack',right_x,416),('Decay',right_x,444)]
+                            spectrum_rows=[('Height',left_x,384),('Spacing',left_x,412),('Color',left_x,440),('Radius',left_x,468),
+                                           ('Baseline',left_x,496),('Quality',right_x,384),('Cadence',right_x,412),
+                                           ('Sensitivity',right_x,472),('Attack',right_x,500),('Decay',right_x,528)]
                             self.assertNotIn('MeterVisualizerSettingsWidthRow',sections)
                             for stem,x,y in spectrum_rows:
                                 frame,label=box(f'MeterVisualizerSettings{stem}Row'),box(f'MeterVisualizerSettings{stem}Label')
@@ -1790,7 +1803,7 @@ class SkinContractTests(unittest.TestCase):
                     self.assertEqual(window.height,
                                      media_drawer_geometry(column_width,scale,columns,expanded,rows)[3])
                 else:
-                    expected_height = math.floor(((814 if expanded else 758) if name == 'Settings/Settings.ini' else 162)*scale+0.5)
+                    expected_height = math.floor(((898 if expanded else 814) if name == 'Settings/Settings.ini' else 162)*scale+0.5)
                     self.assertEqual(window.height, expected_height+val('#Gap#'))
                 self.assertEqual(val('#UnitWidth#'), math.floor(column_width * scale + 0.5))
                 self.assertEqual(val('#Gap#') % 2, 0)
@@ -1998,7 +2011,7 @@ class SkinContractTests(unittest.TestCase):
                                 queue_right=queue_x+val('#MediaQueueWidth#')
                                 if expanded:
                                     self.assertAlmostEqual(box('MeterQueueHeaderTrack').top,val('#MediaQueueTop#'))
-                                    self.assertAlmostEqual(box('MeterQueueRow1').top,val('#MediaQueueRowsY#'))
+                                    self.assertAlmostEqual(box('MeterQueueRow1').top,val('#MediaQueueRowsY#')+val('#MediaQueueTitleOffset#'))
                                     for row in range(1,6):
                                         self.assertAlmostEqual(box('MeterQueueRow'+str(row)).right,queue_right)
                                 self.assertEqual(val(sections['MeterArtworkPlaceholder']['Hidden']),1-wide)
@@ -3034,7 +3047,8 @@ class SkinContractTests(unittest.TestCase):
                 self.assertEqual(sections['MeasureVisualizerSpectrumPaths']['UpdateDivider'],'-1')
                 # The other plugins are unchanged: the player and the inert hosts.
                 plugins={section['Plugin'] for section in sections.values() if 'Plugin' in section}
-                self.assertEqual(plugins,{'AudioLevel','Win7AudioPlugin','WebNowPlaying','RunCommand'})
+                # Chameleon: Album colors, on by default (AlbumColors1.inc).
+                self.assertEqual(plugins,{'AudioLevel','Win7AudioPlugin','WebNowPlaying','RunCommand','Chameleon'})
                 self.assertEqual([name for name,section in sections.items() if section.get('Plugin')=='Win7AudioPlugin'],
                                  ['MeasureVisualizerVolume'])
                 # Plus the queue's click host (QueueControlHost.inc).

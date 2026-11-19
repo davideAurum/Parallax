@@ -64,10 +64,13 @@ LeftMouseUpAction=[!CommandMeasure MeasureMediaOptions "ToggleVisualizer()"]
 Meter=Shape
 AntiAlias=1
 UpdateDivider=-1
-X=#MediaSurfaceX#
+X=#MediaQueueDrawerLeft#
 Y=#MediaQueueDrawerTop#
 Hidden=(1-#MediaQueueDrawer#)
-Shape=Rectangle (#BorderThickness#*#Scale#/2),(#BorderThickness#*#Scale#/2),(#MediaQueueDrawerRight#-#MediaSurfaceX#-#BorderThickness#*#Scale#),(#MediaQueueDrawerBottom#-#MediaQueueDrawerTop#-#BorderThickness#*#Scale#),(#CornerRadius#*#Scale#) | Fill Color #MediaQueueDrawerFill# | Stroke Color #BorderColor# | StrokeWidth (#BorderThickness#*#Scale#)
+Shape=Rectangle (#BorderThickness#*#Scale#/2),(#BorderThickness#*#Scale#/2),(#MediaQueueDrawerRight#-#MediaQueueDrawerLeft#-#BorderThickness#*#Scale#),(#MediaQueueDrawerBottom#-#MediaQueueDrawerTop#-#BorderThickness#*#Scale#),(#CornerRadius#*#Scale#) | Extend MediaSheetPaint
+; Fill and outline in one option so album colors (AlbumColors.lua) can tint the
+; sheet with a single !SetOption.
+MediaSheetPaint=Fill Color #MediaQueueDrawerFill# | Stroke Color #BorderColor# | StrokeWidth (#BorderThickness#*#Scale#)
 
 [MeterQueueToggle]
 Meter=Shape
@@ -114,7 +117,10 @@ Meter=Shape
 MeterStyle=StylePanel
 X=#MediaSurfaceX#
 Y=#MediaSurfaceY#
-Shape=Rectangle (#BorderThickness#*#Scale#/2),(#BorderThickness#*#Scale#/2),(#MediaSurfaceWidth#-#BorderThickness#*#Scale#),(#PanelHeightPx#-#MediaSurfaceOffset#-#BorderThickness#*#Scale#),(#CornerRadius#*#Scale#) | Fill Color #BackgroundColor# | Stroke Color #BorderColor# | StrokeWidth (#BorderThickness#*#Scale#)
+Shape=Rectangle (#BorderThickness#*#Scale#/2),(#BorderThickness#*#Scale#/2),(#MediaSurfaceWidth#-#BorderThickness#*#Scale#),(#PanelHeightPx#-#MediaSurfaceOffset#-#BorderThickness#*#Scale#),(#CornerRadius#*#Scale#) | Extend MediaPanelPaint
+; Fill and outline in one option so album colors (AlbumColors.lua) can tint the
+; border with a single !SetOption; the fill stays BackgroundColor.
+MediaPanelPaint=Fill Color #BackgroundColor# | Stroke Color #BorderColor# | StrokeWidth (#BorderThickness#*#Scale#)
 ; Shape2 is the cutout; the combined result keeps Shape's fill and stroke, so
 ; the panel border traces the notch, which is what sells the cut-away look.
 Shape2=Rectangle #MediaQueueNotchX#,#MediaQueueNotchY#,#MediaQueueTabWidth#,(#MediaQueueTabHeight#+10*#Scale#),#MediaQueueTabRadius# | StrokeWidth 0

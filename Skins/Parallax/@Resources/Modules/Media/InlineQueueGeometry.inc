@@ -204,6 +204,11 @@ MediaQueueTabCenterY=(#MediaQueueTabY#+#MediaQueueTabHeight#/2)
 ; so when it slides out it reads as a distinct layer instead of a
 ; continuation of the panel. That is also where the queue rows end.
 MediaQueueDrawerRight=(#ContentX#+#ContentWidth#)
+; Its left edge is the big cover's left edge (2026-11-19, user request): the
+; sheet runs behind the cover, which is drawn later, so the open rows use the
+; full width below it. Compact art sits inside the panel, whose own left edge
+; is the same #Inset#, so both layouts resolve to the window's inset.
+MediaQueueDrawerLeft=(#MediaWide#*#MediaCoverX#+(1-#MediaWide#)*#MediaSurfaceX#)
 MediaQueueDrawerTop=(#MediaQueueTabY#-8*#Scale#)
 MediaQueueDrawerClosedBottom=(#MediaTop#+#MediaBodyHeightPx#)
 ; --- Queue object (the drawer's only content) --------------------------
@@ -229,7 +234,13 @@ MediaQueueDrawerClosedBottom=(#MediaTop#+#MediaBodyHeightPx#)
 ; One token for the artist accent - the rows and the header label both read
 ; it, so trying colours is a single edit rather than two that can drift.
 MediaQueueArtistColor=#AccentColor2#
-MediaQueueRowPitch=(18*#Scale#)
+; The header line keeps the old 18S pitch. Rows follow User\Media.inc
+; QueueRowSize: 1 (Normal, the default) is a 36S row with a 32S cover and the
+; song above the artist; 0 (Compact) is the old 18S row with a 16S cover and
+; one "Song / Artist" line. Anything but a literal 0 reads as Normal.
+MediaQueueHeaderPitch=(18*#Scale#)
+MediaQueueNormalRows=(#QueueRowSize#=0 ? 0 : 1)
+MediaQueueRowPitch=((18+18*#MediaQueueNormalRows#)*#Scale#)
 MediaQueueTop=(Max(#MediaCoverY#+#MediaCoverSize#,#MediaTop#+#MediaBodyHeightPx#)+#MediaSectionGap#)
 ; A header line labels the columns, then a divider, then the rows. The gap is
 ; split either side of the rule so it sits centred between the two.
@@ -239,25 +250,38 @@ MediaQueueTop=(Max(#MediaCoverY#+#MediaCoverSize#,#MediaTop#+#MediaBodyHeightPx#
 ; native bounds even though it paints nothing.
 MediaQueueDividerGap=(5*#Scale#)
 MediaQueueHeaderOpenY=#MediaQueueTop#
-MediaQueueHeaderRuleOpenY=(#MediaQueueTop#+#MediaQueueRowPitch#+#MediaQueueDividerGap#/2)
+MediaQueueHeaderRuleOpenY=(#MediaQueueTop#+#MediaQueueHeaderPitch#+#MediaQueueDividerGap#/2)
 MediaQueueHeaderY=(#QueueExpanded#*#MediaQueueHeaderOpenY#+(1-#QueueExpanded#)*#Inset#)
 ; The rule is a stroked line, so its parked anchor sits half a stroke below
 ; #Inset# to keep the stroke's outer edge on the boundary rather than across it.
 MediaQueueDividerY=(#QueueExpanded#*#MediaQueueHeaderRuleOpenY#+(1-#QueueExpanded#)*(#Inset#+#DividerThickness#*#Scale#/2))
-MediaQueueRowsY=(#MediaQueueTop#+#MediaQueueRowPitch#+#MediaQueueDividerGap#)
-; Left column carries the queue position; the track column takes the rest.
-MediaQueueNumberWidth=(16*#Scale#)
-MediaQueueNumberRight=(#MediaQueueX#+#MediaQueueNumberWidth#)
-MediaQueueTextX=(#MediaQueueNumberRight#+6*#Scale#)
-; Delimiter between the position column and the track column. Drawn as a short
-; Shape segment per row rather than one continuous rule, so it reads as a
-; divider without turning into a hard border running the table's full height.
-; The inset is what creates the gap between consecutive segments.
-MediaQueueDividerX=((#MediaQueueNumberRight#+#MediaQueueTextX#)/2)
-MediaQueueDividerInset=(3*#Scale#)
+MediaQueueRowsY=(#MediaQueueTop#+#MediaQueueHeaderPitch#+#MediaQueueDividerGap#)
+; Each row leads with its cover (2026-11-19: the # column and its | dividers
+; gave way to it). The cover is centred in the row; the text starts 6S after it.
+MediaQueueThumbSize=((16+16*#MediaQueueNormalRows#)*#Scale#)
+MediaQueueThumbInset=((#MediaQueueRowPitch#-#MediaQueueThumbSize#)/2)
+MediaQueueThumbRadius=((2+1*#MediaQueueNormalRows#)*#Scale#)
+; Empty or failed covers show this tile (and it sits under every cover).
+MediaQueueThumbFill=60,60,60,255
+MediaQueueTextX=(#MediaQueueX#+#MediaQueueThumbSize#+6*#Scale#)
 MediaQueueTextWidth=(#MediaQueueX#+#MediaQueueWidth#-#MediaQueueTextX#)
-; The header row's Refresh action, right-aligned at the rows' right edge. Only
-; Media.ini has one: Queue\QueueControlHost.inc sets 56S; Setup keeps 0.
+; Normal rows split the song (body size, top) from the artist (one point
+; smaller, Accent 2, below). Their boxes overlap by design; each centres its
+; own line in its half of the 36S row.
+MediaQueueTitleHeight=(18*#Scale#)
+MediaQueueTitleOffset=(#MediaQueueNormalRows#*#Scale#)
+MediaQueueArtistOffset=(18*#Scale#)
+MediaQueueArtistHeight=(16*#Scale#)
+; A clickable row's hit and hover surface: the whole row, 4S wider than the
+; content on each side (inside the sheet's 8S padding). Hover lifts it to white
+; at 7%; at rest it is 1/255, enough for Rainmeter to hit-test it.
+MediaQueueHitX=(#MediaQueueX#-4*#Scale#)
+MediaQueueHitWidth=(#MediaQueueWidth#+8*#Scale#)
+MediaQueueHitRadius=(4*#Scale#)
+MediaQueueHoverFill=255,255,255,18
+MediaQueueRestFill=255,255,255,1
+; The header row's Refresh icon, right-aligned at the rows' right edge. Only
+; Media.ini has one: Queue\QueueControlHost.inc sets 18S; Setup keeps 0.
 MediaQueueRefreshWidth=0
 ; Song and artist share one flowing string per row, so the artist sits right
 ; after the title instead of in a column that leaves a ragged gap. The accent
@@ -270,7 +294,7 @@ MediaQueueRefreshWidth=0
 ; width, so a short title still measures its full cap and later meters get
 ; pushed past the sheet. With DynamicWindowSize=1 that grows the whole skin
 ; and can move the window between monitors.
-MediaQueueHeight=((1+#QueueRowLimit#)*#MediaQueueRowPitch#+#MediaQueueDividerGap#)
+MediaQueueHeight=(#MediaQueueHeaderPitch#+#QueueRowLimit#*#MediaQueueRowPitch#+#MediaQueueDividerGap#)
 MediaQueueBottom=(#MediaQueueTop#+#MediaQueueHeight#)
 MediaQueueDrawerOpenBottom=(#MediaQueueBottom#+#MediaDrawerPadding#)
 MediaQueueDrawerBottom=((1-#QueueExpanded#)*#MediaQueueDrawerClosedBottom#+#QueueExpanded#*#MediaQueueDrawerOpenBottom#)
@@ -282,8 +306,8 @@ MediaQueueNotchY=(#MediaQueueDrawer#*(#MediaQueueTabY#-#MediaSurfaceY#)-(1-#Medi
 ; inner padding is declared once here rather than being folded into that
 ; object's own numbers - a second object can then stack against the same edges.
 MediaDrawerPadding=(8*#Scale#)
-MediaDrawerContentX=(#MediaSurfaceX#+#MediaDrawerPadding#)
-MediaDrawerContentWidth=(#MediaQueueDrawerRight#-#MediaSurfaceX#-2*#MediaDrawerPadding#)
+MediaDrawerContentX=(#MediaQueueDrawerLeft#+#MediaDrawerPadding#)
+MediaDrawerContentWidth=(#MediaQueueDrawerRight#-#MediaQueueDrawerLeft#-2*#MediaDrawerPadding#)
 MediaQueueX=#MediaDrawerContentX#
 MediaQueueWidth=#MediaDrawerContentWidth#
 ; --- Spectrum drawer sheet, tab and plot (top) -------------------------

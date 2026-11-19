@@ -5,21 +5,28 @@
 local settingsPath, values, status, restartPending, layoutExpanded
 local editingRequest, settingsRevision, providerLaunched
 local defaults = { Columns = '1', QueueExpanded = '0', QueueRowLimit = '5', QueueShowDetails = '1', QueuePollSeconds = '30',
-    VisualizerDrawer = '1', MediaTitleAnimation = '20' }
+    VisualizerDrawer = '1', MediaTitleAnimation = '20', QueueRowSize = '1', MediaAlbumColors = '1', MediaAlbumTint = '10' }
 local allowed = {
     QueueExpanded = { '0', '1' }, QueueShowDetails = { '0', '1' },
     VisualizerDrawer = { '0', '1', '2' },
     -- Title icon frames per second while playing; 0 is a static icon.
-    MediaTitleAnimation = { '0', '10', '20' }
+    MediaTitleAnimation = { '0', '10', '20' },
+    -- Queue rows: Normal (1, song above artist) or Compact (0, one line).
+    QueueRowSize = { '1', '0' },
+    -- Album colors: the current cover recolors the player (1) or not (0).
+    MediaAlbumColors = { '0', '1' }
 }
 local drawerNames = { ['0'] = 'Hidden', ['1'] = 'Collapsed', ['2'] = 'Expanded' }
 local animationNames = { ['0'] = 'Off', ['10'] = '10 fps', ['20'] = '20 fps' }
+local rowSizeNames = { ['1'] = 'Normal', ['0'] = 'Compact' }
+local onOffNames = { ['0'] = 'Off', ['1'] = 'On' }
 -- Wrapping previous/value/next choices (UTILITY-SETTINGS.md).
-local choiceKeys = { VisualizerDrawer = true, MediaTitleAnimation = true }
+local choiceKeys = { VisualizerDrawer = true, MediaTitleAnimation = true, QueueRowSize = true, MediaAlbumColors = true }
 local numberFields = {
     Columns = { minimum = 1, maximum = 2, meter = 'MeterWidthFrame' },
     QueueRowLimit = { minimum = 1, maximum = 5, meter = 'MeterQueueRowsFrame' },
-    QueuePollSeconds = { minimum = 30, maximum = 150, meter = 'MeterQueuePollFrame' }
+    QueuePollSeconds = { minimum = 30, maximum = 150, meter = 'MeterQueuePollFrame' },
+    MediaAlbumTint = { minimum = 0, maximum = 30, meter = 'MeterAlbumTintFrame' }
 }
 local managed = {}
 for key in pairs(defaults) do managed[key:lower()] = true end
@@ -28,7 +35,7 @@ local function trim(value) return tostring(value or ''):match('^%s*(.-)%s*$') en
 local function accepted(key, value)
     local field = numberFields[key]
     if field then
-        if type(value) ~= 'string' or #value > 3 or not value:match('^[1-9]%d*$') then return nil end
+        if type(value) ~= 'string' or #value > 3 or not (value:match('^[1-9]%d*$') or (value == '0' and field.minimum == 0)) then return nil end
         local number = tonumber(value)
         if number >= field.minimum and number <= field.maximum then return value end
         return nil
@@ -111,6 +118,13 @@ local function current(key)
     -- a number equal to 0 is off, equal to 10 is 10 fps, any other is 20 fps.
     -- Text that is no number fails Media's formulas and MediaPulse.lua then
     -- keeps the icon static, so it reads Off.
+    -- Show what Media lays out (InlineQueueGeometry.inc MediaQueueNormalRows):
+    -- only a number equal to 0 is Compact.
+    if key == 'QueueRowSize' and not accepted(key, value) then
+        return tonumber(value) == 0 and '0' or '1'
+    end
+    -- Show what Media loads: only the literal 1 names AlbumColors1.inc.
+    if key == 'MediaAlbumColors' and not accepted(key, value) then return '0' end
     if key == 'MediaTitleAnimation' and not accepted(key, value) then
         local number = tonumber(value)
         if number == nil or number == 0 then return '0' end
@@ -126,8 +140,8 @@ local function renderLayout()
     local expanded = current('QueueExpanded') == '1' and 1 or 0
     if layoutExpanded == expanded then return end
     layoutExpanded = expanded
-    local collapsedHeight = (1 - expanded) * 56
-    local settingsHeight = 814 - collapsedHeight
+    local collapsedHeight = (1 - expanded) * 84
+    local settingsHeight = 898 - collapsedHeight
     -- Rainmeter expands nested variable references at load, so rebuild both
     -- physical heights instead of retaining the initial collapsed expression.
     local heightPx = SKIN:ParseFormula(SKIN:ReplaceVariables('(Round(' .. settingsHeight .. '*#Scale#))'))
@@ -136,7 +150,7 @@ local function renderLayout()
     SKIN:Bang('!SetVariable', 'MediaSettingsQueueCollapsedHeight', collapsedHeight)
     SKIN:Bang('!SetVariable', 'SettingsPanelHeight', settingsHeight)
     -- The shared Spectrum steppers sit below the queue rows.
-    SKIN:Bang('!SetVariable', 'VisualizerSettingsTop', 200 - collapsedHeight)
+    SKIN:Bang('!SetVariable', 'VisualizerSettingsTop', 284 - collapsedHeight)
     SKIN:Bang('!SetVariable', 'PanelHeightPx', heightPx)
     SKIN:Bang('!SetVariable', 'WindowHeight', heightPx + gap)
 end
@@ -146,6 +160,9 @@ function Render()
     option('MeterWidthValue', current('Columns'))
     option('MeterVisualizerDrawerValue', drawerNames[current('VisualizerDrawer')])
     option('MeterTitleAnimationValue', animationNames[current('MediaTitleAnimation')])
+    option('MeterAlbumColorsValue', onOffNames[current('MediaAlbumColors')])
+    option('MeterAlbumTintValue', current('MediaAlbumTint'))
+    option('MeterQueueRowSizeValue', rowSizeNames[current('QueueRowSize')])
     option('MeterQueueExpandedValue', current('QueueExpanded') == '1' and 'Expanded' or 'Collapsed')
     option('MeterQueueRowsValue', current('QueueRowLimit'))
     option('MeterQueueDetailsValue', current('QueueShowDetails') == '1' and 'Shown' or 'Hidden')
@@ -167,6 +184,16 @@ function Initialize()
     settingsRevision = 0
     providerLaunched = {}
     status = values and 'Changes save when clicked.' or 'Cannot read Media settings.'
+    -- Album colors need the bundled Chameleon plugin (Skin Installer puts it in
+    -- the settings folder's Plugins). Say so rather than leaving On inert.
+    if values and current('MediaAlbumColors') == '1' then
+        local found = false
+        for _, root in ipairs({ SKIN:GetVariable('SETTINGSPATH', ''), SKIN:GetVariable('PROGRAMPATH', '') }) do
+            local file = root ~= '' and io.open(root .. 'Plugins\\Chameleon.dll', 'rb')
+            if file then file:close(); found = true end
+        end
+        if not found then status = 'Album colors need the Chameleon plugin.' end
+    end
     renderLayout()
 end
 function Update() Render(); return 0 end
@@ -285,7 +312,7 @@ function CommitNumberInput()
     if result:sub(-2) == '\r\n' then result = result:sub(1, -3)
     elseif result:sub(-1) == '\n' then result = result:sub(1, -2) end
     if result == 'PARALLAX_INPUT_V1|cancel|' then return false end
-    local value = result:match('^PARALLAX_INPUT_V1|ok|([1-9]%d*)$')
+    local value = result:match('^PARALLAX_INPUT_V1|ok|(%d+)$')
     if not accepted(request.key, value) then return false end
     local now = os.time()
     if now < request.started or now - request.started > 300 or settingsRevision ~= request.revision then return false end
@@ -336,6 +363,7 @@ function StepChoice(key, delta)
     local choices = choiceKeys[key] and allowed[key]
     if not choices or (delta ~= -1 and delta ~= 1) or editingRequest then return false end
     values = readValues() or values
+    if key == 'QueueRowSize' and current('QueueExpanded') ~= '1' then return false end
     local now, index = current(key), 1
     for position, choice in ipairs(choices) do
         if choice == now then index = position end

@@ -15,6 +15,12 @@
       "version": "2.0.7.0",
       "directory": "packaging\\Plugins\\WebNowPlaying\\2.0.7.0",
       "license": "@Resources\\Licenses\\WebNowPlaying-LICENSE.txt"
+    },
+    {
+      "name": "Chameleon",
+      "version": "1.6.5.0",
+      "directory": "packaging\\Plugins\\Chameleon\\1.6.5.0",
+      "license": "@Resources\\Licenses\\Chameleon-LICENSE.txt"
     }
   ],
   "notes": "Release metadata consumed by tools\\Package-Parallax.ps1. Variables files are enumerated by Stage-Parallax.ps1 and are never listed here. minimumRainmeter is the documented suite target; minimumWindows 10.0 covers Windows 10 and 11, which both report major version 10. author is the credit shown by Rainmeter's Skin Installer. Each plugins entry needs 32bit\\<name>.dll and 64bit\\<name>.dll under its directory and a license file that ships inside the skin, relative to Skins\\Parallax."

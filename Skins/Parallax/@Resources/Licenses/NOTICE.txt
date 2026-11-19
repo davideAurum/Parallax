@@ -50,3 +50,11 @@ Bundled unmodified in the Parallax .rmskin as Media's optional playback provider
 the maintainer's approval on 2026-09-16. Rainmeter's Skin Installer places it in the
 Rainmeter Plugins folder only when no newer version is installed. The WebNowPlaying
 browser extension and desktop adapters are separate installs and are not distributed here.
+
+Chameleon Rainmeter plugin 1.6.5.0 (Chameleon.dll, 32-bit and 64-bit builds):
+copyright 2015-2024 Socks the Fox per the file version resource; 3-clause BSD License,
+copyright 2015 Socks the Fox, full terms in Chameleon-LICENSE.txt.
+Source: https://github.com/socks-the-fox/chameleon (release 1.6.5)
+Bundled unmodified in the Parallax .rmskin for Media's optional Album colors, which
+sample the current cover's colors. Rainmeter's Skin Installer places it in the
+Rainmeter Plugins folder only when no newer version is installed.

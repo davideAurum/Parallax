@@ -25,11 +25,16 @@ $script:stopOnResponse = ''
 $script:tokenControl = $true
 $script:endpoints = [Collections.Generic.List[string]]::new()
 $script:verifyWorkerLocks = $false
+$script:imageReplies = @{}
+$script:imageRequests = [Collections.Generic.List[string]]::new()
+$script:stopOnImage = ''
 function Reset-Transport {
     param([object[]]$Replies = @())
     $script:responses = $Replies; $script:apiCalls=0; $script:tokenCalls=0; $script:refreshCalls=0
     $script:tokenFailure=''; $script:tokenWait=0L; $script:stopOnResponse=''
     $script:tokenControl=$true; $script:endpoints=[Collections.Generic.List[string]]::new()
+    $script:imageReplies=@{}; $script:imageRequests=[Collections.Generic.List[string]]::new(); $script:stopOnImage=''
+    $script:CoverRetryAt=@{}
 }
 function Get-QueueAccessToken {
     param([string]$DataRoot,[switch]$ForceRefresh,[switch]$WithControl)
@@ -56,6 +61,24 @@ function Invoke-QueueApiRequest {
     if ($script:stopOnResponse) { Request-QueueStop $script:stopOnResponse }
     return $response
 }
+# The synthetic image CDN. Every cover request in this suite lands here and is
+# recorded; a URL with no prepared reply gets "no response", never the network.
+function Invoke-QueueImageRequest {
+    param([Parameter(Mandatory)][string]$Uri)
+    Assert-Check ($PSBoundParameters.Count -eq 1 -and $PSBoundParameters.ContainsKey('Uri')) 'A cover request carries only its URL, never the token'
+    $script:imageRequests.Add($Uri)
+    if ($script:stopOnImage) { Request-QueueStop $script:stopOnImage }
+    if (-not $script:imageReplies.ContainsKey($Uri)) { return [pscustomobject]@{ StatusCode=0; ContentType=''; Bytes=$null } }
+    return $script:imageReplies[$Uri]
+}
+$script:jpeg = [byte[]]::new(64); $script:jpeg[0] = 0xFF; $script:jpeg[1] = 0xD8; $script:jpeg[2] = 0xFF
+$script:png = [byte[]](0x89,0x50,0x4E,0x47,0x0D,0x0A,0x1A,0x0A,0,0,0,0,0,0,0,0)
+function Cover { param([string]$Type='image/jpeg',[int]$Code=200,[object]$Bytes=$script:jpeg); return [pscustomobject]@{ StatusCode=$Code; ContentType=$Type; Bytes=$Bytes } }
+function Art-Url { param([string]$Name); return 'https://i.scdn.co/image/synthetic-' + $Name }
+function Art-Track { param([string]$Name); return '{"type":"track","name":"Synthetic ' + $Name + '","artists":[{"name":"Synthetic artist"}],"album":{"images":[{"url":"' + (Art-Url $Name) + '-640","width":640},{"url":"' + (Art-Url $Name) + '","width":64}]}}' }
+function Art-Queue { param([string[]]$Names); return '{"currently_playing":null,"queue":[' + (@($Names | ForEach-Object { Art-Track $_ }) -join ',') + ']}' }
+function Cover-Name { param([string]$Name,[string]$Extension='jpg'); return (Get-QueueImageKey (Art-Url $Name)) + '.' + $Extension }
+function Cover-Files { param([string]$Root); $folder = Join-Path $Root 'covers'; if (-not [IO.Directory]::Exists($folder)) { return @() }; return @([IO.DirectoryInfo]::new($folder).GetFiles() | ForEach-Object { $_.Name } | Sort-Object) }
 function Reply { param([int]$Code=200,[string]$Body='{"currently_playing":null,"queue":[]}',[string]$Wait=''); return [pscustomobject]@{StatusCode=$Code;Body=$Body;RetryAfter=$Wait} }
 function Read-Snapshot { param([string]$Root); return [IO.File]::ReadAllText((Join-Path $Root 'queue.snapshot')) }
 $root = Fresh-Root
@@ -78,6 +101,92 @@ Assert-Check ($cycle.Snapshot.ValidUntil-$cycle.Snapshot.Observed -eq 300) 'Maxi
 Reset-Transport @((Reply 401),(Reply))
 $cycle = Invoke-QueueCycle $root 30
 Assert-Check ($cycle.Success -and $script:apiCalls -eq 2 -and $script:refreshCalls -eq 1) '401 gets exactly one forced refresh and retry'
+Assert-Check ($script:imageRequests.Count -eq 0 -and @(Cover-Files $root).Count -eq 0 -and -not [IO.Directory]::Exists((Join-Path $root 'covers'))) 'A queue without art requests and creates nothing'
+
+# Covers: the download step of a successful read, against the synthetic CDN.
+$root = Fresh-Root
+Reset-Transport @(Reply 200 (Art-Queue 'a','b','c'))
+$script:imageReplies[(Art-Url 'a')] = Cover
+$script:imageReplies[(Art-Url 'b')] = Cover 'image/png' 200 $script:png
+$script:imageReplies[(Art-Url 'c')] = Cover 'text/html'
+$cycle = Invoke-QueueCycle $root 30
+$images = @($cycle.Snapshot.Items | ForEach-Object { $_.Image })
+Assert-Check ($cycle.Success -and $cycle.Snapshot.State -eq 'ready' -and $cycle.Snapshot.Items.Count -eq 3) 'A refused cover never fails the queue read'
+Assert-Check ($images[0] -ceq (Cover-Name 'a') -and $images[1] -ceq (Cover-Name 'b' 'png') -and $images[2] -ceq '') 'Each row names its saved cover; the extension follows Content-Type; a bad type leaves the row empty'
+Assert-Check ((@(Cover-Files $root) -join ',') -ceq ((@((Cover-Name 'a'), (Cover-Name 'b' 'png')) | Sort-Object) -join ',')) 'Only accepted covers are written, with no temporary file left'
+Assert-Check (($script:imageRequests -join ',') -ceq ((@('a','b','c') | ForEach-Object { Art-Url $_ }) -join ',') -and $script:apiCalls -eq 1 -and ($script:endpoints -join ',') -ceq 'Queue') 'One request per shown cover, in row order, and no extra Spotify API call'
+$covers = Join-Path $root 'covers'
+$acl = [IO.Directory]::GetAccessControl($covers)
+$rules = @($acl.GetAccessRules($true, $true, [Security.Principal.SecurityIdentifier]))
+Assert-Check ($acl.AreAccessRulesProtected -and $rules.Count -eq 1 -and $rules[0].IdentityReference.Value -ceq [Security.Principal.WindowsIdentity]::GetCurrent().User.Value) 'The covers folder has the data root''s current-user-only ACL'
+$text = ConvertTo-QueueSnapshotText $cycle.Snapshot
+Assert-Check ($text.Contains("image1=$(Cover-Name 'a')`nimage2=$(Cover-Name 'b' 'png')`nimage3=`nimage4=`nimage5=`n")) 'The snapshot names the saved covers'
+
+# A saved cover is reused and marked recently used; a refused one waits.
+$aPath = Join-Path $covers (Cover-Name 'a')
+[IO.File]::SetLastWriteTimeUtc($aPath, [DateTime]::UtcNow.AddDays(-2))
+$retries = $script:CoverRetryAt.Clone()
+Reset-Transport @(Reply 200 (Art-Queue 'a','b','c')); $script:CoverRetryAt = $retries
+$cycle = Invoke-QueueCycle $root 30
+Assert-Check ($script:imageRequests.Count -eq 0 -and $cycle.Snapshot.Items[0].Image -ceq (Cover-Name 'a') -and $cycle.Snapshot.Items[1].Image -ceq (Cover-Name 'b' 'png')) 'Saved covers are reused without a request'
+Assert-Check ([IO.File]::GetLastWriteTimeUtc($aPath) -gt [DateTime]::UtcNow.AddMinutes(-1)) 'Reuse renews the cover''s write time'
+Assert-Check ($cycle.Snapshot.Items[2].Image -ceq '') 'A refused cover is not retried on the next read'
+$items = (ConvertTo-QueueItems (ConvertFrom-QueueJson (Art-Queue 'c'))).Items
+$script:imageReplies[(Art-Url 'c')] = Cover
+Update-QueueCovers -Root $root -Items $items -Now ((Get-QueueUnixTime) + 301)
+Assert-Check ($items[0].Image -ceq (Cover-Name 'c') -and ($script:imageRequests -join ',') -ceq (Art-Url 'c')) 'A refused cover is retried after five minutes'
+
+# Refusals: oversized, abandoned, HTTP errors, and a CDN that gives no answer.
+Reset-Transport @(Reply 200 (Art-Queue 'big','cut','gone','redirect','silent'))
+$big = [byte[]]::new(262145); $big[0] = 0xFF; $big[1] = 0xD8; $big[2] = 0xFF
+$script:imageReplies[(Art-Url 'big')] = Cover 'image/jpeg' 200 $big
+$script:imageReplies[(Art-Url 'cut')] = Cover 'image/jpeg' 200 $null
+$script:imageReplies[(Art-Url 'gone')] = Cover '' 404 $null
+$script:imageReplies[(Art-Url 'redirect')] = Cover 'image/jpeg' 302 $null
+$cycle = Invoke-QueueCycle $root 30
+Assert-Check ($cycle.Success -and @($cycle.Snapshot.Items | Where-Object { $_.Image -cne '' }).Count -eq 0) 'Oversized, abandoned, missing and redirected covers leave their rows empty'
+Assert-Check (@(Cover-Files $root).Count -eq 3 -and ($script:imageRequests -join ',') -ceq ((@('big','cut','gone','redirect','silent') | ForEach-Object { Art-Url $_ }) -join ',')) 'Refused covers write nothing, and an HTTP refusal does not stop the next row'
+Reset-Transport @(Reply 200 (Art-Queue 'a','silent','b','late'))
+$cycle = Invoke-QueueCycle $root 30
+Assert-Check (($script:imageRequests -join ',') -ceq (Art-Url 'silent')) 'No response ends this read''s downloads'
+Assert-Check ($cycle.Success -and $cycle.Snapshot.Items[0].Image -ceq (Cover-Name 'a') -and $cycle.Snapshot.Items[2].Image -ceq (Cover-Name 'b' 'png') -and $cycle.Snapshot.Items[3].Image -ceq '') 'Saved covers are still reused after the CDN stops answering'
+Reset-Transport @(Reply 200 (Art-Queue 'x','y')); $script:imageReplies[(Art-Url 'x')] = Cover; $script:imageReplies[(Art-Url 'y')] = Cover; $script:stopOnImage = $root
+$cycle = Invoke-QueueCycle $root 30
+Assert-Check (($script:imageRequests -join ',') -ceq (Art-Url 'x') -and $cycle.Snapshot.Items[1].Image -ceq '') 'Stop ends the downloads'
+Clear-QueueStop $root
+$offCdn = '{"currently_playing":null,"queue":[{"type":"track","name":"T","artists":[],"album":{"images":[{"url":"https://evil.example/image/a","width":64},{"url":"https://i.scdn.co@evil.example/b","width":64},{"url":"http://i.scdn.co/image/c","width":64}]}}]}'
+Reset-Transport @(Reply 200 $offCdn)
+$cycle = Invoke-QueueCycle $root 30
+Assert-Check ($cycle.Success -and $script:imageRequests.Count -eq 0 -and $cycle.Snapshot.Items[0].Image -ceq '') 'Art off Spotify''s CDN is never requested'
+
+# Pruning keeps the 60 most recently used covers and every cover being published.
+$pruneRoot = Fresh-Root
+$folder = Join-Path $pruneRoot 'covers'; $null = Initialize-QueuePrivateDirectory $folder
+$start = [DateTime]::UtcNow.AddDays(-10)
+$names = @(for ($index = 0; $index -lt 70; $index++) { Get-QueueImageKey ('https://i.scdn.co/image/prune-' + $index) })
+for ($index = 0; $index -lt 70; $index++) {
+    $path = Join-Path $folder ($names[$index] + '.jpg')
+    [IO.File]::WriteAllBytes($path, $script:jpeg); [IO.File]::SetLastWriteTimeUtc($path, $start.AddMinutes($index))
+}
+$leftover = Join-Path $folder ('.cover-' + [Guid]::NewGuid().ToString('N') + '.tmp'); [IO.File]::WriteAllBytes($leftover, $script:jpeg)
+$foreign = Join-Path $folder 'notes.txt'; [IO.File]::WriteAllText($foreign, 'not a cover')
+Limit-QueueCovers $folder @($names[0] + '.jpg')
+$left = @(Cover-Files $pruneRoot)
+Assert-Check ($left -contains ($names[0] + '.jpg')) 'Prune never deletes a cover named in the snapshot, even the oldest'
+Assert-Check (@($left | Where-Object { $_ -cmatch '\A[0-9a-f]{40}\.jpg\z' }).Count -eq 61 -and -not ($left -contains ($names[9] + '.jpg')) -and ($left -contains ($names[10] + '.jpg'))) 'Prune keeps the 60 most recently written covers'
+Assert-Check (-not [IO.File]::Exists($leftover) -and [IO.File]::Exists($foreign)) 'Prune clears its own leftover temporary files and nothing foreign'
+Reset-Transport @(Reply 200 (Art-Queue 'p','q')); $script:imageReplies[(Art-Url 'p')] = Cover; $script:imageReplies[(Art-Url 'q')] = Cover
+$cycle = Invoke-QueueCycle $pruneRoot 30
+$left = @(Cover-Files $pruneRoot | Where-Object { $_ -cmatch '\A[0-9a-f]{40}\.jpg\z' })
+Assert-Check ($left.Count -eq 60 -and ($left -contains (Cover-Name 'p')) -and ($left -contains (Cover-Name 'q')) -and -not ($left -contains ($names[0] + '.jpg'))) 'Each read prunes to 60, keeping the covers it publishes'
+
+# The scheduler publishes only after the covers it names exist.
+$root = Fresh-Root
+Reset-Transport @(Reply 200 (Art-Queue 'r','s','t')); $script:imageReplies[(Art-Url 'r')] = Cover; $script:imageReplies[(Art-Url 's')] = Cover '' 404 $null; $script:imageReplies[(Art-Url 't')] = Cover 'image/png' 200 $script:png
+Invoke-QueueRun $root -Single -Silent
+$published = @([regex]::Matches((Read-Snapshot $root), '(?m)^image[1-5]=(.+)$') | ForEach-Object { $_.Groups[1].Value })
+Assert-Check ((Read-Snapshot $root).StartsWith("PARALLAX_QUEUE_V4`nstate=ready`n") -and ($published -join ',') -ceq ((Cover-Name 'r') + ',' + (Cover-Name 't' 'png'))) 'The published V4 snapshot names the saved covers'
+Assert-Check (@($published | Where-Object { -not [IO.File]::Exists((Join-Path $root ('covers\' + $_))) }).Count -eq 0) 'Every published cover name exists on disk'
 
 # Row clicks (Play) and Refresh. The click names the snapshot it was read from;
 # the worker re-reads the queue and skips only while every row up to the click
@@ -281,9 +390,20 @@ Invoke-QueueCommand
 Assert-Check ($script:connectCalls -eq 2 -and $script:launchCalls -eq 1) 'Completed consent launches one worker'
 Assert-Check ((Test-QueueEnabledIntent $DataRoot) -and -not (Test-QueueStop $DataRoot)) 'Successful consent enables future resume'
 [IO.File]::WriteAllText((Join-Path $DataRoot 'tokens.dpapi'),'SYNTHETIC_ENCRYPTED_FILE_FIXTURE')
-Publish-QueueSnapshot $DataRoot (New-QueueSnapshot -State ready -Items @([pscustomobject]@{Title='SYNTHETIC_PRIVATE_TITLE';Detail='Fixture'}))
+$coverFolder = Initialize-QueuePrivateDirectory (Join-Path $DataRoot 'covers')
+[IO.File]::WriteAllBytes((Join-Path $coverFolder (Cover-Name 'private')), $script:jpeg)
+Publish-QueueSnapshot $DataRoot (New-QueueSnapshot -State ready -Items @([pscustomobject]@{Title='SYNTHETIC_PRIVATE_TITLE';Detail='Fixture';Image=(Cover-Name 'private')}))
 $Command='Disconnect'; Invoke-QueueCommand
 Assert-Check (-not (Test-Path -LiteralPath (Join-Path $DataRoot 'tokens.dpapi'))) 'Disconnect removes token file'
+Assert-Check (-not (Test-Path -LiteralPath $coverFolder)) 'Disconnect deletes the covers folder'
+Assert-Check ((Read-Snapshot $DataRoot) -notmatch '(?m)^image[1-5]=.') 'Disconnect leaves no cover named'
+# A covers entry that is a junction is removed as a link; its target is untouched.
+$outside = Join-Path $runRoot ('outside-' + [Guid]::NewGuid().ToString('N'))
+$null = New-Item -ItemType Directory -Path $outside
+[IO.File]::WriteAllText((Join-Path $outside 'keep.txt'), 'outside the data root')
+$null = New-Item -ItemType Junction -Path $coverFolder -Target $outside
+Invoke-QueueCommand
+Assert-Check (-not (Test-Path -LiteralPath $coverFolder) -and [IO.File]::Exists((Join-Path $outside 'keep.txt'))) 'Disconnect removes a covers junction without entering it'
 Assert-Check ((Read-Snapshot $DataRoot) -match 'state=onboarding_required' -and (Read-Snapshot $DataRoot) -match 'count=0' -and (Read-Snapshot $DataRoot) -notmatch '53594E5448455449435F505249564154455F5449544C45') 'Disconnect removes queue metadata'
 Assert-Check ((Get-QueueClientId $DataRoot) -eq '00000000000000000000000000000001') 'Disconnect retains public app configuration'
 Assert-Check (-not (Test-QueueEnabledIntent $DataRoot) -and (Test-QueueStop $DataRoot)) 'Disconnect persistently disables resume'

@@ -40,3 +40,6 @@ enabled.intent
 launch.id
 .env.*
 !.env.example
+
+# Brainstorming companion mockups (local only).
+/.superpowers/

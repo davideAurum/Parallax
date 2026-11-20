@@ -11,7 +11,7 @@ Provenance: extracted on 2026-11-19 from `Chameleon.zip` (748,534 bytes) attache
 | `1.6.5.0/32bit/Chameleon.dll` | x86 | 287,744 | `C5BEA8EF480436CDF4F24B783C99E3412B9BEC07B12F87829E616A541425FF31` |
 | `1.6.5.0/64bit/Chameleon.dll` | x64 | 319,488 | `CFC69B9A9FBFCF65A7948F75D75C64A96EBFCD779DA8F04151D00D7012B05217` |
 
-**Open license question (decide before the next release).** Chameleon's repository is BSD-3, but the DLL statically links the same author's separate [libChameleon](https://github.com/socks-the-fox/libChameleon) repository, which has no license file. The author publishes the binary for use in skins and Rainmeter suites commonly bundle it, but that is an inference, not a grant. To ship without it, remove this folder and its `release.json` entry: Media then shows theme colors and Media settings says the plugin is missing.
+**License status (decided 2026-11-19: ship and ask).** Chameleon's repository is BSD-3, but the DLL statically links the same author's separate [libChameleon](https://github.com/socks-the-fox/libChameleon) repository, which has no license file. The author publishes the binary for use in skins and Rainmeter suites commonly bundle it, but that is an inference, not a grant. The maintainer approved bundling (exception in `AGENTS.md`) and chose to ship it while asking the author to add a license to libChameleon. Request to the author: drafted 2026-11-19, not yet sent. If the author declines or rules out redistribution, remove this folder and its `release.json` entry: Media then shows theme colors and Media settings says the plugin is missing.
 
 Skin Installer copies the plugin into `%APPDATA%\Rainmeter\Plugins` only when no newer version is installed and never downgrades.
 

@@ -61,7 +61,7 @@ that instruction), with how to walk it back.
 
 | # | Decision | By | Walk back |
 | --- | --- | --- | --- |
-| C1 | A Media settings switch **Album colors** (`MediaAlbumColors`, default `1`). Off loads no color measure at all and the player uses the theme exactly as before. | David (toggle), Claude (default on) | Set the shipped default to `0`. |
+| C1 | A Media settings switch **Album colors** (`MediaAlbumColors`, default `1`). Off loads no color measure at all and the player uses the theme exactly as before. | David (toggle; default on confirmed 2026-11-19) | Set the shipped default to `0`. |
 | C2 | Background panel stays `BackgroundColor`. Only the lighter gray surfaces are tinted toward the cover's main color: queue sheet and notch, progress track, panel border, shuffle face when off. | David | — |
 | C3 | Tint strength `MediaAlbumTint`, default 10 (%), adjustable 0–30 in Media settings. | David (10%, adjustable), Claude (range) | Change the default or range. |
 | C4 | Transport buttons (including repeat when on) keep theme Accent 1. | David | — |
@@ -69,7 +69,7 @@ that instruction), with how to walk it back.
 | C6 | The title icon, the progress fill and the queue notch icon (today's `MediaColor` uses in the player) take the cover's main color, lifted to be readable. | David | — |
 | C7 | Song, artist and album text get a left-to-right gradient between two cover colors, spanning each line's own words (mockup F). | David | — |
 | C8 | The open spectrum drawer's bars use the same two cover colors (horizontal) while album colors are on. The standalone Audio Visualizer is untouched. | Claude (David accepted the proposal) | Skip the drawer in `AlbumColors.lua`. |
-| C9 | Colors are extracted by the Chameleon plugin 1.6.5 (BSD-3, Socks the Fox), bundled in the `.rmskin` the same way as WebNowPlaying. It reads WebNowPlaying's cover file in-process: no extra process, network or polling. Missing plugin: album colors stay on the theme and settings says the plugin is unavailable. | Claude (recommended, spike passed) | Remove `packaging/Plugins/Chameleon` and its `release.json` entry; the skin then shows the unavailable state. |
+| C9 | Colors are extracted by the Chameleon plugin 1.6.5 (BSD-3, Socks the Fox), bundled in the `.rmskin` the same way as WebNowPlaying. It reads WebNowPlaying's cover file in-process: no extra process, network or polling. Missing plugin: album colors stay on the theme and settings says the plugin is unavailable. | Claude (recommended, spike passed); David approved bundling and the `AGENTS.md` exception, 2026-11-19 | Remove `packaging/Plugins/Chameleon` and its `release.json` entry; the skin then shows the unavailable state. |
 | C10 | Color rules (in `AlbumColors.lua`): candidates are `Light1`, `Light2`, `Average`. If none reaches 18% HSL saturation, the cover counts as colorless and the theme is used. Main color = `Average` when saturated enough, else the most saturated candidate. Text colors = the two most saturated candidates at least 25° apart in hue (else the second is the first shifted 30°), lightness raised to at least 68% and saturation capped at 85% for reading on the black panel. Media color = main color with lightness clamped to 55–75%. | Claude | Tune constants at the top of `AlbumColors.lua`. |
 | C11 | Recolor happens only when the sampled colors change (checked once per `MediaInterval`), by Lua `!SetOption` on the affected meters with forced updates and one redraw (about 2 ms). No `DynamicVariables`, no refresh. | Claude | — |
 
@@ -94,12 +94,13 @@ that instruction), with how to walk it back.
 
 ## Open risk to check before release
 
-- **libChameleon has no license file.** Chameleon's own repository is BSD-3,
-  but the DLL statically links the author's separate `libChameleon`
-  repository, which declares no license. The binary release is published by
-  the same author for redistribution in skins, and Rainmeter suites commonly
-  bundle it, but that is an inference, not a grant. Decide before the next
-  release whether to ship it (C9) or swap in a PowerShell-per-song extractor.
+- **libChameleon has no license file — decided 2026-11-19 (David): ship and
+  ask.** Chameleon's own repository is BSD-3, but the DLL statically links the
+  author's separate `libChameleon` repository, which declares no license. The
+  binary release is published by the same author for redistribution in skins,
+  and Rainmeter suites commonly bundle it, but that is an inference, not a
+  grant. The bundle ships while David asks the author to add a license; if the
+  author declines, walk back C9 or swap in a PowerShell-per-song extractor.
 - Live checks not possible from this session: real Spotify thumbnails and
   clicks after signing in again, Chameleon on real WebNowPlaying covers, and
   the look at 150% on the live desktop (the preview instance cannot run

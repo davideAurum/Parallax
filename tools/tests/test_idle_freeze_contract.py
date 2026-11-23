@@ -431,6 +431,11 @@ class Consumers(unittest.TestCase):
         for relative in CONSUMERS:
             raw = read_text(ROOT / relative)
             sections = re.findall(r'(?m)^\[([^\]]+)\]', raw)
+            # Visualizer alone puts the developer hook after it: its standalone
+            # meters come from an include inside [Variables], so an earlier dev
+            # hook would have its status icon painted over (Visualizer.ini).
+            if relative.startswith('Visualizer/') and sections[-1] == 'ParallaxDevHookInclude':
+                sections = sections[:-1]
             self.assertEqual(sections[-1], 'ParallaxIdleHookInclude', f'{relative}: the hook include is the last section')
             self.assertRegex(raw, r'(?m)^\[ParallaxIdleHookInclude\]\r?\n@Include\w*=#@#Idle\\Hook#IdlePauseMinutes#\.inc\r?$')
             config = Config(relative, hooked({}))

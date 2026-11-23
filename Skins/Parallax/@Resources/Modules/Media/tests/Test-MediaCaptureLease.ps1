@@ -229,7 +229,8 @@ function Copy-Skin([string]$Root, [string]$Source, [string]$Name, $Layout) {
     $providerPath = Join-Path $media 'WebNowPlaying.inc'
     $provider = [IO.File]::ReadAllText($providerPath)
     $numeric = @{ MeasureConnection = '1'; MeasureState = '#FixtureState#'; MeasurePosition = '45'; MeasureDuration = '180'; MeasureProgress = '25'
-        MeasureCanPrevious = '1'; MeasureCanPlayPause = '1'; MeasureCanNext = '1' }
+        MeasureCanPrevious = '1'; MeasureCanPlayPause = '1'; MeasureCanNext = '1'
+        MeasureShuffle = '0'; MeasureRepeat = '0'; MeasureCanShuffle = '1'; MeasureCanRepeat = '1' }
     $strings = @{ MeasurePlayer = 'Synthetic player'; MeasureTitle = 'Synthetic title'; MeasureArtist = 'Synthetic artist'
         MeasureSourceArtist = 'Synthetic artist'; MeasureAlbum = 'Synthetic album'; MeasureCover = ''; MeasureMediaSource = 'Spotify' }
     $script:replaced = 0
@@ -250,6 +251,9 @@ function Copy-Skin([string]$Root, [string]$Source, [string]$Name, $Layout) {
     if ($script:replaced -ne ($numeric.Count + $strings.Count)) { throw "Replaced $($script:replaced) provider measures in $Name; expected $($numeric.Count + $strings.Count)." }
     [IO.File]::WriteAllText($providerPath, $provider, $encoding)
     [IO.File]::WriteAllText((Join-Path $media 'ProviderControlFixture.lua'), "function Update() return 1 end`nfunction Run() end`n", $encoding)
+    # Album colors load the bundled Chameleon plugin; fixtures load no plugin and keep the theme.
+    $albumColors = Join-Path $media 'AlbumColors1.inc'
+    if (Test-Path -LiteralPath $albumColors) { [IO.File]::WriteAllText($albumColors, "; Fixture: album colors off (no plugin in fixtures).`n", $encoding) }
     foreach ($entryFile in Get-ChildItem -LiteralPath $target -Recurse -File | Where-Object { $_.Extension -in @('.ini', '.inc') }) {
         $text = [IO.File]::ReadAllText($entryFile.FullName)
         $updated = $text

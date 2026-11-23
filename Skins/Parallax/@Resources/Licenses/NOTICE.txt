@@ -55,6 +55,11 @@ Chameleon Rainmeter plugin 1.6.5.0 (Chameleon.dll, 32-bit and 64-bit builds):
 copyright 2015-2024 Socks the Fox per the file version resource; 3-clause BSD License,
 copyright 2015 Socks the Fox, full terms in Chameleon-LICENSE.txt.
 Source: https://github.com/socks-the-fox/chameleon (release 1.6.5)
+It statically links libChameleon (https://github.com/socks-the-fox/libchameleon),
+3-clause BSD License, copyright 2015 Socks the Fox, also in Chameleon-LICENSE.txt.
+The author added that license on 2026-11-20 and confirmed that the released
+Chameleon.dll may be redistributed under the 3-clause BSD License
+(https://github.com/socks-the-fox/libchameleon/issues/1).
 Bundled unmodified in the Parallax .rmskin for Media's optional Album colors, which
 sample the current cover's colors. Rainmeter's Skin Installer places it in the
 Rainmeter Plugins folder only when no newer version is installed.

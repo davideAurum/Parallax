@@ -1369,8 +1369,8 @@ pixels tall with Queue expanded and 814 collapsed (814/758 before).
 never run against Spotify), real WebNowPlaying covers through Chameleon, the
 spectrum bars' cover gradient (the preview's output was idle), the hover
 highlight on screen, the look at 150% on the live desktop, and the full
-`Test-MediaSettings.ps1` matrix. libChameleon has no license file; the
-bundle ships while the author is asked for one (decided 2026-11-19).
+`Test-MediaSettings.ps1` matrix. libChameleon's license gap is resolved: the
+author added BSD-3 and confirmed redistribution (2026-11-20).
 
 ### Shuffle, repeat and clickable queue (2026-10-27)
 

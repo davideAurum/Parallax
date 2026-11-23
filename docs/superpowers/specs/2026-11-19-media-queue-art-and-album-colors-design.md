@@ -101,6 +101,9 @@ that instruction), with how to walk it back.
   and Rainmeter suites commonly bundle it, but that is an inference, not a
   grant. The bundle ships while David asks the author to add a license; if the
   author declines, walk back C9 or swap in a PowerShell-per-song extractor.
+  **Resolved 2026-11-20:** in socks-the-fox/libchameleon#1 the author confirmed
+  the released DLL is BSD-3 and redistributable, and added a BSD-3 license to
+  libChameleon (commit `d2cd6b9`); its text now ships in `Chameleon-LICENSE.txt`.
 - Live checks not possible from this session: real Spotify thumbnails and
   clicks after signing in again, Chameleon on real WebNowPlaying covers, and
   the look at 150% on the live desktop (the preview instance cannot run

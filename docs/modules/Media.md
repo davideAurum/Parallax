@@ -1365,8 +1365,11 @@ Media settings grew three rows: Album colors and Album tint % after Title
 animation, and Queue row size after Queue details. The panel is 898 logical
 pixels tall with Queue expanded and 814 collapsed (814/758 before).
 
-**Not verified.** Real Spotify thumbnails (the CDN download's success path has
-never run against Spotify), real WebNowPlaying covers through Chameleon, the
+**Not verified.** Thumbnails inside the running queue (the CDN download's
+success path ran against Spotify on 2026-11-23: one cover through
+`Invoke-QueueImageRequest`, `Get-QueueImageExtension` and `Write-QueueCoverFile`,
+64 px from `i.scdn.co` and 300 px from `image-cdn-fa.spotifycdn.com`, both
+200 `image/jpeg`), real WebNowPlaying covers through Chameleon, the
 spectrum bars' cover gradient (the preview's output was idle), the hover
 highlight on screen, the look at 150% on the live desktop, and the full
 `Test-MediaSettings.ps1` matrix. libChameleon's license gap is resolved: the

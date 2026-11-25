@@ -732,13 +732,15 @@ function suite.run(sourcePath, optionsPath)
             local state = { bangs = {}, links = 0, now = setup.now or 1800000000, clock = setup.clock or 4321.75,
                 readOnly = setup.readOnly or {}, files = {
                     [statePath] = setup.state or '; runtime\r\n[Variables]\r\nMediaDrawerCapture=0\r\nMediaStandby=0\r\nMediaLeaseRefreshAt=0\r\nMediaLeaseRefreshClock=0\r\n',
-                    [mediaPath] = setup.media or '[Variables]\r\nColumns=2\r\nVisualizerDrawer=2\r\n',
+                    -- The slider above the player unless a case says otherwise.
+                    [mediaPath] = (setup.media or '[Variables]\r\nColumns=2\r\nVisualizerDrawer=2\r\n') ..
+                        'VisualizerPlacement=' .. (setup.placement or '1') .. '\r\n',
                     [rainmeterIni] = setup.rainmeter or '[Rainmeter]\r\n[Parallax\\Media]\r\nActive=1\r\nAnchorY=0\r\n',
                     [resources .. 'Idle\\Link.lua'] = not setup.noLink and '-- link' or nil,
                 } }
             for path, text in pairs(setup.files or {}) do state.files[path] = text end
             local variables = { ['@'] = resources, SETTINGSPATH = settingsPath, CURRENTCONFIG = 'Parallax\\Media',
-                MediaVisualizerHost = '1', MediaVisualizerOpen = setup.open or '1' }
+                MediaVisualizerHost = '1', MediaVisualizerOpen = setup.open or '1', VisualizerPlacement = setup.placement or '1' }
             for key, value in pairs(setup.variables or {}) do variables[key] = value end
             local mock = {}
             function mock:GetVariable(name, default)
@@ -929,6 +931,30 @@ function suite.run(sourcePath, optionsPath)
             local live = options({ variables = { CURRENTFILE = 'Media.ini', MediaStandby = '0', IdlePauseMinutes = '0' } })
             live.env.Update()
             check(#live.bangs == 0, 'A live load sends nothing')
+        end)
+
+        scenario('Bottom drawer: the folder tab and header move between queue and spectrum', function()
+            local function saved(state, key) return iniRead(state.files[mediaPath], 'Variables', key) end
+            local function at(drawer, expanded, tab)
+                return options({ placement = '0', media = '[Variables]\r\nVisualizerDrawer=' .. drawer ..
+                    '\r\nQueueExpanded=' .. expanded .. '\r\nQueueDrawerTab=' .. tab .. '\r\n' })
+            end
+            local function is(state, drawer, expanded, tab, label)
+                check(saved(state, 'VisualizerDrawer') == drawer and saved(state, 'QueueExpanded') == expanded
+                    and saved(state, 'QueueDrawerTab') == tab, label)
+            end
+            local s = at('1', '1', '0'); check(s.env.ShowSpectrum() == true, 'Spectrum tab')
+            is(s, '2', '0', '1', 'Spectrum takes the queue\'s place')
+            s = at('2', '0', '1'); check(s.env.ToggleQueue() == true, 'Folder tab closes')
+            is(s, '1', '0', '1', 'Closing stops the spectrum and remembers it')
+            s = at('1', '0', '1'); check(s.env.ToggleQueue() == true, 'Folder tab reopens')
+            is(s, '2', '0', '1', 'Reopens on the spectrum')
+            s = at('2', '0', '1'); check(s.env.ShowQueue('queue') == true, 'Queue tab')
+            is(s, '1', '1', '0', 'Back to the queue')
+            s = at('2', '0', '1'); check(s.env.ShowQueue('playlists') == true, 'Playlists tab')
+            is(s, '1', '1', '2', 'Opens on Playlists')
+            s = at('2', '0', '1'); check(s.env.ToggleVisualizer() == false, 'The chevron above the player is unused')
+            s = at('0', '0', '1'); check(s.env.ShowSpectrum() == false, 'Hidden: no Spectrum tab')
         end)
 
         scenario('Drawer toggles start the capture live; collapse and hide ask the coordinator to re-check', function()

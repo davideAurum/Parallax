@@ -19,6 +19,7 @@ Still unverified: from alpha.16, a real 1080p screen at 100%, several screens, a
 
 ## On main, not in any release
 
+- **Media's spectrum is a tab of the bottom drawer** (`Queue | Playlists | Spectrum`), with the old slider above the player kept as Media settings ▸ **Spectrum position ▸ Top** ([Media.md](modules/Media.md#spectrum-position)). Upgrades move to the bottom tab. Checks and what is unverified are listed there.
 - **Welcome ▸ Arrange and Undo** ([WELCOME.md](WELCOME.md#arrange)): moves every loaded panel side by side with its real size, on the screen Welcome is on, and puts them back. Tested natively on this laptop; not yet by a hand click, on a second screen or in the developer copy.
 - **CPU Meter ships no turbo speed.** `CPUTurboClock` is empty; a copy that was installed before keeps its `4.60 GHz` until it is changed. `validate_controller.lua` (26 of 26) and `validate_cpu.py` check both.
 - **The Spotify queue is labelled experimental and as needing Premium** in Media settings, Connections and the setup guide ([Media.md](modules/Media.md#optional-spotify-queue)).

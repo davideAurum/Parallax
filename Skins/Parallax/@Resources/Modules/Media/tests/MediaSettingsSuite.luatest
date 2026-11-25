@@ -35,7 +35,7 @@ local function preferences()
     check(tonumber(values.Scale)==SELF:GetNumberOption('ExpectedScale'),'Scale preference changed')
     check(tonumber(values.ColumnWidth)==SELF:GetNumberOption('ExpectedWidth'),'ColumnWidth preference changed')
     local allowed={Columns=true,PanelHeight=true,MediaInterval=true,QueueExpanded=true,QueueRowLimit=true,
-        QueueShowDetails=true,QueuePollSeconds=true,Scale=true,ColumnWidth=true,VisualizerDrawer=true,MediaTitleAnimation=true,UnrelatedSentinel=true}
+        QueueShowDetails=true,QueuePollSeconds=true,Scale=true,ColumnWidth=true,VisualizerDrawer=true,MediaTitleAnimation=true,UnrelatedSentinel=true,VisualizerPlacement=true,QueueDrawerTab=true}
     for key in pairs(values) do check(allowed[key],'Unexpected preference written: '..key) end
     return values
 end
@@ -168,7 +168,7 @@ local function dimensions(expanded, rows)
     local columns=is_settings() and 2 or SELF:GetNumberOption('ExpectedColumns')
     local gap=2*math.floor(tonumber(SKIN:GetVariable('Gutter'))*scale/2+0.5)
     local expected_w=columns*(math.floor(width*scale+0.5)+gap)
-    local expected_h=is_settings() and math.floor((expanded and 898 or 814)*scale+0.5)+gap or media_geometry(expanded,rows).window
+    local expected_h=is_settings() and math.floor((expanded and 926 or 842)*scale+0.5)+gap or media_geometry(expanded,rows).window
     local detail=''
     if is_settings() and SKIN:GetH()~=expected_h then
         local bounds,panel=SKIN:GetMeter('MeterBounds'),SKIN:GetMeter('MeterPanel')
@@ -447,7 +447,8 @@ local function accordion(expanded, count, details)
         -- that is current behavior, recorded as open in Media.md.
         check(sheet:GetW()==0 and toggle:GetW()==0 and label:GetW()==0,'Queue tab shown without a drawer')
     end
-    check(toggle:GetOption('Shape6'):find('(1-'..(expanded and '1' or '0')..')',1,true)~=nil,'Queue plus stroke ignores expansion')
+    local plus=toggle:GetOption('Shape6'):match('StrokeWidth (%b())')
+    check(plus~=nil and (formula(plus)==0)==(expanded and true or false),'Queue plus stroke ignores expansion')
     for _,name in ipairs({'MeterQueueHeading','MeterQueueToggle'}) do
         check(SKIN:GetMeter(name):GetOption('LeftMouseUpAction')=='[!CommandMeasure MeasureMediaOptions "ToggleQueue()"]','Queue action wiring changed: '..name)
     end
@@ -508,22 +509,22 @@ local function settings_bounds(expanded)
     if expanded==nil then expanded=SKIN:GetVariable('QueueExpanded','0')=='1' end
     local width,height=dimensions(expanded,0)
     for _,name in ipairs({'MeterBounds','MeterPanel','MeterTitle','MeterClose','MeterWidthLabel','MeterWidthValue',
-        'MeterVisualizerDrawerLabel','MeterVisualizerDrawerValue','MeterTitleAnimationLabel','MeterTitleAnimationValue','MeterQueueExpandedLabel','MeterQueueExpandedValue','MeterQueueRowsLabel','MeterQueueRowsValue','MeterQueueDetailsLabel',
+        'MeterVisualizerDrawerLabel','MeterVisualizerDrawerValue','MeterVisualizerPlacementLabel','MeterVisualizerPlacementValue','MeterTitleAnimationLabel','MeterTitleAnimationValue','MeterQueueExpandedLabel','MeterQueueExpandedValue','MeterQueueRowsLabel','MeterQueueRowsValue','MeterQueueDetailsLabel',
         'MeterQueueDetailsValue','MeterQueuePollLabel','MeterQueuePollValue','MeterStatus','MeterQueueRule','MeterQueueHeading',
         'MeterSourceLabel','MeterSourceStart','MeterSourceStop','MeterStart','MeterStop','MeterRestart','MeterConnections','MeterLinksRule','MeterOpenQueue','MeterPlayerSetup','MeterHelp',
         'MeterUtilitySettingsNote','MeterUtilitySettingsGlobalLink','MeterDisplayHeading','MeterDisplayRule','MeterSamplingHeading',
         'MeterSamplingRule','MeterSourceRule','MeterSourceGuidance','MeterQueueGuidance','MeterLinksHeading'}) do inside(name,width,height) end
     local scale=SELF:GetNumberOption('ExpectedScale')
     local inset=math.floor(tonumber(SKIN:GetVariable('Gutter'))*scale/2+0.5)
-    for _,stem in ipairs({'Width','VisualizerDrawer','TitleAnimation','AlbumColors','AlbumTint','QueueExpanded','QueueRows',
+    for _,stem in ipairs({'Width','VisualizerDrawer','VisualizerPlacement','TitleAnimation','AlbumColors','AlbumTint','QueueExpanded','QueueRows',
         'QueueDetails','QueueRowSize','QueuePoll'}) do
         local label,value=SKIN:GetMeter('Meter'..stem..'Label'),SKIN:GetMeter('Meter'..stem..'Value')
         local numeric=stem=='Width' or stem=='QueueRows' or stem=='QueuePoll' or stem=='AlbumTint'
         -- The three-way Spectrum drawer and Title animation choices use the
         -- same previous/value/next group as the numbers; the drawer's field is
         -- 76px so Collapsed/Expanded fit, Off / 10 fps / 20 fps keep 56.
-        local stepper=numeric or stem=='VisualizerDrawer' or stem=='TitleAnimation' or stem=='AlbumColors' or stem=='QueueRowSize'
-        local field=(stem=='VisualizerDrawer' or stem=='QueueRowSize') and 76 or 56
+        local stepper=numeric or stem=='VisualizerDrawer' or stem=='VisualizerPlacement' or stem=='TitleAnimation' or stem=='AlbumColors' or stem=='QueueRowSize'
+        local field=(stem=='VisualizerDrawer' or stem=='VisualizerPlacement' or stem=='QueueRowSize') and 76 or 56
         local hidden=not expanded and (stem=='QueueRows' or stem=='QueueDetails' or stem=='QueueRowSize')
         local meters={label,value}
         if stepper then for _,part in ipairs({'Decrease','Frame','Increase'}) do
@@ -560,10 +561,11 @@ local function settings_bounds(expanded)
     -- queue rows, so the queue section moved down two 28px rows and only the
     -- rows below it reflow.
     for name,y in pairs({MeterVisualizerDrawerLabel=130,MeterVisualizerDrawerDecrease=129,MeterVisualizerDrawerFrame=128,
-        MeterVisualizerDrawerValue=129,MeterVisualizerDrawerIncrease=129,MeterTitleAnimationLabel=158,MeterTitleAnimationDecrease=157,
-        MeterTitleAnimationFrame=156,MeterTitleAnimationValue=157,MeterTitleAnimationIncrease=157,
-        MeterAlbumColorsLabel=186,MeterAlbumColorsFrame=184,MeterAlbumTintLabel=214,MeterAlbumTintFrame=212,
-        MeterQueueExpandedLabel=242,MeterQueueExpandedValue=240}) do
+        MeterVisualizerDrawerValue=129,MeterVisualizerDrawerIncrease=129,MeterVisualizerPlacementLabel=158,MeterVisualizerPlacementValue=157,
+        MeterTitleAnimationLabel=186,MeterTitleAnimationDecrease=185,
+        MeterTitleAnimationFrame=184,MeterTitleAnimationValue=185,MeterTitleAnimationIncrease=185,
+        MeterAlbumColorsLabel=214,MeterAlbumColorsFrame=212,MeterAlbumTintLabel=242,MeterAlbumTintFrame=240,
+        MeterQueueExpandedLabel=270,MeterQueueExpandedValue=268}) do
         check(math.abs(SKIN:GetMeter(name):GetY(true)-(inset+y*scale))<=1,'Display row moved: '..name)
     end
     -- The wider drawer group shares the numeric groups' left column.
@@ -575,11 +577,11 @@ local function settings_bounds(expanded)
     -- The shared Spectrum steppers (Visualizer\SettingsShared.inc) follow the
     -- queue rows; every later section sits 204 lower than before them, and
     -- 84 more since Album colors, Album tint and Row size (2026-11-19).
-    for name,y in pairs({MeterVisualizerSettingsAppearance=358,MeterVisualizerSettingsHeightRow=384,
-        MeterVisualizerSettingsBaselineRow=496,MeterVisualizerSettingsQualityRow=384,MeterVisualizerSettingsAnimation=446,
-        MeterVisualizerSettingsDecayRow=528,
-        MeterSamplingHeading=562,MeterQueuePollValue=589,MeterStatus=616,
-        MeterSourceLabel=646,MeterSourceStart=683,MeterQueueHeading=730,MeterStart=767,MeterConnections=795,MeterLinksHeading=842}) do
+    for name,y in pairs({MeterVisualizerSettingsAppearance=386,MeterVisualizerSettingsHeightRow=412,
+        MeterVisualizerSettingsBaselineRow=524,MeterVisualizerSettingsQualityRow=412,MeterVisualizerSettingsAnimation=474,
+        MeterVisualizerSettingsDecayRow=556,
+        MeterSamplingHeading=590,MeterQueuePollValue=617,MeterStatus=644,
+        MeterSourceLabel=674,MeterSourceStart=711,MeterQueueHeading=758,MeterStart=795,MeterConnections=823,MeterLinksHeading=870}) do
         local meter=SKIN:GetMeter(name)
         check(meter:GetW()>0 and meter:GetH()>0,'Recovery/sampling control hidden: '..name)
         check(math.abs(meter:GetY(true)-(inset+(y-shift)*scale))<=1,'Dependent settings did not reflow: '..name)

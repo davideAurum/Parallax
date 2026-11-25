@@ -47,8 +47,22 @@ MediaWide=(#Columns#-1)
 ; forward references (e.g. MediaCoverSize -> MediaBodyHeightPx) with values
 ; from its last include pass, so a late override leaks the old value.
 MediaVisualizerShown=(#VisualizerDrawer#=1 ? 1 : (#VisualizerDrawer#=2 ? 1 : 0))
-MediaVisualizerTab=(#MediaVisualizerHost#*#MediaVisualizerShown#)
+; Where it sits (User\Media.inc VisualizerPlacement): 0, the default, is the
+; Spectrum tab of the bottom drawer beside Queue and Playlists; 1 is the slider
+; above the player described here. Only the slider lifts the player, reserves
+; the compact strip and shows the folder tab over the gear. VisualizerDrawer
+; keeps its meaning in both places (2 is showing and capturing).
+MediaSpectrumOnTop=(#VisualizerPlacement#=1 ? 1 : 0)
+MediaVisualizerTab=(#MediaVisualizerHost#*#MediaVisualizerShown#*#MediaSpectrumOnTop#)
+MediaSpectrumTab=(#MediaVisualizerHost#*#MediaVisualizerShown#*(1-#MediaSpectrumOnTop#))
 MediaVisualizerOpen=0
+; The open spectrum in either place. In the bottom drawer it takes the queue's
+; place, so the queue is expanded only when the spectrum is not showing there,
+; and the drawer is open for either.
+MediaVisualizerAbove=(#MediaVisualizerOpen#*#MediaSpectrumOnTop#)
+MediaSpectrumBelow=(#MediaVisualizerOpen#*(1-#MediaSpectrumOnTop#))
+MediaQueueExpanded=(#QueueExpanded#*(1-#MediaSpectrumBelow#))
+MediaDrawerOpen=(#MediaQueueExpanded#+#MediaSpectrumBelow#)
 ; The drawer's plot is the standalone Visualizer's own plot height for the
 ; Audio settings Height preset (Options.inc), captured by Media.ini through
 ; Modules\Visualizer\HeightPresets\.
@@ -74,7 +88,7 @@ MediaVisualizerOriginGap=(5*#Scale#)
 ; keeps the anchor point at the saved WindowY, so the panel holds its screen
 ; position while the window grows above it.
 MediaVisualizerOpenLift=(Ceil(#MediaVisualizerPlotInset#+#MediaVisualizerDeviceRow#+#MediaVisualizerPlotHeight#+#MediaVisualizerOriginGap#))
-MediaVisualizerLift=(#MediaVisualizerOpen#*#MediaVisualizerOpenLift#)
+MediaVisualizerLift=(#MediaVisualizerAbove#*#MediaVisualizerOpenLift#)
 ; Vertical origin of the whole player: the window's top inset plus the lift.
 ; Every player position below is measured from it. Parked queue meters stay at
 ; #Inset#, which is inside the window in every state.
@@ -84,7 +98,7 @@ MediaSurfaceWidth=(#PanelWidth#-96*#MediaWide#*#Scale#)
 ; The compact layout reserves the same 12px strip while the tab can show. It
 ; follows the preference rather than the entrypoint, so Media.ini and Setup.ini
 ; keep one panel position; VisualizerDrawer=0 restores the flush compact panel.
-MediaSurfaceOffset=(Round(12*Max(#MediaWide#,#MediaVisualizerShown#)*#Scale#))
+MediaSurfaceOffset=(Round(12*Max(#MediaWide#,#MediaVisualizerShown#*#MediaSpectrumOnTop#)*#Scale#))
 MediaSurfaceY=(#MediaTop#+#MediaSurfaceOffset#)
 MediaHeaderY=#MediaSurfaceY#
 MediaCoverX=(#Inset#+#Padding#*(1-#MediaWide#))
@@ -111,7 +125,7 @@ ContentWidth=(#Inset#+#PanelWidth#-#Padding#-#ContentX#)
 ; right edge, which is the 18px gear plus a 6px gap. With the spectrum drawer
 ; open the gear's spot shows the output volume while not hovered (up to
 ; "Muted" or "100%", about 34px at the default body font), so 40px is kept.
-MediaHeadingWidth=(#ContentWidth#-#TitleIconSize#-#TitleIconGap#-(24+16*#MediaVisualizerOpen#)*#Scale#)
+MediaHeadingWidth=(#ContentWidth#-#TitleIconSize#-#TitleIconGap#-(24+16*#MediaVisualizerAbove#)*#Scale#)
 ; Keyed to MediaCoverSize, not MediaCoverBaseSize: the base is the unshrunk
 ; figure, so keying to it left the metadata block indented from the title row
 ; and progress bar. All three now share the same 8*Scale gutter off the art.
@@ -251,10 +265,10 @@ MediaQueueTop=(Max(#MediaCoverY#+#MediaCoverSize#,#MediaTop#+#MediaBodyHeightPx#
 MediaQueueDividerGap=(5*#Scale#)
 MediaQueueHeaderOpenY=#MediaQueueTop#
 MediaQueueHeaderRuleOpenY=(#MediaQueueTop#+#MediaQueueHeaderPitch#+#MediaQueueDividerGap#/2)
-MediaQueueHeaderY=(#QueueExpanded#*#MediaQueueHeaderOpenY#+(1-#QueueExpanded#)*#Inset#)
+MediaQueueHeaderY=(#MediaDrawerOpen#*#MediaQueueHeaderOpenY#+(1-#MediaDrawerOpen#)*#Inset#)
 ; The rule is a stroked line, so its parked anchor sits half a stroke below
 ; #Inset# to keep the stroke's outer edge on the boundary rather than across it.
-MediaQueueDividerY=(#QueueExpanded#*#MediaQueueHeaderRuleOpenY#+(1-#QueueExpanded#)*(#Inset#+#DividerThickness#*#Scale#/2))
+MediaQueueDividerY=(#MediaDrawerOpen#*#MediaQueueHeaderRuleOpenY#+(1-#MediaDrawerOpen#)*(#Inset#+#DividerThickness#*#Scale#/2))
 MediaQueueRowsY=(#MediaQueueTop#+#MediaQueueHeaderPitch#+#MediaQueueDividerGap#)
 ; Each row leads with its cover (2026-11-19: the # column and its | dividers
 ; gave way to it). The cover is centred in the row; the text starts 6S after it.
@@ -297,7 +311,7 @@ MediaQueueRefreshWidth=0
 MediaQueueHeight=(#MediaQueueHeaderPitch#+#QueueRowLimit#*#MediaQueueRowPitch#+#MediaQueueDividerGap#)
 MediaQueueBottom=(#MediaQueueTop#+#MediaQueueHeight#)
 MediaQueueDrawerOpenBottom=(#MediaQueueBottom#+#MediaDrawerPadding#)
-MediaQueueDrawerBottom=((1-#QueueExpanded#)*#MediaQueueDrawerClosedBottom#+#QueueExpanded#*#MediaQueueDrawerOpenBottom#)
+MediaQueueDrawerBottom=((1-#MediaDrawerOpen#)*#MediaQueueDrawerClosedBottom#+#MediaQueueExpanded#*#MediaQueueDrawerOpenBottom#+#MediaSpectrumBelow#*#MediaSpectrumDrawerBottom#)
 ; Notch in panel-local coordinates, parked clear of the panel when disabled.
 MediaQueueNotchX=(#MediaQueueTabX#-#MediaSurfaceX#)
 MediaQueueNotchY=(#MediaQueueDrawer#*(#MediaQueueTabY#-#MediaSurfaceY#)-(1-#MediaQueueDrawer#)*(#MediaQueueTabHeight#+10*#Scale#))
@@ -330,17 +344,17 @@ MediaVisualizerTabRadius=(Min(#CornerRadius#*#Scale#,#MediaVisualizerTabWidth#/2
 ; 18S column of the output row (the device name stops short of it), so the
 ; 16 kHz label can end at the plot's right edge again (user request,
 ; 2026-10-25).
-MediaVisualizerToggleX=(#MediaVisualizerOpen#*Floor(#MediaVisualizerRowRight#-18*#Scale#)+(1-#MediaVisualizerOpen#)*#MediaVisualizerTabX#)
-MediaVisualizerToggleY=(#MediaVisualizerOpen#*#MediaVisualizerRowY#+(1-#MediaVisualizerOpen#)*#MediaTop#)
-MediaVisualizerToggleWidth=(#MediaVisualizerOpen#*18*#Scale#+(1-#MediaVisualizerOpen#)*#MediaVisualizerTabWidth#)
-MediaVisualizerToggleHeight=(#MediaVisualizerOpen#*18*#Scale#+(1-#MediaVisualizerOpen#)*(#MediaSurfaceY#-#MediaTop#))
+MediaVisualizerToggleX=(#MediaVisualizerAbove#*Floor(#MediaVisualizerRowRight#-18*#Scale#)+(1-#MediaVisualizerAbove#)*#MediaVisualizerTabX#)
+MediaVisualizerToggleY=(#MediaVisualizerAbove#*#MediaVisualizerRowY#+(1-#MediaVisualizerAbove#)*#MediaTop#)
+MediaVisualizerToggleWidth=(#MediaVisualizerAbove#*18*#Scale#+(1-#MediaVisualizerAbove#)*#MediaVisualizerTabWidth#)
+MediaVisualizerToggleHeight=(#MediaVisualizerAbove#*18*#Scale#+(1-#MediaVisualizerAbove#)*(#MediaSurfaceY#-#MediaTop#))
 ; The chevron is centred below the tab's own top stroke in the strip's visible
 ; part when collapsed. Expanded it mirrors the speaker icon's 14S box at the
 ; row's other end: centred 7S in from the row's right edge (the plot's) and 9S
 ; below the row's top, level with the icon.
-MediaVisualizerGlyphCenterY=(#MediaVisualizerOpen#*(#MediaVisualizerRowY#+9*#Scale#)+(1-#MediaVisualizerOpen#)*(#MediaTop#+#BorderThickness#*#Scale#+#MediaSurfaceY#)/2)
+MediaVisualizerGlyphCenterY=(#MediaVisualizerAbove#*(#MediaVisualizerRowY#+9*#Scale#)+(1-#MediaVisualizerAbove#)*(#MediaTop#+#BorderThickness#*#Scale#+#MediaSurfaceY#)/2)
 MediaVisualizerGlyphScale=(14*#Scale#/24)
-MediaVisualizerGlyphX=(#MediaVisualizerOpen#*(#MediaVisualizerRowRight#-7*#Scale#-#MediaVisualizerToggleX#)+(1-#MediaVisualizerOpen#)*9*#Scale#-12*#MediaVisualizerGlyphScale#)
+MediaVisualizerGlyphX=(#MediaVisualizerAbove#*(#MediaVisualizerRowRight#-7*#Scale#-#MediaVisualizerToggleX#)+(1-#MediaVisualizerAbove#)*9*#Scale#-12*#MediaVisualizerGlyphScale#)
 MediaVisualizerGlyphY=(#MediaVisualizerGlyphCenterY#-#MediaVisualizerToggleY#-12*#MediaVisualizerGlyphScale#)
 ; Sheet: just the tab when collapsed. Expanded it ends at the queue sheet's
 ; right edge and starts the plot inset left of the dB gutter, so no unused
@@ -350,11 +364,11 @@ MediaVisualizerGlyphY=(#MediaVisualizerGlyphCenterY#-#MediaVisualizerToggleY#-12
 ; clear the panel's own top corner curve.
 MediaVisualizerSheetTuck=(Max(8,#CornerRadius#)*#Scale#)
 MediaVisualizerOpenSheetX=(#MediaVisualizerPlotX#-#MediaVisualizerAxisWidth#-#MediaVisualizerPlotInset#)
-MediaVisualizerSheetX=(#MediaVisualizerOpen#*#MediaVisualizerOpenSheetX#+(1-#MediaVisualizerOpen#)*#MediaVisualizerTabX#)
-MediaVisualizerSheetRight=(#MediaVisualizerOpen#*#MediaQueueDrawerRight#+(1-#MediaVisualizerOpen#)*#MediaVisualizerTabRight#)
+MediaVisualizerSheetX=(#MediaVisualizerAbove#*#MediaVisualizerOpenSheetX#+(1-#MediaVisualizerAbove#)*#MediaVisualizerTabX#)
+MediaVisualizerSheetRight=(#MediaVisualizerAbove#*#MediaQueueDrawerRight#+(1-#MediaVisualizerAbove#)*#MediaVisualizerTabRight#)
 MediaVisualizerSheetWidth=(#MediaVisualizerSheetRight#-#MediaVisualizerSheetX#)
 MediaVisualizerSheetHeight=(#MediaSurfaceY#+#MediaVisualizerSheetTuck#-#Inset#)
-MediaVisualizerSheetRadius=(#MediaVisualizerOpen#*#CornerRadius#*#Scale#+(1-#MediaVisualizerOpen#)*#MediaVisualizerTabRadius#)
+MediaVisualizerSheetRadius=(#MediaVisualizerAbove#*#CornerRadius#*#Scale#+(1-#MediaVisualizerAbove#)*#MediaVisualizerTabRadius#)
 ; The plot's inset inside the open sheet is the queue sheet's padding, unless
 ; the sheet's rounded top corners would come closer to the plot frame's corners
 ; than that padding keeps along the straight sides (Padding - Border). Corner
@@ -373,28 +387,39 @@ MediaVisualizerPlotInset=(Max(#MediaDrawerPadding#,Ceil(#BorderThickness#*#Scale
 ; rounded corners, so the origin never moves left of that; the compact layout
 ; (art below the title) always uses it. The lift's Ceil slack lands in the far
 ; padding.
-MediaVisualizerPlotX=(Max(#MediaSurfaceX#+#MediaVisualizerPlotInset#+#MediaVisualizerAxisWidth#,#MediaWide#*(#MediaCoverX#+#MediaCoverSize#+#MediaVisualizerOriginGap#)))
-MediaVisualizerPlotWidth=(#MediaQueueDrawerRight#-#MediaVisualizerPlotInset#-#MediaVisualizerPlotX#)
-MediaVisualizerPlotY=(#MediaTop#-#MediaVisualizerOriginGap#-#MediaVisualizerPlotHeight#)
+MediaVisualizerPlotX=(#MediaSpectrumOnTop#*Max(#MediaSurfaceX#+#MediaVisualizerPlotInset#+#MediaVisualizerAxisWidth#,#MediaWide#*(#MediaCoverX#+#MediaCoverSize#+#MediaVisualizerOriginGap#))+(1-#MediaSpectrumOnTop#)*(#MediaDrawerContentX#+#MediaVisualizerAxisWidth#))
+; The far edge keeps the plot inset above the player and the queue's own
+; padding in the bottom drawer.
+MediaVisualizerEndInset=(#MediaSpectrumOnTop#*#MediaVisualizerPlotInset#+(1-#MediaSpectrumOnTop#)*#MediaDrawerPadding#)
+MediaVisualizerPlotWidth=(#MediaQueueDrawerRight#-#MediaVisualizerEndInset#-#MediaVisualizerPlotX#)
+; In the bottom drawer: the tab row and its rule (where the queue rows would
+; start), the output row, then the plot.
+MediaVisualizerPlotY=(#MediaSpectrumOnTop#*(#MediaTop#-#MediaVisualizerOriginGap#-#MediaVisualizerPlotHeight#)+(1-#MediaSpectrumOnTop#)*(#MediaQueueRowsY#+#MediaVisualizerDeviceRow#))
 ; Frequency labels in the strip beside the art, under the plot and its buffer.
 ; Their boxes are centred 1S above the strip's centre: a centred box put the
 ; digits' ink 1px low (3 clear rows above, 1 above the panel border, IBM Plex
 ; Sans 9pt at scale 1). 40 Hz starts at the origin's x, which the buffer keeps
 ; clear of the art's border; 16 kHz ends at the plot's right edge (the
 ; expanded chevron sits in the sheet's top-right corner instead).
-MediaVisualizerAxisLabelY=((#MediaTop#+#MediaSurfaceY#)/2-#Scale#)
+MediaVisualizerAxisLabelY=(#MediaSpectrumOnTop#*((#MediaTop#+#MediaSurfaceY#)/2-#Scale#)+(1-#MediaSpectrumOnTop#)*(#MediaVisualizerPlotY#+#MediaVisualizerPlotHeight#+9*#Scale#))
 MediaVisualizerLowLabelX=#MediaVisualizerPlotX#
 MediaVisualizerHighLabelRight=(#MediaVisualizerPlotX#+#MediaVisualizerPlotWidth#)
 ; The output row spans the sheet's padded width, from the dB gutter's left edge
 ; to the plot's right edge, directly above the plot.
 MediaVisualizerRowX=(#MediaVisualizerPlotX#-#MediaVisualizerAxisWidth#)
-MediaVisualizerRowWidth=(#MediaQueueDrawerRight#-#MediaVisualizerPlotInset#-#MediaVisualizerRowX#)
+MediaVisualizerRowWidth=(#MediaQueueDrawerRight#-#MediaVisualizerEndInset#-#MediaVisualizerRowX#)
 MediaVisualizerRowRight=(#MediaVisualizerRowX#+#MediaVisualizerRowWidth#)
 ; Output volume: in the gear's spot on the title row, right-aligned to the
 ; gear's right edge and centred on its row; it swaps with the gear on hover.
-MediaVisualizerVolumeRight=(#ContentX#+#ContentWidth#)
-MediaVisualizerVolumeY=(#MediaHeaderY#+#TitleRowCenterY#-#Inset#)
+; Above the player the volume takes the gear's spot; in the bottom drawer it
+; ends the output row. The device name stops short of the chevron or of it.
+MediaVisualizerVolumeRight=(#MediaSpectrumOnTop#*(#ContentX#+#ContentWidth#)+(1-#MediaSpectrumOnTop#)*#MediaVisualizerRowRight#)
+MediaVisualizerVolumeY=(#MediaSpectrumOnTop#*(#MediaHeaderY#+#TitleRowCenterY#-#Inset#)+(1-#MediaSpectrumOnTop#)*(#MediaVisualizerRowY#+7*#Scale#))
 MediaVisualizerRowY=(#MediaVisualizerPlotY#-#MediaVisualizerDeviceRow#)
+MediaVisualizerDeviceRight=(#MediaSpectrumOnTop#*#MediaVisualizerToggleX#+(1-#MediaSpectrumOnTop#)*(#MediaVisualizerRowRight#-44*#Scale#))
+; The bottom drawer's own end: an 18S row of frequency labels under the plot,
+; then the queue sheet's padding.
+MediaSpectrumDrawerBottom=(#MediaVisualizerPlotY#+#MediaVisualizerPlotHeight#+18*#Scale#+#MediaDrawerPadding#)
 ; Bottom of the timing text: the last thing inside the panel once the queue is
 ; hidden, since the transport row now straddles the panel's lower border.
 MediaTimingTextBottom=(#MediaProgressY#+#DataBarThicknessPx#+20*#Scale#)

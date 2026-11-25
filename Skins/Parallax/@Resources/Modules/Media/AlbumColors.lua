@@ -174,7 +174,7 @@ function AlbumColors.options(theme, palette, tintPercent, fractions)
         { 'MeterQueueToggle', 'MediaQueueToggleStroke', 'Stroke Color ' .. (palette and media or theme.header) ..
             ' | StrokeWidth (2*14*#Scale#/24) | StrokeStartCap Round | StrokeEndCap Round | Offset (2*#Scale#),(2*#Scale#)' },
         { 'MeterQueueToggle', 'Shape6', 'Line (18*14*#Scale#/24),(9*14*#Scale#/24),(18*14*#Scale#/24),(15*14*#Scale#/24) | Stroke Color ' ..
-            (palette and media or theme.header) .. ' | StrokeWidth (2*14*#Scale#/24*(1-#QueueExpanded#)) | StrokeStartCap Round | StrokeEndCap Round | Offset (2*#Scale#),(2*#Scale#)' },
+            (palette and media or theme.header) .. ' | StrokeWidth (2*14*#Scale#/24*(1-#MediaDrawerOpen#)) | StrokeStartCap Round | StrokeEndCap Round | Offset (2*#Scale#),(2*#Scale#)' },
         { 'MeterQueueDrawer', 'MediaSheetPaint', 'Fill Color ' .. sheet .. ' | Stroke Color ' .. border .. ' | StrokeWidth (#BorderThickness#*#Scale#)' },
         { 'MeterVisualizerSheet', 'Shape', 'Path MediaVisualizerSheetPath | Fill Color ' .. sheet .. ' | Stroke Color ' .. border .. ' | StrokeWidth (#BorderThickness#*#Scale#)' },
         { 'MeterPanel', 'MediaPanelPaint', 'Fill Color ' .. theme.background .. ' | Stroke Color ' .. border .. ' | StrokeWidth (#BorderThickness#*#Scale#)' },

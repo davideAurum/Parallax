@@ -1,6 +1,7 @@
 -- Media accordion and spectrum drawer. Explicit toggles and confirmed-empty
 -- collapse write fixed scalar preferences; the queue reader deduplicates
--- automatic empty transitions. The spectrum drawer opens UPWARD, so it also
+-- automatic empty transitions. The spectrum is a tab of the bottom drawer, or
+-- (VisualizerPlacement=1) a slider above the player. The slider opens UPWARD, so it also
 -- keeps this config's AnchorY in Rainmeter.ini equal to the open drawer's lift:
 -- Rainmeter keeps the anchor point at the saved WindowY, so the panel holds its
 -- screen position while the window grows above it.
@@ -66,11 +67,11 @@ local function readExpanded()
     return value == '1' and '1' or '0'
 end
 
-local standbyChecked
+local standbyChecked, viewConsumed
 
 function Initialize()
     settingsPath = SKIN:GetVariable('@') .. 'User\\Media.inc'
-    standbyChecked = false
+    standbyChecked, viewConsumed = false, false
 end
 
 local IDLE_MINUTES = { ['5'] = true, ['10'] = true, ['30'] = true }
@@ -88,8 +89,18 @@ local function checkStandby()
     IdleStandby(0, 'fail-live')
 end
 
+-- QueueDrawerTab=2 opens the drawer on Playlists for one load only; the queue
+-- reader has already taken it from this load's variables.
+local function consumeView()
+    viewConsumed = true
+    if SKIN:GetVariable('QueueDrawerTab', '0') == '2' then
+        SKIN:Bang('!WriteKeyValue', 'Variables', 'QueueDrawerTab', '0', settingsPath)
+    end
+end
+
 function Update()
     if not standbyChecked then checkStandby() end
+    if not viewConsumed then consumeView() end
     return 'Queue'
 end
 
@@ -107,7 +118,11 @@ local function setExpanded(requested)
     return true
 end
 
-function ToggleQueue() return setExpanded(nil) end
+-- Where the spectrum sits: only a number equal to 1 puts it above the player,
+-- as InlineQueueGeometry.inc MediaSpectrumOnTop reads it.
+local function onTop()
+    return tonumber(readMedia('VisualizerPlacement', '0')) == 1
+end
 
 -- Called only by the inline reader after a fresh, fully validated empty queue.
 function CollapseEmptyQueue() return setExpanded('0') end
@@ -301,6 +316,7 @@ end
 function ToggleVisualizer()
     if not hosted() then return false end
     if not readDrawer() then return false end
+    if not onTop() then return false end
     local value = loadedOpen() and '1' or '2'
     local lift = 0
     if value == '2' then
@@ -320,10 +336,77 @@ function ToggleVisualizer()
     return true
 end
 
+-- Bottom drawer ------------------------------------------------------------
+-- Its folder tab opens and closes it; its header picks Queue, Playlists or,
+-- when the spectrum sits there, Spectrum. The spectrum is showing exactly while
+-- VisualizerDrawer=2, which is also what starts the capture, so the queue tabs
+-- take it back to 1. QueueDrawerTab remembers 1 for the next opening.
+local function save(key, value, default)
+    if readMedia(key, default) == value then return true end
+    SKIN:Bang('!WriteKeyValue', 'Variables', key, value, settingsPath)
+    return readMedia(key, default) == value
+end
+
+local function spectrumTab()
+    local state = readDrawer()
+    return hosted() and not onTop() and state ~= nil and state ~= '0'
+end
+
+local function reload()
+    SKIN:Bang('!Refresh', 'Parallax\\Media\\Settings')
+    SKIN:Bang('!Refresh')
+    return true
+end
+
+function ShowSpectrum()
+    if not spectrumTab() then return false end
+    if not save('VisualizerDrawer', '2', '1') then return false end
+    save('QueueExpanded', '0', '0')
+    save('QueueDrawerTab', '1', '0')
+    ApplyLease(openingCapture(), nil, 'toggle')
+    placeAnchor(0, false)
+    return reload()
+end
+
+-- Stops the spectrum (capture included) and opens the queue or its playlists;
+-- 'closed' leaves the drawer shut.
+local function leaveSpectrum(expanded, tab)
+    if not save('VisualizerDrawer', '1', '1') then return false end
+    save('QueueExpanded', expanded, '0')
+    save('QueueDrawerTab', tab, '0')
+    ApplyLease(openingCapture(), nil, 'toggle')
+    requestReevaluate()
+    return reload()
+end
+
+function ShowQueue(view)
+    if not spectrumTab() or readDrawer() ~= '2' then return false end
+    return leaveSpectrum('1', view == 'playlists' and '2' or '0')
+end
+
+-- The compact layout's one label cycles, so on Spectrum it goes on to Queue.
+function CompactSpectrumClick()
+    if SKIN:GetVariable('Columns', '2') ~= '1' then return false end
+    return ShowQueue('queue')
+end
+
+function ToggleQueue()
+    if not spectrumTab() then return setExpanded(nil) end
+    if readDrawer() == '2' then return leaveSpectrum('0', '1') end
+    local expanded = readExpanded()
+    if not expanded then return false end
+    if expanded == '1' then
+        save('QueueDrawerTab', '0', '0')
+    elseif readMedia('QueueDrawerTab', '0') == '1' then
+        return ShowSpectrum()
+    end
+    return setExpanded(nil)
+end
+
 -- Once per load (MeasureMediaVisualizerLift): the anchor the loaded state needs.
 function CheckAnchor()
     local expected = 0
-    if loadedOpen() then
+    if loadedOpen() and tonumber(SKIN:GetVariable('VisualizerPlacement', '0')) == 1 then
         expected = openLift()
         if not expected then return false end
     end
@@ -336,7 +419,7 @@ function ApplyVisualizerPreference()
     local state = readDrawer()
     if state and hosted() then
         local lift = 0
-        if state == '2' then lift = openLift() end
+        if state == '2' and onTop() then lift = openLift() end
         if lift then placeAnchor(lift, false) end
         ApplyLease(openingCapture(), nil, 'toggle')
         if state ~= '2' then requestReevaluate() end

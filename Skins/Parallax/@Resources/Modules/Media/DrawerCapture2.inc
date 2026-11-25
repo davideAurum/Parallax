@@ -35,10 +35,6 @@ ParallaxIdleBeat=0
 ; Set to 1 by the standalone Audio Visualizer (Modules\Visualizer\Companion.lua)
 ; with the ParallaxMediaCompanion group update: re-check whether to defer.
 ParallaxCompanionCheck=0
-; The title-row volume is a headline value: Idle pause hides it with the
-; heading, and keeps it hidden on a hover-out (Media.ini).
-MediaIdleHeadlineVolume=|MeterVisualizerVolume
-MediaIdleHoverSwap=MeterMediaOptions|MeterVisualizerVolume
 
 ; The capture lease (Modules\Media\CaptureLease.lua) owns this state.
 [MeasureMediaCaptureLease]
@@ -52,7 +48,7 @@ Meter=String
 MeterStyle=StyleLabel
 X=(#MediaVisualizerRowX#+18*#Scale#)
 Y=#MediaVisualizerRowY#
-W=(#MediaVisualizerToggleX#-#MediaVisualizerRowX#-18*#Scale#)
+W=(#MediaVisualizerDeviceRight#-#MediaVisualizerRowX#-18*#Scale#)
 H=(18*#Scale#)
 FontColor=#MutedColor#
 Text=--
@@ -67,6 +63,6 @@ W=(40*#Scale#)
 StringAlign=RightCenter
 FontSize=(#FontSize#*#Scale#)
 FontColor=#MutedColor#
-Group=MediaHeaderValue
+Group=#MediaVisualizerVolumeGroup#
 Text=--
 UpdateDivider=-1

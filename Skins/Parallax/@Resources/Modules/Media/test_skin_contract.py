@@ -107,7 +107,7 @@ def number_text(number):
 def read_config(name, *, scale=1, columns=1, column_width=220,
                 expanded=0, row_limit=5, show_details=1, typography='default', surface=1, bar_thickness=6,
                 drawer=1, corner=None, preset=None, visualizer_columns=None, simulate_user=True,
-                missing=None, title_animation=None, capture=None):
+                missing=None, title_animation=None, capture=None, placement=1):
     """Load an entrypoint like Rainmeter: includes in file order, paths eagerly.
 
     Rainmeter expands an @Include path as it reads it, with the variables known
@@ -204,7 +204,7 @@ def read_config(name, *, scale=1, columns=1, column_width=220,
             variables.update(Scale=str(scale), Columns=str(columns),
                              ColumnWidth=str(column_width), QueueExpanded=str(expanded),
                              QueueRowLimit=str(row_limit), QueueShowDetails=str(show_details), DataBarThickness=str(bar_thickness),
-                             VisualizerDrawer=str(drawer))
+                             VisualizerDrawer=str(drawer), VisualizerPlacement=str(placement))
             variables.update(TitleFontSize='12' if typography == 'max' else '6' if typography == 'min' else '10',
                              HeaderFontSize='10' if typography == 'max' else '8',
                              FontSize='10' if typography == 'max' else '9',
@@ -1599,7 +1599,7 @@ class SkinContractTests(unittest.TestCase):
     def test_accordion_and_settings_controls_have_bounded_persisted_preferences(self):
         for name in ('Media.ini', 'Setup.ini'):
             sections, variables, _, _ = read_config(name)
-            self.assertEqual(sections['MeasureQueueStatus']['QueueExpanded'], '#QueueExpanded#')
+            self.assertEqual(sections['MeasureQueueStatus']['QueueExpanded'], '#MediaQueueExpanded#')
             self.assertEqual(sections['MeasureQueueStatus']['QueueInline'], '1')
             for meter in ('MeterQueueHeading', 'MeterQueueToggle', 'MeterQueueStatus'):
                 self.assertEqual(sections[meter]['LeftMouseUpAction'],
@@ -1607,7 +1607,7 @@ class SkinContractTests(unittest.TestCase):
             toggle=sections['MeterQueueToggle']
             self.assertEqual(toggle['Meter'],'Shape')
             self.assertEqual(toggle['DynamicVariables'],'1')
-            self.assertIn('StrokeWidth (2*14*#Scale#/24*(1-#QueueExpanded#))',toggle['Shape6'])
+            self.assertIn('StrokeWidth (2*14*#Scale#/24*(1-#MediaDrawerOpen#))',toggle['Shape6'])
             self.assertNotIn('Extend',toggle['Shape6'], 'Expansion must control the actual vertical stroke')
             self.assertEqual(sections['MeterQueueHeading']['StringAlign'],'LeftCenter')
             self.assertEqual(sections['MeterQueueStatus']['StringAlign'],'LeftCenter')
@@ -1622,8 +1622,8 @@ class SkinContractTests(unittest.TestCase):
         # The Spectrum drawer row added 28 to both heights (554/498 before);
         # the shared Spectrum steppers then added 204 (582/526 before), and the
         # Title animation row another 28 (786/730 before), then Album colors,
-        # Album tint and the queue's Row size row 84 more (814/758 before).
-        self.assertEqual(numeric(expand('#SettingsPanelHeight#')),814)
+        # Album tint and the queue's Row size row 84 more (842/758 before).
+        self.assertEqual(numeric(expand('#SettingsPanelHeight#')),842)
         self.assertEqual(sections['Variables']['VisualizerDrawer'],'1')
         # Entrypoint fallback for preserved files without the key.
         self.assertEqual(sections['Variables']['MediaTitleAnimation'],'20')
@@ -1688,8 +1688,8 @@ class SkinContractTests(unittest.TestCase):
         # Settings.lua rebuilds the same heights at runtime and owns the cycle.
         # Static text checks only; MediaSettingsSuite.luatest runs the script.
         controller=(RESOURCES/'Modules'/'Media'/'Settings.lua').read_text(encoding='ascii')
-        self.assertIn('local settingsHeight = 898 - collapsedHeight',controller)
-        self.assertIn("SKIN:Bang('!SetVariable', 'VisualizerSettingsTop', 284 - collapsedHeight)",controller)
+        self.assertIn('local settingsHeight = 926 - collapsedHeight',controller)
+        self.assertIn("SKIN:Bang('!SetVariable', 'VisualizerSettingsTop', 312 - collapsedHeight)",controller)
         self.assertIn("MediaTitleAnimation = { '0', '10', '20' }",controller)
         self.assertIn("animationNames = { ['0'] = 'Off', ['10'] = '10 fps', ['20'] = '20 fps' }",controller)
         self.assertIn("MediaTitleAnimation = '20'",controller)
@@ -1709,7 +1709,7 @@ class SkinContractTests(unittest.TestCase):
                             box=lambda name:meter_bounds(resolve_style(sections,name),val)
                             panel=Bounds(val('#Inset#'),val('#Inset#'),val('#WindowWidth#')-val('#Inset#'),val('#WindowHeight#')-val('#Inset#'))
                             shift=0 if expanded else 84
-                            self.assertEqual(val('#WindowHeight#'),math.floor((898-shift)*scale+0.5)+val('#Gap#'))
+                            self.assertEqual(val('#WindowHeight#'),math.floor((926-shift)*scale+0.5)+val('#Gap#'))
                             self.assertEqual(variables['Columns'],str(columns))
                             self.assertEqual(variables['PanelHeight'],'162')
                             for name,section in sections.items():
@@ -1719,17 +1719,17 @@ class SkinContractTests(unittest.TestCase):
                             # moved down by exactly 28 each time.
                             # Album colors and Album tint (2026-11-19) then took
                             # the next two slots and Row size joined the queue rows.
-                            for stem,y in [('Width',100),('VisualizerDrawer',128),('TitleAnimation',156),('AlbumColors',184),
-                                           ('AlbumTint',212),('QueueExpanded',240),('QueueRows',268),('QueueDetails',296),
-                                           ('QueueRowSize',324),('QueuePoll',588)]:
+                            for stem,y in [('Width',100),('VisualizerDrawer',128),('VisualizerPlacement',156),
+                                           ('TitleAnimation',184),('AlbumColors',212),('AlbumTint',240),('QueueExpanded',268),
+                                           ('QueueRows',296),('QueueDetails',324),('QueueRowSize',352),('QueuePoll',616)]:
                                 label,value='Meter'+stem+'Label','Meter'+stem+'Value'
                                 numeric_field=stem in ('Width','QueueRows','QueuePoll','AlbumTint')
                                 # Number fields and the categorical choices share the
                                 # previous/value/next group; the drawer's field is 76
                                 # wide (Collapsed/Expanded at max type), while Title
                                 # animation keeps the default 56 (Off / 10 fps / 20 fps).
-                                stepper=numeric_field or stem in ('VisualizerDrawer','TitleAnimation','AlbumColors','QueueRowSize')
-                                field=76 if stem in ('VisualizerDrawer','QueueRowSize') else 56
+                                stepper=numeric_field or stem in ('VisualizerDrawer','VisualizerPlacement','TitleAnimation','AlbumColors','QueueRowSize')
+                                field=76 if stem in ('VisualizerDrawer','VisualizerPlacement','QueueRowSize') else 56
                                 parts=[label,value]+(['Meter'+stem+p for p in ('Decrease','Frame','Increase')] if stepper else [])
                                 hidden=not expanded and stem in ('QueueRows','QueueDetails','QueueRowSize')
                                 if hidden:
@@ -1779,21 +1779,21 @@ class SkinContractTests(unittest.TestCase):
                                     self.assertEqual(resolve_style(sections,value)['FontColor'],'#TextColor#')
                                     self.assertEqual(resolve_style(sections,'Meter'+stem+'Decrease')['FontColor'],'#AccentColor#')
                                 else: self.assertEqual(resolve_style(sections,value)['SolidColor'],'#GraphBackgroundColor#')
-                            for name,y in [('MeterSamplingHeading',562),('MeterStatus',616),('MeterSourceLabel',646),
-                                           ('MeterQueueHeading',730),('MeterLinksHeading',842)]:
+                            for name,y in [('MeterSamplingHeading',590),('MeterStatus',644),('MeterSourceLabel',674),
+                                           ('MeterQueueHeading',758),('MeterLinksHeading',870)]:
                                 self.assertAlmostEqual(box(name).top,val('#Inset#')+(y-shift)*scale)
                             # Spectrum: Audio settings' steppers on its two-column
                             # grid, on Media's 28px pitch below the queue rows.
                             # Headings at 358 (Animation 446), rules 21 below.
-                            for name,y in [('MeterVisualizerSettingsAppearance',358),('MeterVisualizerSettingsPerformance',358),
-                                           ('MeterVisualizerSettingsAnimation',446)]:
+                            for name,y in [('MeterVisualizerSettingsAppearance',386),('MeterVisualizerSettingsPerformance',386),
+                                           ('MeterVisualizerSettingsAnimation',474)]:
                                 self.assertAlmostEqual(val(resolve_style(sections,name)['Y']),val('#Inset#')+(y-shift)*scale,msg=name)
                                 self.assertAlmostEqual(val(resolve_style(sections,name+'Rule')['Y']),val('#Inset#')+(y+21-shift)*scale,msg=name)
                             self.assertEqual(expand(sections['MeterVisualizerSettingsAppearance']['Text']),'Spectrum')
                             left_x,right_x=val('#ContentX#'),val('#VisualizerSettingsRightX#')
-                            spectrum_rows=[('Height',left_x,384),('Spacing',left_x,412),('Color',left_x,440),('Radius',left_x,468),
-                                           ('Baseline',left_x,496),('Quality',right_x,384),('Cadence',right_x,412),
-                                           ('Sensitivity',right_x,472),('Attack',right_x,500),('Decay',right_x,528)]
+                            spectrum_rows=[('Height',left_x,412),('Spacing',left_x,440),('Color',left_x,468),('Radius',left_x,496),
+                                           ('Baseline',left_x,524),('Quality',right_x,412),('Cadence',right_x,440),
+                                           ('Sensitivity',right_x,500),('Attack',right_x,528),('Decay',right_x,556)]
                             self.assertNotIn('MeterVisualizerSettingsWidthRow',sections)
                             for stem,x,y in spectrum_rows:
                                 frame,label=box(f'MeterVisualizerSettings{stem}Row'),box(f'MeterVisualizerSettings{stem}Label')
@@ -1843,7 +1843,7 @@ class SkinContractTests(unittest.TestCase):
                     self.assertEqual(window.height,
                                      media_drawer_geometry(column_width,scale,columns,expanded,rows)[3])
                 else:
-                    expected_height = math.floor(((898 if expanded else 814) if name == 'Settings/Settings.ini' else 162)*scale+0.5)
+                    expected_height = math.floor(((926 if expanded else 842) if name == 'Settings/Settings.ini' else 162)*scale+0.5)
                     self.assertEqual(window.height, expected_height+val('#Gap#'))
                 self.assertEqual(val('#UnitWidth#'), math.floor(column_width * scale + 0.5))
                 self.assertEqual(val('#Gap#') % 2, 0)
@@ -2557,7 +2557,8 @@ class SkinContractTests(unittest.TestCase):
                                     columns=columns,drawer=2,capture=capture,title_animation=animation,typography='max')
                                 val=value_of(expand)
                                 names=[path.name for path in visited]
-                                self.assertEqual(names[names.index('VisualizerDrawer2.inc')+1],f'DrawerCapture{capture}.inc')
+                                self.assertEqual(names[names.index('VisualizerDrawer2.inc')+1:][:2],
+                                                 ['VisualizerPlacement1.inc',f'DrawerCapture{capture}.inc'])
                                 self.assertEqual(sum(name.startswith('DrawerCapture') for name in names),1)
                                 plugins={section.get('Plugin') for section in sections.values() if 'Plugin' in section}
                                 scripts={section.get('ScriptFile','').rsplit('\\',1)[-1] for section in sections.values() if 'ScriptFile' in section}
@@ -2749,6 +2750,51 @@ class SkinContractTests(unittest.TestCase):
                             self.assertNotIn('StrokeLineJoin',sheet_style['Shape'])
                             start=path_points(sheet_style['MediaVisualizerSheetPath'].split('|')[0],val)[0]
                             self.assertAlmostEqual(start[0],val('(#BorderThickness#*#Scale#)')/2)
+
+    def test_spectrum_defaults_to_a_tab_of_the_bottom_drawer(self):
+        _,_,_,shipped=read_config('Media.ini',simulate_user=False)
+        self.assertEqual(shipped('#VisualizerPlacement#'),'0')
+        for width in (180,220,320):
+            for scale in SCALES:
+                for columns in COLUMNS:
+                    with self.subTest(width=width,scale=scale,columns=columns):
+                        states={}
+                        for drawer,expanded in ((0,0),(1,0),(1,1),(2,0),(2,1)):
+                            sections,_,_,expand=read_config('Media.ini',column_width=width,scale=scale,
+                                columns=columns,drawer=drawer,expanded=expanded,placement=0)
+                            states[drawer,expanded]=(sections,value_of(expand))
+                        hidden=states[0,0][1]
+                        sections,val=states[2,0]
+                        # The player never moves or reserves a strip for it.
+                        for key,(_,other) in states.items():
+                            for variable in ('MediaTop','MediaSurfaceY','MediaBodyHeightPx','MediaHeadingWidth','WindowWidth'):
+                                self.assertEqual(other(f'#{variable}#'),hidden(f'#{variable}#'),(key,variable))
+                            self.assertEqual(other('#MediaVisualizerTab#'),0,key)
+                        # Spectrum takes the queue's place, even if both were saved open.
+                        for variable in ('WindowHeight','MediaQueueDrawerBottom','MediaVisualizerPlotY'):
+                            self.assertEqual(val(f'#{variable}#'),states[2,1][1](f'#{variable}#'),variable)
+                        self.assertEqual(val('#MediaQueueExpanded#'),0)
+                        self.assertEqual(val('#MediaDrawerOpen#'),1)
+                        self.assertEqual(states[1,1][1]('#MediaQueueExpanded#'),1)
+                        self.assertEqual(states[1,0][1]('#MediaDrawerOpen#'),0)
+                        self.assertEqual(states[1,0][1]('#WindowHeight#'),hidden('#WindowHeight#'))
+                        # Header tabs, output row, plot and labels stack inside the sheet.
+                        box=lambda name: meter_bounds(resolve_style(sections,name),val)
+                        header,row,plot,low=(box(name) for name in
+                            ('MeterSpectrumTabSpectrum','MeterVisualizerDeviceName','MeterVisualizerPlot','MeterVisualizerLow'))
+                        self.assertLessEqual(header.bottom,row.top+EPSILON)
+                        self.assertLessEqual(row.bottom,plot.top+EPSILON)
+                        self.assertLessEqual(plot.bottom,low.top+EPSILON)
+                        self.assertLessEqual(low.bottom,val('#MediaQueueDrawerBottom#')+EPSILON)
+                        self.assertGreaterEqual(plot.left,val('#MediaQueueDrawerLeft#'))
+                        self.assertLessEqual(plot.right,val('#MediaQueueDrawerRight#')+EPSILON)
+                        self.assertLessEqual(box('MeterVisualizerDeviceName').right,
+                                             box('MeterVisualizerVolume').left+EPSILON)
+                        self.assertIn('MeterVisualizerSpectrumMask',sections)
+                        self.assertEqual(sections['Variables']['MediaVisualizerVolumeGroup'],'MediaDrawerValue')
+                        for key in ((1,0),(1,1)):
+                            self.assertFalse([name for name,section in states[key][0].items()
+                                              if section.get('Plugin')=='AudioLevel'],key)
 
     def test_only_the_open_drawer_include_opens_the_geometry(self):
         # MediaOptions.lua compares SKIN:GetVariable('MediaVisualizerOpen') with

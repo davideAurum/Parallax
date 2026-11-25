@@ -14,7 +14,9 @@ MediaQueueTabUnit=(#Scale#*#HeaderFontSize#/8)
 ; The "queue is off" line: the first row's place, below the transport circles
 ; that overhang the header band; parked inside the panel while the drawer is
 ; closed, as InlineQueueGeometry.inc parks the header.
-MediaQueueOffY=(#QueueExpanded#*#MediaQueueRowsY#+(1-#QueueExpanded#)*#Inset#)
+MediaQueueOffY=(#MediaQueueExpanded#*#MediaQueueRowsY#+(1-#MediaQueueExpanded#)*#Inset#)
+; The header's tabs take 114 units, 176 with the Spectrum tab.
+MediaQueueTabsWidth=((114+62*#MediaSpectrumTab#)*#MediaQueueTabUnit#)
 
 [MeasureQueueControl]
 Measure=Script
@@ -76,12 +78,38 @@ Text=Playlists
 MouseActionCursor=1
 LeftMouseUpAction=[!CommandMeasure MeasureQueueStatus "ShowView('playlists')"]
 
+; The third tab, where VisualizerPlacement puts the spectrum in this drawer.
+; QueueReader.lua shows it with the other two; the compact layout's one label
+; reaches the spectrum by cycling instead. VisualizerPlacement0.inc draws the
+; same strip while the spectrum is the view.
+[MeterQueueTabSpectrumBar]
+Meter=String
+MeterStyle=StyleHeader
+X=(#MediaQueueX#+103*#MediaQueueTabUnit#)
+Y=#MediaQueueHeaderY#
+W=(8*#MediaQueueTabUnit#)
+Hidden=1
+UpdateDivider=-1
+Text=|
+
+[MeterQueueTabSpectrum]
+Meter=String
+MeterStyle=StyleHeader
+X=(#MediaQueueX#+112*#MediaQueueTabUnit#)
+Y=#MediaQueueHeaderY#
+W=(60*#MediaQueueTabUnit#)
+Hidden=1
+UpdateDivider=-1
+Text=Spectrum
+MouseActionCursor=1
+LeftMouseUpAction=[!CommandMeasure MeasureMediaOptions "ShowSpectrum()"]
+
 [MeterQueueHeaderNote]
 Meter=String
 MeterStyle=StyleHeader
 X=(#MediaQueueX#+#MediaQueueWidth#-#MediaQueueRefreshWidth#-6*#Scale#)
 Y=#MediaQueueHeaderY#
-W=(Max(1,#MediaQueueWidth#-#MediaQueueRefreshWidth#-6*#Scale#-114*#MediaQueueTabUnit#))
+W=(Max(1,#MediaQueueWidth#-#MediaQueueRefreshWidth#-6*#Scale#-#MediaQueueTabsWidth#))
 StringAlign=Right
 Group=QueueRows
 Hidden=1

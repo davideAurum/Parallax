@@ -1304,6 +1304,42 @@ Sources: [quota modes](https://developer.spotify.com/documentation/web-api/conce
 
 ## Validation report
 
+### Fresh machine: helpers never started (2026-11-24)
+
+Report from the Surface laptop on the installed alpha.14: `Media Player:
+Unknown` while Spotify desktop played, and no queue rows. Cause: neither helper
+had ever been started there (`%LOCALAPPDATA%\Parallax` did not exist). It is
+not an update fault and no code changed. The installed Media files match the
+alpha.14 source.
+
+Verified there, in the live Rainmeter (Windows PowerShell 5.1.26100.10068):
+
+- The Media settings Start handler for Source detection
+  (`ProviderControl('Source','Start')`, sent by bang, not a physical click)
+  wrote `enabled.intent` as `PARALLAX_AUTOSTART_V1|1` and a `ready` snapshot in
+  2.6 s. WebNowPlaying still reported `Windows Media Session`, the Source
+  measure read `Spotify` and the title measure read `Media Player: Spotify`.
+- A Media refresh left the running worker alone. With the worker killed, the
+  next refresh resumed one worker in 1.3 s.
+- The two unexplained `powershell.exe` processes in the report were the GPU
+  temperature and RAM pagefile helpers.
+- Queue preflight, before sign-in: `QueueProvider.ps1 -Command Help` runs from
+  the installed path (which contains spaces), no execution policy is set, and
+  `Test-QueueAuth.ps1` passes 63 of 63. The footer read `Setup required`.
+- Queue, after the user signed in from Media settings: `enabled.intent` reads
+  `PARALLAX_AUTOSTART_V1|1`, and within 3 s of the worker starting there was a
+  `PARALLAX_QUEUE_V4` snapshot (`state=ready`, `count=5`, `control=1`) and five
+  JPEG covers. The footer reads `Next 5`, and a capture of the Media window
+  shows five rows, each with its cover. The next poll rewrote the snapshot
+  30.7 s later, and a Media refresh left the one worker running.
+- Queue while playing: when the next song started, it stayed in row 1 until
+  the next poll (about 30 s, the `QueuePollSeconds` setting). The rows then
+  moved up and a new fifth row arrived with its cover.
+
+Unverified there: a queue row click, the Refresh icon, the queue helper's
+recovery after its worker dies, and recovery of either helper across a
+Rainmeter or Windows restart.
+
 ### Queue covers and album colors (2026-11-19)
 
 User request: cover thumbnails in the queue, clickable rows, a Refresh icon

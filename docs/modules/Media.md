@@ -49,10 +49,12 @@ user-selected Lucide metadata and playback icons are attributed below.
 - An optional local Windows media-session observer identifies Spotify desktop
   when exactly one session matches the current WNP title, raw artist and state.
   Start/Stop controls live in Media settings; Spotify sign-in is unnecessary.
-- A spectrum drawer folds the Visualizer into the player: a folder tab above
-  the hover gear opens a sheet that rises above the panel and shows the
-  Visualizer's 24-band output spectrum. Its AudioLevel capture exists only
-  while the drawer is open. See [Spectrum drawer](#spectrum-drawer).
+- A spectrum drawer folds the Visualizer into the player and shows its 24-band
+  output spectrum. By default it is the **Spectrum** tab of the drawer under the
+  player, beside Queue and Playlists; Media settings' **Spectrum position** can
+  put it back above the player. Its AudioLevel capture exists only while the
+  spectrum is showing. See [Spectrum position](#spectrum-position) and
+  [Spectrum drawer](#spectrum-drawer).
 - At two columns, a rounded album tile measuring 169 pixels at the current
   default (20 pixels larger in both dimensions than the preceding layout) with a thin white border
   overhangs the top and left edges of a narrower
@@ -118,7 +120,9 @@ The user file ships these defaults in `[Variables]`:
 | `QueueRowLimit` | `5` | Maximum shown entries, every integer 1–5; arrow step 1 or typed value. |
 | `QueueShowDetails` | `1` | Show artist/podcast details beside titles; 0 hides them. |
 | `QueuePollSeconds` | `30` | Spotify request interval in whole seconds, 30–150; arrow step 1 or typed value. |
-| `VisualizerDrawer` | `1` | Spectrum drawer above the player: `0` hidden, `1` tab only, `2` open (captures the output device). Literal digits only. |
+| `VisualizerDrawer` | `1` | Spectrum drawer: `0` hidden, `1` tab only, `2` showing (captures the output device). Literal digits only. |
+| `VisualizerPlacement` | `0` | Where the spectrum sits: `0` a tab of the drawer under the player, `1` a slider above it. Literal digits only (the value names an include). Media settings' Spectrum position. |
+| `QueueDrawerTab` | `0` | Written by Media: `1` makes the folder tab reopen on Spectrum; `2` opens on Playlists for one load. |
 | `QueueRowSize` | `1` | Queue drawer rows: `1` Normal (36-pixel rows, 32-pixel covers, song above artist) or `0` Compact (18-pixel rows, 16-pixel covers, one `Song / Artist` line). Any value but a literal `0` reads as Normal. Media settings' Queue row size (shown with the other queue details). |
 | `MediaAlbumColors` | `1` | Album colors: the current cover recolors the player. `0` keeps the theme and loads no plugin. Literal digits only (the value names the include). |
 | `MediaAlbumTint` | `10` | How far the gray surfaces lean toward the cover's main color, `0`–`30` %. |
@@ -220,8 +224,10 @@ The compact Media footer shortens long status phrases to Storage error,
 Spotify error, Queue error, Quota reached or Stopped so they fit at the maximum
 body size. The standalone Queue panel retains the full status wording.
 
-The settings panel is always two pitches wide. It is 898 logical pixels tall
-with Queue expanded and 814 with Queue collapsed (814/758 before the Album
+The settings panel is always two pitches wide. It is 926 logical pixels tall
+with Queue expanded and 842 with Queue collapsed (898/814 before the Spectrum
+position row, which sits under Spectrum drawer and moved every later row down
+28; 814/758 before the Album
 colors, Album tint % and Queue row size rows of 2026-11-19, 786/730 before the Title
 animation row, 582/526 before the Spectrum section, 554/498 before the
 Spectrum drawer row). That row sits directly under Panel columns: a wrapping previous/value/next
@@ -324,7 +330,48 @@ Connections** opens. Opening/closing the menu
 never authenticates or enables a helper. A refreshed view may restore a missing
 worker that was previously enabled, using the current saved interval.
 
+## Spectrum position
+
+User direction, 2026-11-25: move the spectrum to a new tab in the bottom drawer
+and keep its place above the player as an option. `VisualizerPlacement` chooses;
+`VisualizerDrawer` keeps its three values in both places, so the capture, its
+lease, Idle pause and the standalone Visualizer's deferral are unchanged. An
+upgrade has no saved `VisualizerPlacement`, so it moves to the bottom drawer.
+
+**Bottom tab (`0`, default).**
+
+- The drawer header reads `Queue | Playlists | Spectrum`. The header now stays
+  when the queue has no rows (helper off or unreachable), so Spectrum is always
+  reachable; the Refresh icon still shows only with something to refresh.
+- Spectrum takes the queue's place: while it shows, the queue is not expanded
+  (`MediaQueueExpanded`), whatever `QueueExpanded` says. The folder tab closes
+  the drawer, which stops the capture, and reopens it on the tab last used.
+- Under the header: the output row (device name, then the volume at its right
+  end instead of the gear's spot), the plot with its dB gutter, then an 18S row
+  for `40 Hz` / `16 kHz`. The window grows downward; the player never moves, no
+  anchor lift applies and the compact layout reserves no 12px strip.
+- The compact layout has one header label. It cycles Queue, Playlists (when the
+  queue is live), Spectrum. While the queue has no rows it reads `Queue`, and a
+  click goes to Spectrum.
+- Media settings: Spectrum drawer `Expanded` and Queue section `Expanded` close
+  each other. `Hidden` removes the tab.
+
+**Above the player (`1`).** The [Spectrum drawer](#spectrum-drawer) below,
+unchanged; it can be open together with the queue.
+
+Checked 2026-11-25: `test_skin_contract.py` (36, including the bottom tab over
+three widths and every scale), `Test-Media.ps1` (818), the queue reader and view
+suites, `Test-MediaSettings.ps1` (60 layouts; `-SettingsFocused`;
+`-VisualizerDrawerFocused`) and isolated-profile captures of the Spectrum tab
+(220, double and compact) and the Queue view with the third tab (double). The
+native settings and drawer suites pin `VisualizerPlacement=1`. Not verified: a
+physical click through the tabs, the compact cycle live, the queue-off header
+live, album colors on the new tab, and `Test-MediaCaptureLease.ps1` stage B
+(it needs silent output).
+
 ## Spectrum drawer
+
+The slider above the player (`VisualizerPlacement=1`).
 
 User direction, 2026-10-10: fold the Visualizer into the player as an upper
 slider, like the queue drawer but on top, with its tab near the top-right

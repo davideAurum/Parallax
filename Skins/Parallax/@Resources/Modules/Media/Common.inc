@@ -88,7 +88,7 @@ Shape2=Line (16*14*#Scale#/24),(5*14*#Scale#/24),(3*14*#Scale#/24),(5*14*#Scale#
 Shape3=Line (11*14*#Scale#/24),(12*14*#Scale#/24),(3*14*#Scale#/24),(12*14*#Scale#/24) | Extend MediaQueueToggleStroke
 Shape4=Line (16*14*#Scale#/24),(19*14*#Scale#/24),(3*14*#Scale#/24),(19*14*#Scale#/24) | Extend MediaQueueToggleStroke
 Shape5=Line (21*14*#Scale#/24),(12*14*#Scale#/24),(15*14*#Scale#/24),(12*14*#Scale#/24) | Extend MediaQueueToggleStroke
-Shape6=Line (18*14*#Scale#/24),(9*14*#Scale#/24),(18*14*#Scale#/24),(15*14*#Scale#/24) | Stroke Color #HeaderTextColor# | StrokeWidth (2*14*#Scale#/24*(1-#QueueExpanded#)) | StrokeStartCap Round | StrokeEndCap Round | Offset (2*#Scale#),(2*#Scale#)
+Shape6=Line (18*14*#Scale#/24),(9*14*#Scale#/24),(18*14*#Scale#/24),(15*14*#Scale#/24) | Stroke Color #HeaderTextColor# | StrokeWidth (2*14*#Scale#/24*(1-#MediaDrawerOpen#)) | StrokeStartCap Round | StrokeEndCap Round | Offset (2*#Scale#),(2*#Scale#)
 MediaQueueToggleStroke=Stroke Color #HeaderTextColor# | StrokeWidth (2*14*#Scale#/24) | StrokeStartCap Round | StrokeEndCap Round | Offset (2*#Scale#),(2*#Scale#)
 MouseActionCursor=1
 LeftMouseUpAction=[!CommandMeasure MeasureMediaOptions "ToggleQueue()"]
@@ -219,7 +219,10 @@ Group=ParallaxIdlePause
 ScriptFile=#@#Modules\Media\Queue\QueueReader.lua
 ; Compact footer labels; the standalone queue keeps the full status wording.
 Substitute="Storage unavailable":"Storage error","Spotify unavailable":"Spotify error","Queue unavailable":"Queue error","App quota reached":"Quota reached","Provider stopped":"Stopped"
-QueueExpanded=#QueueExpanded#
+QueueExpanded=#MediaQueueExpanded#
+SpectrumTab=#MediaSpectrumTab#
+; 2 opens the drawer on Playlists, once (MediaOptions.ShowQueue).
+QueueView=#QueueDrawerTab#
 QueueInline=1
 UpdateDivider=#MediaLegacyDivider#
 

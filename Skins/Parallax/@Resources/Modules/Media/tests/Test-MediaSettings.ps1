@@ -318,7 +318,7 @@ end
     $expanded=if ($isTypography -and -not $isSettings) { 1 } else { 0 }
     # Other modes omit VisualizerDrawer, so the entrypoints' fallback (1, tab
     # only) applies; drawer mode starts from the shipped explicit value.
-    $drawerPreference=if ($VisualizerDrawerFocused) { "VisualizerDrawer=1`n" } else { '' }
+    $drawerPreference=if ($VisualizerDrawerFocused) { "VisualizerDrawer=1`nVisualizerPlacement=1`n" } else { "VisualizerPlacement=1`n" }
     $preferences = "[Variables]`nColumns=$columns`nPanelHeight=162`nMediaInterval=1000`nQueueExpanded=$expanded`nQueueRowLimit=5`nQueueShowDetails=1`nQueuePollSeconds=30`nScale=$scaleText`nColumnWidth=$width`n${drawerPreference}UnrelatedSentinel=preserve-me`n"
     Write-TestFile $preferencesPath $preferences
     # Drawer mode only: per-stage window/anchor records kept across refreshes.
@@ -555,7 +555,7 @@ function Test-LabelSync {
     Install-SettingsInputFixture $syncParallax
     Copy-Item -LiteralPath (Join-Path $skinRoot 'Case01\@Resources\Modules\Media\WebNowPlaying.inc') -Destination (Join-Path $syncParallax '@Resources\Modules\Media\WebNowPlaying.inc')
     $syncPrefs=Join-Path $syncParallax '@Resources\User\Media.inc'
-    Write-TestFile $syncPrefs "[Variables]`nColumns=1`nPanelHeight=162`nMediaInterval=1000`nQueueExpanded=0`nQueueRowLimit=5`nQueueShowDetails=1`nQueuePollSeconds=30`nScale=1`nColumnWidth=200`nUnrelatedSentinel=preserve-me`n"
+    Write-TestFile $syncPrefs "[Variables]`nColumns=1`nPanelHeight=162`nMediaInterval=1000`nQueueExpanded=0`nQueueRowLimit=5`nQueueShowDetails=1`nQueuePollSeconds=30`nScale=1`nColumnWidth=200`nVisualizerPlacement=1`nUnrelatedSentinel=preserve-me`n"
     $syncCache=Join-Path $syncRoot 'synthetic.snapshot'
     $syncNow=[DateTimeOffset]::UtcNow.ToUnixTimeSeconds()
     $syncSnapshot="PARALLAX_QUEUE_V2`nstate=ready`nobserved=$syncNow`nvalid_until=$($syncNow+120)`nretry_not_before=0`ncount=5`n"

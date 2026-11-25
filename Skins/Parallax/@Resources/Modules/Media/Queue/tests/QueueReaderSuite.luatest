@@ -1226,7 +1226,10 @@ function Suite.run(sourcePath, scratchPath, optionsSourcePath)
         local data = '[Variables]\nQueueExpanded=1\nQueueRowLimit=3\nUntouched=keep\n'
         local writes, refreshes, denied, writeFails = 0, 0, false, false
         local skin = {}
-        function skin:GetVariable(name) equal(name, '@'); return 'SYNTHETIC\\' end
+        function skin:GetVariable(name, default)
+            if name == '@' then return 'SYNTHETIC\\' end
+            equal(name, 'MediaVisualizerHost'); return default
+        end
         function skin:Bang(bang, ...)
             local args = {...}
             if bang == '!WriteKeyValue' then
@@ -1371,11 +1374,14 @@ function Suite.run(sourcePath, scratchPath, optionsSourcePath)
     end)
     scenario('Rainmeter callbacks use injected I/O and return status strings', function()
         local state = fixture(snapshot({ count=1 }, {{'#Danger#[Measure]%', 'Details'}}))
-        local env = setmetatable({SKIN=state.env.skin, SELF={GetOption=function(_, name, default)
+        local env = setmetatable({SKIN=state.env.skin, SELF={GetNumberOption=function(_, name, default)
+            if name == 'QueueExpanded' then equal(default, 1); return default end
+            equal(name, 'SpectrumTab'); return default
+        end, GetOption=function(_, name, default)
             if name == 'QueueCachePath' then
                 equal(default, ''); return 'SYNTHETIC\\queue.snapshot'
             end
-            if name == 'QueueExpanded' then equal(default, '1'); return default end
+            if name == 'QueueView' then return default end
             equal(name, 'QueueInline'); equal(default, '0'); return default
         end}, io={open=state.env.open}, os={time=state.env.now, getenv=forbidden_os}}, {__index=_G})
         local runtime = assert(loadfile(sourcePath))
@@ -1390,9 +1396,12 @@ function Suite.run(sourcePath, scratchPath, optionsSourcePath)
         local state = fixture(snapshot({count=5}, {{'One','A'}, {'Two','B'}, {'Three','C'}, {'Four','D'}, {'Five','E'}}),
             {variables={QueueRowLimit='2', QueueShowDetails='0'}})
         local expanded = '0'
-        local env = setmetatable({SKIN=state.env.skin, SELF={GetOption=function(_, name, default)
+        local env = setmetatable({SKIN=state.env.skin, SELF={GetNumberOption=function(_, name, default)
+            if name == 'QueueExpanded' then equal(default, 1); return tonumber(expanded) end
+            equal(name, 'SpectrumTab'); return default
+        end, GetOption=function(_, name, default)
             if name == 'QueueCachePath' then return 'SYNTHETIC\\queue.snapshot' end
-            if name == 'QueueExpanded' then equal(default, '1'); return expanded end
+            if name == 'QueueView' then return default end
             equal(name, 'QueueInline'); equal(default, '0'); return default
         end}, io={open=state.env.open}, os={time=state.env.now, getenv=forbidden_os}}, {__index=_G})
         local runtime = assert(loadfile(sourcePath))
@@ -1410,9 +1419,12 @@ function Suite.run(sourcePath, scratchPath, optionsSourcePath)
     end)
     scenario('Rainmeter callback reads the explicit inline measure option', function()
         local state = fixture(snapshot({count=1}, {{'Inline','Details'}}), {inline=true})
-        local env = setmetatable({SKIN=state.env.skin, SELF={GetOption=function(_, name, default)
+        local env = setmetatable({SKIN=state.env.skin, SELF={GetNumberOption=function(_, name, default)
+            if name == 'QueueExpanded' then equal(default, 1); return 1 end
+            equal(name, 'SpectrumTab'); return default
+        end, GetOption=function(_, name, default)
             if name == 'QueueCachePath' then return 'SYNTHETIC\\queue.snapshot' end
-            if name == 'QueueExpanded' then equal(default, '1'); return '1' end
+            if name == 'QueueView' then return default end
             equal(name, 'QueueInline'); equal(default, '0'); return '1'
         end}, io={open=state.env.open}, os={time=state.env.now, getenv=forbidden_os}}, {__index=_G})
         local runtime = assert(loadfile(sourcePath))

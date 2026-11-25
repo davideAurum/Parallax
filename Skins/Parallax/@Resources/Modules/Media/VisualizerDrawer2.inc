@@ -142,6 +142,11 @@ FontColor=#MutedColor#
 Text=#MediaVisualizerAxisHighText#
 UpdateDivider=-1
 
+; What differs between the two places (User\Media.inc VisualizerPlacement):
+; the volume's role and, in the bottom drawer, the tab strip.
+[MediaVisualizerPlacementInclude]
+@Include23=#@#Modules\Media\VisualizerPlacement#VisualizerPlacement#.inc
+
 ; Last section of this file, so Rainmeter appends the variant's sections here
 ; and, in the live variant, the measured bars paint over the plot frame.
 [MediaVisualizerCaptureInclude]

@@ -16,7 +16,7 @@ Rainmeter is not DPI aware, so Windows scaling divides the screen first: a 1920 
 | --- | --- | --- | --- | --- |
 | CPU settings | 1064 | 1064 | Scrolls | Scrolls |
 | Global Settings | 1005 | 1005 | Scrolls | Scrolls |
-| Media settings | 822 | 906, queue expanded | **Not fixed.** Nothing lost as shipped (6 px of margin); with the queue expanded, Open queue, Player setup and Help | **Not fixed.** The queue's Start, Stop and Restart, the Connections link, Open queue, Player setup and Help; with the queue expanded, Source detection's Start and Stop too |
+| Media settings | 850 | 934, queue expanded | **Not fixed.** 34 px over as shipped since the Spectrum position row added 28 (heights computed; lost rows not re-measured since). Before it, with the queue expanded, Open queue, Player setup and Help | **Not fixed.** The queue's Start, Stop and Restart, the Connections link, Open queue, Player setup and Help; with the queue expanded, Source detection's Start and Stop too |
 | Chronometer settings | 544 | 760, timers shown | Fits | Fits as shipped; scrolls with the timers |
 | GPU settings | 712 | 712 | Fits | Scrolls |
 | Network settings | 606 | 606 | Fits | Fits |

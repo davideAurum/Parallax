@@ -5,10 +5,12 @@
 local settingsPath, values, status, restartPending, layoutExpanded
 local editingRequest, settingsRevision, providerLaunched
 local defaults = { Columns = '1', QueueExpanded = '0', QueueRowLimit = '5', QueueShowDetails = '1', QueuePollSeconds = '30',
-    VisualizerDrawer = '1', MediaTitleAnimation = '20', QueueRowSize = '1', MediaAlbumColors = '1', MediaAlbumTint = '10' }
+    VisualizerDrawer = '1', VisualizerPlacement = '0', MediaTitleAnimation = '20', QueueRowSize = '1', MediaAlbumColors = '1', MediaAlbumTint = '10' }
 local allowed = {
     QueueExpanded = { '0', '1' }, QueueShowDetails = { '0', '1' },
     VisualizerDrawer = { '0', '1', '2' },
+    -- The spectrum: a bottom drawer tab (0) or a slider above the player (1).
+    VisualizerPlacement = { '0', '1' },
     -- Title icon frames per second while playing; 0 is a static icon.
     MediaTitleAnimation = { '0', '10', '20' },
     -- Queue rows: Normal (1, song above artist) or Compact (0, one line).
@@ -17,11 +19,12 @@ local allowed = {
     MediaAlbumColors = { '0', '1' }
 }
 local drawerNames = { ['0'] = 'Hidden', ['1'] = 'Collapsed', ['2'] = 'Expanded' }
+local placementNames = { ['0'] = 'Bottom', ['1'] = 'Top' }
 local animationNames = { ['0'] = 'Off', ['10'] = '10 fps', ['20'] = '20 fps' }
 local rowSizeNames = { ['1'] = 'Normal', ['0'] = 'Compact' }
 local onOffNames = { ['0'] = 'Off', ['1'] = 'On' }
 -- Wrapping previous/value/next choices (UTILITY-SETTINGS.md).
-local choiceKeys = { VisualizerDrawer = true, MediaTitleAnimation = true, QueueRowSize = true, MediaAlbumColors = true }
+local choiceKeys = { VisualizerDrawer = true, VisualizerPlacement = true, MediaTitleAnimation = true, QueueRowSize = true, MediaAlbumColors = true }
 local numberFields = {
     Columns = { minimum = 1, maximum = 2, meter = 'MeterWidthFrame' },
     QueueRowLimit = { minimum = 1, maximum = 5, meter = 'MeterQueueRowsFrame' },
@@ -114,6 +117,8 @@ local function current(key)
         local number = tonumber(value)
         return (number == 1 or number == 2) and '1' or '0'
     end
+    -- Only a number equal to 1 puts the spectrum above the player.
+    if key == 'VisualizerPlacement' then return tonumber(value) == 1 and '1' or '0' end
     -- Show what Media animates (InlineQueueGeometry.inc MediaTitleFrameTicks):
     -- a number equal to 0 is off, equal to 10 is 10 fps, any other is 20 fps.
     -- Text that is no number fails Media's formulas and MediaPulse.lua then
@@ -141,7 +146,7 @@ local function renderLayout()
     if layoutExpanded == expanded then return end
     layoutExpanded = expanded
     local collapsedHeight = (1 - expanded) * 84
-    local settingsHeight = 898 - collapsedHeight
+    local settingsHeight = 926 - collapsedHeight
     -- Rainmeter expands nested variable references at load, so rebuild both
     -- physical heights instead of retaining the initial collapsed expression.
     local heightPx = SKIN:ParseFormula(SKIN:ReplaceVariables('(Round(' .. settingsHeight .. '*#Scale#))'))
@@ -150,7 +155,7 @@ local function renderLayout()
     SKIN:Bang('!SetVariable', 'MediaSettingsQueueCollapsedHeight', collapsedHeight)
     SKIN:Bang('!SetVariable', 'SettingsPanelHeight', settingsHeight)
     -- The shared Spectrum steppers sit below the queue rows.
-    SKIN:Bang('!SetVariable', 'VisualizerSettingsTop', 284 - collapsedHeight)
+    SKIN:Bang('!SetVariable', 'VisualizerSettingsTop', 312 - collapsedHeight)
     SKIN:Bang('!SetVariable', 'PanelHeightPx', heightPx)
     SKIN:Bang('!SetVariable', 'WindowHeight', heightPx + gap)
 end
@@ -159,6 +164,7 @@ function Render()
     renderLayout()
     option('MeterWidthValue', current('Columns'))
     option('MeterVisualizerDrawerValue', drawerNames[current('VisualizerDrawer')])
+    option('MeterVisualizerPlacementValue', placementNames[current('VisualizerPlacement')])
     option('MeterTitleAnimationValue', animationNames[current('MediaTitleAnimation')])
     option('MeterAlbumColorsValue', onOffNames[current('MediaAlbumColors')])
     option('MeterAlbumTintValue', current('MediaAlbumTint'))
@@ -216,6 +222,17 @@ local function save(key, value)
         return false
     end
     values = after
+    -- In the bottom drawer the queue and the spectrum take turns, so opening
+    -- one here closes the other, as the drawer's own tabs do.
+    local drawerMoved = key == 'VisualizerDrawer' or key == 'VisualizerPlacement'
+    if current('VisualizerPlacement') == '0' and current('VisualizerDrawer') == '2' then
+        local other, closed = 'QueueExpanded', '0'
+        if key == 'QueueExpanded' then other, closed, drawerMoved = 'VisualizerDrawer', '1', value == '1' end
+        if (key ~= 'QueueExpanded' or value == '1') and current(other) ~= closed then
+            SKIN:Bang('!WriteKeyValue', 'Variables', other, closed, settingsPath)
+            values = readValues() or values
+        end
+    end
     if key == 'QueuePollSeconds' then restartPending = true end
     status = restartPending and 'Use Restart to apply interval.' or 'Saved.'
     Render()
@@ -223,7 +240,7 @@ local function save(key, value)
     -- closing this settings menu. Unloaded target configs remain unloaded.
     -- The drawer state also moves Media's anchor, which Media itself places
     -- before it reloads, so the panel keeps its screen position.
-    if key == 'VisualizerDrawer' then
+    if drawerMoved then
         SKIN:Bang('!CommandMeasure', 'MeasureMediaOptions', 'ApplyVisualizerPreference()', 'Parallax\\Media')
     else
         SKIN:Bang('!Refresh', 'Parallax\\Media')

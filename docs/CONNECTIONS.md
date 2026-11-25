@@ -45,7 +45,7 @@ Sign in and Disconnect were in Media settings until 2026-11-25; Start, Stop and 
 | Spotify detection | `On` while its status is live; `Not running` when it is meant to run but is not; `Unavailable`; `Off` (stopped or never started). |
 | WebNowPlaying | `Plugin installed` or `Plugin missing`. Whether a player is connected is Media's to show. |
 | HWiNFO | `Running`, `Open Sensors` (running, but nothing is exported, which a closed Sensors window causes) or `Not running`. A frozen export is not detected here; CPU Meter detects it after a minute. |
-| Update check | `Daily, GitHub`, `Off` or `Custom`. The developer copy reads `Off`, which is its own setting. |
+| Update check | `Daily, GitHub`, `Off` or `Custom`, as saved in Global Settings; a change there reloads this panel. The developer copy is made with its own check off and reads `Off in this copy` (2026-11-25; it read `Off`, which looked like a contradiction beside the release's Global Settings). |
 
 ## Data boundary
 
@@ -55,7 +55,7 @@ Sign in and Disconnect were in Media settings until 2026-11-25; Start, Stop and 
 
 2026-11-25, Surface laptop, Rainmeter 4.5.28.3936.
 
-- `Modules/Connections/tests/Test-Connections.ps1` (isolated Rainmeter, synthetic `LOCALAPPDATA`): 173 mocked assertions covering every helper state, unusable files, sign-in in progress and abandoned, the two-click Disconnect and its failures, the interval, and the allowlists of files, bangs and launches; the real panel against synthetic status files; and the width of every text it can show, at width 220 / 9 pt and width 180 / 10 pt, the latter also at 75%. The fullest text uses 79%, 88% and 89% of its space. No log errors or warnings.
+- `Modules/Connections/tests/Test-Connections.ps1` (isolated Rainmeter, synthetic `LOCALAPPDATA`): 176 mocked assertions covering every helper state, unusable files, sign-in in progress and abandoned, the two-click Disconnect and its failures, the interval, and the allowlists of files, bangs and launches; the real panel against synthetic status files, and a changed Auto check shown after the suite refresh Global Settings makes; and the width of every text it can show, at width 220 / 9 pt and width 180 / 10 pt, the latter also at 75%. The fullest text uses 79%, 88% and 89% of its space. No log errors or warnings.
 - In the developer copy on the live desktop: the panel showed the real state (`Signed in`, queue, playback control and playlists; detection on; plugin installed; HWiNFO running), and one Disconnect click asked and lapsed after 8 s with the sign-in still saved.
 - Media's and Global Settings' affected checks are in [Media.md](modules/Media.md#connections-panel-2026-11-25) and [SETTINGS.md](SETTINGS.md#connections).
 

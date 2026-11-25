@@ -174,7 +174,11 @@ end
 local function updates()
     local value = SKIN:GetVariable('UpdateCheck', '1')
     if value == '1' then return { 'Daily, GitHub', 'good' } end
-    return value == '0' and { 'Off', 'muted' } or { 'Custom', 'muted' }
+    if value ~= '0' then return { 'Custom', 'muted' } end
+    -- The developer copy is made with its own check off; the release beside it
+    -- keeps its own setting, so name whose this is.
+    local copy = SKIN:GetVariable('ParallaxDevBuild', '0') == '1'
+    return { copy and 'Off in this copy' or 'Off', 'muted' }
 end
 
 local function put(meter, key, value)

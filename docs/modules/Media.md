@@ -73,7 +73,7 @@ user-selected Lucide metadata and playback icons are attributed below.
 | Spotify source identification — optional | Bundled `SourceProvider.ps1` and the shared `ProviderOwner.psm1` owner lease, Rainmeter's bundled RunCommand plugin, Windows PowerShell 5.1, built-in .NET and Windows media-session APIs. No Spotify authentication or network request. | Explicit Start uses a dormant `State=Hide` RunCommand control and enables one persistent observer targeting a 2-second collection cadence, with load-time recovery through `MediaLifecycle.lua`/`Lifecycle.inc`. Stop uses the same hidden event-only path. Between collections the observer waits on its owner Rainmeter and a stop event, not a poll, and rewrites its snapshot every cycle while Spotify plays and otherwise only on change, plus a heartbeat about every 4 seconds. Observations expire after 6 seconds. Inconclusive evidence leaves generic Windows playback identified as `Unknown`, and `detection off` while the observer was [never started](#never-started-helpers). |
 | Idle pause — optional, bundled suite component | The hidden `Parallax\Idle` input-idle coordinator (built-in SysInfo `IDLE_TIME`) through `@Resources/Idle/Hook.inc` and `StandDown.lua`; `Modules/Media/CaptureState.inc` (`MediaStandby`) written only by `MediaOptions.lua`. | Only while Global Settings **Idle pause** is 5, 10 or 30 minutes (default Off). Media.ini reloads once into standby (provider cadence, drawer parked) and freezes; input reloads it once back. Setup and Queue freeze in place. Off loads a comment-only include; a standby state saved while the pause is Off is cleared at the next Media.ini load. No coordinator sync 10 s after a standby load, or no beat for 3 minutes, returns to live. See [Idle pause](#idle-pause). |
 | Update check — optional, bundled suite component | Automatic update check: Rainmeter's built-in WebParser and the bundled `@Resources/Update/Hook1.inc` (`Update.lua`, `Feed.inc`, `State.inc`, `Version.inc`). | Optional bundled suite component, on by default: Global Settings **Updates** > **Auto check** Daily (`UpdateCheck=1`). Off loads the comment-only `Hook0.inc`. About once a day, one request for the release feed on github.com, made by whichever loaded utility finds the check due (60 s after a load, then an hourly `[!Delay]` look); a newer release opens the `Parallax\Update` prompt. No meter, process or plugin; offline and failed checks are recorded quietly and retried after an hour. See [Updates](../UPDATES.md). |
-| Spotify queue — optional | Bundled `QueueProvider.ps1`, `QueueCore.psm1`, `QueueAuth.psm1` and the shared `ProviderOwner.psm1` owner lease; Rainmeter's bundled RunCommand plugin; Windows PowerShell 5.1/.NET; network access; Spotify Developer app public Client ID and user-authorized PKCE sign-in. The [queue setup guide](../../Skins/Parallax/@Resources/Modules/Media/Queue/README.md) records Development Mode prerequisites, including owner Premium and user allowlisting. No client secret. | Start, Stop, Restart and Disconnect use dormant `State=Hide` RunCommand controls with a fixed allowlist and do not overlap. One opt-in worker requests every 30 seconds by default, configurable to 30–150 seconds, subject to backoff/quota pauses. Sign in deliberately retains a visible setup console/browser flow. Passive views read local snapshots on their update. Missing, stopped, expired or failed data produces explicit status and suppresses rows. Since 2026-10-27, clicking a row or **Refresh** runs one short hidden `QueueProvider.ps1 -Command Play`/`Refresh` on a dormant `State=Hide` RunCommand host (`Queue/QueueControlHost.inc` in Media.ini; Queue.ini's existing host); it only hands a request file to the running worker and exits. Skipping needs the optional `user-modify-playback-state` permission, now requested at sign-in; a grant without it keeps reading the queue but rows are not clickable until you sign in again. Spotify's skip endpoint acts on the account's active device and needs Premium. Since 2026-11-19 each read also fetches the shown items' covers (Spotify's smallest image, 64 px for albums) once from Spotify's image CDN only (`*.scdn.co`, `*.spotifycdn.com`), over HTTPS, without the token, at most 256 KB and 5 s each, into `covers\` beside the snapshot (current-user ACL, pruned to 60 files, deleted on Disconnect); a failed URL waits 5 minutes. Since 2026-11-24 the snapshot (`PARALLAX_QUEUE_V5`) also names the track its rows come after, and the drawer [follows the player](#queue-follows-the-player-2026-11-24): a track change asks the running worker for one extra read (at most three), by a request file the reader writes itself, with no process. |
+| Spotify queue — optional | Bundled `QueueProvider.ps1`, `QueueCore.psm1`, `QueueAuth.psm1` and the shared `ProviderOwner.psm1` owner lease; Rainmeter's bundled RunCommand plugin; Windows PowerShell 5.1/.NET; network access; Spotify Developer app public Client ID and user-authorized PKCE sign-in. The [queue setup guide](../../Skins/Parallax/@Resources/Modules/Media/Queue/README.md) records Development Mode prerequisites, including owner Premium and user allowlisting. No client secret. | Start, Stop, Restart and Disconnect use dormant `State=Hide` RunCommand controls with a fixed allowlist and do not overlap. One opt-in worker requests every 30 seconds by default, configurable to 30–150 seconds, subject to backoff/quota pauses. Sign in deliberately retains a visible setup console/browser flow. Passive views read local snapshots on their update. Missing, stopped, expired or failed data produces explicit status and suppresses rows. Since 2026-10-27, clicking a row or **Refresh** runs one short hidden `QueueProvider.ps1 -Command Play`/`Refresh` on a dormant `State=Hide` RunCommand host (`Queue/QueueControlHost.inc` in Media.ini; Queue.ini's existing host); it only hands a request file to the running worker and exits. Since 2026-11-24 a row click writes that file itself and the process is only its fallback. Playing a row needs the optional `user-modify-playback-state` permission, now requested at sign-in; a grant without it keeps reading the queue but rows are not clickable until you sign in again. Spotify's skip and start endpoints act on the account's active device and need Premium. A click on a later row also reads what is playing and, once per album or playlist, its song addresses, kept in memory only. Since 2026-11-19 each read also fetches the shown items' covers (Spotify's smallest image, 64 px for albums) once from Spotify's image CDN only (`*.scdn.co`, `*.spotifycdn.com`), over HTTPS, without the token, at most 256 KB and 5 s each, into `covers\` beside the snapshot (current-user ACL, pruned to 120 files, deleted on Disconnect); a failed URL waits 5 minutes. Since 2026-11-24 the snapshot (`PARALLAX_QUEUE_V5`) also names the track its rows come after, and the drawer [follows the player](#queue-follows-the-player-2026-11-24): a track change asks the running worker for one extra read (at most three), by a request file the reader writes itself, with no process. The [Playlists view](#playlists-view-2026-11-24) needs a sign-in that includes `playlist-read-private` (and `playlist-read-collaborative` for collaborative ones); without it the view says **Sign in again** and the queue is unaffected. It reads the list only when opened or refreshed. |
 
 Both provider helpers require an explicit initial Start (or successful queue sign-in).
 They save private enabled intent and can resume once when their Media view loads
@@ -1293,24 +1293,43 @@ seconds. The account's Spotify queue may differ from WNP's player.
 
 ### Row clicks and Refresh (2026-10-27)
 
-Clicking a queue row skips Spotify to that item; **Refresh** reads the queue
-now. Spotify's Web API has no "play queue item N", remove or reorder call for
-the queue, so a click skips forward N times (`POST /me/player/next`) and the
-items before it are skipped past (so they leave the queue). Remove and reorder are not possible.
+Clicking a queue row plays it; **Refresh** reads the queue now. Spotify's Web
+API has no "play queue item N", remove or reorder call for the queue.
 
-- **Path.** The row's click calls `QueueReader.lua PlayRow(n)`, which hands the
+- **How a row is played (2026-11-24).** Row 1 is one skip
+  (`POST /me/player/next`). A later row that belongs to the album or playlist now
+  playing is played directly (`PUT /me/player/play` with that context and the
+  song as its offset): the songs in between are not started, and stay in the
+  queue. Any other row is reached by skipping that many times, as before, and the
+  songs in between leave the queue: a song queued by hand from elsewhere, an
+  artist page, Liked Songs, a playlist whose songs Spotify does not share, one
+  past 1,000 songs (500 for an album), or a refused start. A start with no clear
+  answer is reported as `Skip failed`, never followed by skips.
+- **Only for a song known to be in the context.** The worker reads the context's
+  song addresses (about 3 KB per 50 songs) at the first such click and keeps them
+  in memory for half an hour or until the context changes. Tried live on
+  2026-11-24 with shuffle on: a song of the playing playlist kept the order of
+  everything else and both songs queued by hand, while a song from outside it was
+  played but reshuffled the queue and dropped the songs queued by hand.
+- **The click is a song, not a place.** The worker keeps its last six snapshots,
+  takes the clicked row from the one the click names, reads the queue again and
+  looks that song up in it (by address, else by title and artist; its old place
+  wins between two alike). A queue that moved on still plays what was clicked, and
+  a song of the playing context is started even if the queue no longer lists it.
+  After a direct start it waits until Spotify names the song (at most five reads,
+  0.4 s apart) before reading the queue.
+- **Path.** The row's click calls `QueueReader.lua PlayRow(n)`, which writes the
   row number and the shown snapshot's `observed` time (integers only) to
-  `QueueControl.lua Play`. That runs one hidden `QueueProvider.ps1 -Command Play
-  -Position n -Observed t` on the dormant RunCommand host. The control process
-  touches no tokens or network. It writes `action.request` into the private data
-  root only while a worker holds its run mutex, then exits. The worker checks
-  for a request on each of its 1-second waits, so a click acts within about a
-  second plus PowerShell's start-up.
-- **Checks before skipping.** The worker acts only if the request names the
-  snapshot it last published and that snapshot was a successful read. It then
-  reads the queue again and skips only if every row up to the clicked one still
-  has the same title and detail. It skips N times, 250 ms apart, waits 500 ms
-  and reads the queue at once. A request older than 15 seconds, malformed, or
+  `action.request` beside the snapshot. The worker checks for a request on each
+  of its 1-second waits. If the file cannot be written, `QueueControl.lua Play`
+  runs the older path: one hidden `QueueProvider.ps1 -Command Play -Position n
+  -Observed t` on the dormant RunCommand host, which writes the same file only
+  while a worker holds its run mutex. That process took about 3 s to start here.
+- **While it starts.** The clicked row reads `Starting`, nothing else is clickable,
+  and the rows hold still until the worker's next read, or for 12 s.
+- **Checks before acting.** The worker acts only if the request names one of its
+  last six snapshots, all successful reads, and the last read succeeded. Skips are
+  250 ms apart, then it waits 500 ms. Either way it reads the queue at once. A request older than 15 seconds, malformed, or
   left from before the worker started is discarded.
 - **Outcomes.** One snapshot carries a notice in place of "Next N": `Queue
   changed`, `No active device` (404), `Control denied` (403, e.g. not
@@ -1333,11 +1352,59 @@ items before it are skipped past (so they leave the queue). Remove and reorder a
   an empty notice. Since 2026-11-19 the helper writes `PARALLAX_QUEUE_V4`, which
   adds `image1`..`image5` (each row's cover file name, or empty), and since
   2026-11-24 `PARALLAX_QUEUE_V5`, which adds `current_title` and
-  `current_detail`; the reader accepts V2 to V5. Refresh is now a Lucide `refresh-cw` icon, and a V3+
+  `current_detail` and holds exactly `count` rows, up to 20, instead of five; the
+  reader accepts V2 to V5. Refresh is now a Lucide `refresh-cw` icon, and a V3+
   snapshot whose grant lacks playback control puts **Sign in again** in the
   header (see [Queue covers and album colors](#queue-covers-and-album-colors-2026-11-19)).
-- **Not verified live.** No real Spotify skip, device, or a Premium versus Free
-  account has been exercised; all checks are synthetic.
+- **Verified live (2026-11-24).** Two row clicks through the developer copy, each
+  a direct jump in a shuffled playlist. Not verified live: a click that falls
+  back to skips, a song queued by hand that is also in the playlist (it would
+  play at once and stay queued), an album, another device, and a Premium versus
+  Free account.
+
+### Scrolling queue (2026-11-24)
+
+User request. Spotify's queue call names up to 20 songs; the snapshot now holds
+them all and Media.ini's drawer scrolls them, one row per wheel notch, in the same
+`QueueRowLimit` rows, with a note such as `8–12 of 20`. After a skip the rows refill
+at once from songs already there. A click names the row in the whole queue. The
+scroll goes back to the top when a click's song starts or the view changes. Setup
+and the standalone Queue show the first rows as before. A read fetches the covers of
+the first five rows before the rows are published, and names those already saved;
+the worker fetches the rest three at a time afterwards. Measured on the Surface
+laptop: 2.6 KB per snapshot, 0.19 ms per reader update (unchanged data is not parsed
+again; 1.2 ms when it is).
+
+### Playlists view (2026-11-24)
+
+User request: choose a different playlist from the player. The queue drawer has a
+second view; `QueueReader.lua` draws it in the same five rows.
+
+- **Switch.** Double width: **Queue** and **Playlists** tabs in the header, the
+  shown one in `TextColor`, and a note such as `3–7 of 24` at the right. Compact:
+  the header sits behind the transport buttons, so only the view's name shows at
+  the left and a click on it changes the view. A click's outcome and `Sign in again`
+  show at the right (compact: in place of the label, which still changes the view);
+  an outcome goes after 8 s. They never hide the switch. The meters are in `Queue\QueueControlHost.inc`, so Setup (which
+  keeps `Song / Artist`) and the standalone Queue have no such view.
+- **Rows.** Cover, name, and song count (or the owner, where Spotify gives no
+  count); the playing one reads `Playing, 129 songs`. The wheel over the rows pages
+  by one. A click starts that playlist: its row reads `Starting`, nothing else is
+  clickable, and the view goes to the queue when the helper has marked the playlist
+  as playing and read its queue. One that does not start stays in the list, with the
+  reason in the header. Rows are clickable only with playback control.
+- **List.** The view asks the running helper by the same request file (`playlists`;
+  a click is `open`), at most three times, 6 s apart, when it opens without a list
+  under ten minutes old, when Refresh is clicked, or after a helper restart. While
+  waiting it says `Loading playlists`; otherwise `Sign in again to list playlists`,
+  `Playlists unavailable` or `No playlists`. Limits: the first 50, no Liked Songs.
+- **Empty queue.** The view opens instead of the drawer collapsing, unless the
+  sign-in cannot list playlists.
+- The helper's side, its snapshot and its limits are in the
+  [queue guide](../../Skins/Parallax/@Resources/Modules/Media/Queue/README.md#playlists).
+
+The roadmap froze features on 2026-10-28; this and the direct row click are
+exceptions the user asked for.
 
 ### Queue follows the player (2026-11-24)
 
@@ -1389,6 +1456,43 @@ Sources: [quota modes](https://developer.spotify.com/documentation/web-api/conce
 
 ## Validation report
 
+### Direct row clicks and the Playlists view (2026-11-24)
+
+Behavior: [How a row is played](#row-clicks-and-refresh-2026-10-27),
+[Playlists view](#playlists-view-2026-11-24). On the Surface laptop:
+
+- Live, with the user's own sign-in: two row clicks through the developer copy
+  (5.6 s, then about 4 s once a click wrote its own request), and the queue before
+  and after a direct start with shuffle on, with and without hand-queued songs, and
+  for a song outside the playlist.
+- `Test-QueueCore.ps1` 203, `Test-QueueAuth.ps1` unchanged, `Test-QueueProvider.ps1`
+  491 (2 s timing tolerances widened in a scratch copy, as before),
+  `Test-QueueReader.ps1` with a Playlists scenario, `Test-QueueView.ps1` 20 layouts,
+  `test_skin_contract.py` 35, `Test-MediaSettings.ps1 -QueueTogglePlayersOnly` and
+  `-QueueToggleNarrowPlayerOnly`.
+- An isolated Rainmeter on synthetic data drew the view at both widths, paged it and
+  wrote the expected request for a click (eye-checked captures).
+
+- Live, after the user renewed the sign-in from the developer copy's settings: the
+  view listed the account's 21 playlists 2.6 s after it opened, all with song counts
+  and covers, with the playing one marked. With the older sign-in it said `Sign in
+  again to list playlists` and the queue was unaffected. The user first reported the
+  sign-in as failed; the attempt seen here finished in 7 s, and what an earlier one
+  met is not known.
+
+- First live use found two faults, both fixed the same day. After a playlist click
+  the drawer went to the queue at once and still showed the old queue's rows, so a
+  click on one was refused as `Queue changed` while the new playlist played its own
+  first song; and that notice took the whole header, hiding the tabs for 30 s. Two
+  scripted runs of the same steps afterwards (playlist, then a song of its queue):
+  the new queue after 3.8 and 4.0 s, the clicked song playing after 3.0 and 2.5 s,
+  tabs shown throughout.
+- After that fix and the scrolling queue: `Test-QueueCore.ps1` 216,
+  `Test-QueueProvider.ps1` 551 (tolerances widened), `Test-QueueReader.ps1`.
+
+Not verified: the wheel by hand, a click that falls back to skips, more than 50
+playlists, Spotify's own mixes, other devices, and Free accounts.
+
 ### Queue follows the player, and the queue heading (2026-11-24)
 
 Behavior: [Queue follows the player](#queue-follows-the-player-2026-11-24). The
@@ -1427,8 +1531,10 @@ Checked on the Surface laptop:
 A snapshot the older reader cannot parse: while a helper from this version runs,
 alpha.14's queue drawer is blank. Restart in alpha.14's Media settings undoes it.
 
-Not checked: **Next**, **Previous** and row clicks (they change playback),
-Spotify on another device, podcasts, and a Premium versus Free account.
+Not checked then: **Next**, **Previous** and row clicks (they change playback),
+Spotify on another device, podcasts, and a Premium versus Free account. Row
+clicks were tried later that day ([How a row is
+played](#row-clicks-and-refresh-2026-10-27)).
 
 ### Fresh machine: helpers never started (2026-11-24)
 

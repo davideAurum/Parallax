@@ -26,7 +26,7 @@ function Run(action, position, observed)
     local spec = actions[action]
     -- Play carries the clicked row and its snapshot's observed time, as plain
     -- integers only, so nothing from the queue text reaches the command line.
-    if action == 'Play' and (type(position) ~= 'number' or position ~= math.floor(position) or position < 1 or position > 5
+    if action == 'Play' and (type(position) ~= 'number' or position ~= math.floor(position) or position < 1 or position > 20
         or type(observed) ~= 'number' or observed ~= math.floor(observed) or observed < 1 or observed > 253402300000) then return false end
     local measure = spec and SKIN:GetMeasure(control) or nil
     if not measure then return false end

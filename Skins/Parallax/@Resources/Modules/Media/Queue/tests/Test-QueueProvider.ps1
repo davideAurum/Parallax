@@ -23,7 +23,9 @@ $script:tokenFailure = ''
 $script:tokenWait = 0L
 $script:stopOnResponse = ''
 $script:tokenControl = $true
+$script:tokenPlaylists = $true
 $script:endpoints = [Collections.Generic.List[string]]::new()
+$script:requests = [Collections.Generic.List[string]]::new()
 $script:verifyWorkerLocks = $false
 $script:imageReplies = @{}
 $script:imageRequests = [Collections.Generic.List[string]]::new()
@@ -32,7 +34,7 @@ function Reset-Transport {
     param([object[]]$Replies = @())
     $script:responses = $Replies; $script:apiCalls=0; $script:tokenCalls=0; $script:refreshCalls=0
     $script:tokenFailure=''; $script:tokenWait=0L; $script:stopOnResponse=''
-    $script:tokenControl=$true; $script:endpoints=[Collections.Generic.List[string]]::new()
+    $script:tokenControl=$true; $script:tokenPlaylists=$true; $script:endpoints=[Collections.Generic.List[string]]::new(); $script:requests=[Collections.Generic.List[string]]::new()
     $script:imageReplies=@{}; $script:imageRequests=[Collections.Generic.List[string]]::new(); $script:stopOnImage=''
     $script:CoverRetryAt=@{}
 }
@@ -49,12 +51,13 @@ function Get-QueueAccessToken {
         $errorRecord.Data['RetryAfterSeconds']=$script:tokenWait
         throw $errorRecord
     }
-    if ($WithControl) { return [pscustomobject]@{ Token='SYNTHETIC_ACCESS_NOT_A_REAL_CREDENTIAL'; Control=$script:tokenControl } }
+    if ($WithControl) { return [pscustomobject]@{ Token='SYNTHETIC_ACCESS_NOT_A_REAL_CREDENTIAL'; Control=$script:tokenControl; Playlists=$script:tokenPlaylists } }
     return 'SYNTHETIC_ACCESS_NOT_A_REAL_CREDENTIAL'
 }
 function Invoke-QueueApiRequest {
-    param([string]$AccessToken,[string]$Endpoint='Queue')
+    param([string]$AccessToken,[string]$Endpoint='Queue',[string]$ContextUri='',[string]$ItemUri='',[int]$Offset=0)
     $script:endpoints.Add($Endpoint)
+    $script:requests.Add((@($Endpoint,$ContextUri,$ItemUri,$Offset) -join '|'))
     Assert-Check ($AccessToken -ceq 'SYNTHETIC_ACCESS_NOT_A_REAL_CREDENTIAL') 'Unexpected synthetic token'
     if ($script:apiCalls -ge $script:responses.Count) { throw 'Unexpected synthetic request' }
     $response = $script:responses[$script:apiCalls]; $script:apiCalls++
@@ -127,7 +130,7 @@ $acl = [IO.Directory]::GetAccessControl($covers)
 $rules = @($acl.GetAccessRules($true, $true, [Security.Principal.SecurityIdentifier]))
 Assert-Check ($acl.AreAccessRulesProtected -and $rules.Count -eq 1 -and $rules[0].IdentityReference.Value -ceq [Security.Principal.WindowsIdentity]::GetCurrent().User.Value) 'The covers folder has the data root''s current-user-only ACL'
 $text = ConvertTo-QueueSnapshotText $cycle.Snapshot
-Assert-Check ($text.Contains("image1=$(Cover-Name 'a')`nimage2=$(Cover-Name 'b' 'png')`nimage3=`nimage4=`nimage5=`n")) 'The snapshot names the saved covers'
+Assert-Check (([regex]::Matches($text, '(?m)^image\d+=.*$') | ForEach-Object { $_.Value }) -join ' ' -ceq "image1=$(Cover-Name 'a') image2=$(Cover-Name 'b' 'png') image3=") 'The snapshot names the saved covers'
 
 # A saved cover is reused and marked recently used; a refused one waits.
 $aPath = Join-Path $covers (Cover-Name 'a')
@@ -166,7 +169,24 @@ Reset-Transport @(Reply 200 $offCdn)
 $cycle = Invoke-QueueCycle $root 30
 Assert-Check ($cycle.Success -and $script:imageRequests.Count -eq 0 -and $cycle.Snapshot.Items[0].Image -ceq '') 'Art off Spotify''s CDN is never requested'
 
-# Pruning keeps the 60 most recently used covers and every cover being published.
+# Pruning keeps the most recently used covers and every cover being published.
+# Covers past the first rows arrive after the rows are published.
+$laterRoot = Fresh-Root
+$names8 = @(1..8 | ForEach-Object { 'later' + $_ })
+Reset-Transport @(Reply 200 (Art-Queue $names8)); foreach ($n in $names8) { $script:imageReplies[(Art-Url $n)] = Cover }
+$cycle = Invoke-QueueCycle $laterRoot 30
+Assert-Check ($cycle.Snapshot.Items.Count -eq 8 -and $script:imageRequests.Count -eq 5 -and @($cycle.Snapshot.Items | Where-Object { $_.Image }).Count -eq 5) 'A read fetches the first five covers only'
+Publish-QueueSnapshot $laterRoot $cycle.Snapshot
+$at = Update-QueueRowCovers $laterRoot $cycle.Snapshot 5
+Assert-Check ($at -eq 8 -and $script:imageRequests.Count -eq 8 -and [regex]::Matches((Read-Snapshot $laterRoot), '(?m)^image\d+=.+$').Count -eq 8) 'The rest follow in batches, in the same snapshot'
+Reset-Transport @(Reply 200 (Art-Queue $names8))
+$cycle = Invoke-QueueCycle $laterRoot 30
+Assert-Check ($script:imageRequests.Count -eq 0 -and @($cycle.Snapshot.Items | Where-Object { $_.Image }).Count -eq 8) 'Saved covers are named at once, later rows included'
+Reset-Transport @()
+$null = Update-QueueRowCovers $laterRoot $cycle.Snapshot 5
+Assert-Check ($script:imageRequests.Count -eq 0) 'A batch with nothing missing does nothing'
+Assert-Check ($script:CoverLimit -eq 120) 'Room for the queue''s covers and fifty playlists'
+$script:CoverLimit = 60 # fewer files to write here; the rule is the same
 $pruneRoot = Fresh-Root
 $folder = Join-Path $pruneRoot 'covers'; $null = Initialize-QueuePrivateDirectory $folder
 $start = [DateTime]::UtcNow.AddDays(-10)
@@ -186,6 +206,7 @@ Reset-Transport @(Reply 200 (Art-Queue 'p','q')); $script:imageReplies[(Art-Url 
 $cycle = Invoke-QueueCycle $pruneRoot 30
 $left = @(Cover-Files $pruneRoot | Where-Object { $_ -cmatch '\A[0-9a-f]{40}\.jpg\z' })
 Assert-Check ($left.Count -eq 60 -and ($left -contains (Cover-Name 'p')) -and ($left -contains (Cover-Name 'q')) -and -not ($left -contains ($names[0] + '.jpg'))) 'Each read prunes to 60, keeping the covers it publishes'
+$script:CoverLimit = 120
 
 # The scheduler publishes only after the covers it names exist.
 $root = Fresh-Root
@@ -209,29 +230,170 @@ Assert-Check (-not (Invoke-QueueCycle $root 30).Snapshot.Control) 'A read-only g
 $last = $cycle.Snapshot
 $play = [pscustomobject]@{ Kind='play'; Position=2; Observed=$last.Observed; Created=0 }
 Reset-Transport @((Reply 200 $queueBody),(Reply 204 ''),(Reply 204 ''))
-$notice = Invoke-QueuePlay -Root $root -Action $play -Last $last -GapMilliseconds 0
+$notice = Invoke-QueuePlay -Root $root -Action $play -Recent @($last) -GapMilliseconds 0
 Assert-Check ($notice -ceq '' -and ($script:endpoints -join ',') -ceq 'Queue,Next,Next') 'Row 2 re-reads the queue, then skips exactly twice'
-$changed = '{"currently_playing":null,"queue":[' + (Synthetic-Track 'two') + ',' + (Synthetic-Track 'three') + ']}'
-Reset-Transport @(Reply 200 $changed)
-$notice = Invoke-QueuePlay -Root $root -Action $play -Last $last -GapMilliseconds 0
-Assert-Check ($notice -ceq 'queue_changed' -and ($script:endpoints -join ',') -ceq 'Queue') 'A queue that moved since the click never skips'
+# The click is a song, not a place: it is looked up in the queue as it is now.
+$moved = '{"currently_playing":null,"queue":[' + (Synthetic-Track 'two') + ',' + (Synthetic-Track 'three') + ']}'
+Reset-Transport @((Reply 200 $moved),(Reply 204 ''))
+$notice = Invoke-QueuePlay -Root $root -Action $play -Recent @($last) -GapMilliseconds 0
+Assert-Check ($notice -ceq '' -and ($script:endpoints -join ',') -ceq 'Queue,Next') 'A queue that moved up since still plays the clicked song'
+$queued = '{"currently_playing":null,"queue":[' + (@('new','one','other','two') | ForEach-Object { Synthetic-Track $_ }) + ']}'
+Reset-Transport @((Reply 200 ($queued.Replace('} {','},{'))),(Reply 204 ''),(Reply 204 ''),(Reply 204 ''),(Reply 204 ''))
+$notice = Invoke-QueuePlay -Root $root -Action $play -Recent @($last) -GapMilliseconds 0
+Assert-Check ($notice -ceq '' -and ($script:endpoints -join ',') -ceq 'Queue,Next,Next,Next,Next') 'and so does one it moved down in'
+$gone = '{"currently_playing":null,"queue":[' + (Synthetic-Track 'one') + ',' + (Synthetic-Track 'three') + ']}'
+Reset-Transport @(Reply 200 $gone)
+$notice = Invoke-QueuePlay -Root $root -Action $play -Recent @($last) -GapMilliseconds 0
+Assert-Check ($notice -ceq 'queue_changed' -and ($script:endpoints -join ',') -ceq 'Queue') 'A song no longer queued is never skipped to'
+$twice = '{"currently_playing":null,"queue":[' + (Synthetic-Track 'two') + ',' + (Synthetic-Track 'two') + ']}'
+Reset-Transport @((Reply 200 $twice),(Reply 204 ''),(Reply 204 ''))
+$notice = Invoke-QueuePlay -Root $root -Action $play -Recent @($last) -GapMilliseconds 0
+Assert-Check ($notice -ceq '' -and ($script:endpoints -join ',') -ceq 'Queue,Next,Next') 'Of two alike, the one in the clicked place'
+# The snapshot the click names may be one of the last few.
+$later = [pscustomobject]@{ Observed=$last.Observed + 5; Items=@($last.Items[2]) }
+Reset-Transport @((Reply 200 $queueBody),(Reply 204 ''),(Reply 204 ''))
+$notice = Invoke-QueuePlay -Root $root -Action $play -Recent @($last,$later) -GapMilliseconds 0
+Assert-Check ($notice -ceq '' -and ($script:endpoints -join ',') -ceq 'Queue,Next,Next') 'A click on the rows shown a moment ago still plays that song'
 Reset-Transport @()
 $stale = [pscustomobject]@{ Kind='play'; Position=2; Observed=($last.Observed - 1); Created=0 }
-$notice = Invoke-QueuePlay -Root $root -Action $stale -Last $last -GapMilliseconds 0
-Assert-Check ($notice -ceq 'queue_changed' -and $script:tokenCalls -eq 0 -and $script:apiCalls -eq 0) 'A click on an older snapshot does no token or network work'
+$notice = Invoke-QueuePlay -Root $root -Action $stale -Recent @($last) -GapMilliseconds 0
+Assert-Check ($notice -ceq 'queue_changed' -and $script:tokenCalls -eq 0 -and $script:apiCalls -eq 0) 'A click on rows this worker does not know does no token or network work'
+Assert-Check ((Invoke-QueuePlay -Root $root -Action $play -Recent @() -GapMilliseconds 0) -ceq 'queue_changed' -and $script:apiCalls -eq 0) 'nor does one before any'
 $beyond = [pscustomobject]@{ Kind='play'; Position=4; Observed=$last.Observed; Created=0 }
-Assert-Check ((Invoke-QueuePlay -Root $root -Action $beyond -Last $last -GapMilliseconds 0) -ceq 'queue_changed' -and $script:apiCalls -eq 0) 'A row past the snapshot is refused'
+Assert-Check ((Invoke-QueuePlay -Root $root -Action $beyond -Recent @($last) -GapMilliseconds 0) -ceq 'queue_changed' -and $script:apiCalls -eq 0) 'A row past the snapshot is refused'
 Reset-Transport @(); $script:tokenControl = $false
-$notice = Invoke-QueuePlay -Root $root -Action $play -Last $last -GapMilliseconds 0
+$notice = Invoke-QueuePlay -Root $root -Action $play -Recent @($last) -GapMilliseconds 0
 Assert-Check ($notice -ceq 'control_reauth' -and $script:apiCalls -eq 0) 'A read-only grant asks for sign-in and never skips'
 Reset-Transport @((Reply 200 $queueBody),(Reply 404 ''))
-$notice = Invoke-QueuePlay -Root $root -Action $play -Last $last -GapMilliseconds 0
+$notice = Invoke-QueuePlay -Root $root -Action $play -Recent @($last) -GapMilliseconds 0
 Assert-Check ($notice -ceq 'no_device' -and ($script:endpoints -join ',') -ceq 'Queue,Next') 'No active device stops at the first skip'
 Reset-Transport @((Reply 200 $queueBody),(Reply 204 ''),(Reply 403 ''))
-Assert-Check ((Invoke-QueuePlay -Root $root -Action $play -Last $last -GapMilliseconds 0) -ceq 'control_denied') 'A refused second skip is reported'
+Assert-Check ((Invoke-QueuePlay -Root $root -Action $play -Recent @($last) -GapMilliseconds 0) -ceq 'control_denied') 'A refused second skip is reported'
 Reset-Transport @(); $script:tokenFailure = 'reauth_required'
-Assert-Check ((Invoke-QueuePlay -Root $root -Action $play -Last $last -GapMilliseconds 0) -ceq 'control_reauth') 'An expired grant asks for sign-in'
+Assert-Check ((Invoke-QueuePlay -Root $root -Action $play -Recent @($last) -GapMilliseconds 0) -ceq 'control_reauth') 'An expired grant asks for sign-in'
 Reset-Transport @()
+
+# Direct jump: a later row that belongs to the playing album or playlist.
+function Addressed-Track { param([string]$Name,[string]$Id); return '{"type":"track","name":"Synthetic ' + $Name + '","artists":[{"name":"Synthetic artist"}],"uri":"' + (Song $Id) + '"}' }
+function Song { param([string]$Id); return 'spotify:track:' + $Id * 22 }
+function Playing { param([string]$Uri); return Reply 200 ('{"context":{"uri":"' + $Uri + '"},"item":null}') }
+function Page { param([int]$Total,[string[]]$Ids); return Reply 200 ('{"total":' + $Total + ',"items":[' + (@($Ids | ForEach-Object { '{"item":{"uri":"' + (Song $_) + '"}}' }) -join ',') + ']}') }
+$playlist = 'spotify:playlist:' + 'P' * 22
+$addressedBody = '{"currently_playing":null,"queue":[' + (Addressed-Track 'one' 'a') + ',' + (Addressed-Track 'two' 'b') + ',' + (Addressed-Track 'three' 'c') + ']}'
+Reset-Transport @(Reply 200 $addressedBody)
+$jumpLast = (Invoke-QueueCycle $root 30).Snapshot
+function Click { param([int]$Row); return Invoke-QueuePlay -Root $root -Action ([pscustomobject]@{ Kind='play'; Position=$Row; Observed=$jumpLast.Observed; Created=0 }) -Recent @($jumpLast) -GapMilliseconds 0 }
+# What a start waits for: Spotify naming the song.
+function Started { param([string]$Id); return Reply 200 ('{"context":null,"item":{"uri":"' + (Song $Id) + '"}}') }
+function Expect { param([string]$Notice,[string]$Endpoints,[string]$Message); $got = Click $script:clickRow; Assert-Check ($got -ceq $Notice -and ($script:endpoints -join ',') -ceq $Endpoints) ($Message + ": got '$got' by " + ($script:endpoints -join ',')) }
+$script:ContextItems = $null; $script:clickRow = 2
+Reset-Transport @((Reply 200 $addressedBody),(Playing $playlist),(Page 3 'a','b','c'),(Reply 204 ''),(Started 'b'))
+Expect '' 'Queue,Playing,Items,Start,Playing' 'Row 2 of the playing playlist is played directly, with no skip'
+Assert-Check ($script:requests[2] -ceq "Items|$playlist||0" -and $script:requests[3] -ceq ("Start|$playlist|" + (Song 'b') + '|0')) 'The start names the playing playlist and the clicked song'
+$script:clickRow = 3
+Reset-Transport @((Reply 200 $addressedBody),(Playing $playlist),(Reply 204 ''),(Started 'a'),(Reply 500 ''),(Reply 200 'not-json'),(Started 'c'))
+Expect '' 'Queue,Playing,Start,Playing,Playing,Playing,Playing' 'The playlist is read once while it plays, and the start is awaited'
+Reset-Transport @((Reply 200 $addressedBody),(Playing $playlist),(Reply 204 ''),(Started 'a'),(Started 'a'),(Started 'a'),(Started 'a'),(Started 'a'))
+Expect '' 'Queue,Playing,Start,Playing,Playing,Playing,Playing,Playing' 'The wait for it is bounded, and no error'
+$script:clickRow = 1
+Reset-Transport @((Reply 200 $addressedBody),(Reply 204 ''))
+Expect '' 'Queue,Next' 'Row 1 is one skip'
+$script:clickRow = 2; $script:ContextItems = $null
+Reset-Transport @((Reply 200 $addressedBody),(Playing $playlist),(Page 5 'a','x'),(Page 5 'y','z'),(Page 5 'b'),(Reply 200 ''),(Started 'b'))
+Expect '' 'Queue,Playing,Items,Items,Items,Start,Playing' 'A longer playlist is read page by page'
+Assert-Check (($script:requests[2..4] -join ' ') -ceq "Items|$playlist||0 Items|$playlist||2 Items|$playlist||4") 'Each page continues where the last ended'
+# Not possible: skip as before, and nothing was started.
+$album = 'spotify:album:' + 'L' * 22
+foreach ($case in @(
+    @('a song queued by hand from elsewhere', @((Playing $playlist),(Page 2 'a','c')), 'Queue,Playing,Items,Next,Next'),
+    @('an artist page', @(,(Playing ('spotify:artist:' + 'R' * 22))), 'Queue,Playing,Next,Next'),
+    @('nothing playing', @(,(Reply 204 '')), 'Queue,Playing,Next,Next'),
+    @('an unreadable state', @(,(Reply 200 'not-json')), 'Queue,Playing,Next,Next'),
+    @('a playlist Spotify does not share', @((Playing $playlist),(Reply 403 '')), 'Queue,Playing,Items,Next,Next'),
+    @('a malformed page', @((Playing $playlist),(Reply 200 '{"total":3}')), 'Queue,Playing,Items,Next,Next'),
+    @('a page that stops short', @((Playing $playlist),(Page 3 'a','b'),(Reply 200 '{"total":3,"items":[]}')), 'Queue,Playing,Items,Items,Next,Next'),
+    @('a refused start', @((Playing $album),(Page 3 'a','b','c'),(Reply 404 '')), 'Queue,Playing,Items,Start,Next,Next'))) {
+    $script:ContextItems = $null
+    Reset-Transport (@(Reply 200 $addressedBody) + $case[1] + @((Reply 204 ''),(Reply 204 '')))
+    Expect '' $case[2] ('Skips instead: ' + $case[0])
+}
+$script:ContextItems = $null; $script:ContextPageLimit = 2
+Reset-Transport @((Reply 200 $addressedBody),(Playing $playlist),(Page 9 'a','x'),(Page 9 'y','z'),(Reply 204 ''),(Reply 204 ''))
+Expect '' 'Queue,Playing,Items,Items,Next,Next' 'Skips instead: a playlist past the page limit'
+$script:ContextPageLimit = 10
+foreach ($unclear in @(0, 500, 503)) {
+    $script:ContextItems = $null
+    Reset-Transport @((Reply 200 $addressedBody),(Playing $playlist),(Page 3 'a','b','c'),(Reply $unclear ''))
+    Expect 'control_failed' 'Queue,Playing,Items,Start' ('A start with no clear answer is not followed by skips: ' + $unclear)
+}
+$held = [pscustomobject]@{ Uri = $playlist; At = (Get-QueueUnixTime) - 1801; Items = $null }
+$script:ContextItems = $held
+Reset-Transport @((Reply 200 $addressedBody),(Playing $playlist),(Page 3 'a','b','c'),(Reply 204 ''),(Started 'b'))
+Expect '' 'Queue,Playing,Items,Start,Playing' 'A list kept for half an hour is read again'
+Reset-Transport @((Reply 200 $addressedBody),(Playing $album),(Page 3 'a','b','c'),(Reply 204 ''),(Started 'b'))
+Expect '' 'Queue,Playing,Items,Start,Playing' 'Another context is read afresh'
+# A clicked song of the playing playlist that the queue no longer lists still plays.
+$elsewhere = '{"currently_playing":null,"queue":[' + (Addressed-Track 'one' 'a') + ']}'
+Reset-Transport @((Reply 200 $elsewhere),(Playing $album),(Reply 204 ''),(Started 'b'))
+Expect '' 'Queue,Playing,Start,Playing' 'It is started in its playlist, wherever the queue has gone'
+$script:ContextItems = $null
+Reset-Transport @((Reply 200 $elsewhere),(Playing $playlist),(Page 1 'a'))
+Expect 'queue_changed' 'Queue,Playing,Items' 'One that is neither queued nor in the playlist is refused, with no skip'
+$script:ContextItems = $null
+Reset-Transport @()
+
+# Playlists view: listing, covers and starting one. Synthetic transport only.
+function List-Body { param([string[]]$Ids); return '{"total":' + $Ids.Count + ',"items":[' + (@($Ids | ForEach-Object { '{"name":"List ' + $_ + '","uri":"spotify:playlist:' + $_ * 22 + '","items":{"total":7},"images":[{"url":"' + (Art-Url ('list-' + $_)) + '","width":64}]}' }) -join ',') + ']}' }
+function Read-List { param([string]$Root); return [IO.File]::ReadAllText((Join-Path $Root 'playlists.snapshot')) }
+$listRoot = Fresh-Root
+Reset-Transport @((Reply 200 (List-Body 'm','n','o','p')),(Playing ('spotify:playlist:' + 'n' * 22)))
+$list = Invoke-QueuePlaylists $listRoot -Now 1800000000
+Assert-Check ($list.State -ceq 'ready' -and $list.Items.Count -eq 4 -and $list.Current -eq 2 -and ($script:endpoints -join ',') -ceq 'Playlists,Playing') 'The list is read once, with the playing one marked'
+Assert-Check ((Read-List $listRoot).StartsWith("PARALLAX_PLAYLISTS_V1`nstate=ready`nobserved=1800000000`ntotal=4`ncount=4`ncurrent=2`ntitle1=")) 'The list is published at once, covers later'
+Assert-Check ($script:imageRequests.Count -eq 0 -and (Read-List $listRoot) -notmatch 'spotify:|[mnop]{22}') 'No cover is fetched and no address is written with it'
+Reset-Transport @()
+foreach ($id in 'm','n','o','p') { $script:imageReplies[(Art-Url ('list-' + $id))] = Cover }
+Update-QueuePlaylistCovers $listRoot $list
+Assert-Check ($script:imageRequests.Count -eq 3 -and $list.CoverAt -eq 3 -and [regex]::Matches((Read-List $listRoot), '(?m)^image\d+=.+$').Count -eq 3) 'Covers arrive in small batches'
+Update-QueuePlaylistCovers $listRoot $list
+Assert-Check ($script:imageRequests.Count -eq 4 -and [regex]::Matches((Read-List $listRoot), '(?m)^image\d+=.+$').Count -eq 4 -and (Read-List $listRoot) -match '(?m)^observed=1800000000$') 'The last batch completes the same list'
+$open = [pscustomobject]@{ Kind='open'; Position=3; Observed=1800000000L; Created=0 }
+Reset-Transport @((Reply 204 ''),(Playing ('spotify:playlist:' + 'n' * 22)),(Playing ('spotify:playlist:' + 'o' * 22)))
+Assert-Check ((Invoke-QueueOpen -Root $listRoot -Action $open -List $list -SettleMilliseconds 0) -ceq '' -and ($script:requests -join ' ') -ceq ('Open|spotify:playlist:' + 'o' * 22 + '||0 Playing|||0 Playing|||0')) 'A click starts exactly the clicked playlist, and waits for Spotify to say so'
+Assert-Check ($list.Current -eq 3 -and (Read-List $listRoot) -match '(?m)^current=3$') 'and the list marks it as playing'
+foreach ($case in @(@(404,'no_device'),@(403,'control_denied'),@(401,'control_reauth'),@(429,'control_failed'),@(500,'control_failed'),@(0,'control_failed'))) {
+    Reset-Transport @(Reply $case[0] '')
+    Assert-Check ((Invoke-QueueOpen -Root $listRoot -Action $open -List $list -SettleMilliseconds 0) -ceq $case[1] -and $list.Current -eq 3) ('A refused start is reported: ' + $case[0])
+}
+Reset-Transport @()
+foreach ($bad in @(@($null,3,1800000000L), @($list,3,1799999999L), @($list,5,1800000000L), @([pscustomobject]@{ State='error'; Items=@(); Observed=1800000000L },1,1800000000L))) {
+    Assert-Check ((Invoke-QueueOpen -Root $listRoot -Action ([pscustomobject]@{ Kind='open'; Position=$bad[1]; Observed=$bad[2]; Created=0 }) -List $bad[0] -SettleMilliseconds 0) -ceq 'queue_changed') 'A click on a list this worker does not hold starts nothing'
+}
+Assert-Check ($script:apiCalls -eq 0 -and $script:tokenCalls -eq 0) 'and does no token or network work'
+$script:tokenControl = $false
+Assert-Check ((Invoke-QueueOpen -Root $listRoot -Action $open -List $list -SettleMilliseconds 0) -ceq 'control_reauth' -and $script:apiCalls -eq 0) 'A read-only grant starts nothing'
+Reset-Transport @(); $script:tokenPlaylists = $false
+Assert-Check ((Invoke-QueuePlaylists $listRoot).State -ceq 'scope_required' -and $script:apiCalls -eq 0 -and (Read-List $listRoot) -match 'state=scope_required') 'A grant without the permission asks for sign-in, and makes no request'
+foreach ($case in @(@(403,'{}','scope_required'),@(500,'','error'),@(0,'','error'),@(429,'{}','error'),@(200,'not-json','error'),@(200,'{}','error'))) {
+    Reset-Transport @(Reply $case[0] $case[1])
+    $failed = Invoke-QueuePlaylists $listRoot
+    Assert-Check ($failed.State -ceq $case[2] -and $failed.Items.Count -eq 0 -and (Read-List $listRoot) -match 'count=0') ('A failed list names nothing: ' + $case[0] + ' ' + $case[1])
+}
+Reset-Transport @(); $script:tokenFailure = 'reauth_required'
+Assert-Check ((Invoke-QueuePlaylists $listRoot).State -ceq 'scope_required') 'An expired grant asks for sign-in'
+Reset-Transport @((Reply 200 (List-Body 'm')),(Reply 500 ''))
+Assert-Check ((Invoke-QueuePlaylists $listRoot).Current -eq 0) 'An unknown player state marks none'
+Assert-Check (-not (Test-Path -LiteralPath (Join-Path $listRoot 'queue.snapshot')) -and $null -eq (Get-QueueRetry $listRoot)) 'Listing never touches the queue rows or its waits'
+Reset-Transport @()
+foreach ($good in @(@('playlists',0,0),@('open',1,5),@('open',50,1800000000))) {
+    [IO.File]::WriteAllText((Join-Path $root 'action.request'), ("PARALLAX_QUEUE_ACTION_V1|{0}|{1}|{2}|{3}`n" -f $good[0],$good[1],$good[2],(Get-QueueUnixTime)), [Text.Encoding]::ASCII)
+    $read = Read-QueueAction $root
+    Assert-Check ($read.Kind -ceq $good[0] -and $read.Position -eq $good[1] -and $read.Observed -eq $good[2]) ('A playlist request is read: ' + ($good -join ' '))
+}
+foreach ($bad in @('playlists|1|0','playlists|0|5','open|0|5','open|51|5','open|1|0','open|100|5','play|21|5')) {
+    [IO.File]::WriteAllText((Join-Path $root 'action.request'), ("PARALLAX_QUEUE_ACTION_V1|$bad|" + (Get-QueueUnixTime) + "`n"), [Text.Encoding]::ASCII)
+    Assert-Check ($null -eq (Read-QueueAction $root)) ('A malformed playlist request is discarded: ' + $bad)
+}
 
 Write-QueueAction $root play 2 $last.Observed
 $read = Read-QueueAction $root
@@ -309,10 +471,13 @@ Assert-Check ($cycle.Snapshot.State -eq 'rate_limited' -and $cycle.NextAt -ge (G
 
 $root = Fresh-Root
 Reset-Transport @(Reply)
-# A click left from before this worker started is discarded, never acted on.
+# A click left from before this worker started is discarded, never acted on;
+# so is a playlist list another worker wrote, whose playlists this one lacks.
 Write-QueueAction $root play 1 1
+[IO.File]::WriteAllText((Join-Path $root 'playlists.snapshot'), 'stale')
 Invoke-QueueRun $root -Single -Silent
 Assert-Check ((Read-Snapshot $root) -match 'state=ready' -and $script:apiCalls -eq 1) 'One-shot publishes validated snapshot'
+Assert-Check (-not (Test-Path -LiteralPath (Join-Path $root 'playlists.snapshot'))) 'A new worker removes an earlier worker''s playlist list'
 Assert-Check (($script:endpoints -join ',') -ceq 'Queue' -and -not (Test-Path -LiteralPath (Join-Path $root 'action.request'))) 'A request from before the worker started is discarded'
 Assert-Check ((Read-Snapshot $root) -notmatch 'SYNTHETIC_ACCESS') 'No token in display cache'
 Reset-Transport @(Reply 429 '{}' '3600')
@@ -411,8 +576,10 @@ Assert-Check ((Test-QueueEnabledIntent $DataRoot) -and -not (Test-QueueStop $Dat
 $coverFolder = Initialize-QueuePrivateDirectory (Join-Path $DataRoot 'covers')
 [IO.File]::WriteAllBytes((Join-Path $coverFolder (Cover-Name 'private')), $script:jpeg)
 Publish-QueueSnapshot $DataRoot (New-QueueSnapshot -State ready -Items @([pscustomobject]@{Title='SYNTHETIC_PRIVATE_TITLE';Detail='Fixture';Image=(Cover-Name 'private')}))
+[IO.File]::WriteAllText((Join-Path $DataRoot 'playlists.snapshot'), 'list')
 $Command='Disconnect'; Invoke-QueueCommand
 Assert-Check (-not (Test-Path -LiteralPath (Join-Path $DataRoot 'tokens.dpapi'))) 'Disconnect removes token file'
+Assert-Check (-not (Test-Path -LiteralPath (Join-Path $DataRoot 'playlists.snapshot'))) 'Disconnect removes the playlist list'
 Assert-Check (-not (Test-Path -LiteralPath $coverFolder)) 'Disconnect deletes the covers folder'
 Assert-Check ((Read-Snapshot $DataRoot) -notmatch '(?m)^image[1-5]=.') 'Disconnect leaves no cover named'
 # A covers entry that is a junction is removed as a link; its target is untouched.

@@ -8,6 +8,14 @@ $script:QueueNotices = @('','queue_changed','no_device','control_denied','contro
 # A saved cover: SHA-1 of its image URL, typed by the response's Content-Type.
 # The reader accepts exactly this shape and nothing that could leave the folder.
 $script:QueueImageName = '\A[0-9a-f]{40}\.(?:jpg|png)\z'
+# The only songs and contexts a row click may start (Endpoint Start).
+$script:QueueTrackUri = '\Aspotify:track:[A-Za-z0-9]{22}\z'
+$script:QueueContextUri = '\Aspotify:(playlist|album):([A-Za-z0-9]{22})\z'
+# How many queue items a snapshot holds (Spotify's queue call names 20).
+$script:QueueItemLimit = 20
+# The playlists view: how its list can stand, and how many it holds.
+$script:QueuePlaylistStates = @('ready','scope_required','error')
+$script:QueuePlaylistLimit = 50
 # Album art is about 5 KB at 64 px; anything near this cap is not a thumbnail.
 $script:QueueImageLimit = 262144
 
@@ -140,18 +148,122 @@ function ConvertTo-QueueItem {
             $imageUrl = Select-QueueImageUrl $Entry['show']['images']
         }
     }
-    return [pscustomobject]@{ Title = $title; Detail = $detail; ImageUrl = $imageUrl; Image = '' }
+    # A song's own address, for a row click; never written to the snapshot.
+    $uri = ''
+    if ($Entry['type'] -eq 'track' -and $Entry.ContainsKey('uri') -and $Entry['uri'] -is [string] -and $Entry['uri'] -cmatch $script:QueueTrackUri) { $uri = $Entry['uri'] }
+    return [pscustomobject]@{ Title = $title; Detail = $detail; ImageUrl = $imageUrl; Image = ''; Uri = $uri }
+}
+
+function ConvertTo-QueueContextUri {
+    # The album or playlist now playing (currently-playing response), or ''.
+    param([AllowNull()][object]$Payload)
+    if ($Payload -isnot [Collections.IDictionary] -or -not $Payload.ContainsKey('context') -or $Payload['context'] -isnot [Collections.IDictionary]) { return '' }
+    $uri = if ($Payload['context'].ContainsKey('uri')) { $Payload['context']['uri'] } else { $null }
+    if ($uri -is [string] -and $uri -cmatch $script:QueueContextUri) { return $uri }
+    return ''
+}
+
+function ConvertTo-QueuePlayingUri {
+    # The song now playing (currently-playing response), or ''.
+    param([AllowNull()][object]$Payload)
+    if ($Payload -isnot [Collections.IDictionary] -or -not $Payload.ContainsKey('item') -or $Payload['item'] -isnot [Collections.IDictionary]) { return '' }
+    $uri = if ($Payload['item'].ContainsKey('uri')) { $Payload['item']['uri'] } else { $null }
+    if ($uri -is [string] -and $uri -cmatch $script:QueueTrackUri) { return $uri }
+    return ''
+}
+
+function ConvertTo-QueueContextPage {
+    # One page of a context's songs: how many it has in all, how many entries
+    # this page held, and the song addresses among them. A playlist page nests
+    # each song under item (track before 2026); an album page does not.
+    param([AllowNull()][object]$Payload)
+    if ($Payload -isnot [Collections.IDictionary] -or -not $Payload.ContainsKey('items') -or $Payload['items'] -isnot [Array] -or -not $Payload.ContainsKey('total') -or
+        ($Payload['total'] -isnot [int] -and $Payload['total'] -isnot [long]) -or $Payload['total'] -lt 0) { throw 'Context page schema is unavailable.' }
+    $uris = [Collections.Generic.List[string]]::new()
+    foreach ($entry in $Payload['items']) {
+        if ($entry -isnot [Collections.IDictionary]) { continue }
+        $song = $entry
+        foreach ($key in @('item','track')) { if ($entry.ContainsKey($key) -and $entry[$key] -is [Collections.IDictionary]) { $song = $entry[$key]; break } }
+        if ($song.ContainsKey('uri') -and $song['uri'] -is [string] -and $song['uri'] -cmatch $script:QueueTrackUri) { $uris.Add($song['uri']) }
+    }
+    return [pscustomobject]@{ Total = [long]$Payload['total']; Count = $Payload['items'].Count; Uris = $uris.ToArray() }
+}
+
+function ConvertTo-QueuePlaylists {
+    # The account's playlists, in its library order: as display text, cover URL
+    # and address. Entries that cannot be started (null, nameless, or no plain
+    # playlist address) are left out, never a failed read.
+    param([AllowNull()][object]$Payload)
+    if ($Payload -isnot [Collections.IDictionary] -or -not $Payload.ContainsKey('items') -or $Payload['items'] -isnot [Array]) { throw 'Playlist response schema is unavailable.' }
+    $items = [Collections.Generic.List[object]]::new()
+    foreach ($entry in $Payload['items']) {
+        if ($items.Count -ge $script:QueuePlaylistLimit) { break }
+        if ($entry -isnot [Collections.IDictionary] -or -not $entry.ContainsKey('uri') -or $entry['uri'] -isnot [string] -or $entry['uri'] -cnotmatch $script:QueueContextUri -or -not $entry['uri'].StartsWith('spotify:playlist:', [StringComparison]::Ordinal)) { continue }
+        $name = if ($entry.ContainsKey('name')) { $entry['name'] } else { $null }
+        try { $title = Limit-QueueText $name } catch { continue }
+        if (-not $title) { continue }
+        # Songs where Spotify says how many (items; tracks before 2026), else whose it is.
+        $detail = ''
+        foreach ($key in @('items','tracks')) {
+            if ($entry.ContainsKey($key) -and $entry[$key] -is [Collections.IDictionary] -and $entry[$key].ContainsKey('total') -and
+                ($entry[$key]['total'] -is [int] -or $entry[$key]['total'] -is [long]) -and $entry[$key]['total'] -ge 0) {
+                $detail = if ($entry[$key]['total'] -eq 1) { '1 song' } else { [string]$entry[$key]['total'] + ' songs' }
+                break
+            }
+        }
+        if (-not $detail -and $entry.ContainsKey('owner') -and $entry['owner'] -is [Collections.IDictionary] -and $entry['owner'].ContainsKey('display_name')) {
+            try { $owner = Limit-QueueText $entry['owner']['display_name'] } catch { $owner = '' }
+            if ($owner) { $detail = 'By ' + $owner }
+        }
+        $imageUrl = if ($entry.ContainsKey('images')) { Select-QueueImageUrl $entry['images'] } else { '' }
+        $items.Add([pscustomobject]@{ Title = $title; Detail = $detail; ImageUrl = $imageUrl; Image = ''; Uri = $entry['uri'] })
+    }
+    $total = [long]$items.Count
+    if ($Payload.ContainsKey('total') -and ($Payload['total'] -is [int] -or $Payload['total'] -is [long]) -and $Payload['total'] -gt $total) { $total = [long]$Payload['total'] }
+    return [pscustomobject]@{ Items = $items.ToArray(); Total = $total }
+}
+
+function ConvertTo-QueuePlaylistText {
+    # playlists.snapshot: what the drawer's Playlists view shows. Names and
+    # covers only; the addresses stay in the helper's memory. Current is the
+    # playing playlist's position, or 0.
+    param([Parameter(Mandatory)][string]$State, [object[]]$Items = @(), [long]$Total = 0, [int]$Current = 0, [long]$Now = (Get-QueueUnixTime))
+    if ($State -notin $script:QueuePlaylistStates -or $Now -lt 1 -or $Now -gt 253402300000) { throw 'Invalid playlist snapshot.' }
+    if ($Items.Count -gt $script:QueuePlaylistLimit -or $Total -lt $Items.Count -or $Total -gt 1000000 -or $Current -lt 0 -or $Current -gt $Items.Count) { throw 'Invalid playlist snapshot.' }
+    if ($State -ne 'ready' -and ($Items.Count -ne 0 -or $Total -ne 0)) { throw 'Invalid items for playlist state.' }
+    $lines = [Collections.Generic.List[string]]::new()
+    $lines.Add('PARALLAX_PLAYLISTS_V1')
+    $lines.Add('state=' + $State)
+    $lines.Add('observed=' + $Now)
+    $lines.Add('total=' + $Total)
+    $lines.Add('count=' + $Items.Count)
+    $lines.Add('current=' + $Current)
+    $index = 0
+    foreach ($item in $Items) {
+        $index++
+        $title = Limit-QueueText $item.Title
+        $detail = Limit-QueueText $item.Detail
+        if (-not $title) { throw 'Playlist has no display title.' }
+        if ($item.Image -and $item.Image -cnotmatch $script:QueueImageName) { throw 'Playlist cover name is invalid.' }
+        $lines.Add('title' + $index + '=' + [BitConverter]::ToString($script:Utf8.GetBytes($title)).Replace('-', ''))
+        $lines.Add('detail' + $index + '=' + [BitConverter]::ToString($script:Utf8.GetBytes($detail)).Replace('-', ''))
+        $lines.Add('image' + $index + '=' + $item.Image)
+    }
+    return ($lines -join "`n") + "`n"
 }
 
 function ConvertTo-QueueItems {
+    # Spotify names at most 20 items; a snapshot holds them all. An unreadable one
+    # among the first five fails the read, as it always has; a later one ends it.
     param([Parameter(Mandatory)][object]$Payload)
     if ($Payload -isnot [Collections.IDictionary] -or -not $Payload.ContainsKey('queue') -or -not $Payload.ContainsKey('currently_playing')) { throw 'Queue response schema is unavailable.' }
     if ($Payload['queue'] -isnot [Array]) { throw 'Queue response is missing its item list.' }
     if ($null -ne $Payload['currently_playing'] -and $Payload['currently_playing'] -isnot [Collections.IDictionary]) { throw 'Queue current-item schema is invalid.' }
     $items = [Collections.Generic.List[object]]::new()
     foreach ($entry in $Payload['queue']) {
-        if ($items.Count -ge 5) { break }
-        $items.Add((ConvertTo-QueueItem $entry))
+        if ($items.Count -ge $script:QueueItemLimit) { break }
+        if ($items.Count -lt 5) { $items.Add((ConvertTo-QueueItem $entry)) }
+        else { try { $items.Add((ConvertTo-QueueItem $entry)) } catch { break } }
     }
     # The track these rows come after, so the reader can tell when the player
     # has moved on. One it cannot read is left unnamed, never a failed read.
@@ -166,7 +278,7 @@ function New-QueueSnapshot {
         [bool]$Control = $false, [AllowEmptyString()][string]$Notice = '', [AllowNull()][object]$Current = $null)
     if ($State -notin $script:QueueStates) { throw 'Invalid queue state.' }
     if ($Now -lt 1 -or $Now -gt 253402300000 -or $RetryNotBefore -lt 0 -or $RetryNotBefore -gt 253402300000) { throw 'Invalid queue timestamp.' }
-    if ($Items.Count -gt 5 -or ($State -ne 'ready' -and ($Items.Count -ne 0 -or $null -ne $Current))) { throw 'Invalid items for queue state.' }
+    if ($Items.Count -gt $script:QueueItemLimit -or ($State -ne 'ready' -and ($Items.Count -ne 0 -or $null -ne $Current))) { throw 'Invalid items for queue state.' }
     # Rows are clickable, and a click outcome is shown, only beside live rows.
     if ($Notice -cnotin $script:QueueNotices -or ($State -ne 'ready' -and ($Control -or $Notice))) { throw 'Invalid queue control for state.' }
     $observed = 0L; $expires = 0L
@@ -176,7 +288,7 @@ function New-QueueSnapshot {
 
 function ConvertTo-QueueSnapshotText {
     param([Parameter(Mandatory)][object]$Snapshot)
-    if ($Snapshot.State -notin $script:QueueStates -or $Snapshot.Items.Count -gt 5) { throw 'Invalid snapshot.' }
+    if ($Snapshot.State -notin $script:QueueStates -or $Snapshot.Items.Count -gt $script:QueueItemLimit) { throw 'Invalid snapshot.' }
     if ($Snapshot.State -ne 'ready' -and ($Snapshot.Items.Count -ne 0 -or $Snapshot.Observed -ne 0 -or $Snapshot.ValidUntil -ne 0)) { throw 'Nonready snapshot contains live data.' }
     if ($Snapshot.State -eq 'ready' -and ($Snapshot.Observed -le 0 -or $Snapshot.ValidUntil -le $Snapshot.Observed -or $Snapshot.ValidUntil -gt $Snapshot.Observed+300)) { throw 'Invalid snapshot lifetime.' }
     $control = [bool]($Snapshot.PSObject.Properties['Control'] -and $Snapshot.Control)
@@ -190,11 +302,10 @@ function ConvertTo-QueueSnapshotText {
         if (-not $currentTitle) { throw 'Current queue item has no display title.' }
     }
     $lines = [Collections.Generic.List[string]]::new()
-    # V3 adds control (rows may be clicked) and notice (a click's outcome).
-    # V4 appends image1..image5 after the rows: each a saved cover's bare file
-    # name, or empty for none, for unused rows and in every nonready state.
-    # V5 appends the track the rows come after; both lines are empty when
-    # Spotify names none, and in every nonready state.
+    # V3 adds control (rows may be clicked) and notice (a click's outcome), V4 a
+    # saved cover's bare file name per row (empty for none). V5 names the track the
+    # rows come after (both lines empty when Spotify names none, and in every
+    # nonready state), and has exactly count rows, up to 20, instead of five.
     $lines.Add('PARALLAX_QUEUE_V5')
     $lines.Add('state=' + $Snapshot.State)
     $lines.Add('observed=' + [long]$Snapshot.Observed)
@@ -203,29 +314,24 @@ function ConvertTo-QueueSnapshotText {
     $lines.Add('count=' + $Snapshot.Items.Count)
     $lines.Add('control=' + [int]$control)
     $lines.Add('notice=' + $notice)
-    $images = [Collections.Generic.List[string]]::new()
-    for ($index = 1; $index -le 5; $index++) {
-        $title = ''; $detail = ''; $image = ''
-        if ($index -le $Snapshot.Items.Count) {
-            $item = $Snapshot.Items[$index-1]
-            $title = Limit-QueueText $item.Title
-            $detail = Limit-QueueText $item.Detail
-            if (-not $title) { throw 'Ready queue item has no display title.' }
-            if ($item.PSObject.Properties['Image'] -and $item.Image) { $image = [string]$item.Image }
-            if ($image -and $image -cnotmatch $script:QueueImageName) { throw 'Queue cover name is invalid.' }
-        }
-        $lines.Add('title' + $index + '=' + [BitConverter]::ToString($script:Utf8.GetBytes($title)).Replace('-', ''))
-        $lines.Add('detail' + $index + '=' + [BitConverter]::ToString($script:Utf8.GetBytes($detail)).Replace('-', ''))
-        $images.Add('image' + $index + '=' + $image)
-    }
-    $lines.AddRange($images)
     $lines.Add('current_title=' + [BitConverter]::ToString($script:Utf8.GetBytes($currentTitle)).Replace('-', ''))
     $lines.Add('current_detail=' + [BitConverter]::ToString($script:Utf8.GetBytes($currentDetail)).Replace('-', ''))
+    for ($index = 1; $index -le $Snapshot.Items.Count; $index++) {
+        $item = $Snapshot.Items[$index-1]; $image = ''
+        $title = Limit-QueueText $item.Title
+        $detail = Limit-QueueText $item.Detail
+        if (-not $title) { throw 'Ready queue item has no display title.' }
+        if ($item.PSObject.Properties['Image'] -and $item.Image) { $image = [string]$item.Image }
+        if ($image -and $image -cnotmatch $script:QueueImageName) { throw 'Queue cover name is invalid.' }
+        $lines.Add('title' + $index + '=' + [BitConverter]::ToString($script:Utf8.GetBytes($title)).Replace('-', ''))
+        $lines.Add('detail' + $index + '=' + [BitConverter]::ToString($script:Utf8.GetBytes($detail)).Replace('-', ''))
+        $lines.Add('image' + $index + '=' + $image)
+    }
     return ($lines -join "`n") + "`n"
 }
 
 function Write-QueueAtomicFile {
-    param([Parameter(Mandatory)][string]$DataRoot, [Parameter(Mandatory)][ValidateSet('queue.snapshot','queue.retry.json')][string]$Name, [Parameter(Mandatory)][string]$Text)
+    param([Parameter(Mandatory)][string]$DataRoot, [Parameter(Mandatory)][ValidateSet('queue.snapshot','queue.retry.json','playlists.snapshot')][string]$Name, [Parameter(Mandatory)][string]$Text)
     # Runtime directory ACL/ancestor validation is performed by QueueAuth first.
     $root = [IO.Path]::GetFullPath($DataRoot).TrimEnd('\')
     if (-not [IO.Directory]::Exists($root) -or (([IO.File]::GetAttributes($root)) -band [IO.FileAttributes]::ReparsePoint)) { throw 'Queue storage is unavailable.' }
@@ -298,15 +404,40 @@ function Get-QueueResponseDecision {
 }
 
 function Invoke-QueueApiRequest {
-    # Queue reads the queue (GET); Next skips one item (POST, empty body). No
-    # other endpoint or method is reachable from here.
-    param([Parameter(Mandatory)][string]$AccessToken, [ValidateSet('Queue','Next')][string]$Endpoint = 'Queue')
+    # Queue reads the queue, Playing the current song and its context, Items one
+    # page of a context's songs (all GET); Next skips one item (POST, empty
+    # body); Start plays one song of a context and Open a context from its start
+    # (PUT); Playlists lists the account's own (GET). No other endpoint or method
+    # is reachable from here, and every address in one is checked first.
+    param([Parameter(Mandatory)][string]$AccessToken, [ValidateSet('Queue','Next','Playing','Items','Start','Playlists','Open')][string]$Endpoint = 'Queue',
+        [string]$ContextUri = '', [string]$ItemUri = '', [ValidateRange(0,100000)][int]$Offset = 0)
     if (-not $AccessToken -or $AccessToken -match '[\r\n]') { throw 'Access token is unavailable.' }
     [Net.ServicePointManager]::SecurityProtocol = [Net.SecurityProtocolType]::Tls12
-    $uri = if ($Endpoint -eq 'Next') { 'https://api.spotify.com/v1/me/player/next' } else { 'https://api.spotify.com/v1/me/player/queue' }
+    $method = 'GET'; $body = $null
+    switch ($Endpoint) {
+        'Next' { $uri = 'https://api.spotify.com/v1/me/player/next'; $method = 'POST'; $body = [byte[]]@() }
+        'Playing' { $uri = 'https://api.spotify.com/v1/me/player/currently-playing' }
+        'Playlists' { $uri = 'https://api.spotify.com/v1/me/playlists?limit=50' }
+        'Open' {
+            if ($ContextUri -cnotmatch $script:QueueContextUri) { throw 'Queue context is invalid.' }
+            $uri = 'https://api.spotify.com/v1/me/player/play'; $method = 'PUT'
+            $body = [Text.Encoding]::ASCII.GetBytes('{"context_uri":"' + $ContextUri + '"}')
+        }
+        'Items' {
+            if ($ContextUri -cnotmatch $script:QueueContextUri) { throw 'Queue context is invalid.' }
+            $uri = if ($Matches[1] -ceq 'album') { 'https://api.spotify.com/v1/albums/' + $Matches[2] + '/tracks?limit=50&offset=' + $Offset }
+                else { 'https://api.spotify.com/v1/playlists/' + $Matches[2] + '/items?limit=100&fields=total,items(item(uri),track(uri))&offset=' + $Offset }
+        }
+        'Start' {
+            if ($ContextUri -cnotmatch $script:QueueContextUri -or $ItemUri -cnotmatch $script:QueueTrackUri) { throw 'Queue start is invalid.' }
+            $uri = 'https://api.spotify.com/v1/me/player/play'; $method = 'PUT'
+            $body = [Text.Encoding]::ASCII.GetBytes('{"context_uri":"' + $ContextUri + '","offset":{"uri":"' + $ItemUri + '"}}')
+        }
+        default { $uri = 'https://api.spotify.com/v1/me/player/queue' }
+    }
     $request = [Net.HttpWebRequest]::Create($uri)
-    $request.Method = if ($Endpoint -eq 'Next') { 'POST' } else { 'GET' }
-    if ($Endpoint -eq 'Next') { $request.ContentLength = 0 }
+    $request.Method = $method
+    if ($null -ne $body) { $request.ContentLength = $body.Length }
     $request.Accept = 'application/json'
     $request.Headers['Authorization'] = 'Bearer ' + $AccessToken
     $request.AllowAutoRedirect = $false
@@ -315,6 +446,11 @@ function Invoke-QueueApiRequest {
     $request.MaximumResponseHeadersLength = 32
     $response = $null
     try {
+        if ($null -ne $body -and $body.Length -gt 0) {
+            $request.ContentType = 'application/json'
+            $upload = $request.GetRequestStream()
+            try { $upload.Write($body, 0, $body.Length) } finally { $upload.Dispose() }
+        }
         try { $response = $request.GetResponse() }
         catch [Net.WebException] {
             if ($null -eq $_.Exception.Response) { return [pscustomobject]@{ StatusCode=0; Body=''; RetryAfter='' } }
@@ -420,5 +556,5 @@ function Get-QueueControlDecision {
     return 'control_failed'
 }
 
-Export-ModuleMember -Function Get-QueueControlDecision,Get-QueueUnixTime,ConvertFrom-QueueJson,Limit-QueueText,ConvertTo-QueueItems,New-QueueSnapshot,ConvertTo-QueueSnapshotText,Write-QueueAtomicFile,Publish-QueueSnapshot,Get-QueueResponseDecision,Invoke-QueueApiRequest,
+Export-ModuleMember -Function Get-QueueControlDecision,Get-QueueUnixTime,ConvertFrom-QueueJson,Limit-QueueText,ConvertTo-QueueItems,ConvertTo-QueueContextUri,ConvertTo-QueuePlayingUri,ConvertTo-QueueContextPage,ConvertTo-QueuePlaylists,ConvertTo-QueuePlaylistText,New-QueueSnapshot,ConvertTo-QueueSnapshotText,Write-QueueAtomicFile,Publish-QueueSnapshot,Get-QueueResponseDecision,Invoke-QueueApiRequest,
     Test-QueueImageUrl,Select-QueueImageUrl,Get-QueueImageKey,Get-QueueImageExtension,Write-QueueCoverFile,Read-QueueBoundedStream,Invoke-QueueImageRequest

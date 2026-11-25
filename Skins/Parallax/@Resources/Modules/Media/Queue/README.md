@@ -1,12 +1,14 @@
 # Optional Spotify queue
 
-Implemented 2026-09-11. This original Parallax helper reads the next five Spotify
-queue entries for the account you authorize. It preserves order and duplicates
+Implemented 2026-09-11. This original Parallax helper reads the next Spotify queue
+entries (up to the 20 Spotify names; five until 2026-11-24) for the account you authorize. It preserves order and duplicates
 and supports tracks and episodes. Playback controls remain with WebNowPlaying,
 which may be displaying a different player. Since 2026-10-27 clicking a row
-skips Spotify's active device to that item, and **Refresh** reads the queue at
+plays that item on Spotify's active device, and **Refresh** reads the queue at
 once (see [Row clicks and Refresh](#row-clicks-and-refresh)). Spotify's Web API
-offers no way to remove or reorder queue items, so the helper cannot.
+offers no way to remove or reorder queue items, so the helper cannot. Since
+2026-11-24 Media's drawer also lists your playlists and starts one (see
+[Playlists](#playlists)).
 
 ## Connect your app
 
@@ -38,9 +40,10 @@ browser and waits up to three minutes. It uses PKCE S256, random single-use stat
 and a listener bound only to `127.0.0.1` on an ephemeral port. Callback host, path,
 state, grammar, size, and deadline are validated; the listener closes before code
 exchange. It requests `user-read-currently-playing` (required to read the queue)
-and `user-modify-playback-state` (optional, for row clicks). A sign-in from before
-2026-10-27 lacks the second; the queue still reads, and rows become clickable
-after you sign in again.
+`user-modify-playback-state` (optional, for row clicks), and since 2026-11-24
+`playlist-read-private` and `playlist-read-collaborative` (optional, for the
+Playlists view). An older sign-in lacks the newer ones; the queue still reads, and
+the rest works after you sign in again.
 
 Sources: [Spotify apps](https://developer.spotify.com/documentation/web-api/concepts/apps),
 [PKCE](https://developer.spotify.com/documentation/web-api/tutorials/code-pkce-flow),
@@ -105,18 +108,58 @@ makes at most one cycle subject to saved waits.
 
 `Refresh` and `Play` only hand a request to a running helper and exit: they read
 no tokens, make no request, and write nothing when no helper is running or Stop
-is in effect. The helper checks for a request once a second. `Play` names the
-clicked row and the `observed` time of the snapshot it was shown in. The helper
-acts only on its own last successful snapshot, reads the queue again, and skips
-(`POST /me/player/next`, once per row up to the clicked one) only if those rows
-are unchanged. It then reads the queue at once. Spotify has no call to play a
-queue item directly, so the rows before it are skipped past. The outcome shows
-for one snapshot in place of "Next N": Queue changed, No active device, Control
+is in effect. Since 2026-11-24 a row click in the skin writes that request file
+itself and uses `Play` only if it cannot. The helper checks for a request once a
+second. A click names the row and the `observed` time of the snapshot it was
+shown in. The helper takes the clicked row from that snapshot, one of its own last
+six, reads the queue again, and looks the same item up in it, so a queue that has
+moved on still plays what was clicked. It then reads the queue at once. Spotify has
+no call to play queue row N, so:
+- The next item is one skip (`POST /me/player/next`).
+- A later song of the album or playlist now playing is started in it
+  (`PUT /me/player/play`). The helper first reads what is playing and that
+  context's song addresses, which it keeps only in memory. The songs in between
+  stay queued.
+- Anything else is reached by skipping once per row, so the rows before it leave
+  the queue.
+
+The outcome shows for one snapshot in place of "Next N": Queue changed, No active device, Control
 denied (for example, Free accounts), Skip failed, or Sign in again (the grant lacks
 `user-modify-playback-state`). `Refresh` reads now unless the last read failed,
 whose wait stands. Requests older than 15 seconds, malformed, or left from
 before the helper started are discarded.
-Source: [skip to next](https://developer.spotify.com/documentation/web-api/reference/skip-users-playback-to-next-track).
+Sources: [skip to next](https://developer.spotify.com/documentation/web-api/reference/skip-users-playback-to-next-track),
+[start playback](https://developer.spotify.com/documentation/web-api/reference/start-a-users-playback).
+
+## Playlists
+
+Media's drawer has a second view, **Playlists** (a tab beside **Queue**; in the
+compact layout, click the heading word). It shows the first 50 playlists you own
+or follow, in your library's order, with covers; the wheel pages them, a click
+starts one on Spotify's active device, and Refresh reads the list again.
+
+- It needs `playlist-read-private` and `playlist-read-collaborative`, requested at
+  sign-in since 2026-11-24. With an older sign-in the view says **Sign in again**;
+  the queue is unaffected. Sign in from Media settings to add them.
+- The helper reads the list only when the view asks: on opening it, unless it
+  holds one at most ten minutes old, and on Refresh
+  (`GET /me/playlists`, plus what is playing, to mark it). Nothing polls.
+- It writes `playlists.snapshot` (`PARALLAX_PLAYLISTS_V1`): names, song counts or
+  owners, and cover file names, never an address. A click names the list and a
+  place in it; only the helper that wrote the list acts on it
+  (`PUT /me/player/play`). A new helper removes an older list, and Disconnect
+  deletes it.
+- Covers follow the queue's rules below, three per pass, after the list shows.
+- Liked Songs is not a playlist to Spotify's Web API, so it is not listed. Whether
+  Spotify's own mixes are listed is not documented. With shuffle on, Spotify picks
+  the first song. No active device, Control denied and the other click outcomes
+  show in the header.
+- An empty queue opens this view instead of closing the drawer, when the sign-in
+  can list playlists.
+
+Sources: [your playlists](https://developer.spotify.com/documentation/web-api/reference/get-a-list-of-current-users-playlists),
+[start playback](https://developer.spotify.com/documentation/web-api/reference/start-a-users-playback).
+
 HTTP401 gets exactly one forced token refresh and one queue retry, then pauses
 if still unauthorized. Returned token scopes may be a superset of the requested
 permission; the required scope must still be present. Refresh tokens rotate or are retained as specified by
@@ -164,7 +207,7 @@ Runtime files stay outside skins in `%LOCALAPPDATA%\Parallax\Media\Spotify\`:
 - `auth.lock`, `stop.request`: coordination.
 - `action.request`: one pending row click or Refresh, consumed by the helper.
 - `covers\<sha1>.jpg|png`: cover thumbnails of shown queue rows (added
-  2026-11-19), at most the 60 most recently used.
+  2026-11-19), at most the 120 most recently used.
 
 The directory uses a current-user-only ACL. Storage rejects reparse paths and
 unsafe profile/skin roots. Atomic replacement keeps no plaintext token backup.
@@ -187,7 +230,7 @@ inside a `covers` folder created with the same current-user-only ACL and
 reparse checks as the data root. Any failure leaves only that row without a
 cover, never fails the read, and is not retried for five minutes; a download
 that gets no response at all ends the remaining downloads for that read, and
-Stop ends them too. After the downloads the folder is pruned to the 60 most
+Stop ends them too. After the downloads the folder is pruned to the 120 most
 recently used covers, never removing one the snapshot about to be published
 names. This adds no Spotify Web API request, process or polling. Cover
 downloads were verified only against a synthetic CDN; the live CDN is
@@ -203,13 +246,14 @@ valid_until, retry_not_before, count; from V3, control (0/1) and notice (one
 fixed outcome name or empty); exactly five titleN/detailN pairs encoded as UTF-8
 hex; from V4, after detail5, image1..image5, each empty or a bare cover file
 name matching `^[0-9a-f]{40}\.(jpg|png)$` in the `covers` folder (V2/V3 rows
-have no cover); and in V5 current_title and current_detail, the track the rows
-come after, in the same hex. Unused fields are empty. Nonready states contain no
+have no cover). V5 instead has, after notice, current_title and current_detail (the
+track the rows come after, in the same hex) and then exactly count rows, up to 20,
+each titleN, detailN and imageN. Unused fields are empty. Nonready states contain no
 rows, covers, current track or observation/expiry. When Media's player shows
-another track, the reader writes one file, the refresh request
-`action.request` beside the snapshot; it holds a fixed word and a time, no
-track text. Unknown/duplicate keys, invalid Unicode, oversized
-files/fields, and invalid timestamps are rejected. Limits: 32,768-byte snapshot,
+another track, or a row is clicked, the reader writes one file, the request
+`action.request` beside the snapshot; it holds a fixed word, a row number and
+times, no track text. Unknown/duplicate keys, invalid Unicode, oversized
+files/fields, and invalid timestamps are rejected. Limits: 65,536-byte snapshot,
 512 UTF-8 bytes per title/detail, 1,048,576-byte API JSON, depth 24. Metadata is never
 interpreted as INI, Lua, actions, or URLs. Controls and bidi characters are filtered;
 Rainmeter metacharacters are neutralized before literal meter text is set.

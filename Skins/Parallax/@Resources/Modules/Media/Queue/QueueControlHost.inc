@@ -1,13 +1,16 @@
-; Row clicks and Refresh in Media.ini's queue drawer: QueueReader.lua hands a
-; click to QueueControl.lua, which runs one short hidden QueueProvider.ps1
-; request (Play or Refresh) on this host; the running helper does the Spotify
-; work. The same pair as the standalone Queue.ini, inert until a click supplies
-; the command. Media.ini only: Setup holds nothing that can launch beyond the
+; Row clicks, Refresh and the Playlists view in Media.ini's queue drawer:
+; QueueReader.lua hands a click to the running helper, which does the Spotify
+; work, by a small request file. Only when that cannot be written does
+; QueueControl.lua run one short hidden QueueProvider.ps1 request (Play or
+; Refresh) on this host, the same pair as the standalone Queue.ini, inert until
+; then. Media.ini only: Setup holds nothing that can launch beyond the
 ; two resume hosts, so its rows are never clickable and it has no Refresh.
 ; Included after InlineQueueGeometry.inc, so this width wins there.
 [Variables]
 MediaQueueRefreshWidth=(18*#Scale#)
 MediaRefreshGlyph=(14*#Scale#/24)
+; The view switch is placed by the header's own text size (8 pt is the default).
+MediaQueueTabUnit=(#Scale#*#HeaderFontSize#/8)
 ; The "queue is off" line: the first row's place, below the transport circles
 ; that overhang the header band; parked inside the panel while the drawer is
 ; closed, as InlineQueueGeometry.inc parks the header.
@@ -30,8 +33,61 @@ Timeout=15000
 UpdateDivider=-1
 DynamicVariables=1
 
-; Asks the running helper to read the queue now (QueueControl.lua Refresh).
-; Right end of the drawer's header row (InlineQueueMeters.inc), in the accent
+; The drawer's two views (2026-11-24). QueueReader.lua owns their text, colors
+; and visibility: the shared header meter says Queue, these add the bar and
+; Playlists, and a note of which playlists show at the right. The compact
+; layout's header sits behind the transport buttons, so there only the header's
+; own word shows and a click on it changes the view. Wheel over the rows pages
+; the playlists (InlineQueueMeters.inc).
+[MeterQueueTabQueue]
+Meter=Shape
+X=#MediaQueueX#
+Y=#MediaQueueHeaderY#
+W=(44*#MediaQueueTabUnit#)
+H=(18*#Scale#)
+Group=QueueRows
+Hidden=1
+UpdateDivider=-1
+Shape=Rectangle 0,0,(44*#MediaQueueTabUnit#),(18*#Scale#) | Fill Color 0,0,0,1 | StrokeWidth 0
+MouseActionCursor=1
+LeftMouseUpAction=[!CommandMeasure MeasureQueueStatus "ShowView('queue')"]
+
+[MeterQueueTabBar]
+Meter=String
+MeterStyle=StyleHeader
+X=(#MediaQueueX#+39*#MediaQueueTabUnit#)
+Y=#MediaQueueHeaderY#
+W=(8*#MediaQueueTabUnit#)
+Group=QueueRows
+Hidden=1
+UpdateDivider=-1
+Text=|
+
+[MeterQueueTabPlaylists]
+Meter=String
+MeterStyle=StyleHeader
+X=(#MediaQueueX#+48*#MediaQueueTabUnit#)
+Y=#MediaQueueHeaderY#
+W=(64*#MediaQueueTabUnit#)
+Group=QueueRows
+Hidden=1
+UpdateDivider=-1
+Text=Playlists
+MouseActionCursor=1
+LeftMouseUpAction=[!CommandMeasure MeasureQueueStatus "ShowView('playlists')"]
+
+[MeterQueueHeaderNote]
+Meter=String
+MeterStyle=StyleHeader
+X=(#MediaQueueX#+#MediaQueueWidth#-#MediaQueueRefreshWidth#-6*#Scale#)
+Y=#MediaQueueHeaderY#
+W=(Max(1,#MediaQueueWidth#-#MediaQueueRefreshWidth#-6*#Scale#-114*#MediaQueueTabUnit#))
+StringAlign=Right
+Group=QueueRows
+Hidden=1
+UpdateDivider=-1
+
+; Asks the running helper to read the shown view now (QueueReader.lua). Right end of the drawer's header row (InlineQueueMeters.inc), in the accent
 ; the standalone panel's actions use: Lucide refresh-cw (Icons\Lucide, pinned
 ; revision) at the queue icon's 14/24 scale and 2-unit round stroke, centred in
 ; an 18S box (2026-11-19; it was the word Refresh). A click's outcome replaces
@@ -58,7 +114,7 @@ MediaRefreshHeadTop=(21*#MediaRefreshGlyph#),(3*#MediaRefreshGlyph#) | LineTo (2
 MediaRefreshArcBottom=(21*#MediaRefreshGlyph#),(12*#MediaRefreshGlyph#) | ArcTo (12*#MediaRefreshGlyph#),(21*#MediaRefreshGlyph#),(9*#MediaRefreshGlyph#),(9*#MediaRefreshGlyph#),0,0,0 | ArcTo (5.26*#MediaRefreshGlyph#),(18.26*#MediaRefreshGlyph#),(9.75*#MediaRefreshGlyph#),(9.75*#MediaRefreshGlyph#),0,0,0 | LineTo (3*#MediaRefreshGlyph#),(16*#MediaRefreshGlyph#)
 MediaRefreshHeadBottom=(8*#MediaRefreshGlyph#),(16*#MediaRefreshGlyph#) | LineTo (3*#MediaRefreshGlyph#),(16*#MediaRefreshGlyph#) | LineTo (3*#MediaRefreshGlyph#),(21*#MediaRefreshGlyph#)
 MouseActionCursor=1
-LeftMouseUpAction=[!CommandMeasure MeasureQueueControl "Run('Refresh')"]
+LeftMouseUpAction=[!CommandMeasure MeasureQueueStatus "RefreshView()"]
 
 ; What an open drawer says while the optional queue helper was never started (no
 ; snapshot file), where it used to be blank. QueueReader.lua shows and hides it

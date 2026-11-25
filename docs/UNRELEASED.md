@@ -6,6 +6,13 @@ Where things stand between releases: what is on `main` but not yet in a publishe
 
 ## On main, not in any release
 
+**0.1.0-alpha.15 is prepared, not published** (2026-11-25). Package SHA-256 `c5f17e8f86609bac30ca9d7ff56d5b0225292fa8b41c59d4b21c4545d9a8d123`, 1,385,284 bytes (288 entries), built from `9f1b91e`. On the Surface laptop (Rainmeter 4.5.28.3936):
+
+- **Static and tooling:** `Test-Parallax -RequireAllModules` (26 configs, 0 errors, 0 warnings), `Test-ParallaxVariants` (27), `Test-PackagingTools` and `Test-DevMode` (132) under PowerShell 7, `test_settings_geometry.py` (120 combinations) and `test_idle_freeze_contract.py` (10).
+- **Media and Connections:** `Test-QueueCore` (216), `Test-QueueAuth`, `Test-QueueProvider` (551, after its [test fix](modules/Media.md#direct-row-clicks-and-the-playlists-view-2026-11-24)), `Test-QueueReader`, `Test-QueueView` (20 layouts), `Test-Connections`, `Test-MediaNeverStarted` at both widths, `Test-MediaSettings` (60 layouts, 7 captures) and `test_skin_contract.py` (35).
+- **Package:** every entry matches the source byte for byte, all four plugin DLLs match their recorded hashes, and it holds no test files. Extracted into an isolated profile with an empty local data folder, 14 configs (the suite, Connections, the standalone Queue, Media settings and the color picker) loaded for 45 s and the profile left no helper running. Its Global Settings read the live feed and said `Up to date` beside `Installed 0.1.0-alpha.15`. The only log lines were the 18 plugin-load errors for WebNowPlaying, left out on purpose.
+- **Not done:** a real Skin Installer run or an upgrade from alpha.14. No `User\*.inc` key changed since alpha.14.
+
 - **Media's queue follows the player** (2026-11-24). A song the player has reached leaves the queue drawer at once, and the running helper is asked to read again (one extra read per track change, no process) instead of up to 30 s later. The `Song / Artist` heading lines up with the queue's left edge. New snapshot format `PARALLAX_QUEUE_V5`. Verified live at natural track changes; Next, Previous and row clicks are not ([Media.md](modules/Media.md#queue-follows-the-player-2026-11-24)).
 - **A queue row plays directly** (2026-11-24): a song of the album or playlist now playing starts at once and the songs in between stay queued; other rows still skip. A click writes its own request, so it no longer waits for a PowerShell start. Tried live in a shuffled playlist ([Media.md](modules/Media.md#row-clicks-and-refresh-2026-10-27)).
 - **The queue scrolls** (2026-11-24): up to the 20 songs Spotify names, in the same rows ([Media.md](modules/Media.md#scrolling-queue-2026-11-24)).

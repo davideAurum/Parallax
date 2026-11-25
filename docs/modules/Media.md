@@ -1514,6 +1514,10 @@ Behavior: [How a row is played](#row-clicks-and-refresh-2026-10-27),
   tabs shown throughout.
 - After that fix and the scrolling queue: `Test-QueueCore.ps1` 216,
   `Test-QueueProvider.ps1` 551 (tolerances widened), `Test-QueueReader.ps1`.
+- 2026-11-25, before alpha.15: two of those checks still allowed under 2 s between
+  setting a Spotify wait and reading it back, and a loaded laptop took 2.6 to 2.9 s
+  (9 failures of 9, the wait unchanged). They now compare the exact time; a wait
+  moved by 1 s fails either. 551 pass, 3 of 3 runs.
 
 Not verified: the wheel by hand, a click that falls back to skips, more than 50
 playlists, Spotify's own mixes, other devices, and Free accounts.

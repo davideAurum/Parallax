@@ -114,6 +114,21 @@ Title/icon rows share a vertical center: `TitleRowCenterY=Inset+15*Scale` and `T
 
 Rainmeter `SnapEdges` is a per-skin setting in Rainmeter.ini, not an arbitrary spacing option. Leave normal Rainmeter snapping enabled; a user can disable it or hold Ctrl while dragging. Validate single/double alignment at 100%, 125%, 150% and 200% suite scale and mixed Windows DPI before release. See [official skin settings](https://github.com/rainmeter/rainmeter-docs/blob/master/source/manual/settings/skin-sections.html).
 
+### First placement
+
+Every panel names where it opens the first time, in `DefaultWindowX` and `DefaultWindowY`. Rainmeter reads those two options only while its settings file has no section for that config, writes them there, and from then on uses the recorded position. So a panel that was ever loaded is never moved, wherever it is, 0,0 included, and the rule holds for every way of loading one: Welcome, Manage Rainmeter, a gear or another panel's action. Read from the Rainmeter source at 4.5.26.3894 and 4.5.28.3936, and checked on 4.5.28.3936.
+
+`Geometry.inc` holds the one layout, as a `Place<Panel>X` / `Place<Panel>Y` pair per panel; an entrypoint names its own pair (`DefaultWindowX=#PlaceGPUX#`). It counts columns of one `Pitch` from the top right of the primary work area, so it follows the saved scale, column width and gap. The picture and its limits are in [WELCOME.md](WELCOME.md#where-panels-open-the-first-time). Rules for changing it:
+
+- A panel may stand above another only if the shipped options fix its height. CPU grows with the processor's thread count and stands alone; RAM's summary wraps, so RAM ends its column. IO and Chronometer grow only with later choices (more drives, the timers).
+- `Place<Panel>Height` repeats the window height of a panel from shared values only: an entrypoint reads its own module's settings, not its neighbor's. Change it together with the panel's shipped height. X uses the panel's own `WindowWidth`, so one saved at another width still ends at its column's right edge.
+- `Media.ini` and `Setup.ini` share one config and therefore one place. Connections (centered), the update prompt, the color picker and the hidden Idle config have their own positions.
+- Panels that open from another one (the eight utility settings, Thread colors and the separate Spotify queue) step down from the top left in `PlaceStep` steps, tallest first, so the title of one stays visible under the next.
+
+Rainmeter records the expanded formula, for example `WindowX=(Max(0,(0+1920)-...))`, until the panel is first dragged; its own illustro layout records a formula too. Code that reads `WindowX`/`WindowY` from Rainmeter.ini must not assume a plain number.
+
+The alternative was Welcome moving a never-placed config with `!Move` after loading it. It was not built. It would cover only panels loaded from Welcome; Rainmeter has recorded 0,0 by then, so Welcome would have to read the settings file before every load to know; each panel would appear in the corner first; and Welcome knows no more about another panel's size than `Geometry.inc` does. Neither approach sees what else is on the desktop.
+
 ## Appearance
 
 Shared typography uses `FontFace`, `TitleFontSize`/`TitleTextColor`, `HeaderFontSize`/`HeaderTextColor`, and `FontSize`/`TextColor` for body text. Defaults are IBM Plex Sans, 10/8/9 pt, and RGB 220/220/220 for titles/body versus 175/175/175 for headers. `MutedColor` remains available for secondary information. `AccentColor` defaults to 137/190/250; `AccentColor2` defaults to 181/161/226 for secondary actions. Utility metric colors and `GoodColor`/`WarningColor`/`DangerColor` preserve their semantic roles rather than following general text/accent changes.

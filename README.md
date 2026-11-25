@@ -38,7 +38,7 @@ You need Windows 10 or 11. So far Parallax has only been tested on 11.
 
 1. **Install Rainmeter** 4.5.26 or newer from [rainmeter.net](https://www.rainmeter.net/), if you don't have it.
 2. **Download Parallax** with the button at the top of this page and double-click the `.rmskin` file. Rainmeter's Skin Installer opens. Click **Install**.
-3. **Choose your panels.** A panel called **Welcome to Parallax** opens. Tick the panels you want, or click **Load all**. New panels open in the top-left corner of the screen, on top of one another, so drag each one to where you want it. Rainmeter remembers their places.
+3. **Choose your panels.** A panel called **Welcome to Parallax** opens. Tick the panels you want, or click **Load all**. New panels open side by side from the top right of your main screen. Drag each one to where you want it; Rainmeter remembers their places.
 
 The package also installs two small third-party Rainmeter plugins that Media Player uses, [WebNowPlaying](https://github.com/keifufu/WebNowPlaying-Rainmeter) and [Chameleon](https://github.com/socks-the-fox/chameleon), unless you already have a newer version of them.
 
@@ -130,7 +130,7 @@ All checks so far ran on the maintainer's own two PCs.
 
 ### Known issues
 
-- New panels open on top of one another in the top-left corner.
+- On a smaller screen some new panels open on top of one another, so drag them apart. A 1920 × 1080 screen has room for all of them at 100% Windows scaling. At 125% **Global Settings** covers part of three others and does not fit the screen, and at 150% **Welcome** is covered too. A panel that an older version left in the top-left corner stays there until you move it.
 - On Intel processors whose name includes their base speed, CPU Meter can show `(4.60)` as the turbo speed whatever the real one is. It comes from a setting, not a reading. To fix it, right-click CPU Meter, choose **Edit CPU options**, change or clear `CPUTurboClock`, save, and refresh the panel.
 - On Windows before 11 24H2, or in a language other than English, Network Meter reads `Band unavailable`.
 - In Media Player's one-column layout, the right playback button covers part of the time.

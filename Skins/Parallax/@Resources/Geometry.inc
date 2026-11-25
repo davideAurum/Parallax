@@ -21,3 +21,47 @@ TitleIconSize=(14*#TitleIconScale#)
 TitleIconGap=(4*#Scale#)
 TitleRowCenterY=(#Inset#+15*#Scale#)
 TitleRowHeight=(22*#Scale#)
+; First placement (docs/ARCHITECTURE.md). An entrypoint names its pair in
+; DefaultWindowX/Y, which Rainmeter reads only while its settings file has no
+; section for that config: a panel that was ever loaded keeps its own position.
+; Panels fill columns of one Pitch from the top right of the primary work area:
+; CPU | GPU, IO, Chronometer | Network, RAM | Visualizer, Media, Welcome (two
+; columns) | Global Settings (two). A work area too short for GPU, IO and
+; Chronometer in one column sends IO below Media. Only panels with a steady
+; height stand above another one; CPU grows with the processor and stands alone.
+PlaceRight=(#PWORKAREAX#+#PWORKAREAWIDTH#)
+PlaceBottom=(#PWORKAREAY#+#PWORKAREAHEIGHT#)
+; Window heights, gutter included, with each panel's shipped options.
+PlaceGPUHeight=(Round((414+#GraphHeight#+Max(0,#DataBarThickness#-6))*#Scale#)+#Gap#)
+PlaceIOHeight=(Round((152+Max(0,#DataBarThicknessPx#/#Scale#-6))*#Scale#)+#Gap#)
+PlaceChronometerHeight=(Round(152*#Scale#)+#Gap#)
+PlaceNetworkHeight=(Round(298*#Scale#)+#DataBarThicknessPx#+#Gap#)
+PlaceRAMHeight=(Round((283+#GraphHeight#+2*Max(0,#DataBarThickness#-6))*#Scale#)+#Gap#)
+PlaceVisualizerHeight=(Round(66*#Scale#)+Round(80*#Scale#)+#Gap#)
+PlaceMediaHeight=(Ceil(Ceil(Round(12*#Scale#)+132*#Scale#+#DataBarThicknessPx#+#Padding#)+22*#Scale#)+#Gap#)
+PlaceWelcomeHeight=(Round(400*#Scale#)+#Gap#)
+PlaceShort=(#PlaceGPUHeight#+#PlaceIOHeight#+#PlaceChronometerHeight#>#PWORKAREAHEIGHT#)
+PlaceCPUX=(Max(#PWORKAREAX#,#PlaceRight#-#WindowWidth#))
+PlaceCPUY=#PWORKAREAY#
+PlaceGPUX=(Max(#PWORKAREAX#,#PlaceRight#-#Pitch#-#WindowWidth#))
+PlaceGPUY=#PWORKAREAY#
+PlaceIOX=(Max(#PWORKAREAX#,#PlaceRight#-(1+2*#PlaceShort#)*#Pitch#-#WindowWidth#))
+PlaceIOY=(Max(#PWORKAREAY#,Min(#PWORKAREAY#+(1-#PlaceShort#)*#PlaceGPUHeight#+#PlaceShort#*(#PlaceVisualizerHeight#+#PlaceMediaHeight#),#PlaceBottom#-#PlaceIOHeight#)))
+PlaceChronometerX=(Max(#PWORKAREAX#,#PlaceRight#-#Pitch#-#WindowWidth#))
+PlaceChronometerY=(Max(#PWORKAREAY#,Min(#PWORKAREAY#+#PlaceGPUHeight#+(1-#PlaceShort#)*#PlaceIOHeight#,#PlaceBottom#-#PlaceChronometerHeight#)))
+PlaceNetworkX=(Max(#PWORKAREAX#,#PlaceRight#-2*#Pitch#-#WindowWidth#))
+PlaceNetworkY=#PWORKAREAY#
+PlaceRAMX=(Max(#PWORKAREAX#,#PlaceRight#-2*#Pitch#-#WindowWidth#))
+PlaceRAMY=(Max(#PWORKAREAY#,Min(#PWORKAREAY#+#PlaceNetworkHeight#,#PlaceBottom#-#PlaceRAMHeight#)))
+PlaceVisualizerX=(Max(#PWORKAREAX#,#PlaceRight#-3*#Pitch#-#WindowWidth#))
+PlaceVisualizerY=#PWORKAREAY#
+PlaceMediaX=(Max(#PWORKAREAX#,#PlaceRight#-3*#Pitch#-#WindowWidth#))
+PlaceMediaY=(Max(#PWORKAREAY#,Min(#PWORKAREAY#+#PlaceVisualizerHeight#,#PlaceBottom#-#PlaceMediaHeight#)))
+PlaceWelcomeX=(Max(#PWORKAREAX#,#PlaceRight#-3*#Pitch#-#WindowWidth#))
+PlaceWelcomeY=(Max(#PWORKAREAY#,Min(#PWORKAREAY#+#PlaceVisualizerHeight#+#PlaceMediaHeight#,#PlaceBottom#-#PlaceWelcomeHeight#)))
+PlaceSettingsX=(Max(#PWORKAREAX#,#PlaceRight#-5*#Pitch#-#WindowWidth#))
+PlaceSettingsY=#PWORKAREAY#
+; Panels opened from another one (utility settings, Thread colors, the separate
+; queue) step down from the top left instead: n steps each way, tallest first.
+PlaceStep=(Round(30*#Scale#))
+PlaceLowest=(Max(#PWORKAREAY#,#PlaceBottom#-#WindowHeight#))

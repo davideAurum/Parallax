@@ -72,7 +72,7 @@ Parallax works without any of these.
 
 Media Player follows desktop players that appear in Windows' own media controls, such as Spotify, without anything more. For players in a browser, add the [WebNowPlaying browser extension](https://wnp.keifufu.dev/extension/getting-started).
 
-To see **Spotify** in the player's title instead of a generic name, open Media settings and click **Start** under **Source detection**. This needs no sign-in.
+While a desktop player plays, a new install's title reads `Media Player: detection off`. To see **Spotify** there, click the title to open Media settings, then click **Start** under **Source detection**. This needs no sign-in. Other desktop players show as `Unknown`.
 
 ### CPU temperatures, voltages and fans: HWiNFO
 
@@ -91,11 +91,11 @@ Media Player can list the songs Spotify plays next. You need both of these:
 - **Spotify Premium.** Spotify requires it from the owner of a new developer app, which here is you.
 - **Your own Spotify developer app.** Spotify allows only five people per new app, so Parallax cannot ship one for everybody.
 
-The [queue setup guide](Skins/Parallax/@Resources/Modules/Media/Queue/README.md#connect-your-app) has the steps to make the app. You sign in from **Connections** in Global Settings.
+The [queue setup guide](Skins/Parallax/@Resources/Modules/Media/Queue/README.md#connect-your-app) has the steps to make the app. You sign in from **Connections** in Global Settings. Until then, the open queue reads `Spotify queue is off: Connections`.
 
-- The queue lists up to the next twenty songs and scrolls.
+- The queue lists up to the next twenty songs. Roll the mouse wheel over it to scroll.
 - Clicking a song plays it directly and keeps the songs in between, if it belongs to the album or playlist now playing. Otherwise Spotify skips to it, and the songs before it leave the queue.
-- The **Playlists** view lists your playlists and starts the one you click.
+- The **Playlists** view lists your first 50 playlists and starts the one you click. Spotify does not offer Liked Songs to apps, so they are not in the list.
 
 Songs and playlists play on whichever device Spotify is using, so start Spotify first.
 
@@ -114,16 +114,18 @@ All checks so far ran on the maintainer's own two PCs.
 
 ### Not yet
 
-- Anyone else's PC.
+- Anyone else's PC, and a first install on a PC that never had Parallax.
 - **What it costs in processor time and memory.** The long measurement has not been run, so there is no figure to give.
 - Windows 10, Windows in a language other than English, and ARM PCs.
 - AMD processors, and AMD or Intel graphics cards.
 - A PC with integrated graphics only. This was tried with the NVIDIA card hidden, not on a real one.
-- A 1080p screen at 100% scaling, and several screens with different scaling.
+- A 1080p screen at 100% scaling, several screens with different scaling, and the look of 0.1.0-alpha.14 and later at 150%.
 - Rainmeter's portable version, a standard (non-administrator) Windows account, a Windows user name with accents or non-Latin letters, and work PCs that block PowerShell scripts. Several panels use small hidden PowerShell helpers.
 - Running for days, through sleep and wake.
 - An update through the current prompt, followed from start to finish.
-- Spotify with a Free account, with several devices, or with more than 50 playlists.
+- Spotify with a Free account, on another device, or with more than 50 playlists. Scrolling the queue with a real mouse wheel, and a click on a song Spotify has to skip to.
+- The cover's colors in the fold-out spectrum, or from a cover with little color.
+- CPU Meter picking up HWiNFO again by itself after the readings stopped.
 - The removal steps above.
 
 ### Known issues
@@ -131,6 +133,8 @@ All checks so far ran on the maintainer's own two PCs.
 - New panels open on top of one another in the top-left corner.
 - On Intel processors whose name includes their base speed, CPU Meter can show `(4.60)` as the turbo speed whatever the real one is. It comes from a setting, not a reading. To fix it, right-click CPU Meter, choose **Edit CPU options**, change or clear `CPUTurboClock`, save, and refresh the panel.
 - On Windows before 11 24H2, or in a language other than English, Network Meter reads `Band unavailable`.
+- In Media Player's one-column layout, the right playback button covers part of the time.
+- In Media Player's setup view, a queue that was left open shows its songs below the panel and cannot be closed there.
 
 ## Privacy
 

@@ -693,9 +693,20 @@ function Get-ReportedBounds([string]$Report,[string]$Meter) {
     if (-not $position.Success) { throw "Missing native bounds for $Meter." }
     return @(1..4 | ForEach-Object { [double]::Parse($position.Groups[$_].Value,[Globalization.CultureInfo]::InvariantCulture) })
 }
+function Measure-AccentPixels([Drawing.Bitmap]$Bitmap,[double[]]$Bounds) {
+    # Pixels inside a meter's bounds in the fixture's Accent 1 (95,188,246),
+    # antialiased edges included; no other fixture color has this channel order.
+    $count=0; $left=[int][math]::Floor($Bounds[0]); $top=[int][math]::Floor($Bounds[1])
+    for ($x=$left;$x -lt $left+$Bounds[2];$x++) { for ($y=$top;$y -lt $top+$Bounds[3];$y++) {
+        $pixel=$Bitmap.GetPixel($x,$y)
+        if ($pixel.G -gt $pixel.R+20 -and $pixel.B -gt $pixel.G+20) { $count++ }
+    } }
+    return $count
+}
 function Measure-TransportFace([Drawing.Bitmap]$Bitmap,[double[]]$Bounds,[double]$Scale) {
-    # Accent face pixels inside the circle, and background-colored glyph pixels
-    # well inside it, where only the face or its art can be painted.
+    # Accent face pixels inside the circle, and white glyph pixels
+    # (MediaTransportGlyphColor, 2026-10-25; background-colored before) well
+    # inside it, where only the face or its art can be painted.
     $centerX=$Bounds[0]+$Bounds[2]/2; $centerY=$Bounds[1]+$Bounds[3]/2; $radius=17*$Scale
     $face=0; $glyph=0
     for ($x=[int][math]::Floor($centerX-$radius);$x -le [math]::Ceiling($centerX+$radius);$x++) { for ($y=[int][math]::Floor($centerY-$radius);$y -le [math]::Ceiling($centerY+$radius);$y++) {
@@ -703,7 +714,7 @@ function Measure-TransportFace([Drawing.Bitmap]$Bitmap,[double[]]$Bounds,[double
         if ($distance -gt $radius-2*$Scale) { continue }
         $pixel=$Bitmap.GetPixel($x,$y)
         if ($pixel.G -gt $pixel.R+20 -and $pixel.B -gt $pixel.G+20) { $face++ }
-        elseif ($distance -le $radius-3*$Scale -and [math]::Max($pixel.R,[math]::Max($pixel.G,$pixel.B)) -lt 70) { $glyph++ }
+        elseif ($distance -le $radius-3*$Scale -and [math]::Min($pixel.R,[math]::Min($pixel.G,$pixel.B)) -gt 215) { $glyph++ }
     } }
     return [ordered]@{Face=$face;Glyph=$glyph}
 }
@@ -768,18 +779,15 @@ function Save-ViewCaptures([uint32]$OwnedPid) {
             $headerPixels=$null
             if ($IdentityFocused -and $case.Kind -ne 'IdentitySetup') {
                 # A Shape may restore its nominal W/H while its cached drawing
-                # stays blank. Check actual neutral icon pixels after the
-                # disconnected -> idle -> playing transition as well.
+                # stays blank. Check actual icon pixels after the disconnected
+                # -> idle -> playing transition as well. Song, artist and album
+                # are Accent 1 whether album colors are on or off (decision C5,
+                # 2026-11-19); they were neutral before.
                 $metadataPixels=[ordered]@{}
                 foreach ($iconName in @('Song','Artist','Album')) {
-                    $icon=Get-ReportedBounds $nativeReport "Meter${iconName}Icon"
-                    $count=0; $iconX=[int][math]::Floor($icon[0]); $top=[int][math]::Floor($icon[1])
-                    for ($x=$iconX;$x -lt $iconX+$icon[2];$x++) { for ($y=$top;$y -lt $top+$icon[3];$y++) {
-                        $pixel=$bitmap.GetPixel($x,$y)
-                        if ($pixel.R -ge 80 -and $pixel.R -le 210 -and [math]::Abs($pixel.R-$pixel.G) -le 2 -and [math]::Abs($pixel.R-$pixel.B) -le 2) { $count++ }
-                    } }
+                    $count=Measure-AccentPixels $bitmap (Get-ReportedBounds $nativeReport "Meter${iconName}Icon")
                     $metadataPixels[$iconName]=$count
-                    if ($count -lt 3) { throw "Metadata $iconName icon is visually blank after identity transitions in $label; capture $file" }
+                    if ($count -lt 3) { throw "Metadata $iconName icon is visually blank or not Accent 1 after identity transitions in $label; capture $file" }
                 }
                 $transportPixels=[ordered]@{}
                 foreach ($controlName in @('Previous','PlayPause','Next')) {
@@ -792,12 +800,7 @@ function Save-ViewCaptures([uint32]$OwnedPid) {
                 $headerPixels=[ordered]@{}
                 foreach ($iconName in @('Media','Player')) {
                     $icon=Get-ReportedBounds $nativeReport "Meter${iconName}Icon"
-                    $count=0; $left=[int][math]::Floor($icon[0]);$top=[int][math]::Floor($icon[1])
-                    for ($x=$left;$x -lt $left+$icon[2];$x++) { for ($y=$top;$y -lt $top+$icon[3];$y++) {
-                        $pixel=$bitmap.GetPixel($x,$y)
-                        if ($pixel.G -gt $pixel.R+20 -and $pixel.B -gt $pixel.G+20) { $count++ }
-                    } }
-                    $headerPixels[$iconName]=[ordered]@{Width=$icon[2];Pixels=$count}
+                    $headerPixels[$iconName]=[ordered]@{Width=$icon[2];Pixels=(Measure-AccentPixels $bitmap $icon)}
                 }
                 if ($headerPixels.Player.Width -le 0 -or $headerPixels.Player.Pixels -lt 3 -or $headerPixels.Media.Width -ne 0) {
                     throw "Playing title icon is blank or not alone in $label`: $($headerPixels | ConvertTo-Json -Compress); capture $file"

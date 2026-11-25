@@ -17,6 +17,10 @@
 --                                          ParallaxIdleHeadline meter and the
 --                                          ParallaxIdleHoverSwap meters
 --                                          (missing when the load lacks one)
+--     C|clock|tag|state|cadence            with each snapshot, in a load with a
+--                                          spectrum capture only: its state
+--                                          (MeasureVisualizerState) and
+--                                          #VisualizerCaptureDivider#
 --     V|clock|hidden|digest|changed        measure values each tick: a digest
 --                                          of every listed measure's string
 --                                          value, and how many changed
@@ -72,6 +76,11 @@ function Snapshot(tag)
                 out[#out + 1] = string.format('B|%.3f|%s|%s|%s', os.clock(), tag, name, meter and hidden(meter) or 'missing')
             end
         end
+    end
+    local capture = SKIN:GetMeasure('MeasureVisualizerState')
+    if capture then
+        local cadence = SKIN:ParseFormula(SKIN:ReplaceVariables('(#VisualizerCaptureDivider#)'))
+        out[#out + 1] = string.format('C|%.3f|%s|%d|%s', os.clock(), tag, capture:GetValue(), tostring(cadence))
     end
     local file = io.open(logPath, 'ab')
     if file then file:write(table.concat(out, '\n') .. '\n'); file:close() end

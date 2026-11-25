@@ -22,7 +22,10 @@
 #            paused measure's value stays constant for 3 s.
 #   leave    idle file 0: the line hides within the same bound; every meter's
 #            divider equals its pre-enter snapshot; measure values move again
-#            (reported; a quiet machine can leave some unchanged).
+#            (reported; a quiet machine can leave some unchanged). The spectrum
+#            mask's divider follows the output's signal instead, so it is checked
+#            against the capture state before, at and 3 s after the leave: the
+#            run passes whether or not sound is playing.
 #   headline every ParallaxIdleHeadline meter is hidden while paused and back
 #            exactly as before after leave (B probe records); with a hover
 #            pair, emulated hover actions while paused move only the gear,
@@ -243,6 +246,10 @@ $mediaPrepare = {
     })
     [IO.File]::WriteAllText($providerPath, $provider, $encoding)
     [IO.File]::WriteAllText((Join-Path $media 'ProviderControlFixture.lua'), "function Update() return 1 end`nfunction Run() end`n", $encoding)
+    # Album colors load the bundled Chameleon plugin, which an isolated instance
+    # does not have; the fixture keeps the theme, as the Media harnesses do.
+    $albumColors = Join-Path $media 'AlbumColors1.inc'
+    if (Test-Path -LiteralPath $albumColors) { [IO.File]::WriteAllText($albumColors, "; Fixture: album colors off (no plugin in fixtures).`n", $encoding) }
     foreach ($file in Get-ChildItem -LiteralPath $Target -Recurse -File | Where-Object { $_.Extension -in @('.ini', '.inc') }) {
         $text = [IO.File]::ReadAllText($file.FullName)
         $updated = $text
@@ -299,6 +306,16 @@ public static class ParallaxStandDownAudio {
 '@
 }
 function Get-ActiveSessions($Process) { @([ParallaxStandDownAudio]::SessionStates([uint32]$Process.Id) | Where-Object { $_ -eq 1 }).Count }
+# A file Rainmeter writes while this run polls it, or '' when it cannot be read.
+# Shared: a plain ReadAllText denies writers while it has the file open, and
+# Rainmeter's !WriteKeyValue then fails and logs an error (as it did once in a
+# poll of CaptureState.inc; Test-MediaCaptureLease.ps1 Get-CaptureState).
+function Read-Shared([string]$Path) {
+    try {
+        $stream = [IO.FileStream]::new($Path, [IO.FileMode]::Open, [IO.FileAccess]::Read, [IO.FileShare]::ReadWrite -bor [IO.FileShare]::Delete)
+        try { return [IO.StreamReader]::new($stream).ReadToEnd() } finally { $stream.Dispose() }
+    } catch { return '' }
+}
 # A refresh-standby skin (Media.ini, the standalone Visualizer) stands down by
 # reloading: one refresh into standby (slow tick, no capture, so no render
 # session for the instance) and one refresh back (fast tick, live capture);
@@ -325,14 +342,14 @@ function Test-RefreshStandby($Run, $Process, [string]$Label, [string]$Pattern, [
         else { Check ($sessions -ge 1) "$Label $($step.Label): the live capture's render session is back" }
     }
     $statePath = Join-Path $Run.Target $StateFile
-    $state = [IO.File]::ReadAllText($statePath)
+    $state = Read-Shared $statePath
     Check (@($Live | Where-Object { $state -notmatch $_ }).Count -eq 0) "${Label}: the state file is back to live"
     # Rainmeter restarts while Media is in standby and input is recent: the
     # standby load syncs with paused 0 and reloads once, back to live.
     $written = Send $Run 'idle 10'
     $null = Wait-Hidden $Run '0' $written 20000
     Start-Sleep -Seconds 2
-    Check ([IO.File]::ReadAllText($statePath) -match $Standby) "${Label}: standby saved before the restart"
+    Check ((Read-Shared $statePath) -match $Standby) "${Label}: standby saved before the restart"
     try { $null = Send $Run 'quit' } catch { }
     Check ($Process.WaitForExit(20000)) "${Label}: the instance quit while in standby"
     [IO.File]::WriteAllText("$($Run.Root)\idle.txt", '0', $encoding)
@@ -343,7 +360,7 @@ function Test-RefreshStandby($Run, $Process, [string]$Label, [string]$Pattern, [
         $clock = [Diagnostics.Stopwatch]::StartNew()
         $liveAt = -1
         while ($clock.ElapsedMilliseconds -lt 45000) {
-            $text = try { [IO.File]::ReadAllText($statePath) } catch { '' }
+            $text = Read-Shared $statePath
             if (@($Live | Where-Object { $text -notmatch $_ }).Count -eq 0) { $liveAt = $clock.ElapsedMilliseconds; break }
             Start-Sleep -Milliseconds 200
         }
@@ -622,6 +639,28 @@ function Get-Snapshot($Records, [string]$Tag, [double]$After = -1) {
     foreach ($record in $selected) { if ([math]::Abs($record.Clock - $first) -lt 0.5 -and -not $map.Contains($record.Rest[1])) { $map[$record.Rest[1]] = $record.Rest[2] } }
     return [pscustomobject]@{ Clock = $first; Dividers = $map }
 }
+# The spectrum mask's divider follows the capture state, not the pause:
+# Capture.inc sets the capture cadence on signal and -1 in every other state. So
+# with sound on the output it differs between two snapshots of a correct skin,
+# and right after a resume's reload it reads -1 until the new capture has a
+# sample. Each snapshot records that state (C records); the mask is checked
+# against it, and left out of the comparison with the pre-enter dividers. A load
+# without a capture has neither the state nor the mask.
+$spectrumMask = 'MeterVisualizerSpectrumMask'
+function Test-SpectrumMask([string]$Label, $Records, [object[]]$Snapshots) {
+    $seen = [Collections.Generic.List[string]]::new()
+    $wrong = 0
+    foreach ($item in $Snapshots) {
+        $snapshot = Get-Snapshot $Records $item.Tag $item.After
+        $divider = if ($snapshot) { $snapshot.Dividers[$spectrumMask] } else { 'no snapshot' }
+        $capture = @($Records | Where-Object { $_.Kind -eq 'C' -and $_.Rest[0] -eq $item.Tag -and $_.Clock -ge $item.After } | Select-Object -First 1)
+        $state = if ($capture.Count) { $capture[0].Rest[1] } else { 'none' }
+        $expected = if ($state -eq 'none') { 'missing' } elseif ($state -eq '2') { $capture[0].Rest[2] } else { '-1' }
+        if ($divider -ne $expected) { $wrong++ }
+        $seen.Add(('{0}: state {1}, divider {2}{3}' -f $item.Tag, $state, $divider, $(if ($divider -ne $expected) { " (expected $expected)" } else { '' })))
+    }
+    Check ($wrong -eq 0) "${Label}: the spectrum mask's divider follows the capture state ($($seen -join '; '))"
+}
 
 # Shared staging: Idle pause 5 min with fast test hooks, the layout, and the
 # coordinator's test idle file.
@@ -802,8 +841,10 @@ function Invoke-StandDown($Entry, [string]$LayoutName, [bool]$Full) {
         Check-Bound ($null -ne $leave) ($latency -le $bound) ((Get-DisplayEvents $run.Root) - $displayBefore) "$($Entry.Key): leave within a coordinator tick plus one skin tick"
         if ($null -eq $leave) { return }
         $after = Get-Snapshot (Read-Probe $run.Probe) 'live' $leave.Clock
-        $differ = @($baseline.Dividers.Keys | Where-Object { $after.Dividers[$_] -ne $baseline.Dividers[$_] })
+        $differ = @($baseline.Dividers.Keys | Where-Object { $_ -ne $spectrumMask -and $after.Dividers[$_] -ne $baseline.Dividers[$_] })
         Check ($differ.Count -eq 0) "$($Entry.Key): every meter's divider equals its pre-enter snapshot after leave$(if ($differ.Count) { '; differ: ' + (($differ | Select-Object -First 8 | ForEach-Object { "$_ $($baseline.Dividers[$_])->$($after.Dividers[$_])" }) -join ', ') })"
+        $maskSnapshots = @(@{ Tag = 'baseline'; After = -1 }, @{ Tag = 'live'; After = $leave.Clock })
+        if (-not $Full -and $baseline.Dividers.Contains($spectrumMask)) { Test-SpectrumMask $Entry.Key (Read-Probe $run.Probe) $maskSnapshots }
         $afterShown = Get-Visibility (Read-Probe $run.Probe) 'live' $leave.Clock
         Write-Output "     headline after leave: $(Format-Visibility $afterShown)"
         if ($signalDependent) { Check ($null -ne $afterShown) "$($Entry.Key): the headline was recorded after leave (signal-dependent, not compared)" }
@@ -814,6 +855,11 @@ function Invoke-StandDown($Entry, [string]$LayoutName, [bool]$Full) {
         Write-Output "     after leave: $($resumed.Count) ticks with changed measure values in 3 s"
         if ($Entry.StaticValues) { Write-Output '     (this view has no changing value without a provider; not checked)' }
         else { Check ($resumed.Count -gt 0) "$($Entry.Key): measure values move again after leave" }
+        if ($baseline.Dividers.Contains($spectrumMask)) {
+            $null = Send $run "snap $($Entry.Config) settled"
+            Start-Sleep -Milliseconds 600
+            Test-SpectrumMask $Entry.Key (Read-Probe $run.Probe) @($maskSnapshots + @{ Tag = 'settled'; After = -1 })
+        }
         Capture $run $process 'resumed'
 
         # Hover pair (emulated hover actions, as the skin's MouseOver/Leave run
@@ -1039,12 +1085,17 @@ function Invoke-Combined([string]$LayoutName, [bool]$AtStart) {
         }
         Write-Output ("     leave: longest main-thread block {0:N2} s" -f (Get-LongestBlock $runs[$keys[0]].Probe $resumedAt))
         Start-Sleep -Seconds 3
+        foreach ($key in $keys) { if ($null -ne $baseline[$key] -and $baseline[$key].Dividers.Contains($spectrumMask)) { $null = Send $control "snap $($runs[$key].Entry.Config) settled" } }
+        Start-Sleep -Milliseconds 800
         foreach ($key in $keys) {
             if ($null -eq $leave[$key] -or $null -eq $baseline[$key]) { continue }
             $records = Read-Probe $runs[$key].Probe
             $after = Get-Snapshot $records 'live' $leave[$key].Clock
-            $differ = @(if ($after) { $baseline[$key].Dividers.Keys | Where-Object { $after.Dividers[$_] -ne $baseline[$key].Dividers[$_] } })
+            $differ = @(if ($after) { $baseline[$key].Dividers.Keys | Where-Object { $_ -ne $spectrumMask -and $after.Dividers[$_] -ne $baseline[$key].Dividers[$_] } })
             Check ($null -ne $after -and $differ.Count -eq 0) "combined $key`: every meter's divider equals its pre-enter snapshot after leave$(if ($differ.Count) { '; differ: ' + (($differ | Select-Object -First 8 | ForEach-Object { "$_ $($baseline[$key].Dividers[$_])->$($after.Dividers[$_])" }) -join ', ') })"
+            if ($baseline[$key].Dividers.Contains($spectrumMask)) {
+                Test-SpectrumMask "combined $key" $records @(@{ Tag = 'baseline'; After = -1 }, @{ Tag = 'live'; After = $leave[$key].Clock }, @{ Tag = 'settled'; After = -1 })
+            }
             $resumed = @($records | Where-Object { $_.Kind -eq 'V' -and $_.Clock -ge $leave[$key].Clock -and [int]$_.Rest[2] -gt 0 })
             # Media's drawer defers to the standalone Visualizer here, so its
             # paused measures are the provider fixtures, which never change.

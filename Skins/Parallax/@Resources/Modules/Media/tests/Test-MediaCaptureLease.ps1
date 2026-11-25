@@ -15,7 +15,9 @@
 # size identical across variants; variant 0 pixel-identical to the baseline
 # build passed with -BaselineSkinRoot (b0f1aba); no AudioLevel parent in
 # variants 1 and 2; an active render session for the Rainmeter process in
-# variant 0 and none in variant 1 (IAudioSessionManager2); clean logs.
+# variant 0 and none in variant 1 (IAudioSessionManager2); clean logs. The
+# coordinator is staged as away: with real input a paused drawer resumes at its
+# first sync, by design, and variant 1 would be judged on a live drawer.
 #
 # Stage B (lease): CaptureLeaseSuite.luatest inside Rainmeter's own Lua, then
 # Media.ini with the real coordinator (tick 500 ms, away 5 s, heartbeat 2 s,
@@ -26,7 +28,10 @@
 # resumes at once and the next live load re-joins it. Each transition is one
 # Media refresh, the render session goes and comes back with the capture, and
 # the log stays clean. Steps slowed by Windows display re-detection (which
-# stalls Rainmeter's timers) are reported as late, not failed.
+# stalls Rainmeter's timers) are reported as late, not failed. Needs silent
+# output: the lease parks only after quiet, by design, so with anything playing
+# on the default output (a notification sound is enough) the stage stops, says
+# SOUND and is not judged; the run then ends with that reason.
 #
 # Stage C (one capture): Media's open drawer defers to the standalone Audio
 # Visualizer when it loads (one refresh, the deferred message captured at
@@ -56,6 +61,7 @@ $encoding = [Text.UTF8Encoding]::new($false)
 $invariant = [Globalization.CultureInfo]::InvariantCulture
 $failures = 0
 $late = 0
+$sound = 0
 $checks = 0
 function Check([bool]$Condition, [string]$Message) {
     $script:checks++
@@ -284,6 +290,27 @@ function Copy-Skin([string]$Root, [string]$Source, [string]$Name, $Layout) {
     return $target
 }
 
+# The staged coordinator: tick 500 ms, away after 5 s, heartbeat 2 s, and the
+# idle seconds from idle.txt, so the run does not depend on real input.
+function Set-IdleStage([string]$Root, [string]$Target, [string]$Idle) {
+    $idleIni = Join-Path $Target 'Idle\Idle.ini'
+    Set-Key $idleIni 'ParallaxIdleTick' '500'
+    Set-Key $idleIni 'ParallaxIdleTestAwaySeconds' '5'
+    Set-Key $idleIni 'ParallaxIdleTestHeartbeatTicks' '4'
+    Set-Key $idleIni 'ParallaxIdleTestFile' "$Root\idle.txt"
+    Put $Root "$Root\idle.txt" $Idle
+}
+# The highest peak on the default output over this long.
+function Get-OutputPeak([int]$Milliseconds) {
+    $peak = 0.0
+    $clock = [Diagnostics.Stopwatch]::StartNew()
+    while ($clock.ElapsedMilliseconds -lt $Milliseconds) {
+        $peak = [math]::Max($peak, [double][ParallaxLeaseNative]::Peak())
+        Start-Sleep -Milliseconds 50
+    }
+    return $peak
+}
+
 # A copy of the Media entrypoint as its own config whose capture state comes
 # from a state file beside it (#CURRENTPATH#), so several variants can load
 # in one instance. Only the state include's path changes.
@@ -409,6 +436,7 @@ if ('A' -in $Stage) {
     foreach ($layout in $layouts) {
         $root = New-Root
         $target = Copy-Skin $root $skinSource 'Parallax' $layout
+        Set-IdleStage $root $target '10'
         Add-VariantConfig $target 'MediaP' 1
         Add-VariantConfig $target 'MediaD' 2
         $configs = [ordered]@{ 'Parallax\Media' = 0; 'Parallax\MediaP' = 1; 'Parallax\MediaD' = 2 }
@@ -468,6 +496,7 @@ if ('A' -in $Stage) {
     foreach ($capture in 0, 1) {
         $root = New-Root
         $target = Copy-Skin $root $skinSource 'Parallax' $layouts[0]
+        Set-IdleStage $root $target '10'
         $statePath = Join-Path $target '@Resources\Modules\Media\CaptureState.inc'
         Set-Key $statePath 'MediaDrawerCapture' ([string]$capture)
         Add-Probe $root (Join-Path $target 'Media\Media.ini') "$root\report.txt"
@@ -479,6 +508,7 @@ if ('A' -in $Stage) {
             $states = @([ParallaxLeaseNative]::SessionStates([uint32]$process.Id))
             $report = Read-Report "$root\report.txt"
             Write-Output ("     variant {0} alone: capture={1}, render sessions of PID {2}: [{3}] (0 inactive, 1 active, 2 expired)" -f $capture, $report['Capture'], $process.Id, ($states -join ','))
+            Check ($report['Capture'] -eq [string]$capture) "Variant $capture alone: still in capture variant $capture after settling (its last load: $($report['Capture']))"
             if ($capture -eq 0) { Check (@($states | Where-Object { $_ -eq 1 }).Count -ge 1) 'Variant 0: the Rainmeter process holds an active render session (AudioLevel''s silent stream)' }
             else { Check (@($states | Where-Object { $_ -eq 1 }).Count -eq 0) 'Variant 1: the Rainmeter process holds no active render session' }
             $issues = @(Get-LogIssues $root)
@@ -615,17 +645,16 @@ end
     $root = New-Root
     $layout = [pscustomobject]@{ Name = 'w220-s1-c2'; Width = '220'; Scale = '1'; Columns = '2' }
     $target = Copy-Skin $root $skinSource 'Parallax' $layout
-    $idleIni = Join-Path $target 'Idle\Idle.ini'
-    Set-Key $idleIni 'ParallaxIdleTick' '500'
-    Set-Key $idleIni 'ParallaxIdleTestAwaySeconds' '5'
-    Set-Key $idleIni 'ParallaxIdleTestHeartbeatTicks' '4'
-    Set-Key $idleIni 'ParallaxIdleTestFile' "$root\idle.txt"
+    Set-IdleStage $root $target '0'
+    # The level the drawer calls signal (an RMS above this); a peak at or below
+    # it is always quiet.
+    $quietPeak = 0.001
+    Set-Key (Join-Path $target '@Resources\User\Visualizer.inc') 'VisualizerIdleThreshold' $quietPeak.ToString($invariant)
     $entry = Join-Path $target 'Media\Media.ini'
     $text = [IO.File]::ReadAllText($entry)
     $text = [regex]::Replace($text, '(?m)^\[Variables\]\r?$', "[Variables]`r`nMediaLeaseTestQuietSeconds=3`r`nMediaLeaseTestStaleSeconds=8")
     [IO.File]::WriteAllText($entry, $text, $encoding)
     Add-Probe $root $entry "$root\report.txt"
-    Put $root "$root\idle.txt" '0'
     Put $root "$root\Driver.lua" $driverLua
     Put $root "$target\ADriver\Driver.ini" "[Rainmeter]`r`nUpdate=100`r`n`r`n[Variables]`r`nCommandFile=$root\cmd.txt`r`nDriverLog=$root\driver.log`r`nIdleFile=$root\idle.txt`r`n`r`n[MeasureDriver]`r`nMeasure=Script`r`nScriptFile=$root\Driver.lua`r`n`r`n[MeterBounds]`r`nMeter=Image`r`nW=1`r`nH=1`r`nSolidColor=0,0,0,1`r`nUpdateDivider=-1`r`n"
     Write-Settings $root @('Parallax\Media', 'Parallax\ADriver')
@@ -636,13 +665,23 @@ end
         [IO.File]::WriteAllText("$root\cmd.txt", "$($script:sequence) $Command", $encoding)
         return [Diagnostics.Stopwatch]::StartNew()
     }
-    function Wait-State([string]$Want, [int]$Milliseconds) {
+    # A park waits for quiet output, so a park's wait also records the output's
+    # peak, and ends at its bound once something has played: it cannot be judged.
+    function Wait-State([string]$Want, [int]$Milliseconds, [int]$BoundMs) {
+        $script:stepPeak = 0.0
         $clock = [Diagnostics.Stopwatch]::StartNew()
         while ($clock.ElapsedMilliseconds -lt $Milliseconds) {
             if ((Get-CaptureState $statePath) -eq $Want) { return $clock.ElapsedMilliseconds }
+            if ($Want -eq '1') {
+                $script:stepPeak = [math]::Max($script:stepPeak, [double][ParallaxLeaseNative]::Peak())
+                if ($script:stepPeak -gt $quietPeak -and $clock.ElapsedMilliseconds -gt $BoundMs) { break }
+            }
             Start-Sleep -Milliseconds 50
         }
         return -1
+    }
+    function Stop-ForSound([string]$When, [double]$Peak) {
+        throw [OperationCanceledException]::new(('the default output peaked at {0:N4} {1} (quiet is {2} or less)' -f $Peak, $When, $quietPeak.ToString($invariant)))
     }
     function Wait-Refreshes([int]$Count, [int]$Milliseconds) {
         $clock = [Diagnostics.Stopwatch]::StartNew()
@@ -661,8 +700,9 @@ end
         $clock = if ($Command) { Send $Command } else { [Diagnostics.Stopwatch]::StartNew() }
         # Generous: Windows display re-detection can stall Rainmeter's timers for
         # many seconds, and each stall also re-arms the lease's staleness clock.
-        $elapsed = Wait-State $Want ([math]::Max($BoundMs * 6, 60000))
+        $elapsed = Wait-State $Want ([math]::Max($BoundMs * 6, 60000)) $BoundMs
         $total = $clock.ElapsedMilliseconds
+        if (($elapsed -lt 0 -or $total -gt $BoundMs) -and $script:stepPeak -gt $quietPeak) { Stop-ForSound "during the step '$Label'" $script:stepPeak }
         $refreshed = Wait-Refreshes ($before + 1) 20000
         Start-Sleep -Milliseconds 2500
         $after = Get-MediaRefreshes $root
@@ -690,8 +730,10 @@ end
         Check ((@(Get-Sessions | Where-Object { $_ -eq 1 })).Count -ge 1) 'Live capture holds a render session'
         $windows = @([ParallaxLeaseNative]::Of([uint32]$process.Id))
         Check (@(Find-Window $windows 'Parallax\Idle').Count -eq 1) "The lease joined: the coordinator is loaded (windows: $(($windows | ForEach-Object Title) -join ' | '))"
-        # Quiet (3 s) has long passed since the load, so going away parks at
-        # the coordinator's next tick.
+        # Quiet (3 s) has passed once the output has been silent this long, so
+        # going away parks at the coordinator's next tick.
+        $peak = Get-OutputPeak 4500
+        if ($peak -gt $quietPeak) { Stop-ForSound 'before the first park' $peak }
         Step 'away (idle 10)' 'idle 10' '1' 1500
         $window = @(Find-Window ([ParallaxLeaseNative]::Of([uint32]$process.Id)) 'Parallax\Media')
         if ($window.Count -eq 1) {
@@ -725,6 +767,9 @@ end
         $issues = @(Get-LogIssues $root)
         $issues | Select-Object -First 8 | ForEach-Object { Write-Output "     log: $_" }
         Check ($issues.Count -eq 0) 'Rainmeter logged no error or warning'
+    } catch [OperationCanceledException] {
+        $sound++
+        Write-Output "SOUND Stage B park and resume not judged: $($_.Exception.Message). The lease parks only on silent output, by design; stop playback and run -Stage B again."
     } finally { Stop-Run $process }
     Write-Output "     evidence: $root"
 }
@@ -823,5 +868,6 @@ if ('C' -in $Stage) {
     }
 }
 
-Write-Output "$checks checks, $failures failures, $late late step(s) during Windows display re-detection."
+Write-Output "$checks checks, $failures failures, $late late step(s) during Windows display re-detection$(if ($sound) { '; stage B stopped for sound on the output' })."
 if ($failures) { throw 'Media capture-lease native checks failed.' }
+if ($sound) { throw 'Media capture-lease stage B was not judged: it needs silent output, and the default output had sound. Stop playback and run -Stage B again.' }

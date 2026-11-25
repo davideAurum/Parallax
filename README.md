@@ -3,7 +3,7 @@
 Parallax is a set of small desktop panels for Windows: a clock with timers, meters for the processor, memory, graphics card, disks and network, a media player, and an audio spectrum. It runs in [Rainmeter](https://www.rainmeter.net/), a free program that draws panels, called *skins*, on the desktop.
 
 <!-- download-badge:start (rewritten by tools\Package-Parallax.ps1; do not edit by hand) -->
-[![Click here to download](https://img.shields.io/github/v/release/davideAurum/Parallax?include_prereleases&logo=github&label=Click%20here%20to%20download&color=blueviolet&style=for-the-badge)](https://github.com/davideAurum/Parallax/releases/download/v0.1.0-alpha.15/Parallax_0.1.0-alpha.15.rmskin)
+[![Click here to download](https://img.shields.io/github/v/release/davideAurum/Parallax?include_prereleases&logo=github&label=Click%20here%20to%20download&color=blueviolet&style=for-the-badge)](https://github.com/davideAurum/Parallax/releases/download/v0.1.0-alpha.16/Parallax_0.1.0-alpha.16.rmskin)
 <!-- download-badge:end -->
 
 **This is early software, and nobody outside the maintainer has run it yet.** Please read [what has been checked and what has not](#verified-and-not-yet) before you install it. Older versions are on the [releases page](https://github.com/davideAurum/Parallax/releases).

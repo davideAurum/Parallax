@@ -53,7 +53,7 @@ Added 2026-11-25, for the maintainer. Each utility's context menu ends with an i
 
 It runs `powershell.exe` hidden through `conhost.exe --headless`. It refuses, with a message box, while more than one Rainmeter is running. It builds from the checkout `-Menu On` was run in; run it from the main checkout, not a temporary worktree.
 
-Checked 2026-11-25: Rainmeter 4.5.28 passed `#CURRENTCONFIG#` and `#CURRENTFILE#` through the saved command to a stub script in a path with spaces (isolated instance, run from `OnRefreshAction`); the script's menu on/off, first load, refresh and refusal paths ran against a scratch skins folder with a stand-in for `Rainmeter.exe`; `Test-DevMode` (132), `Test-Parallax -RequireAllModules` and `test_skin_contract.py` pass. Not verified: the menu item itself, a real click, and the move on a live desktop.
+Checked 2026-11-25: Rainmeter 4.5.28 passed `#CURRENTCONFIG#` and `#CURRENTFILE#` through the saved command to a stub script in a path with spaces (isolated instance, run from `OnRefreshAction`); the script's menu on/off, first load, refresh and refusal paths ran against a scratch skins folder with a stand-in for `Rainmeter.exe`; `Test-DevMode` (132), `Test-Parallax -RequireAllModules` and `test_skin_contract.py` pass. The owner then turned it on in the installed copy and reported that the menu item works. Not reported separately: where the new panel was moved to, and the refusal message with a second Rainmeter running.
 
 ## What the copy is
 

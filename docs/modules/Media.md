@@ -364,10 +364,11 @@ three widths and every scale), `Test-Media.ps1` (818), the queue reader and view
 suites, `Test-MediaSettings.ps1` (60 layouts; `-SettingsFocused`;
 `-VisualizerDrawerFocused`) and isolated-profile captures of the Spectrum tab
 (220, double and compact) and the Queue view with the third tab (double). The
-native settings and drawer suites pin `VisualizerPlacement=1`. Not verified: a
-physical click through the tabs, the compact cycle live, the queue-off header
-live, album colors on the new tab, and `Test-MediaCaptureLease.ps1` stage B
-(it needs silent output).
+native settings and drawer suites pin `VisualizerPlacement=1`. By hand, the owner reported the same day that these all work in the developer
+copy: switching between the three tabs, reopening on Spectrum after closing,
+album colors on the new tab, the one-column label cycle and **Spectrum
+position** to Top and back. Not verified: the queue-off header live, and
+`Test-MediaCaptureLease.ps1` stage B (it needs silent output).
 
 ## Spectrum drawer
 

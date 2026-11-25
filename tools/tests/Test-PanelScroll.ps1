@@ -16,6 +16,8 @@ For each panel it reads the window Rainmeter really made and the meters' real po
 - a posted mouse click at each control's center reaches that control's action through Rainmeter's own hit
   test, and a click where a scrolled-away control would be does not reach it;
 - one posted wheel message moves the panel by one step;
+- moved down the real screen (nearly transparent, for a moment) it ends at the work area's bottom edge at the next
+  pointer entry, with every control still reachable, and is whole again at the top; with room it keeps its height;
 - the panel stays put while a number is being typed (a stand-in for the text box, so nothing opens);
 - a refresh keeps the place, and closing forgets it;
 - with room (-WorkArea 4000) nothing scrolls and no arrow shows.
@@ -131,7 +133,11 @@ function Send-Command([string]$Config, [string]$Call) {
     $script:seq++
     $temporary = Join-Path $script:runRoot 'command.tmp'
     Write-RunFile $temporary "$script:seq|$Config|$Call"
-    Move-Item -LiteralPath $temporary -Destination (Join-Path $script:runRoot 'command.txt') -Force
+    # The driver may have the old file open for reading at that moment: try again.
+    for ($try = 1; ; $try++) {
+        try { Move-Item -LiteralPath $temporary -Destination (Join-Path $script:runRoot 'command.txt') -Force -ErrorAction Stop; break }
+        catch { if ($try -ge 40) { throw }; Start-Sleep -Milliseconds 25 }
+    }
     # The driver reads the file every 50 ms.
     Start-Sleep -Milliseconds 160
 }
@@ -226,14 +232,15 @@ foreach ($area in $WorkArea) {
         $ini = "[Rainmeter]`r`nSkinPath=$skins\`r`nDisableVersionCheck=1`r`nDisableAutoUpdate=1`r`nLogging=1`r`nLanguage=1033`r`nTrayIcon=0`r`n"
         $quiet = "Active=1`r`nWindowX=-20000`r`nWindowY=-20000`r`nKeepOnScreen=0`r`nDraggable=0`r`nClickThrough=1`r`nAlphaValue=255`r`n"
         $ini += "`r`n[Driver]`r`n$quiet"
-        $wheel = @{}
+        $wheel = @{}; $enter = @{}
         foreach ($panel in $Panels) {
             $source = $sources[$panel]
             $entry = Join-Path $parallax $source.Files[0]
             $names = foreach ($file in $source.Files) { [regex]::Matches([IO.File]::ReadAllText((Join-Path $parallax $file)), '(?m)^\[(Meter\w+)\]') | ForEach-Object { $_.Groups[1].Value } }
             $text = [IO.File]::ReadAllText($entry)
             $wheel[$panel] = @('Down', 'Up' | ForEach-Object { [regex]::Match($text, "(?m)^MouseScroll${_}Action=([^\r\n]+)").Groups[1].Value })
-            if ($wheel[$panel] -contains '') { throw "$panel declares no wheel action." }
+            $enter[$panel] = [regex]::Match($text, '(?m)^MouseOverAction=([^\r\n]+)').Groups[1].Value
+            if ($wheel[$panel] -contains '' -or $enter[$panel] -eq '') { throw "$panel declares no wheel or pointer action." }
             # CPU settings scans HWiNFO as it opens; that helper has no part in this test.
             $text = [regex]::Replace($text, '(?m)^OnRefreshAction=[^\r\n]*', 'OnRefreshAction=')
             Write-RunFile $entry ($text + "`r`n[MeasurePanelScrollTest]`r`nMeasure=Script`r`nScriptFile=$harness`r`nRunRoot=$script:runRoot\`r`nRole=panel`r`nMeters=$($names -join '|')`r`nUpdateDivider=-1`r`n")
@@ -327,6 +334,25 @@ foreach ($area in $WorkArea) {
                         Assert-That ($moved.Variables.PanelScrollY -eq [Math]::Min([Math]::Floor(56 * $factor + 0.5), $last.Offset)) "$name one wheel message moved to $($moved.Variables.PanelScrollY)"
                     }
                 }
+                # Where the panel stands, with its own pointer-entry action. The top of the real primary screen stands
+                # in for the simulated one, whose height alone is replaced.
+                $entering = "Do('$($enter[$panel].Replace('"', '\"'))')"
+                $least = $v.PanelScrollTopPx + [Math]::Floor(4 * 28 * $factor) + $v.Gap
+                Send-Command $config "Do('[!SetTransparency 1]')"
+                foreach ($down_by in 30, 200, 0) {
+                    Send-Command $config "Do('[!Move 40 $([int]$v.WORKAREAY + $down_by)]')"
+                    Send-Command $config $entering
+                    $placed = Get-Window $config
+                    $wanted = if ($overflow) { [Math]::Min($full, [Math]::Max($area - $down_by, $least)) } else { $full }
+                    Assert-That ($placed.Y -eq [int]$v.WORKAREAY + $down_by -and $placed.H -eq $wanted) "$name moved down $down_by is at $($placed.Y), $($placed.H) px tall, expected $wanted"
+                    if ($overflow -and $down_by -eq 30) {
+                        $lower = ConvertFrom-Audit (Invoke-Report $config "Audit('$name-lower','$($down.Replace('"', '\"'))','$($up.Replace('"', '\"'))')" "$name-lower")
+                        foreach ($control in $controls) { Assert-That (@($lower.Stops | Where-Object { Test-Visible $_.Meters[$control] $lower }).Count -gt 0) "$name control $control is never whole 30 px down" }
+                    }
+                }
+                Send-Command $config "Do('[!Move -20000 -20000]')"
+                Send-Command $config $entering
+                Send-Command $config "Do('[!SetTransparency 255]')"
                 if ($overflow) {
                     # A number being typed holds the panel still; afterwards it scrolls again.
                     Send-Command $config "Go(0,'$($down.Replace('"', '\"'))','$($up.Replace('"', '\"'))')"

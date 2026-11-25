@@ -56,7 +56,7 @@ end
 local function describe(lines)
     local bounds = SKIN:GetMeter('MeterBounds')
     for _, name in ipairs({ 'PanelHeight', 'PanelHeightPx', 'WindowHeight', 'WindowWidth', 'Gap', 'Inset', 'Scale', 'PanelScrollY',
-            'PanelScrollTopPx', 'PanelScrollView', 'PanelScrollHidden', 'PanelScrollThumbY', 'PanelScrollThumbH' }) do
+            'PanelScrollTopPx', 'PanelScrollView', 'PanelScrollHidden', 'PanelScrollThumbY', 'PanelScrollThumbH', 'WORKAREAY' }) do
         lines[#lines + 1] = string.format('V|%s|%s', name, tostring(number(name)))
     end
     lines[#lines + 1] = string.format('W|%d|%d|%d|%d|%d|%d', SKIN:GetX(), SKIN:GetY(), SKIN:GetW(), SKIN:GetH(), bounds:GetW(), bounds:GetH())

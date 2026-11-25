@@ -3,10 +3,11 @@
 -- DPI aware, so Windows scaling divides the screen first: a 1080p screen is a
 -- 816 px work area at 125% and 672 px at 150%, less than several panels need.
 --
--- The panel keeps its designed height (PanelHeight) where the work area has room
--- for it. Where it has not, the window ends at the work area, the title row stays
--- and the rest scrolls. Event driven: a load, the pointer entering the panel, a
--- controller that changed PanelHeight, the wheel, or an arrow.
+-- The panel keeps its designed height (PanelHeight) where the work area is tall
+-- enough for it. Where it is not, the window ends at the work area's bottom edge,
+-- wherever the panel's top is, the title row stays and the rest scrolls. Event
+-- driven: a load, the pointer entering the panel, a controller that changed
+-- PanelHeight, the wheel, or an arrow.
 local ROW = 28          -- logical px, the settings row pitch
 local EDGE = 4          -- logical px kept free above the panel's bottom border
 local MONITORS = 8
@@ -20,19 +21,22 @@ end
 
 local function literal(text) return tonumber(SKIN:ReplaceVariables(text)) end
 
--- The work area height of the screen that holds the panel's center, which is the
--- screen Keep on screen holds it to; the primary one when it is on none.
-local function workHeight()
+-- The work area of the screen that holds the panel's center, which is the screen
+-- Keep on screen holds it to: its height, and what of it lies below the panel's
+-- top edge. Off every screen (a first load not placed yet): the primary one, whole.
+local function workArea()
     local x, y = SKIN:GetX() + SKIN:GetW() / 2, SKIN:GetY() + SKIN:GetH() / 2
     for n = 1, MONITORS do
         local left, top = literal('#SCREENAREAX@' .. n .. '#'), literal('#SCREENAREAY@' .. n .. '#')
         local width, height = literal('#SCREENAREAWIDTH@' .. n .. '#'), literal('#SCREENAREAHEIGHT@' .. n .. '#')
         if not (left and top and width and height) then break end
         if x >= left and x < left + width and y >= top and y < top + height then
-            return literal('#WORKAREAHEIGHT@' .. n .. '#')
+            local tall = literal('#WORKAREAHEIGHT@' .. n .. '#')
+            return tall, tall - math.max(0, SKIN:GetY() - literal('#WORKAREAY@' .. n .. '#'))
         end
     end
-    return literal('#WORKAREAHEIGHT#')
+    local tall = literal('#WORKAREAHEIGHT#')
+    return tall, tall
 end
 
 local function set(name, value) SKIN:Bang('!SetVariable', name, tostring(value)) end
@@ -44,9 +48,12 @@ function Fit(quiet)
     local gap, inset = number('#Gap#'), number('#Inset#')
     local top = math.floor(inset + number('#PanelScrollTop#') * scale + 0.5)
     local full = math.floor(number('#PanelHeight#') * scale + 0.5)
-    -- A work area too short even for a few rows is left to overflow.
-    local least = top + 4 * ROW * scale
-    local shown = math.floor(math.min(full, math.max((workHeight() or math.huge) - gap, least)))
+    local tall, below = workArea()
+    local shown = full
+    if full + gap > tall then
+        -- Too little room even for a few rows is left to overflow.
+        shown = math.floor(math.min(full, math.max(below - gap, top + 4 * ROW * scale)))
+    end
     view = math.floor(inset + shown - EDGE * scale) - top
     limit = full - shown
     offset = math.max(0, math.min(limit, math.floor(offset + 0.5)))

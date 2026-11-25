@@ -4,7 +4,7 @@ Use Global Settings as the layout reference for Chronometer, CPU, RAM, GPU, Disk
 
 ## Window and header
 
-Each settings config is an independently loadable double-column window. Include shared defaults, persisted global choices and the module's user include, then set settings-local `Columns=2` and a content-appropriate `PanelHeight` before including Geometry and Styles. These local layout values must not be written back over the monitor's saved `Columns` or `PanelHeight`. Fit the height to the utility's actual settings and conditional content.
+Each settings config is an independently loadable double-column window. Include shared defaults, persisted global choices and the module's user include, then set settings-local `Columns=2` and a content-appropriate `PanelHeight` before including Geometry and Styles. These local layout values must not be written back over the monitor's saved `Columns` or `PanelHeight`. Fit the height to the utility's actual settings and conditional content. The first time it opens it takes its step from the top left ([ARCHITECTURE.md](ARCHITECTURE.md#first-placement)).
 
 Use `StyleBounds` and `StylePanel` for the window. The title follows `StyleTitle|StyleTitleRow`; reserve space for a top-right close control aligned with the title row. Closing deactivates only the settings config and leaves the monitor running. Set `SettingsUtilityName` and include `UtilitySettingsNote.inc` after the background meters. Its context line is at `Inset+32*Scale`, and its Global Settings link is at `Inset+50*Scale`; both reserve 18 logical px of height. Opening Global Settings is navigation and does not save choices or refresh the utility.
 

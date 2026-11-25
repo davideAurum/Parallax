@@ -10,6 +10,7 @@ Inherit the [shared platform and bundling requirements](DEPENDENCIES.md#shared-r
 | `Welcome.ini`, `Modules/Welcome/Welcome.lua`, `Modules/Welcome/Rows.inc` and shared Parallax includes | Bundled source; required | Component list, check state and geometry. Missing source is an incomplete installation. |
 | Rainmeter's own settings file at `#SETTINGSPATH#Rainmeter.ini` | Required for check marks only; supplied by Rainmeter | Read only, on explicit events, to find which configs Rainmeter records as active. If it cannot be read the check marks clear, the status line says so, and the buttons still load. |
 | `!ActivateConfig` / `!DeactivateConfig` | Required; supplied by Rainmeter | The only writes the panel performs. Rainmeter itself records the resulting active state. |
+| `DefaultWindowX` / `DefaultWindowY` with formulas | Required; supplied by Rainmeter | Where each panel, this one included, [opens the first time](#where-panels-open-the-first-time). The panel itself moves nothing. |
 | IBM Plex Sans fonts | Bundled, skin-local; SIL OFL 1.1 | Uses the suite font and typography. No system installation. |
 | The eight utility configs and Global Settings | Bundled; listed, not required | A component missing from the installation cannot be loaded; Rainmeter reports the failed activation in its log and the row stays clear. |
 
@@ -49,6 +50,43 @@ Clicking a row's check box, name or description toggles that component: an unche
 
 The status line reports how many of the nine components are loaded. A loaded row's name uses the body text color and an unloaded row's name uses the muted color, so the list reads at a glance without inspecting each box.
 
+## Where panels open the first time
+
+Since 2026-11-25 a panel that Rainmeter has never loaded opens in its own place instead of at 0,0. The places come from one layout in `Geometry.inc` through each panel's `DefaultWindowX/Y` ([ARCHITECTURE.md](ARCHITECTURE.md#first-placement)), so they also apply to panels loaded from Manage Rainmeter or from a gear.
+
+The layout fills columns from the top right of the primary screen's work area. On a 1920 × 1080 screen at 100% with Windows 11's taskbar (a 1920 × 1032 work area), at the default size and with the shipped options:
+
+| Left edge | Width | Panels, with their top edges |
+| --- | --- | --- |
+| 1692 | 1 column | CPU (0). It grows with the processor: 366 px plus 16 per thread. |
+| 1464 | 1 column | GPU (0), IO (470), Chronometer (630) |
+| 1236 | 1 column | Network (0), RAM (312) |
+| 780 | 2 columns | Visualizer (0), Media (154), Welcome (340) |
+| 324 | 2 columns | Global Settings (0), 1005 px tall |
+
+Edges include the gutter, so the painted panels are 8 px apart and line up with Rainmeter's snapping. Welcome, alone on the screen after an install, is near the middle. The left 324 px stay free. Each utility's settings panel, Thread colors and the separate Spotify queue open from the top left, each one a step lower and further right than the one before.
+
+If the work area is too short for GPU, IO and Chronometer in one column, IO goes under Media instead.
+
+### What fits
+
+| Work area at the default size | Result |
+| --- | --- |
+| 1596 × 1005 or larger | All ten panels apart |
+| 1140 × 790 or larger | The eight utilities and Welcome apart. Under 1596 px wide Global Settings overlaps Visualizer, Media and Welcome (by 60 px at 1536, completely at 1140), and under 1005 px tall it runs past the bottom. |
+| 1140 × 651 or larger | The eight utilities apart. Welcome overlaps Media and IO, and Global Settings overlaps Visualizer, Media, IO and Welcome. |
+| Smaller | Utilities overlap too |
+
+The numbers grow with the suite scale: 1140 × 651 is 1710 × 977 at 150%. The column width changes the widths. Rainmeter is not DPI aware, so Windows scaling divides the screen first: a 1920 × 1080 screen is a 1536 × 816 work area at 125% and 1280 × 672 at 150%. A processor with more threads than fit (41 in a 1032 px work area, 19 in 672) makes CPU run past the bottom.
+
+### Limits
+
+- **Only the first load.** A panel with a section in Rainmeter.ini keeps its recorded position, and changing the scale, width or options later rearranges nothing.
+- **0,0 left by an older version stays.** Until now Rainmeter recorded 0,0 on a first load. That cannot be told apart from a panel someone dragged to exactly 0,0, so both stay where they are. A panel dragged to exactly 0,0 from now on also stays there.
+- **It does not look at the desktop.** A panel can open over one you placed there, another suite's skin, or Rainmeter's own starter skins (illustro), which sit where CPU opens. The [update prompt](UPDATES.md#the-update-prompt) opens over the top of the CPU panel's place.
+- **Shipped options.** A panel saved larger than it ships (two columns, more drives, timers, an open queue or spectrum drawer) can reach into its neighbor.
+- **The primary screen only.** A portrait or other screen under 1140 px wide overlaps.
+
 ## How loaded state is determined
 
 Rainmeter records each config in its own settings file as `[<config>]` with `Active=<n>`, where `n` is the 1-based position of the loaded skin file among the `.ini` files in that config folder, and `0` when the config is not loaded. The controller reads that file through Rainmeter's built-in `#SETTINGSPATH#`, decoding the UTF-16LE encoding Rainmeter writes (a UTF-8 or ANSI profile is also accepted).
@@ -85,6 +123,33 @@ The run on 2026-09-17 with Rainmeter 4.5.26.3894 on Windows 11 26200 recorded:
 A native capture through `tools\Preview-Parallax.ps1 -Modules Welcome` rendered a 456 × 408 window at scale 1 before the update row was added. A capture with CPU loaded and Media loaded through `Setup.ini` shows the CPU row checked, the Media row clear and `1 of 9 components loaded.`
 
 Not established by these checks: visual quality at other scales and column widths, mixed-DPI behavior, upgrade behavior over an existing installation, Skin Installer's post-install load of this config, and behavior when a listed config is missing from the installation.
+
+### First placement, 2026-11-25
+
+`tests\Run-PlacementSmoke.ps1` runs the staged suite in an isolated Rainmeter twice: a profile with no Parallax section (Welcome activated by an outside `!ActivateConfig`, as Skin Installer does it, then the real Load all), and one with saved positions. It reads the windows Rainmeter created from Windows, not from the settings file, with an empty local data folder and click-through, nearly transparent windows. `-WorkArea 1920x1032` (the default) replaces the work-area variables in the staged copy and turns off Keep on screen there, so a larger screen can be checked on a smaller one; `-WorkArea native` uses the real screen unchanged.
+
+Runs on the Surface laptop (Rainmeter 4.5.28.3936, Windows 11, 2400 × 1600 at 150%, so a real work area of 1600 × 1019; 8 threads). Before the change the same Load all put all ten panels at 0,0. After it:
+
+| Work area | Scale, column width | Result |
+| --- | --- | --- |
+| 1600 × 1019, the real screen, Keep on screen on | 1, 220 | All ten apart |
+| 1920 × 1032 | 1, 220; 1, 180; 0.75, 220 | All ten apart |
+| 2560 × 1392 | 1.25, 220 | All ten apart |
+| 3840 × 2112 | 2, 220; 1, 320 | All ten apart |
+| 1920 × 1032 | 1.13, 220 | All ten apart; Global Settings runs past the bottom |
+| 1536 × 816 (1080p at 125%) | 1, 220 | Nine apart; Global Settings overlaps Visualizer, Media and Welcome by 60 px and runs past the bottom |
+| 1280 × 672 (1080p at 150%) and 1366 × 720 | 1, 220 | The eight utilities apart; Global Settings and Welcome overlap others |
+| 1920 × 1032 | 1.5, 220 | The eight utilities apart; Global Settings and Welcome overlap others |
+
+All but the first are simulated. At 1.25 and 0.75 the first version of the layout put Welcome 1 px into Media, whose height has two roundings; the table in `Geometry.inc` now repeats them. The runs at 1600 × 1019, at 1920 × 1032 with 0.75, 1 and 1.13 at width 220, and at 2560 × 1392 were made after that change; the others before it, at scales where it changes no number.
+
+In every run the panels with saved positions (CPU at exactly 0,0, GPU at 300,200, Global Settings at 123,45, Welcome at 40,60) opened there and Rainmeter.ini kept those numbers; the other six opened at their first places; and after Unload all and Load all every panel of the fresh profile was where it had been.
+
+The test was checked against a copy with two faults: RAM placed at Network's top, and CPU moving itself with `!Move` when it loads. It failed on both, with the RAM and Network overlap, CPU's overlap, CPU opening at 500,500 instead of its saved 0,0, and the rewritten position.
+
+The ten panels that open from another one were loaded together in a fresh profile on the same screen (scratch script, not checked in): CPU settings at 0,0, then Media, Chronometer, GPU, Network, IO, Audio and RAM settings, Thread colors and the Spotify queue, each 30 px lower and further right, and Connections at its own 572,296, with no log errors. `Run-WelcomeSmoke.ps1` still passes (89 assertions, Load all and Unload all).
+
+Not established: a real 1920 × 1080 screen at 100% (the 1080p numbers above are simulated), several screens and mixed scaling, a taskbar on another edge, a real Skin Installer run (its source at 4.5.28.3936 activates the panel the way the test does), Rainmeter 4.5.26 itself (its source reads the same options the same way) and 5.x, a processor with more than 8 threads, more than one drive, and how the arrangement looks to someone new to it.
 
 ### Update check stalls at "Checking for updates...", fixed 2026-10-19 (historical)
 

@@ -33,7 +33,7 @@ function Suite.run(path)
             exports = options.exports or {}, host = -1 }
         local skin = {}
         local vars = { ['@'] = RESOURCES, SETTINGSPATH = 'C:\\Settings\\', PROGRAMPATH = 'C:\\Program\\',
-            UpdateCheck = options.updateCheck or '1' }
+            UpdateCheck = options.updateCheck or '1', ParallaxDevBuild = options.devBuild or '0' }
         function skin:GetVariable(key, default) return vars[key] or default end
         function skin:GetMeasure(name)
             if name == 'MeasureHWiNFORunning' then return { GetValue = function() return f.running end } end
@@ -379,6 +379,14 @@ function Suite.run(path)
         local g = fixture({}, { updateCheck = '7' })
         g.env.Update()
         eq(g.text.MeterUpdateState, 'Custom')
+        -- The developer copy says whose setting it shows: it is off there on purpose.
+        local copy = fixture({}, { updateCheck = '0', devBuild = '1' })
+        copy.env.Update()
+        eq(copy.text.MeterUpdateState, 'Off in this copy')
+        eq(copy.color.MeterUpdateState, '#MutedColor#')
+        local on = fixture({}, { updateCheck = '1', devBuild = '1' })
+        on.env.Update()
+        eq(on.text.MeterUpdateState, 'Daily, GitHub')
     end)
 
     test('no usable data folder', function()

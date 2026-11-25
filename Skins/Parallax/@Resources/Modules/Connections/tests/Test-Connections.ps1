@@ -47,7 +47,7 @@ local slots = {
     { 'MeterSourceState', { 'On', 'Off', 'Not running', 'Unavailable', 'Unknown' } },
     { 'MeterPluginState', { 'Plugin installed', 'Plugin missing' } },
     { 'MeterHWiNFOState', { 'Running', 'Open Sensors', 'Not running' } },
-    { 'MeterUpdateState', { 'Daily, GitHub', 'Off', 'Custom' } },
+    { 'MeterUpdateState', { 'Daily, GitHub', 'Off', 'Off in this copy', 'Custom' } },
     { 'MeterSourceName', { 'Spotify detection', 'WebNowPlaying', 'HWiNFO', 'Update check' } },
     { 'MeterSourceLink', { 'Media settings', 'Setup guide', 'CPU settings', 'Global Settings' }, true },
     { 'MeterSignIn', { 'Sign in', 'Sign in again' }, true },
@@ -69,9 +69,24 @@ local function width(meter, words, button)
     SKIN:Bang('!UpdateMeter', 'MeterProbe')
     return SKIN:GetMeter('MeterProbe'):GetW()
 end
-function Initialize() end
+-- The second load comes from the suite refresh Global Settings makes when Auto
+-- check changes: the panel must show the changed setting.
+local again
+function Initialize()
+    local file = io.open([[__REPORT__]] .. '.again', 'rb')
+    again = file ~= nil
+    if file then file:close() end
+end
 function Update()
     step = step + 1
+    if again then
+        if step == 2 then
+            local file = assert(io.open([[__REPORT__]], 'ab'))
+            file:write('update-after=', text('MeterUpdateState'), '\nDONE\n')
+            file:close()
+        end
+        return 0
+    end
     if step == 1 then
         local suite = assert(loadfile([[__SUITE__]]))()
         local passed, total, failed, detail = pcall(suite.run, [[__CONTROLLER__]])
@@ -100,10 +115,14 @@ function Update()
             end
         end
         add('worst=' .. string.format('%.2f', worst))
+        add('update-before=' .. text('MeterUpdateState'))
         add('')
         local file = assert(io.open([[__REPORT__]], 'wb'))
-        file:write(table.concat(lines, '\n'), 'DONE\n')
+        file:write(table.concat(lines, '\n'))
         file:close()
+        assert(io.open([[__REPORT__]] .. '.again', 'wb')):close()
+        SKIN:Bang('!WriteKeyValue', 'Variables', 'UpdateCheck', '0', [[__SETTINGS__]])
+        SKIN:Bang('!RefreshGroup', 'Parallax')
     end
     return 0
 end
@@ -138,7 +157,7 @@ foreach ($variant in @(
     $reportPath = Join-Path $runRoot 'connections-report.txt'
     $harnessPath = Join-Path $runRoot 'ConnectionsHarness.lua'
     $controllerPath = Join-Path $parallaxRoot '@Resources\Modules\Connections\Connections.lua'
-    Write-RunFile $harnessPath ($harness.Replace('__SUITE__', $suitePath).Replace('__CONTROLLER__', $controllerPath).Replace('__REPORT__', $reportPath).Replace('__LOCAL__', $localRoot))
+    Write-RunFile $harnessPath ($harness.Replace('__SUITE__', $suitePath).Replace('__CONTROLLER__', $controllerPath).Replace('__REPORT__', $reportPath).Replace('__LOCAL__', $localRoot).Replace('__SETTINGS__', $globalPath))
     $panelPath = Join-Path $parallaxRoot 'Connections\Connections.ini'
     $panelText = (Get-Content -LiteralPath $panelPath -Raw) -replace '(?m)^Update=2000', 'Update=500'
     $panelText += "`n[MeterProbe]`nMeter=String`nMeterStyle=StyleLabel`nX=0`nY=0`nW=`nH=`nClipString=0`nFontColor=0,0,0,1`nText=x`n"
@@ -164,7 +183,8 @@ foreach ($variant in @(
         $report = @(Get-Content -LiteralPath $reportPath)
         Write-Output "--- $($variant.Name): width $($variant.Width), scale $($variant.Scale), body $($variant.Font) pt"
         $report | Where-Object { $_ -and $_ -ne 'DONE' } | Write-Output
-        foreach ($line in 'suite=PASS', 'spotify=Signed in|Queue and playback control. Playlists not checked yet.|Sign in again|disconnect', 'source=On') {
+        foreach ($line in 'suite=PASS', 'spotify=Signed in|Queue and playback control. Playlists not checked yet.|Sign in again|disconnect', 'source=On',
+                'update-before=Daily, GitHub', 'update-after=Off') {
             if ($report -notcontains $line) { $failures.Add("$($variant.Name): expected '$line'") }
         }
         $report | Where-Object { $_ -like 'clipped=*' } | ForEach-Object { $failures.Add("$($variant.Name): $_") }

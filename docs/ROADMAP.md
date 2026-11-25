@@ -68,17 +68,23 @@ Goal: a build a stranger can install and upgrade safely, with honest notes on wh
   
   *Done when* each machine you could use has a row in the hardware table below, and every problem is either fixed or listed as a known issue.
 - [ ] **Performance headline.** One multi-hour run of the default suite (`tools/Start-ParallaxOvernightTrace.ps1`, `tools/Benchmark-Parallax.ps1`), recording CPU % and memory on the named hardware. *Done when* the number is in the README. The several-hour all-providers profile, budgets and soak stay in Stages 3–4.
-- [ ] **README for users.** Today's README is aimed at developers and is stale (it says Check for updates lives in Welcome; it moved to Global Settings on 2026-10-26). In order:
-  - a screenshot and a short GIF
-  - what's included
-  - install in three steps
-  - optional extras: the WebNowPlaying extension, HWiNFO exports, and the Spotify queue (your own Spotify developer app, plus Premium)
-  - a "verified vs. not yet" list
-  - privacy: no telemetry; the update check contacts GitHub about once a day and can be turned off; Spotify only after sign-in
-  - how to report a bug, and a support link
-  
-  Developer material moves to `docs/DEVELOPMENT.md`.
+- [ ] **README for users.** The old README was aimed at developers and stale (it said Check for updates lives in Welcome; it moved to Global Settings on 2026-10-26). In order:
+  - [x] a screenshot and a short GIF
+  - [x] what's included
+  - [x] install in three steps
+  - [x] optional extras: the WebNowPlaying extension, HWiNFO exports, and the Spotify queue (your own Spotify developer app, plus Premium)
+  - [x] a "verified vs. not yet" list
+  - [x] privacy: no telemetry; the update check contacts GitHub about once a day and can be turned off; Spotify only after sign-in
+  - [x] how to report a bug
+  - [ ] a support link: none was given, so there is none
+  - [x] Developer material moves to [DEVELOPMENT.md](DEVELOPMENT.md).
+
+  **Written 2026-11-25** against the source at `f09de23` and brought up to 0.1.0-alpha.15; the download-badge block is as the packager wrote it. Images: [DEVELOPMENT.md](DEVELOPMENT.md#readme-images). Every relative link and anchor in the README and the moved pages was checked by script. Not verified: how it renders on GitHub; whether someone new to Rainmeter can follow it (the first-run check above covers that); the removal steps; the browser extension and HWiNFO steps on a PC that has neither. The images are separate window captures, not a photograph of a desktop: the media track in them is made up, the spectrum is idle and the laptop was busy. A calm desktop capture with real music, still and animated, should replace them before the launch posts.
 - [ ] **Feedback channel.** Issue templates in `.github/`: a bug form asking for Windows and Rainmeter versions, GPU and CPU, monitor scaling, the utility and a Rainmeter log excerpt; and a feature-request form. Enable GitHub Discussions for questions. Optional: a "Report a problem" link in Global Settings.
+  - [x] Bug form and feature-request form (`.github/ISSUE_TEMPLATE/`), 2026-11-25. Both parse as YAML and pass a script that applies GitHub's documented form rules; they use the repository's existing `bug` and `enhancement` labels.
+  - [ ] Seen on GitHub: forms appear only once they are on `main`. Open **New issue** there and look at both.
+  - [ ] Discussions: turned on by the maintainer under the repository's **Settings > General > Features**. Until then questions have no place of their own. Afterwards add a Discussions link to the README and a `contact_links` entry in `.github/ISSUE_TEMPLATE/config.yml`.
+  - [ ] Optional: the **Report a problem** link in Global Settings.
 - [ ] **Maintainer tools out of the way.** Global Settings ▸ Developer keeps working for the maintainer but reads as not for ordinary users, for example placed last and labelled "Contributors".
 - [ ] **Spotify queue labelled experimental.** Spotify's 2026 Development Mode rules require each app's owner to have Premium and allow 5 users per app. Parallax has every user register their own app, so everyone who wants the queue needs their own Premium; the setup text must say so. The maintainer has Premium, so a live row-click skip (never run, see [Media](modules/Media.md#row-clicks-and-refresh-2026-10-27)) can be tested before beta.1.
 - [ ] **Release mechanics.** Set `0.2.0-beta.1` in `packaging/release.json` and `Version.inc`, write release notes with a Known Issues section, and publish it marked Latest. Cadence: release freely while no one else is installing. Once download counts show strangers, move to about one release a week, with hotfixes only for real breakage, because every release prompts each installed copy within a day.

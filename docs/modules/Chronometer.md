@@ -4,7 +4,7 @@ Chronometer provides a local clock/date, system uptime, a named event countdown,
 
 ## Dependencies
 
-This inventory describes the current implementation, including the independent settings config and event editor. Platform targets follow the [suite requirements](../../README.md); the native checks below used Rainmeter 4.5.26.3894.
+This inventory describes the current implementation, including the independent settings config and event editor. Platform targets follow the [suite requirements](../DEVELOPMENT.md#target); the native checks below used Rainmeter 4.5.26.3894.
 
 | Dependency / status | Feature and cadence | Setup, missing behavior and provenance |
 | --- | --- | --- |

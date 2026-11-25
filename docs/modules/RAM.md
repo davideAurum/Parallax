@@ -16,7 +16,7 @@ Hardware inventory uses Rainmeter's bundled `RunCommand` plugin and one hidden W
 
 ## Dependencies
 
-This table records the current shipped implementation. The [project runtime target](../../README.md#development) is Windows 10/11 with Rainmeter 4.5.26 or newer; recorded RAM native checks used Rainmeter 4.5.26.3894 and its Lua 5.1 runtime. That target is not a claim that every version or Windows environment has been tested. Resource paths below are relative to `Skins/Parallax/@Resources/`.
+This table records the current shipped implementation. The [project runtime target](../DEVELOPMENT.md#target) is Windows 10/11 with Rainmeter 4.5.26 or newer; recorded RAM native checks used Rainmeter 4.5.26.3894 and its Lua 5.1 runtime. That target is not a claim that every version or Windows environment has been tested. Resource paths below are relative to `Skins/Parallax/@Resources/`.
 
 | Dependency / provenance | Feature and runtime requirement |
 | --- | --- |

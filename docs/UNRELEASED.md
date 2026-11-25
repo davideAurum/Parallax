@@ -25,8 +25,8 @@ Re-scoped on 2026-10-28: features are frozen, the customization items moved to a
 - [ ] Display check at 1080p and 100% scaling.
 - [ ] Laptop, and institutional PC (portable Rainmeter, no admin rights, if IT rules allow it). Start the hardware table.
 - [ ] Performance headline from a multi-hour run, put in the README.
-- [ ] README rewritten for users. Developer material moves to `docs/DEVELOPMENT.md`.
-- [ ] Issue templates and GitHub Discussions.
+- [ ] README for users. Rewritten on 2026-11-25, with developer material moved to [DEVELOPMENT.md](DEVELOPMENT.md). Open: a support link (the maintainer's choice), a look at it on GitHub, and better pictures ([ROADMAP.md Stage 2](ROADMAP.md#stage-2-before-beta1-010-alphan)).
+- [ ] Issue templates and GitHub Discussions. The bug and feature-request forms were added on 2026-11-25. Open: seeing them on GitHub after a push, and turning Discussions on, which only the maintainer can do.
 - [ ] Global Settings ▸ Developer reads as maintainer-only.
 - [ ] Spotify queue labelled experimental (each user needs Premium), and a live row-click skip tested.
 - [ ] `0.2.0-beta.1`: version bump, Known Issues in the release notes, published as Latest.
@@ -44,4 +44,8 @@ Still open from Stage 1, but not blocking the beta: the offered state (Install a
   - `Test-MediaCaptureLease.ps1` stage A judged variant 1 with the PC's real input, so it failed whenever the keyboard or mouse had been used in the last 5 minutes: a paused drawer resumes at the coordinator's first sync, as designed. Its idle input is now staged (56 checks, 0 failures). Stage B needs silent output, because the lease parks only after quiet: the unchanged stage passes 39 of 39 with music playing once a scratch skin's idle floor counts that music as quiet, so sound is the whole cause. It now stops with a `SOUND` line that says so, before the first park or in any later one, and the run ends as not judged instead of failing step after step. Stage C passes (13 checks). With silent output (peak 0.0000 throughout) the unchanged stage B passes 39 of 39 and the new one 39 of 39 twice; stages A and C pass there too.
   - `Test-MediaTransport.ps1` timed out when the runner had the report open as the observer replaced it. The observer now tries again on its next update and reports how often it had to. With the report deliberately held open, the old observer fails 2 of 2 and the new one passes 3 of 3 (16 to 21 retries); 10 of 10 ordinary runs pass (no retry needed).
   - No other harness asserts a delete-and-rename report. `Run-UpdateSmoke.ps1`'s probe deletes and renames without asserting, on every update, and is read only inside the same Rainmeter. Network's `QA/SettingsSmoke.lua` asserts that it can delete the runner's command file, a similar race that has not been seen to fail and was left alone.
+- Found on 2026-11-25 while writing the README, not fixed. The first two are in its Known issues:
+  - **A first Load all stacks every panel in the top-left corner.** No utility sets `DefaultWindowX/Y` and Welcome moves nothing. In an isolated Rainmeter 4.5.28.3936 with no saved positions, Welcome, Global Settings, Chronometer, CPU, RAM, GPU, IO, Network and Visualizer all got `WindowX=0` and `WindowY=0`. This is the first thing a new user sees.
+  - **`User/CPU.inc` ships `CPUTurboClock=4.60 GHz`**, the desktop's i7-8700 limit. The laptop's i7-11370H, whose own limit was never looked up, therefore shows `3.30 (4.60)`, and so would any other CPU whose name carries a base speed below it. An empty shipped value shows no turbo figure.
+  - Cosmetic: at 200% scale Memory Meter draws a thin line under the part of the history it has not collected yet.
 - The physical input, provider and wider hardware and display passes now belong to the beta itself ([ROADMAP.md Stage 3](ROADMAP.md#stage-3-beta-020-betan)).

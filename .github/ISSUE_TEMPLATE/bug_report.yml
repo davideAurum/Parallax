@@ -1,0 +1,119 @@
+name: Bug report
+description: Something in Parallax is wrong, missing or broken.
+labels: ["bug"]
+body:
+  - type: markdown
+    attributes:
+      value: |
+        Thank you for trying Parallax. **Issues are public.** Before you submit, remove your Windows user name, Wi-Fi name and anything else personal from text and screenshots. Never paste sign-in codes or tokens, and never attach files from `%LOCALAPPDATA%\Parallax`.
+
+        Rainmeter's versions are in its About window: right-click the Rainmeter icon in the taskbar's notification area, choose **About**, then **Version**.
+  - type: input
+    id: parallax-version
+    attributes:
+      label: Parallax version
+      description: Beside Updates in Global Settings.
+      placeholder: 0.1.0-alpha.15
+    validations:
+      required: true
+  - type: dropdown
+    id: utility
+    attributes:
+      label: Which panel?
+      description: Choose every panel that shows the problem.
+      multiple: true
+      options:
+        - Chronometer
+        - CPU Meter (CPU)
+        - Memory Meter (RAM)
+        - GPU Meter (GPU)
+        - Disk Meter (IO)
+        - Network Meter (Network)
+        - Media Player (Media)
+        - Spotify queue or playlists
+        - Audio (Visualizer)
+        - Global Settings or a panel's own settings
+        - Connections
+        - Welcome
+        - Installing, updating or removing
+        - Not sure
+    validations:
+      required: true
+  - type: textarea
+    id: what-happened
+    attributes:
+      label: What happened?
+      description: What you did, what you expected, and what you saw instead. A screenshot helps.
+    validations:
+      required: true
+  - type: textarea
+    id: steps
+    attributes:
+      label: How can it be made to happen again?
+      placeholder: |
+        1. Load the panel
+        2. Click ...
+        3. See ...
+  - type: input
+    id: windows-version
+    attributes:
+      label: Windows version
+      description: Press Windows+R and run winver.
+      placeholder: Windows 11, version 24H2 (OS build 26100.1234)
+    validations:
+      required: true
+  - type: input
+    id: rainmeter-version
+    attributes:
+      label: Rainmeter version
+      description: From Rainmeter's About window, Version tab. Say if it is the portable version.
+      placeholder: 4.5.28.3936 (64-bit)
+    validations:
+      required: true
+  - type: input
+    id: cpu
+    attributes:
+      label: Processor (CPU)
+      description: Task Manager, Performance tab. Needed for CPU Meter problems; helpful for the rest.
+      placeholder: AMD Ryzen 5 7600, 12 threads
+    validations:
+      required: true
+  - type: input
+    id: gpu
+    attributes:
+      label: Graphics (GPU)
+      description: Task Manager, Performance tab. Name every GPU if the PC has more than one.
+      placeholder: Intel Iris Xe and NVIDIA RTX 3050 Ti
+    validations:
+      required: true
+  - type: input
+    id: display
+    attributes:
+      label: Monitors and scaling
+      description: Windows Settings, System, Display. Give the size and scale of each monitor.
+      placeholder: 1920x1080 at 100%, 3840x2160 at 150%
+    validations:
+      required: true
+  - type: checkboxes
+    id: extras
+    attributes:
+      label: Optional extras in use
+      options:
+        - label: WebNowPlaying browser extension
+        - label: HWiNFO reporting to Gadget
+        - label: Spotify queue (signed in)
+  - type: textarea
+    id: log
+    attributes:
+      label: Rainmeter log
+      description: |
+        Open Rainmeter's About window, choose the Log tab and leave it open. Right-click the panel, choose Refresh skin, make the problem happen, then copy the lines that mention Parallax (select a line and press Ctrl+C).
+        Remove personal data first: your Windows user name in file paths, Wi-Fi names, addresses, and song or device names you would rather not share. Never paste tokens or sign-in codes.
+      render: text
+  - type: checkboxes
+    id: confirm
+    attributes:
+      label: Before you submit
+      options:
+        - label: I removed personal data, and this report contains no tokens, passwords or sign-in codes.
+          required: true

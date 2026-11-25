@@ -10,13 +10,15 @@
 # The two folders must be told apart by Rainmeter, which names a config by its
 # folder path, so every hard-coded `Parallax\<config>` reference in the copy's
 # .ini/.inc/.lua files is rewritten to `ParallaxDev\<config>` on the way in
-# (ConvertTo-ParallaxDevRewrite). The comparison applies the same rewrite to the
+# (ConvertTo-ParallaxDevRewrite). One after a backslash is a folder in a path, not
+# a config: Media's helpers keep their data in LocalAppData\Parallax\Media, which
+# both builds share. The comparison applies the same rewrite to the
 # release side first, so the rewrite itself never counts as a difference.
 Set-StrictMode -Version Latest
 
 $script:Monitors = @('Chronometer', 'CPU', 'GPU', 'IO', 'Media', 'Network', 'RAM', 'Visualizer')
 $script:ConfigFolders = $script:Monitors + @('Settings', 'ColorPicker', 'Welcome', 'Update', 'Idle')
-$script:RewriteRegex = [regex]'(?<![A-Za-z0-9_])Parallax(?=\\{1,2}(?:Settings|ColorPicker|Welcome|Update|Idle|Chronometer|CPU|RAM|GPU|IO|Network|Media|Visualizer)(?![A-Za-z0-9_]))'
+$script:RewriteRegex = [regex]'(?<![A-Za-z0-9_\\])Parallax(?=\\{1,2}(?:Settings|ColorPicker|Welcome|Update|Idle|Chronometer|CPU|RAM|GPU|IO|Network|Media|Visualizer)(?![A-Za-z0-9_]))'
 $script:RewriteExtensions = @('.ini', '.inc', '.lua')
 $script:TextExtensions = @('.ini', '.inc', '.lua', '.ps1', '.psm1', '.cs', '.txt', '.md', '.json')
 $script:StatusPath = '@Resources\Dev\Status.inc'

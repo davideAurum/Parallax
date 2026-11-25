@@ -52,6 +52,10 @@ try {
     foreach ($same in 'Group=Parallax | ParallaxCPU', 'ParallaxIdleHeadline=MeterTitle', '!RefreshGroup Parallax', 'ParallaxVersion=1', 'Parallax\Unknown', 'XParallax\CPU', 'ParallaxDev\CPU', 'Parallax\CPUs') {
         Assert-Equal (& $rewrite $same) $same "must stay: $same"
     }
+    # The helpers' data folder is a path both builds share: rewritten, it showed the copy's Media no source and no queue.
+    foreach ($same in "root .. '\\Parallax\\Media\\Spotify\\queue.snapshot'", "root .. '\\Parallax\\Media\\'") {
+        Assert-Equal (& $rewrite $same '.lua') $same "shared data path must stay: $same"
+    }
     Assert-Equal (& $rewrite 'Temp\Parallax\Update' '.ps1') 'Temp\Parallax\Update' 'only .ini/.inc/.lua are rewritten'
     $crlf = [Text.Encoding]::UTF8.GetBytes("A=Parallax\RAM`r`nB=1`r`n")
     Assert-Equal ([Text.Encoding]::UTF8.GetString((ConvertTo-ParallaxDevRewrite $crlf '.inc'))) "A=ParallaxDev\RAM`r`nB=1`r`n" 'CRLF preserved'
@@ -126,7 +130,7 @@ try {
     Assert-That ($userSettings -match '(?m)^ParallaxDevBuild=1\s*$') 'dev flag written'
     Assert-That ($userSettings -match '(?m)^UpdateCheck=0\s*$') 'update checks stopped in the copy'
     Assert-That ((Get-Content -LiteralPath (Join-Path $release '@Resources\User\Settings.inc') -Raw) -notmatch 'ParallaxDevBuild') 'the release''s settings are untouched'
-    $leftover = @(Get-ChildItem -LiteralPath $dev -Recurse -File -Include *.ini, *.inc, *.lua | Select-String -Pattern '(?<![A-Za-z0-9_])Parallax\\{1,2}(Settings|ColorPicker|Welcome|Update|Idle|Chronometer|CPU|RAM|GPU|IO|Network|Media|Visualizer)(?![A-Za-z0-9_])')
+    $leftover = @(Get-ChildItem -LiteralPath $dev -Recurse -File -Include *.ini, *.inc, *.lua | Select-String -Pattern '(?<![A-Za-z0-9_\\])Parallax\\{1,2}(Settings|ColorPicker|Welcome|Update|Idle|Chronometer|CPU|RAM|GPU|IO|Network|Media|Visualizer)(?![A-Za-z0-9_])')
     Assert-Equal $leftover.Count 0 'no hard-coded release config name is left in the copy'
     $viaFinder = @(Get-ChildItem -LiteralPath $dev -Recurse -File -Include *.ini, *.inc, *.lua | Select-String -Pattern 'ParallaxDev\\')
     Assert-That ($viaFinder.Count -gt 20) 'config names were rewritten to the copy'

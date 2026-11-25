@@ -140,7 +140,7 @@ $readyPath = Join-Path $runRoot 'ready.txt'
 $goPath = Join-Path $runRoot 'go.txt'
 Write-TestFile $goPath '0'
 Write-TestFile (Join-Path $runRoot 'TransportObserver.lua') @'
-local tick, stage, waiting, waitUntil, legacy
+local tick, stage, waiting, waitUntil, legacy, retries
 local function force() SKIN:Bang('!UpdateMeterGroup', 'MediaTransport'); SKIN:Bang('!Redraw') end
 -- Odd stages change only the provider sample; even stages force the
 -- ground truth for the frame just captured.
@@ -153,7 +153,7 @@ local actions = {
     force
 }
 function Initialize()
-    tick, stage, waiting = 0, 0, true
+    tick, stage, waiting, retries = 0, 0, true, 0
     legacy = SKIN:ParseFormula(SKIN:ReplaceVariables('(#MediaLegacyDivider#)'))
     waitUntil = 2 * legacy + 4
 end
@@ -161,8 +161,12 @@ local function bounds(name)
     local meter = SKIN:GetMeter(name)
     return string.format('%s:%d,%d,%d,%d', name, meter:GetX(), meter:GetY(), meter:GetW(), meter:GetH())
 end
+-- Replaces the report by delete and rename; false when that did not work. The
+-- runner polls the report, and while it has the previous one open Windows
+-- refuses the delete and then the rename ("File exists"), so Update tries again
+-- on the next tick: the state it reports holds until the runner answers.
 local function report()
-    local lines = { 'stage=' .. stage, 'tick=' .. tick, 'legacy=' .. legacy,
+    local lines = { 'stage=' .. stage, 'tick=' .. tick, 'legacy=' .. legacy, 'retries=' .. retries,
         'status=' .. SKIN:GetMeasure('MeasureMediaUI'):GetStringValue(),
         'shape4=' .. SKIN:GetMeter('MeterPlayPause'):GetOption('Shape4'),
         'nextstroke=' .. SKIN:GetMeter('MeterNext'):GetOption('LucideTransportStroke'),
@@ -170,11 +174,12 @@ local function report()
         'bounds=' .. bounds('MeterPrevious') .. ';' .. bounds('MeterPlayPause') .. ';' .. bounds('MeterNext'),
         'end' }
     local path = SELF:GetOption('ReadyFile')
-    local file = assert(io.open(path .. '.tmp', 'wb'))
+    local file = io.open(path .. '.tmp', 'wb')
+    if not file then return false end
     file:write(table.concat(lines, '\n') .. '\n')
     file:close()
     os.remove(path)
-    assert(os.rename(path .. '.tmp', path))
+    return os.rename(path .. '.tmp', path) ~= nil
 end
 local function go()
     local file = io.open(SELF:GetOption('GoFile'), 'rb')
@@ -187,8 +192,8 @@ function Update()
     tick = tick + 1
     if waiting then
         if tick >= waitUntil then
-            waiting = false
-            report()
+            waiting = not report()
+            if waiting then retries = retries + 1 end
         end
         return stage
     end
@@ -258,7 +263,7 @@ function Wait-Ready([int]$Stage) {
         }
         Start-Sleep -Milliseconds 100
     }
-    throw "Timed out waiting for observer stage $Stage."
+    throw "Timed out waiting for observer stage $Stage; inspect $runRoot\Rainmeter.log"
 }
 function Save-Capture([string]$Name) {
     $windows = @([ParallaxMediaTransportCapture]::OwnWindows([uint32]$testProcess.Id))
@@ -358,6 +363,7 @@ try {
         AdapterSha256 = (Get-FileHash -LiteralPath $AdapterPath -Algorithm SHA256).Hash
         TitleAnimation = $TitleAnimation
         LegacyDivider = $states[0].legacy
+        ReportRetries = [int]$states[6].retries
         Window = "$($captures[0].Width)x$($captures[0].Height)"
         TransportRegion = $row
         PixelDifferences = $diff
@@ -367,7 +373,7 @@ try {
         Provider = 'none; built-in Calc/String fixtures with the production dividers'
     }
     Write-TestFile (Join-Path $runRoot 'transport-evidence.json') ($evidence | ConvertTo-Json -Depth 4)
-    Write-Output ("Window $($evidence.Window), legacy divider $($states[0].legacy), transport region " + ($row | ConvertTo-Json -Compress))
+    Write-Output ("Window $($evidence.Window), legacy divider $($states[0].legacy), report retries $($evidence.ReportRetries), transport region " + ($row | ConvertTo-Json -Compress))
     Write-Output ($diff | ConvertTo-Json)
     Write-Output "Isolated evidence retained at $runRoot"
     if ($failures.Count) { throw ("Media transport repaint check failed:`n" + ($failures -join "`n")) }

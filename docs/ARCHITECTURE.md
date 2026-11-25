@@ -129,6 +129,8 @@ Rainmeter records the expanded formula, for example `WindowX=(Max(0,(0+1920)-...
 
 The alternative was Welcome moving a never-placed config with `!Move` after loading it. It was not built. It would cover only panels loaded from Welcome; Rainmeter has recorded 0,0 by then, so Welcome would have to read the settings file before every load to know; each panel would appear in the corner first; and Welcome knows no more about another panel's size than `Geometry.inc` does. Neither approach sees what else is on the desktop.
 
+Welcome's **Arrange** is the one thing that moves a placed panel, on a click and with Undo. It learns each panel's real size from that panel: `Geometry.inc` gives every skin an idle measure, `MeasureParallaxPlace`, that answers when asked ([WELCOME.md](WELCOME.md#arrange)).
+
 ## Appearance
 
 Shared typography uses `FontFace`, `TitleFontSize`/`TitleTextColor`, `HeaderFontSize`/`HeaderTextColor`, and `FontSize`/`TextColor` for body text. Defaults are IBM Plex Sans, 10/8/9 pt, and RGB 220/220/220 for titles/body versus 175/175/175 for headers. `MutedColor` remains available for secondary information. `AccentColor` defaults to 137/190/250; `AccentColor2` defaults to 181/161/226 for secondary actions. Utility metric colors and `GoodColor`/`WarningColor`/`DangerColor` preserve their semantic roles rather than following general text/accent changes.

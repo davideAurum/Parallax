@@ -38,7 +38,7 @@ You need Windows 10 or 11. So far Parallax has only been tested on 11.
 
 1. **Install Rainmeter** 4.5.26 or newer from [rainmeter.net](https://www.rainmeter.net/), if you don't have it.
 2. **Download Parallax** with the button at the top of this page and double-click the `.rmskin` file. Rainmeter's Skin Installer opens. Click **Install**.
-3. **Choose your panels.** A panel called **Welcome to Parallax** opens. Tick the panels you want, or click **Load all**. New panels open side by side from the top right of your main screen. Drag each one to where you want it; Rainmeter remembers their places.
+3. **Choose your panels.** A panel called **Welcome to Parallax** opens. Tick the panels you want, or click **Load all**. New panels open side by side from the top right of your main screen. Drag each one to where you want it; Rainmeter remembers their places. From 0.1.0-alpha.17 on, **Arrange** puts them side by side again.
 
 The package also installs two small third-party Rainmeter plugins that Media Player uses, [WebNowPlaying](https://github.com/keifufu/WebNowPlaying-Rainmeter) and [Chameleon](https://github.com/socks-the-fox/chameleon), unless you already have a newer version of them.
 
@@ -109,6 +109,7 @@ All checks so far ran on the maintainer's own two PCs.
 - Parts of 0.1.0-alpha.14 and 0.1.0-alpha.15 on a laptop with Windows 11, an Intel Core i7-11370H (8 threads), an NVIDIA RTX 3050 Ti and Intel Iris Xe graphics.
 - Rainmeter 4.5.26 and 4.5.28.
 - Installing over an existing copy keeps changed settings, and cancelling the installer changes nothing. This was one scripted test on the desktop, which reinstalled the same version.
+- Updating a laptop from 0.1.0-alpha.15 to 0.1.0-alpha.16 kept every setting.
 - The update check reads the published release. The earlier updater, on the Welcome panel until October 2026, went from check to finished upgrade.
 - Spotify with a real Premium account: signing in and disconnecting from the Connections panel, the queue and its covers, playing a song in a shuffled playlist, and the Playlists view.
 
@@ -130,9 +131,9 @@ All checks so far ran on the maintainer's own two PCs.
 
 ### Known issues
 
-- On a smaller screen some new panels open on top of one another, so drag them apart. A 1920 × 1080 screen has room for all of them at 100% Windows scaling. At 125% **Global Settings** covers part of three others, and at 150% **Welcome** is covered too. A panel that an older version left in the top-left corner stays there until you move it.
-- Where the screen is too short for them, **Global Settings** and the CPU, Chronometer and GPU settings stop at its bottom edge and scroll: use the mouse wheel, or the two arrows beside the close button. **Media Player's settings** do not scroll yet. At 150% their controls from the Spotify queue's buttons down are below the screen; at 125% only the last row is, and only while the queue is expanded.
-- On Intel processors whose name includes their base speed, CPU Meter can show `(4.60)` as the turbo speed whatever the real one is. It comes from a setting, not a reading. To fix it, right-click CPU Meter, choose **Edit CPU options**, change or clear `CPUTurboClock`, save, and refresh the panel.
+- On a smaller screen some new panels open on top of one another, so drag them apart. A 1920 × 1080 screen has room for all of them at 100% Windows scaling. At 125% **Global Settings** covers part of three others, and at 150% **Welcome** is covered too. A panel that an older version left in the top-left corner stays there until you move it or, from 0.1.0-alpha.17 on, click **Arrange**.
+- In 0.1.0-alpha.16 and older, the last rows of **Global Settings** and of the CPU, Chronometer and GPU settings are below such a screen. From 0.1.0-alpha.17 on, a panel too tall for the screen stops at its bottom edge and scrolls: use the mouse wheel, or the two arrows beside the close button. **Media Player's settings** do not scroll yet. At 150% their controls from the Spotify queue's buttons down are below the screen; at 125% only the last row is, and only while the queue is expanded.
+- In a copy first installed before 0.1.0-alpha.17, on Intel processors whose name includes their base speed, CPU Meter can show `(4.60)` as the turbo speed whatever the real one is. It comes from a setting, not a reading, and updating keeps it. To fix it, right-click CPU Meter, choose **Edit CPU options**, change or clear `CPUTurboClock`, save, and refresh the panel.
 - On Windows before 11 24H2, or in a language other than English, Network Meter reads `Band unavailable`.
 - In Media Player's one-column layout, the right playback button covers part of the time.
 - In Media Player's setup view, a queue that was left open shows its songs below the panel and cannot be closed there.

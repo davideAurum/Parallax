@@ -525,7 +525,7 @@ Text=Identifies Spotify locally; no sign-in needed.
 Meter=String
 MeterStyle=StyleUtilitySettingsSection|MediaSettingsData
 Y=(#Inset#+(730-#MediaSettingsQueueCollapsedHeight#)*#Scale#)
-Text=Spotify queue
+Text=Spotify queue (experimental)
 
 [MeterQueueRule]
 Meter=Shape
@@ -575,7 +575,7 @@ LeftMouseUpAction=[!ActivateConfig "Parallax\Connections" "Connections.ini"]
 Meter=String
 MeterStyle=StyleLabel|MediaSettingsGuidance|MediaSettingsData
 Y=(#Inset#+(812-#MediaSettingsQueueCollapsedHeight#)*#Scale#)
-Text=Signing in also starts it. Restart applies changes.
+Text=Needs Spotify Premium. Signing in also starts it.
 
 [MeterLinksHeading]
 Meter=String

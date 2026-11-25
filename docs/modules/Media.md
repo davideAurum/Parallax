@@ -1267,6 +1267,8 @@ gap. The playback controls follow the bar's lower edge with an eight-pixel scale
 
 ## Optional Spotify queue
 
+Labelled experimental and as needing Spotify Premium since 2026-11-25: the heading and the line under the buttons in Media settings, the `Not set up` line in [Connections](../CONNECTIONS.md), and the setup guide. `Test-MediaSettings` (60 layouts, 7 captures), `Test-Connections` and `test_skin_contract.py` pass with the new texts. Not verified: Spotify's rules themselves, which were read and not tried with a Free account.
+
 See the [queue setup guide](../../Skins/Parallax/@Resources/Modules/Media/Queue/README.md)
 for app configuration, lifecycle commands, status meanings, storage, and protocol.
 Register `http://127.0.0.1/callback` in your Spotify app, copy the public Client ID,

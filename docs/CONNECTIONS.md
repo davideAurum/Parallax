@@ -25,7 +25,7 @@ User request, 2026-11-25: one place, reached from Global Settings, for what Para
 
 | Spotify row | Means |
 | --- | --- |
-| `Not set up` | No app ID and no sign-in is saved. Help explains how to make the app. |
+| `Not set up` | No app ID and no sign-in is saved. The line below says the queue is experimental and needs Spotify Premium; Help explains how to make the app. |
 | `Not signed in` | An app ID is saved, or the last sign-in did not finish. |
 | `Signing in` | The helper waits for the browser, for up to 200 s; after that the console was closed and it reads `Not signed in` or `Sign in again`. |
 | `Signed in` | A sign-in is saved. Green while the queue helper reads; the line below names what it may do, or why nothing is read (helper off, offline, rate limited, quota). |

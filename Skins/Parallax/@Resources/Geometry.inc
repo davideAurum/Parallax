@@ -65,3 +65,15 @@ PlaceSettingsY=#PWORKAREAY#
 ; queue) step down from the top left instead: n steps each way, tallest first.
 PlaceStep=(Round(30*#Scale#))
 PlaceLowest=(Max(#PWORKAREAY#,#PlaceBottom#-#WindowHeight#))
+; Welcome's Arrange (docs/WELCOME.md) sets this to the number it knows the panel
+; by, updates the measure below and clears it again. The panel answers with its
+; place and size, which no other panel can read. Otherwise the measure is idle.
+ParallaxPlaceAsked=0
+
+[MeasureParallaxPlace]
+Measure=Calc
+Formula=#ParallaxPlaceAsked#
+IfCondition=MeasureParallaxPlace>0
+IfTrueAction=[!CommandMeasure MeasureWelcome "Placed(#ParallaxPlaceAsked#,#CURRENTCONFIGX#,#CURRENTCONFIGY#,#CURRENTCONFIGWIDTH#,#CURRENTCONFIGHEIGHT#)" "Parallax\Welcome"]
+DynamicVariables=1
+UpdateDivider=-1

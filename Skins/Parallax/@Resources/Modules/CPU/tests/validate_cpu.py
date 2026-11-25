@@ -287,7 +287,9 @@ def validate():
     measures = [name for name, values in sections.items() if "Measure" in values]
     # The shared update hook (Auto check Daily by default) adds its script and feed measures.
     assert {"MeasureParallaxUpdate", "MeasureParallaxUpdateFeed"} <= set(measures)
-    assert len(measures) == 108 + 9 * 64 + 2
+    # Geometry.inc's idle measure, which answers Welcome's Arrange, is the last one.
+    assert "MeasureParallaxPlace" in measures and sections["MeasureParallaxPlace"]["UpdateDivider"] == "-1"
+    assert len(measures) == 108 + 9 * 64 + 2 + 1
     # CPU-02 / ENGINE-05: a DynamicVariables UsageMonitor measure re-reads, and
     # reloads the plugin, every tick even while disabled. !SetOption already
     # forces the one re-read CPU.lua needs.
@@ -606,6 +608,8 @@ def validate():
     assert 'infoWrap' not in script and 'MeterProcessorClock' not in sections and 'MeterHistoryLabel' not in sections
     assert "set('MeterProcessorDetails', 'Text', summary)" in script
     assert "configuredTurboClock" in script and "CPUTurboClock" in script
+    # A turbo speed belongs to one processor model: a release ships none.
+    assert re.search(r"(?m)^CPUTurboClock=[ \t]*$", (ROOT / "@Resources/User/CPU.inc").read_text())
     assert "MaxClockSpeed" not in sections["MeasureCPUInfo"]["Parameter"]
     assert 'MeterProcessBar' not in script
     assert 'local function centeredBarY(meter, top)' in script

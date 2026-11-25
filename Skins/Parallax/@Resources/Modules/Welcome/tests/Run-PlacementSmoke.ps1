@@ -4,14 +4,17 @@
 Checks where Parallax panels open the first time, in an isolated Rainmeter.
 
 .DESCRIPTION
-Stages the distributable sources and runs Rainmeter twice against generated
+Stages the distributable sources and runs Rainmeter three times against generated
 settings profiles. The fresh profile has no Parallax section at all, so every
 panel opens through its DefaultWindowX/Y: Welcome is activated the way Skin
 Installer does it, Load all runs through the real controller, and the windows
 Rainmeter created are read from Windows. The panels must not overlap, must stay
 inside the work area, and must return to the same places after Unload all and
 Load all. The placed profile seeds saved positions, one of them exactly 0,0, and
-none of those may move or be rewritten.
+none of those may move or be rewritten. The stacked profile has every panel saved
+at 0,0, as releases before 0.1.0-alpha.16 left them, with Disk Meter taller and
+Visualizer narrower than they ship: Arrange must take them apart by their real
+sizes, Undo must put every one back, and a second Arrange must survive a reload.
 
 -WorkArea simulates a primary work area: the staged copy's work-area variables
 become numbers and DefaultKeepOnScreen=0 lets panels open past the edge of the
@@ -121,6 +124,14 @@ if ($simulated) {
     # Global Settings also ends at the work area (Scripts\PanelScroll.lua).
     $scrollPath = Join-Path $parallaxRoot '@Resources\Scripts\PanelScroll.lua'
     Write-RunFile $scrollPath ([IO.File]::ReadAllText($scrollPath).Replace("'#WORKAREAHEIGHT@' .. n .. '#'", "'$areaHeight'").Replace("'#WORKAREAHEIGHT#'", "'$areaHeight'"))
+    # Arrange reads Rainmeter's own screens, which a variable cannot replace.
+    $controllerPath = Join-Path $parallaxRoot '@Resources\Modules\Welcome\Welcome.lua'
+    $controller = Get-Content -LiteralPath $controllerPath -Raw
+    $call = "area('WORKAREA', '@' .. number)"
+    if (-not $controller.Contains($call)) { throw 'Welcome.lua no longer reads the screens as this check expects.' }
+    Write-RunFile $controllerPath ($controller.Replace($call, "area('PLACEMENTTEST', '')"))
+    $welcomePath = Join-Path $parallaxRoot 'Welcome\Welcome.ini'
+    Write-RunFile $welcomePath ((Get-Content -LiteralPath $welcomePath -Raw) -replace '(?m)^Columns=2\r?$', "Columns=2`r`nPLACEMENTTESTX=0`r`nPLACEMENTTESTY=0`r`nPLACEMENTTESTWIDTH=$areaWidth`r`nPLACEMENTTESTHEIGHT=$areaHeight")
 } else {
     Add-Type -AssemblyName System.Windows.Forms
     $previous = [ParallaxPlacement.Native]::SetThreadDpiAwarenessContext([IntPtr]-1)
@@ -170,11 +181,40 @@ $quiet = "AlphaValue=1`nClickThrough=1`nKeepOnScreen=0`n"
 $profiles = [ordered]@{
     fresh = "`n[Loader]`nActive=1`nWindowX=0`nWindowY=0`n$quiet"
     placed = ($saved.Keys | ForEach-Object { "`n[Parallax\$_]`nActive=$([int]($_ -eq 'Welcome'))`nWindowX=$($saved[$_][0])`nWindowY=$($saved[$_][1])`n$quiet" }) -join ''
+    stacked = ($components.Keys | ForEach-Object { "`n[Parallax\$_]`nActive=$([int]($_ -eq 'Welcome'))`nWindowX=0`nWindowY=0`n$quiet" }) -join ''
+}
+# Panels that collide or leave the work area.
+function Test-Apart($Panels, [string]$What) {
+    $keys = @($Panels.Keys | Sort-Object)
+    for ($i = 0; $i -lt $keys.Count; $i++) {
+        $a = $Panels[$keys[$i]]
+        if ($a.X -lt 0 -or $a.Y -lt 0 -or $a.Right -gt $areaWidth -or $a.Bottom -gt $areaHeight) {
+            $line = "${What}: $($a.Panel) leaves the work area: $(Format-Place $a)"
+            if ($Except -contains $a.Panel) { Write-Output "ALLOWED: $line" } else { $failures.Add($line) }
+        }
+        for ($j = $i + 1; $j -lt $keys.Count; $j++) {
+            $b = $Panels[$keys[$j]]
+            $w = [Math]::Min($a.Right, $b.Right) - [Math]::Max($a.X, $b.X)
+            $h = [Math]::Min($a.Bottom, $b.Bottom) - [Math]::Max($a.Y, $b.Y)
+            if ($w -le 0 -or $h -le 0) { continue }
+            $line = "${What}: $($a.Panel) and $($b.Panel) overlap by ${w}x${h}"
+            if ($Except -contains $a.Panel -or $Except -contains $b.Panel) { Write-Output "ALLOWED: $line" } else { $failures.Add($line) }
+        }
+    }
 }
 $failures = [Collections.Generic.List[string]]::new()
 $opened = $null
 foreach ($name in $profiles.Keys) {
     $profileRoot = Join-Path $runRoot $name
+    if ($name -eq 'stacked') {
+        # Other sizes than the first placement allows for.
+        foreach ($change in @(@('IO', '(?m)^IOMinPanelHeight=[^\r\n]*', 'IOMinPanelHeight=270'), @('Visualizer', '(?m)^Columns=[^\r\n]*', 'Columns=1'))) {
+            $path = Join-Path $parallaxRoot "@Resources\User\$($change[0]).inc"
+            $text = Get-Content -LiteralPath $path -Raw
+            if ($text -notmatch $change[1]) { throw "User\$($change[0]).inc no longer has the setting this check changes." }
+            Write-RunFile $path ([regex]::Replace($text, $change[1], $change[2]))
+        }
+    }
     foreach ($folder in 'Layouts', 'Plugins', 'Addons', 'Local') { $null = New-Item -ItemType Directory -Path (Join-Path $profileRoot $folder) -Force }
     $iniPath = Join-Path $profileRoot 'Rainmeter.ini'
     Write-RunFile $iniPath ("[Rainmeter]`nSkinPath=$(Join-Path $runRoot 'Skins')\`nDisableVersionCheck=1`nDisableAutoUpdate=1`nLogging=1`nLanguage=1033`nTrayIcon=0`n" + $profiles[$name])
@@ -196,23 +236,7 @@ foreach ($name in $profiles.Keys) {
         $panels.Values | Sort-Object X, Y | ForEach-Object { '{0,-12}{1}' -f $_.Panel, (Format-Place $_) } | Write-Output
         if ($name -eq 'fresh') {
             $opened = $panels
-            $keys = @($panels.Keys | Sort-Object)
-            for ($i = 0; $i -lt $keys.Count; $i++) {
-                $a = $panels[$keys[$i]]
-                $outside = $a.X -lt 0 -or $a.Y -lt 0 -or $a.Right -gt $areaWidth -or $a.Bottom -gt $areaHeight
-                if ($outside) {
-                    $line = "$($a.Panel) leaves the work area: $(Format-Place $a)"
-                    if ($Except -contains $a.Panel) { Write-Output "ALLOWED: $line" } else { $failures.Add($line) }
-                }
-                for ($j = $i + 1; $j -lt $keys.Count; $j++) {
-                    $b = $panels[$keys[$j]]
-                    $w = [Math]::Min($a.Right, $b.Right) - [Math]::Max($a.X, $b.X)
-                    $h = [Math]::Min($a.Bottom, $b.Bottom) - [Math]::Max($a.Y, $b.Y)
-                    if ($w -le 0 -or $h -le 0) { continue }
-                    $line = "$($a.Panel) and $($b.Panel) overlap by ${w}x${h}"
-                    if ($Except -contains $a.Panel -or $Except -contains $b.Panel) { Write-Output "ALLOWED: $line" } else { $failures.Add($line) }
-                }
-            }
+            Test-Apart $panels 'first placement'
             # Once loaded, Rainmeter has a section for each panel and keeps its place.
             Write-RunFile $commandPath 'UnloadAll()'
             $null = Wait-Panels $process 1 30
@@ -222,6 +246,58 @@ foreach ($name in $profiles.Keys) {
             $again = Wait-Panels $process $components.Count 10
             foreach ($key in $components.Keys) {
                 if ($again[$key].X -ne $panels[$key].X -or $again[$key].Y -ne $panels[$key].Y) { $failures.Add("$key moved on its second load: $(Format-Place $panels[$key]) to $(Format-Place $again[$key])") }
+            }
+            # Rainmeter still records these places as formulas. With GPU closed,
+            # Arrange must move the panels below it up, and Undo put them back.
+            Write-RunFile $commandPath "Toggle('GPU')"
+            $null = Wait-Panels $process ($components.Count - 1) 30
+            Write-RunFile $commandPath 'Arrange()'
+            Start-Sleep -Seconds 4
+            $closed = Wait-Panels $process ($components.Count - 1) 10
+            if ($closed['IO'].Y -ne 0 -or $closed['Chronometer'].Y -ne $closed['IO'].Bottom) { $failures.Add("Arrange without GPU left IO at $(Format-Place $closed['IO']) and Chronometer at $(Format-Place $closed['Chronometer'])") }
+            Write-RunFile $commandPath 'Undo()'
+            Start-Sleep -Seconds 4
+            $undone = Wait-Panels $process ($components.Count - 1) 10
+            foreach ($key in $undone.Keys) {
+                if ($undone[$key].X -ne $again[$key].X -or $undone[$key].Y -ne $again[$key].Y) { $failures.Add("Undo left $key at $(Format-Place $undone[$key]), not $(Format-Place $again[$key])") }
+            }
+            Write-RunFile $commandPath 'Arrange()'
+            Start-Sleep -Seconds 4
+            Write-RunFile $commandPath 'UnloadAll()'
+            $null = Wait-Panels $process 1 30
+            Write-RunFile $commandPath 'LoadAll()'
+            $null = Wait-Panels $process $components.Count 60
+            $reloaded = Wait-Panels $process $components.Count 10
+            foreach ($key in 'IO', 'Chronometer') {
+                if ($reloaded[$key].X -ne $closed[$key].X -or $reloaded[$key].Y -ne $closed[$key].Y) { $failures.Add("$key did not keep its arranged place: $(Format-Place $closed[$key]) to $(Format-Place $reloaded[$key])") }
+            }
+        } elseif ($name -eq 'stacked') {
+            foreach ($key in $components.Keys) {
+                if ($panels[$key].X -ne 0 -or $panels[$key].Y -ne 0) { $failures.Add("$key was saved at 0,0 and opened at $(Format-Place $panels[$key])") }
+            }
+            if ($panels['IO'].H -le $opened['IO'].H -or $panels['Visualizer'].W -ge $opened['Visualizer'].W) { throw 'The stacked profile did not change the two sizes, so it checks nothing.' }
+            Write-RunFile $commandPath 'Arrange()'
+            Start-Sleep -Seconds 4
+            $arranged = Wait-Panels $process $components.Count 10
+            Write-Output "--- $name after Arrange"
+            $arranged.Values | Sort-Object X, Y | ForEach-Object { '{0,-12}{1}' -f $_.Panel, (Format-Place $_) } | Write-Output
+            Test-Apart $arranged 'after Arrange'
+            Write-RunFile $commandPath 'Undo()'
+            Start-Sleep -Seconds 4
+            $undone = Wait-Panels $process $components.Count 10
+            foreach ($key in $components.Keys) {
+                if ($undone[$key].X -ne 0 -or $undone[$key].Y -ne 0) { $failures.Add("Undo left $key at $(Format-Place $undone[$key])") }
+            }
+            Write-RunFile $commandPath 'Arrange()'
+            Start-Sleep -Seconds 4
+            Write-RunFile $commandPath 'UnloadAll()'
+            $null = Wait-Panels $process 1 30
+            Write-RunFile $commandPath 'LoadAll()'
+            $null = Wait-Panels $process $components.Count 60
+            Start-Sleep -Seconds $SettleSeconds
+            $again = Wait-Panels $process $components.Count 10
+            foreach ($key in $components.Keys) {
+                if ($again[$key].X -ne $arranged[$key].X -or $again[$key].Y -ne $arranged[$key].Y) { $failures.Add("$key did not keep its arranged place: $(Format-Place $arranged[$key]) to $(Format-Place $again[$key])") }
             }
         } else {
             $recorded = Get-Content -LiteralPath $iniPath -Raw
@@ -254,5 +330,5 @@ if ($failures.Count) {
     $failures | ForEach-Object { Write-Output "FAIL: $_" }
     throw "Placement smoke failed. Evidence retained at $runRoot"
 }
-Write-Output 'PASS: first placements do not collide, saved positions (0,0 included) did not move, and a second load kept every place.'
+Write-Output 'PASS: first placements do not collide, saved positions (0,0 included) did not move, a second load kept every place, and Arrange and Undo moved a stack apart and back.'
 Write-Output "Evidence retained at $runRoot"

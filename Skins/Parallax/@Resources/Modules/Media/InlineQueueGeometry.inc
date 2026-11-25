@@ -222,7 +222,11 @@ MediaQueueDrawerRight=(#ContentX#+#ContentWidth#)
 ; sheet runs behind the cover, which is drawn later, so the open rows use the
 ; full width below it. Compact art sits inside the panel, whose own left edge
 ; is the same #Inset#, so both layouts resolve to the window's inset.
-MediaQueueDrawerLeft=(#MediaWide#*#MediaCoverX#+(1-#MediaWide#)*#MediaSurfaceX#)
+; Then in from there by the margin the sheet's right edge keeps inside the
+; panel's (2026-11-25, user request), so both sides match. The sheet's contents
+; hang off this edge and keep their own padding.
+MediaQueueDrawerMargin=(#Inset#+#PanelWidth#-#MediaQueueDrawerRight#)
+MediaQueueDrawerLeft=(#MediaWide#*#MediaCoverX#+(1-#MediaWide#)*#MediaSurfaceX#+#MediaQueueDrawerMargin#)
 MediaQueueDrawerTop=(#MediaQueueTabY#-8*#Scale#)
 MediaQueueDrawerClosedBottom=(#MediaTop#+#MediaBodyHeightPx#)
 ; --- Queue object (the drawer's only content) --------------------------

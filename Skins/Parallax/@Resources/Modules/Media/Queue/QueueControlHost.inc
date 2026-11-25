@@ -85,7 +85,7 @@ LeftMouseUpAction=[!CommandMeasure MeasureQueueStatus "ShowView('playlists')"]
 [MeterQueueTabSpectrumBar]
 Meter=String
 MeterStyle=StyleHeader
-X=(#MediaQueueX#+103*#MediaQueueTabUnit#)
+X=(#MediaQueueX#+(#Columns#=1 ? 0 : 103*#MediaQueueTabUnit#))
 Y=#MediaQueueHeaderY#
 W=(8*#MediaQueueTabUnit#)
 Hidden=1
@@ -95,7 +95,7 @@ Text=|
 [MeterQueueTabSpectrum]
 Meter=String
 MeterStyle=StyleHeader
-X=(#MediaQueueX#+112*#MediaQueueTabUnit#)
+X=(#MediaQueueX#+(#Columns#=1 ? 0 : 112*#MediaQueueTabUnit#))
 Y=#MediaQueueHeaderY#
 W=(60*#MediaQueueTabUnit#)
 Hidden=1

@@ -370,6 +370,15 @@ album colors on the new tab, the one-column label cycle and **Spectrum
 position** to Top and back. Not verified: the queue-off header live, and
 `Test-MediaCaptureLease.ps1` stage B (it needs silent output).
 
+**Drawer margins (2026-11-25, user request).** The bottom drawer's left edge no
+longer starts at the cover's left edge: it comes in by the margin its right edge
+keeps inside the panel (`MediaQueueDrawerMargin`), in both layouts. The tabs,
+rows, covers and spectrum hang off that edge and keep their own padding, so the
+content is that much narrower. Checked with `test_skin_contract.py`,
+`Test-MediaSettings.ps1` (also `-VisualizerDrawerFocused`), the queue view and
+never-started tests, and isolated captures of the queue (220, double and
+compact) and spectrum (double). Not yet seen on the live desktop.
+
 ## Spectrum drawer
 
 The slider above the player (`VisualizerPlacement=1`).

@@ -10,6 +10,9 @@ offers no way to remove or reorder queue items, so the helper cannot. Since
 2026-11-24 Media's drawer also lists your playlists and starts one (see
 [Playlists](#playlists)).
 
+**Experimental.** You need your own Spotify Premium: Spotify requires it from
+the owner of a new developer app, and every user here registers their own.
+
 ## Connect your app
 
 1. Open the [Spotify Developer Dashboard](https://developer.spotify.com/dashboard),

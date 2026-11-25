@@ -114,7 +114,7 @@ local function account(now)
         if present(folder .. 'client.json') then
             return { 'Not signed in', 'muted', 'Sign in opens a console and your browser.' }, false
         end
-        return { 'Not set up', 'muted', 'Needs your own Spotify app ID. Help explains how.' }, false
+        return { 'Not set up', 'muted', 'Experimental. Needs Premium and your own app ID. See Help.' }, false
     end
     if state ~= 'ready' then return WAITING[state], true end
     if not live(queue, now) then

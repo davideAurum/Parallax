@@ -53,7 +53,7 @@ local slots = {
     { 'MeterSignIn', { 'Sign in', 'Sign in again' }, true },
     { 'MeterDisconnect', { 'Disconnect', 'Disconnect?' }, true },
     { 'MeterSpotifyDetail', { 'The local app data folder was not found.', 'Finish in the console and the browser.',
-        'The last sign-in did not finish.', 'Sign in opens a console and your browser.', 'Needs your own Spotify app ID. Help explains how.',
+        'The last sign-in did not finish.', 'Sign in opens a console and your browser.', 'Experimental. Needs Premium and your own app ID. See Help.',
         'Queue helper is off. Start it in Media settings.', 'Queue helper is not running. See Media settings.', 'Spotify needs a new sign-in.',
         'Spotify refused this account or app. See Help.', 'Spotify asked to wait. The queue resumes by itself.',
         'The Spotify app has used its quota. See Help.', 'Spotify is unavailable. The helper tries again.',

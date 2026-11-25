@@ -13,7 +13,7 @@ function suite.run(sourcePath)
         test()
         cases[#cases + 1] = name .. ': ' .. (passed - before) .. ' assertions'
     end
-    local function fixture(overrides, columns)
+    local function fixture(overrides, columns, bangs)
         local values = {
             MeasureConnection = { value = 1 }, MeasurePlayer = { text = 'Spotify' },
             MeasureMediaSource = { text = 'Spotify' }, MeasureTitle = { text = 'Synthetic fixture title' },
@@ -34,8 +34,9 @@ function suite.run(sourcePath)
             return columns
         end
         function mock:Bang(...)
+            if bangs then bangs[#bangs + 1] = table.concat({ ... }, ' ') return end
             calls = calls + 1
-            error('The text-only header must never issue a bang; MediaPulse.lua owns the icon')
+            error('A title that offers no setting must never issue a bang; MediaPulse.lua owns the icon')
         end
         local env = setmetatable({ SKIN = mock }, { __index = _G })
         local chunk = assert(loadfile(sourcePath))
@@ -97,6 +98,47 @@ function suite.run(sourcePath)
         f.values.MeasurePlayer = false
         f.env.Initialize()
         f.expect('Unknown')
+    end)
+
+    scenario('a never-started source helper is named and only then does a click open Media settings', function()
+        local opens = '!ActivateConfig Parallax\\Media\\Settings Settings.ini'
+        local on, off = '!SetOption MeterHeading MouseActionCursor 1', '!SetOption MeterHeading MouseActionCursor 0'
+        for _, columns in ipairs({ '2', '1' }) do
+            local bangs = {}
+            local f = fixture({ MeasurePlayer = { text = 'Windows Media Session' },
+                MeasureMediaSource = { text = 'Not started' } }, columns, bangs)
+            check(f.env.OpenSettings() == false, 'No click before the first sample')
+            f.expect('detection off')
+            f.expect('detection off')
+            check(#bangs == 1 and bangs[1] == on, 'The hand cursor is set once, not per update')
+            check(f.env.OpenSettings() == true and #bangs == 2 and bangs[2] == opens, 'A click opens Media settings')
+            -- Started: the reader reports an ordinary result, whichever it is.
+            for _, started in ipairs({ { 'Spotify', 'Spotify' }, { 'Windows', 'Unknown' } }) do
+                f.values.MeasureMediaSource.text = started[1]
+                local before = #bangs
+                f.expect(started[2])
+                check(#bangs == before + 1 and bangs[#bangs] == off, 'Offer withdrawn once the helper has reported')
+                check(f.env.OpenSettings() == false and #bangs == before + 1, 'An ordinary title ignores clicks')
+                f.values.MeasureMediaSource.text = 'Not started'
+                f.expect('detection off')
+                check(bangs[#bangs] == on, 'Offer returns')
+            end
+            -- Paused, stopped, disconnected and named players offer nothing,
+            -- even a player that calls itself what the title or reader says.
+            for _, case in ipairs({ { 'MeasureState', 'value', 2, 1, 'paused' }, { 'MeasureState', 'value', 0, 1, 'stopped' },
+                    { 'MeasureConnection', 'value', 0, 1, 'stopped' },
+                    { 'MeasurePlayer', 'text', 'detection off', 'Windows Media Session', 'detection off' },
+                    { 'MeasurePlayer', 'text', 'Not started', 'Windows Media Session', 'Not started' } }) do
+                f.values[case[1]][case[2]] = case[3]
+                f.expect(case[5])
+                check(bangs[#bangs] == off and f.env.OpenSettings() == false, 'Only the reader result offers the setting')
+                f.values[case[1]][case[2]] = case[4]
+                f.expect('detection off')
+            end
+            -- A refresh starts over from the ini's plain cursor.
+            f.env.Initialize()
+            check(f.env.OpenSettings() == false, 'A refresh withdraws the offer until the next sample')
+        end
     end)
 
     scenario('setup disconnected and idle states read stopped and cannot retain a player', function()

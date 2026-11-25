@@ -6,7 +6,7 @@ Where things stand between releases: what is on `main` but not yet in a publishe
 
 ## On main, not in any release
 
-- Nothing since 0.1.0-alpha.14.
+- **Media says when a Spotify helper was never started** (2026-11-24). On a machine where Source detection was never started the player title reads `Media Player: detection off` instead of `Unknown` while Spotify (or any generic Windows session) plays, and an opened queue drawer reads `Spotify queue is off: Media settings` instead of being blank. Clicking either opens Media settings. Both helpers stay opt-in, nothing starts by itself, and neither hint returns after a Stop. Details and checks: [Never-started helpers](modules/Media.md#never-started-helpers). Still unverified: physical clicks, dragging the panel by its title, and a real fresh install.
 
 ## Open: before 0.2.0-beta.1
 

@@ -4,7 +4,8 @@ MediaPlayerLucideScale=(#TitleIconSize#/24)
 
 ; Last measure: read the current provider/source sample without starting either.
 ; Its value is MeterHeading's whole text: "Media Player: stopped" (or "Media:"
-; in the compact layout), "paused", or the current player while a track plays. Divider matches WebNowPlaying.inc's: this only
+; in the compact layout), "paused", or the current player while a track plays
+; ("detection off" while the source helper was never started). Divider matches WebNowPlaying.inc's: this only
 ; needs the original cadence.
 [MeasureMediaHeader]
 Measure=Script

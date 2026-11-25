@@ -8,6 +8,10 @@
 [Variables]
 MediaQueueRefreshWidth=(18*#Scale#)
 MediaRefreshGlyph=(14*#Scale#/24)
+; The "queue is off" line: the first row's place, below the transport circles
+; that overhang the header band; parked inside the panel while the drawer is
+; closed, as InlineQueueGeometry.inc parks the header.
+MediaQueueOffY=(#QueueExpanded#*#MediaQueueRowsY#+(1-#QueueExpanded#)*#Inset#)
 
 [MeasureQueueControl]
 Measure=Script
@@ -55,3 +59,26 @@ MediaRefreshArcBottom=(21*#MediaRefreshGlyph#),(12*#MediaRefreshGlyph#) | ArcTo 
 MediaRefreshHeadBottom=(8*#MediaRefreshGlyph#),(16*#MediaRefreshGlyph#) | LineTo (3*#MediaRefreshGlyph#),(16*#MediaRefreshGlyph#) | LineTo (3*#MediaRefreshGlyph#),(21*#MediaRefreshGlyph#)
 MouseActionCursor=1
 LeftMouseUpAction=[!CommandMeasure MeasureQueueControl "Run('Refresh')"]
+
+; What an open drawer says while the optional queue helper was never started (no
+; snapshot file), where it used to be blank. QueueReader.lua shows and hides it
+; on that state alone; nothing here starts the helper. One row tall: in a narrow
+; Normal drawer the text wraps, in a Compact one it ends in an ellipsis. Media.ini
+; only, like the rest of this file: Setup has no drawer, and the standalone queue
+; has its own status.
+; The link takes the second accent, as the gear that opens the same panel does.
+[MeterQueueOff]
+Meter=String
+MeterStyle=StyleLabel
+X=#MediaQueueX#
+W=#MediaQueueWidth#
+H=#MediaQueueRowPitch#
+Y=#MediaQueueOffY#
+ClipString=2
+Hidden=1
+UpdateDivider=-1
+InlineSetting=Color | #AccentColor2#
+InlinePattern=Media settings$
+Text=Spotify queue is off: Media settings
+MouseActionCursor=1
+LeftMouseUpAction=[!ActivateConfig "Parallax\Media\Settings" "Settings.ini"]

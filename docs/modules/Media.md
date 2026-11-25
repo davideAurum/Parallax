@@ -70,7 +70,7 @@ user-selected Lucide metadata and playback icons are attributed below.
 | Typed numeric settings — bundled | Rainmeter's bundled RunCommand plugin, Windows PowerShell/.NET WinForms and the shared `Scripts/SettingsInput.ps1` overlay. | An explicit numeric-field click starts one temporary editor. Fixed numeric/cancel output is revalidated before saving; invalid, cancelled, unrequested or hidden-field results do not save. No polling or provider starts. |
 | Playback metadata and controls — optional, plugin bundled | [WebNowPlaying](https://wnp.keifufu.dev/rainmeter/getting-started) plugin 2.0.7.0 (MIT License, keifufu and Trevor Hamilton), bundled in the Parallax `.rmskin` from `packaging/Plugins/WebNowPlaying` and installed by Skin Installer unless a newer version is present ([license](../../Skins/Parallax/@Resources/Licenses/WebNowPlaying-LICENSE.txt), [provenance](../../packaging/Plugins/WebNowPlaying/README.md)); a supported player. Browser playback additionally requires the separately installed WebNowPlaying browser extension; desktop adapters are also separate. A development copy of the skin without the package needs a manual plugin install (2.x+). | Sampled on the skin update; `MediaInterval` does not throttle WNP internally. Inactive connections show no active media; unsupported controls remain disabled. Setup unloads the optional plugin. Since 2026-10-27 the shuffle and repeat toggles read WNP's `Shuffle`, `Repeat`, `SupportsToggleShuffleActive` and `SupportsToggleRepeatMode` player types and send its `Shuffle` and `Repeat` commands; a player that does not report support shows them muted and unclickable. Whether a given player (Spotify desktop included) reports that support is unverified. |
 | Album colors — optional, plugin bundled (2026-11-19) | [Chameleon](https://github.com/socks-the-fox/chameleon) plugin 1.6.5.0 (3-clause BSD, Socks the Fox), bundled in the `.rmskin` from `packaging/Plugins/Chameleon` ([license](../../Skins/Parallax/@Resources/Licenses/Chameleon-LICENSE.txt), [provenance and license status](../../packaging/Plugins/Chameleon/README.md)); `Modules/Media/AlbumColors1.inc` and `AlbumColors.lua`; WebNowPlaying's cover file. | Only while `MediaAlbumColors=1` (default; `0` loads the comment-only `AlbumColors0.inc`). Four plugin measures and one script at `MediaLegacyDivider` (the 1-second provider cadence), never on the 50 ms tick; Chameleon re-samples on its own when WebNowPlaying overwrites the cover (measured ~1 s). A recolor runs only when the sampled colors or the shown text change: `!SetOption` on fixed meters plus forced updates and one redraw (measured ~2 ms), no DynamicVariables on any meter and no refresh. A grayscale or missing cover, or a missing plugin, keeps the theme; Media settings then says the plugin is missing. See [Album colors](#album-colors-2026-11-19). |
-| Spotify source identification — optional | Bundled `SourceProvider.ps1` and the shared `ProviderOwner.psm1` owner lease, Rainmeter's bundled RunCommand plugin, Windows PowerShell 5.1, built-in .NET and Windows media-session APIs. No Spotify authentication or network request. | Explicit Start uses a dormant `State=Hide` RunCommand control and enables one persistent observer targeting a 2-second collection cadence, with load-time recovery through `MediaLifecycle.lua`/`Lifecycle.inc`. Stop uses the same hidden event-only path. Between collections the observer waits on its owner Rainmeter and a stop event, not a poll, and rewrites its snapshot every cycle while Spotify plays and otherwise only on change, plus a heartbeat about every 4 seconds. Observations expire after 6 seconds. Missing or inconclusive evidence leaves generic Windows playback identified as `Unknown`. |
+| Spotify source identification — optional | Bundled `SourceProvider.ps1` and the shared `ProviderOwner.psm1` owner lease, Rainmeter's bundled RunCommand plugin, Windows PowerShell 5.1, built-in .NET and Windows media-session APIs. No Spotify authentication or network request. | Explicit Start uses a dormant `State=Hide` RunCommand control and enables one persistent observer targeting a 2-second collection cadence, with load-time recovery through `MediaLifecycle.lua`/`Lifecycle.inc`. Stop uses the same hidden event-only path. Between collections the observer waits on its owner Rainmeter and a stop event, not a poll, and rewrites its snapshot every cycle while Spotify plays and otherwise only on change, plus a heartbeat about every 4 seconds. Observations expire after 6 seconds. Inconclusive evidence leaves generic Windows playback identified as `Unknown`, and `detection off` while the observer was [never started](#never-started-helpers). |
 | Idle pause — optional, bundled suite component | The hidden `Parallax\Idle` input-idle coordinator (built-in SysInfo `IDLE_TIME`) through `@Resources/Idle/Hook.inc` and `StandDown.lua`; `Modules/Media/CaptureState.inc` (`MediaStandby`) written only by `MediaOptions.lua`. | Only while Global Settings **Idle pause** is 5, 10 or 30 minutes (default Off). Media.ini reloads once into standby (provider cadence, drawer parked) and freezes; input reloads it once back. Setup and Queue freeze in place. Off loads a comment-only include; a standby state saved while the pause is Off is cleared at the next Media.ini load. No coordinator sync 10 s after a standby load, or no beat for 3 minutes, returns to live. See [Idle pause](#idle-pause). |
 | Update check — optional, bundled suite component | Automatic update check: Rainmeter's built-in WebParser and the bundled `@Resources/Update/Hook1.inc` (`Update.lua`, `Feed.inc`, `State.inc`, `Version.inc`). | Optional bundled suite component, on by default: Global Settings **Updates** > **Auto check** Daily (`UpdateCheck=1`). Off loads the comment-only `Hook0.inc`. About once a day, one request for the release feed on github.com, made by whichever loaded utility finds the check due (60 s after a load, then an hourly `[!Delay]` look); a newer release opens the `Parallax\Update` prompt. No meter, process or plugin; offline and failed checks are recorded quietly and retried after an hour. See [Updates](../UPDATES.md). |
 | Spotify queue — optional | Bundled `QueueProvider.ps1`, `QueueCore.psm1`, `QueueAuth.psm1` and the shared `ProviderOwner.psm1` owner lease; Rainmeter's bundled RunCommand plugin; Windows PowerShell 5.1/.NET; network access; Spotify Developer app public Client ID and user-authorized PKCE sign-in. The [queue setup guide](../../Skins/Parallax/@Resources/Modules/Media/Queue/README.md) records Development Mode prerequisites, including owner Premium and user allowlisting. No client secret. | Start, Stop, Restart and Disconnect use dormant `State=Hide` RunCommand controls with a fixed allowlist and do not overlap. One opt-in worker requests every 30 seconds by default, configurable to 30–150 seconds, subject to backoff/quota pauses. Sign in deliberately retains a visible setup console/browser flow. Passive views read local snapshots on their update. Missing, stopped, expired or failed data produces explicit status and suppresses rows. Since 2026-10-27, clicking a row or **Refresh** runs one short hidden `QueueProvider.ps1 -Command Play`/`Refresh` on a dormant `State=Hide` RunCommand host (`Queue/QueueControlHost.inc` in Media.ini; Queue.ini's existing host); it only hands a request file to the running worker and exits. Skipping needs the optional `user-modify-playback-state` permission, now requested at sign-in; a grant without it keeps reading the queue but rows are not clickable until you sign in again. Spotify's skip endpoint acts on the account's active device and needs Premium. Since 2026-11-19 each read also fetches the shown items' covers (Spotify's smallest image, 64 px for albums) once from Spotify's image CDN only (`*.scdn.co`, `*.spotifycdn.com`), over HTTPS, without the token, at most 256 KB and 5 s each, into `covers\` beside the snapshot (current-user ACL, pruned to 60 files, deleted on Disconnect); a failed URL waits 5 minutes. The snapshot is `PARALLAX_QUEUE_V4`. No new Spotify API call or process. |
@@ -924,11 +924,13 @@ when they belong to the same app or have different playback states. Only one
 match classified as Spotify, with matching state, confirms Spotify. Native
 WNP maps Windows Playing to state 1 and other statuses to state 2. Incomplete,
 unmatched, ambiguous, unavailable, stopped or expired observations never claim
-Spotify; the reader also returns which of these cases applied, but only its
-tests read that reason and nothing displays it. The header uses the reader's
-confirmed Spotify result; an unresolved generic Windows result displays
-`Media Player: Unknown` while playing. Specific WNP names, such as a browser extension's player
-name, bypass the local observation. The reader issues no bangs.
+Spotify; the reader also returns which of these cases applied. Only the case
+with no observation file at all reaches the screen, as
+[`detection off`](#never-started-helpers); its tests read the rest. The header
+uses the reader's confirmed Spotify result; any other unresolved generic
+Windows result displays `Media Player: Unknown` while playing. Specific WNP
+names, such as a browser extension's player name, bypass the local observation.
+The reader issues no bangs.
 
 One process collects every two seconds, with a four-second asynchronous work
 budget and no overlapping pending requests. Observations expire six seconds
@@ -1018,6 +1020,58 @@ Primary implementation references:
 [Windows GetSessions](https://learn.microsoft.com/en-us/uwp/api/windows.media.control.globalsystemmediatransportcontrolssessionmanager.getsessions),
 [SourceAppUserModelId](https://learn.microsoft.com/en-us/uwp/api/windows.media.control.globalsystemmediatransportcontrolssession.sourceappusermodelid).
 
+### Never-started helpers
+
+Owner decision, 2026-11-24, after a fresh install's `Media Player: Unknown` and
+empty queue drawer were read as an update bug. Both helpers stay opt-in; the
+player now says which one was never started, where the gap shows:
+
+| Where | Never started | After Start or Sign in |
+| --- | --- | --- |
+| Title, while WNP reports a generic Windows session playing | `Media Player: detection off` (`Media: detection off` compact) | `Spotify` when confirmed, otherwise `Unknown` as before |
+| Open queue drawer | `Spotify queue is off: Media settings` in the first row's place | The line goes; rows show when there are any |
+
+Clicking either opens Media settings. The title takes the click and the hand
+cursor only while it reads `detection off`; `MediaHeader.lua` sets the cursor
+once per change and `OpenSettings()` does nothing otherwise. The drawer line is
+`MeterQueueOff` in `Queue\QueueControlHost.inc`, so only Media.ini has it: Setup
+has no drawer, and the standalone Queue keeps its own `Setup required`.
+
+"Never started" means the helper's snapshot file does not exist. Each helper
+writes one on its first run, and Stop and Disconnect replace it rather than
+delete it, so the file records a first start without another read: the source
+reader and queue reader already look for it on each provider update. Loading a
+view still reads no intent for this, launches nothing and writes nothing. A
+helper stopped by choice shows the old `Unknown` or an empty drawer, never the
+hint. A file that exists but cannot be read, and a LocalAppData path that cannot
+be resolved, are not evidence of a first run and show no hint either. The
+source hint also needs a nonblank title and artist, since detection could not
+name that track anyway.
+
+Title width: `detection off` is 199.5 px at 12 pt in the double layout (room for
+221.2, or 205.2 with the spectrum drawer open) and 148.3 px compact (163.2, or
+147.2 with it open, where it ends in an ellipsis, as it does on a 180 px
+column). The drawer line is 192.3 px of the compact drawer's 198 at width 220;
+narrower Normal rows wrap it and narrower Compact rows end it in an ellipsis.
+
+Limits: queue **Start** before **Sign in** leaves a `Setup required` snapshot, so
+the line goes and the drawer is blank again, as it is for every other
+unavailable queue state. Nothing in the Welcome window mentions either helper.
+
+Checked on 2026-11-24 (Rainmeter 4.5.28.3936). `tests\Test-MediaNeverStarted.ps1`
+runs the real Media.ini and both readers in an isolated profile on a synthetic
+root that does not exist, at both widths: both hints, both clicks (a stand-in
+settings config opened once each), no file created by showing them, `Spotify`
+and the rows after synthetic snapshots, an ignored click on an ordinary title,
+and no hint after a stop. With the previous `SourceReader.lua`,
+`QueueReader.lua` or `MediaHeader.lua` put back, it fails. Scenarios were added
+to the header, source-reader and queue-reader suites, and the contract test
+checks that the line stays inside the sheet and below the transport circles.
+The real helpers, run once on a temporary data root outside Rainmeter: no file
+before; Source Start wrote its first snapshot after 3.4 s, Stop left `stopped`;
+queue Start without sign-in left `onboarding_required`. Not checked: physical
+clicks, dragging by the title, and a real fresh install.
+
 ## Lucide metadata and playback icons
 
 The user selected [Music](https://lucide.dev/icons/music) for song,
@@ -1078,7 +1132,8 @@ direction, 2026-10-04): the full label left the compact title too little room
 for the state or a player name at 12 pt. A Columns change refreshes the skin,
 so the label is chosen once per load; `GetPlayerName()` still returns only the
 state or player. No player-supplied text becomes a bang, path, variable name or Lua
-command, and the adapter issues no bangs. The script retains a UTF-16LE BOM so
+command, and the adapter issues no bangs except the two fixed ones behind
+[`detection off`](#never-started-helpers). The script retains a UTF-16LE BOM so
 Rainmeter's native Lua APIs preserve accented, CJK and non-BMP player names.
 
 Both icons live in one title-icon box at `ContentX` on the shared
@@ -1123,7 +1178,8 @@ earlier 165.8 px figure.
 
 Specific WNP player names take precedence over a stale source label. Generic
 Windows sessions receive the Spotify name only when the existing correlation
-confirms it; otherwise the player is `Unknown`.
+confirms it. Otherwise the player is `detection off` while the source helper
+was [never started](#never-started-helpers), and `Unknown` after that.
 
 Standalone Queue uses the same title center without a leading identity icon.
 Settings keeps its centered title using `CenterCenter`; its close control shares
@@ -1230,7 +1286,8 @@ The reader requests collapse once per confirmed empty transition; unchanged empt
 samples do not retry a failed preference write on every update. Missing, expired,
 malformed or nonready snapshots never trigger automatic collapse. The standalone
 Queue panel keeps its existing layout and status behavior.
-Unavailable, malformed, expired, or failed responses suppress rows. Successful
+Unavailable, malformed, expired, or failed responses suppress rows; with no
+snapshot at all an open drawer says the [queue is off](#never-started-helpers). Successful
 data expires after twice the configured polling interval, clamped to 90–300
 seconds. The account's Spotify queue may differ from WNP's player.
 

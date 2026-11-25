@@ -1,0 +1,46 @@
+name: Feature request
+description: Suggest something Parallax could do.
+labels: ["enhancement"]
+body:
+  - type: markdown
+    attributes:
+      value: |
+        **No new features are planned before 1.0**, so most requests wait until after it. They still help: requests decide what comes first. **Issues are public**, so leave out anything personal.
+  - type: dropdown
+    id: area
+    attributes:
+      label: Which part of Parallax?
+      multiple: true
+      options:
+        - Chronometer
+        - CPU Meter (CPU)
+        - Memory Meter (RAM)
+        - GPU Meter (GPU)
+        - Disk Meter (IO)
+        - Network Meter (Network)
+        - Media Player (Media)
+        - Spotify queue or playlists
+        - Audio (Visualizer)
+        - Global Settings and appearance
+        - Installing and updating
+        - A new panel
+        - Something else
+    validations:
+      required: true
+  - type: textarea
+    id: problem
+    attributes:
+      label: What would you like to do?
+      description: What you want to see or do on your desktop that Parallax does not allow today.
+    validations:
+      required: true
+  - type: textarea
+    id: idea
+    attributes:
+      label: How might it work?
+      description: Optional. A sketch, a screenshot, or another program that does it.
+  - type: textarea
+    id: hardware
+    attributes:
+      label: Hardware or programs it needs
+      description: Optional. For example a graphics card, a sensor program or a music service. If Parallax would need an account or an extra download for it, please say so.

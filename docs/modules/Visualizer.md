@@ -4,7 +4,7 @@ Status: horizontal/vertical accent gradients, rounded bar tops, a baseline gap, 
 
 ## Dependencies
 
-This inventory describes the current implementation. Windows 10/11 and Rainmeter 4.5.26 or newer are the suite's target, as recorded in [README.md](../../README.md); the native checks below cover specific local configurations, not every supported OS/version combination.
+This inventory describes the current implementation. Windows 10/11 and Rainmeter 4.5.26 or newer are the suite's target, as recorded in [DEVELOPMENT.md](../DEVELOPMENT.md#target); the native checks below cover specific local configurations, not every supported OS/version combination.
 
 | Dependency | Use | Required or optional | Missing fallback | Cadence |
 | --- | --- | --- | --- | --- |

@@ -7,18 +7,18 @@ CPU figures are **percent of one logical core** unless stated otherwise. 100% me
 ## Where it stands (2026-10-25)
 
 - **Six live skins:** 20.5% of a core at baseline, 9.0 after phase A, 7.7 after phase B (−63%). With the CPU, RAM and GPU process lists hidden: 4.7 (−77%). Measured in an isolated benchmark with live preferences, 3 interleaved trials. See [Phase B result](#phase-b-result-merged-and-measured-2026-10-23).
-- **The overnight fan peaks are not Parallax.** They come with bursts of display re-detection work in explorer and NVIDIA's display service, about every 50 s, with the screens off. Parallax is a steady floor of about a quarter of the night-time load. See [Overnight trace](#overnight-trace-2026-102223-what-drives-the-night-time-fan).
+- **The overnight fan peaks are not Parallax.** They come with bursts of display re-detection work in explorer and NVIDIA's display service, about every 50 s, with the screens off. Parallax is a steady floor of about a quarter of the night-time load. See [Overnight trace](#overnight-trace-2026-10-2223-what-drives-the-night-time-fan).
 - **Cause found and fixed (2026-10-25): the left monitor's DisplayPort link was dropping.** With the screens off, it disconnected and reconnected 70-100 times an hour.
   - **The fan.** That is the display re-detection behind the fan peaks.
   - **The slowdown over days.** Each reconnect also made Windows leak a kernel copy of every Parallax skin's image, about 2.2 MB, which explains the slowdown that only a restart cleared.
   - **The fix.** Swapping the two DisplayPort cables stopped it: 0 dropouts in 25 dark minutes, against 11-17 in 5-6 minutes before.
-  - **Confirmed overnight (2026-10-25/26).** There were no left-only drops after the swap and no display events in 9.1 dark hours. Paged pool stayed flat (−0.2 MB an hour). See [Overnight check](#overnight-check-2026-102526-cable-fix-and-clean-baseline).
-  - See [Display dropouts and the kernel memory leak](#display-dropouts-and-the-kernel-memory-leak-2026-102425).
+  - **Confirmed overnight (2026-10-25/26).** There were no left-only drops after the swap and no display events in 9.1 dark hours. Paged pool stayed flat (−0.2 MB an hour). See [Overnight check](#overnight-check-2026-10-2526-cable-fix-and-clean-baseline).
+  - See [Display dropouts and the kernel memory leak](#display-dropouts-and-the-kernel-memory-leak-2026-10-2425).
 - **Phase C is merged.**
   - **Idle pause (C2):** off by default; when on, it takes the six skins from 8.5 to 3.65% while paused.
   - **The drawer (C1):** releases its audio capture after silence while you are away.
   - **Its idle coordinator** cost about 57 UI-thread wakeups/s beside the open drawer, a Rainmeter per-window cost; the fix C3 removed the avoidable part. See [Phase C result](#phase-c-result-merged-and-measured-2026-10-23).
-  - **Re-measured on 2026-10-25 after a restart, that window cost is about 2.** It came from the machine's degraded state (a runaway TextInputHost and days of leaked kernel memory), not from the coordinator. Every skin's UI thread was cheaper too. See [TextInputHost and the after re-measure](#display-dropouts-and-the-kernel-memory-leak-2026-102425).
+  - **Re-measured on 2026-10-25 after a restart, that window cost is about 2.** It came from the machine's degraded state (a runaway TextInputHost and days of leaked kernel memory), not from the coordinator. Every skin's UI thread was cheaper too. See [TextInputHost and the after re-measure](#display-dropouts-and-the-kernel-memory-leak-2026-10-2425).
 - **Step 3: are the gains additive? It depends on where you look.**
   - **Inside Media, synergistic:** the two halves of A1 save 4.5 points alone and 8.5 together.
   - **Across the six skins, antagonistic:** the packages save 21 points when each is added alone, 12.7 together.
@@ -239,7 +239,7 @@ The largest single contributor found was outside Parallax. A long-running, pause
 **Update 2026-10-23: the overnight trace answered this.**
 - **The regular fan peaks,** about every 50 s, come with bursts in explorer and NVIDIA's display container, not in Parallax. That fits display re-detection while the screens are off.
 - **Parallax is a steady floor** of about a quarter of the night-time load. The fan speeds turned out to be exported under labels that do not say "fan"; the trace now records them.
-- See [Overnight trace](#overnight-trace-2026-102223-what-drives-the-night-time-fan).
+- See [Overnight trace](#overnight-trace-2026-10-2223-what-drives-the-night-time-fan).
 
 ## Findings by theme
 
@@ -608,7 +608,7 @@ A follow-up agent isolated the cause with staged variants that each differed in 
    - **Where the time goes.** Stack samples show a `CallNextHookEx` call from `dxgi.dll` inside `GetMessage`. It appears only once a second skin window exists, and it blocks on a win32k lock, most likely the session's USER lock, two to three times per message. That is why it scales with the other skins' message rate.
    - **It cannot be removed in Rainmeter 4.5.28** while the coordinator is a separate config.
    - **This machine makes it worse.** TextInputHost running away at about 90% of a core is the probable lock holder; that is not proven.
-   - **Update 2026-10-25:** after TextInputHost was ended and the PC restarted, the window cost fell to about 2 wakeups/s beside Media. See [the after re-measure](#display-dropouts-and-the-kernel-memory-leak-2026-102425).
+   - **Update 2026-10-25:** after TextInputHost was ended and the PC restarted, the window cost fell to about 2 wakeups/s beside Media. See [the after re-measure](#display-dropouts-and-the-kernel-memory-leak-2026-10-2425).
 2. **The SysInfo reading: 13-15 wakeups/s.** The fix reads it only when a reading could change the state: about once a minute while you are at the computer. It still reads every 2 s while you are away or skins are paused, so input is seen within one tick.
 
 **Result.** UI-thread wakeups/s from the reviewer's clean re-measure:
@@ -785,7 +785,7 @@ Screen-off figures. CPU in % of one core; "busy" is % of all cores.
 - **What does not:** Parallax and Rainmeter's UI thread are unchanged into a peak.
 - **Correlation with the fan:** 0.02 for Parallax and −0.02 for Rainmeter's main thread, against 0.71 for total machine load and 0.54 for CPU temperature.
 
-Explorer, the NVIDIA display container and dwm bursting together is how display re-detection work shows up. With the screens off, that is consistent with the monitors cycling their inputs or DisplayPort links, which matches the one-monitor-then-the-other half-wakes the owner saw. It is consistent, not proven. The test is to turn off the monitors' Auto Source Switch (and DisplayPort deep sleep, if needed) and trace another night. **Update 2026-10-25:** confirmed and fixed; Auto Source Switch was not the cause. See [Display dropouts and the kernel memory leak](#display-dropouts-and-the-kernel-memory-leak-2026-102425).
+Explorer, the NVIDIA display container and dwm bursting together is how display re-detection work shows up. With the screens off, that is consistent with the monitors cycling their inputs or DisplayPort links, which matches the one-monitor-then-the-other half-wakes the owner saw. It is consistent, not proven. The test is to turn off the monitors' Auto Source Switch (and DisplayPort deep sleep, if needed) and trace another night. **Update 2026-10-25:** confirmed and fixed; Auto Source Switch was not the cause. See [Display dropouts and the kernel memory leak](#display-dropouts-and-the-kernel-memory-leak-2026-10-2425).
 
 **What Parallax contributes is a steady floor, not the peaks.**
 - **Size:** about 27% of a core all night, about a quarter of the steady load. That is 12% on Rainmeter's UI thread, 9% in helpers and 8% in audiodg, which the open drawer keeps running.
@@ -848,7 +848,7 @@ Explorer, the NVIDIA display container and dwm bursting together is how display 
 
 - **The leak stopped.** During the last test paged pool stayed at 4,693-4,695 MB. The only event was one resync 2 s after the screens woke.
 - **Likely cause.** The old left cable did not fail on the right monitor either, so a poorly seated plug, or a cable that is marginal at DP 1.2 speed with the left monitor, is the likely cause.
-- **Still to confirm:** a full night with the logger. **Confirmed 2026-10-25/26**; see [Overnight check](#overnight-check-2026-102526-cable-fix-and-clean-baseline).
+- **Still to confirm:** a full night with the logger. **Confirmed 2026-10-25/26**; see [Overnight check](#overnight-check-2026-10-2526-cable-fix-and-clean-baseline).
 
 **TextInputHost and the after re-measure.**
 - **What happened.** It had run at about 85-90% of a core since 2026-10-21 17:54 (97,205 CPU-seconds). It was ended with the owner's OK on 2026-10-24 at 16:14:27, and Windows restarted it as a quiet instance.
@@ -974,7 +974,7 @@ The audiodg attribution question is answered: see [Live A/B](#live-ab-drawer-and
 1. **Process lists: keep them shown by default.**
    - **The trade-off:** hiding the CPU, RAM and GPU process lists takes the six skins from 7.7% to 4.7% of a core; they are the largest remaining cost.
    - **Kept:** the lists are a feature, and the opt-outs (`CPUShowProcesses=0`, `RAMShowProcesses=0`, `GPUShowProcesses=0`, `GPUShowProcessMemory=0`) stay available.
-2. **Lazy coordinator for the drawer (C3 option): dropped.** After the restart the coordinator's window costs about 2 UI wakeups/s, not 57 (see [the after re-measure](#display-dropouts-and-the-kernel-memory-leak-2026-102425)), so the gain no longer justifies a protocol change.
+2. **Lazy coordinator for the drawer (C3 option): dropped.** After the restart the coordinator's window costs about 2 UI wakeups/s, not 57 (see [the after re-measure](#display-dropouts-and-the-kernel-memory-leak-2026-10-2425)), so the gain no longer justifies a protocol change.
 3. **Stand-down helper kill race: fix it** before the release, in RAM and GPU (see [the known issue](#phase-c-result-merged-and-measured-2026-10-23)). **Fixed 2026-10-25**, merged into main 2026-10-26: a stand-down lets a launch finish and drains it instead of killing it.
 
 ## Found along the way (not performance)

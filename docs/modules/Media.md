@@ -1478,8 +1478,9 @@ Checked on the Surface laptop (Rainmeter 4.5.28.3936): `test_skin_contract.py` 3
 static validation (26 configs, 0 errors, 0 warnings), and Media settings captured in
 the developer copy. The panel's own checks are in [CONNECTIONS.md](../CONNECTIONS.md#validation-report).
 
-Not verified: the new links by a physical click, and a real sign-in or Disconnect
-started from the panel.
+A real Disconnect and Sign in from the panel worked on 2026-11-25
+([record](../CONNECTIONS.md#validation-report)). Not verified: the new links by a
+physical click.
 
 ### Direct row clicks and the Playlists view (2026-11-24)
 

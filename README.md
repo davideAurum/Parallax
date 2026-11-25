@@ -131,7 +131,8 @@ All checks so far ran on the maintainer's own two PCs.
 
 ### Known issues
 
-- On a smaller screen some new panels open on top of one another, so drag them apart. A 1920 × 1080 screen has room for all of them at 100% Windows scaling. At 125% **Global Settings** covers part of three others and does not fit the screen, and at 150% **Welcome** is covered too. A panel that an older version left in the top-left corner stays there until you move it.
+- On a smaller screen some new panels open on top of one another, so drag them apart. A 1920 × 1080 screen has room for all of them at 100% Windows scaling. At 125% **Global Settings** covers part of three others, and at 150% **Welcome** is covered too. A panel that an older version left in the top-left corner stays there until you move it or, from 0.1.0-alpha.17 on, click **Arrange**.
+- In 0.1.0-alpha.16 and older, the last rows of **Global Settings** and of the CPU, Chronometer and GPU settings are below such a screen. From 0.1.0-alpha.17 on, a panel too tall for the screen stops at its bottom edge and scrolls: use the mouse wheel, or the two arrows beside the close button. **Media Player's settings** do not scroll yet. At 150% their controls from the Spotify queue's buttons down are below the screen; at 125% only the last row is, and only while the queue is expanded.
 - In a copy first installed before 0.1.0-alpha.17, on Intel processors whose name includes their base speed, CPU Meter can show `(4.60)` as the turbo speed whatever the real one is. It comes from a setting, not a reading, and updating keeps it. To fix it, right-click CPU Meter, choose **Edit CPU options**, change or clear `CPUTurboClock`, save, and refresh the panel.
 - On Windows before 11 24H2, or in a language other than English, Network Meter reads `Band unavailable`.
 - In Media Player's one-column layout, the right playback button covers part of the time.

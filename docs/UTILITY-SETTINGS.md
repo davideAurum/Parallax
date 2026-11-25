@@ -8,6 +8,69 @@ Each settings config is an independently loadable double-column window. Include 
 
 Use `StyleBounds` and `StylePanel` for the window. The title follows `StyleTitle|StyleTitleRow`; reserve space for a top-right close control aligned with the title row. Closing deactivates only the settings config and leaves the monitor running. Set `SettingsUtilityName` and include `UtilitySettingsNote.inc` after the background meters. Its context line is at `Inset+32*Scale`, and its Global Settings link is at `Inset+50*Scale`; both reserve 18 logical px of height. Opening Global Settings is navigation and does not save choices or refresh the utility.
 
+## Tall panels
+
+Rainmeter is not DPI aware, so Windows scaling divides the screen first: a 1920 × 1080 screen is a 1536 × 816 work area at 125% and 1280 × 672 at 150%. Keep on screen, on by default, holds a window's top edge to its screen even while it is dragged, so before 2026-11-25 the rows below the screen could not be reached. Window heights at the default suite scale, gutter included, measured in an isolated Rainmeter with the shipped options; *tallest* shows every feature that folds rows away:
+
+| Panel | Shipped | Tallest | Work area 816 px (1080p at 125%) | 672 px (1080p at 150%) |
+| --- | --- | --- | --- | --- |
+| CPU settings | 1064 | 1064 | Scrolls | Scrolls |
+| Global Settings | 1005 | 1005 | Scrolls | Scrolls |
+| Media settings | 822 | 906, queue expanded | **Not fixed.** Nothing lost as shipped (6 px of margin); with the queue expanded, Open queue, Player setup and Help | **Not fixed.** The queue's Start, Stop and Restart, the Connections link, Open queue, Player setup and Help; with the queue expanded, Source detection's Start and Stop too |
+| Chronometer settings | 544 | 760, timers shown | Fits | Fits as shipped; scrolls with the timers |
+| GPU settings | 712 | 712 | Fits | Scrolls |
+| Network settings | 606 | 606 | Fits | Fits |
+| Disk settings | 502 with one drive row, 558 on this laptop | 28 more for each row | Fits to 12 rows | Fits to 7 rows |
+| Audio settings | 408 | 408 | Fits | Fits |
+| Memory settings | 404 | 404 | Fits | Fits |
+| Welcome | 408 | 408 | Fits | Fits |
+| Connections | 326 | 326 | Fits | Fits |
+
+Thread colors grows with the processor: 224 px at 8 threads; it passes 672 px above 40 threads and 816 px above 50. A larger suite scale multiplies all of these, and the panels without a scroll are then too tall sooner: Network settings is 909 px at 150%.
+
+`@Resources/PanelScroll.inc` and `Scripts/PanelScroll.lua` (2026-11-25) fit a panel to the screen it is on. Global Settings and the CPU, Chronometer and GPU settings use them.
+
+- **A work area tall enough:** the panel keeps its designed height, wherever it stands, and looks as before. The container below only re-composites the rows; against the previous commit the largest difference is one level in 255.
+- **Too short:** the window ends at the work area's bottom edge, so it is shorter the lower its top stands; the title row (and the note lines, or Global Settings' Layout line and Connections) stays, and the rest scrolls. The wheel moves two rows. Two arrows left of the close button move a screenful less one row, for a touch screen or a mouse without a wheel; each is muted at its end. A thin bar in the right padding shows the position, and a divider marks where scrolled rows end.
+- **Which screen:** the one holding the panel's center, as Keep on screen does. The fit is made when the panel loads, when the pointer enters it and when it scrolls, so a panel that was dragged, moved by [Arrange](WELCOME.md#arrange) or overtaken by a new scaling is right again when you next use it. Nothing polls. It counts from the panel's top because Keep on screen measures the whole screen, taskbar included, and because Arrange steps a panel down 30 px when a screen is full.
+- **The position** survives a refresh, since nearly every saved value refreshes the suite. It is written to `%TEMP%\ParallaxScroll-<config>.txt` when you scroll and deleted when the panel closes.
+- **The wheel** belongs to the panel's own actions, which Rainmeter runs only where no meter under the pointer has a wheel action, so a control that used the wheel would keep it. None of these panels' controls does. While a number is being typed the panel does not scroll, since the text box lies over its field.
+
+### Using it in another panel
+
+1. In the panel's `[Variables]`, set `PanelScrollTop` (logical px from the panel's top to where scrolling starts, above every scrolling meter) and `PanelScrollEditor` (its numeric entry measure, or leave it out).
+2. `DynamicWindowSize=1`, and `DynamicVariables=1` on `MeterBounds`, `MeterPanel` and any other meter the size of the window.
+3. Include `PanelScroll.inc` right after `MeterPanel`, before the rows. Leave 4 logical px free above the panel's bottom edge.
+4. Add `Container=MeterScrollBody` to every meter that scrolls: all but the two above, the title, the close button, the note lines and a whole-window layer. Positions stay as they are, because the container starts at 0,0. `meter:GetX()` and `GetY()` already include the scroll, so text boxes and the color picker open where the row is.
+5. In `[Rainmeter]`: `MouseOverAction=[!CommandMeasure MeasurePanelScroll "Fit()"]`, `MouseScrollDownAction=[!CommandMeasure MeasurePanelScroll "Wheel(1)"]`, the same with `Wheel(-1)` for up, and `Forget()` added to `OnCloseAction`.
+6. A controller that changes `PanelHeight` sends `!CommandMeasure MeasurePanelScroll "Fit(true)"` after setting it and before it updates the meters.
+
+### Why a scrolling body
+
+| Way | Result |
+| --- | --- |
+| **Scrolling body (chosen)** | One container and one script. No row moves in the source, so the panels' reflow (CPU, Chronometer) and layout tests keep working. It fits any work area, suite scale and number of rows. It has to be discovered, hence the arrows and the bar, and its position has to survive a refresh. |
+| Section tabs | Global Settings' Appearance section is 532 px, so with the title and footer it would fill 672 px at the default suite scale and fit neither screen at 150%. Tabs need a second layout for the two panels' 244 meters (or change how a tall screen looks), and the open tab has to survive a refresh too. |
+| Collapsible sections | The same limit: the tallest section decides. Global Settings' rows have fixed positions, so each section would need the kind of reflow CPU settings has, plus remembered open and closed sections. |
+| Shrinking the panel to fit | One formula, but 9 pt text becomes 6 pt at 672 px, which Windows then enlarges and blurs, on a screen someone set to 150% to read more easily. |
+
+### Checks, 2026-11-25
+
+`tools/tests/Test-PanelScroll.ps1` loads the four panels, in their tallest state, in an isolated Rainmeter and replaces only the work-area height that `PanelScroll.lua` reads. On the Surface laptop (Rainmeter 4.5.28.3936) it passed 9,849 checks at work areas of 816, 672 and 4000 px, each at 75%, 100% and 150% suite scale:
+
+- The window is the designed height, or the work area's where that is shorter.
+- Every clickable control (83 in Global Settings, 63 in CPU settings, 69 in Chronometer and 51 in GPU settings, arrows included) lies whole inside the visible part at some stop of the wheel, and again of the arrows, and every line of text does at some stop of the wheel.
+- A mouse click posted to each control's center reached that control's action through Rainmeter's own hit test, and a click on the title part never reached a row scrolled behind it. The actions were replaced by a recorder first.
+- Moved 30 and 200 px down the real screen, a panel too tall for the work area ends at its bottom edge at the next pointer entry, with every control still reachable at 30, and has its full height again at the top; a panel with room keeps its height.
+- One posted wheel message moved the panel two rows; nothing moved while a stand-in for the number box was open; a refresh kept the place; closing forgot it and left no file.
+- At 4000 px nothing scrolls and no arrow shows.
+
+It saves a capture of every page. Six deliberate faults each made it fail: a control left out of the container, a range 40 px short, no fit at all, scrolling while typing, forgetting on a refresh, and ignoring where the panel stands. Captures at 4000 px differ from the previous commit's by at most one level in 255 for CPU, Chronometer and GPU settings (75%, 100% and 150%) and for Global Settings above its moved footer (100%).
+
+On the real screen (1600 × 1067, work area 1019), unpatched and with Keep on screen on, CPU settings opened 1019 px tall instead of 1064 at the top and 619 with a saved position 400 px down, and Global Settings kept its 1005.
+
+**What a simulated screen does not prove.** Only the number changed: Windows scaling itself, and so how the enlarged panel looks, was not exercised, and that Rainmeter reports 816 and 672 is arithmetic (1080 divided by the scaling, less a 48 px taskbar), not seen. Not tried either: a hand on a wheel, a touchpad (which can send many small wheel messages, each of which moves two rows) or a touch screen; dragging the panel on a short screen; several screens or mixed scaling; a taskbar on another edge; Rainmeter 4.5.26, whose container, hit-test and wheel code is identical to 4.5.28's in the source; and 5.x, whose code differs. A panel that does fit its work area can still be dragged or saved up to a taskbar's height lower, behind the taskbar, as before.
+
 ## Sections and rows
 
 Organize related controls into named sections such as Appearance, Performance or Setup, according to the utility's actual options. Global Settings groups its controls under Appearance and Performance; utility panels should not add empty sections to reproduce those names.

@@ -78,17 +78,22 @@ try {
                     Assert-WithinRun $directory
                     New-Item -ItemType Directory -Path $directory -Force | Out-Null
                 }
-                foreach ($name in @('Defaults.inc', 'Geometry.inc', 'Styles.inc', 'UtilitySettingsNote.inc')) {
+                foreach ($name in @('Defaults.inc', 'Geometry.inc', 'Styles.inc', 'UtilitySettingsNote.inc', 'PanelScroll.inc')) {
                     Copy-IntoRun (Join-Path $resourceRoot $name) (Join-Path $resources $name)
                 }
                 # Idle pause is Off in the staged settings: Chronometer.ini's last include is
                 # the comment-only Idle hook variant.
                 New-Item -ItemType Directory -Path (Join-Path $resources 'Idle') -Force | Out-Null
                 Copy-IntoRun (Join-Path $resourceRoot 'Idle\Hook0.inc') (Join-Path $resources 'Idle\Hook0.inc')
+                # Chronometer.ini includes the release's comment-only Dev hook since 2026-10-28.
+                New-Item -ItemType Directory -Path (Join-Path $resources 'Dev') -Force | Out-Null
+                Copy-IntoRun (Join-Path $resourceRoot 'Dev\Hook0.inc') (Join-Path $resources 'Dev\Hook0.inc')
                 # The update hook (Auto check Daily by default) and the files it loads.
                 New-Item -ItemType Directory -Path (Join-Path $resources 'Update') -Force | Out-Null
                 foreach ($updateFile in @('Version.inc', 'Update\Hook1.inc', 'Update\Feed.inc', 'Update\Update.lua', 'Update\State.inc', 'Idle\Link.lua')) { Copy-IntoRun (Join-Path $resourceRoot $updateFile) (Join-Path $resources $updateFile) }
                 Copy-IntoRun (Join-Path $resourceRoot 'Scripts\SettingsInput.ps1') (Join-Path $resources 'Scripts\SettingsInput.ps1')
+                # A tall screen, whatever this machine's is: the layout checks are about the designed height (Test-PanelScroll.ps1 checks short ones).
+                Write-Utf8 (Join-Path $resources 'Scripts\PanelScroll.lua') ([IO.File]::ReadAllText((Join-Path $resourceRoot 'Scripts\PanelScroll.lua')).Replace("'#WORKAREAHEIGHT@' .. n .. '#'", "'4000'").Replace("'#WORKAREAHEIGHT#'", "'4000'"))
                 foreach ($source in Get-ChildItem -LiteralPath $moduleRoot -File) {
                     if ($source.Extension -in @('.lua', '.inc')) { Copy-IntoRun $source.FullName (Join-Path $scripts $source.Name) }
                 }

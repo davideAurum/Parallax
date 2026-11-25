@@ -152,6 +152,10 @@ local function newMock(settingsPath, preferences)
                 self.refreshes = self.refreshes + 1
             elseif bang == '!UpdateMeasure' then
                 assert(name == 'MeasureCPUSettingsDiscover' or name == 'MeasureCPUSettingsDecimalInput', 'unexpected updated measure')
+            elseif bang == '!CommandMeasure' and name == 'MeasurePanelScroll' then
+                -- Every layout is followed by the fit to the screen, before any meter updates.
+                equal(args[3], 'Fit(true)', 'layout hands the window height to the shared fit')
+                self.fits = (self.fits or 0) + 1
             elseif bang == '!CommandMeasure' then
                 assert(args[3] == 'Run' or args[3] == 'Kill')
                 if args[3] == 'Kill' then self.inputKills = (self.inputKills or 0) + 1 end

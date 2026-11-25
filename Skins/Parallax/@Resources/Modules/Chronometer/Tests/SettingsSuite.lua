@@ -52,6 +52,9 @@ function Suite.register(options, test, equal, check)
             elseif command == '!WriteKeyValue' then
                 f.writes[#f.writes + 1] = { section = a, key = b, value = c, path = d }
                 if not f.failWrite then f.setSaved(b, c) end
+            elseif command == '!CommandMeasure' and a == 'MeasurePanelScroll' then
+                -- Every layout is followed by the fit to the screen, before any meter updates.
+                equal(b, 'Fit(true)'); f.fits = (f.fits or 0) + 1
             elseif command == '!CommandMeasure' then
                 equal(a, 'MeasureChronometerSettingsInput'); equal(b, 'Run')
                 f.input.runs = f.input.runs + 1; f.input.exit = 0

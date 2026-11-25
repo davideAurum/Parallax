@@ -1,4 +1,4 @@
--- Global Settings > Developer (Settings.ini; design in docs/DEVMODE.md).
+-- Global Settings > Contributors (Settings.ini; design in docs/DEVMODE.md).
 --
 -- Dev mode creates a second copy of the suite, <Skins>\ParallaxDev, and loads it beside
 -- the release so edits can be seen against the build they change. Every click runs one
@@ -121,7 +121,7 @@ local function render()
     SKIN:Bang('!SetOption', 'MeterDevStatus', 'Text', text)
     SKIN:Bang('!SetOption', 'MeterDevStatus', 'FontColor', failed and SKIN:GetVariable('DangerColor', '235,55,75') or '175,175,175')
     SKIN:Bang('!SetOption', 'MeterDevModeValue', 'Text', mode == '1' and 'On' or 'Off')
-    SKIN:Bang('!SetOption', 'MeterDevCopyValue', 'Text', isCopy and 'Developer copy' or '')
+    SKIN:Bang('!SetOption', 'MeterDevCopyValue', 'Text', isCopy and 'Developer copy' or 'Not needed to use Parallax')
     SKIN:Bang(isCopy and '!HideMeterGroup' or '!ShowMeterGroup', TOGGLE_GROUP)
     -- Compare needs a copy to look at; Report needs a report that exists.
     local hasCopy = readFile(copyFile('Status.inc')) ~= nil

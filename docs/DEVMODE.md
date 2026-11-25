@@ -18,7 +18,7 @@ Inherits the [shared platform requirements](DEPENDENCIES.md#shared-requirements)
 | --- | --- | --- |
 | Rainmeter Script/Lua and native Shape meters; `@Resources/Dev/DevStatus.lua`, `DevCommon.lua`, `Hook0.inc`, `Hook1.inc`, `Status.inc` | Required for the icons; bundled | Hook0 (every release) loads nothing. Hook1 (the copy only) adds one Script measure, one RunCommand measure and four meters, all `UpdateDivider=-1`. No timer, no polling. Missing files: Rainmeter logs the missing include and the utility runs without the icon. |
 | Rainmeter standard RunCommand plugin; Windows PowerShell 5.1 (`@Resources/Dev/DevMode.ps1`, `DevCopy.psm1`) | Required for Dev mode, Compare and the icon click; host components, no package installation | One hidden, one-shot launch per explicit click. Reads and writes files below the Skins folder only (plus the Windows window list for placement). If PowerShell is blocked, the panel shows the failure and nothing is created. |
-| `@Resources/Dev/DevPanel.lua`, `Panel.inc` and the Developer rows of `Settings/Settings.ini` | Bundled | Global Settings > Developer. Event driven. |
+| `@Resources/Dev/DevPanel.lua`, `Panel.inc` and the Contributors rows of `Settings/Settings.ini` | Bundled | Global Settings > Contributors. Event driven. |
 | `tools/Sync-ParallaxDev.ps1`, `tools/Stage-Parallax.ps1` | Repository tooling, not shipped | The edit-and-see loop from the repository (below). |
 | Lucide `git-branch-plus` and `git-compare-arrows` SVGs and notice | Bundled attribution (ISC) | Retained for provenance; Rainmeter draws the native Shapes and does not load the SVGs. |
 
@@ -26,7 +26,7 @@ No network access, account, driver, helper download or system change. The copy i
 
 ## Using it from Global Settings
 
-**Global Settings > Developer** (the last section above the footer, 96 px tall) has a **Dev mode** row (Off or On, the same cycling control as Idle pause: either arrow or the centre flips it), a status line, and **Report** and **Compare** buttons.
+**Global Settings > Contributors** (the last section, below the footer; it was called Developer and stood above the footer until 2026-11-25) is marked *Not needed to use Parallax*. It has a **Dev mode** row (Off or On, the same cycling control as Idle pause: either arrow or the centre flips it), a status line, and **Report** and **Compare** buttons.
 
 - **Turn on.** One hidden helper run creates `<Skins>\ParallaxDev` from the installed release (only if it does not exist), compares the two, and lists the release's loaded utilities. Rainmeter then loads the copy's matching utilities (the same `.ini` file each has loaded: Media Setup stays Setup) beside the release windows. The first time a copy is created Rainmeter must refresh its skin list, because it refuses to activate a folder created since it started (`!ActivateConfig: ... exists, but is not available. Please refresh Rainmeter.`). Global Settings therefore saves `DevMode=1`, sets `DevPending=1`, runs `!RefreshApp` **once** (every loaded skin reloads, as for *Refresh all*), and on its next load clears `DevPending` and resumes the load. Later turn-ons, and any start where the folder already exists, need no refresh.
 - **Turn off.** Unloads the copy's utilities and saves `DevMode=0`. The copy's files stay, so edits survive; delete `ParallaxDev` yourself to start again (or use `Sync-ParallaxDev.ps1 -Action Reset`, which sets it aside rather than deleting it).

@@ -83,7 +83,7 @@ function Assert-State($Native,$Expected,[int]$Generation) {
     Require ($Native.MeterBackgroundColorValue -eq $backgroundHex) 'Background color hex did not reflect persisted alpha.'
 }
 
-$sourceFiles=@('Settings\Settings.ini','@Resources\Defaults.inc','@Resources\Geometry.inc','@Resources\Styles.inc','@Resources\User\Settings.inc','@Resources\Scripts\Settings.lua','@Resources\Version.inc','@Resources\Update\Feed.inc','@Resources\Update\Install.inc','@Resources\Update\Update.lua','@Resources\Update\State.inc','@Resources\Idle\Link.lua','@Resources\Dev\Panel.inc','@Resources\Dev\DevPanel.lua','@Resources\Dev\DevCommon.lua','@Resources\Scripts\SettingsInput.ps1')
+$sourceFiles=@('Settings\Settings.ini','@Resources\Defaults.inc','@Resources\Geometry.inc','@Resources\Styles.inc','@Resources\User\Settings.inc','@Resources\Scripts\Settings.lua','@Resources\PanelScroll.inc','@Resources\Scripts\PanelScroll.lua','@Resources\Modules\ColorPicker\Launcher.lua','@Resources\Modules\ColorPicker\Targets.lua','@Resources\Version.inc','@Resources\Update\Feed.inc','@Resources\Update\Install.inc','@Resources\Update\Update.lua','@Resources\Update\State.inc','@Resources\Idle\Link.lua','@Resources\Dev\Panel.inc','@Resources\Dev\DevPanel.lua','@Resources\Dev\DevCommon.lua','@Resources\Scripts\SettingsInput.ps1')
 $sourceHashes=@{}
 foreach ($relative in $sourceFiles) {
     $source=Join-Path $sourceRoot $relative
@@ -92,6 +92,9 @@ foreach ($relative in $sourceFiles) {
     Copy-Item -LiteralPath $source -Destination (Join-Path $parallaxRoot $relative)
 }
 Copy-Item -LiteralPath "$sourceRoot\@Resources\Fonts" -Destination "$parallaxRoot\@Resources\Fonts" -Recurse
+# A tall screen, whatever this machine's is: the layout checks are about the designed height (Test-PanelScroll.ps1 checks short ones).
+$scrollPath = Join-Path $parallaxRoot '@Resources\Scripts\PanelScroll.lua'
+[IO.File]::WriteAllText($scrollPath, ([IO.File]::ReadAllText($scrollPath)).Replace("'#WORKAREAHEIGHT@' .. n .. '#'", "'4000'").Replace("'#WORKAREAHEIGHT#'", "'4000'"))
 Copy-Item -LiteralPath (Join-Path $PSScriptRoot 'SettingsFieldsHarness.lua') -Destination (Join-Path $runRoot 'Harness.lua')
 $scripts=Join-Path $parallaxRoot '@Resources\Scripts'
 Copy-Item -LiteralPath (Join-Path $scripts 'SettingsInput.ps1') -Destination (Join-Path $scripts 'SettingsFieldsProductionInput.ps1')

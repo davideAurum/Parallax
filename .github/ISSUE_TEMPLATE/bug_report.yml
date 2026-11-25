@@ -13,7 +13,7 @@ body:
     attributes:
       label: Parallax version
       description: Beside Updates in Global Settings.
-      placeholder: 0.1.0-alpha.14
+      placeholder: 0.1.0-alpha.15
     validations:
       required: true
   - type: dropdown

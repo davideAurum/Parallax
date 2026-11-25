@@ -69,10 +69,11 @@ The packager also rewrites the lines between the `download-badge` markers in `RE
 
 ## README images
 
-`docs/images/parallax-panels.png` and `docs/images/parallax-live.gif` were captured on 2026-11-25 from `main` at `f09de23`, in a separate Rainmeter 4.5.28.3936 instance on the maintainer's laptop, the same way as [tools/PREVIEW.md](../tools/PREVIEW.md). Each window was printed on its own and the prints were placed side by side.
+`docs/images/parallax-panels.png` and `docs/images/parallax-live.gif` were captured on 2026-11-25 from `main` at `f09de23` (0.1.0-alpha.15 ships the same skins, apart from its version number and one line of the queue guide), in a separate Rainmeter 4.5.28.3936 instance on the maintainer's laptop, the same way as [tools/PREVIEW.md](../tools/PREVIEW.md). Each window was printed on its own and the prints were placed side by side: the still at 200% scale, the animation at 100%, one frame a second for 12 seconds, with CPU Meter and GPU Meter cut off below their tables.
 
-- The meter readings are real. The Wi-Fi name is covered afterwards.
-- Media Player ran its normal skin with a made-up track and an original cover in place of the WebNowPlaying plugin, because a second copy of that plugin ends a Rainmeter that runs beside another ([WELCOME.md](WELCOME.md#validation-report)). Album colors came from the bundled Chameleon plugin.
+- The meter readings are real. The Wi-Fi name and local addresses were covered afterwards.
+- Media Player ran its normal skin with a made-up track and an original cover in place of the WebNowPlaying plugin, because that plugin binds a fixed local port and a second copy of it ends its Rainmeter ([WELCOME.md](WELCOME.md#validation-report)). Album colors came from the bundled Chameleon plugin.
 - The update check was off in the captured copy.
+- The laptop was under heavy load from other programs, and Rainmeter's own lines include both instances. They are not a measurement. Pictures from a calm desktop, with music playing, would be better.
 
 The script was a one-off and is not in the repository. Before publishing new images, check them for Wi-Fi names, addresses, drive names, file paths and song titles.

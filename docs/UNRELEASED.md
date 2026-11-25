@@ -25,7 +25,7 @@ Re-scoped on 2026-10-28: features are frozen, the customization items moved to a
 - [ ] Display check at 1080p and 100% scaling.
 - [ ] Laptop, and institutional PC (portable Rainmeter, no admin rights, if IT rules allow it). Start the hardware table.
 - [ ] Performance headline from a multi-hour run, put in the README.
-- [ ] README for users. Rewritten on 2026-11-25, with developer material moved to [DEVELOPMENT.md](DEVELOPMENT.md). Open: a support link (the maintainer's choice), a look at it on GitHub, and dropping its "newer than 0.1.0-alpha.14" marks when a release has those features ([ROADMAP.md Stage 2](ROADMAP.md#stage-2-before-beta1-010-alphan)).
+- [ ] README for users. Rewritten on 2026-11-25, with developer material moved to [DEVELOPMENT.md](DEVELOPMENT.md). Open: a support link (the maintainer's choice), a look at it on GitHub, and better pictures ([ROADMAP.md Stage 2](ROADMAP.md#stage-2-before-beta1-010-alphan)).
 - [ ] Issue templates and GitHub Discussions. The bug and feature-request forms were added on 2026-11-25. Open: seeing them on GitHub after a push, and turning Discussions on, which only the maintainer can do.
 - [ ] Global Settings ▸ Developer reads as maintainer-only.
 - [ ] Spotify queue labelled experimental (each user needs Premium), and a live row-click skip tested.

@@ -10,9 +10,9 @@ Parallax is a set of small desktop panels for Windows: a clock with timers, mete
 
 ![Eight Parallax panels: Chronometer, CPU Meter, Memory Meter, GPU Meter, Network Meter, Disk Meter, Media Player and the Audio spectrum](docs/images/parallax-panels.png)
 
-*The panels with their shipped settings, captured on the maintainer's laptop from the development version and placed side by side. The readings are real, from a busy laptop, and the Wi-Fi name is covered. Media Player shows a made-up track and cover. Nothing was playing, so the Audio spectrum is idle.*
+*The panels with their shipped settings, captured one by one on the maintainer's laptop and placed side by side. The readings are real; the Wi-Fi name and local addresses are covered. Media Player shows a made-up track and cover, and nothing was playing, so the Audio spectrum is idle. The laptop was busy and ran a second copy of Parallax for the pictures, so the Rainmeter lines do not show what Parallax costs.*
 
-![The Chronometer and the CPU, memory, GPU, network and disk meters updating once a second](docs/images/parallax-live.gif)
+![Chronometer, Disk Meter, the top of CPU Meter and GPU Meter, and Network Meter updating once a second](docs/images/parallax-live.gif)
 
 ## What's included
 
@@ -28,9 +28,7 @@ Each panel works on its own, so use one or all of them.
 | **Network Meter** (Network) | The adapter in use, its local address, Wi-Fi name, band and signal, download and upload speed, and a history graph. |
 | **Media Player** (Media) | The current song with its cover, progress and playback buttons, in colors taken from the cover. A fold-out spectrum and an optional [Spotify queue](#spotify-queue-experimental). |
 | **Audio** (Visualizer) | A spectrum of whatever the PC is playing. Click the output's name to switch to the next output device. |
-| **Global Settings** | Size, width, colors, text sizes, how often panels refresh, pausing while you are away, and updates. A **Connections** panel † shows what Parallax connects to. |
-
-† Newer than 0.1.0-alpha.14. These parts are in the development version and come with the next release.
+| **Global Settings** | Size, width, colors, text sizes, how often panels refresh, pausing while you are away, and updates. A **Connections** panel shows what Parallax connects to. |
 
 A reading that is not available shows as `--`, `-`, `Unavailable` or `Unsupported` instead of a guess. One exception is under [Known issues](#known-issues).
 
@@ -56,7 +54,7 @@ The package also installs two small third-party Rainmeter plugins that Media Pla
 
 ### Removing it
 
-1. If you signed in to Spotify, disconnect first: **Connections** † in Global Settings, or Media settings in 0.1.0-alpha.14 and older.
+1. If you signed in to Spotify, open **Connections** in Global Settings and click **Disconnect** first.
 2. Click **Unload all** in the Welcome panel, then close it.
 3. Delete the `Parallax` folder from Rainmeter's skins folder, usually `Documents\Rainmeter\Skins`.
 
@@ -93,15 +91,11 @@ Media Player can list the songs Spotify plays next. You need both of these:
 - **Spotify Premium.** Spotify requires it from the owner of a new developer app, which here is you.
 - **Your own Spotify developer app.** Spotify allows only five people per new app, so Parallax cannot ship one for everybody.
 
-The [queue setup guide](Skins/Parallax/@Resources/Modules/Media/Queue/README.md#connect-your-app) has the steps to make the app and sign in. It uses the **Connections** panel †. In 0.1.0-alpha.14 and older, **Sign in** is in Media settings.
+The [queue setup guide](Skins/Parallax/@Resources/Modules/Media/Queue/README.md#connect-your-app) has the steps to make the app. You sign in from **Connections** in Global Settings.
 
-What the queue does in each version:
-
-| | 0.1.0-alpha.14 | Newer † |
-| --- | --- | --- |
-| Songs | The next five | Up to the next twenty, scrolling |
-| Clicking a song | Skips to it, so the songs before it leave the queue | Plays it directly and keeps the songs in between, if it belongs to the album or playlist now playing. Otherwise skips to it |
-| Playlists | No | A **Playlists** view lists yours and starts one |
+- The queue lists up to the next twenty songs and scrolls.
+- Clicking a song plays it directly and keeps the songs in between, if it belongs to the album or playlist now playing. Otherwise Spotify skips to it, and the songs before it leave the queue.
+- The **Playlists** view lists your playlists and starts the one you click.
 
 Songs and playlists play on whichever device Spotify is using, so start Spotify first.
 
@@ -112,11 +106,11 @@ All checks so far ran on the maintainer's own two PCs.
 ### Verified
 
 - Daily use of versions up to 0.1.0-alpha.13 on a desktop with Windows 11, an Intel Core i7-8700 (12 threads), an NVIDIA GTX 1080 and a 4K screen at 150%.
-- Parts of 0.1.0-alpha.14 and the development version on a laptop with Windows 11, an Intel Core i7-11370H (8 threads), an NVIDIA RTX 3050 Ti and Intel Iris Xe graphics.
+- Parts of 0.1.0-alpha.14 and 0.1.0-alpha.15 on a laptop with Windows 11, an Intel Core i7-11370H (8 threads), an NVIDIA RTX 3050 Ti and Intel Iris Xe graphics.
 - Rainmeter 4.5.26 and 4.5.28.
 - Installing over an existing copy keeps changed settings, and cancelling the installer changes nothing. This was one scripted test on the desktop, which reinstalled the same version.
 - The update check reads the published release. The earlier updater, on the Welcome panel until October 2026, went from check to finished upgrade.
-- Spotify with a real Premium account: the queue and its covers, playing a song in a shuffled playlist †, and the Playlists view †.
+- Spotify with a real Premium account: signing in and disconnecting from the Connections panel, the queue and its covers, playing a song in a shuffled playlist, and the Playlists view.
 
 ### Not yet
 
@@ -128,8 +122,7 @@ All checks so far ran on the maintainer's own two PCs.
 - A 1080p screen at 100% scaling, and several screens with different scaling.
 - Rainmeter's portable version, a standard (non-administrator) Windows account, a Windows user name with accents or non-Latin letters, and work PCs that block PowerShell scripts. Several panels use small hidden PowerShell helpers.
 - Running for days, through sleep and wake.
-- Updating from the current prompt to a newer release.
-- Signing in to Spotify, or disconnecting, from the Connections panel †.
+- An update through the current prompt, followed from start to finish.
 - Spotify with a Free account, with several devices, or with more than 50 playlists.
 - The removal steps above.
 

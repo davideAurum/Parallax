@@ -137,6 +137,10 @@ function Suite.run(sourcePath, scratchPath, optionsSourcePath)
             elseif bang == '!ShowMeterGroup' or bang == '!HideMeterGroup' then
                 equal(target, 'QueueRows', 'only queue row group')
                 for index = 1, 5 do visible['MeterQueueRow' .. index] = bang == '!ShowMeterGroup' end
+            elseif target == 'MeterQueueOff' then
+                check(options.inline and (bang == '!ShowMeter' or bang == '!HideMeter'), 'the queue-off line only shows or hides, inline')
+                state.offCalls = (state.offCalls or 0) + 1
+                state.off = bang == '!ShowMeter'
             elseif bang == '!ShowMeter' or bang == '!HideMeter' then
                 check(target:match('^MeterQueueRow[1-5]$') or target:match('^MeterQueueHit[1-5]$')
                     or target:match('^MeterQueueTile[1-5]$') or target:match('^MeterQueueArtMask[1-5]$')
@@ -620,6 +624,33 @@ function Suite.run(sourcePath, scratchPath, optionsSourcePath)
             local unavailable = fixture(snapshot(), options)
             unavailable.reader:update()
             equal(unavailable.collapseCalls, nil, 'unavailable snapshot is not empty')
+        end
+    end)
+    scenario('only a missing snapshot in an open drawer says the queue is off', function()
+        local options = {inline=true, expanded=true, missing=true}
+        local state = fixture(snapshot(), options)
+        equal(state.reader:update(), 'Setup required')
+        equal(state.off, true, 'a never-started helper is named in the open drawer')
+        local first = #state.calls
+        equal(state.reader:update(), 'Setup required')
+        equal(#state.calls, first, 'the line is shown once, not per update')
+        -- The helper's first snapshot, whatever it says, hides the line.
+        options.missing = false
+        for _, data in ipairs({blocked({state='connecting'}), blocked({state='onboarding_required'}),
+                blocked({state='stopped'}), 'invalid', snapshot({count=1}, {{'One','A'}})}) do
+            state.data = data
+            state.reader:update()
+            equal(state.off, false, 'any snapshot hides the line')
+            equal(state.offCalls, 2, 'and hides it once')
+        end
+        equal(state.visible.MeterQueueRow1, true, 'rows take its place')
+        -- Closed drawers, the standalone queue and skins without the line say nothing.
+        for _, quiet in ipairs({{inline=true, expanded=false, missing=true}, {missing=true},
+                {inline=true, expanded=true, missing=true, absentMeter='MeterQueueOff'},
+                {inline=true, expanded=true, denied=true}, {inline=true, expanded=true, openThrow=true}}) do
+            local other = fixture(snapshot(), quiet)
+            other.reader:update()
+            equal(other.offCalls, nil, 'no line and no bang for it')
         end
     end)
     scenario('V5 names the current track, and the rows follow the player past it', function()

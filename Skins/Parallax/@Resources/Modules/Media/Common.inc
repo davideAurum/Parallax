@@ -155,6 +155,9 @@ UpdateDivider=-1
 ; long name clips with an ellipsis before the gear rather than wrapping or
 ; shrinking the title font. It follows every MeasureMediaHeader update, on
 ; that measure's own divider rather than every animation tick.
+; While the source helper was never started the title reads "detection off"
+; instead of Unknown; only then does a click open Media settings and the title
+; show the hand cursor (MediaHeader.lua owns both). Dragging still works.
 [MeterHeading]
 Meter=String
 Group=ParallaxIdleFreeze
@@ -165,6 +168,8 @@ W=#MediaHeadingWidth#
 MeasureName=MeasureMediaHeader
 Text=%1
 UpdateDivider=#MediaLegacyDivider#
+MouseActionCursor=0
+LeftMouseUpAction=[!CommandMeasure MeasureMediaHeader "OpenSettings()"]
 
 [MeterQueueRule]
 Meter=Shape

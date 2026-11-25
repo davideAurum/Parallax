@@ -181,7 +181,8 @@ local samples = {
     { player='Windows Media Player', source='Spotify' },
     { player='Apple Music', source='Spotify' },
     { player='Spotify', source='Spotify', state=2 },
-    { player='Spotify', source='Spotify', state=0 }
+    { player='Spotify', source='Spotify', state=0 },
+    { player='Windows Media Session', source='Not started' }
 }
 function Initialize() end
 function Update()
@@ -244,7 +245,13 @@ function AuditAndQuit()
         stage(11, 'Apple Music')
         stage(12, 'paused')
         stage(13, 'stopped')
+        -- A never-started source helper: the title's hand cursor exists only
+        -- while it says so.
+        equal(SKIN:GetMeter('MeterHeading'):GetOption('MouseActionCursor', '0'), '0')
+        stage(14, 'detection off')
+        equal(SKIN:GetMeter('MeterHeading'):GetOption('MouseActionCursor'), '1')
         stage(0, 'Spotify')
+        equal(SKIN:GetMeter('MeterHeading'):GetOption('MouseActionCursor'), '0')
         stage(12, 'paused')
         equal(SKIN:GetMeter('MeterHeading'):GetOption('MeasureName'), 'MeasureMediaHeader')
         equal(SKIN:GetMeter('MeterHeading'):GetOption('Text'), '%1')

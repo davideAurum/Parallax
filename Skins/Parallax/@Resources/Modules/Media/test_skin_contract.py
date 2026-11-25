@@ -959,7 +959,8 @@ def parked(style, expanded):
     """Queue meters parked at #Inset# while hidden never follow the player."""
     y = style.get('Y', '0')
     # A cover image sits in its parked mask: (#Inset#+0) once resolved.
-    return y in ('#Inset#', '(#Inset#+0)') or (not expanded and y in ('#MediaQueueHeaderY#', '#MediaQueueDividerY#'))
+    return y in ('#Inset#', '(#Inset#+0)') or (not expanded and y in (
+        '#MediaQueueHeaderY#', '#MediaQueueDividerY#', '#MediaQueueOffY#'))
 
 
 def presented_boxes(sections, value, config, expanded, rows, skip=()):
@@ -1142,7 +1143,7 @@ class SkinContractTests(unittest.TestCase):
         # divider to the 1-second provider cadence. It also applies to
         # measures, so every measure states its own divider.
         static = ('MeterQueueDrawer','MeterQueueHeading','MeterQueueRule','MeterNoMedia','MeterCoverPlaceholder',
-                  'MeterCoverLabel','MeterTimingUnavailable','MeterQueueHeaderTrack',
+                  'MeterCoverLabel','MeterTimingUnavailable','MeterQueueHeaderTrack','MeterQueueOff',
                   'MeterPlayerIcon','MeterMediaIcon')+tuple(f'MeterQueue{kind}{row}' for kind in ('Hit','Tile','ArtMask','Art','Row','Artist') for row in range(1,6))
         # The open drawer adds no periodic meter either: its mask joins only
         # with signal (Capture.inc), and the output row repaints on change.
@@ -1213,6 +1214,46 @@ class SkinContractTests(unittest.TestCase):
                         for name in bound:
                             style=resolve_style(sections,name)
                             self.assertEqual(val(style.get('UpdateDivider',default)),ui,f'{name} is not due on the provider tick')
+
+    def test_never_started_hints_only_open_settings_from_the_player(self):
+        # docs/modules/Media.md "Never-started helpers": the title and the open
+        # drawer name an optional helper that was never started. A click opens
+        # Media settings; nothing here can start a helper or poll for one.
+        settings='[!ActivateConfig "Parallax\\Media\\Settings" "Settings.ini"]'
+        for config in CONFIGS:
+            sections,_,_,_=read_config(config)
+            self.assertEqual('MeterQueueOff' in sections,config=='Media.ini',config)
+            if config in ('Media.ini','Setup.ini'):
+                title=sections['MeterHeading']
+                self.assertEqual(title['MouseActionCursor'],'0')
+                self.assertEqual(title['LeftMouseUpAction'],'[!CommandMeasure MeasureMediaHeader "OpenSettings()"]')
+        for columns in COLUMNS:
+            for width in WIDTHS:
+                for scale in (0.75,1,2):
+                    for rows in (1,5):
+                        for expanded in (0,1):
+                            with self.subTest(columns=columns,width=width,scale=scale,rows=rows,expanded=expanded):
+                                sections,_,_,expand=read_config('Media.ini',columns=columns,column_width=width,
+                                                                scale=scale,row_limit=rows,expanded=expanded)
+                                val=value_of(expand)
+                                style=resolve_style(sections,'MeterQueueOff')
+                                self.assertEqual((style['Hidden'],style['UpdateDivider']),('1','-1'))
+                                self.assertNotIn('Group',style)
+                                self.assertEqual(style['Text'],'Spotify queue is off: Media settings')
+                                self.assertTrue(style['Text'].endswith(style['InlinePattern'].rstrip('$')))
+                                self.assertEqual(style['LeftMouseUpAction'],settings)
+                                line=meter_bounds(style,val)
+                                panel=meter_bounds(resolve_style(sections,'MeterPanel'),val)
+                                if not expanded:
+                                    self.assertEqual(line.top,val('#Inset#'))
+                                    self.assertLessEqual(line.bottom,panel.bottom)
+                                    continue
+                                sheet=meter_bounds(resolve_style(sections,'MeterQueueDrawer'),val)
+                                self.assertTrue(line.inside(sheet))
+                                # The row's place, not the header band the circles overhang.
+                                for control in ('MeterPrevious','MeterPlayPause','MeterNext','MeterShuffle','MeterRepeat'):
+                                    circle=meter_bounds(resolve_style(sections,control),val)
+                                    self.assertLessEqual(circle.bottom,line.top+EPSILON,control)
 
     def test_title_animation_setting_chooses_the_tick_and_pulse(self):
         # Owner decision 2026-10-22 (MEDIA-06): User\Media.inc

@@ -23,7 +23,7 @@ The observer writes `%LOCALAPPDATA%\Parallax\Media\Source\source.snapshot`. Line
 
 The reader runs only while WNP is connected and `MeasurePlayer` is exactly `Windows Media Session` (`SourceReader.lua` :160). It returns `Spotify` only for exactly one matching record classified `spotify` with a matching state (:100-113). Otherwise it returns `Windows`, and one of the reasons `incomplete`, `missing`, `stopped`, `stale`, `unavailable`, `ambiguous` or `unmatched`, which only its tests read.
 
-The result reaches the screen in one place. `MeasureMediaSource` (`WebNowPlaying.inc` :105-108) feeds `MediaHeader.lua`, which shows `Spotify` when the reader says so and `Unknown` otherwise, while a generic Windows session plays (:59-62). No other Media code references `MeasureMediaSource`. **The observer's entire visible output is that one word in the header.**
+The result reaches the screen in one place. `MeasureMediaSource` (`WebNowPlaying.inc` :105-108) feeds `MediaHeader.lua`, which shows `Spotify` when the reader says so and `Unknown` otherwise, while a generic Windows session plays (:59-62). No other Media code references `MeasureMediaSource`. **The observer's entire visible output is that one word in the header.** (Since 2026-11-24 the `missing` reason also reaches it: with no snapshot file the header reads `detection off` instead of `Unknown`; see [Never-started helpers](modules/Media.md#never-started-helpers).)
 
 ## What WNP 2.0.7 exposes
 

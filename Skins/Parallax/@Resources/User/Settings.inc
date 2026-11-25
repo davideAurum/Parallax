@@ -36,6 +36,10 @@ CapacityInterval=30000
 VisualizerInterval=50
 IdlePauseMinutes=0
 UpdateCheck=1
+; The maintainer's right-click "Load dev version beside this". Empty in every
+; release; listed so an upgrade preserves them.
+ParallaxDevMenuTitle=
+ParallaxDevMenuAction=
 GraphBackgroundColor=25,25,25,255
 GridColor=50,50,50,180
 GraphHeight=48

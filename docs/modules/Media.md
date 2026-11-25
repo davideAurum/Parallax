@@ -144,7 +144,7 @@ vector artwork on 34-pixel circular faces. Statuses, queue rows and Setup
 actions retain the chosen body `FontSize`; Setup actions remain 18 pixels tall.
 Actions use zero local padding. Primary actions use
 `AccentColor`; the gear, documentation, Stop and secondary settings/navigation actions
-use `AccentColor2`. Metadata icons use `MutedColor`; the Monitor Play and Audio Lines title icons
+use `AccentColor2`. Metadata icons use `AccentColor`; the Monitor Play and Audio Lines title icons
 and queue status retain `MediaColor`, and
 unavailable actions remain muted. The double layout provides more metadata/time
 space. The three transport circles form a row centered on the panel's lower
@@ -1478,8 +1478,9 @@ Checked on the Surface laptop (Rainmeter 4.5.28.3936): `test_skin_contract.py` 3
 static validation (26 configs, 0 errors, 0 warnings), and Media settings captured in
 the developer copy. The panel's own checks are in [CONNECTIONS.md](../CONNECTIONS.md#validation-report).
 
-Not verified: the new links by a physical click, and a real sign-in or Disconnect
-started from the panel.
+A real Disconnect and Sign in from the panel worked on 2026-11-25
+([record](../CONNECTIONS.md#validation-report)). Not verified: the new links by a
+physical click.
 
 ### Direct row clicks and the Playlists view (2026-11-24)
 
@@ -1514,6 +1515,10 @@ Behavior: [How a row is played](#row-clicks-and-refresh-2026-10-27),
   tabs shown throughout.
 - After that fix and the scrolling queue: `Test-QueueCore.ps1` 216,
   `Test-QueueProvider.ps1` 551 (tolerances widened), `Test-QueueReader.ps1`.
+- 2026-11-25, before alpha.15: two of those checks still allowed under 2 s between
+  setting a Spotify wait and reading it back, and a loaded laptop took 2.6 to 2.9 s
+  (9 failures of 9, the wait unchanged). They now compare the exact time; a wait
+  moved by 1 s fails either. 551 pass, 3 of 3 runs.
 
 Not verified: the wheel by hand, a click that falls back to skips, more than 50
 playlists, Spotify's own mixes, other devices, and Free accounts.

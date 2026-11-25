@@ -140,7 +140,7 @@ starts one on Spotify's active device, and Refresh reads the list again.
 
 - It needs `playlist-read-private` and `playlist-read-collaborative`, requested at
   sign-in since 2026-11-24. With an older sign-in the view says **Sign in again**;
-  the queue is unaffected. Sign in from Media settings to add them.
+  the queue is unaffected. Sign in again from **Connections** to add them.
 - The helper reads the list only when the view asks: on opening it, unless it
   holds one at most ten minutes old, and on Refresh
   (`GET /me/playlists`, plus what is playing, to mark it). Nothing polls.

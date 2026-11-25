@@ -63,11 +63,14 @@ MediaVisualizerAbove=(#MediaVisualizerOpen#*#MediaSpectrumOnTop#)
 MediaSpectrumBelow=(#MediaVisualizerOpen#*(1-#MediaSpectrumOnTop#))
 MediaQueueExpanded=(#QueueExpanded#*(1-#MediaSpectrumBelow#))
 MediaDrawerOpen=(#MediaQueueExpanded#+#MediaSpectrumBelow#)
-; The drawer's plot is the standalone Visualizer's own plot height for the
-; Audio settings Height preset (Options.inc), captured by Media.ini through
-; Modules\Visualizer\HeightPresets\.
+; Above the player the plot is the standalone Visualizer's own plot height for
+; the Audio settings Height preset (Options.inc), captured by Media.ini through
+; Modules\Visualizer\HeightPresets\. In the bottom drawer it fills what the
+; queue's rows would, less the output row and the 18S frequency labels, so the
+; Spectrum tab is as tall as Queue and Playlists. It never drops below 36S of
+; bars (room for the three dB labels), so very short queues get a taller tab.
 VisualizerPanelHeight=#VisualizerPresetHeight#
-MediaVisualizerPlotHeight=#VisualizerPlotHeightPx#
+MediaVisualizerPlotHeight=(#MediaSpectrumOnTop#*#VisualizerPlotHeightPx#+(1-#MediaSpectrumOnTop#)*Max(Round(36*#Scale#)+#VisualizerBaselineGapPx#+2,Floor(#QueueRowLimit#*#MediaQueueRowPitch#-#MediaVisualizerDeviceRow#-18*#Scale#)))
 ; Axes, as the standalone Visualizer draws them (View.inc): a dB scale in a
 ; 40S gutter left of the plot. The 40 Hz / 16 kHz labels have no row of their
 ; own: they sit in the strip between the plot and the panel's top border
@@ -421,9 +424,9 @@ MediaVisualizerVolumeRight=(#MediaSpectrumOnTop#*(#ContentX#+#ContentWidth#)+(1-
 MediaVisualizerVolumeY=(#MediaSpectrumOnTop#*(#MediaHeaderY#+#TitleRowCenterY#-#Inset#)+(1-#MediaSpectrumOnTop#)*(#MediaVisualizerRowY#+7*#Scale#))
 MediaVisualizerRowY=(#MediaVisualizerPlotY#-#MediaVisualizerDeviceRow#)
 MediaVisualizerDeviceRight=(#MediaSpectrumOnTop#*#MediaVisualizerToggleX#+(1-#MediaSpectrumOnTop#)*(#MediaVisualizerRowRight#-44*#Scale#))
-; The bottom drawer's own end: an 18S row of frequency labels under the plot,
-; then the queue sheet's padding.
-MediaSpectrumDrawerBottom=(#MediaVisualizerPlotY#+#MediaVisualizerPlotHeight#+18*#Scale#+#MediaDrawerPadding#)
+; The bottom drawer's own end: the queue's, or where a floored plot needs more,
+; an 18S row of frequency labels under the plot and the queue sheet's padding.
+MediaSpectrumDrawerBottom=(Max(#MediaQueueDrawerOpenBottom#,#MediaVisualizerPlotY#+#MediaVisualizerPlotHeight#+18*#Scale#+#MediaDrawerPadding#))
 ; Bottom of the timing text: the last thing inside the panel once the queue is
 ; hidden, since the transport row now straddles the panel's lower border.
 MediaTimingTextBottom=(#MediaProgressY#+#DataBarThicknessPx#+20*#Scale#)

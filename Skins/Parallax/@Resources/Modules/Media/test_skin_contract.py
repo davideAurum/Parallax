@@ -2773,6 +2773,9 @@ class SkinContractTests(unittest.TestCase):
                         # Spectrum takes the queue's place, even if both were saved open.
                         for variable in ('WindowHeight','MediaQueueDrawerBottom','MediaVisualizerPlotY'):
                             self.assertEqual(val(f'#{variable}#'),states[2,1][1](f'#{variable}#'),variable)
+                        # The Spectrum tab is as tall as the open queue.
+                        for variable in ('MediaQueueDrawerBottom','WindowHeight'):
+                            self.assertAlmostEqual(val(f'#{variable}#'),states[1,1][1](f'#{variable}#'),msg=variable)
                         self.assertEqual(val('#MediaQueueExpanded#'),0)
                         self.assertEqual(val('#MediaDrawerOpen#'),1)
                         self.assertEqual(states[1,1][1]('#MediaQueueExpanded#'),1)

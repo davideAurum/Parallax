@@ -379,6 +379,17 @@ content is that much narrower. Checked with `test_skin_contract.py`,
 never-started tests, and isolated captures of the queue (220, double and
 compact) and spectrum (double). Not yet seen on the live desktop.
 
+**Drawer height (2026-11-25, user request).** The Spectrum tab ends where Queue
+and Playlists end, so switching tabs no longer resizes the drawer. Its plot
+fills what the queue rows would, less the 19S output row and the 18S frequency
+labels: 143 px at the default five Normal rows. The Audio settings Height preset
+now sizes only the slider above the player. The plot keeps at least 36S of bars
+for the three dB labels, so with one or two Normal rows, or four or fewer Compact
+rows, the Spectrum tab is taller than the queue. Checked with
+`test_skin_contract.py` (equal heights at the default rows),
+`Test-MediaSettings.ps1 -VisualizerDrawerFocused` and isolated captures at width
+220, double and compact. Not yet seen on the live desktop.
+
 ## Spectrum drawer
 
 The slider above the player (`VisualizerPlacement=1`).

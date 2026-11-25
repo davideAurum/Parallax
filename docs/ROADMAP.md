@@ -85,7 +85,9 @@ Goal: a build a stranger can install and upgrade safely, with honest notes on wh
   - [ ] Seen on GitHub: forms appear only once they are on `main`. Open **New issue** there and look at both. On 2026-11-25 the file view showed both as forms; **New issue** needs a sign-in and was not opened.
   - [ ] Discussions: turned on by the maintainer under the repository's **Settings > General > Features**. Until then questions have no place of their own. Afterwards add a Discussions link to the README and a `contact_links` entry in `.github/ISSUE_TEMPLATE/config.yml`.
   - [ ] Optional: the **Report a problem** link in Global Settings.
-- [ ] **Maintainer tools out of the way.** Global Settings ▸ Developer keeps working for the maintainer but reads as not for ordinary users, for example placed last and labelled "Contributors".
+- [x] **Maintainer tools out of the way.** Global Settings ▸ Developer keeps working for the maintainer but reads as not for ordinary users, for example placed last and labelled "Contributors".
+
+  **Done 2026-11-25:** it is the last thing in the panel, below the footer, and reads **Contributors**, *Not needed to use Parallax* ([SETTINGS.md](SETTINGS.md#contributors)). `Test-DevModeNative.ps1` drove it from there.
 - [ ] **Spotify queue labelled experimental.** Spotify's 2026 Development Mode rules require each app's owner to have Premium and allow 5 users per app. Parallax has every user register their own app, so everyone who wants the queue needs their own Premium; the setup text must say so. The maintainer has Premium, so a live row-click skip (never run, see [Media](modules/Media.md#row-clicks-and-refresh-2026-10-27)) can be tested before beta.1.
 - [ ] **Release mechanics.** Set `0.2.0-beta.1` in `packaging/release.json` and `Version.inc`, write release notes with a Known Issues section, and publish it marked Latest. Cadence: release freely while no one else is installing. Once download counts show strangers, move to about one release a week, with hotfixes only for real breakage, because every release prompts each installed copy within a day.
 

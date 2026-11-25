@@ -181,7 +181,7 @@ function Assert-DiffBands($Before,$After,$Snapshot,[string[]]$Meters,[string]$Co
     return $rows.Count
 }
 
-$sourceFiles=@('Settings\Settings.ini','@Resources\Defaults.inc','@Resources\Geometry.inc','@Resources\Styles.inc','@Resources\User\Settings.inc','@Resources\Scripts\Settings.lua','@Resources\Version.inc','@Resources\Update\Feed.inc','@Resources\Update\Install.inc','@Resources\Update\Update.lua','@Resources\Update\State.inc','@Resources\Idle\Link.lua','@Resources\Dev\Panel.inc','@Resources\Dev\DevPanel.lua','@Resources\Dev\DevCommon.lua')
+$sourceFiles=@('Settings\Settings.ini','@Resources\Defaults.inc','@Resources\Geometry.inc','@Resources\Styles.inc','@Resources\User\Settings.inc','@Resources\Scripts\Settings.lua','@Resources\PanelScroll.inc','@Resources\Scripts\PanelScroll.lua','@Resources\Version.inc','@Resources\Update\Feed.inc','@Resources\Update\Install.inc','@Resources\Update\Update.lua','@Resources\Update\State.inc','@Resources\Idle\Link.lua','@Resources\Dev\Panel.inc','@Resources\Dev\DevPanel.lua','@Resources\Dev\DevCommon.lua')
 $sourceHashes=[ordered]@{}
 foreach ($relative in $sourceFiles) {
     $source=Join-Path $sourceRoot $relative
@@ -190,10 +190,13 @@ foreach ($relative in $sourceFiles) {
     Copy-Item -LiteralPath $source -Destination (Join-Path $parallaxRoot $relative)
 }
 Copy-Item -LiteralPath "$sourceRoot\@Resources\Fonts" -Destination "$parallaxRoot\@Resources\Fonts" -Recurse
+# A tall screen, whatever this machine's is: the layout checks are about the designed height (Test-PanelScroll.ps1 checks short ones).
+$scrollPath = Join-Path $parallaxRoot '@Resources\Scripts\PanelScroll.lua'
+[IO.File]::WriteAllText($scrollPath, ([IO.File]::ReadAllText($scrollPath)).Replace("'#WORKAREAHEIGHT@' .. n .. '#'", "'4000'").Replace("'#WORKAREAHEIGHT#'", "'4000'"))
 Copy-Item -LiteralPath (Join-Path $PSScriptRoot 'SettingsRefreshHarness.lua') -Destination (Join-Path $runRoot 'Harness.lua')
 $settingsPath=Join-Path $parallaxRoot 'Settings\Settings.ini'
 $settings=Get-Content -LiteralPath $settingsPath -Raw
-Require ($settings -match '(?m)^OnCloseAction=\[!CommandMeasure MeasureSettings "FlushPending\(\)"\]\r?$') 'Source OnCloseAction changed; review this test.'
+Require ($settings -match '(?m)^OnCloseAction=\[!CommandMeasure MeasureSettings "FlushPending\(\)"\]\[!CommandMeasure MeasurePanelScroll "Forget\(\)"\]\r?$') 'Source OnCloseAction changed; review this test.'
 # Update=-1 is kept: the probe only adds a ready report and runs actions on request.
 $settings=[regex]::Replace($settings,'(?m)^Update=-1\r?$',"Update=-1`r`nOnRefreshAction=[!CommandMeasure SettingsProbe `"Ready()`"]")
 $settings+="`r`n[SettingsProbe]`r`nMeasure=Script`r`nScriptFile=$runRoot\Harness.lua`r`nReportDirectory=$runRoot\`r`nRole=probe`r`n"

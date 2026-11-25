@@ -25,6 +25,18 @@ assert sections['Variables']['GPUClockSource'] == '0'
 assert sections['MeasureGPUSettings']['UpdateDivider'] == '-1'
 assert 'OnRefreshAction' not in sections['Rainmeter'], 'opening must not launch discovery'
 meters = {name: api['effective'](name) for name, opts in sections.items() if 'Meter' in opts}
+# A screen shorter than the panel (PanelScroll.inc, placed by its script): the title part stays,
+# every other meter is in the scrolling container, and no control uses the wheel.
+for name in ('MeterScrollBody', 'MeterScrollEdge', 'MeterScrollUp', 'MeterScrollDown', 'MeterScrollThumb'):
+    del meters[name]
+for name, opts in meters.items():
+    pinned = name in ('MeterBounds', 'MeterPanel', 'MeterSettingsTitle', 'MeterSettingsClose') or name.startswith('MeterUtilitySettings')
+    assert opts.get('Container') == (None if pinned else 'MeterScrollBody'), name
+    assert not any(key.startswith('MouseScroll') for key in opts), name
+assert sections['Rainmeter']['MouseScrollDownAction'] == '[!CommandMeasure MeasurePanelScroll "Wheel(1)"]'
+assert sections['Rainmeter']['MouseScrollUpAction'] == '[!CommandMeasure MeasurePanelScroll "Wheel(-1)"]'
+assert sections['Rainmeter']['OnCloseAction'] == '[!CommandMeasure MeasureGPUSettings "CancelInput()"][!CommandMeasure MeasurePanelScroll "Forget()"]'
+assert sections['Variables']['PanelScrollEditor'] == 'MeasureGPUSettingsInput'
 assert not [(name, key) for name, opts in sections.items() for key in opts if key.lower().startswith('tooltip')], 'tooltips were removed 2026-10-11'
 assert 'tooltip' not in (Path(__file__).resolve().parents[1] / 'Settings.lua').read_text(encoding='utf-8').lower()
 steppers = {'Columns': 56, 'PowerSource': 56, 'ClockSource': 56, 'Hive': 112}
@@ -167,6 +179,12 @@ for width, scale, monitor_columns, title_size, table in itertools.product(
             overlap = min(box[0]+box[2],rect[0]+rect[2])-max(box[0],rect[0])
             vertical = min(box[1]+box[3],rect[1]+rect[3])-max(box[1],rect[1])
             assert overlap <= .01 or vertical <= .01, (name, other, width, scale, title_size)
+    scroll_top = n('#Inset#') + n(sections['Variables']['PanelScrollTop']) * scale
+    for name, box in boxes.items():
+        if 'Container' in meters[name]:
+            assert box[1] >= scroll_top - .01 and box[1] + box[3] <= n('#Inset#') + n('#PanelHeightPx#') - 4 * scale + .01 or box[3] == 0, (name, width, scale)
+        else:
+            assert box[1] + box[3] <= scroll_top + .01, (name, width, scale)
     title, close = meters['MeterSettingsTitle'], meters['MeterSettingsClose']
     assert title['StringAlign'] == 'LeftCenter'
     assert close['StringAlign'] == 'RightCenter'

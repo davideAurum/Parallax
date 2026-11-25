@@ -1,4 +1,4 @@
-; Global Settings > Developer: the controller script and the one-shot helper launcher.
+; Global Settings > Contributors: the controller script and the one-shot helper launcher.
 ; DevPanel.lua sets Parameter and runs the measure once per click (Dev mode on or off,
 ; Compare); the helper (@Resources\Dev\DevMode.ps1) reports ASCII protocol lines that
 ; DevPanel.lua reads as data. Nothing polls and no process stays running.

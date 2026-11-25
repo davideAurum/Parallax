@@ -119,6 +119,8 @@ function Render()
     SKIN:Bang('!SetVariable', 'PanelHeight', tostring(settingsHeight))
     SKIN:Bang('!SetVariable', 'PanelHeightPx', tostring(heightPx))
     SKIN:Bang('!SetVariable', 'WindowHeight', tostring(heightPx + numberVariable('Gap', 0)))
+    -- A screen shorter than this layout: the window stops at it and the rows scroll.
+    SKIN:Bang('!CommandMeasure', 'MeasurePanelScroll', 'Fit(true)')
     local listName = plain(SKIN:GetVariable('ChronometerList' .. selectedList .. 'Name'), 'List ' .. selectedList)
     option('MeterListName', string.format('%d / 3  %s', selectedList, listName))
     for row = 1, 4 do

@@ -44,7 +44,7 @@ IdlePauseMinutes=0
 ; feed about once a day from the loaded utilities (@Resources\Update\Hook1.inc);
 ; 0 is Off. On by default, including for upgrades from builds without the key.
 UpdateCheck=1
-; Developer mode (Global Settings > Developer). ParallaxDevBuild=1 is written only into a
+; Developer mode (Global Settings > Contributors). ParallaxDevBuild=1 is written only into a
 ; developer copy's own User\Settings.inc (the copy loads @Resources\Dev\Hook1.inc); every
 ; release keeps 0. DevMode=1 records that Global Settings has loaded this release's copy.
 ParallaxDevBuild=0

@@ -148,6 +148,8 @@ local function render()
         end
     end
     layout()
+    -- A screen shorter than this layout: the window stops at it and the rows scroll.
+    SKIN:Bang('!CommandMeasure', 'MeasurePanelScroll', 'Fit(true)')
     renderSensors()
     SKIN:Bang('!UpdateMeter', '*')
     SKIN:Bang('!Redraw')

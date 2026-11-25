@@ -46,12 +46,14 @@ Padding=0,0,0,0
 [MeterSettingsDisplaySection]
 Meter=String
 MeterStyle=StyleUtilitySettingsSection|GPUSettingsSection
+Container=MeterScrollBody
 Y=(#Inset#+74*#Scale#)
 Text=Display
 
 [MeterSettingsDisplayRule]
 Meter=Shape
 MeterStyle=StyleRule
+Container=MeterScrollBody
 Y=(#Inset#+94*#Scale#)
 W=#ContentWidth#
 H=(Max(1,#DividerThickness#*#Scale#))
@@ -59,6 +61,7 @@ H=(Max(1,#DividerThickness#*#Scale#))
 [MeterSettingsColumnsLabel]
 Meter=String
 MeterStyle=StyleUtilitySettingsLabel|GPUSettingsLabel
+Container=MeterScrollBody
 Y=(#Inset#+102*#Scale#)
 Text=Meter width
 MouseActionCursor=1
@@ -68,6 +71,7 @@ W=(134*#Scale#)
 [MeterSettingsColumnsPrevious]
 Meter=String
 MeterStyle=StyleSettingsStepperButton
+Container=MeterScrollBody
 Group=GPUSettingsUI
 X=(#ContentX#+149*#Scale#)
 Y=(#Inset#+101*#Scale#)
@@ -77,6 +81,7 @@ LeftMouseUpAction=[!CommandMeasure MeasureGPUSettings "StepColumns(-1)"]
 [MeterSettingsColumnsFrame]
 Meter=Shape
 MeterStyle=StyleSettingsStepperFrame
+Container=MeterScrollBody
 Group=GPUSettingsUI
 X=(#ContentX#+160*#Scale#)
 Y=(#Inset#+100*#Scale#)
@@ -87,6 +92,7 @@ LeftMouseUpAction=[!CommandMeasure MeasureGPUSettings "BeginColumnsEdit()"]
 [MeterSettingsColumnsValue]
 Meter=String
 MeterStyle=StyleSettingsStepperValue
+Container=MeterScrollBody
 Group=GPUSettingsUI
 X=(#ContentX#+188*#Scale#)
 Y=(#Inset#+101*#Scale#)
@@ -97,6 +103,7 @@ LeftMouseUpAction=[!CommandMeasure MeasureGPUSettings "BeginColumnsEdit()"]
 [MeterSettingsColumnsNext]
 Meter=String
 MeterStyle=StyleSettingsStepperButton
+Container=MeterScrollBody
 Group=GPUSettingsUI
 X=(#ContentX#+227*#Scale#)
 Y=(#Inset#+101*#Scale#)
@@ -106,6 +113,7 @@ LeftMouseUpAction=[!CommandMeasure MeasureGPUSettings "StepColumns(1)"]
 [MeterSettingsHeightLabel]
 Meter=String
 MeterStyle=StyleUtilitySettingsLabel|GPUSettingsLabel
+Container=MeterScrollBody
 Y=(#Inset#+130*#Scale#)
 Text=Fit panel height
 MouseActionCursor=1
@@ -115,6 +123,7 @@ W=(134*#Scale#)
 [MeterSettingsHeightValue]
 Meter=String
 MeterStyle=StyleUtilitySettingsValue|GPUSettingsValue
+Container=MeterScrollBody
 Y=(#Inset#+128*#Scale#)
 Text=...
 LeftMouseUpAction=[!CommandMeasure MeasureGPUSettings "FitHeight()"]
@@ -128,6 +137,7 @@ W=(#ContentWidth#-146*#Scale#)
 [MeterSettingsProcessesLabel]
 Meter=String
 MeterStyle=StyleUtilitySettingsLabel|GPUSettingsLabel
+Container=MeterScrollBody
 Y=(#Inset#+158*#Scale#)
 W=(134*#Scale#)
 Text=Process table
@@ -136,6 +146,7 @@ LeftMouseUpAction=[!CommandMeasure MeasureGPUSettings "ToggleProcesses()"]
 [MeterSettingsProcessesValue]
 Meter=String
 MeterStyle=StyleUtilitySettingsValue|GPUSettingsValue
+Container=MeterScrollBody
 Y=(#Inset#+156*#Scale#)
 X=(#ContentX#+140*#Scale#)
 W=(#ContentWidth#-146*#Scale#)
@@ -145,6 +156,7 @@ LeftMouseUpAction=[!CommandMeasure MeasureGPUSettings "ToggleProcesses()"]
 [MeterSettingsProcessMemoryLabel]
 Meter=String
 MeterStyle=StyleUtilitySettingsLabel|GPUSettingsLabel
+Container=MeterScrollBody
 Y=(#GPUSettingsVRAMRow#*(#Inset#+186*#Scale#))
 W=(#GPUSettingsVRAMRow#*134*#Scale#)
 H=(#GPUSettingsVRAMRow#*18*#Scale#)
@@ -155,6 +167,7 @@ LeftMouseUpAction=[!CommandMeasure MeasureGPUSettings "ToggleProcessMemory()"]
 [MeterSettingsProcessMemoryValue]
 Meter=String
 MeterStyle=StyleUtilitySettingsValue|GPUSettingsValue
+Container=MeterScrollBody
 Y=(#GPUSettingsVRAMRow#*(#Inset#+184*#Scale#))
 X=(#ContentX#+140*#Scale#)
 W=(#GPUSettingsVRAMRow#*(#ContentWidth#-146*#Scale#))
@@ -167,6 +180,7 @@ LeftMouseUpAction=[!CommandMeasure MeasureGPUSettings "ToggleProcessMemory()"]
 [MeterSettingsSensorsSection]
 Meter=String
 MeterStyle=StyleUtilitySettingsSection|GPUSettingsSection
+Container=MeterScrollBody
 Y=(#Inset#+(162+#GPUSettingsShift#)*#Scale#)
 W=#ContentWidth#
 Text=Provider setup
@@ -174,6 +188,7 @@ Text=Provider setup
 [MeterSettingsSensorsRule]
 Meter=Shape
 MeterStyle=StyleRule
+Container=MeterScrollBody
 Y=(#Inset#+(182+#GPUSettingsShift#)*#Scale#)
 W=#ContentWidth#
 H=(Max(1,#DividerThickness#*#Scale#))
@@ -181,6 +196,7 @@ H=(Max(1,#DividerThickness#*#Scale#))
 [MeterSettingsTemperatureLabel]
 Meter=String
 MeterStyle=StyleUtilitySettingsLabel|GPUSettingsLabel
+Container=MeterScrollBody
 Y=(#Inset#+(190+#GPUSettingsShift#)*#Scale#)
 W=(134*#Scale#)
 Text=Temperature
@@ -189,6 +205,7 @@ MouseActionCursor=0
 [MeterSettingsTemperatureValue]
 Meter=String
 MeterStyle=StyleUtilitySettingsValue|GPUSettingsValue
+Container=MeterScrollBody
 FontColor=#TextColor#
 Y=(#Inset#+(188+#GPUSettingsShift#)*#Scale#)
 X=(#ContentX#+140*#Scale#)
@@ -199,6 +216,7 @@ MouseActionCursor=0
 [MeterSettingsTemperatureClear]
 Meter=String
 MeterStyle=StyleButton|GPUSettingsAction
+Container=MeterScrollBody
 Y=(#Inset#+(188+#GPUSettingsShift#)*#Scale#)
 X=(#ContentX#+#ContentWidth#-58*#Scale#)
 W=(52*#Scale#)
@@ -210,6 +228,7 @@ SolidColor=#GraphBackgroundColor#
 [MeterSettingsPowerSourceLabel]
 Meter=String
 MeterStyle=StyleUtilitySettingsLabel|GPUSettingsLabel
+Container=MeterScrollBody
 Y=(#Inset#+(218+#GPUSettingsShift#)*#Scale#)
 Text=Power source
 MouseActionCursor=1
@@ -218,6 +237,7 @@ LeftMouseUpAction=[!CommandMeasure MeasureGPUSettings "CycleSource('Power')"]
 [MeterSettingsPowerSourcePrevious]
 Meter=String
 MeterStyle=StyleSettingsStepperButton
+Container=MeterScrollBody
 Group=GPUSettingsUI
 X=(#ContentX#+149*#Scale#)
 Y=(#Inset#+(217+#GPUSettingsShift#)*#Scale#)
@@ -227,6 +247,7 @@ LeftMouseUpAction=[!CommandMeasure MeasureGPUSettings "CycleSource('Power',-1)"]
 [MeterSettingsPowerSourceFrame]
 Meter=Shape
 MeterStyle=StyleSettingsStepperFrame
+Container=MeterScrollBody
 Group=GPUSettingsUI
 X=(#ContentX#+160*#Scale#)
 Y=(#Inset#+(216+#GPUSettingsShift#)*#Scale#)
@@ -237,6 +258,7 @@ LeftMouseUpAction=[!CommandMeasure MeasureGPUSettings "CycleSource('Power')"]
 [MeterSettingsPowerSourceValue]
 Meter=String
 MeterStyle=StyleSettingsStepperValue
+Container=MeterScrollBody
 Group=GPUSettingsUI
 X=(#ContentX#+188*#Scale#)
 Y=(#Inset#+(217+#GPUSettingsShift#)*#Scale#)
@@ -247,6 +269,7 @@ LeftMouseUpAction=[!CommandMeasure MeasureGPUSettings "CycleSource('Power')"]
 [MeterSettingsPowerSourceNext]
 Meter=String
 MeterStyle=StyleSettingsStepperButton
+Container=MeterScrollBody
 Group=GPUSettingsUI
 X=(#ContentX#+227*#Scale#)
 Y=(#Inset#+(217+#GPUSettingsShift#)*#Scale#)
@@ -256,6 +279,7 @@ LeftMouseUpAction=[!CommandMeasure MeasureGPUSettings "CycleSource('Power',1)"]
 [MeterSettingsClockSourceLabel]
 Meter=String
 MeterStyle=StyleUtilitySettingsLabel|GPUSettingsLabel
+Container=MeterScrollBody
 Y=(#Inset#+(246+#GPUSettingsShift#)*#Scale#)
 Text=Clock source
 MouseActionCursor=1
@@ -264,6 +288,7 @@ LeftMouseUpAction=[!CommandMeasure MeasureGPUSettings "CycleSource('Clock')"]
 [MeterSettingsClockSourcePrevious]
 Meter=String
 MeterStyle=StyleSettingsStepperButton
+Container=MeterScrollBody
 Group=GPUSettingsUI
 X=(#ContentX#+149*#Scale#)
 Y=(#Inset#+(245+#GPUSettingsShift#)*#Scale#)
@@ -273,6 +298,7 @@ LeftMouseUpAction=[!CommandMeasure MeasureGPUSettings "CycleSource('Clock',-1)"]
 [MeterSettingsClockSourceFrame]
 Meter=Shape
 MeterStyle=StyleSettingsStepperFrame
+Container=MeterScrollBody
 Group=GPUSettingsUI
 X=(#ContentX#+160*#Scale#)
 Y=(#Inset#+(244+#GPUSettingsShift#)*#Scale#)
@@ -283,6 +309,7 @@ LeftMouseUpAction=[!CommandMeasure MeasureGPUSettings "CycleSource('Clock')"]
 [MeterSettingsClockSourceValue]
 Meter=String
 MeterStyle=StyleSettingsStepperValue
+Container=MeterScrollBody
 Group=GPUSettingsUI
 X=(#ContentX#+188*#Scale#)
 Y=(#Inset#+(245+#GPUSettingsShift#)*#Scale#)
@@ -293,6 +320,7 @@ LeftMouseUpAction=[!CommandMeasure MeasureGPUSettings "CycleSource('Clock')"]
 [MeterSettingsClockSourceNext]
 Meter=String
 MeterStyle=StyleSettingsStepperButton
+Container=MeterScrollBody
 Group=GPUSettingsUI
 X=(#ContentX#+227*#Scale#)
 Y=(#Inset#+(245+#GPUSettingsShift#)*#Scale#)
@@ -302,6 +330,7 @@ LeftMouseUpAction=[!CommandMeasure MeasureGPUSettings "CycleSource('Clock',1)"]
 [MeterSettingsSensorsLabel]
 Meter=String
 MeterStyle=StyleUtilitySettingsLabel|GPUSettingsLabel
+Container=MeterScrollBody
 Y=(#Inset#+(274+#GPUSettingsShift#)*#Scale#)
 Text=HWiNFO overrides
 LeftMouseUpAction=[!CommandMeasure MeasureGPUSettings "ToggleSensors()"]
@@ -309,6 +338,7 @@ LeftMouseUpAction=[!CommandMeasure MeasureGPUSettings "ToggleSensors()"]
 [MeterSettingsSensorsValue]
 Meter=String
 MeterStyle=StyleUtilitySettingsValue|GPUSettingsValue
+Container=MeterScrollBody
 Y=(#Inset#+(272+#GPUSettingsShift#)*#Scale#)
 W=(#ContentWidth#-146*#Scale#)
 Text=Off
@@ -318,6 +348,7 @@ X=(#ContentX#+140*#Scale#)
 [MeterSettingsHiveLabel]
 Meter=String
 MeterStyle=StyleUtilitySettingsLabel|GPUSettingsLabel
+Container=MeterScrollBody
 Y=(#Inset#+(302+#GPUSettingsShift#)*#Scale#)
 Text=Manual hive
 MouseActionCursor=1
@@ -327,6 +358,7 @@ W=(134*#Scale#)
 [MeterSettingsHivePrevious]
 Meter=String
 MeterStyle=StyleSettingsStepperButton
+Container=MeterScrollBody
 Group=GPUSettingsUI
 X=(#ContentX#+149*#Scale#)
 Y=(#Inset#+(301+#GPUSettingsShift#)*#Scale#)
@@ -336,6 +368,7 @@ LeftMouseUpAction=[!CommandMeasure MeasureGPUSettings "CycleHive(-1)"]
 [MeterSettingsHiveFrame]
 Meter=Shape
 MeterStyle=StyleSettingsStepperFrame
+Container=MeterScrollBody
 Group=GPUSettingsUI
 X=(#ContentX#+160*#Scale#)
 Y=(#Inset#+(300+#GPUSettingsShift#)*#Scale#)
@@ -346,6 +379,7 @@ LeftMouseUpAction=[!CommandMeasure MeasureGPUSettings "CycleHive()"]
 [MeterSettingsHiveValue]
 Meter=String
 MeterStyle=StyleSettingsStepperValue
+Container=MeterScrollBody
 Group=GPUSettingsUI
 X=(#ContentX#+216*#Scale#)
 Y=(#Inset#+(301+#GPUSettingsShift#)*#Scale#)
@@ -356,6 +390,7 @@ LeftMouseUpAction=[!CommandMeasure MeasureGPUSettings "CycleHive()"]
 [MeterSettingsHiveNext]
 Meter=String
 MeterStyle=StyleSettingsStepperButton
+Container=MeterScrollBody
 Group=GPUSettingsUI
 X=(#ContentX#+283*#Scale#)
 Y=(#Inset#+(301+#GPUSettingsShift#)*#Scale#)
@@ -365,6 +400,7 @@ LeftMouseUpAction=[!CommandMeasure MeasureGPUSettings "CycleHive(1)"]
 [MeterSettingsKeyLabel]
 Meter=String
 MeterStyle=StyleUtilitySettingsLabel|GPUSettingsLabel
+Container=MeterScrollBody
 Y=(#Inset#+(330+#GPUSettingsShift#)*#Scale#)
 Text=Manual key
 W=(134*#Scale#)
@@ -372,6 +408,7 @@ W=(134*#Scale#)
 [MeterSettingsKeyValue]
 Meter=String
 MeterStyle=StyleUtilitySettingsValue|GPUSettingsValue
+Container=MeterScrollBody
 Y=(#Inset#+(328+#GPUSettingsShift#)*#Scale#)
 FontSize=((#FontSize#-1)*#Scale#)
 FontColor=#TextColor#
@@ -383,6 +420,7 @@ W=(#ContentWidth#-146*#Scale#)
 [MeterSettingsPowerLabel]
 Meter=String
 MeterStyle=StyleUtilitySettingsLabel|GPUSettingsLabel
+Container=MeterScrollBody
 Y=(#Inset#+(358+#GPUSettingsShift#)*#Scale#)
 W=(134*#Scale#)
 Text=Power override
@@ -392,6 +430,7 @@ LeftMouseUpAction=[!CommandMeasure MeasureGPUSettings "Browse('Power')"]
 [MeterSettingsPowerValue]
 Meter=String
 MeterStyle=StyleUtilitySettingsValue|GPUSettingsValue
+Container=MeterScrollBody
 FontColor=#TextColor#
 Y=(#Inset#+(356+#GPUSettingsShift#)*#Scale#)
 X=(#ContentX#+140*#Scale#)
@@ -402,6 +441,7 @@ LeftMouseUpAction=[!CommandMeasure MeasureGPUSettings "Browse('Power')"]
 [MeterSettingsPowerClear]
 Meter=String
 MeterStyle=StyleButton|GPUSettingsAction
+Container=MeterScrollBody
 Y=(#Inset#+(356+#GPUSettingsShift#)*#Scale#)
 X=(#ContentX#+#ContentWidth#-58*#Scale#)
 W=(52*#Scale#)
@@ -413,6 +453,7 @@ SolidColor=#GraphBackgroundColor#
 [MeterSettingsClockLabel]
 Meter=String
 MeterStyle=StyleUtilitySettingsLabel|GPUSettingsLabel
+Container=MeterScrollBody
 Y=(#Inset#+(386+#GPUSettingsShift#)*#Scale#)
 W=(134*#Scale#)
 Text=Clock override
@@ -422,6 +463,7 @@ LeftMouseUpAction=[!CommandMeasure MeasureGPUSettings "Browse('Clock')"]
 [MeterSettingsClockValue]
 Meter=String
 MeterStyle=StyleUtilitySettingsValue|GPUSettingsValue
+Container=MeterScrollBody
 FontColor=#TextColor#
 Y=(#Inset#+(384+#GPUSettingsShift#)*#Scale#)
 X=(#ContentX#+140*#Scale#)
@@ -432,6 +474,7 @@ LeftMouseUpAction=[!CommandMeasure MeasureGPUSettings "Browse('Clock')"]
 [MeterSettingsClockClear]
 Meter=String
 MeterStyle=StyleButton|GPUSettingsAction
+Container=MeterScrollBody
 Y=(#Inset#+(384+#GPUSettingsShift#)*#Scale#)
 X=(#ContentX#+#ContentWidth#-58*#Scale#)
 W=(52*#Scale#)
@@ -443,6 +486,7 @@ SolidColor=#GraphBackgroundColor#
 [MeterSettingsPickerTitle]
 Meter=String
 MeterStyle=StyleUtilitySettingsSection|GPUSettingsSection
+Container=MeterScrollBody
 Y=(#Inset#+(418+#GPUSettingsShift#)*#Scale#)
 W=(#ContentWidth#-72*#Scale#)
 Text=Choose an override above
@@ -451,6 +495,7 @@ Group=GPUSettingsUI|GPUSettingsPicker
 [MeterSettingsRescan]
 Meter=String
 MeterStyle=StyleButton|GPUSettingsAction
+Container=MeterScrollBody
 Y=(#Inset#+(416+#GPUSettingsShift#)*#Scale#)
 X=(#ContentX#+#ContentWidth#-64*#Scale#)
 W=(58*#Scale#)
@@ -462,6 +507,7 @@ SolidColor=#GraphBackgroundColor#
 [MeterSettingsPickerRule]
 Meter=Shape
 MeterStyle=StyleRule
+Container=MeterScrollBody
 Y=(#Inset#+(438+#GPUSettingsShift#)*#Scale#)
 W=#ContentWidth#
 H=(Max(1,#DividerThickness#*#Scale#))
@@ -469,6 +515,7 @@ H=(Max(1,#DividerThickness#*#Scale#))
 [MeterSettingsPick1]
 Meter=String
 MeterStyle=StyleUtilitySettingsValue|GPUSettingsPickerValue
+Container=MeterScrollBody
 FontColor=#TextColor#
 Y=(#Inset#+(446+#GPUSettingsShift#)*#Scale#)
 X=#ContentX#
@@ -481,6 +528,7 @@ LeftMouseUpAction=[!CommandMeasure MeasureGPUSettings "Select(1)"]
 [MeterSettingsPick2]
 Meter=String
 MeterStyle=StyleUtilitySettingsValue|GPUSettingsPickerValue
+Container=MeterScrollBody
 FontColor=#TextColor#
 Y=(#Inset#+(468+#GPUSettingsShift#)*#Scale#)
 X=#ContentX#
@@ -493,6 +541,7 @@ LeftMouseUpAction=[!CommandMeasure MeasureGPUSettings "Select(2)"]
 [MeterSettingsPick3]
 Meter=String
 MeterStyle=StyleUtilitySettingsValue|GPUSettingsPickerValue
+Container=MeterScrollBody
 FontColor=#TextColor#
 Y=(#Inset#+(490+#GPUSettingsShift#)*#Scale#)
 X=#ContentX#
@@ -505,6 +554,7 @@ LeftMouseUpAction=[!CommandMeasure MeasureGPUSettings "Select(3)"]
 [MeterSettingsPick4]
 Meter=String
 MeterStyle=StyleUtilitySettingsValue|GPUSettingsPickerValue
+Container=MeterScrollBody
 FontColor=#TextColor#
 Y=(#Inset#+(512+#GPUSettingsShift#)*#Scale#)
 X=#ContentX#
@@ -517,6 +567,7 @@ LeftMouseUpAction=[!CommandMeasure MeasureGPUSettings "Select(4)"]
 [MeterSettingsPick5]
 Meter=String
 MeterStyle=StyleUtilitySettingsValue|GPUSettingsPickerValue
+Container=MeterScrollBody
 FontColor=#TextColor#
 Y=(#Inset#+(534+#GPUSettingsShift#)*#Scale#)
 X=#ContentX#
@@ -529,6 +580,7 @@ LeftMouseUpAction=[!CommandMeasure MeasureGPUSettings "Select(5)"]
 [MeterSettingsPrevious]
 Meter=String
 MeterStyle=StyleButton|GPUSettingsAction
+Container=MeterScrollBody
 Y=(#Inset#+(564+#GPUSettingsShift#)*#Scale#)
 X=#ContentX#
 W=(70*#Scale#)
@@ -538,6 +590,7 @@ LeftMouseUpAction=[!CommandMeasure MeasureGPUSettings "PrevPage()"]
 [MeterSettingsPage]
 Meter=String
 MeterStyle=StyleButton|GPUSettingsAction
+Container=MeterScrollBody
 Y=(#Inset#+(564+#GPUSettingsShift#)*#Scale#)
 X=(#ContentX#+#ContentWidth#/2)
 W=(#ContentWidth#-168*#Scale#)
@@ -551,6 +604,7 @@ Padding=0,0,0,0
 [MeterSettingsNext]
 Meter=String
 MeterStyle=StyleButton|GPUSettingsAction
+Container=MeterScrollBody
 Y=(#Inset#+(564+#GPUSettingsShift#)*#Scale#)
 X=(#ContentX#+#ContentWidth#)
 W=(62*#Scale#)
@@ -561,6 +615,7 @@ LeftMouseUpAction=[!CommandMeasure MeasureGPUSettings "NextPage()"]
 [MeterSettingsNotice]
 Meter=String
 MeterStyle=StyleUtilitySettingsLabel|GPUSettingsLabel
+Container=MeterScrollBody
 Y=(#Inset#+(592+#GPUSettingsShift#)*#Scale#)
 W=#ContentWidth#
 FontSize=((#FontSize#-1)*#Scale#)
@@ -572,6 +627,7 @@ MouseActionCursor=0
 [MeterSettingsGuide]
 Meter=String
 MeterStyle=StyleButton|GPUSettingsAction|StyleSecondaryButton
+Container=MeterScrollBody
 Y=(#Inset#+(620+#GPUSettingsShift#)*#Scale#)
 X=(#ContentX#+0*(#ContentWidth#+6*#Scale#)/4)
 W=((#ContentWidth#-18*#Scale#)/4-6*#Scale#)
@@ -582,6 +638,7 @@ StringAlign=Left
 [MeterSettingsAdvanced]
 Meter=String
 MeterStyle=StyleButton|GPUSettingsAction|StyleSecondaryButton
+Container=MeterScrollBody
 Y=(#Inset#+(620+#GPUSettingsShift#)*#Scale#)
 X=(#ContentX#+1*(#ContentWidth#+6*#Scale#)/4)
 W=((#ContentWidth#-18*#Scale#)/4-6*#Scale#)
@@ -592,6 +649,7 @@ StringAlign=Left
 [MeterSettingsRefresh]
 Meter=String
 MeterStyle=StyleButton|GPUSettingsAction
+Container=MeterScrollBody
 Y=(#Inset#+(620+#GPUSettingsShift#)*#Scale#)
 X=(#ContentX#+2*(#ContentWidth#+6*#Scale#)/4)
 W=((#ContentWidth#-18*#Scale#)/4-6*#Scale#)
@@ -602,6 +660,7 @@ StringAlign=Left
 [MeterSettingsGlobal]
 Meter=String
 MeterStyle=StyleButton|GPUSettingsAction
+Container=MeterScrollBody
 Y=(#Inset#+(620+#GPUSettingsShift#)*#Scale#)
 X=(#ContentX#+3*(#ContentWidth#+6*#Scale#)/4)
 W=((#ContentWidth#-18*#Scale#)/4-6*#Scale#)

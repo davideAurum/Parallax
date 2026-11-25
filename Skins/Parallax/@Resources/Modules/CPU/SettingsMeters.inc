@@ -46,12 +46,14 @@ FontSize=(#FontSize#*#Scale#)
 [MeterSettingsAppearanceSection]
 Meter=String
 MeterStyle=StyleUtilitySettingsSection|CPUStyleSettingsSection
+Container=MeterScrollBody
 Y=(#Inset#+#CPUSettingsAppearanceSectionY#*#Scale#)
 Text=Appearance
 
 [MeterSettingsAppearanceRule]
 Meter=Shape
 MeterStyle=StyleRule
+Container=MeterScrollBody
 Y=(#Inset#+(#CPUSettingsAppearanceSectionY#-6)*#Scale#)
 Group=CPUSettingsUI
 DynamicVariables=1
@@ -59,12 +61,14 @@ DynamicVariables=1
 [MeterSettingsProcessesSection]
 Meter=String
 MeterStyle=StyleUtilitySettingsSection|CPUStyleSettingsSection
+Container=MeterScrollBody
 Y=(#Inset#+#CPUSettingsProcessesSectionY#*#Scale#)
 Text=Processes
 
 [MeterSettingsProcessesRule]
 Meter=Shape
 MeterStyle=StyleRule
+Container=MeterScrollBody
 Y=(#Inset#+(#CPUSettingsProcessesSectionY#-6)*#Scale#)
 Group=CPUSettingsUI
 DynamicVariables=1
@@ -72,12 +76,14 @@ DynamicVariables=1
 [MeterSettingsGraphSection]
 Meter=String
 MeterStyle=StyleUtilitySettingsSection|CPUStyleSettingsSection
+Container=MeterScrollBody
 Y=(#Inset#+#CPUSettingsGraphSectionY#*#Scale#)
 Text=History
 
 [MeterSettingsGraphRule]
 Meter=Shape
 MeterStyle=StyleRule
+Container=MeterScrollBody
 Y=(#Inset#+(#CPUSettingsGraphSectionY#-6)*#Scale#)
 Group=CPUSettingsUI
 DynamicVariables=1
@@ -85,12 +91,14 @@ DynamicVariables=1
 [MeterSettingsRatesSection]
 Meter=String
 MeterStyle=StyleUtilitySettingsSection|CPUStyleSettingsSection
+Container=MeterScrollBody
 Y=(#Inset#+#CPUSettingsRatesSectionY#*#Scale#)
 Text=Performance
 
 [MeterSettingsRatesRule]
 Meter=Shape
 MeterStyle=StyleRule
+Container=MeterScrollBody
 Y=(#Inset#+(#CPUSettingsRatesSectionY#-6)*#Scale#)
 Group=CPUSettingsUI
 DynamicVariables=1
@@ -98,12 +106,14 @@ DynamicVariables=1
 [MeterSettingsSensorsSection]
 Meter=String
 MeterStyle=StyleUtilitySettingsSection|CPUStyleSettingsSection
+Container=MeterScrollBody
 Y=(#Inset#+#CPUSettingsSensorsSectionY#*#Scale#)
 Text=HWiNFO setup
 
 [MeterSettingsSensorsRule]
 Meter=Shape
 MeterStyle=StyleRule
+Container=MeterScrollBody
 Y=(#Inset#+(#CPUSettingsSensorsSectionY#-6)*#Scale#)
 Group=CPUSettingsUI
 DynamicVariables=1
@@ -111,6 +121,7 @@ DynamicVariables=1
 [MeterSettingsInfoLabel]
 Meter=String
 MeterStyle=StyleUtilitySettingsLabel|CPUStyleSettingsLabel
+Container=MeterScrollBody
 X=#ContentX#
 Y=((1-#CPUSettingsInfoHidden#)*(#Inset#+(#CPUSettingsInfoY#+2)*#Scale#))
 W=((1-#CPUSettingsInfoHidden#)*(126*#Scale#))
@@ -124,6 +135,7 @@ MouseActionCursor=0
 [MeterSettingsInfoRow]
 Meter=Shape
 MeterStyle=StyleUtilitySettingsRow
+Container=MeterScrollBody
 X=(#ContentX#+132*#Scale#)
 Y=((1-#CPUSettingsInfoHidden#)*(#Inset#+(#CPUSettingsInfoY#+0)*#Scale#))
 W=((1-#CPUSettingsInfoHidden#)*(#ContentWidth#-132*#Scale#))
@@ -137,6 +149,7 @@ LeftMouseUpAction=[!CommandMeasure MeasureCPUSettings "Toggle('CPUShowInfo')"]
 [MeterSettingsInfoValue]
 Meter=String
 MeterStyle=StyleUtilitySettingsValue|CPUStyleSettingsValue
+Container=MeterScrollBody
 X=(#ContentX#+132*#Scale#)
 Y=((1-#CPUSettingsInfoHidden#)*(#Inset#+(#CPUSettingsInfoY#+0)*#Scale#))
 W=((1-#CPUSettingsInfoHidden#)*(#ContentWidth#-138*#Scale#))
@@ -150,6 +163,7 @@ LeftMouseUpAction=[!CommandMeasure MeasureCPUSettings "Toggle('CPUShowInfo')"]
 [MeterSettingsCPUFanLabel]
 Meter=String
 MeterStyle=StyleUtilitySettingsLabel|CPUStyleSettingsLabel
+Container=MeterScrollBody
 X=#ContentX#
 Y=((1-#CPUSettingsCPUFanHidden#)*(#Inset#+(#CPUSettingsCPUFanY#+2)*#Scale#))
 W=((1-#CPUSettingsCPUFanHidden#)*(126*#Scale#))
@@ -163,6 +177,7 @@ MouseActionCursor=0
 [MeterSettingsCPUFanRow]
 Meter=Shape
 MeterStyle=StyleUtilitySettingsRow
+Container=MeterScrollBody
 X=(#ContentX#+132*#Scale#)
 Y=((1-#CPUSettingsCPUFanHidden#)*(#Inset#+(#CPUSettingsCPUFanY#+0)*#Scale#))
 W=((1-#CPUSettingsCPUFanHidden#)*(#ContentWidth#-132*#Scale#))
@@ -176,6 +191,7 @@ LeftMouseUpAction=[!CommandMeasure MeasureCPUSettings "Toggle('CPUShowFan')"]
 [MeterSettingsCPUFanValue]
 Meter=String
 MeterStyle=StyleUtilitySettingsValue|CPUStyleSettingsValue
+Container=MeterScrollBody
 X=(#ContentX#+132*#Scale#)
 Y=((1-#CPUSettingsCPUFanHidden#)*(#Inset#+(#CPUSettingsCPUFanY#+0)*#Scale#))
 W=((1-#CPUSettingsCPUFanHidden#)*(#ContentWidth#-138*#Scale#))
@@ -189,6 +205,7 @@ LeftMouseUpAction=[!CommandMeasure MeasureCPUSettings "Toggle('CPUShowFan')"]
 [MeterSettingsMotherboardFanLabel]
 Meter=String
 MeterStyle=StyleUtilitySettingsLabel|CPUStyleSettingsLabel
+Container=MeterScrollBody
 X=#ContentX#
 Y=((1-#CPUSettingsMotherboardFanHidden#)*(#Inset#+(#CPUSettingsMotherboardFanY#+2)*#Scale#))
 W=((1-#CPUSettingsMotherboardFanHidden#)*(126*#Scale#))
@@ -202,6 +219,7 @@ MouseActionCursor=0
 [MeterSettingsMotherboardFanRow]
 Meter=Shape
 MeterStyle=StyleUtilitySettingsRow
+Container=MeterScrollBody
 X=(#ContentX#+132*#Scale#)
 Y=((1-#CPUSettingsMotherboardFanHidden#)*(#Inset#+(#CPUSettingsMotherboardFanY#+0)*#Scale#))
 W=((1-#CPUSettingsMotherboardFanHidden#)*(#ContentWidth#-132*#Scale#))
@@ -215,6 +233,7 @@ LeftMouseUpAction=[!CommandMeasure MeasureCPUSettings "Toggle('CPUShowMotherboar
 [MeterSettingsMotherboardFanValue]
 Meter=String
 MeterStyle=StyleUtilitySettingsValue|CPUStyleSettingsValue
+Container=MeterScrollBody
 X=(#ContentX#+132*#Scale#)
 Y=((1-#CPUSettingsMotherboardFanHidden#)*(#Inset#+(#CPUSettingsMotherboardFanY#+0)*#Scale#))
 W=((1-#CPUSettingsMotherboardFanHidden#)*(#ContentWidth#-138*#Scale#))
@@ -228,6 +247,7 @@ LeftMouseUpAction=[!CommandMeasure MeasureCPUSettings "Toggle('CPUShowMotherboar
 [MeterSettingsCoresLabel]
 Meter=String
 MeterStyle=StyleUtilitySettingsLabel|CPUStyleSettingsLabel
+Container=MeterScrollBody
 X=#ContentX#
 Y=((1-#CPUSettingsCoresHidden#)*(#Inset#+(#CPUSettingsCoresY#+2)*#Scale#))
 W=((1-#CPUSettingsCoresHidden#)*(126*#Scale#))
@@ -241,6 +261,7 @@ MouseActionCursor=0
 [MeterSettingsCoresRow]
 Meter=Shape
 MeterStyle=StyleUtilitySettingsRow
+Container=MeterScrollBody
 X=(#ContentX#+132*#Scale#)
 Y=((1-#CPUSettingsCoresHidden#)*(#Inset#+(#CPUSettingsCoresY#+0)*#Scale#))
 W=((1-#CPUSettingsCoresHidden#)*(#ContentWidth#-132*#Scale#))
@@ -254,6 +275,7 @@ LeftMouseUpAction=[!CommandMeasure MeasureCPUSettings "Toggle('CPUShowCores')"]
 [MeterSettingsCoresValue]
 Meter=String
 MeterStyle=StyleUtilitySettingsValue|CPUStyleSettingsValue
+Container=MeterScrollBody
 X=(#ContentX#+132*#Scale#)
 Y=((1-#CPUSettingsCoresHidden#)*(#Inset#+(#CPUSettingsCoresY#+0)*#Scale#))
 W=((1-#CPUSettingsCoresHidden#)*(#ContentWidth#-138*#Scale#))
@@ -267,6 +289,7 @@ LeftMouseUpAction=[!CommandMeasure MeasureCPUSettings "Toggle('CPUShowCores')"]
 [MeterSettingsDecimalsLabel]
 Meter=String
 MeterStyle=StyleUtilitySettingsLabel|CPUStyleSettingsLabel
+Container=MeterScrollBody
 X=#ContentX#
 Y=((1-#CPUSettingsDecimalsHidden#)*(#Inset#+(#CPUSettingsDecimalsY#+2)*#Scale#))
 W=((1-#CPUSettingsDecimalsHidden#)*(126*#Scale#))
@@ -280,6 +303,7 @@ MouseActionCursor=0
 [MeterSettingsDecimalsInput]
 Meter=Shape
 MeterStyle=StyleSettingsStepperFrame
+Container=MeterScrollBody
 X=(#ContentX#+152*#Scale#)
 Y=((1-#CPUSettingsDecimalsHidden#)*(#Inset#+(#CPUSettingsDecimalsY#+0)*#Scale#))
 W=((1-#CPUSettingsDecimalsHidden#)*((#ContentWidth#-172*#Scale#)))
@@ -293,6 +317,7 @@ LeftMouseUpAction=[!CommandMeasure MeasureCPUSettings "BeginNumberInput('CPUDeci
 [MeterSettingsDecimalsDecrease]
 Meter=String
 MeterStyle=StyleSettingsStepperButton
+Container=MeterScrollBody
 X=(#ContentX#+141*#Scale#)
 Y=((1-#CPUSettingsDecimalsHidden#)*(#Inset#+(#CPUSettingsDecimalsY#+1)*#Scale#))
 W=((1-#CPUSettingsDecimalsHidden#)*(18*#Scale#))
@@ -306,6 +331,7 @@ LeftMouseUpAction=[!CommandMeasure MeasureCPUSettings "AdjustNumber('CPUDecimals
 [MeterSettingsDecimalsValue]
 Meter=String
 MeterStyle=StyleSettingsStepperValue
+Container=MeterScrollBody
 X=(#ContentX#+152*#Scale#+((#ContentWidth#-172*#Scale#))/2)
 Y=((1-#CPUSettingsDecimalsHidden#)*(#Inset#+(#CPUSettingsDecimalsY#+1)*#Scale#))
 W=((1-#CPUSettingsDecimalsHidden#)*((#ContentWidth#-172*#Scale#)))
@@ -319,6 +345,7 @@ LeftMouseUpAction=[!CommandMeasure MeasureCPUSettings "BeginNumberInput('CPUDeci
 [MeterSettingsDecimalsIncrease]
 Meter=String
 MeterStyle=StyleSettingsStepperButton
+Container=MeterScrollBody
 X=(#ContentX#+#ContentWidth#-9*#Scale#)
 Y=((1-#CPUSettingsDecimalsHidden#)*(#Inset#+(#CPUSettingsDecimalsY#+1)*#Scale#))
 W=((1-#CPUSettingsDecimalsHidden#)*(18*#Scale#))
@@ -332,6 +359,7 @@ LeftMouseUpAction=[!CommandMeasure MeasureCPUSettings "AdjustNumber('CPUDecimals
 [MeterSettingsVoltageDecimalsLabel]
 Meter=String
 MeterStyle=StyleUtilitySettingsLabel|CPUStyleSettingsLabel
+Container=MeterScrollBody
 X=#ContentX#
 Y=((1-#CPUSettingsVoltageDecimalsHidden#)*(#Inset#+(#CPUSettingsVoltageDecimalsY#+2)*#Scale#))
 W=((1-#CPUSettingsVoltageDecimalsHidden#)*(126*#Scale#))
@@ -345,6 +373,7 @@ MouseActionCursor=0
 [MeterSettingsVoltageDecimalsInput]
 Meter=Shape
 MeterStyle=StyleSettingsStepperFrame
+Container=MeterScrollBody
 X=(#ContentX#+152*#Scale#)
 Y=((1-#CPUSettingsVoltageDecimalsHidden#)*(#Inset#+(#CPUSettingsVoltageDecimalsY#+0)*#Scale#))
 W=((1-#CPUSettingsVoltageDecimalsHidden#)*((#ContentWidth#-172*#Scale#)))
@@ -358,6 +387,7 @@ LeftMouseUpAction=[!CommandMeasure MeasureCPUSettings "BeginNumberInput('CPUVolt
 [MeterSettingsVoltageDecimalsDecrease]
 Meter=String
 MeterStyle=StyleSettingsStepperButton
+Container=MeterScrollBody
 X=(#ContentX#+141*#Scale#)
 Y=((1-#CPUSettingsVoltageDecimalsHidden#)*(#Inset#+(#CPUSettingsVoltageDecimalsY#+1)*#Scale#))
 W=((1-#CPUSettingsVoltageDecimalsHidden#)*(18*#Scale#))
@@ -371,6 +401,7 @@ LeftMouseUpAction=[!CommandMeasure MeasureCPUSettings "AdjustNumber('CPUVoltageD
 [MeterSettingsVoltageDecimalsValue]
 Meter=String
 MeterStyle=StyleSettingsStepperValue
+Container=MeterScrollBody
 X=(#ContentX#+152*#Scale#+((#ContentWidth#-172*#Scale#))/2)
 Y=((1-#CPUSettingsVoltageDecimalsHidden#)*(#Inset#+(#CPUSettingsVoltageDecimalsY#+1)*#Scale#))
 W=((1-#CPUSettingsVoltageDecimalsHidden#)*((#ContentWidth#-172*#Scale#)))
@@ -384,6 +415,7 @@ LeftMouseUpAction=[!CommandMeasure MeasureCPUSettings "BeginNumberInput('CPUVolt
 [MeterSettingsVoltageDecimalsIncrease]
 Meter=String
 MeterStyle=StyleSettingsStepperButton
+Container=MeterScrollBody
 X=(#ContentX#+#ContentWidth#-9*#Scale#)
 Y=((1-#CPUSettingsVoltageDecimalsHidden#)*(#Inset#+(#CPUSettingsVoltageDecimalsY#+1)*#Scale#))
 W=((1-#CPUSettingsVoltageDecimalsHidden#)*(18*#Scale#))
@@ -397,6 +429,7 @@ LeftMouseUpAction=[!CommandMeasure MeasureCPUSettings "AdjustNumber('CPUVoltageD
 [MeterSettingsTemperatureDecimalsLabel]
 Meter=String
 MeterStyle=StyleUtilitySettingsLabel|CPUStyleSettingsLabel
+Container=MeterScrollBody
 X=#ContentX#
 Y=((1-#CPUSettingsTemperatureDecimalsHidden#)*(#Inset#+(#CPUSettingsTemperatureDecimalsY#+2)*#Scale#))
 W=((1-#CPUSettingsTemperatureDecimalsHidden#)*(126*#Scale#))
@@ -410,6 +443,7 @@ MouseActionCursor=0
 [MeterSettingsTemperatureDecimalsInput]
 Meter=Shape
 MeterStyle=StyleSettingsStepperFrame
+Container=MeterScrollBody
 X=(#ContentX#+152*#Scale#)
 Y=((1-#CPUSettingsTemperatureDecimalsHidden#)*(#Inset#+(#CPUSettingsTemperatureDecimalsY#+0)*#Scale#))
 W=((1-#CPUSettingsTemperatureDecimalsHidden#)*((#ContentWidth#-172*#Scale#)))
@@ -423,6 +457,7 @@ LeftMouseUpAction=[!CommandMeasure MeasureCPUSettings "BeginNumberInput('CPUTemp
 [MeterSettingsTemperatureDecimalsDecrease]
 Meter=String
 MeterStyle=StyleSettingsStepperButton
+Container=MeterScrollBody
 X=(#ContentX#+141*#Scale#)
 Y=((1-#CPUSettingsTemperatureDecimalsHidden#)*(#Inset#+(#CPUSettingsTemperatureDecimalsY#+1)*#Scale#))
 W=((1-#CPUSettingsTemperatureDecimalsHidden#)*(18*#Scale#))
@@ -436,6 +471,7 @@ LeftMouseUpAction=[!CommandMeasure MeasureCPUSettings "AdjustNumber('CPUTemperat
 [MeterSettingsTemperatureDecimalsValue]
 Meter=String
 MeterStyle=StyleSettingsStepperValue
+Container=MeterScrollBody
 X=(#ContentX#+152*#Scale#+((#ContentWidth#-172*#Scale#))/2)
 Y=((1-#CPUSettingsTemperatureDecimalsHidden#)*(#Inset#+(#CPUSettingsTemperatureDecimalsY#+1)*#Scale#))
 W=((1-#CPUSettingsTemperatureDecimalsHidden#)*((#ContentWidth#-172*#Scale#)))
@@ -449,6 +485,7 @@ LeftMouseUpAction=[!CommandMeasure MeasureCPUSettings "BeginNumberInput('CPUTemp
 [MeterSettingsTemperatureDecimalsIncrease]
 Meter=String
 MeterStyle=StyleSettingsStepperButton
+Container=MeterScrollBody
 X=(#ContentX#+#ContentWidth#-9*#Scale#)
 Y=((1-#CPUSettingsTemperatureDecimalsHidden#)*(#Inset#+(#CPUSettingsTemperatureDecimalsY#+1)*#Scale#))
 W=((1-#CPUSettingsTemperatureDecimalsHidden#)*(18*#Scale#))
@@ -462,6 +499,7 @@ LeftMouseUpAction=[!CommandMeasure MeasureCPUSettings "AdjustNumber('CPUTemperat
 [MeterSettingsThreadColorsLabel]
 Meter=String
 MeterStyle=StyleUtilitySettingsLabel|CPUStyleSettingsLabel
+Container=MeterScrollBody
 X=#ContentX#
 Y=((1-#CPUSettingsThreadColorsHidden#)*(#Inset#+(#CPUSettingsThreadColorsY#+2)*#Scale#))
 W=((1-#CPUSettingsThreadColorsHidden#)*(126*#Scale#))
@@ -475,6 +513,7 @@ MouseActionCursor=0
 [MeterSettingsThreadColorsRow]
 Meter=Shape
 MeterStyle=StyleUtilitySettingsRow
+Container=MeterScrollBody
 X=(#ContentX#+132*#Scale#)
 Y=((1-#CPUSettingsThreadColorsHidden#)*(#Inset#+(#CPUSettingsThreadColorsY#+0)*#Scale#))
 W=((1-#CPUSettingsThreadColorsHidden#)*(#ContentWidth#-132*#Scale#))
@@ -488,6 +527,7 @@ LeftMouseUpAction=[!ActivateConfig "Parallax\CPU\Colors" "Colors.ini"]
 [MeterSettingsThreadColorsValue]
 Meter=String
 MeterStyle=StyleUtilitySettingsValue|CPUStyleSettingsValue
+Container=MeterScrollBody
 X=(#ContentX#+132*#Scale#)
 Y=((1-#CPUSettingsThreadColorsHidden#)*(#Inset#+(#CPUSettingsThreadColorsY#+0)*#Scale#))
 W=((1-#CPUSettingsThreadColorsHidden#)*(#ContentWidth#-138*#Scale#))
@@ -501,6 +541,7 @@ LeftMouseUpAction=[!ActivateConfig "Parallax\CPU\Colors" "Colors.ini"]
 [MeterSettingsProcessesLabel]
 Meter=String
 MeterStyle=StyleUtilitySettingsLabel|CPUStyleSettingsLabel
+Container=MeterScrollBody
 X=#ContentX#
 Y=((1-#CPUSettingsProcessesHidden#)*(#Inset#+(#CPUSettingsProcessesY#+2)*#Scale#))
 W=((1-#CPUSettingsProcessesHidden#)*(126*#Scale#))
@@ -514,6 +555,7 @@ MouseActionCursor=0
 [MeterSettingsProcessesRow]
 Meter=Shape
 MeterStyle=StyleUtilitySettingsRow
+Container=MeterScrollBody
 X=(#ContentX#+132*#Scale#)
 Y=((1-#CPUSettingsProcessesHidden#)*(#Inset#+(#CPUSettingsProcessesY#+0)*#Scale#))
 W=((1-#CPUSettingsProcessesHidden#)*(#ContentWidth#-132*#Scale#))
@@ -527,6 +569,7 @@ LeftMouseUpAction=[!CommandMeasure MeasureCPUSettings "Toggle('CPUShowProcesses'
 [MeterSettingsProcessesValue]
 Meter=String
 MeterStyle=StyleUtilitySettingsValue|CPUStyleSettingsValue
+Container=MeterScrollBody
 X=(#ContentX#+132*#Scale#)
 Y=((1-#CPUSettingsProcessesHidden#)*(#Inset#+(#CPUSettingsProcessesY#+0)*#Scale#))
 W=((1-#CPUSettingsProcessesHidden#)*(#ContentWidth#-138*#Scale#))
@@ -540,6 +583,7 @@ LeftMouseUpAction=[!CommandMeasure MeasureCPUSettings "Toggle('CPUShowProcesses'
 [MeterSettingsProcessCountLabel]
 Meter=String
 MeterStyle=StyleUtilitySettingsLabel|CPUStyleSettingsLabel
+Container=MeterScrollBody
 X=#ContentX#
 Y=((1-#CPUSettingsProcessCountHidden#)*(#Inset#+(#CPUSettingsProcessCountY#+2)*#Scale#))
 W=((1-#CPUSettingsProcessCountHidden#)*(126*#Scale#))
@@ -553,6 +597,7 @@ MouseActionCursor=0
 [MeterSettingsProcessCountInput]
 Meter=Shape
 MeterStyle=StyleSettingsStepperFrame
+Container=MeterScrollBody
 X=(#ContentX#+152*#Scale#)
 Y=((1-#CPUSettingsProcessCountHidden#)*(#Inset#+(#CPUSettingsProcessCountY#+0)*#Scale#))
 W=((1-#CPUSettingsProcessCountHidden#)*((#ContentWidth#-172*#Scale#)))
@@ -566,6 +611,7 @@ LeftMouseUpAction=[!CommandMeasure MeasureCPUSettings "BeginNumberInput('CPUProc
 [MeterSettingsProcessCountDecrease]
 Meter=String
 MeterStyle=StyleSettingsStepperButton
+Container=MeterScrollBody
 X=(#ContentX#+141*#Scale#)
 Y=((1-#CPUSettingsProcessCountHidden#)*(#Inset#+(#CPUSettingsProcessCountY#+1)*#Scale#))
 W=((1-#CPUSettingsProcessCountHidden#)*(18*#Scale#))
@@ -579,6 +625,7 @@ LeftMouseUpAction=[!CommandMeasure MeasureCPUSettings "AdjustNumber('CPUProcessC
 [MeterSettingsProcessCountValue]
 Meter=String
 MeterStyle=StyleSettingsStepperValue
+Container=MeterScrollBody
 X=(#ContentX#+152*#Scale#+((#ContentWidth#-172*#Scale#))/2)
 Y=((1-#CPUSettingsProcessCountHidden#)*(#Inset#+(#CPUSettingsProcessCountY#+1)*#Scale#))
 W=((1-#CPUSettingsProcessCountHidden#)*((#ContentWidth#-172*#Scale#)))
@@ -592,6 +639,7 @@ LeftMouseUpAction=[!CommandMeasure MeasureCPUSettings "BeginNumberInput('CPUProc
 [MeterSettingsProcessCountIncrease]
 Meter=String
 MeterStyle=StyleSettingsStepperButton
+Container=MeterScrollBody
 X=(#ContentX#+#ContentWidth#-9*#Scale#)
 Y=((1-#CPUSettingsProcessCountHidden#)*(#Inset#+(#CPUSettingsProcessCountY#+1)*#Scale#))
 W=((1-#CPUSettingsProcessCountHidden#)*(18*#Scale#))
@@ -605,6 +653,7 @@ LeftMouseUpAction=[!CommandMeasure MeasureCPUSettings "AdjustNumber('CPUProcessC
 [MeterSettingsHistoryLabel]
 Meter=String
 MeterStyle=StyleUtilitySettingsLabel|CPUStyleSettingsLabel
+Container=MeterScrollBody
 X=#ContentX#
 Y=((1-#CPUSettingsHistoryHidden#)*(#Inset#+(#CPUSettingsHistoryY#+2)*#Scale#))
 W=((1-#CPUSettingsHistoryHidden#)*(126*#Scale#))
@@ -618,6 +667,7 @@ MouseActionCursor=0
 [MeterSettingsHistoryRow]
 Meter=Shape
 MeterStyle=StyleUtilitySettingsRow
+Container=MeterScrollBody
 X=(#ContentX#+132*#Scale#)
 Y=((1-#CPUSettingsHistoryHidden#)*(#Inset#+(#CPUSettingsHistoryY#+0)*#Scale#))
 W=((1-#CPUSettingsHistoryHidden#)*(#ContentWidth#-132*#Scale#))
@@ -631,6 +681,7 @@ LeftMouseUpAction=[!CommandMeasure MeasureCPUSettings "Toggle('CPUShowHistory')"
 [MeterSettingsHistoryValue]
 Meter=String
 MeterStyle=StyleUtilitySettingsValue|CPUStyleSettingsValue
+Container=MeterScrollBody
 X=(#ContentX#+132*#Scale#)
 Y=((1-#CPUSettingsHistoryHidden#)*(#Inset#+(#CPUSettingsHistoryY#+0)*#Scale#))
 W=((1-#CPUSettingsHistoryHidden#)*(#ContentWidth#-138*#Scale#))
@@ -644,6 +695,7 @@ LeftMouseUpAction=[!CommandMeasure MeasureCPUSettings "Toggle('CPUShowHistory')"
 [MeterSettingsSourceLabel]
 Meter=String
 MeterStyle=StyleUtilitySettingsLabel|CPUStyleSettingsLabel
+Container=MeterScrollBody
 X=#ContentX#
 Y=((1-#CPUSettingsSourceHidden#)*(#Inset#+(#CPUSettingsSourceY#+2)*#Scale#))
 W=((1-#CPUSettingsSourceHidden#)*(126*#Scale#))
@@ -657,6 +709,7 @@ MouseActionCursor=0
 [MeterSettingsSourceInput]
 Meter=Shape
 MeterStyle=StyleSettingsStepperFrame
+Container=MeterScrollBody
 X=(#ContentX#+152*#Scale#)
 Y=((1-#CPUSettingsSourceHidden#)*(#Inset#+(#CPUSettingsSourceY#+0)*#Scale#))
 W=((1-#CPUSettingsSourceHidden#)*((#ContentWidth#-172*#Scale#)))
@@ -670,6 +723,7 @@ LeftMouseUpAction=[!CommandMeasure MeasureCPUSettings "CycleHistorySource()"]
 [MeterSettingsSourceDecrease]
 Meter=String
 MeterStyle=StyleSettingsStepperButton
+Container=MeterScrollBody
 X=(#ContentX#+141*#Scale#)
 Y=((1-#CPUSettingsSourceHidden#)*(#Inset#+(#CPUSettingsSourceY#+1)*#Scale#))
 W=((1-#CPUSettingsSourceHidden#)*(18*#Scale#))
@@ -683,6 +737,7 @@ LeftMouseUpAction=[!CommandMeasure MeasureCPUSettings "CycleHistorySource(-1)"]
 [MeterSettingsSourceValue]
 Meter=String
 MeterStyle=StyleSettingsStepperValue
+Container=MeterScrollBody
 X=(#ContentX#+152*#Scale#+((#ContentWidth#-172*#Scale#))/2)
 Y=((1-#CPUSettingsSourceHidden#)*(#Inset#+(#CPUSettingsSourceY#+1)*#Scale#))
 W=((1-#CPUSettingsSourceHidden#)*((#ContentWidth#-172*#Scale#)))
@@ -696,6 +751,7 @@ LeftMouseUpAction=[!CommandMeasure MeasureCPUSettings "CycleHistorySource()"]
 [MeterSettingsSourceIncrease]
 Meter=String
 MeterStyle=StyleSettingsStepperButton
+Container=MeterScrollBody
 X=(#ContentX#+#ContentWidth#-9*#Scale#)
 Y=((1-#CPUSettingsSourceHidden#)*(#Inset#+(#CPUSettingsSourceY#+1)*#Scale#))
 W=((1-#CPUSettingsSourceHidden#)*(18*#Scale#))
@@ -709,6 +765,7 @@ LeftMouseUpAction=[!CommandMeasure MeasureCPUSettings "CycleHistorySource(1)"]
 [MeterSettingsSamplesLabel]
 Meter=String
 MeterStyle=StyleUtilitySettingsLabel|CPUStyleSettingsLabel
+Container=MeterScrollBody
 X=#ContentX#
 Y=((1-#CPUSettingsSamplesHidden#)*(#Inset#+(#CPUSettingsSamplesY#+2)*#Scale#))
 W=((1-#CPUSettingsSamplesHidden#)*(126*#Scale#))
@@ -722,6 +779,7 @@ MouseActionCursor=0
 [MeterSettingsSamplesInput]
 Meter=Shape
 MeterStyle=StyleSettingsStepperFrame
+Container=MeterScrollBody
 X=(#ContentX#+152*#Scale#)
 Y=((1-#CPUSettingsSamplesHidden#)*(#Inset#+(#CPUSettingsSamplesY#+0)*#Scale#))
 W=((1-#CPUSettingsSamplesHidden#)*((#ContentWidth#-172*#Scale#)))
@@ -735,6 +793,7 @@ LeftMouseUpAction=[!CommandMeasure MeasureCPUSettings "BeginNumberInput('CPUHist
 [MeterSettingsSamplesDecrease]
 Meter=String
 MeterStyle=StyleSettingsStepperButton
+Container=MeterScrollBody
 X=(#ContentX#+141*#Scale#)
 Y=((1-#CPUSettingsSamplesHidden#)*(#Inset#+(#CPUSettingsSamplesY#+1)*#Scale#))
 W=((1-#CPUSettingsSamplesHidden#)*(18*#Scale#))
@@ -748,6 +807,7 @@ LeftMouseUpAction=[!CommandMeasure MeasureCPUSettings "AdjustNumber('CPUHistoryS
 [MeterSettingsSamplesValue]
 Meter=String
 MeterStyle=StyleSettingsStepperValue
+Container=MeterScrollBody
 X=(#ContentX#+152*#Scale#+((#ContentWidth#-172*#Scale#))/2)
 Y=((1-#CPUSettingsSamplesHidden#)*(#Inset#+(#CPUSettingsSamplesY#+1)*#Scale#))
 W=((1-#CPUSettingsSamplesHidden#)*((#ContentWidth#-172*#Scale#)))
@@ -761,6 +821,7 @@ LeftMouseUpAction=[!CommandMeasure MeasureCPUSettings "BeginNumberInput('CPUHist
 [MeterSettingsSamplesIncrease]
 Meter=String
 MeterStyle=StyleSettingsStepperButton
+Container=MeterScrollBody
 X=(#ContentX#+#ContentWidth#-9*#Scale#)
 Y=((1-#CPUSettingsSamplesHidden#)*(#Inset#+(#CPUSettingsSamplesY#+1)*#Scale#))
 W=((1-#CPUSettingsSamplesHidden#)*(18*#Scale#))
@@ -774,6 +835,7 @@ LeftMouseUpAction=[!CommandMeasure MeasureCPUSettings "AdjustNumber('CPUHistoryS
 [MeterSettingsUpdateRateLabel]
 Meter=String
 MeterStyle=StyleUtilitySettingsLabel|CPUStyleSettingsLabel
+Container=MeterScrollBody
 X=#ContentX#
 Y=((1-#CPUSettingsUpdateRateHidden#)*(#Inset#+(#CPUSettingsUpdateRateY#+2)*#Scale#))
 W=((1-#CPUSettingsUpdateRateHidden#)*(126*#Scale#))
@@ -787,6 +849,7 @@ MouseActionCursor=0
 [MeterSettingsUpdateRateInput]
 Meter=Shape
 MeterStyle=StyleSettingsStepperFrame
+Container=MeterScrollBody
 X=(#ContentX#+152*#Scale#)
 Y=((1-#CPUSettingsUpdateRateHidden#)*(#Inset#+(#CPUSettingsUpdateRateY#+0)*#Scale#))
 W=((1-#CPUSettingsUpdateRateHidden#)*((#ContentWidth#-172*#Scale#)))
@@ -800,6 +863,7 @@ LeftMouseUpAction=[!CommandMeasure MeasureCPUSettings "BeginNumberInput('CPUUpda
 [MeterSettingsUpdateRateDecrease]
 Meter=String
 MeterStyle=StyleSettingsStepperButton
+Container=MeterScrollBody
 X=(#ContentX#+141*#Scale#)
 Y=((1-#CPUSettingsUpdateRateHidden#)*(#Inset#+(#CPUSettingsUpdateRateY#+1)*#Scale#))
 W=((1-#CPUSettingsUpdateRateHidden#)*(18*#Scale#))
@@ -813,6 +877,7 @@ LeftMouseUpAction=[!CommandMeasure MeasureCPUSettings "AdjustNumber('CPUUpdateIn
 [MeterSettingsUpdateRateValue]
 Meter=String
 MeterStyle=StyleSettingsStepperValue
+Container=MeterScrollBody
 X=(#ContentX#+152*#Scale#+((#ContentWidth#-172*#Scale#))/2)
 Y=((1-#CPUSettingsUpdateRateHidden#)*(#Inset#+(#CPUSettingsUpdateRateY#+1)*#Scale#))
 W=((1-#CPUSettingsUpdateRateHidden#)*((#ContentWidth#-172*#Scale#)))
@@ -826,6 +891,7 @@ LeftMouseUpAction=[!CommandMeasure MeasureCPUSettings "BeginNumberInput('CPUUpda
 [MeterSettingsUpdateRateIncrease]
 Meter=String
 MeterStyle=StyleSettingsStepperButton
+Container=MeterScrollBody
 X=(#ContentX#+#ContentWidth#-9*#Scale#)
 Y=((1-#CPUSettingsUpdateRateHidden#)*(#Inset#+(#CPUSettingsUpdateRateY#+1)*#Scale#))
 W=((1-#CPUSettingsUpdateRateHidden#)*(18*#Scale#))
@@ -839,6 +905,7 @@ LeftMouseUpAction=[!CommandMeasure MeasureCPUSettings "AdjustNumber('CPUUpdateIn
 [MeterSettingsSensorRateLabel]
 Meter=String
 MeterStyle=StyleUtilitySettingsLabel|CPUStyleSettingsLabel
+Container=MeterScrollBody
 X=#ContentX#
 Y=((1-#CPUSettingsSensorRateHidden#)*(#Inset#+(#CPUSettingsSensorRateY#+2)*#Scale#))
 W=((1-#CPUSettingsSensorRateHidden#)*(126*#Scale#))
@@ -852,6 +919,7 @@ MouseActionCursor=0
 [MeterSettingsSensorRateInput]
 Meter=Shape
 MeterStyle=StyleSettingsStepperFrame
+Container=MeterScrollBody
 X=(#ContentX#+152*#Scale#)
 Y=((1-#CPUSettingsSensorRateHidden#)*(#Inset#+(#CPUSettingsSensorRateY#+0)*#Scale#))
 W=((1-#CPUSettingsSensorRateHidden#)*((#ContentWidth#-172*#Scale#)))
@@ -865,6 +933,7 @@ LeftMouseUpAction=[!CommandMeasure MeasureCPUSettings "BeginNumberInput('CPUSens
 [MeterSettingsSensorRateDecrease]
 Meter=String
 MeterStyle=StyleSettingsStepperButton
+Container=MeterScrollBody
 X=(#ContentX#+141*#Scale#)
 Y=((1-#CPUSettingsSensorRateHidden#)*(#Inset#+(#CPUSettingsSensorRateY#+1)*#Scale#))
 W=((1-#CPUSettingsSensorRateHidden#)*(18*#Scale#))
@@ -878,6 +947,7 @@ LeftMouseUpAction=[!CommandMeasure MeasureCPUSettings "AdjustNumber('CPUSensorIn
 [MeterSettingsSensorRateValue]
 Meter=String
 MeterStyle=StyleSettingsStepperValue
+Container=MeterScrollBody
 X=(#ContentX#+152*#Scale#+((#ContentWidth#-172*#Scale#))/2)
 Y=((1-#CPUSettingsSensorRateHidden#)*(#Inset#+(#CPUSettingsSensorRateY#+1)*#Scale#))
 W=((1-#CPUSettingsSensorRateHidden#)*((#ContentWidth#-172*#Scale#)))
@@ -891,6 +961,7 @@ LeftMouseUpAction=[!CommandMeasure MeasureCPUSettings "BeginNumberInput('CPUSens
 [MeterSettingsSensorRateIncrease]
 Meter=String
 MeterStyle=StyleSettingsStepperButton
+Container=MeterScrollBody
 X=(#ContentX#+#ContentWidth#-9*#Scale#)
 Y=((1-#CPUSettingsSensorRateHidden#)*(#Inset#+(#CPUSettingsSensorRateY#+1)*#Scale#))
 W=((1-#CPUSettingsSensorRateHidden#)*(18*#Scale#))
@@ -904,6 +975,7 @@ LeftMouseUpAction=[!CommandMeasure MeasureCPUSettings "AdjustNumber('CPUSensorIn
 [MeterSettingsSensorsLabel]
 Meter=String
 MeterStyle=StyleUtilitySettingsLabel|CPUStyleSettingsLabel
+Container=MeterScrollBody
 X=#ContentX#
 Y=((1-#CPUSettingsSensorsHidden#)*(#Inset#+(#CPUSettingsSensorsY#+2)*#Scale#))
 W=((1-#CPUSettingsSensorsHidden#)*(126*#Scale#))
@@ -917,6 +989,7 @@ MouseActionCursor=0
 [MeterSettingsSensorsRow]
 Meter=Shape
 MeterStyle=StyleUtilitySettingsRow
+Container=MeterScrollBody
 X=(#ContentX#+132*#Scale#)
 Y=((1-#CPUSettingsSensorsHidden#)*(#Inset#+(#CPUSettingsSensorsY#+0)*#Scale#))
 W=((1-#CPUSettingsSensorsHidden#)*(#ContentWidth#-132*#Scale#))
@@ -930,6 +1003,7 @@ LeftMouseUpAction=[!CommandMeasure MeasureCPUSettings "Toggle('CPUSensorsEnabled
 [MeterSettingsSensorsValue]
 Meter=String
 MeterStyle=StyleUtilitySettingsValue|CPUStyleSettingsValue
+Container=MeterScrollBody
 X=(#ContentX#+132*#Scale#)
 Y=((1-#CPUSettingsSensorsHidden#)*(#Inset#+(#CPUSettingsSensorsY#+0)*#Scale#))
 W=((1-#CPUSettingsSensorsHidden#)*(#ContentWidth#-138*#Scale#))
@@ -943,6 +1017,7 @@ LeftMouseUpAction=[!CommandMeasure MeasureCPUSettings "Toggle('CPUSensorsEnabled
 [MeterSettingsTemperatureLabel]
 Meter=String
 MeterStyle=StyleUtilitySettingsLabel|CPUStyleSettingsLabel
+Container=MeterScrollBody
 X=#ContentX#
 Y=((1-#CPUSettingsTemperatureHidden#)*(#Inset#+(#CPUSettingsTemperatureY#+2)*#Scale#))
 W=((1-#CPUSettingsTemperatureHidden#)*(126*#Scale#))
@@ -956,6 +1031,7 @@ MouseActionCursor=0
 [MeterSettingsTemperatureRow]
 Meter=Shape
 MeterStyle=StyleUtilitySettingsRow
+Container=MeterScrollBody
 X=(#ContentX#+132*#Scale#)
 Y=((1-#CPUSettingsTemperatureHidden#)*(#Inset#+(#CPUSettingsTemperatureY#+0)*#Scale#))
 W=((1-#CPUSettingsTemperatureHidden#)*(#ContentWidth#-132*#Scale#))
@@ -969,6 +1045,7 @@ LeftMouseUpAction=[!CommandMeasure MeasureCPUSettings "CycleSensor('TEMP')"]
 [MeterSettingsTemperatureValue]
 Meter=String
 MeterStyle=StyleUtilitySettingsValue|CPUStyleSettingsValue
+Container=MeterScrollBody
 X=(#ContentX#+132*#Scale#)
 Y=((1-#CPUSettingsTemperatureHidden#)*(#Inset#+(#CPUSettingsTemperatureY#+0)*#Scale#))
 W=((1-#CPUSettingsTemperatureHidden#)*(#ContentWidth#-138*#Scale#))
@@ -982,6 +1059,7 @@ LeftMouseUpAction=[!CommandMeasure MeasureCPUSettings "CycleSensor('TEMP')"]
 [MeterSettingsVoltageLabel]
 Meter=String
 MeterStyle=StyleUtilitySettingsLabel|CPUStyleSettingsLabel
+Container=MeterScrollBody
 X=#ContentX#
 Y=((1-#CPUSettingsVoltageHidden#)*(#Inset#+(#CPUSettingsVoltageY#+2)*#Scale#))
 W=((1-#CPUSettingsVoltageHidden#)*(126*#Scale#))
@@ -995,6 +1073,7 @@ MouseActionCursor=0
 [MeterSettingsVoltageRow]
 Meter=Shape
 MeterStyle=StyleUtilitySettingsRow
+Container=MeterScrollBody
 X=(#ContentX#+132*#Scale#)
 Y=((1-#CPUSettingsVoltageHidden#)*(#Inset#+(#CPUSettingsVoltageY#+0)*#Scale#))
 W=((1-#CPUSettingsVoltageHidden#)*(#ContentWidth#-132*#Scale#))
@@ -1008,6 +1087,7 @@ LeftMouseUpAction=[!CommandMeasure MeasureCPUSettings "CycleSensor('VOLT')"]
 [MeterSettingsVoltageValue]
 Meter=String
 MeterStyle=StyleUtilitySettingsValue|CPUStyleSettingsValue
+Container=MeterScrollBody
 X=(#ContentX#+132*#Scale#)
 Y=((1-#CPUSettingsVoltageHidden#)*(#Inset#+(#CPUSettingsVoltageY#+0)*#Scale#))
 W=((1-#CPUSettingsVoltageHidden#)*(#ContentWidth#-138*#Scale#))
@@ -1021,6 +1101,7 @@ LeftMouseUpAction=[!CommandMeasure MeasureCPUSettings "CycleSensor('VOLT')"]
 [MeterSettingsSensorHiveLabel]
 Meter=String
 MeterStyle=StyleUtilitySettingsLabel|CPUStyleSettingsLabel
+Container=MeterScrollBody
 X=#ContentX#
 Y=((1-#CPUSettingsSensorHiveHidden#)*(#Inset#+(#CPUSettingsSensorHiveY#+2)*#Scale#))
 W=((1-#CPUSettingsSensorHiveHidden#)*(126*#Scale#))
@@ -1034,6 +1115,7 @@ MouseActionCursor=0
 [MeterSettingsSensorHiveInput]
 Meter=Shape
 MeterStyle=StyleSettingsStepperFrame
+Container=MeterScrollBody
 X=(#ContentX#+152*#Scale#)
 Y=((1-#CPUSettingsSensorHiveHidden#)*(#Inset#+(#CPUSettingsSensorHiveY#+0)*#Scale#))
 W=((1-#CPUSettingsSensorHiveHidden#)*((#ContentWidth#-172*#Scale#)))
@@ -1047,6 +1129,7 @@ LeftMouseUpAction=[!CommandMeasure MeasureCPUSettings "CycleSensorHive()"]
 [MeterSettingsSensorHiveDecrease]
 Meter=String
 MeterStyle=StyleSettingsStepperButton
+Container=MeterScrollBody
 X=(#ContentX#+141*#Scale#)
 Y=((1-#CPUSettingsSensorHiveHidden#)*(#Inset#+(#CPUSettingsSensorHiveY#+1)*#Scale#))
 W=((1-#CPUSettingsSensorHiveHidden#)*(18*#Scale#))
@@ -1060,6 +1143,7 @@ LeftMouseUpAction=[!CommandMeasure MeasureCPUSettings "CycleSensorHive(-1)"]
 [MeterSettingsSensorHiveValue]
 Meter=String
 MeterStyle=StyleSettingsStepperValue
+Container=MeterScrollBody
 X=(#ContentX#+152*#Scale#+((#ContentWidth#-172*#Scale#))/2)
 Y=((1-#CPUSettingsSensorHiveHidden#)*(#Inset#+(#CPUSettingsSensorHiveY#+1)*#Scale#))
 W=((1-#CPUSettingsSensorHiveHidden#)*((#ContentWidth#-172*#Scale#)))
@@ -1073,6 +1157,7 @@ LeftMouseUpAction=[!CommandMeasure MeasureCPUSettings "CycleSensorHive()"]
 [MeterSettingsSensorHiveIncrease]
 Meter=String
 MeterStyle=StyleSettingsStepperButton
+Container=MeterScrollBody
 X=(#ContentX#+#ContentWidth#-9*#Scale#)
 Y=((1-#CPUSettingsSensorHiveHidden#)*(#Inset#+(#CPUSettingsSensorHiveY#+1)*#Scale#))
 W=((1-#CPUSettingsSensorHiveHidden#)*(18*#Scale#))
@@ -1086,6 +1171,7 @@ LeftMouseUpAction=[!CommandMeasure MeasureCPUSettings "CycleSensorHive(1)"]
 [MeterSettingsReconnectLabel]
 Meter=String
 MeterStyle=StyleUtilitySettingsLabel|CPUStyleSettingsLabel
+Container=MeterScrollBody
 X=#ContentX#
 Y=((1-#CPUSettingsReconnectHidden#)*(#Inset#+(#CPUSettingsReconnectY#+2)*#Scale#))
 W=((1-#CPUSettingsReconnectHidden#)*(126*#Scale#))
@@ -1099,6 +1185,7 @@ MouseActionCursor=0
 [MeterSettingsReconnectRow]
 Meter=Shape
 MeterStyle=StyleUtilitySettingsRow
+Container=MeterScrollBody
 X=(#ContentX#+132*#Scale#)
 Y=((1-#CPUSettingsReconnectHidden#)*(#Inset#+(#CPUSettingsReconnectY#+0)*#Scale#))
 W=((1-#CPUSettingsReconnectHidden#)*(#ContentWidth#-132*#Scale#))
@@ -1112,6 +1199,7 @@ LeftMouseUpAction=[!CommandMeasure MeasureCPUSettings "ReconnectSensors()"]
 [MeterSettingsReconnectValue]
 Meter=String
 MeterStyle=StyleUtilitySettingsValue|CPUStyleSettingsValue
+Container=MeterScrollBody
 X=(#ContentX#+132*#Scale#)
 Y=((1-#CPUSettingsReconnectHidden#)*(#Inset#+(#CPUSettingsReconnectY#+0)*#Scale#))
 W=((1-#CPUSettingsReconnectHidden#)*(#ContentWidth#-138*#Scale#))
@@ -1125,6 +1213,7 @@ LeftMouseUpAction=[!CommandMeasure MeasureCPUSettings "ReconnectSensors()"]
 [MeterSettingsOpenHWiNFO]
 Meter=String
 MeterStyle=StyleButton
+Container=MeterScrollBody
 X=(#ContentX#+4*#Scale#+0*((#ContentWidth#-16*#Scale#)/3+4*#Scale#))
 Y=(#Inset#+#CPUSettingsOpenHWiNFOY#*#Scale#)
 W=((#ContentWidth#-16*#Scale#)/3)
@@ -1142,6 +1231,7 @@ FontColor=#TextColor#
 [MeterSettingsGuide]
 Meter=String
 MeterStyle=StyleButton|StyleSecondaryButton
+Container=MeterScrollBody
 X=(#ContentX#+4*#Scale#+1*((#ContentWidth#-16*#Scale#)/3+4*#Scale#))
 Y=(#Inset#+#CPUSettingsGuideY#*#Scale#)
 W=((#ContentWidth#-16*#Scale#)/3)
@@ -1159,6 +1249,7 @@ FontColor=#TextColor#
 [MeterSettingsScan]
 Meter=String
 MeterStyle=StyleButton
+Container=MeterScrollBody
 X=(#ContentX#+4*#Scale#+2*((#ContentWidth#-16*#Scale#)/3+4*#Scale#))
 Y=(#Inset#+#CPUSettingsScanY#*#Scale#)
 W=((#ContentWidth#-16*#Scale#)/3)
@@ -1176,6 +1267,7 @@ FontColor=#TextColor#
 [MeterSettingsSensorGuide1]
 Meter=String
 MeterStyle=StyleLabel
+Container=MeterScrollBody
 X=(#ContentX#+6*#Scale#)
 Y=(#Inset#+#CPUSettingsSensorGuide1Y#*#Scale#)
 W=(#ContentWidth#-12*#Scale#)
@@ -1188,6 +1280,7 @@ DynamicVariables=1
 [MeterSettingsSensorGuide2]
 Meter=String
 MeterStyle=StyleLabel
+Container=MeterScrollBody
 X=(#ContentX#+6*#Scale#)
 Y=(#Inset#+#CPUSettingsSensorGuide2Y#*#Scale#)
 W=(#ContentWidth#-12*#Scale#)
@@ -1200,6 +1293,7 @@ DynamicVariables=1
 [MeterSettingsSensorGuide3]
 Meter=String
 MeterStyle=StyleLabel
+Container=MeterScrollBody
 X=(#ContentX#+6*#Scale#)
 Y=(#Inset#+#CPUSettingsSensorGuide3Y#*#Scale#)
 W=(#ContentWidth#-12*#Scale#)
@@ -1212,6 +1306,7 @@ DynamicVariables=1
 [MeterSettingsSensorGuide4]
 Meter=String
 MeterStyle=StyleLabel
+Container=MeterScrollBody
 X=(#ContentX#+6*#Scale#)
 Y=(#Inset#+#CPUSettingsSensorGuide4Y#*#Scale#)
 W=(#ContentWidth#-12*#Scale#)
@@ -1224,6 +1319,7 @@ DynamicVariables=1
 [MeterSettingsSensorStatus]
 Meter=String
 MeterStyle=StyleLabel
+Container=MeterScrollBody
 X=(#ContentX#+6*#Scale#)
 Y=(#Inset#+#CPUSettingsSensorStatusY#*#Scale#)
 W=(#ContentWidth#-12*#Scale#)
@@ -1237,6 +1333,7 @@ DynamicVariables=1
 [MeterSettingsSensorDetail]
 Meter=String
 MeterStyle=StyleLabel
+Container=MeterScrollBody
 X=(#ContentX#+6*#Scale#)
 Y=(#Inset#+#CPUSettingsSensorDetailY#*#Scale#)
 W=(#ContentWidth#-12*#Scale#)
@@ -1250,6 +1347,7 @@ DynamicVariables=1
 [MeterSettingsSensorsHint]
 Meter=String
 MeterStyle=StyleLabel
+Container=MeterScrollBody
 X=(#ContentX#+6*#Scale#)
 Y=(#Inset#+#CPUSettingsSensorsHintY#*#Scale#)
 W=(#ContentWidth#-12*#Scale#)
@@ -1262,6 +1360,7 @@ DynamicVariables=1
 [MeterSettingsHint]
 Meter=String
 MeterStyle=StyleLabel
+Container=MeterScrollBody
 X=(#ContentX#+6*#Scale#)
 Y=(#Inset#+#CPUSettingsHintY#*#Scale#)
 W=(#ContentWidth#-12*#Scale#)
@@ -1274,6 +1373,7 @@ DynamicVariables=1
 [MeterSettingsIndependence]
 Meter=String
 MeterStyle=StyleLabel
+Container=MeterScrollBody
 X=(#ContentX#+6*#Scale#)
 Y=(#Inset#+#CPUSettingsIndependenceY#*#Scale#)
 W=(#ContentWidth#-12*#Scale#)

@@ -131,6 +131,9 @@ foreach ($case in @(@{Name='default';Scale='1';ColumnWidth='220';Width=456;Heigh
         Copy-Item -LiteralPath $entry.FullName -Destination (Join-Path "$parallaxRoot\@Resources" $entry.Name) -Recurse -Force
     }
     Copy-Item -LiteralPath (Join-Path $PSScriptRoot 'ThemeDropdownHarness.lua') -Destination (Join-Path $caseRoot 'Harness.lua')
+    # A tall screen, whatever this machine's is: the layout checks are about the designed height (Test-PanelScroll.ps1 checks short ones).
+    $scrollPath = Join-Path $parallaxRoot '@Resources\Scripts\PanelScroll.lua'
+    [IO.File]::WriteAllText($scrollPath, ([IO.File]::ReadAllText($scrollPath)).Replace("'#WORKAREAHEIGHT@' .. n .. '#'", "'4000'").Replace("'#WORKAREAHEIGHT#'", "'4000'"))
     $userPath=Join-Path $parallaxRoot '@Resources\User\Settings.inc'
     $user=Get-Content -LiteralPath $userPath -Raw
     $sentinels=@{Scale=$case.Scale;ColumnWidth=$case.ColumnWidth;Gutter='8';MetricsInterval='2000';SensorInterval='4000';CapacityInterval='60000';VisualizerInterval='100';CustomThemeSentinel='preserve-me'}

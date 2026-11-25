@@ -38,6 +38,9 @@ $captures = Join-Path $run 'captures'
 foreach ($folder in $skins, $captures, (Join-Path $run 'Layouts'), (Join-Path $run 'Plugins'), (Join-Path $run 'Addons')) { $null = New-Item -ItemType Directory -Path $folder }
 Copy-Item -LiteralPath $stage.SkinRoot -Destination $release -Recurse
 Remove-Item -LiteralPath $stage.StageRoot -Recurse -Force
+# A tall screen, whatever this machine's is: the layout checks are about the designed height (Test-PanelScroll.ps1 checks short ones).
+$scrollPath = Join-Path $release '@Resources\Scripts\PanelScroll.lua'
+[IO.File]::WriteAllText($scrollPath, ([IO.File]::ReadAllText($scrollPath)).Replace("'#WORKAREAHEIGHT@' .. n .. '#'", "'4000'").Replace("'#WORKAREAHEIGHT#'", "'4000'"))
 # No update prompt from the release in the instance.
 $userSettings = Join-Path $release '@Resources\User\Settings.inc'
 $text = [IO.File]::ReadAllText($userSettings)
@@ -135,7 +138,7 @@ try {
     Assert-That (-not (Test-Path -LiteralPath $dev)) 'no developer copy exists yet'
     $settingsWindow = Get-OwnWindows | Where-Object Config -eq 'Parallax\Settings'
     $before = Save-Capture $settingsWindow 'settings-off'
-    Assert-That ($settingsWindow.W -eq 456 -and $settingsWindow.H -eq 1005) "Global Settings is 456x1005 with the Developer section (got $($settingsWindow.W)x$($settingsWindow.H))"
+    Assert-That ($settingsWindow.W -eq 456 -and $settingsWindow.H -eq 1005) "Global Settings is 456x1005 with the Contributors section (got $($settingsWindow.W)x$($settingsWindow.H))"
 
     # ---- Dev mode on, through the real button chain -----------------------------------------------------------------
     Send-Bang '!CommandMeasure MeasureDevPanel "ToggleDev(1)" "Parallax\Settings"'
@@ -215,8 +218,8 @@ try {
     # ---- the Reset button with dev mode on: unload, rebuild, reload ------------------------------------------------------
     Add-Content -LiteralPath (Join-Path $dev 'CPU\Marker.inc') -Value '; edit before Reset'
     Send-Bang '!CommandMeasure MeasureDevPanel "Reset()" "Parallax\Settings"'
-    # The progress bar sits under the Developer status line (rows 926 to 929; the buttons' descenders end
-    # at about 924). Its track is a faint
+    # The progress bar sits under the Contributors status line (rows 989 to 992; the buttons' descenders end
+    # at about 987). Its track is a faint
     # grey (a channel of about 40 over the dark panel); the fill is the accent, so a channel above 120
     # there is the fill. Sample the Settings window until the copy is back.
     $barSeen = $false
@@ -225,7 +228,7 @@ try {
     while ([DateTime]::UtcNow -lt $deadline) {
         $settingsWindow = Get-OwnWindows | Where-Object Config -eq 'Parallax\Settings'
         $shot = Save-Capture $settingsWindow 'reset-progress'
-        for ($y = 926; $y -le 930 -and -not $barSeen; $y++) { for ($x = 0; $x -lt $shot.Bitmap.Width; $x++) {
+        for ($y = 989; $y -le 992 -and -not $barSeen; $y++) { for ($x = 0; $x -lt $shot.Bitmap.Width; $x++) {
             $c = $shot.Bitmap.GetPixel($x, $y)
             if ([Math]::Max($c.R, [Math]::Max($c.G, $c.B)) -gt 120) { $barSeen = $true; break }
         } }

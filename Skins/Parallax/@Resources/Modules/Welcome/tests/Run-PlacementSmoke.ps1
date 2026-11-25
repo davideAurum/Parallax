@@ -118,6 +118,9 @@ if ($simulated) {
     $geometry = Get-Content -LiteralPath $geometryPath -Raw
     foreach ($pair in @(@('#PWORKAREAX#', '0'), @('#PWORKAREAY#', '0'), @('#PWORKAREAWIDTH#', "$areaWidth"), @('#PWORKAREAHEIGHT#', "$areaHeight"))) { $geometry = $geometry.Replace($pair[0], $pair[1]) }
     Write-RunFile $geometryPath $geometry
+    # Global Settings also ends at the work area (Scripts\PanelScroll.lua).
+    $scrollPath = Join-Path $parallaxRoot '@Resources\Scripts\PanelScroll.lua'
+    Write-RunFile $scrollPath ([IO.File]::ReadAllText($scrollPath).Replace("'#WORKAREAHEIGHT@' .. n .. '#'", "'$areaHeight'").Replace("'#WORKAREAHEIGHT#'", "'$areaHeight'"))
 } else {
     Add-Type -AssemblyName System.Windows.Forms
     $previous = [ParallaxPlacement.Native]::SetThreadDpiAwarenessContext([IntPtr]-1)

@@ -62,7 +62,7 @@ The layout fills columns from the top right of the primary screen's work area. O
 | 1464 | 1 column | GPU (0), IO (470), Chronometer (630) |
 | 1236 | 1 column | Network (0), RAM (312) |
 | 780 | 2 columns | Visualizer (0), Media (154), Welcome (340) |
-| 324 | 2 columns | Global Settings (0), 1005 px tall |
+| 324 | 2 columns | Global Settings (0), 1005 px tall, or the work area's height where that is less |
 
 Edges include the gutter, so the painted panels are 8 px apart and line up with Rainmeter's snapping. Welcome, alone on the screen after an install, is near the middle. The left 324 px stay free. Each utility's settings panel, Thread colors and the separate Spotify queue open from the top left, each one a step lower and further right than the one before.
 
@@ -72,8 +72,8 @@ If the work area is too short for GPU, IO and Chronometer in one column, IO goes
 
 | Work area at the default size | Result |
 | --- | --- |
-| 1596 × 1005 or larger | All ten panels apart |
-| 1140 × 790 or larger | The eight utilities and Welcome apart. Under 1596 px wide Global Settings overlaps Visualizer, Media and Welcome (by 60 px at 1536, completely at 1140), and under 1005 px tall it runs past the bottom. |
+| 1596 × 790 or larger | All ten panels apart. Under 1005 px tall Global Settings ends at the bottom of the work area and [scrolls](UTILITY-SETTINGS.md#tall-panels); until 2026-11-25 it ran past it. |
+| 1140 × 790 or larger | The eight utilities and Welcome apart. Under 1596 px wide Global Settings overlaps Visualizer, Media and Welcome (by 60 px at 1536, completely at 1140). |
 | 1140 × 651 or larger | The eight utilities apart. Welcome overlaps Media and IO, and Global Settings overlaps Visualizer, Media, IO and Welcome. |
 | Smaller | Utilities overlap too |
 
@@ -136,8 +136,8 @@ Runs on the Surface laptop (Rainmeter 4.5.28.3936, Windows 11, 2400 × 1600 at 1
 | 1920 × 1032 | 1, 220; 1, 180; 0.75, 220 | All ten apart |
 | 2560 × 1392 | 1.25, 220 | All ten apart |
 | 3840 × 2112 | 2, 220; 1, 320 | All ten apart |
-| 1920 × 1032 | 1.13, 220 | All ten apart; Global Settings runs past the bottom |
-| 1536 × 816 (1080p at 125%) | 1, 220 | Nine apart; Global Settings overlaps Visualizer, Media and Welcome by 60 px and runs past the bottom |
+| 1920 × 1032 | 1.13, 220 | All ten apart; Global Settings ran past the bottom (it scrolls since the change below) |
+| 1536 × 816 (1080p at 125%) | 1, 220 | Nine apart; Global Settings overlaps Visualizer, Media and Welcome by 60 px and ran past the bottom (it scrolls since the change below) |
 | 1280 × 672 (1080p at 150%) and 1366 × 720 | 1, 220 | The eight utilities apart; Global Settings and Welcome overlap others |
 | 1920 × 1032 | 1.5, 220 | The eight utilities apart; Global Settings and Welcome overlap others |
 
@@ -148,6 +148,8 @@ In every run the panels with saved positions (CPU at exactly 0,0, GPU at 300,200
 The test was checked against a copy with two faults: RAM placed at Network's top, and CPU moving itself with `!Move` when it loads. It failed on both, with the RAM and Network overlap, CPU's overlap, CPU opening at 500,500 instead of its saved 0,0, and the rewritten position.
 
 The ten panels that open from another one were loaded together in a fresh profile on the same screen (scratch script, not checked in): CPU settings at 0,0, then Media, Chronometer, GPU, Network, IO, Audio and RAM settings, Thread colors and the Spotify queue, each 30 px lower and further right, and Connections at its own 572,296, with no log errors. `Run-WelcomeSmoke.ps1` still passes (89 assertions, Load all and Unload all).
+
+Rerun on 2026-11-25 after Global Settings began to end at the work area ([Tall panels](UTILITY-SETTINGS.md#tall-panels)); in a simulated run the test now replaces that panel's work area too. All ten apart at 1920 × 1032 (scale 1 and 1.13), on the real 1600 × 1019 and at 1596 × 790, where Global Settings is 790 px tall; at 1.13 it is 1032 instead of running past the bottom. At 1536 × 816 it is 816 px tall and overlaps the same three panels by 60 px; at 1280 × 672 it is 672 px tall, and it and Welcome overlap others as before. Saved positions and second loads held in all six runs.
 
 Not established: a real 1920 × 1080 screen at 100% (the 1080p numbers above are simulated), several screens and mixed scaling, a taskbar on another edge, a real Skin Installer run (its source at 4.5.28.3936 activates the panel the way the test does), Rainmeter 4.5.26 itself (its source reads the same options the same way) and 5.x, a processor with more than 8 threads, more than one drive, and how the arrangement looks to someone new to it.
 

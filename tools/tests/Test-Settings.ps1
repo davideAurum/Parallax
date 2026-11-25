@@ -14,10 +14,13 @@ foreach ($dir in @($runRoot, $skinRoot, $parallaxRoot, "$parallaxRoot\Settings",
     $null = New-Item -ItemType Directory -Path $dir
 }
 $sourceRoot = Join-Path $projectRoot 'Skins\Parallax'
-foreach ($file in @('Defaults.inc','Geometry.inc','Styles.inc','User\Settings.inc','Scripts\Settings.lua','Version.inc','Update\Feed.inc','Update\Install.inc','Update\Update.lua','Update\State.inc','Idle\Link.lua')) {
+foreach ($file in @('Defaults.inc','Geometry.inc','Styles.inc','PanelScroll.inc','User\Settings.inc','Scripts\Settings.lua','Scripts\PanelScroll.lua','Version.inc','Update\Feed.inc','Update\Install.inc','Update\Update.lua','Update\State.inc','Idle\Link.lua')) {
     Copy-Item -LiteralPath (Join-Path "$sourceRoot\@Resources" $file) -Destination (Join-Path "$parallaxRoot\@Resources" $file)
 }
 Copy-Item -LiteralPath "$sourceRoot\@Resources\Fonts" -Destination "$parallaxRoot\@Resources\Fonts" -Recurse
+# A tall screen, whatever this machine's is: the layout checks are about the designed height (Test-PanelScroll.ps1 checks short ones).
+$scrollPath = Join-Path $parallaxRoot '@Resources\Scripts\PanelScroll.lua'
+[IO.File]::WriteAllText($scrollPath, ([IO.File]::ReadAllText($scrollPath)).Replace("'#WORKAREAHEIGHT@' .. n .. '#'", "'4000'").Replace("'#WORKAREAHEIGHT#'", "'4000'"))
 $iniPath = Join-Path $runRoot 'Rainmeter.ini'
 $resultPath = Join-Path $runRoot 'results.txt'
 $suitePath = Join-Path $PSScriptRoot 'SettingsSuite.lua'

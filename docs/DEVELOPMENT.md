@@ -27,7 +27,7 @@ Windows 10/11 and Rainmeter 4.5.26 or newer. [`packaging/release.json`](../packa
 
 Parallax follows a dense instrument layout: near-black bordered panels, IBM Plex Sans, aligned rows, colored data bars and compact graphs. The default painted widths are 220 and 448 pixels with an 8-pixel gap. Width, scale, colors, fonts and module choices are customizable.
 
-Global Settings groups its controls into Appearance, Performance, Updates and Developer. Appearance holds a theme dropdown (one theme, **Default**), size, gap and rounding, two accent colors, title, header and body typography, background color and transparency, border, divider and table-header colors and thickness, and the shared data-bar thickness. Performance holds refresh presets, the idle pause and the sampling summary. Each color has a hex readout and a swatch that opens the shared RGB/HSV/Lab color picker. Behavior is in [SETTINGS.md](SETTINGS.md).
+Global Settings groups its controls into Appearance, Performance, Updates and, last, Contributors (developer mode). Appearance holds a theme dropdown (one theme, **Default**), size, gap and rounding, two accent colors, title, header and body typography, background color and transparency, border, divider and table-header colors and thickness, and the shared data-bar thickness. Performance holds refresh presets, the idle pause and the sampling summary. Each color has a hex readout and a swatch that opens the shared RGB/HSV/Lab color picker. Behavior is in [SETTINGS.md](SETTINGS.md).
 
 ModernGadgets is the visual inspiration. No code or artwork from it is used; keep that true and recorded in [`NOTICE.txt`](../Skins/Parallax/@Resources/Licenses/NOTICE.txt).
 

@@ -146,13 +146,28 @@ def run() -> None:
     for name, call in (("meterupdatechecknow", "CheckNow()"), ("meterupdateinstall", "Install()"), ("meterupdatenotes", "OpenNotes()")):
         assert options(name, sections).get("leftmouseupaction") == f'[!CommandMeasure MeasureParallaxUpdate "{call}"]', (name, "Updates button action")
     assert sections["meterupdatessection"]["text"] == "Updates", "Updates section heading"
-    # Developer (2026-10-28): Dev mode flips with either arrow or the centre; the buttons go to DevPanel.lua.
+    # Contributors (developer mode, 2026-10-28): Dev mode flips with either arrow or the centre; the buttons go to DevPanel.lua.
     for name, direction in (("meterdevmodedecrease", -1), ("meterdevmodeincrease", 1), ("meterdevmodevalue", 1), ("meterdevmodeframe", 1)):
         assert options(name, sections).get("leftmouseupaction") == f'[!CommandMeasure MeasureDevPanel "ToggleDev({direction})"]', (name, "Dev mode must use its toggle action")
         assert options(name, sections).get("group") == "DevToggle", (name, "Dev mode row must hide as a group inside a developer copy")
     for name, call in (("meterdevcompare", "Compare()"), ("meterdevreport", "OpenReport()")):
-        assert options(name, sections).get("leftmouseupaction") == f'[!CommandMeasure MeasureDevPanel "{call}"]', (name, "Developer button action")
-    assert sections["meterdevsection"]["text"] == "Developer", "Developer section heading"
+        assert options(name, sections).get("leftmouseupaction") == f'[!CommandMeasure MeasureDevPanel "{call}"]', (name, "Contributors button action")
+    assert sections["meterdevsection"]["text"] == "Contributors", "Contributors section heading"
+    assert sections["meterdevcopyvalue"]["text"] == "Not needed to use Parallax", "the section says who it is not for"
+    # A screen shorter than the panel (PanelScroll.inc): the title part stays, everything else is in the scrolling
+    # container, and only the skin's own actions use the wheel.
+    pinned = {"meterbounds", "meterpanel", "metericon", "metertitle", "metergeometry", "meterconnections", "meterthemedismiss",
+              "meterclose", "meterscrollbody", "meterscrolledge", "meterscrollup", "meterscrolldown", "meterscrollthumb"}
+    for name, raw in sections.items():
+        if "meter" in raw:
+            assert (raw.get("container") is None) == (name in pinned), (name, "belongs to the scrolling part exactly when it is not in the title part")
+            assert raw.get("container", "MeterScrollBody") == "MeterScrollBody", name
+            assert not any(key.startswith("mousescroll") for key in raw), (name, "no control uses the wheel")
+    for direction, step in (("down", 1), ("up", -1)):
+        assert sections["rainmeter"][f"mousescroll{direction}action"] == f'[!CommandMeasure MeasurePanelScroll "Wheel({step})"]', "wheel action"
+    for name in ("meterbounds", "meterpanel", "meterthemedismiss"):
+        assert sections[name].get("dynamicvariables") == "1", (name, "follows the fitted window")
+    assert "Forget()" in sections["rainmeter"]["oncloseaction"] and sections["variables"]["panelscrolleditor"] == "MeasureSettingsInput"
     assert not any(key.startswith("tooltip") for name in sections if name.startswith("meteridlepause") for key in sections[name]), "No tooltips"
     for heading, rule, title in (("meterappearancesection", "meterappearancerule", "Appearance"), ("meterperformancesection", "meterperformancerule", "Performance")):
         assert sections[heading]["text"] == title, f"Missing settings section: {title}"
@@ -283,6 +298,14 @@ def run() -> None:
             top, bottom = rectangles[name]
             assert top > appearance_rule_y + divider_half_width and bottom < rectangles["meterperformancesection"][0], (name, label, "Appearance control escaped its section")
         footer_rule_y = number(options("meterrule", sections)["y"], variables)
+        # The fixed title part ends above the scrolling part, with room for the widest appearance rule.
+        scroll_top = var("Inset") + float(sections["variables"]["panelscrolltop"]) * scale
+        for name, (top, bottom) in rectangles.items():
+            if name in pinned:
+                assert bottom <= scroll_top + 1e-7, (name, label, "title part reaches into the scrolling part")
+            else:
+                assert top >= scroll_top - 1e-7 and bottom <= var("Inset") + var("PanelHeightPx") - 4 * scale + 1e-7, (name, label, "clipped at its natural place")
+        assert appearance_rule_y - divider_half_width >= scroll_top, label
         for name in ("meterrefreshlabel", "meterrefreshdecrease", "meterrefreshvalue", "meterrefreshincrease", "metercadence"):
             top, bottom = rectangles[name]
             assert top > performance_rule_y + divider_half_width and bottom < footer_rule_y - divider_half_width, (name, label, "Performance control escaped its section")
@@ -312,10 +335,14 @@ def run() -> None:
         for name in update_rows:
             top, bottom = offered[name][1], offered[name][1] + offered[name][3]
             assert top > updates_rule_y + divider_half_width and bottom < rectangles["meterdevsection"][0], (name, label, "Updates control escaped its section")
-        # Developer: heading clear of the Updates rows and of its own rule; the status line and the
-        # buttons the controller shows (hidden until a copy exists) sit between it and the footer rule.
-        assert rectangles["meterdevsection"][1] < developer_rule_y - divider_half_width, (label, "Developer heading touches its divider")
-        assert rectangles["meterdevsection"][0] > max(offered[name][1] + offered[name][3] for name in update_rows), (label, "Developer heading overlaps the Updates rows")
+        # The footer follows Updates, and Contributors follows the footer, last in the panel: its heading is clear
+        # of the footer note and of its own rule; the status line and the buttons the controller shows (hidden
+        # until a copy exists) sit between that rule and the panel's bottom.
+        footer_rows = ("meteradvanced", "meterapply", "metermanage", "meterfooter")
+        assert footer_rule_y - divider_half_width > max(offered[name][1] + offered[name][3] for name in update_rows), (label, "Footer rule touches the Updates rows")
+        for name in footer_rows:
+            assert rectangles[name][0] > footer_rule_y + divider_half_width and rectangles[name][1] < rectangles["meterdevsection"][0], (name, label, "Footer escaped its place")
+        assert rectangles["meterdevsection"][1] < developer_rule_y - divider_half_width, (label, "Contributors heading touches its divider")
         for name in ("meterdevcompare", "meterdevreport"):
             resolved = options(name, sections)
             x, y, w, h = (number(resolved.get(key, "0"), variables) for key in ("x", "y", "w", "h"))
@@ -325,16 +352,16 @@ def run() -> None:
             offered[name] = (x - w, y, w, h)
             assert x <= var("ContentX") + var("ContentWidth") + 1e-7 and x - w >= var("ContentX"), (name, label, "outside content")
         developer_rows = ("meterdevcopyvalue", "meterdevmodelabel", "meterdevmodedecrease", "meterdevmodevalue", "meterdevmodeincrease", "meterdevstatus", "meterdevcompare", "meterdevreport")
-        assert rectangles["meterdevcopyvalue"][1] < developer_rule_y - divider_half_width, (label, "Developer heading value touches its divider")
+        assert rectangles["meterdevcopyvalue"][1] < developer_rule_y - divider_half_width, (label, "Contributors heading value touches its divider")
         developer_boxes = {name: offered.get(name) or control_boxes[name] for name in developer_rows}
         for first, second in itertools.combinations(developer_rows, 2):
             a, b = developer_boxes[first], developer_boxes[second]
             overlap_w = min(a[0] + a[2], b[0] + b[2]) - max(a[0], b[0])
             overlap_h = min(a[1] + a[3], b[1] + b[3]) - max(a[1], b[1])
-            assert overlap_w <= 1e-7 or overlap_h <= 1e-7, (first, second, label, "Developer controls overlap")
+            assert overlap_w <= 1e-7 or overlap_h <= 1e-7, (first, second, label, "Contributors controls overlap")
         for name in developer_rows[1:]:
             box = developer_boxes[name]
-            assert box[1] > developer_rule_y + divider_half_width and box[1] + box[3] < footer_rule_y - divider_half_width, (name, label, "Developer control escaped its section")
+            assert box[1] > developer_rule_y + divider_half_width and box[1] + box[3] <= var("Inset") + var("PanelHeightPx") - 4 * scale + 1e-7, (name, label, "Contributors control escaped its section")
         checked += 1
     print(f"Settings geometry passed: {checked} preset combinations; minimum padded-button right margin {max(0, minimum_button_margin):g} computed pixels.")
     print("Scope: declared INI geometry, include layering, text rectangles, and button padding. Font rendering, Windows DPI, and Lua execution remain untested.")

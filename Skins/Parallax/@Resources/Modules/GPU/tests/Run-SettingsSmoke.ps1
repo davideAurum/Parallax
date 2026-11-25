@@ -24,7 +24,7 @@ $null=New-Item -ItemType Directory -Path (Join-Path $parallaxRoot '@Resources\Mo
 $sourceSkin=Join-Path $projectRoot 'Skins\Parallax'
 Copy-Item -LiteralPath (Join-Path $sourceSkin 'GPU') -Destination $parallaxRoot -Recurse
 Copy-Item -LiteralPath (Join-Path $sourceSkin '@Resources\Modules\GPU') -Destination (Join-Path $parallaxRoot '@Resources\Modules') -Recurse
-foreach ($name in @('Defaults.inc','Geometry.inc','Styles.inc','UtilitySettingsNote.inc','Fonts')) {
+foreach ($name in @('Defaults.inc','Geometry.inc','Styles.inc','UtilitySettingsNote.inc','PanelScroll.inc','Fonts')) {
     Copy-Item -LiteralPath (Join-Path $sourceSkin ('@Resources\'+$name)) -Destination (Join-Path $parallaxRoot '@Resources') -Recurse
 }
 foreach ($name in @('Settings.inc','GPU.inc')) {
@@ -42,6 +42,10 @@ $null=New-Item -ItemType Directory -Path (Join-Path $parallaxRoot '@Resources\Up
 foreach ($name in @('Version.inc','Update\Hook1.inc','Update\Feed.inc','Update\Update.lua','Update\State.inc','Idle\Link.lua')) { Copy-Item -LiteralPath (Join-Path $sourceSkin ('@Resources\'+$name)) -Destination (Join-Path $parallaxRoot ('@Resources\'+$name)) }
 $null=New-Item -ItemType Directory -Path (Join-Path $parallaxRoot '@Resources\Scripts')
 Copy-Item -LiteralPath (Join-Path $sourceSkin '@Resources\Scripts\SettingsInput.ps1') -Destination (Join-Path $parallaxRoot '@Resources\Scripts')
+Copy-Item -LiteralPath (Join-Path $sourceSkin '@Resources\Scripts\PanelScroll.lua') -Destination (Join-Path $parallaxRoot '@Resources\Scripts')
+# A tall screen, whatever this machine's is: the layout checks are about the designed height (Test-PanelScroll.ps1 checks short ones).
+$scrollPath = Join-Path $parallaxRoot '@Resources\Scripts\PanelScroll.lua'
+[IO.File]::WriteAllText($scrollPath, ([IO.File]::ReadAllText($scrollPath)).Replace("'#WORKAREAHEIGHT@' .. n .. '#'", "'4000'").Replace("'#WORKAREAHEIGHT#'", "'4000'"))
 $utf8=[Text.UTF8Encoding]::new($false)
 function Write-RunFile([string]$Path,[string]$Text) {
     if (-not [IO.Path]::GetFullPath($Path).StartsWith($runRoot+'\',[StringComparison]::OrdinalIgnoreCase)) { throw 'Write outside generated test directory.' }

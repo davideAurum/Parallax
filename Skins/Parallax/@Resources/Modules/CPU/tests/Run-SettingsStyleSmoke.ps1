@@ -18,10 +18,13 @@ function Write-Fixture([string]$Path,[string]$Text) {
 foreach($dir in @('CPU\Settings','@Resources\User','@Resources\Modules\CPU','@Resources\Scripts')) {
     $null=New-Item -ItemType Directory -Path (Join-Path $stage $dir) -Force
 }
-foreach($file in @('@Resources\Defaults.inc','@Resources\Geometry.inc','@Resources\Styles.inc','@Resources\UtilitySettingsNote.inc','@Resources\User\Settings.inc','@Resources\User\CPU.inc','CPU\Settings\Settings.ini','@Resources\Modules\CPU\Settings.lua','@Resources\Modules\CPU\SettingsMeters.inc','@Resources\Scripts\SettingsInput.ps1')) {
+foreach($file in @('@Resources\Defaults.inc','@Resources\Geometry.inc','@Resources\Styles.inc','@Resources\UtilitySettingsNote.inc','@Resources\PanelScroll.inc','@Resources\Scripts\PanelScroll.lua','@Resources\User\Settings.inc','@Resources\User\CPU.inc','CPU\Settings\Settings.ini','@Resources\Modules\CPU\Settings.lua','@Resources\Modules\CPU\SettingsMeters.inc','@Resources\Scripts\SettingsInput.ps1')) {
     Copy-Item -LiteralPath (Join-Path $sourceRoot $file) -Destination (Join-Path $stage $file)
 }
 Copy-Item -LiteralPath (Join-Path $sourceRoot '@Resources\Fonts') -Destination (Join-Path $stage '@Resources\Fonts') -Recurse
+# A tall screen, whatever this machine's is: the layout checks are about the designed height (Test-PanelScroll.ps1 checks short ones).
+$scrollPath = Join-Path $stage '@Resources\Scripts\PanelScroll.lua'
+[IO.File]::WriteAllText($scrollPath, ([IO.File]::ReadAllText($scrollPath)).Replace("'#WORKAREAHEIGHT@' .. n .. '#'", "'4000'").Replace("'#WORKAREAHEIGHT#'", "'4000'"))
 $global=Join-Path $stage '@Resources\User\Settings.inc'
 $text=Get-Content -LiteralPath $global -Raw
 foreach($pair in @{Scale=$Scale;ColumnWidth=$ColumnWidth;TitleFontSize=12;HeaderFontSize=10;FontSize=10;DividerThickness=4;BorderThickness=4}.GetEnumerator()) {

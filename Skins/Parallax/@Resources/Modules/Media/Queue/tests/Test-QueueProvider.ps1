@@ -601,11 +601,13 @@ Assert-Check ((Read-Snapshot $DataRoot) -match 'state=stopped') 'Explicit stop p
 $Command='Restart'; $PollSeconds=120
 $launchesBefore=$script:launchCalls
 $connectsBefore=$script:connectCalls
-Set-QueueRetry $DataRoot ([pscustomobject]@{State='rate_limited';RetryNotBefore=((Get-QueueUnixTime)+1800);Pause=$false})
+# The exact time, so a slow machine cannot fail it and a moved barrier cannot pass.
+$barrier=(Get-QueueUnixTime)+1800
+Set-QueueRetry $DataRoot ([pscustomobject]@{State='rate_limited';RetryNotBefore=$barrier;Pause=$false})
 Invoke-QueueCommand
 Assert-Check ($script:launchCalls -eq $launchesBefore+1 -and $script:lastLaunchInterval -eq 120 -and $script:lastLaunchRoot -eq $DataRoot) 'Restart launches one replacement with requested cadence'
 Assert-Check ($script:connectCalls -eq $connectsBefore -and -not $script:lastLaunchQuota) 'Restart does not request authorization or bypass quota'
-Assert-Check ((Get-QueueRetry $DataRoot).RetryNotBefore -gt (Get-QueueUnixTime)+1798) 'Restart retains server retry barrier'
+Assert-Check ((Get-QueueRetry $DataRoot).RetryNotBefore -eq $barrier) 'Restart retains server retry barrier'
 Assert-Check ((Read-Snapshot $DataRoot) -match 'state=stopped' -and (Read-Snapshot $DataRoot) -match 'count=0') 'Restart clears previous rows while replacement starts'
 Assert-Check ((Test-QueueEnabledIntent $DataRoot) -and -not (Test-QueueStop $DataRoot)) 'Restart explicitly enables future resume'
 
@@ -664,10 +666,11 @@ $Command='Resume'; $ResumeAfterQuota=$true; Invoke-QueueCommand
 Reset-Transport
 Invoke-QueueRun $DataRoot -Single -Silent
 Assert-Check ($script:tokenCalls -eq 0 -and $script:apiCalls -eq 0 -and (Read-Snapshot $DataRoot) -match 'state=quota_exceeded') 'Resumed worker keeps indefinite quota pause without token renewal'
-Set-QueueRetry $DataRoot ([pscustomobject]@{State='rate_limited';RetryNotBefore=((Get-QueueUnixTime)+3600);Pause=$false})
+$barrier=(Get-QueueUnixTime)+3600
+Set-QueueRetry $DataRoot ([pscustomobject]@{State='rate_limited';RetryNotBefore=$barrier;Pause=$false})
 Invoke-QueueCommand
 Invoke-QueueRun $DataRoot -Single -Silent
-Assert-Check ($script:tokenCalls -eq 0 -and $script:apiCalls -eq 0 -and (Get-QueueRetry $DataRoot).RetryNotBefore -gt (Get-QueueUnixTime)+3598) 'Resumed worker retains future Retry-After without token renewal'
+Assert-Check ($script:tokenCalls -eq 0 -and $script:apiCalls -eq 0 -and (Get-QueueRetry $DataRoot).RetryNotBefore -eq $barrier) 'Resumed worker retains future Retry-After without token renewal'
 $ResumeAfterQuota=$false
 
 # A newer intentional launch fences an older child that has not acquired worker

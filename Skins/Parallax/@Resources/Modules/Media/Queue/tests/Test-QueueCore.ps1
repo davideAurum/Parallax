@@ -19,9 +19,9 @@ $text = ConvertTo-QueueSnapshotText (New-QueueSnapshot -State ready -Items $norm
 Check ($text.StartsWith("PARALLAX_QUEUE_V5`nstate=ready`n")) 'versioned inert snapshot'
 Check ($text.Contains("count=3`ncontrol=0`nnotice=`n")) 'read-only grant: rows not clickable, no notice'
 Check ($text.Contains('count=3')) 'display count'
-Check ($text.EndsWith("title4=`ndetail4=`ntitle5=`ndetail5=`nimage1=`nimage2=`nimage3=`nimage4=`nimage5=`ncurrent_title=`ncurrent_detail=`n")) 'unused rows blank; no cover saved, none named; nothing playing, no current track'
+Check ($text.Contains("notice=`ncurrent_title=`ncurrent_detail=`ntitle1=") -and $text.EndsWith("detail3=53686F77`nimage3=`n")) 'exactly the rows there are; no cover saved, none named; nothing playing, no current track'
 Check ($text -notmatch 'Synthetic title|Artist|Episode') 'display metadata encoded, not Rainmeter syntax'
-Check (($text -split "`n").Count -eq 26) 'exact bounded field count'
+Check (($text -split "`n").Count -eq 20) 'exact bounded field count'
 $controlText = ConvertTo-QueueSnapshotText (New-QueueSnapshot -State ready -Items $normalized.Items -Now $now -Control $true -Notice 'queue_changed')
 Check ($controlText.Contains("control=1`nnotice=queue_changed`n")) 'control grant and click notice recorded'
 Reject { New-QueueSnapshot -State ready -Items $normalized.Items -Now $now -Notice 'skip_everything' } 'unknown notice rejected'
@@ -35,7 +35,7 @@ foreach ($pair in @(@(204,''),@(200,''),@(401,'control_reauth'),@(403,'control_d
 $playing = ConvertTo-QueueItems (ConvertFrom-QueueJson '{"currently_playing":{"type":"track","name":"Now #1","artists":[{"name":"One"},{"name":"Two"}]},"queue":[{"type":"track","name":"Next","artists":[{"name":"Artist"}]}]}')
 Check ($playing.Current.Title -ceq 'Now #1' -and $playing.Current.Detail -ceq 'One, Two') 'current track named as a row would be'
 $playingText = ConvertTo-QueueSnapshotText (New-QueueSnapshot -State ready -Items $playing.Items -Now $now -Current $playing.Current)
-Check ($playingText.EndsWith("image5=`ncurrent_title=4E6F77202331`ncurrent_detail=4F6E652C2054776F`n")) 'current track encoded after the covers'
+Check ($playingText.Contains("notice=`ncurrent_title=4E6F77202331`ncurrent_detail=4F6E652C2054776F`ntitle1=")) 'current track encoded before the rows'
 $episodeNow = ConvertTo-QueueItems (ConvertFrom-QueueJson '{"currently_playing":{"type":"episode","name":"Now","show":{"name":"Show"}},"queue":[]}')
 Check ($episodeNow.Current.Title -ceq 'Now' -and $episodeNow.Current.Detail -ceq 'Show') 'a current episode is named too'
 Check ($null -eq $normalized.Current) 'nothing playing: no current track'
@@ -45,6 +45,56 @@ foreach ($odd in @('{"type":"ad","name":"x"}','{"type":"track"}','{"type":"track
 }
 Reject { New-QueueSnapshot -State stopped -Now $now -Current $playing.Current } 'current track without live rows rejected'
 Reject { ConvertTo-QueueSnapshotText ([pscustomobject]@{ State='stopped'; Observed=0L; ValidUntil=0L; RetryNotBefore=0L; Items=@(); Current=$playing.Current }) } 'nonready text never names a current track'
+
+# Direct jumps: song and context addresses, and the only requests they build.
+$songA = 'spotify:track:' + 'A' * 22; $songB = 'spotify:track:' + 'b1' * 11
+$playlist = 'spotify:playlist:' + 'P' * 22; $albumUri = 'spotify:album:' + 'L' * 22
+$addressed = (ConvertTo-QueueItems (ConvertFrom-QueueJson ('{"currently_playing":null,"queue":[{"type":"track","name":"A","uri":"' + $songA + '"},{"type":"track","name":"B","uri":"spotify:local:x:y:z:1"},{"type":"episode","name":"E","uri":"' + $songA + '"},{"type":"track","name":"D","uri":7},{"type":"track","name":"F"}]}'))).Items
+Check ($addressed[0].Uri -ceq $songA) 'a song keeps its address'
+Check (@($addressed | Select-Object -Skip 1 | Where-Object { $_.Uri -cne '' }).Count -eq 0) 'local files, episodes and malformed addresses have none'
+Check ((ConvertTo-QueueSnapshotText (New-QueueSnapshot -State ready -Items $addressed -Now $now)) -notmatch 'spotify:|AAAA') 'addresses never reach the snapshot'
+Check ((ConvertTo-QueueContextUri (ConvertFrom-QueueJson ('{"context":{"uri":"' + $playlist + '"}}'))) -ceq $playlist) 'a playing playlist'
+Check ((ConvertTo-QueueContextUri (ConvertFrom-QueueJson ('{"context":{"uri":"' + $albumUri + '"}}'))) -ceq $albumUri) 'a playing album'
+foreach ($other in @('{}','{"context":null}','{"context":{}}','{"context":{"uri":null}}',('{"context":{"uri":"spotify:artist:' + 'R' * 22 + '"}}'),'{"context":{"uri":"spotify:user:someone:collection"}}',('{"context":{"uri":"' + $playlist + '/../x"}}'),'[]')) {
+    Check ((ConvertTo-QueueContextUri (ConvertFrom-QueueJson $other)) -ceq '') ('no context to jump in: ' + $other)
+}
+$page = ConvertTo-QueueContextPage (ConvertFrom-QueueJson ('{"total":9,"items":[{"item":{"uri":"' + $songA + '"}},{"track":{"uri":"' + $songB + '"}},{"uri":"' + $songA + '"},{"item":null},null,{"item":{"uri":"spotify:episode:x"}}]}'))
+Check ($page.Total -eq 9 -and $page.Count -eq 6 -and ($page.Uris -join ',') -ceq "$songA,$songB,$songA") 'playlist (item, track) and album pages read alike; other entries count but name no song'
+foreach ($badPage in @('{}','{"total":1}','{"items":[]}','{"total":"1","items":[]}','{"total":-1,"items":[]}','{"total":1,"items":{}}')) {
+    Reject { ConvertTo-QueueContextPage (ConvertFrom-QueueJson $badPage) } ('bad context page: ' + $badPage)
+}
+foreach ($bad in @(@('Start',$playlist,'spotify:track:short'), @('Start','spotify:artist:x',$songA), @('Start',$playlist,($songA + '"}')), @('Start',($playlist + '"'),$songA), @('Items','spotify:playlist:x/../../me',''), @('Items','','') , @('Volume','',''))) {
+    Reject { Invoke-QueueApiRequest -AccessToken 'SYNTHETIC' -Endpoint $bad[0] -ContextUri $bad[1] -ItemUri $bad[2] } ('refused before any request: ' + ($bad -join ' '))
+}
+
+# Playlists view: the account's list, its snapshot, and starting one.
+$listUri = 'spotify:playlist:' + 'K' * 22
+$listed = ConvertTo-QueuePlaylists (ConvertFrom-QueueJson ('{"total":70,"items":[' + (@(
+    '{"name":"Mix #1 [x]","uri":"URI","items":{"total":129},"images":[{"url":"https://i.scdn.co/image/a","width":640},{"url":"https://mosaic.scdn.co/60/b","width":60}]}',
+    'null', '{"name":"","uri":"URI"}', '{"uri":"URI"}', '{"name":"No address"}', '{"name":"Album","uri":"spotify:album:ALBUM"}', '{"name":"Odd","uri":"spotify:playlist:x"}',
+    '{"name":"One","uri":"URI","tracks":{"total":1},"images":null}',
+    '{"name":"Followed","uri":"URI","owner":{"display_name":"Someone"},"images":[]}',
+    '{"name":"Bare","uri":"URI","items":{"href":"x"},"owner":{"display_name":null},"images":[{"url":"https://evil.example/a"}]}') -join ',').Replace('URI', $listUri).Replace('ALBUM', 'L' * 22) + ']}'))
+Check ($listed.Total -eq 70 -and (@($listed.Items | ForEach-Object { $_.Title }) -join '|') -ceq 'Mix #1 [x]|One|Followed|Bare') 'playlists kept in order; entries that cannot be started are left out'
+Check ((@($listed.Items | ForEach-Object { $_.Detail }) -join '|') -ceq '129 songs|1 song|By Someone|') 'song count, else owner, else nothing'
+Check ($listed.Items[0].ImageUrl -ceq 'https://mosaic.scdn.co/60/b' -and $listed.Items[3].ImageUrl -ceq '') 'covers by the queue''s own rules'
+Check (@($listed.Items | Where-Object { $_.Uri -cne $listUri }).Count -eq 0) 'each keeps its address'
+Check ((ConvertTo-QueuePlayingUri (ConvertFrom-QueueJson ('{"item":{"uri":"' + $songA + '"}}'))) -ceq $songA) 'the song now playing'
+foreach ($other in @('{}','{"item":null}','{"item":{}}','{"item":{"uri":7}}','{"item":{"uri":"spotify:episode:x"}}','[]')) { Check ((ConvertTo-QueuePlayingUri (ConvertFrom-QueueJson $other)) -ceq '') ('no song playing: ' + $other) }
+$many = ConvertTo-QueuePlaylists (ConvertFrom-QueueJson ('{"total":3,"items":[' + (@(1..60 | ForEach-Object { '{"name":"P' + $_ + '","uri":"' + $listUri + '"}' }) -join ',') + ']}'))
+Check ($many.Items.Count -eq 50 -and $many.Total -eq 50) 'fifty at most, and never a total below them'
+foreach ($badList in @('{}','{"items":{}}','[]','{"items":null}')) { Reject { ConvertTo-QueuePlaylists (ConvertFrom-QueueJson $badList) } ('bad playlist response: ' + $badList) }
+$one = @([pscustomobject]@{ Title='A'; Detail='B'; Image=('0' * 40 + '.jpg'); Uri=$listUri }, [pscustomobject]@{ Title='C'; Detail=''; Image=''; Uri=$listUri })
+$listText = ConvertTo-QueuePlaylistText -State ready -Items $one -Total 9 -Current 2 -Now $now
+Check ($listText -ceq "PARALLAX_PLAYLISTS_V1`nstate=ready`nobserved=$now`ntotal=9`ncount=2`ncurrent=2`ntitle1=41`ndetail1=42`nimage1=$('0' * 40).jpg`ntitle2=43`ndetail2=`nimage2=`n") 'playlist snapshot is inert and names no address'
+Check ((ConvertTo-QueuePlaylistText -State scope_required -Now $now) -ceq "PARALLAX_PLAYLISTS_V1`nstate=scope_required`nobserved=$now`ntotal=0`ncount=0`ncurrent=0`n") 'a missing permission is said, with no list'
+Reject { ConvertTo-QueuePlaylistText -State open -Now $now } 'unknown playlist state'
+Reject { ConvertTo-QueuePlaylistText -State error -Items $one -Total 2 -Now $now } 'a failed list names nothing'
+Reject { ConvertTo-QueuePlaylistText -State ready -Items $one -Total 1 -Now $now } 'a total below the list'
+Reject { ConvertTo-QueuePlaylistText -State ready -Items $one -Total 2 -Current 3 -Now $now } 'a playing place outside the list'
+Reject { ConvertTo-QueuePlaylistText -State ready -Items @([pscustomobject]@{ Title='A'; Detail=''; Image='..\x.jpg'; Uri='' }) -Total 1 -Now $now } 'a cover name that is not one'
+Reject { Invoke-QueueApiRequest -AccessToken 'SYNTHETIC' -Endpoint Open -ContextUri 'spotify:artist:x' } 'only an album or playlist can be opened'
+Reject { Invoke-QueueApiRequest -AccessToken 'SYNTHETIC' -Endpoint Open -ContextUri ($listUri + '","uris":["x') } 'an address cannot carry anything else'
 
 # Covers (V4). Synthetic URLs on the allowlisted hosts; nothing is fetched.
 $cdn = 'https://i.scdn.co/image/'
@@ -105,11 +155,19 @@ Check ($null -eq (Read-QueueBoundedStream -Stream ([IO.MemoryStream]::new($overs
 
 $named = @([pscustomobject]@{ Title='A'; Detail='B'; Image=('0' * 40 + '.jpg') }, [pscustomobject]@{ Title='C'; Detail=''; Image='' })
 $v5 = ConvertTo-QueueSnapshotText (New-QueueSnapshot -State ready -Items $named -Now $now -Control $true -Current ([pscustomobject]@{ Title='E'; Detail='F' }))
-$expected = "PARALLAX_QUEUE_V5`nstate=ready`nobserved=$now`nvalid_until=$($now + 90)`nretry_not_before=0`ncount=2`ncontrol=1`nnotice=`n" +
-    "title1=41`ndetail1=42`ntitle2=43`ndetail2=`ntitle3=`ndetail3=`ntitle4=`ndetail4=`ntitle5=`ndetail5=`n" +
-    "image1=$('0' * 40).jpg`nimage2=`nimage3=`nimage4=`nimage5=`ncurrent_title=45`ncurrent_detail=46`n"
-Check ($v5 -ceq $expected) 'V5 is V4''s lines in V4''s order (V3''s, then image1..image5), then the current track'
-Check ((ConvertTo-QueueSnapshotText (New-QueueSnapshot -State stopped -Now $now)).EndsWith("detail5=`nimage1=`nimage2=`nimage3=`nimage4=`nimage5=`ncurrent_title=`ncurrent_detail=`n")) 'a nonready snapshot names no covers and no current track'
+$expected = "PARALLAX_QUEUE_V5`nstate=ready`nobserved=$now`nvalid_until=$($now + 90)`nretry_not_before=0`ncount=2`ncontrol=1`nnotice=`ncurrent_title=45`ncurrent_detail=46`n" +
+    "title1=41`ndetail1=42`nimage1=$('0' * 40).jpg`ntitle2=43`ndetail2=`nimage2=`n"
+Check ($v5 -ceq $expected) 'V5 is V3''s header, the current track, then exactly the rows with their covers'
+Check ((ConvertTo-QueueSnapshotText (New-QueueSnapshot -State stopped -Now $now)).EndsWith("count=0`ncontrol=0`nnotice=`ncurrent_title=`ncurrent_detail=`n")) 'a nonready snapshot has no rows and no current track'
+$whole = ConvertTo-QueueItems (ConvertFrom-QueueJson ('{"currently_playing":null,"queue":[' + (@(1..25 | ForEach-Object { '{"type":"track","name":"T' + $_ + '"}' }) -join ',') + ']}'))
+Check ($whole.Items.Count -eq 20 -and $whole.Items[19].Title -ceq 'T20') 'twenty items at most'
+Check ((ConvertTo-QueueSnapshotText (New-QueueSnapshot -State ready -Items $whole.Items -Now $now)) -match '(?m)^title20=543230$') 'all twenty are written'
+Reject { New-QueueSnapshot -State ready -Items (@($whole.Items) + $whole.Items[0]) -Now $now } 'never more'
+$cut = ConvertTo-QueueItems (ConvertFrom-QueueJson ('{"currently_playing":null,"queue":[' + (@(1..6 | ForEach-Object { '{"type":"track","name":"T' + $_ + '"}' }) -join ',') + ',{"type":"ad","name":"x"},{"type":"track","name":"T8"}]}'))
+Check ($cut.Items.Count -eq 6) 'an unreadable later item ends the list'
+Reject { ConvertTo-QueueItems (ConvertFrom-QueueJson ('{"currently_playing":null,"queue":[{"type":"track","name":"T1"},{"type":"ad","name":"x"}]}')) } 'an unreadable early item fails the read'
+$longText = [char]::ConvertFromUtf32(0x1F3B5) * 128
+Check ((ConvertTo-QueueSnapshotText (New-QueueSnapshot -State ready -Items @(1..20 | ForEach-Object { [pscustomobject]@{ Title=$longText; Detail=$longText; Image=('0' * 40 + '.jpg') } }) -Now $now)).Length -lt 65536) 'the largest snapshot fits the reader''s limit'
 foreach ($badName in @('..\x.jpg', ('A' * 40 + '.jpg'), ('0' * 40 + '.gif'), ('0' * 39 + '.jpg'), ('0' * 40 + '.jpg '), ('0' * 40 + '.JPG'), ('C:\covers\' + '0' * 40 + '.jpg'), "x`nimage2=")) {
     Reject { ConvertTo-QueueSnapshotText (New-QueueSnapshot -State ready -Items @([pscustomobject]@{ Title='A'; Detail='B'; Image=$badName }) -Now $now) } ('cover name refused: ' + $badName)
 }
@@ -135,7 +193,7 @@ $hostileSnapshot = ConvertTo-QueueSnapshotText (New-QueueSnapshot -State ready -
 Check ($hostileSnapshot -notmatch '\[!Quit\]|#CURRENTCONFIG#|%1') 'metacharacters never executable cache'
 $many = @{ currently_playing=$null; queue=@() }
 for ($index=0; $index -lt 8; $index++) { $many.queue += @{type='track';name="Synthetic $index";artists=@()} }
-Check ((ConvertTo-QueueItems $many).Items.Count -eq 5) 'display bounded to next five'
+Check ((ConvertTo-QueueItems $many).Items.Count -eq 8) 'every item of a short queue is kept'
 
 foreach ($state in @('onboarding_required','connecting','reauth_required','forbidden','rate_limited','quota_exceeded','offline','service_unavailable','error','stopped')) {
     $snapshot = New-QueueSnapshot -State $state -Now $now

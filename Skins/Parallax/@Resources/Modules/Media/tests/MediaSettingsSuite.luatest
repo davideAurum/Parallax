@@ -413,7 +413,16 @@ local function accordion(expanded, count, details)
         check(shown(meter)==expanded,'Queue header visibility does not follow expansion: '..name)
         if expanded then inside(name,width,height) end
     end
-    check(text('MeterQueueHeaderTrack')=='Song / Artist','Queue column header changed')
+    -- Media.ini's drawer names its view; Setup keeps the column labels.
+    check(text('MeterQueueHeaderTrack')==(hosted() and 'Queue' or 'Song / Artist'),'Queue column header changed')
+    if hosted() and expanded then
+        for _,name in ipairs({'MeterQueueTabQueue','MeterQueueTabPlaylists','MeterQueueRefresh'}) do
+            local meter=assert(SKIN:GetMeter(name))
+            if shown(meter) then inside(name,width,height) end
+        end
+        check(shown(SKIN:GetMeter('MeterQueueTabQueue')),'Queue view label is not clickable')
+        check(shown(SKIN:GetMeter('MeterQueueTabPlaylists'))==(tonumber(SKIN:GetVariable('Columns'))==2),'Playlists tab shows only where the header is clear of the transport')
+    end
     check(math.abs(SKIN:GetMeter('MeterQueueHeaderTrack'):GetY(true)-(expanded and g.top+g.queue_top or inset))<=1,'Queue header is not at the drawer top, or not parked when closed')
     -- The retired inline footer stays hidden (MediaQueueHidden=1).
     check(SKIN:GetMeter('MeterQueueRule'):GetW()==0 and SKIN:GetMeter('MeterQueueStatus'):GetW()==0,'Retired queue footer is visible')

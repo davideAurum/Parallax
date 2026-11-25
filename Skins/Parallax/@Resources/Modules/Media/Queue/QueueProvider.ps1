@@ -4,9 +4,9 @@
 [CmdletBinding()]
 param(
     [ValidateSet('Help','Configure','Connect','Start','Resume','Run','Stop','Restart','Disconnect','Refresh','Play')][string]$Command = 'Help',
-    # Play: the clicked row (1-5) and the observed time of the snapshot it was
+    # Play: the clicked row (1-20) and the observed time of the snapshot it was
     # read from, so the worker acts only on the queue the user actually saw.
-    [ValidateRange(0,5)][int]$Position = 0,
+    [ValidateRange(0,20)][int]$Position = 0,
     [ValidateRange(0,253402300000)][long]$Observed = 0,
     [string]$ClientId = '',
     [ValidateRange(30,150)][int]$PollSeconds = 30,
@@ -23,12 +23,21 @@ Import-Module (Join-Path $PSScriptRoot 'QueueAuth.psm1') -Force -DisableNameChec
 Import-Module (Join-Path $PSScriptRoot 'QueueCore.psm1') -Force -DisableNameChecking
 Import-Module (Join-Path (Split-Path -Parent $PSScriptRoot) 'ProviderOwner.psm1') -Force -DisableNameChecking
 $script:ProviderPath = $PSCommandPath
-# Saved covers: at most this many, most recently used first.
-$script:CoverLimit = 60
+# Saved covers: at most this many, most recently used first (the queue's, and
+# up to 50 playlists').
+$script:CoverLimit = 120
+# Covers fetched before the rows are published (what the drawer shows unscrolled),
+# then per pass, for later rows and playlists, so a click or Stop never waits for all.
+$script:FirstCovers = 5
+$script:CoverBatch = 3
 # A cover URL whose download failed is not tried again for this long, so a
 # broken or unreachable image costs one attempt per five minutes, not one per read.
 $script:CoverRetrySeconds = 300
 $script:CoverRetryAt = @{}
+# The playing context's songs (Get-QueueContextItems), and how many pages of
+# them are read: 1,000 songs of a playlist, 500 of an album.
+$script:ContextItems = $null
+$script:ContextPageLimit = 10
 
 function Show-QueueHelp {
     Write-Output @'
@@ -41,7 +50,7 @@ Parallax Spotify queue (read-only)
 Commands: Connect (sign in), Start (background), Resume (saved intent), Run, Stop, Restart,
           Disconnect (stop and remove local tokens/listening cache), Configure,
           Refresh (ask the running helper to read now), Play -Position n -Observed t
-          (skip the running helper's player to queue row n; needs the playback
+          (play queue row n on the running helper's player; needs the playback
           control permission, granted by signing in again with Connect).
 Run accepts -Once, -PollSeconds 30..150 and -ResumeAfterQuota for an explicit retry
 after resolving exhausted quota. Ordinary server Retry-After waits are retained.
@@ -70,7 +79,7 @@ function Wait-QueueMutex {
 }
 
 function Get-QueueRuntimeFile {
-    param([string]$Root, [ValidateSet('stop.request','queue.retry.json','queue.snapshot','enabled.intent','launch.id','action.request')][string]$Name)
+    param([string]$Root, [ValidateSet('stop.request','queue.retry.json','queue.snapshot','enabled.intent','launch.id','action.request','playlists.snapshot')][string]$Name)
     $path = Join-Path ([IO.Path]::GetFullPath($Root)) $Name
     if (Test-Path -LiteralPath $path) {
         $item = Get-Item -LiteralPath $path -Force
@@ -193,7 +202,7 @@ function Write-QueueAction {
     # the player changes track, QueueReader.lua writes the same refresh request
     # itself, with no process.
     param([string]$Root, [ValidateSet('refresh','play')][string]$Kind, [int]$Position = 0, [long]$Observed = 0)
-    if ($Kind -eq 'play' -and ($Position -lt 1 -or $Position -gt 5 -or $Observed -lt 1)) { throw 'Invalid queue action.' }
+    if ($Kind -eq 'play' -and ($Position -lt 1 -or $Position -gt 20 -or $Observed -lt 1)) { throw 'Invalid queue action.' }
     if ($Kind -eq 'refresh') { $Position = 0; $Observed = 0 }
     Write-QueueControlFile $Root 'action.request' ("PARALLAX_QUEUE_ACTION_V1|$Kind|$Position|$Observed|" + (Get-QueueUnixTime) + "`n")
 }
@@ -212,22 +221,109 @@ function Read-QueueAction {
         [IO.File]::Delete($path)
     } catch [IO.IOException] { return $null }
     catch [UnauthorizedAccessException] { return $null }
-    if ($text -cnotmatch '\APARALLAX_QUEUE_ACTION_V1\|(refresh|play)\|([0-5])\|([0-9]{1,12})\|([0-9]{1,12})\n\z') { return $null }
+    # The skin also asks for the playlist list (playlists) and to start one of
+    # it (open, by its position and the list's observed time).
+    if ($text -cnotmatch '\APARALLAX_QUEUE_ACTION_V1\|(refresh|play|playlists|open)\|([0-9]{1,2})\|([0-9]{1,12})\|([0-9]{1,12})\n\z') { return $null }
     $action = [pscustomobject]@{ Kind=$Matches[1]; Position=[int]$Matches[2]; Observed=[long]$Matches[3]; Created=[long]$Matches[4] }
     if ($action.Created -gt $Now + 5 -or $action.Created -lt $Now - 15) { return $null }
-    if ($action.Kind -eq 'play' -and ($action.Position -lt 1 -or $action.Observed -lt 1)) { return $null }
-    if ($action.Kind -eq 'refresh' -and ($action.Position -ne 0 -or $action.Observed -ne 0)) { return $null }
+    $most = switch ($action.Kind) { 'play' { 20 } 'open' { 50 } default { 0 } }
+    if ($most -gt 0 -and ($action.Position -lt 1 -or $action.Position -gt $most -or $action.Observed -lt 1)) { return $null }
+    if ($most -eq 0 -and ($action.Position -ne 0 -or $action.Observed -ne 0)) { return $null }
     return $action
 }
 
+function Get-QueueContextItems {
+    # Every song address in the playing album or playlist, or $null when that
+    # cannot be known: a playlist whose songs Spotify does not share, one too
+    # long, or a failed read. Kept while the same context plays, so one playlist
+    # costs its pages once per half hour of clicking.
+    param([string]$Token, [string]$ContextUri, [long]$Now = (Get-QueueUnixTime))
+    $held = $script:ContextItems
+    if ($null -ne $held -and $held.Uri -ceq $ContextUri -and $Now -ge $held.At -and $Now -lt $held.At + 1800) { return ,$held.Items }
+    $script:ContextItems = $null
+    $items = [Collections.Generic.HashSet[string]]::new([StringComparer]::Ordinal)
+    $offset = 0
+    for ($page = 0; $page -lt $script:ContextPageLimit; $page++) {
+        $response = Invoke-QueueApiRequest -AccessToken $Token -Endpoint Items -ContextUri $ContextUri -Offset $offset
+        if ($response.StatusCode -ne 200) { return $null }
+        try { $read = ConvertTo-QueueContextPage (ConvertFrom-QueueJson $response.Body) } catch { return $null }
+        foreach ($uri in $read.Uris) { $null = $items.Add($uri) }
+        $offset += $read.Count
+        if ($offset -ge $read.Total) {
+            $script:ContextItems = [pscustomobject]@{ Uri = $ContextUri; At = $Now; Items = $items }
+            return ,$items
+        }
+        if ($read.Count -eq 0) { return $null }
+    }
+    return $null
+}
+
+function Invoke-QueueJump {
+    # Plays one song of the album or playlist already playing. Spotify keeps the
+    # rest of the order, shuffled or not, and songs queued by hand (tried live,
+    # 2026-11-24). Only for a song known to be in it: one that is not would
+    # reshuffle the queue and drop the songs queued by hand. Returns 'done',
+    # 'skip' (not possible here, nothing was changed) or 'failed' (no clear
+    # answer, so skipping as well could act twice).
+    param([string]$Token, [string]$ItemUri)
+    if (-not $ItemUri) { return 'skip' }
+    $playing = Invoke-QueueApiRequest -AccessToken $Token -Endpoint Playing
+    if ($playing.StatusCode -ne 200) { return 'skip' }
+    try { $context = ConvertTo-QueueContextUri (ConvertFrom-QueueJson $playing.Body) } catch { return 'skip' }
+    if (-not $context) { return 'skip' }
+    $items = Get-QueueContextItems -Token $Token -ContextUri $context
+    if ($null -eq $items -or -not $items.Contains($ItemUri)) { return 'skip' }
+    $code = (Invoke-QueueApiRequest -AccessToken $Token -Endpoint Start -ContextUri $context -ItemUri $ItemUri).StatusCode
+    if ($code -ge 200 -and $code -le 299) { return 'done' }
+    if ($code -ge 400 -and $code -le 499) { return 'skip' }
+    return 'failed'
+}
+
+function Wait-QueuePlaying {
+    # After a start, until Spotify reports the song or context it was asked for
+    # (a queue read before that still describes the old one). Never an error: a
+    # wait that runs out just leaves the reads that follow to catch up.
+    param([string]$Token, [string]$ItemUri = '', [string]$ContextUri = '', [int]$Milliseconds = 400, [int]$Tries = 5)
+    for ($try = 0; $try -lt $Tries; $try++) {
+        if ($Milliseconds -gt 0) { Start-Sleep -Milliseconds $Milliseconds }
+        try {
+            $response = Invoke-QueueApiRequest -AccessToken $Token -Endpoint Playing
+            if ($response.StatusCode -ne 200) { continue }
+            $playing = ConvertFrom-QueueJson $response.Body
+            if ($ItemUri -and (ConvertTo-QueuePlayingUri $playing) -ceq $ItemUri) { return }
+            if ($ContextUri -and (ConvertTo-QueueContextUri $playing) -ceq $ContextUri) { return }
+        } catch {}
+    }
+}
+
+function Find-QueueItem {
+    # Where an item the user saw is in the queue now (1-based), or 0. By its
+    # address, or by its text when it has none. Its old place wins, so one of two
+    # identical rows is the one that was clicked.
+    param([object[]]$Items, [object]$Item, [int]$Position)
+    for ($pass = 0; $pass -lt 2; $pass++) {
+        for ($index = 0; $index -lt $Items.Count; $index++) {
+            if ($pass -eq 0 -and $index -ne $Position - 1) { continue }
+            $candidate = $Items[$index]
+            $same = if ($Item.Uri -and $candidate.Uri) { $candidate.Uri -ceq $Item.Uri } else { $candidate.Title -ceq $Item.Title -and $candidate.Detail -ceq $Item.Detail }
+            if ($same) { return $index + 1 }
+        }
+    }
+    return 0
+}
+
 function Invoke-QueuePlay {
-    # Skips the active player to queue row Position. The click names the
-    # snapshot it was read from; the worker checks that it is still the one it
-    # last published, reads the queue again and checks every row up to the
-    # clicked one still matches, then skips that many times. Returns the notice
-    # to show ('' when every skip succeeded); the caller refreshes the rows.
-    param([string]$Root, [object]$Action, [object]$Last, [int]$GapMilliseconds = 250)
-    if ($null -eq $Last -or $Last.Observed -ne $Action.Observed -or $Action.Position -gt $Last.Items.Count) { return 'queue_changed' }
+    # Plays the clicked item on the active player. The click names a row and the
+    # snapshot it was shown in, one of the last few this worker published; the
+    # queue is read again and the same item looked up in it, so a queue that moved
+    # on meanwhile still plays what was clicked. The next item is one skip. A later
+    # one is played directly when it belongs to the playing album or playlist, and
+    # otherwise by skipping to it, since Spotify has no "play queue row N". Returns
+    # the notice to show ('' on success); the caller refreshes the rows.
+    param([string]$Root, [object]$Action, [object[]]$Recent, [int]$GapMilliseconds = 250)
+    $seen = @($Recent | Where-Object { $null -ne $_ -and $_.Observed -eq $Action.Observed })
+    if ($seen.Count -eq 0 -or $Action.Position -gt $seen[-1].Items.Count) { return 'queue_changed' }
+    $clicked = $seen[-1].Items[$Action.Position - 1]
     try {
         $auth = Get-QueueAccessToken -DataRoot $Root -WithControl
         if (-not $auth.Control) { return 'control_reauth' }
@@ -239,11 +335,15 @@ function Invoke-QueuePlay {
         }
         if ($response.StatusCode -ne 200) { return (Get-QueueControlDecision $response.StatusCode) }
         $current = (ConvertTo-QueueItems (ConvertFrom-QueueJson $response.Body)).Items
-        if ($current.Count -lt $Action.Position) { return 'queue_changed' }
-        for ($index = 0; $index -lt $Action.Position; $index++) {
-            if ($current[$index].Title -cne $Last.Items[$index].Title -or $current[$index].Detail -cne $Last.Items[$index].Detail) { return 'queue_changed' }
+        $place = Find-QueueItem -Items $current -Item $clicked -Position $Action.Position
+        $jump = if ($place -ne 1) { Invoke-QueueJump -Token $auth.Token -ItemUri $clicked.Uri } else { 'skip' }
+        if ($jump -eq 'failed') { return 'control_failed' }
+        if ($jump -eq 'done') {
+            Wait-QueuePlaying -Token $auth.Token -ItemUri $clicked.Uri -Milliseconds ([int](1.6 * $GapMilliseconds))
+            return ''
         }
-        for ($skip = 1; $skip -le $Action.Position; $skip++) {
+        if ($place -lt 1) { return 'queue_changed' }
+        for ($skip = 1; $skip -le $place; $skip++) {
             if ($skip -gt 1) { Start-Sleep -Milliseconds $GapMilliseconds }
             $notice = Get-QueueControlDecision (Invoke-QueueApiRequest -AccessToken $auth.Token -Endpoint Next).StatusCode
             if ($notice) { return $notice }
@@ -254,6 +354,97 @@ function Invoke-QueuePlay {
     } catch {
         $state = [string]$_.Exception.Data['QueueState']
         if ($state -in @('reauth_required','forbidden')) { return 'control_reauth' }
+        return 'control_failed'
+    } finally { $auth = $null }
+}
+
+function Publish-QueuePlaylists {
+    # Writes the list the Playlists view shows. Its covers fill in later, under
+    # the same observed time, so a click still names the same list.
+    param([string]$Root, [object]$List)
+    $text = ConvertTo-QueuePlaylistText -State $List.State -Items $List.Items -Total $List.Total -Current $List.Current -Now $List.Observed
+    Write-QueueAtomicFile -DataRoot $Root -Name 'playlists.snapshot' -Text $text
+}
+
+function Remove-QueuePlaylists {
+    param([string]$Root)
+    $path = Get-QueueRuntimeFile $Root 'playlists.snapshot'
+    if ([IO.File]::Exists($path)) { [IO.File]::Delete($path) }
+}
+
+function Invoke-QueuePlaylists {
+    # Reads the account's first 50 playlists for the Playlists view, only when
+    # the view asks. A failed read is shown there; it never touches the queue's
+    # own state, waits or rows. Returns the list, which the worker keeps.
+    param([string]$Root, [long]$Now = (Get-QueueUnixTime))
+    $list = [pscustomobject]@{ State = 'error'; Items = @(); Total = 0L; Current = 0; Observed = $Now; CoverAt = 0 }
+    try {
+        $auth = Get-QueueAccessToken -DataRoot $Root -WithControl
+        if (-not $auth.Playlists) { $list.State = 'scope_required' }
+        else {
+            $response = Invoke-QueueApiRequest -AccessToken $auth.Token -Endpoint Playlists
+            if ($response.StatusCode -eq 403) { $list.State = 'scope_required' }
+            elseif ($response.StatusCode -eq 200) {
+                $read = ConvertTo-QueuePlaylists (ConvertFrom-QueueJson $response.Body)
+                $list.Items = $read.Items; $list.Total = $read.Total; $list.State = 'ready'
+                $playing = Invoke-QueueApiRequest -AccessToken $auth.Token -Endpoint Playing
+                if ($playing.StatusCode -eq 200) {
+                    $context = ''
+                    try { $context = ConvertTo-QueueContextUri (ConvertFrom-QueueJson $playing.Body) } catch {}
+                    for ($index = 0; $context -and $index -lt $list.Items.Count; $index++) { if ($list.Items[$index].Uri -ceq $context) { $list.Current = $index + 1; break } }
+                }
+            }
+        }
+    } catch {
+        $list.State = if ([string]$_.Exception.Data['QueueState'] -in @('reauth_required','forbidden')) { 'scope_required' } else { 'error' }
+        $list.Items = @(); $list.Total = 0L; $list.Current = 0
+    } finally { $auth = $null }
+    Publish-QueuePlaylists $Root $list
+    return $list
+}
+
+function Update-QueuePlaylistCovers {
+    # One batch of the list's covers, then the list again if any were found.
+    param([string]$Root, [object]$List)
+    $batch = @($List.Items | Select-Object -Skip $List.CoverAt -First $script:CoverBatch)
+    $List.CoverAt += $script:CoverBatch
+    if ($batch.Count -eq 0) { return }
+    try { Update-QueueCovers -Root $Root -Items $batch } catch {}
+    if (@($batch | Where-Object { $_.Image }).Count -gt 0) { Publish-QueuePlaylists $Root $List }
+}
+
+function Update-QueueRowCovers {
+    # One batch of the covers later rows still lack, then the rows again under the
+    # same observed time. Returns where the next batch starts.
+    param([string]$Root, [object]$Snapshot, [int]$At)
+    $batch = @($Snapshot.Items | Select-Object -Skip $At -First $script:CoverBatch | Where-Object { -not $_.Image -and $_.ImageUrl })
+    if ($batch.Count -gt 0) {
+        try { Update-QueueCovers -Root $Root -Items $batch } catch {}
+        if (@($batch | Where-Object { $_.Image }).Count -gt 0) { Publish-QueueSnapshot $Root $Snapshot }
+    }
+    return $At + $script:CoverBatch
+}
+
+function Invoke-QueueOpen {
+    # Starts the clicked playlist on the active player. The click names the list
+    # it was shown in; only that list, still held here, is acted on. Returns the
+    # notice to show ('' on success); the caller refreshes the rows.
+    param([string]$Root, [object]$Action, [object]$List, [int]$SettleMilliseconds = 400)
+    if ($null -eq $List -or $List.State -ne 'ready' -or $List.Observed -ne $Action.Observed -or $Action.Position -gt $List.Items.Count) { return 'queue_changed' }
+    try {
+        $auth = Get-QueueAccessToken -DataRoot $Root -WithControl
+        if (-not $auth.Control) { return 'control_reauth' }
+        $uri = $List.Items[$Action.Position - 1].Uri
+        $notice = Get-QueueControlDecision (Invoke-QueueApiRequest -AccessToken $auth.Token -Endpoint Open -ContextUri $uri).StatusCode
+        if ($notice) { return $notice }
+        # Before the refresh reads its new queue, and before the view leaves the
+        # list (it takes the playing mark as the start having worked).
+        Wait-QueuePlaying -Token $auth.Token -ContextUri $uri -Milliseconds $SettleMilliseconds
+        $List.Current = $Action.Position
+        Publish-QueuePlaylists $Root $List
+        return ''
+    } catch {
+        if ([string]$_.Exception.Data['QueueState'] -in @('reauth_required','forbidden')) { return 'control_reauth' }
         return 'control_failed'
     } finally { $auth = $null }
 }
@@ -302,7 +493,8 @@ function Update-QueueCovers {
     # downloads, and so does a request that got no response at all (the CDN
     # is unreachable; waiting on the rest would only hold up Stop and clicks).
     # Covers already saved are still reused either way.
-    param([string]$Root, [object[]]$Items = @(), [long]$Now = (Get-QueueUnixTime))
+    # -SavedOnly names covers already on disk and downloads none.
+    param([string]$Root, [object[]]$Items = @(), [long]$Now = (Get-QueueUnixTime), [switch]$SavedOnly)
     try {
         $folder = Join-Path $Root 'covers'
         $wanted = @($Items | Where-Object { $_.ImageUrl })
@@ -312,7 +504,7 @@ function Update-QueueCovers {
         $covers = Initialize-QueuePrivateDirectory -DataRoot $folder
     } catch { return }
     if ($script:CoverRetryAt.Count -gt 64) { $script:CoverRetryAt.Clear() }
-    $download = $true
+    $download = -not $SavedOnly
     foreach ($item in $Items) {
         $url = ''
         try {
@@ -341,6 +533,7 @@ function Update-QueueCovers {
             if ($url) { $script:CoverRetryAt[$url] = $Now + $script:CoverRetrySeconds }
         }
     }
+    if ($SavedOnly) { return }
     try { Limit-QueueCovers $covers @($Items | ForEach-Object { [string]$_.Image } | Where-Object { $_ }) } catch {}
 }
 
@@ -377,8 +570,11 @@ function Invoke-QueueCycle {
             try {
                 $items = ConvertTo-QueueItems (ConvertFrom-QueueJson $response.Body)
                 # Covers are saved before the snapshot is built, so it names
-                # only files that exist. This step cannot fail the read.
-                try { Update-QueueCovers -Root $Root -Items $items.Items -Now $now } catch {}
+                # only files that exist. This step cannot fail the read. Only the
+                # first rows' are fetched here; the worker fetches the rest after the
+                # rows are published (Update-QueueRowCovers).
+                try { Update-QueueCovers -Root $Root -Items @($items.Items | Select-Object -First $script:FirstCovers) -Now $now } catch {}
+                try { Update-QueueCovers -Root $Root -Items @($items.Items | Select-Object -Skip $script:FirstCovers) -Now $now -SavedOnly } catch {}
                 $lifetime = [Math]::Min(300, [Math]::Max(90, $Interval*2))
                 $snapshot = New-QueueSnapshot -State ready -Items $items.Items -Now $now -LifetimeSeconds $lifetime -Control $control -Notice $Notice -Current $items.Current
                 return [pscustomobject]@{ Snapshot=$snapshot; NextAt=($now+$Interval); Pause=$false; Success=$true }
@@ -448,6 +644,14 @@ function Invoke-QueueRun {
         # The last published ready snapshot (a click must name it) and the
         # outcome of a click to show with the next rows.
         $last = $null; $notice = ''
+        # The last few of them: a click may name one shown a moment ago.
+        $recent = [Collections.Generic.List[object]]::new()
+        # Which of the published rows' covers are fetched next.
+        $coverAt = 0
+        # The playlist list the Playlists view last asked for. One left by an
+        # earlier worker names playlists this one does not hold, so it goes.
+        $list = $null
+        Remove-QueuePlaylists $Root
         # A request left from before this worker started is never acted on.
         $null = Read-QueueAction $Root -Now 0
         while (-not (Test-QueueStop $Root)) {
@@ -456,9 +660,19 @@ function Invoke-QueueRun {
                 # Both need the current rows to be live: a failed read keeps
                 # its backoff or server wait, and a click has nothing to name.
                 if ($null -ne $last -and $failures -eq 0) {
-                    if ($action.Kind -eq 'play') { $notice = Invoke-QueuePlay -Root $Root -Action $action -Last $last }
-                    $next = Get-QueueUnixTime
+                    if ($action.Kind -eq 'play') { $notice = Invoke-QueuePlay -Root $Root -Action $action -Recent $recent.ToArray() }
+                    if ($action.Kind -eq 'open') { $notice = Invoke-QueueOpen -Root $Root -Action $action -List $list }
+                    if ($action.Kind -eq 'playlists') { $list = Invoke-QueuePlaylists $Root }
+                    else { $next = Get-QueueUnixTime }
                 }
+            }
+            if ($null -ne $last -and $coverAt -lt $last.Items.Count) {
+                $coverAt = Update-QueueRowCovers $Root $last $coverAt
+                if ((Get-QueueUnixTime) -lt $next) { continue }
+            }
+            if ($null -ne $list -and $list.CoverAt -lt $list.Items.Count) {
+                Update-QueuePlaylistCovers $Root $list
+                if ((Get-QueueUnixTime) -lt $next) { continue }
             }
             if ((Get-QueueUnixTime) -lt $next) {
                 # The launching Rainmeter is gone. Exit without a 'stopped'
@@ -481,10 +695,13 @@ function Invoke-QueueRun {
             if ($result.Success) {
                 $failures = 0
                 $last = $result.Snapshot
+                $coverAt = $script:FirstCovers
+                $recent.Add($last)
+                if ($recent.Count -gt 6) { $recent.RemoveAt(0) }
                 $retryPath = Get-QueueRuntimeFile $Root 'queue.retry.json'
                 if ([IO.File]::Exists($retryPath)) { [IO.File]::Delete($retryPath) }
             } else {
-                $last = $null
+                $last = $null; $recent.Clear()
                 $failures = [Math]::Min(10,$failures+1)
                 Set-QueueRetry $Root ([pscustomobject]@{ State=$result.Snapshot.State; RetryNotBefore=$result.NextAt; Pause=$result.Pause })
             }
@@ -578,6 +795,7 @@ function Invoke-QueueCommand {
                 Clear-QueueTokens -DataRoot $DataRoot
                 # Rows go first, so the reader stops naming covers before they are deleted.
                 Publish-QueueSnapshot $DataRoot (New-QueueSnapshot -State onboarding_required)
+                Remove-QueuePlaylists $DataRoot
                 # One retry covers a cover briefly held open (Rainmeter loading it, a
                 # scanner). A folder that still will not go leaves the onboarding
                 # state in place; an interactive Disconnect says so.

@@ -36,6 +36,9 @@ UpdateDivider=-1
 Shape=Rectangle 0,0,#MediaQueueHitWidth#,#MediaQueueRowPitch#,#MediaQueueHitRadius# | Extend MediaQueueHitPaint
 MediaQueueHitPaint=Fill Color #MediaQueueRestFill# | StrokeWidth 0
 MouseActionCursor=0
+; Pages the Playlists view; nothing in the queue view, and in Setup.
+MouseScrollDownAction=[!CommandMeasure MeasureQueueStatus "ScrollRows(1)"]
+MouseScrollUpAction=[!CommandMeasure MeasureQueueStatus "ScrollRows(-1)"]
 
 ; Neutral tile under every cover: what a row shows when its cover is missing.
 [MediaInlineQueueTileStyle]

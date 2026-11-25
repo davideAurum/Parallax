@@ -81,6 +81,7 @@ function Suite.run(sourcePath, scratchPath, optionsSourcePath)
         end
         function skin:GetMeter(name)
             if options.noMeters or name == options.absentMeter then return nil end
+            if not options.tabs and (name:match('^MeterQueueTab') or name == 'MeterQueueHeaderNote') then return nil end
             if options.absentMeters and options.absentMeters[name] then return nil end
             return {}
         end
@@ -122,9 +123,19 @@ function Suite.run(sourcePath, scratchPath, optionsSourcePath)
                         or args[4] == 'Fill Color #MediaQueueRestFill# | StrokeWidth 0', 'hover paint is one of two fixed strings')
                     state.paints = state.paints or {}
                     state.paints[target] = args[4]:find('Hover', 1, true) and 'hover' or 'rest'
+                elseif args[3] == 'FontColor' then
+                    check(options.tabs and (target == 'MeterQueueHeaderTrack' or target == 'MeterQueueTabPlaylists'), 'only the view switch changes color')
+                    check(args[4] == '#TextColor#' or args[4] == '#HeaderTextColor#', 'one of two theme colors')
+                    state.tints = state.tints or {}
+                    state.tints[target] = args[4] == '#TextColor#'
+                elseif target == 'MeterQueueHeaderNote' then
+                    check(options.tabs and args[3] == 'Text', 'only the note text changes')
+                    check(args[4] == '' or args[4] == 'Sign in again' or args[4] == 'Queue changed' or args[4] == 'No active device'
+                        or args[4]:match('^%d+\226\128\147%d+ of %d+$') ~= nil, 'the note is a range or a fixed label')
+                    state.note = args[4]
                 elseif target == 'MeterQueueHeaderTrack' then
                     check(options.inline and args[3] == 'Text', 'only the inline header text shows a click outcome')
-                    check(args[4] == 'Song / Artist' or args[4] == 'Queue changed' or args[4] == 'No active device'
+                    check((options.tabs and (args[4] == 'Queue' or args[4] == 'Playlists')) or args[4] == 'Song / Artist' or args[4] == 'Queue changed' or args[4] == 'No active device'
                         or args[4] == 'Control denied' or args[4] == 'Skip failed' or args[4] == 'Sign in again', 'header shows fixed labels only')
                     state.header = args[4]
                 else
@@ -137,6 +148,8 @@ function Suite.run(sourcePath, scratchPath, optionsSourcePath)
             elseif bang == '!ShowMeterGroup' or bang == '!HideMeterGroup' then
                 equal(target, 'QueueRows', 'only queue row group')
                 for index = 1, 5 do visible['MeterQueueRow' .. index] = bang == '!ShowMeterGroup' end
+            elseif options.tabs and (bang == '!ShowMeter' or bang == '!HideMeter') and (target:match('^MeterQueueTab') or target == 'MeterQueueHeaderNote') then
+                visible[target] = bang == '!ShowMeter'
             elseif target == 'MeterQueueOff' then
                 check(options.inline and (bang == '!ShowMeter' or bang == '!HideMeter'), 'the queue-off line only shows or hides, inline')
                 state.offCalls = (state.offCalls or 0) + 1
@@ -148,9 +161,12 @@ function Suite.run(sourcePath, scratchPath, optionsSourcePath)
                     'only row part visibility')
                 visible[target] = bang == '!ShowMeter'
             elseif bang == '!CommandMeasure' and target == 'MeasureQueueControl' then
-                -- A row click: integers only, never queue text.
+                -- A row click whose request could not be written: the control
+                -- process writes it. Integers only, never queue text.
+                check(options.writeDenied or options.writeFails or options.requestWaiting, 'a written request starts no process')
                 check(args[3]:match('^Play%([1-5],[1-9]%d*%)$') ~= nil, 'row click hands over only row and observed time')
                 equal(#args, 3, 'row click has no extra arguments')
+                state.launches = (state.launches or 0) + 1
                 state.plays = state.plays or {}
                 state.plays[#state.plays + 1] = args[3]
             elseif bang == '!CommandMeasure' then
@@ -173,8 +189,17 @@ function Suite.run(sourcePath, scratchPath, optionsSourcePath)
                 if options.covers and options.covers[cover] then return { close = function() return true end } end
                 return nil, 'synthetic missing cover', 2
             end
+            if path == 'SYNTHETIC\\playlists.snapshot' then
+                check(options.tabs, 'only a skin with the view switch reads the list')
+                equal(mode, 'rb', 'the list is never opened writable')
+                state.listReads = (state.listReads or 0) + 1
+                if not state.list then return nil, 'synthetic missing', 2 end
+                local list = state.list
+                return { read = function(_, bytes) equal(bytes, 131073, 'bounded list read') return list:sub(1, bytes) end,
+                    close = function() return true end }
+            end
             if mode == 'wb' then
-                check(options.track, 'only a queue that follows a player writes')
+                check(not options.noControlHost, 'only a skin with the click host writes')
                 equal(path, 'SYNTHETIC\\.queue-follow.tmp', 'a request is written beside the snapshot under a temporary name')
                 if options.writeDenied then return nil, 'synthetic denied', 13 end
                 state.draft = ''
@@ -193,7 +218,7 @@ function Suite.run(sourcePath, scratchPath, optionsSourcePath)
             return {
                 read = function(_, bytes)
                     state.reads = state.reads + 1
-                    equal(bytes, 32769, 'bounded read includes oversize sentinel byte')
+                    equal(bytes, 65537, 'bounded read includes oversize sentinel byte')
                     if options.readThrow then error('synthetic read exception') end
                     if options.readNil then return nil, 'synthetic read error' end
                     return state.data:sub(1, bytes)
@@ -214,11 +239,37 @@ function Suite.run(sourcePath, scratchPath, optionsSourcePath)
                 equal(from, 'SYNTHETIC\\.queue-follow.tmp')
                 equal(to, 'SYNTHETIC\\action.request', 'the helper reads one fixed request file')
                 if options.requestWaiting then return nil, 'synthetic exists', 17 end
+                local row, seen = state.draft:match('^PARALLAX_QUEUE_ACTION_V1|play|([1-5])|([1-9]%d*)|' .. state.time .. '\n$')
+                if row then
+                    -- A row click: the row and the snapshot's time, nothing else.
+                    state.plays = state.plays or {}
+                    state.plays[#state.plays + 1] = 'Play(' .. row .. ',' .. seen .. ')'
+                    return true
+                end
+                local listed, seen2 = state.draft:match('^PARALLAX_QUEUE_ACTION_V1|open|([1-9]%d?)|([1-9]%d*)|' .. state.time .. '\n$')
+                if listed then
+                    check(options.tabs, 'only the Playlists view opens one')
+                    state.opened = state.opened or {}
+                    state.opened[#state.opened + 1] = listed .. '@' .. seen2
+                    return true
+                end
+                if state.draft == 'PARALLAX_QUEUE_ACTION_V1|playlists|0|0|' .. state.time .. '\n' then
+                    check(options.tabs, 'only the Playlists view asks for the list')
+                    state.asks = (state.asks or 0) + 1
+                    return true
+                end
+                check(state.draft:match('^PARALLAX_QUEUE_ACTION_V1|refresh|0|0|%d+\n$') ~= nil, 'a request is a row click or a refresh')
                 state.requests = state.requests or {}
                 state.requests[#state.requests + 1] = state.draft
                 return true
             end,
             remove = function(from)
+                if from == 'SYNTHETIC\\action.request' then
+                    -- A click replaces a request still waiting.
+                    state.replaced = (state.replaced or 0) + 1
+                    if options.requestWaiting == 'replaceable' then options.requestWaiting = nil end
+                    return true
+                end
                 equal(from, 'SYNTHETIC\\.queue-follow.tmp', 'only its own temporary file is removed')
                 state.removed = (state.removed or 0) + 1
                 return true
@@ -658,11 +709,14 @@ function Suite.run(sourcePath, scratchPath, optionsSourcePath)
             local fields = {}
             for key, value in pairs(overrides or {}) do fields[key] = value end
             local data = snapshot3(fields, rows):gsub('^PARALLAX_QUEUE_V3\n', 'PARALLAX_QUEUE_V5\n')
-            local extra = {}
-            for index = 1, 5 do extra[#extra + 1] = 'image' .. index .. '=' end
-            extra[#extra + 1] = 'current_title=' .. hex((current or {})[1] or '')
-            extra[#extra + 1] = 'current_detail=' .. hex((current or {})[2] or '')
-            return data .. table.concat(extra, '\n') .. '\n'
+            -- V5: the header, the current track, then exactly count rows.
+            local out = data:match('^(.-notice=[^\n]*\n)')
+            out = out .. 'current_title=' .. hex((current or {})[1] or '') .. '\ncurrent_detail=' .. hex((current or {})[2] or '') .. '\n'
+            for index = 1, tonumber(fields.count or 0) do
+                local row = rows and rows[index] or {}
+                out = out .. 'title' .. index .. '=' .. hex(row[1] or '') .. '\ndetail' .. index .. '=' .. hex(row[2] or '') .. '\nimage' .. index .. '=' .. (row[3] or '') .. '\n'
+            end
+            return out
         end
         local rows = { {'One','a'}, {'Two','b, c'}, {'Three','d'} }
         local now = {'Now','z'}
@@ -680,6 +734,15 @@ function Suite.run(sourcePath, scratchPath, optionsSourcePath)
         invalid(snapshot3({ count = 3 }, rows) .. 'current_title=\ncurrent_detail=\n')
         invalid(snapshot5({ state = 'offline', observed = 0, valid_until = 0, count = 0 }, nil, now))
         check(valid(snapshot5({ state = 'offline', observed = 0, valid_until = 0, count = 0 })).state == 'offline', 'a nonready V5 names nothing')
+        local twenty = {}
+        for index = 1, 21 do twenty[index] = { 'Song ' .. index, 'Artist ' .. index } end
+        equal(valid(snapshot5({ count = 20 }, twenty, now)).rows[20].title, 'Song 20', 'a V5 snapshot holds the whole queue')
+        invalid(snapshot5({ count = 21 }, twenty, now))
+        local two = snapshot5({ count = 2 }, rows, now)
+        for _, bad in ipairs({ two:gsub('count=2', 'count=3', 1), two:gsub('count=2', 'count=1', 1), two .. 'title3=41\ndetail3=\nimage3=\n', two:gsub('image2=\n', '', 1),
+                two:gsub('title2=', 'title02=', 1), two:gsub('title2=', 'title1=', 1), two:gsub('title2=', 'title21=', 1), two:gsub('title2=', 'other2=', 1), two .. 'image6=\n' }) do
+            invalid(bad)
+        end
 
         local function drawer(player, options, data)
             options = options or {}
@@ -708,8 +771,7 @@ function Suite.run(sourcePath, scratchPath, optionsSourcePath)
         equal(state.visible.MeterQueueRow3, false)
         equal(asked(state), 1)
         equal(state.requests[1], 'PARALLAX_QUEUE_ACTION_V1|refresh|0|0|1001\n', 'the request names no track')
-        equal(state.cursors.MeterQueueHit1, '0', 'moved-up rows are not clickable')
-        equal(state.reader:play(1), false)
+        equal(state.cursors.MeterQueueHit1, '1', 'moved-up rows stay clickable')
         state.reader:update()
         equal(asked(state), 1, 'one request per three seconds')
         state.time = 1003
@@ -799,6 +861,351 @@ function Suite.run(sourcePath, scratchPath, optionsSourcePath)
             other.reader:update()
             equal(asked(other), 1, 'and it is tried again')
         end
+        -- Row clicks use the same request; the old control process is the fallback.
+        local click = drawer(now)
+        click.reader:update()
+        equal(click.reader:play(3), true)
+        equal(click.plays[1], 'Play(3,1000)')
+        equal(click.launches, nil, 'a click starts no process')
+        equal(click.texts.MeterQueueRow3, 'Three / Starting', 'the clicked row says so at once')
+        equal(click.cursors.MeterQueueHit1, '0', 'and nothing else is clickable meanwhile')
+        equal(click.reader:play(1), false)
+        -- A click on rows already moved up names the row in the published snapshot.
+        local shifted = drawer({'One','a'})
+        equal(shifted.reader:update(), 'Next 2')
+        equal(shifted.reader:play(1), true)
+        equal(shifted.plays[1], 'Play(2,1000)')
+        equal(shifted.texts.MeterQueueRow1, 'Two / Starting')
+        equal(shifted.reader:update(), 'Next 2', 'the passed row does not come back while it starts')
+        -- The rows hold still while the clicked song starts: above it, some may stay.
+        local moved, player = drawer(now)
+        moved.reader:update()
+        equal(moved.reader:play(2), true)
+        player.track.title, player.track.artist = 'Two', 'b, c'
+        equal(moved.reader:update(), 'Next 3', 'no row is passed by a click alone')
+        equal(moved.texts.MeterQueueRow1, 'One / a')
+        equal(moved.texts.MeterQueueRow2, 'Two / Starting')
+        equal(asked(moved), 0, 'and nothing is asked: the helper reads again itself')
+        moved.data = snapshot5({ count = 3, control = 1, observed = 1003, valid_until = 1033 }, { {'One','a'}, {'Three','d'}, {'Four','e'} }, {'Two','b, c'})
+        moved.time = 1004
+        equal(moved.reader:update(), 'Next 3')
+        equal(moved.texts.MeterQueueRow2, 'Three / d')
+        -- A click that got no answer stops holding after twelve seconds.
+        local quiet, silent = drawer(now)
+        quiet.reader:update()
+        quiet.reader:play(2)
+        silent.track.title, silent.track.artist = 'Two', 'b, c'
+        quiet.time = 1012
+        equal(quiet.reader:update(), 'Next 3')
+        quiet.time = 1013
+        equal(quiet.reader:update(), 'Next 1')
+        equal(quiet.texts.MeterQueueRow1, 'Three / d')
+        equal(asked(quiet), 1)
+        local busy, held = drawer(now, { requestWaiting = 'replaceable' })
+        busy.reader:update()
+        equal(busy.reader:play(2), true)
+        equal(busy.plays[1], 'Play(2,1000)', 'a click replaces a request still waiting')
+        equal(busy.replaced, 1)
+        equal(busy.launches, nil)
+        equal(held.requestWaiting, nil)
+        for _, broken in ipairs({ 'writeDenied', 'writeFails', 'requestWaiting' }) do
+            local other = drawer(now, { [broken] = true })
+            other.reader:update()
+            equal(other.reader:play(1), true)
+            equal(other.launches, 1, 'a click that cannot write asks the control process')
+            equal(other.plays[1], 'Play(1,1000)')
+        end
+    end)
+    scenario('Playlists view: the list, paging, opening, its messages and the header', function()
+        local COVER = string.rep('c', 40) .. '.jpg'
+        local function listing(overrides, count)
+            local fields = { state = 'ready', observed = '1001', total = tostring(count or 0), count = tostring(count or 0), current = '0' }
+            for key, value in pairs(overrides or {}) do fields[key] = tostring(value) end
+            local lines = { 'PARALLAX_PLAYLISTS_V1' }
+            for _, key in ipairs({ 'state', 'observed', 'total', 'count', 'current' }) do lines[#lines + 1] = key .. '=' .. fields[key] end
+            for index = 1, count or 0 do
+                lines[#lines + 1] = 'title' .. index .. '=' .. hex('List ' .. index)
+                lines[#lines + 1] = 'detail' .. index .. '=' .. hex(index .. ' songs')
+                lines[#lines + 1] = 'image' .. index .. '=' .. (index == 1 and COVER or '')
+            end
+            return table.concat(lines, '\n') .. '\n'
+        end
+        local parsed = assert(Reader.parseList(listing({ current = 2, total = 70 }, 3), 1001))
+        passed = passed + 1
+        equal(parsed.count, 3)
+        equal(parsed.total, 70)
+        equal(parsed.rows[1].title, 'List 1')
+        equal(parsed.rows[1].image, COVER)
+        equal(parsed.rows[2].detail, 'Playing, 2 songs')
+        check(Reader.parseList(listing({ state = 'scope_required' }), 1001) ~= nil and Reader.parseList(listing({ state = 'error' }), 1001) ~= nil, 'other states parse')
+        check(Reader.parseList(listing(nil, 50), 1001) ~= nil, 'fifty fit')
+        local good = listing(nil, 2)
+        for _, bad in ipairs({ '', 'PARALLAX_PLAYLISTS_V2\n', good:gsub('V1', 'V2', 1), good .. 'extra=1\n', good .. 'title3=41\n', good:gsub('title2=%x+\n', '', 1),
+                good:gsub('title2=', 'title1=', 1), good:gsub('count=2', 'count=3', 1), good:gsub('count=2', 'count=1', 1), good:gsub('current=0', 'current=3', 1),
+                good:gsub('total=2', 'total=1', 1), good:gsub('observed=1001', 'observed=1007', 1), good:gsub('observed=1001', 'observed=0', 1), good:gsub('state=ready', 'state=open', 1),
+                good:gsub('state=ready', 'state=error', 1), good:gsub('title1=%x+', 'title1=4', 1), good:gsub('image1=[^\n]+', 'image1=..\\x.jpg', 1), good:gsub('title1=', 'title1=#', 1),
+                listing(nil, 51), good .. string.rep('a', 131072) }) do
+            equal(Reader.parseList(bad, 1001), nil, 'malformed list rejected')
+        end
+        equal(Reader.parseList(good, 'x'), nil)
+
+        local songs = { {'One','a'}, {'Two','b'}, {'Three','c'} }
+        local function drawer(options, data)
+            options = options or {}
+            options.tabs, options.inline = true, true
+            if options.expanded == nil then options.expanded = true end
+            if options.rowSize == nil then options.rowSize = 1 end
+            options.covers = { [COVER] = true }
+            local state = fixture(data or snapshot3({ count = 3, control = 1 }, songs), options)
+            return state, options
+        end
+        local state = drawer()
+        equal(state.reader:update(), 'Next 3')
+        equal(state.header, 'Queue')
+        equal(state.visible.MeterQueueTabPlaylists, true)
+        equal(state.visible.MeterQueueTabQueue, true)
+        equal(state.tints.MeterQueueHeaderTrack, true, 'the shown view is the bright one')
+        equal(state.tints.MeterQueueTabPlaylists, false)
+        equal(state.listReads, nil, 'the queue view never reads the list')
+        equal(state.asks, nil)
+        equal(state.reader:scrollBy(1), false, 'a queue that fits does not page')
+        -- Opening the view asks for a list and says so meanwhile.
+        equal(state.reader:show('playlists'), true)
+        equal(state.asks, 1)
+        equal(state.texts.MeterQueueRow1, 'Loading playlists')
+        equal(state.visible.MeterQueueTile1, false, 'a message has no cover tile')
+        equal(state.visible.MeterQueueRow2, false)
+        equal(state.cursors.MeterQueueHit1, '0')
+        equal(state.reader:play(1), false, 'a message is not clickable')
+        equal(state.tints.MeterQueueTabPlaylists, true)
+        equal(state.tints.MeterQueueHeaderTrack, false)
+        equal(state.reader:update(), 'Next 3', 'the footer keeps the queue count')
+        equal(state.asks, 1, 'asked once while it waits')
+        state.list = listing({ current = 2, observed = 1002 }, 8)
+        state.time = 1002
+        state.reader:update()
+        equal(state.texts.MeterQueueRow1, 'List 1')
+        equal(state.texts.MeterQueueArtist1, '1 songs')
+        equal(state.texts.MeterQueueArtist2, 'Playing, 2 songs')
+        equal(state.images.MeterQueueArt1, 'SYNTHETIC\\covers\\' .. COVER)
+        equal(state.visible.MeterQueueTile1, true)
+        equal(state.note, '1\226\128\1475 of 8')
+        equal(state.visible.MeterQueueHeaderNote, true)
+        equal(state.cursors.MeterQueueHit5, '1')
+        -- Paging stops at both ends.
+        equal(state.reader:scrollBy(-1), false)
+        equal(state.reader:scrollBy(2), true)
+        equal(state.texts.MeterQueueRow1, 'List 3')
+        equal(state.note, '3\226\128\1477 of 8')
+        equal(state.reader:scrollBy(9), true)
+        equal(state.note, '4\226\128\1478 of 8')
+        equal(state.reader:scrollBy(1), false)
+        -- A click names the list and the playlist's place in it. The list stays,
+        -- the playlist marked, until its queue is there; nothing else is clickable.
+        equal(state.reader:play(5), true)
+        equal(state.opened[1], '8@1002')
+        equal(state.plays, nil)
+        equal(state.texts.MeterQueueRow5, 'List 8')
+        equal(state.texts.MeterQueueArtist5, 'Starting')
+        equal(state.texts.MeterQueueArtist4, '7 songs')
+        equal(state.cursors.MeterQueueHit4, '0')
+        equal(state.reader:play(1), false)
+        -- A read from before the start (the list does not mark it) changes nothing.
+        state.time = 1003
+        state.data = snapshot3({ count = 3, control = 1, observed = 1003, valid_until = 1033 }, songs)
+        state.reader:update()
+        equal(state.texts.MeterQueueArtist5, 'Starting')
+        -- The helper marks it and reads its queue: the view goes there.
+        state.time = 1005
+        state.list = listing({ current = 8, observed = 1002 }, 8)
+        state.data = snapshot3({ count = 2, control = 1, observed = 1005, valid_until = 1035 }, { {'New one','x'}, {'New two','y'} })
+        equal(state.reader:update(), 'Next 2')
+        equal(state.texts.MeterQueueRow1, 'New one')
+        equal(state.cursors.MeterQueueHit1, '1')
+        equal(state.tints.MeterQueueHeaderTrack, true)
+        equal(state.note, '')
+        equal(state.asks, 1)
+        -- One that did not start stays in the list, which says why for eight seconds.
+        equal(state.reader:show('playlists'), true)
+        equal(state.reader:play(1), true)
+        equal(state.texts.MeterQueueArtist1, 'Starting')
+        state.time = 1008
+        state.data = snapshot3({ count = 2, control = 1, observed = 1007, valid_until = 1037, notice = 'no_device' }, { {'New one','x'}, {'New two','y'} })
+        equal(state.reader:update(), 'No active device')
+        equal(state.texts.MeterQueueArtist1, '1 songs')
+        equal(state.cursors.MeterQueueHit1, '1', 'and can be tried again')
+        equal(state.note, 'No active device')
+        equal(state.visible.MeterQueueTabPlaylists, true, 'a notice never hides the tabs')
+        equal(state.header, 'Queue')
+        state.time = 1015
+        state.reader:update()
+        equal(state.note, '1\226\128\1475 of 8', 'the notice goes by itself')
+        -- No answer at all: the mark goes after twelve seconds and the list stays.
+        equal(state.reader:play(2), true)
+        state.time = 1027
+        state.reader:update()
+        equal(state.texts.MeterQueueArtist2, '2 songs')
+        equal(state.tints.MeterQueueTabPlaylists, true)
+        state.reader:show('queue')
+        -- A recent list is shown at once; an old one is shown and asked for again.
+        state.time = 1500
+        state.data = snapshot3({ count = 3, control = 1, observed = 1500, valid_until = 1590 }, songs)
+        state.reader:update()
+        equal(state.reader:show('playlists'), true)
+        equal(state.asks, 1)
+        equal(state.texts.MeterQueueRow1, 'List 1')
+        equal(state.reader:show('playlists'), false, 'already there')
+        equal(state.reader:show('queue'), true)
+        state.time = 1700
+        state.data = snapshot3({ count = 3, control = 1, observed = 1700, valid_until = 1790 }, songs)
+        equal(state.reader:show('playlists'), true)
+        equal(state.asks, 2)
+        equal(state.texts.MeterQueueRow1, 'List 1')
+        -- Refresh reads the shown view.
+        state.list = listing({ observed = 1700 }, 8)
+        state.reader:update()
+        equal(state.reader:refreshView(), true)
+        equal(state.asks, 3)
+        equal(state.reader:show('queue'), true)
+        equal(state.reader:refreshView(), true)
+        equal(#state.requests, 1, 'in the queue view it asks for the queue')
+        equal(state.reader:show('elsewhere'), false)
+
+        -- No list comes: three asks, then a plain message. Refresh starts over.
+        local quiet = drawer()
+        quiet.reader:update()
+        quiet.reader:show('playlists')
+        for time = 1002, 1020 do quiet.time = time quiet.reader:update() end
+        equal(quiet.asks, 3)
+        equal(quiet.texts.MeterQueueRow1, 'Playlists unavailable')
+        equal(quiet.reader:refreshView(), true)
+        equal(quiet.asks, 4)
+        equal(quiet.texts.MeterQueueRow1, 'Loading playlists')
+        -- What the helper says instead of a list.
+        for said, words in pairs({ scope_required = 'Sign in again to list playlists', error = 'Playlists unavailable' }) do
+            local other = drawer()
+            other.list = listing({ state = said, observed = 1001 })
+            other.reader:update()
+            other.reader:show('playlists')
+            other.list = listing({ state = said, observed = 1002 })
+            other.time = 1002
+            other.reader:update()
+            equal(other.texts.MeterQueueRow1, words)
+            equal(other.cursors.MeterQueueHit1, '0')
+            equal(other.visible.MeterQueueHeaderNote, false)
+        end
+        local none = drawer()
+        none.list = listing({ observed = 1001 })
+        none.reader:update()
+        none.reader:show('playlists')
+        equal(none.texts.MeterQueueRow1, 'No playlists')
+        -- Reading only: shown, never clickable.
+        local readonly = drawer(nil, snapshot3({ count = 3, control = 0 }, songs))
+        readonly.list = listing(nil, 3)
+        readonly.reader:update()
+        equal(readonly.header, 'Queue')
+        equal(readonly.note, 'Sign in again', 'what is wrong is told beside the tabs')
+        equal(readonly.visible.MeterQueueTabPlaylists, true)
+        readonly.reader:show('playlists')
+        equal(readonly.cursors.MeterQueueHit1, '0')
+        equal(readonly.reader:play(1), false)
+        -- A click whose request cannot be written changes nothing.
+        local held = drawer({ writeDenied = true })
+        held.list = listing(nil, 3)
+        held.reader:update()
+        held.reader:show('playlists')
+        equal(held.reader:play(1), false)
+        equal(held.texts.MeterQueueRow1, 'List 1')
+        -- The compact layout has one label that shows the view and changes it.
+        local compact = drawer({ variables = { Columns = '1' } })
+        compact.list = listing(nil, 3)
+        compact.reader:update()
+        equal(compact.visible.MeterQueueTabPlaylists, false)
+        equal(compact.visible.MeterQueueTabQueue, true)
+        equal(compact.header, 'Queue')
+        equal(compact.reader:show('queue'), true)
+        equal(compact.header, 'Playlists')
+        equal(compact.visible.MeterQueueHeaderNote, false)
+        equal(compact.reader:show('playlists'), true)
+        equal(compact.header, 'Queue')
+        -- There a notice takes the label, which still changes the view.
+        compact.time = 1004
+        compact.data = snapshot3({ count = 3, control = 1, observed = 1003, valid_until = 1033, notice = 'queue_changed' }, songs)
+        compact.reader:update()
+        equal(compact.header, 'Queue changed')
+        equal(compact.visible.MeterQueueTabQueue, true)
+        equal(compact.reader:show('queue'), true)
+        compact.time = 1011
+        compact.reader:update()
+        equal(compact.header, 'Playlists')
+
+        -- A queue longer than the drawer pages too, and refills at once as it moves.
+        local long, sixteen = nil, {}
+        for index = 1, 16 do sixteen[index] = { 'Song ' .. index, 'Artist ' .. index } end
+        local function queue5(count, observed, from)
+            local head = snapshot3({ count = 0, control = 1, observed = observed, valid_until = observed + 30 })
+                :gsub('^PARALLAX_QUEUE_V3\n', 'PARALLAX_QUEUE_V5\n'):match('^(.-notice=[^\n]*\n)'):gsub('count=0', 'count=' .. count, 1)
+            head = head .. 'current_title=\ncurrent_detail=\n'
+            for index = 1, count do
+                head = head .. 'title' .. index .. '=' .. hex(sixteen[index + from][1]) .. '\ndetail' .. index .. '=' .. hex(sixteen[index + from][2]) .. '\nimage' .. index .. '=\n'
+            end
+            return head
+        end
+        long = drawer(nil, queue5(12, 1000, 0))
+        equal(long.reader:update(), 'Next 5')
+        equal(long.note, '1\226\128\1475 of 12')
+        equal(long.reader:scrollBy(-1), false)
+        equal(long.reader:scrollBy(3), true)
+        equal(long.texts.MeterQueueRow1, 'Song 4')
+        equal(long.note, '4\226\128\1478 of 12')
+        equal(long.reader:play(2), true)
+        equal(long.plays[1], 'Play(5,1000)', 'a click names the row in the whole queue')
+        equal(long.texts.MeterQueueArtist2, 'Starting')
+        equal(long.reader:scrollBy(1), true, 'it can still be paged while it starts')
+        equal(long.texts.MeterQueueArtist1, 'Starting', 'and the mark moves with its row')
+        long.time = 1003
+        long.data = queue5(11, 1003, 1)
+        long.reader:update()
+        equal(long.texts.MeterQueueRow1, 'Song 2', 'the new queue starts from its top')
+        equal(long.reader:scrollBy(99), true)
+        equal(long.note, '7\226\128\14711 of 11')
+        equal(long.reader:show('playlists'), true)
+        equal(long.reader:show('queue'), true)
+        equal(long.texts.MeterQueueRow1, 'Song 2')
+        long.data = queue5(3, 1003, 0)
+        long.reader:update()
+        equal(long.note, '', 'a queue that fits needs no range')
+        -- An empty queue opens the view instead of collapsing, unless it cannot list.
+        local empty = drawer(nil, snapshot3({ count = 0, control = 1 }))
+        empty.list = listing(nil, 3)
+        empty.reader:update()
+        equal(empty.collapseCalls, nil)
+        equal(empty.texts.MeterQueueRow1, 'List 1')
+        equal(empty.reader:show('queue'), true, 'it can be left')
+        empty.reader:update()
+        equal(empty.visible.MeterQueueRow1, false)
+        equal(empty.collapseCalls, nil)
+        local refused = drawer(nil, snapshot3({ count = 0, control = 1 }))
+        refused.list = listing({ state = 'scope_required' })
+        refused.reader:update()
+        equal(refused.collapseCalls, 1, 'without the permission an empty drawer collapses as before')
+        -- The queue's own trouble leaves the view.
+        local lost = drawer()
+        lost.list = listing(nil, 3)
+        lost.reader:update()
+        lost.reader:show('playlists')
+        lost.data = blocked({ state = 'offline' })
+        equal(lost.reader:update(), 'Offline')
+        equal(lost.visible.MeterQueueRow1, false)
+        -- A closed drawer, and skins without the switch, have no view.
+        local closed = drawer({ expanded = false })
+        closed.reader:update()
+        equal(closed.reader:show('playlists'), false)
+        local setup = fixture(snapshot3({ count = 3, control = 1 }, songs), { inline = true, expanded = true })
+        setup.reader:update()
+        equal(setup.reader:show('playlists'), false)
+        equal(setup.reader:scrollBy(1), false)
+        equal(setup.header, 'Song / Artist')
     end)
     scenario('automatic collapse persists only a changed expanded preference and preserves explicit toggles', function()
         local data = '[Variables]\nQueueExpanded=1\nQueueRowLimit=3\nUntouched=keep\n'

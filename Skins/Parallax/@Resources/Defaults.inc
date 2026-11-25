@@ -49,6 +49,10 @@ UpdateCheck=1
 ; release keeps 0. DevMode=1 records that Global Settings has loaded this release's copy.
 ParallaxDevBuild=0
 DevMode=0
+; The maintainer's right-click "Load dev version beside this" (docs\DEVMODE.md):
+; both empty unless tools\Load-ParallaxDevBeside.ps1 -Menu On set them.
+ParallaxDevMenuTitle=
+ParallaxDevMenuAction=
 ; Set for one Rainmeter refresh while Global Settings loads a copy it has just created.
 DevPending=0
 GraphBackgroundColor=25,25,25,255

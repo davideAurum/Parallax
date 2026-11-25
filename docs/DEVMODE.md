@@ -39,6 +39,22 @@ No network access, account, driver, helper download or system change. The copy i
 
 The status line reads `No dev copy yet.`, `Not compared yet.`, `All match (14:35)`, `2 of 8 differ (14:35)` (utilities that differ, counting shared files for every utility), `Off. Last: ...` while Dev mode is off, or the reason an action failed (in `DangerColor`).
 
+## Right-click: load the dev version beside this
+
+Added 2026-11-25, for the maintainer. Each utility's context menu ends with an item that releases ship empty, so Rainmeter does not show it (an empty title ends the custom list). Turn it on once from a checkout, then **Refresh all**:
+
+```powershell
+.\tools\Load-ParallaxDevBeside.ps1 -Menu On
+```
+
+`-Menu On` saves the title and the command (`ParallaxDevMenuTitle`, `ParallaxDevMenuAction`, with this checkout's path) in the installed `User\Settings.inc` and the copy's. No shipped file holds the command. `-Menu Off` clears them. The item is under **Custom skin actions**; a utility with three other actions gets that submenu only while the item is on.
+
+**Load dev version beside this** mirrors the whole checkout into `ParallaxDev` (as `Sync-ParallaxDev.ps1`, without the validation passes), then loads only the clicked utility's dev config, in the same `.ini`, beside its release window or at the nearest free spot. If it is already loaded it is refreshed where it is. The first creation of a copy runs one `!RefreshApp`. Other loaded dev utilities are not refreshed.
+
+It runs `powershell.exe` hidden through `conhost.exe --headless`. It refuses, with a message box, while more than one Rainmeter is running. It builds from the checkout `-Menu On` was run in; run it from the main checkout, not a temporary worktree.
+
+Checked 2026-11-25: Rainmeter 4.5.28 passed `#CURRENTCONFIG#` and `#CURRENTFILE#` through the saved command to a stub script in a path with spaces (isolated instance, run from `OnRefreshAction`); the script's menu on/off, first load, refresh and refusal paths ran against a scratch skins folder with a stand-in for `Rainmeter.exe`; `Test-DevMode` (132), `Test-Parallax -RequireAllModules` and `test_skin_contract.py` pass. Not verified: the menu item itself, a real click, and the move on a live desktop.
+
 ## What the copy is
 
 - **A clone, not a link.** `<Skins>\ParallaxDev` holds every file of the release folder. The build is made beside a temporary `@ParallaxDevNew-<id>` folder (an isolated test on Rainmeter 4.5.28 showed that Rainmeter lists `@`-prefixed and hidden-attribute folders like any other, so neither hides anything; the name only keeps the temporary folder from being mistaken for the copy) and moved into place whole, so an interrupted run leaves no half-copied `ParallaxDev`. Junctions and symbolic links anywhere in either tree are refused.

@@ -192,7 +192,7 @@ function Get-ParallaxDevVersion {
 # ---- .inc values -------------------------------------------------------------
 
 function Set-ParallaxDevIncValue {
-    param([Parameter(Mandatory)][string]$Path, [Parameter(Mandatory)][string]$Key, [Parameter(Mandatory)][string]$Value)
+    param([Parameter(Mandatory)][string]$Path, [Parameter(Mandatory)][string]$Key, [Parameter(Mandatory)][AllowEmptyString()][string]$Value)
     $bytes = if (Test-Path -LiteralPath $Path -PathType Leaf) { [IO.File]::ReadAllBytes($Path) } else { [byte[]]@() }
     $text = Read-ParallaxDevText $bytes
     $eol = if ($text.Text.Contains("`r`n") -or $text.Text.Length -eq 0) { "`r`n" } else { "`n" }

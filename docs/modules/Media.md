@@ -144,7 +144,7 @@ vector artwork on 34-pixel circular faces. Statuses, queue rows and Setup
 actions retain the chosen body `FontSize`; Setup actions remain 18 pixels tall.
 Actions use zero local padding. Primary actions use
 `AccentColor`; the gear, documentation, Stop and secondary settings/navigation actions
-use `AccentColor2`. Metadata icons use `MutedColor`; the Monitor Play and Audio Lines title icons
+use `AccentColor2`. Metadata icons use `AccentColor`; the Monitor Play and Audio Lines title icons
 and queue status retain `MediaColor`, and
 unavailable actions remain muted. The double layout provides more metadata/time
 space. The three transport circles form a row centered on the panel's lower

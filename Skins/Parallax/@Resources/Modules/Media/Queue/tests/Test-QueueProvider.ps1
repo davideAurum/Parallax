@@ -97,6 +97,13 @@ Assert-Check ($cycle.Success -and $cycle.Snapshot.Items.Count -eq 3) 'Track/epis
 Assert-Check ($cycle.Snapshot.Items[0].Title -ceq $cycle.Snapshot.Items[1].Title) 'Duplicate order retained'
 Assert-Check ($cycle.Snapshot.Items[2].Detail -ceq 'Synthetic show') 'Episode show retained'
 Assert-Check ($cycle.Snapshot.ValidUntil-$cycle.Snapshot.Observed -eq 300) 'Maximum freshness window'
+Assert-Check ($null -eq $cycle.Snapshot.Current) 'Nothing playing: the snapshot names no current track'
+Reset-Transport @(Reply 200 ('{"currently_playing":'+$duplicate+',"queue":['+$episode+']}'))
+$cycle = Invoke-QueueCycle $root 30
+Assert-Check ($cycle.Success -and $cycle.Snapshot.Items.Count -eq 1 -and $cycle.Snapshot.Current.Title -ceq 'Synthetic track' -and $cycle.Snapshot.Current.Detail -ceq 'Synthetic artist') 'The snapshot names the track its rows come after'
+Reset-Transport @(Reply 200 ('{"currently_playing":{"type":"ad"},"queue":['+$episode+']}'))
+$cycle = Invoke-QueueCycle $root 30
+Assert-Check ($cycle.Success -and $cycle.Snapshot.Items.Count -eq 1 -and $null -eq $cycle.Snapshot.Current) 'An unreadable current item never fails the queue read'
 
 Reset-Transport @((Reply 401),(Reply))
 $cycle = Invoke-QueueCycle $root 30
@@ -185,7 +192,7 @@ $root = Fresh-Root
 Reset-Transport @(Reply 200 (Art-Queue 'r','s','t')); $script:imageReplies[(Art-Url 'r')] = Cover; $script:imageReplies[(Art-Url 's')] = Cover '' 404 $null; $script:imageReplies[(Art-Url 't')] = Cover 'image/png' 200 $script:png
 Invoke-QueueRun $root -Single -Silent
 $published = @([regex]::Matches((Read-Snapshot $root), '(?m)^image[1-5]=(.+)$') | ForEach-Object { $_.Groups[1].Value })
-Assert-Check ((Read-Snapshot $root).StartsWith("PARALLAX_QUEUE_V4`nstate=ready`n") -and ($published -join ',') -ceq ((Cover-Name 'r') + ',' + (Cover-Name 't' 'png'))) 'The published V4 snapshot names the saved covers'
+Assert-Check ((Read-Snapshot $root).StartsWith("PARALLAX_QUEUE_V5`nstate=ready`n") -and ($published -join ',') -ceq ((Cover-Name 'r') + ',' + (Cover-Name 't' 'png'))) 'The published V5 snapshot names the saved covers'
 Assert-Check (@($published | Where-Object { -not [IO.File]::Exists((Join-Path $root ('covers\' + $_))) }).Count -eq 0) 'Every published cover name exists on disk'
 
 # Row clicks (Play) and Refresh. The click names the snapshot it was read from;
@@ -238,6 +245,17 @@ foreach ($bad in @("PARALLAX_QUEUE_ACTION_V1|play|9|1|1`n", "PARALLAX_QUEUE_ACTI
     Assert-Check ($null -eq (Read-QueueAction $root)) ('A malformed request is discarded: ' + $bad.Trim())
     Assert-Check (-not (Test-Path -LiteralPath (Join-Path $root 'action.request'))) 'A malformed request is removed'
 }
+# The skin writes the refresh request itself when the player changes track
+# (QueueReader.lua). One still open is left for the next pass: the worker must
+# neither fail nor lose it.
+$requestPath = Join-Path $root 'action.request'
+[IO.File]::WriteAllText($requestPath, ("PARALLAX_QUEUE_ACTION_V1|refresh|0|0|" + (Get-QueueUnixTime) + "`n"), [Text.Encoding]::ASCII)
+$held = [IO.FileStream]::new($requestPath, [IO.FileMode]::Open, [IO.FileAccess]::ReadWrite, [IO.FileShare]::ReadWrite)
+try {
+    Assert-Check ($null -eq (Read-QueueAction $root)) 'A request someone holds open reads as none'
+    Assert-Check (Test-Path -LiteralPath $requestPath) 'A held request is not lost'
+} finally { $held.Dispose() }
+Assert-Check ((Read-QueueAction $root).Kind -ceq 'refresh' -and -not (Test-Path -LiteralPath $requestPath)) 'A released request is read on the next pass'
 $rejected = $false; try { Write-QueueAction $root play 0 1 } catch { $rejected = $true }
 Assert-Check $rejected 'A play request needs a row'
 

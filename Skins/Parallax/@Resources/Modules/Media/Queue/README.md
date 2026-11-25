@@ -197,14 +197,18 @@ cache. DPAPI protects stored data for this Windows user; it does not isolate it
 from other software running as that user.
 Source: [Windows DPAPI](https://learn.microsoft.com/en-us/windows/win32/api/dpapi/nf-dpapi-cryptprotectdata).
 
-The helper writes `PARALLAX_QUEUE_V4`. The reader accepts only bounded inert
-ASCII V4, V3 or the older `PARALLAX_QUEUE_V2`: header; state, observed,
+The helper writes `PARALLAX_QUEUE_V5`. The reader accepts only bounded inert
+ASCII V5, V4, V3 or the older `PARALLAX_QUEUE_V2`: header; state, observed,
 valid_until, retry_not_before, count; from V3, control (0/1) and notice (one
 fixed outcome name or empty); exactly five titleN/detailN pairs encoded as UTF-8
-hex; and in V4, after detail5, image1..image5, each empty or a bare cover file
+hex; from V4, after detail5, image1..image5, each empty or a bare cover file
 name matching `^[0-9a-f]{40}\.(jpg|png)$` in the `covers` folder (V2/V3 rows
-have no cover). Unused fields are empty. Nonready states contain no
-rows, covers or observation/expiry. Unknown/duplicate keys, invalid Unicode, oversized
+have no cover); and in V5 current_title and current_detail, the track the rows
+come after, in the same hex. Unused fields are empty. Nonready states contain no
+rows, covers, current track or observation/expiry. When Media's player shows
+another track, the reader writes one file, the refresh request
+`action.request` beside the snapshot; it holds a fixed word and a time, no
+track text. Unknown/duplicate keys, invalid Unicode, oversized
 files/fields, and invalid timestamps are rejected. Limits: 32,768-byte snapshot,
 512 UTF-8 bytes per title/detail, 1,048,576-byte API JSON, depth 24. Metadata is never
 interpreted as INI, Lua, actions, or URLs. Controls and bidi characters are filtered;

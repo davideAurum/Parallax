@@ -66,7 +66,16 @@ function Suite.run(sourcePath, scratchPath, optionsSourcePath)
         local state = { data = data, time = 1001, reads = 0, closes = 0, opens = 0 }
         local skin = {}
         function skin:GetMeasure(name)
-            equal(name, 'MeasureQueueControl', 'reader looks up only the click host')
+            -- The click host, then the player only an inline, hosted queue follows.
+            local source = ({ MeasureConnection = 'connection', MeasurePlayer = 'player',
+                MeasureTitle = 'title', MeasureSourceArtist = 'artist' })[name]
+            if source then
+                check(options.inline and not options.noControlHost, 'only a hosted inline queue looks for a player')
+                if not options.track or options.absentMeasure == name then return nil end
+                return { GetValue = function() return options.track[source] end,
+                    GetStringValue = function() return options.track[source] end }
+            end
+            equal(name, 'MeasureQueueControl', 'reader looks up only the click host and the player')
             if options.noControlHost then return nil end
             return {}
         end
@@ -160,6 +169,17 @@ function Suite.run(sourcePath, scratchPath, optionsSourcePath)
                 if options.covers and options.covers[cover] then return { close = function() return true end } end
                 return nil, 'synthetic missing cover', 2
             end
+            if mode == 'wb' then
+                check(options.track, 'only a queue that follows a player writes')
+                equal(path, 'SYNTHETIC\\.queue-follow.tmp', 'a request is written beside the snapshot under a temporary name')
+                if options.writeDenied then return nil, 'synthetic denied', 13 end
+                state.draft = ''
+                return { write = function(_, bytes)
+                    if options.writeFails then return nil, 'synthetic write error' end
+                    state.draft = state.draft .. bytes
+                    return true
+                end, close = function() return true end }
+            end
             state.opens = state.opens + 1
             equal(path, 'SYNTHETIC\\queue.snapshot', 'fixed test path')
             equal(mode, 'rb', 'snapshot never opened writable')
@@ -186,6 +206,19 @@ function Suite.run(sourcePath, scratchPath, optionsSourcePath)
             if options.timeThrow then error('synthetic clock error') end
             return state.time
         end, getenv = forbidden_os, cachePath = 'SYNTHETIC\\queue.snapshot',
+            rename = function(from, to)
+                equal(from, 'SYNTHETIC\\.queue-follow.tmp')
+                equal(to, 'SYNTHETIC\\action.request', 'the helper reads one fixed request file')
+                if options.requestWaiting then return nil, 'synthetic exists', 17 end
+                state.requests = state.requests or {}
+                state.requests[#state.requests + 1] = state.draft
+                return true
+            end,
+            remove = function(from)
+                equal(from, 'SYNTHETIC\\.queue-follow.tmp', 'only its own temporary file is removed')
+                state.removed = (state.removed or 0) + 1
+                return true
+            end,
             rowLimit = options.rowLimit, showDetails = options.showDetails, expanded = options.expanded,
             inline = options.inline,
             -- Compact unless a scenario asks otherwise: it keeps the original
@@ -587,6 +620,153 @@ function Suite.run(sourcePath, scratchPath, optionsSourcePath)
             local unavailable = fixture(snapshot(), options)
             unavailable.reader:update()
             equal(unavailable.collapseCalls, nil, 'unavailable snapshot is not empty')
+        end
+    end)
+    scenario('V5 names the current track, and the rows follow the player past it', function()
+        local function snapshot5(overrides, rows, current)
+            local fields = {}
+            for key, value in pairs(overrides or {}) do fields[key] = value end
+            local data = snapshot3(fields, rows):gsub('^PARALLAX_QUEUE_V3\n', 'PARALLAX_QUEUE_V5\n')
+            local extra = {}
+            for index = 1, 5 do extra[#extra + 1] = 'image' .. index .. '=' end
+            extra[#extra + 1] = 'current_title=' .. hex((current or {})[1] or '')
+            extra[#extra + 1] = 'current_detail=' .. hex((current or {})[2] or '')
+            return data .. table.concat(extra, '\n') .. '\n'
+        end
+        local rows = { {'One','a'}, {'Two','b, c'}, {'Three','d'} }
+        local now = {'Now','z'}
+        local parsed = valid(snapshot5({ count = 3, control = 1 }, rows, now))
+        equal(parsed.currentKnown, true)
+        equal(parsed.current.title, 'Now')
+        equal(parsed.current.detail, 'z')
+        local silent = valid(snapshot5({ count = 3 }, rows))
+        equal(silent.currentKnown, true, 'nothing playing is still said')
+        equal(silent.current, nil)
+        equal(valid(snapshot3({ count = 3 }, rows)).currentKnown, false, 'older snapshots do not say what they follow')
+        invalid(snapshot5({ count = 3 }, rows, {'', 'z'}))
+        invalid(snapshot5({ count = 3 }, rows, now):gsub('current_title=%x+', 'current_title=4', 1))
+        invalid(snapshot5({ count = 3 }, rows, now):gsub('current_detail=%x+\n', '', 1))
+        invalid(snapshot3({ count = 3 }, rows) .. 'current_title=\ncurrent_detail=\n')
+        invalid(snapshot5({ state = 'offline', observed = 0, valid_until = 0, count = 0 }, nil, now))
+        check(valid(snapshot5({ state = 'offline', observed = 0, valid_until = 0, count = 0 })).state == 'offline', 'a nonready V5 names nothing')
+
+        local function drawer(player, options, data)
+            options = options or {}
+            options.track = { connection = 1, player = 'Windows Media Session', title = player[1], artist = player[2] }
+            for key, value in pairs(options.player or {}) do options.track[key] = value end
+            if options.inline == nil then options.inline = true end
+            if options.expanded == nil then options.expanded = true end
+            return fixture(data or snapshot5({ count = 3, control = 1 }, rows, now), options), options
+        end
+        local function asked(state) return #(state.requests or {}) end
+
+        local synced = drawer(now)
+        equal(synced.reader:update(), 'Next 3')
+        equal(synced.texts.MeterQueueRow1, 'One / a')
+        equal(asked(synced), 0, 'rows that follow the shown track ask for nothing')
+        equal(synced.reader:play(1), true)
+
+        -- The player moves to row 1: it leaves the list at once, and one read is asked for.
+        local state, options = drawer(now)
+        state.reader:update()
+        options.track.title, options.track.artist = 'One', 'a'
+        equal(state.reader:update(), 'Next 2')
+        equal(state.texts.MeterQueueRow1, 'Two / b, c', 'the playing track is no longer next')
+        equal(state.texts.MeterQueueRow2, 'Three / d')
+        equal(state.texts.MeterQueueRow3, '')
+        equal(state.visible.MeterQueueRow3, false)
+        equal(asked(state), 1)
+        equal(state.requests[1], 'PARALLAX_QUEUE_ACTION_V1|refresh|0|0|1001\n', 'the request names no track')
+        equal(state.cursors.MeterQueueHit1, '0', 'moved-up rows are not clickable')
+        equal(state.reader:play(1), false)
+        state.reader:update()
+        equal(asked(state), 1, 'one request per three seconds')
+        state.time = 1003
+        state.reader:update()
+        equal(asked(state), 1)
+        state.time = 1004
+        state.reader:update()
+        equal(asked(state), 2, 'a read that came too early is asked for again')
+        state.time = 1007
+        state.reader:update()
+        equal(asked(state), 3)
+        for later = 1008, 1020 do state.time = later state.reader:update() end
+        equal(asked(state), 3, 'three reads per track at most')
+        -- The next read follows the track: every row is live again.
+        state.data = snapshot5({ count = 3, control = 1, observed = 1020, valid_until = 1050 }, { {'Two','b, c'}, {'Three','d'}, {'Four','e'} }, {'One','a'})
+        equal(state.reader:update(), 'Next 3')
+        equal(state.texts.MeterQueueRow3, 'Four / e')
+        equal(state.cursors.MeterQueueHit1, '1')
+        equal(asked(state), 3)
+        -- A later change starts over.
+        options.track.title, options.track.artist = 'Two', 'b'
+        equal(state.reader:update(), 'Next 2', 'Windows may name fewer artists than Spotify lists')
+        equal(asked(state), 4)
+
+        local skipped = drawer({'Two','b, c'})
+        equal(skipped.reader:update(), 'Next 1', 'every row up to the playing one is passed')
+        equal(skipped.texts.MeterQueueRow1, 'Three / d')
+
+        local elsewhere = drawer({'Elsewhere','q'})
+        equal(elsewhere.reader:update(), 'Next 3', 'a track from outside the queue moves no rows')
+        equal(elsewhere.texts.MeterQueueRow1, 'One / a')
+        equal(asked(elsewhere), 1, 'but the queue is read again')
+
+        local last = drawer({'Three','d'})
+        equal(last.reader:update(), 'Updating', 'nothing left to show until the next read')
+        equal(last.visible.MeterQueueRow1, false)
+        equal(last.collapseCalls, nil, 'passed rows are not an empty queue')
+        local shown
+        for _, call in ipairs(last.calls) do
+            if call[1] == '!ShowMeterGroup' or call[1] == '!HideMeterGroup' then shown = call[1] == '!ShowMeterGroup' end
+        end
+        equal(shown, true, 'the heading stays meanwhile')
+
+        local namesake = drawer({'Two','someone else'})
+        equal(namesake.reader:update(), 'Next 3', 'a namesake by another artist moves no rows')
+        local anonymous = drawer({'Two',''})
+        equal(anonymous.reader:update(), 'Next 1', 'no artist from Windows still matches')
+        -- Repeat and duplicates: a synced queue may list the playing track again.
+        local again = drawer(now, nil, snapshot5({ count = 3 }, { now, {'Two','b'}, now }, now))
+        equal(again.reader:update(), 'Next 3')
+        equal(again.texts.MeterQueueRow1, 'Now / z')
+        equal(asked(again), 0)
+        -- Titles match as the rows show them.
+        local marked = drawer({'A #1 [x]','y'}, nil, snapshot5({ count = 1 }, { {'One','a'} }, {'A #1 [x]','y'}))
+        equal(marked.reader:update(), 'Next 1')
+        equal(asked(marked), 0, 'neutralised text compares like with like')
+
+        for _, quiet in ipairs({ { connection = 0 }, { title = '' }, { title = '   ' }, { title = '\255' }, { artist = '\255' },
+                { player = 'YouTube' }, { player = 'VLC' } }) do
+            local other = drawer({'One','a'}, { player = quiet })
+            equal(other.reader:update(), 'Next 3', 'no Spotify track to follow')
+            equal(asked(other), 0)
+        end
+        for _, named in ipairs({ 'Spotify', ' spotify ', 'Spotify Web', 'windows', '' }) do
+            local other = drawer({'One','a'}, { player = { player = named } })
+            equal(other.reader:update(), 'Next 2')
+            equal(asked(other), 1)
+        end
+        local closed = drawer({'One','a'}, { expanded = false })
+        equal(closed.reader:update(), 'Next 2')
+        equal(asked(closed), 0, 'a closed drawer asks for nothing')
+        for _, bare in ipairs({ { noControlHost = true }, { inline = false, expanded = false }, { absentMeasure = 'MeasureTitle' } }) do
+            local other = drawer({'One','a'}, bare)
+            equal(other.reader:update(), 'Next 3', 'Setup, the standalone queue and a skin without a player do not follow')
+            equal(asked(other), 0)
+        end
+        local older = drawer({'One','a'}, nil, snapshot3({ count = 3 }, rows))
+        equal(older.reader:update(), 'Next 3', 'a snapshot that names no track is shown as it is')
+        equal(asked(older), 0)
+        for _, broken in ipairs({ 'writeDenied', 'writeFails', 'requestWaiting' }) do
+            local other, flags = drawer({'One','a'}, { [broken] = true })
+            equal(other.reader:update(), 'Next 2', 'a request that cannot be written changes nothing else')
+            equal(asked(other), 0)
+            equal(other.removed, broken ~= 'writeDenied' and 1 or nil, 'its temporary file is removed')
+            flags[broken] = nil
+            other.time = 1004
+            other.reader:update()
+            equal(asked(other), 1, 'and it is tried again')
         end
     end)
     scenario('automatic collapse persists only a changed expanded preference and preserves explicit toggles', function()

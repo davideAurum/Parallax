@@ -52,6 +52,24 @@ function Suite.Run(AlbumColors)
     equal(AlbumColors.palette('', '', ''), nil, 'no samples keep the theme')
     equal(AlbumColors.palette('FFFFFF', '000000', 'FFFFFF'), nil, 'fallback samples keep the theme')
 
+    -- Muted covers (2026-11-24). Samples of an olive cover, a few levels either
+    -- side of the 18% cutoff, as its full-size file and its thumbnail can be.
+    local olive = AlbumColors.palette('CDD6DB', 'A6AE92', '3F4637')
+    check(olive ~= nil, 'a muted cover has a palette')
+    equal(table.concat(olive.main, ','), '63,70,55', 'its tinted Average is the main color')
+    check(lightness(olive.text1) >= 0.675 and lightness(olive.text2) >= 0.675, 'muted text is readable')
+    check(saturation(olive.text1) >= 0.34 and saturation(olive.text2) >= 0.34, 'and lifted from gray')
+    check(saturation(olive.text1) <= 0.36, 'but not past the floor')
+    check(table.concat(olive.text1, ',') ~= table.concat(olive.text2, ','), 'its two tints are both used')
+    check(saturation(olive.media) >= 0.34, 'media color as for any cover')
+    local above = AlbumColors.palette('C7D5DB', 'A6AE92', '3F4637')
+    equal(table.concat(above.main, ','), '199,213,219', 'a cover that already had color is unchanged')
+    check(saturation(above.text1) < 0.34, 'and its text is not lifted')
+    for _, gray in ipairs({ { 'FCFCFC', 'FCFCFC', 'DADADE' }, { 'A29E97', 'A29E97', '827A73' }, { 'F1F1F0', 'F1F1F0', '7F7F7D' },
+            { 'ECECEC', 'A5A5A5', '111111' }, { '09090A', '0B0B0D', '0A0A0C' }, { 'F6F6F8', 'F4F4F5', 'E9E9EC' } }) do
+        equal(AlbumColors.palette(gray[1], gray[2], gray[3]), nil, 'still colorless: ' .. table.concat(gray, ' '))
+    end
+
     -- Tint: 10% toward the main color, clamped to 30%.
     local t = AlbumColors.tint({ 45, 45, 45 }, { 145, 45, 45 }, 10)
     equal(table.concat(t, ','), '55,45,45')
@@ -61,7 +79,7 @@ function Suite.Run(AlbumColors)
     -- Option strings: the theme reproduces the ini values; a palette never
     -- changes the panel fill or touches the transport.
     local theme = { media = '137,190,250', header = '175,175,175', text = '220,220,220', background = '15,15,15,255',
-        border = '50,50,50,255', sheet = '45,45,45,255', track = '50,50,50,255', off = '25,25,25,255',
+        border = '50,50,50,255', sheet = '45,45,45,255', track = '50,50,50,255', off = '25,25,25,255', artist = '1,2,3,255',
         rgb = { border = { 50, 50, 50 }, sheet = { 45, 45, 45 }, track = { 50, 50, 50 }, off = { 25, 25, 25 } } }
     local options, variables, spectrum = AlbumColors.options(theme, nil, 10, nil)
     local byKey = {}
@@ -74,6 +92,12 @@ function Suite.Run(AlbumColors)
     equal(byKey['MeterPanel:MediaPanelPaint'], 'Fill Color 15,15,15,255 | Stroke Color 50,50,50,255 | StrokeWidth (#BorderThickness#*#Scale#)')
     equal(byKey['MeterQueueDrawer:MediaSheetPaint'], 'Fill Color 45,45,45,255 | Stroke Color 50,50,50,255 | StrokeWidth (#BorderThickness#*#Scale#)')
     equal(byKey['MeterTrackTitle:InlineSetting'], 'Color | 220,220,220')
+    for index = 1, 5 do
+        equal(byKey['MeterQueueArtist' .. index .. ':FontColor'], '1,2,3,255', 'theme keeps the queue artist color')
+        equal(byKey['MeterQueueRow' .. index .. ':InlineSetting'], 'Color | 1,2,3,255')
+        equal(byKey['MeterQueueRow' .. index .. ':FontColor'], nil, 'queue song titles keep the theme')
+    end
+    equal(byKey['MeterQueueHeaderTrack:InlineSetting'], 'Color | 1,2,3,255')
     equal(spectrum, nil, 'theme leaves the spectrum palette alone')
     equal(variables[1][2], '25,25,25,255')
 
@@ -86,6 +110,13 @@ function Suite.Run(AlbumColors)
     check(byKey['MeterArtist:InlineSetting']:find('; 1%.0000$'), 'fraction capped at 1')
     check(byKey['MeterAlbum:InlineSetting']:find('; 0%.0500$'), 'fraction floor keeps a visible gradient')
     equal(byKey['MeterProgress:BarColor'], table.concat(warm.media, ','))
+    local artist = table.concat(warm.text1, ',')
+    for index = 1, 5 do
+        equal(byKey['MeterQueueArtist' .. index .. ':FontColor'], artist, 'queue artists take the lighter text color')
+        equal(byKey['MeterQueueRow' .. index .. ':InlineSetting'], 'Color | ' .. artist, 'so does a Compact row')
+        equal(byKey['MeterQueueRow' .. index .. ':FontColor'], nil, 'queue song titles never do')
+    end
+    equal(byKey['MeterQueueHeaderTrack:InlineSetting'], 'Color | ' .. artist)
     check(byKey['MeterProgress:SolidColor'] ~= '50,50,50,255', 'track tinted')
     check(spectrum:find('^180 | '), 'spectrum runs left to right')
     check(variables[2][2] ~= '50,50,50,255', 'border variable tinted for the toggle ring')

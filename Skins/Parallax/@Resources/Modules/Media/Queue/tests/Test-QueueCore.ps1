@@ -16,12 +16,12 @@ Check ($normalized.Items.Count -eq 3) 'track, duplicate, and episode retained'
 Check ($normalized.Items[0].Title -ceq $normalized.Items[1].Title) 'duplicate order preserved'
 Check ($normalized.Items[2].Detail -ceq 'Show') 'episode show source'
 $text = ConvertTo-QueueSnapshotText (New-QueueSnapshot -State ready -Items $normalized.Items -Now $now)
-Check ($text.StartsWith("PARALLAX_QUEUE_V4`nstate=ready`n")) 'versioned inert snapshot'
+Check ($text.StartsWith("PARALLAX_QUEUE_V5`nstate=ready`n")) 'versioned inert snapshot'
 Check ($text.Contains("count=3`ncontrol=0`nnotice=`n")) 'read-only grant: rows not clickable, no notice'
 Check ($text.Contains('count=3')) 'display count'
-Check ($text.EndsWith("title4=`ndetail4=`ntitle5=`ndetail5=`nimage1=`nimage2=`nimage3=`nimage4=`nimage5=`n")) 'unused rows blank; no cover saved, none named'
+Check ($text.EndsWith("title4=`ndetail4=`ntitle5=`ndetail5=`nimage1=`nimage2=`nimage3=`nimage4=`nimage5=`ncurrent_title=`ncurrent_detail=`n")) 'unused rows blank; no cover saved, none named; nothing playing, no current track'
 Check ($text -notmatch 'Synthetic title|Artist|Episode') 'display metadata encoded, not Rainmeter syntax'
-Check (($text -split "`n").Count -eq 24) 'exact bounded field count'
+Check (($text -split "`n").Count -eq 26) 'exact bounded field count'
 $controlText = ConvertTo-QueueSnapshotText (New-QueueSnapshot -State ready -Items $normalized.Items -Now $now -Control $true -Notice 'queue_changed')
 Check ($controlText.Contains("control=1`nnotice=queue_changed`n")) 'control grant and click notice recorded'
 Reject { New-QueueSnapshot -State ready -Items $normalized.Items -Now $now -Notice 'skip_everything' } 'unknown notice rejected'
@@ -30,6 +30,21 @@ Reject { New-QueueSnapshot -State offline -Now $now -Notice 'no_device' } 'notic
 foreach ($pair in @(@(204,''),@(200,''),@(401,'control_reauth'),@(403,'control_denied'),@(404,'no_device'),@(429,'control_failed'),@(500,'control_failed'),@(0,'control_failed'))) {
     Check ((Get-QueueControlDecision $pair[0]) -ceq $pair[1]) ('skip response ' + $pair[0])
 }
+
+# Current track (V5): what the rows come after. It never fails the queue read.
+$playing = ConvertTo-QueueItems (ConvertFrom-QueueJson '{"currently_playing":{"type":"track","name":"Now #1","artists":[{"name":"One"},{"name":"Two"}]},"queue":[{"type":"track","name":"Next","artists":[{"name":"Artist"}]}]}')
+Check ($playing.Current.Title -ceq 'Now #1' -and $playing.Current.Detail -ceq 'One, Two') 'current track named as a row would be'
+$playingText = ConvertTo-QueueSnapshotText (New-QueueSnapshot -State ready -Items $playing.Items -Now $now -Current $playing.Current)
+Check ($playingText.EndsWith("image5=`ncurrent_title=4E6F77202331`ncurrent_detail=4F6E652C2054776F`n")) 'current track encoded after the covers'
+$episodeNow = ConvertTo-QueueItems (ConvertFrom-QueueJson '{"currently_playing":{"type":"episode","name":"Now","show":{"name":"Show"}},"queue":[]}')
+Check ($episodeNow.Current.Title -ceq 'Now' -and $episodeNow.Current.Detail -ceq 'Show') 'a current episode is named too'
+Check ($null -eq $normalized.Current) 'nothing playing: no current track'
+foreach ($odd in @('{"type":"ad","name":"x"}','{"type":"track"}','{"type":"track","name":7}','{}')) {
+    $unread = ConvertTo-QueueItems (ConvertFrom-QueueJson ('{"currently_playing":' + $odd + ',"queue":[{"type":"track","name":"Next","artists":[]}]}'))
+    Check ($unread.Items.Count -eq 1 -and $null -eq $unread.Current) ('an unreadable current item keeps the queue: ' + $odd)
+}
+Reject { New-QueueSnapshot -State stopped -Now $now -Current $playing.Current } 'current track without live rows rejected'
+Reject { ConvertTo-QueueSnapshotText ([pscustomobject]@{ State='stopped'; Observed=0L; ValidUntil=0L; RetryNotBefore=0L; Items=@(); Current=$playing.Current }) } 'nonready text never names a current track'
 
 # Covers (V4). Synthetic URLs on the allowlisted hosts; nothing is fetched.
 $cdn = 'https://i.scdn.co/image/'
@@ -89,12 +104,12 @@ Check ($whole -is [byte[]] -and $whole.Length -eq 262144) 'a body at the 256 KB 
 Check ($null -eq (Read-QueueBoundedStream -Stream ([IO.MemoryStream]::new($oversized)) -Limit 262144 -Milliseconds 5000)) 'a body past the cap is abandoned, never truncated'
 
 $named = @([pscustomobject]@{ Title='A'; Detail='B'; Image=('0' * 40 + '.jpg') }, [pscustomobject]@{ Title='C'; Detail=''; Image='' })
-$v4 = ConvertTo-QueueSnapshotText (New-QueueSnapshot -State ready -Items $named -Now $now -Control $true)
-$expected = "PARALLAX_QUEUE_V4`nstate=ready`nobserved=$now`nvalid_until=$($now + 90)`nretry_not_before=0`ncount=2`ncontrol=1`nnotice=`n" +
+$v5 = ConvertTo-QueueSnapshotText (New-QueueSnapshot -State ready -Items $named -Now $now -Control $true -Current ([pscustomobject]@{ Title='E'; Detail='F' }))
+$expected = "PARALLAX_QUEUE_V5`nstate=ready`nobserved=$now`nvalid_until=$($now + 90)`nretry_not_before=0`ncount=2`ncontrol=1`nnotice=`n" +
     "title1=41`ndetail1=42`ntitle2=43`ndetail2=`ntitle3=`ndetail3=`ntitle4=`ndetail4=`ntitle5=`ndetail5=`n" +
-    "image1=$('0' * 40).jpg`nimage2=`nimage3=`nimage4=`nimage5=`n"
-Check ($v4 -ceq $expected) 'V4 is V3''s lines in V3''s order, then image1..image5'
-Check ((ConvertTo-QueueSnapshotText (New-QueueSnapshot -State stopped -Now $now)).EndsWith("detail5=`nimage1=`nimage2=`nimage3=`nimage4=`nimage5=`n")) 'a nonready snapshot names no covers'
+    "image1=$('0' * 40).jpg`nimage2=`nimage3=`nimage4=`nimage5=`ncurrent_title=45`ncurrent_detail=46`n"
+Check ($v5 -ceq $expected) 'V5 is V4''s lines in V4''s order (V3''s, then image1..image5), then the current track'
+Check ((ConvertTo-QueueSnapshotText (New-QueueSnapshot -State stopped -Now $now)).EndsWith("detail5=`nimage1=`nimage2=`nimage3=`nimage4=`nimage5=`ncurrent_title=`ncurrent_detail=`n")) 'a nonready snapshot names no covers and no current track'
 foreach ($badName in @('..\x.jpg', ('A' * 40 + '.jpg'), ('0' * 40 + '.gif'), ('0' * 39 + '.jpg'), ('0' * 40 + '.jpg '), ('0' * 40 + '.JPG'), ('C:\covers\' + '0' * 40 + '.jpg'), "x`nimage2=")) {
     Reject { ConvertTo-QueueSnapshotText (New-QueueSnapshot -State ready -Items @([pscustomobject]@{ Title='A'; Detail='B'; Image=$badName }) -Now $now) } ('cover name refused: ' + $badName)
 }

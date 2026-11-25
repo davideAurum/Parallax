@@ -1101,7 +1101,9 @@ artwork_bounds=function(expanded)
         for _,name in ipairs(queue_names) do
             local meter=SKIN:GetMeter(name)
             inside(name,width,height)
-            check(math.abs(meter:GetX(true)-(queue_x+38*scale))<=1,'Queue text column alignment wrong: '..name)
+            -- The heading is flush with the rule and covers; song text sits past them.
+            local left=name=='MeterQueueHeaderTrack' and queue_x or queue_x+38*scale
+            check(math.abs(meter:GetX(true)-left)<=1,'Queue text column alignment wrong: '..name)
             -- The header's column labels stop short of its Refresh icon (Media.ini only).
             local right=name=='MeterQueueHeaderTrack' and queue_right-(hosted() and 18*scale or 0) or queue_right
             check(math.abs(meter:GetX(true)+meter:GetW()-right)<=1,'Queue width wrong: '..name)

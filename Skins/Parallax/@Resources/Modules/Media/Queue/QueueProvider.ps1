@@ -189,7 +189,9 @@ function Get-QueueExceptionDecision {
 function Write-QueueAction {
     # A short-lived control process (a row click or Refresh) hands its request
     # to the running worker through this one file; only the worker, which owns
-    # the tokens, talks to Spotify. A newer click replaces an unread one.
+    # the tokens, talks to Spotify. A newer click replaces an unread one. When
+    # the player changes track, QueueReader.lua writes the same refresh request
+    # itself, with no process.
     param([string]$Root, [ValidateSet('refresh','play')][string]$Kind, [int]$Position = 0, [long]$Observed = 0)
     if ($Kind -eq 'play' -and ($Position -lt 1 -or $Position -gt 5 -or $Observed -lt 1)) { throw 'Invalid queue action.' }
     if ($Kind -eq 'refresh') { $Position = 0; $Observed = 0 }
@@ -198,14 +200,18 @@ function Write-QueueAction {
 
 function Read-QueueAction {
     # Consumes the pending request, if any. Anything malformed, or older than
-    # 15 seconds (written before this worker started), is discarded unread.
+    # 15 seconds (written before this worker started), is discarded unread. A
+    # file someone still holds open waits for the next pass: the skin writes
+    # some requests, and a scanner may open any of them.
     param([string]$Root, [long]$Now = (Get-QueueUnixTime))
     $path = Get-QueueRuntimeFile $Root 'action.request'
     if (-not [IO.File]::Exists($path)) { return $null }
     $text = ''
     try {
         if ([IO.FileInfo]::new($path).Length -le 128) { $text = [Text.Encoding]::ASCII.GetString([IO.File]::ReadAllBytes($path)) }
-    } finally { if ([IO.File]::Exists($path)) { [IO.File]::Delete($path) } }
+        [IO.File]::Delete($path)
+    } catch [IO.IOException] { return $null }
+    catch [UnauthorizedAccessException] { return $null }
     if ($text -cnotmatch '\APARALLAX_QUEUE_ACTION_V1\|(refresh|play)\|([0-5])\|([0-9]{1,12})\|([0-9]{1,12})\n\z') { return $null }
     $action = [pscustomobject]@{ Kind=$Matches[1]; Position=[int]$Matches[2]; Observed=[long]$Matches[3]; Created=[long]$Matches[4] }
     if ($action.Created -gt $Now + 5 -or $action.Created -lt $Now - 15) { return $null }
@@ -374,7 +380,7 @@ function Invoke-QueueCycle {
                 # only files that exist. This step cannot fail the read.
                 try { Update-QueueCovers -Root $Root -Items $items.Items -Now $now } catch {}
                 $lifetime = [Math]::Min(300, [Math]::Max(90, $Interval*2))
-                $snapshot = New-QueueSnapshot -State ready -Items $items.Items -Now $now -LifetimeSeconds $lifetime -Control $control -Notice $Notice
+                $snapshot = New-QueueSnapshot -State ready -Items $items.Items -Now $now -LifetimeSeconds $lifetime -Control $control -Notice $Notice -Current $items.Current
                 return [pscustomobject]@{ Snapshot=$snapshot; NextAt=($now+$Interval); Pause=$false; Success=$true }
             } catch {
                 $decision = Get-QueueResponseDecision 204 -Now $now -FailureCount $FailureCount

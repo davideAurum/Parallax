@@ -102,6 +102,47 @@ function Get-QueueImageExtension {
     return ''
 }
 
+function ConvertTo-QueueItem {
+    # One track or episode as display text and its cover's URL; anything else,
+    # or a nameless item, throws. ImageUrl is where the cover comes from; Image
+    # is the saved file's name, filled in by the helper's download step (empty:
+    # no cover).
+    param([AllowNull()][object]$Entry)
+    if ($Entry -isnot [Collections.IDictionary] -or -not $Entry.ContainsKey('type')) { throw 'Queue contains an unsupported item.' }
+    if ($Entry['type'] -notin @('track','episode')) { throw 'Queue contains an unsupported item type.' }
+    if (-not $Entry.ContainsKey('name') -or $Entry['name'] -isnot [string]) { throw 'Queue contains an invalid item name.' }
+    $title = Limit-QueueText $Entry['name'] ('Untitled ' + $Entry['type'])
+    $detail = ''
+    # Tracks show their album's art; episodes their own, else their show's.
+    $imageUrl = ''
+    if ($Entry['type'] -eq 'track') {
+        if ($Entry.ContainsKey('album') -and $Entry['album'] -is [Collections.IDictionary] -and $Entry['album'].ContainsKey('images')) {
+            $imageUrl = Select-QueueImageUrl $Entry['album']['images']
+        }
+        $artists = [Collections.Generic.List[string]]::new()
+        if ($Entry.ContainsKey('artists') -and $Entry['artists'] -is [Array]) {
+            foreach ($artist in $Entry['artists']) {
+                if ($artists.Count -ge 10) { break }
+                if ($artist -is [Collections.IDictionary] -and $artist.ContainsKey('name')) {
+                    $name = Limit-QueueText $artist['name']
+                    if ($name) { $artists.Add($name) }
+                }
+            }
+        }
+        $detail = Limit-QueueText ($artists -join ', ') 'Artist unavailable'
+    } else {
+        if ($Entry.ContainsKey('show') -and $Entry['show'] -is [Collections.IDictionary] -and $Entry['show'].ContainsKey('name')) {
+            $detail = Limit-QueueText $Entry['show']['name']
+        }
+        if (-not $detail) { $detail = 'Podcast episode' }
+        if ($Entry.ContainsKey('images')) { $imageUrl = Select-QueueImageUrl $Entry['images'] }
+        if (-not $imageUrl -and $Entry.ContainsKey('show') -and $Entry['show'] -is [Collections.IDictionary] -and $Entry['show'].ContainsKey('images')) {
+            $imageUrl = Select-QueueImageUrl $Entry['show']['images']
+        }
+    }
+    return [pscustomobject]@{ Title = $title; Detail = $detail; ImageUrl = $imageUrl; Image = '' }
+}
+
 function ConvertTo-QueueItems {
     param([Parameter(Mandatory)][object]$Payload)
     if ($Payload -isnot [Collections.IDictionary] -or -not $Payload.ContainsKey('queue') -or -not $Payload.ContainsKey('currently_playing')) { throw 'Queue response schema is unavailable.' }
@@ -110,57 +151,27 @@ function ConvertTo-QueueItems {
     $items = [Collections.Generic.List[object]]::new()
     foreach ($entry in $Payload['queue']) {
         if ($items.Count -ge 5) { break }
-        if ($entry -isnot [Collections.IDictionary] -or -not $entry.ContainsKey('type')) { throw 'Queue contains an unsupported item.' }
-        if ($entry['type'] -notin @('track','episode')) { throw 'Queue contains an unsupported item type.' }
-        if (-not $entry.ContainsKey('name') -or $entry['name'] -isnot [string]) { throw 'Queue contains an invalid item name.' }
-        $title = Limit-QueueText $entry['name'] ('Untitled ' + $entry['type'])
-        $detail = ''
-        # Tracks show their album's art; episodes their own, else their show's.
-        $imageUrl = ''
-        if ($entry['type'] -eq 'track') {
-            if ($entry.ContainsKey('album') -and $entry['album'] -is [Collections.IDictionary] -and $entry['album'].ContainsKey('images')) {
-                $imageUrl = Select-QueueImageUrl $entry['album']['images']
-            }
-            $artists = [Collections.Generic.List[string]]::new()
-            if ($entry.ContainsKey('artists') -and $entry['artists'] -is [Array]) {
-                foreach ($artist in $entry['artists']) {
-                    if ($artists.Count -ge 10) { break }
-                    if ($artist -is [Collections.IDictionary] -and $artist.ContainsKey('name')) {
-                        $name = Limit-QueueText $artist['name']
-                        if ($name) { $artists.Add($name) }
-                    }
-                }
-            }
-            $detail = Limit-QueueText ($artists -join ', ') 'Artist unavailable'
-        } else {
-            if ($entry.ContainsKey('show') -and $entry['show'] -is [Collections.IDictionary] -and $entry['show'].ContainsKey('name')) {
-                $detail = Limit-QueueText $entry['show']['name']
-            }
-            if (-not $detail) { $detail = 'Podcast episode' }
-            if ($entry.ContainsKey('images')) { $imageUrl = Select-QueueImageUrl $entry['images'] }
-            if (-not $imageUrl -and $entry.ContainsKey('show') -and $entry['show'] -is [Collections.IDictionary] -and $entry['show'].ContainsKey('images')) {
-                $imageUrl = Select-QueueImageUrl $entry['show']['images']
-            }
-        }
-        # ImageUrl is where the cover comes from; Image is the saved file's
-        # name, filled in by the helper's download step (empty: no cover).
-        $items.Add([pscustomobject]@{ Title = $title; Detail = $detail; ImageUrl = $imageUrl; Image = '' })
+        $items.Add((ConvertTo-QueueItem $entry))
     }
+    # The track these rows come after, so the reader can tell when the player
+    # has moved on. One it cannot read is left unnamed, never a failed read.
+    $current = $null
+    if ($null -ne $Payload['currently_playing']) { try { $current = ConvertTo-QueueItem $Payload['currently_playing'] } catch {} }
     # A wrapper preserves a zero/one item array through PowerShell's pipeline.
-    return [pscustomobject]@{ Items = $items.ToArray() }
+    return [pscustomobject]@{ Items = $items.ToArray(); Current = $current }
 }
 
 function New-QueueSnapshot {
     param([Parameter(Mandatory)][string]$State, [object[]]$Items = @(), [long]$Now = (Get-QueueUnixTime), [ValidateRange(1,300)][int]$LifetimeSeconds = 90, [long]$RetryNotBefore = 0,
-        [bool]$Control = $false, [AllowEmptyString()][string]$Notice = '')
+        [bool]$Control = $false, [AllowEmptyString()][string]$Notice = '', [AllowNull()][object]$Current = $null)
     if ($State -notin $script:QueueStates) { throw 'Invalid queue state.' }
     if ($Now -lt 1 -or $Now -gt 253402300000 -or $RetryNotBefore -lt 0 -or $RetryNotBefore -gt 253402300000) { throw 'Invalid queue timestamp.' }
-    if ($Items.Count -gt 5 -or ($State -ne 'ready' -and $Items.Count -ne 0)) { throw 'Invalid items for queue state.' }
+    if ($Items.Count -gt 5 -or ($State -ne 'ready' -and ($Items.Count -ne 0 -or $null -ne $Current))) { throw 'Invalid items for queue state.' }
     # Rows are clickable, and a click outcome is shown, only beside live rows.
     if ($Notice -cnotin $script:QueueNotices -or ($State -ne 'ready' -and ($Control -or $Notice))) { throw 'Invalid queue control for state.' }
     $observed = 0L; $expires = 0L
     if ($State -eq 'ready') { $observed = $Now; $expires = $Now + $LifetimeSeconds }
-    return [pscustomobject]@{ State=$State; Observed=$observed; ValidUntil=$expires; RetryNotBefore=$RetryNotBefore; Items=@($Items); Control=$Control; Notice=$Notice }
+    return [pscustomobject]@{ State=$State; Observed=$observed; ValidUntil=$expires; RetryNotBefore=$RetryNotBefore; Items=@($Items); Control=$Control; Notice=$Notice; Current=$Current }
 }
 
 function ConvertTo-QueueSnapshotText {
@@ -171,11 +182,20 @@ function ConvertTo-QueueSnapshotText {
     $control = [bool]($Snapshot.PSObject.Properties['Control'] -and $Snapshot.Control)
     $notice = if ($Snapshot.PSObject.Properties['Notice']) { [string]$Snapshot.Notice } else { '' }
     if ($notice -cnotin $script:QueueNotices -or ($Snapshot.State -ne 'ready' -and ($control -or $notice))) { throw 'Invalid snapshot control.' }
+    $currentTitle = ''; $currentDetail = ''
+    if ($Snapshot.PSObject.Properties['Current'] -and $null -ne $Snapshot.Current) {
+        if ($Snapshot.State -ne 'ready') { throw 'Nonready snapshot contains live data.' }
+        $currentTitle = Limit-QueueText $Snapshot.Current.Title
+        $currentDetail = Limit-QueueText $Snapshot.Current.Detail
+        if (-not $currentTitle) { throw 'Current queue item has no display title.' }
+    }
     $lines = [Collections.Generic.List[string]]::new()
     # V3 adds control (rows may be clicked) and notice (a click's outcome).
     # V4 appends image1..image5 after the rows: each a saved cover's bare file
     # name, or empty for none, for unused rows and in every nonready state.
-    $lines.Add('PARALLAX_QUEUE_V4')
+    # V5 appends the track the rows come after; both lines are empty when
+    # Spotify names none, and in every nonready state.
+    $lines.Add('PARALLAX_QUEUE_V5')
     $lines.Add('state=' + $Snapshot.State)
     $lines.Add('observed=' + [long]$Snapshot.Observed)
     $lines.Add('valid_until=' + [long]$Snapshot.ValidUntil)
@@ -199,6 +219,8 @@ function ConvertTo-QueueSnapshotText {
         $images.Add('image' + $index + '=' + $image)
     }
     $lines.AddRange($images)
+    $lines.Add('current_title=' + [BitConverter]::ToString($script:Utf8.GetBytes($currentTitle)).Replace('-', ''))
+    $lines.Add('current_detail=' + [BitConverter]::ToString($script:Utf8.GetBytes($currentDetail)).Replace('-', ''))
     return ($lines -join "`n") + "`n"
 }
 

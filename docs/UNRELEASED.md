@@ -6,7 +6,9 @@ Where things stand between releases: what is on `main` but not yet in a publishe
 
 ## On main, not in any release
 
-- Nothing since 0.1.0-alpha.14.
+- **Media's queue follows the player** (2026-11-24). A song the player has reached leaves the queue drawer at once, and the running helper is asked to read again (one extra read per track change, no process) instead of up to 30 s later. The `Song / Artist` heading lines up with the queue's left edge. New snapshot format `PARALLAX_QUEUE_V5`. Verified live at natural track changes; Next, Previous and row clicks are not ([Media.md](modules/Media.md#queue-follows-the-player-2026-11-24)).
+- **Album colors reach the queue's artist names and muted covers** (2026-11-24): names and the heading's "Artist" follow the cover; a cover with only a faint tint counts as colored instead of keeping the theme. No muted cover has been seen live yet.
+- **Dev mode keeps the helpers' data path** (2026-11-24), so the copy's Media shows the source and queue ([DEVMODE.md](DEVMODE.md)).
 
 ## Open: before 0.2.0-beta.1
 

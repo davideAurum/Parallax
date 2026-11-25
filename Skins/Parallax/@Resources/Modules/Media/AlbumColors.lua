@@ -6,11 +6,11 @@
 -- docs/superpowers/specs/2026-11-19-media-queue-art-and-album-colors-design.md.
 --
 -- Follows the cover: title icon, progress fill, queue notch icon, a
--- left-to-right gradient on the song/artist/album text, the open spectrum
--- drawer's bars, and a tint (MediaAlbumTint %) on the lighter gray surfaces:
--- queue and spectrum sheets, progress track, panel border, shuffle face when
--- off. Keeps the theme: the black panel fill, the transport buttons, the
--- metadata icons and the queue rows.
+-- left-to-right gradient on the song/artist/album text, the queue's artist
+-- names, the open spectrum drawer's bars, and a tint (MediaAlbumTint %) on the
+-- lighter gray surfaces: queue and spectrum sheets, progress track, panel
+-- border, shuffle face when off. Keeps the theme: the black panel fill, the
+-- transport buttons, the metadata icons and the queue's song titles.
 --
 -- The option templates below mirror the ini they replace (Header.inc,
 -- PlayerMeters.inc, Common.inc); keep them in step.
@@ -18,7 +18,13 @@
 local AlbumColors = {}
 
 -- Tuning (decision C10).
-local MIN_SATURATION = 0.18   -- below this the cover counts as colorless
+local MIN_SATURATION = 0.18   -- at or above this a cover has color
+-- A muted cover has color too (2026-11-24): one sample at least this saturated,
+-- whose channels (0-255) also spread this far, because near black and near white
+-- a gray can look saturated. Its text is lifted, or it would read as gray.
+local MUTED_SATURATION = 0.10
+local MUTED_CHROMA = 10
+local MUTED_TEXT_SATURATION = 0.35
 local MAIN_SATURATION = 0.20  -- Average must reach this to be the main color
 local HUE_GAP = 25            -- degrees between the two text colors
 local TEXT_LIGHTNESS = 0.68   -- floor for text on the black panel
@@ -96,21 +102,33 @@ function AlbumColors.palette(light1, light2, average)
         local color = AlbumColors.parse(raw)
         if color then
             local h, s, l = AlbumColors.toHsl(color)
-            candidates[#candidates + 1] = { color = color, h = h, s = s, l = l }
+            candidates[#candidates + 1] = { color = color, h = h, s = s, l = l,
+                chroma = math.max(color[1], color[2], color[3]) - math.min(color[1], color[2], color[3]) }
         end
     end
     local avg = AlbumColors.parse(average) and candidates[#candidates] or nil
     table.sort(candidates, function(a, b) return a.s > b.s end)
-    if not candidates[1] or candidates[1].s < MIN_SATURATION then return nil end
+    local function quiet(c) return c and c.s >= MUTED_SATURATION and c.chroma >= MUTED_CHROMA end
+    local muted = not candidates[1] or candidates[1].s < MIN_SATURATION
+    if muted then
+        -- No strong color: the visibly tinted samples, strongest tint first.
+        local tinted = {}
+        for _, c in ipairs(candidates) do if quiet(c) then tinted[#tinted + 1] = c end end
+        if not tinted[1] then return nil end
+        table.sort(tinted, function(a, b) return a.chroma > b.chroma end)
+        candidates = tinted
+    end
     local first = candidates[1]
-    local main = (avg and avg.s >= MAIN_SATURATION) and avg or first
+    local strong = avg and avg.s >= MAIN_SATURATION
+    local main = (strong or (muted and quiet(avg))) and avg or first
     local second
     for index = 2, #candidates do
         local c = candidates[index]
-        if c.s >= MIN_SATURATION and hueDistance(c.h, first.h) >= HUE_GAP then second = c; break end
+        if (muted or c.s >= MIN_SATURATION) and hueDistance(c.h, first.h) >= HUE_GAP then second = c; break end
     end
     local function text(c, hueShift)
-        return AlbumColors.fromHsl(c.h + (hueShift or 0), math.min(c.s, TEXT_SATURATION),
+        local s = muted and math.max(c.s, MUTED_TEXT_SATURATION) or c.s
+        return AlbumColors.fromHsl(c.h + (hueShift or 0), math.min(s, TEXT_SATURATION),
             clamp(c.l, TEXT_LIGHTNESS, TEXT_LIGHTNESS_MAX))
     end
     local a, b = text(first), second and text(second) or text(first, 30)
@@ -171,6 +189,15 @@ function AlbumColors.options(theme, palette, tintPercent, fractions)
         end
         options[#options + 1] = { line[1], 'InlineSetting', value }
     end
+    -- The queue's artist names, and that word in its heading, take the text
+    -- gradient's first (lighter) color. A Normal row's artist is a meter of its
+    -- own; a Compact row accents the tail of its one line.
+    local artist = palette and rgb(palette.text1) or theme.artist
+    for index = 1, 5 do
+        options[#options + 1] = { 'MeterQueueArtist' .. index, 'FontColor', artist }
+        options[#options + 1] = { 'MeterQueueRow' .. index, 'InlineSetting', 'Color | ' .. artist }
+    end
+    options[#options + 1] = { 'MeterQueueHeaderTrack', 'InlineSetting', 'Color | ' .. artist }
     -- Media.lua reads these two variables when it repaints the shuffle/repeat
     -- faces, so the off face and ring follow without touching Media.lua.
     local variables = { { 'MediaTransportToggleOffFill', off }, { 'BorderColor', border } }
@@ -188,6 +215,7 @@ function AlbumColors.new(env)
         text = variable('TextColor', '220,220,220'), background = variable('BackgroundColor', '15,15,15,255'),
         border = variable('BorderColor', '50,50,50,255'), sheet = variable('MediaQueueDrawerFill', '45,45,45,255'),
         track = variable('TrackColor', '50,50,50,255'), off = variable('MediaTransportToggleOffFill', '25,25,25,255'),
+        artist = variable('MediaQueueArtistColor', '181,161,226'),
     }
     theme.rgb = {}
     for _, name in ipairs({ 'border', 'sheet', 'track', 'off' }) do

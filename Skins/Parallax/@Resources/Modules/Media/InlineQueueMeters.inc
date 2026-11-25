@@ -9,7 +9,8 @@
 ; so it emits a pattern matching the literal artist anchored at the end of the
 ; string. The separator is therefore never coloured, and a "/" in a song or
 ; artist name cannot shift the boundary - nothing infers structure from the
-; text. Normal rows put the artist in its own meter instead.
+; text. Normal rows put the artist in its own meter instead. With album colors
+; on, AlbumColors.lua replaces the accent with the cover's.
 ;
 ; Every meter sits in the QueueRows group so the drawer shows and hides them
 ; together; QueueReader.lua hides rows past the queue's length and positions
@@ -93,11 +94,14 @@ Group=QueueRows
 Hidden=1
 UpdateDivider=-1
 
+; The heading starts at the queue's own left edge, flush with the rule and the
+; covers (2026-11-24). Over the song text it read as out of line with the list
+; once the # column beside it was gone.
 [MeterQueueHeaderTrack]
 Meter=String
 MeterStyle=StyleHeader
-X=#MediaQueueTextX#
-W=(#MediaQueueTextWidth#-#MediaQueueRefreshWidth#)
+X=#MediaQueueX#
+W=(#MediaQueueWidth#-#MediaQueueRefreshWidth#)
 H=(18*#Scale#)
 Y=#MediaQueueHeaderY#
 Group=QueueRows

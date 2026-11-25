@@ -14,6 +14,14 @@ Still unverified: the Connections links by a physical click, the mouse wheel by 
 
 ## On main, not in any release
 
+**0.1.0-alpha.16 is prepared, not published** (2026-11-25). Package SHA-256 `4f8444fc098e93befc7b9027ac419c9ff8aed68ff582c1029d5743accf2ce67b`, 1,387,363 bytes (288 entries), built from `4980f47`. On the Surface laptop (Rainmeter 4.5.28.3936):
+
+- **Placement:** `Run-PlacementSmoke` at 1920 × 1032, at the real screen and at 3840 × 2112 with scale 2, and `Run-WelcomeSmoke`.
+- **Static and tooling:** `Test-Parallax -RequireAllModules` (26 configs, 0 errors, 0 warnings), `Test-ParallaxVariants` (27), `Test-PackagingTools` and `Test-DevMode` (132) under PowerShell 7, `test_settings_geometry.py` (120 combinations), `validate_cpu.py` and IO's `check_geometry.py`.
+- **Media and Connections:** `Test-QueueProvider` (551), `Test-QueueReader`, `Test-QueueView` (20 layouts), `Test-MediaNeverStarted` at both widths, `Test-MediaSettings` (60 layouts, 7 captures), `Test-Connections` and `test_skin_contract.py`.
+- **Package:** every entry matches the source byte for byte, all four plugin DLLs match their recorded hashes, and it holds no test files. Extracted into an isolated profile as for alpha.15, 14 configs loaded for 45 s and the profile left no helper running; the only log lines were the 18 plugin-load errors for WebNowPlaying, left out on purpose.
+- **Not done:** a real Skin Installer run, an upgrade from alpha.15, and a first install on a machine without Parallax. No `User\*.inc` key changed since alpha.15. The placement and tooling runs were on `50ba639`, which differs from the package only by the version number.
+
 - **New panels open apart.** Every panel names a first place through `DefaultWindowX/Y`, from one layout in `Geometry.inc`, so a first Load all no longer stacks everything at 0,0 ([WELCOME.md](WELCOME.md#where-panels-open-the-first-time)). Rainmeter uses it only for a config it has no section for, so no saved position moves, 0,0 included. `Run-PlacementSmoke.ps1` (isolated Rainmeter 4.5.28.3936): all ten panels apart at 1920 × 1032, simulated, and at the Surface laptop's real 1600 × 1019; the other sizes and what does not fit are in [WELCOME.md](WELCOME.md#first-placement-2026-11-25). No settings key changed. Unverified: a real 1080p screen at 100%, several screens, a Skin Installer run, Rainmeter 4.5.26 itself, more than 8 threads.
 
 ## Open: before 0.2.0-beta.1

@@ -53,7 +53,7 @@ Both folders are walked and every file is classified:
 | Class | Files | Effect |
 | --- | --- | --- |
 | Utility | `<Utility>\**` and `@Resources\Modules\<Utility>\**` for Chronometer, CPU, GPU, IO, Media, Network, RAM, Visualizer | Turns that utility's icon red. |
-| Suite | `Settings\`, `ColorPicker\`, `Welcome\`, `Update\`, `Idle\` configs, `Modules\ColorPicker`, `Modules\Welcome`, `Scripts\Settings.lua`, `Scripts\UpdateInstall.ps1`, `Update\Install.inc` | Counted and reported; turns no utility red. |
+| Suite | `Settings\`, `ColorPicker\`, `Connections\`, `Welcome\`, `Update\`, `Idle\` configs, `Modules\ColorPicker`, `Modules\Connections`, `Modules\Welcome`, `Scripts\Settings.lua`, `Scripts\UpdateInstall.ps1`, `Update\Install.inc` | Counted and reported; turns no utility red. |
 | Shared | Everything else (`Defaults.inc`, `Styles.inc`, `Geometry.inc`, `Version.inc`, fonts, `Scripts\SettingsInput.ps1`, `Idle\`, `Update\` hooks, `Dev\Hook0.inc` and `Hook1.inc`) | Turns **every** utility red: a shared file changes how all of them look or run. |
 | Ignored | `@Resources\User\**`, `Update\State.inc`, `Modules\Media\CaptureState.inc`, `Dev\Status.inc`, `Dev\Diff.txt` | Never compared, never overwritten by a sync. |
 | Tooling | The rest of `Dev\` (`DevStatus.lua`, `DevPanel.lua`, `DevCommon.lua`, `DevMode.ps1`, `DevCopy.psm1`, `Panel.inc`, `Icons\`) | Never compared, so editing the icon code turns no utility red; a sync still mirrors it into the copy. |

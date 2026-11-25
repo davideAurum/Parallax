@@ -532,20 +532,10 @@ Meter=Shape
 MeterStyle=StyleRule|MediaSettingsData
 Y=(#Inset#+(751-#MediaSettingsQueueCollapsedHeight#)*#Scale#)
 
-[MeterSignIn]
-Meter=String
-MeterStyle=StyleButton|MediaSettingsButton|MediaSettingsCentered|MediaSettingsData
-X=(#ContentX#+((#ContentWidth#-8*#Scale#)/3)/2+0*(((#ContentWidth#-8*#Scale#)/3)+4*#Scale#))
-Y=(#Inset#+(767-#MediaSettingsQueueCollapsedHeight#)*#Scale#)
-W=((#ContentWidth#-8*#Scale#)/3)
-Text=Sign in
-LeftMouseUpAction=["powershell.exe" "-NoLogo" "-NoProfile" "-ExecutionPolicy" "Bypass" "-NoExit" "-File" "#@#Modules\Media\Queue\QueueProvider.ps1" "-Command" "Connect" "-PollSeconds" "#QueuePollSeconds#"]
-DynamicVariables=1
-
 [MeterStart]
 Meter=String
 MeterStyle=StyleButton|MediaSettingsButton|MediaSettingsCentered|MediaSettingsData
-X=(#ContentX#+((#ContentWidth#-8*#Scale#)/3)/2+1*(((#ContentWidth#-8*#Scale#)/3)+4*#Scale#))
+X=(#ContentX#+((#ContentWidth#-8*#Scale#)/3)/2+0*(((#ContentWidth#-8*#Scale#)/3)+4*#Scale#))
 Y=(#Inset#+(767-#MediaSettingsQueueCollapsedHeight#)*#Scale#)
 W=((#ContentWidth#-8*#Scale#)/3)
 Text=Start
@@ -555,7 +545,7 @@ DynamicVariables=1
 [MeterStop]
 Meter=String
 MeterStyle=StyleButton|MediaSettingsButton|MediaSettingsCentered|StyleSecondaryButton|MediaSettingsData
-X=(#ContentX#+((#ContentWidth#-8*#Scale#)/3)/2+2*(((#ContentWidth#-8*#Scale#)/3)+4*#Scale#))
+X=(#ContentX#+((#ContentWidth#-8*#Scale#)/3)/2+1*(((#ContentWidth#-8*#Scale#)/3)+4*#Scale#))
 Y=(#Inset#+(767-#MediaSettingsQueueCollapsedHeight#)*#Scale#)
 W=((#ContentWidth#-8*#Scale#)/3)
 Text=Stop
@@ -564,27 +554,28 @@ LeftMouseUpAction=[!CommandMeasure MeasureMediaSettings "ProviderControl('Queue'
 [MeterRestart]
 Meter=String
 MeterStyle=StyleButton|MediaSettingsButton|MediaSettingsCentered|MediaSettingsData
-X=(#ContentX#+((#ContentWidth#-4*#Scale#)/2)/2+0*(((#ContentWidth#-4*#Scale#)/2)+4*#Scale#))
-Y=(#Inset#+(795-#MediaSettingsQueueCollapsedHeight#)*#Scale#)
-W=((#ContentWidth#-4*#Scale#)/2)
+X=(#ContentX#+((#ContentWidth#-8*#Scale#)/3)/2+2*(((#ContentWidth#-8*#Scale#)/3)+4*#Scale#))
+Y=(#Inset#+(767-#MediaSettingsQueueCollapsedHeight#)*#Scale#)
+W=((#ContentWidth#-8*#Scale#)/3)
 Text=Restart
 LeftMouseUpAction=[!CommandMeasure MeasureMediaSettings "ProviderControl('Queue','Restart')"]
 DynamicVariables=1
 
-[MeterDisconnect]
+; Sign in and Disconnect are in Connections (2026-11-25).
+[MeterConnections]
 Meter=String
 MeterStyle=StyleButton|MediaSettingsButton|MediaSettingsCentered|StyleSecondaryButton|MediaSettingsData
-X=(#ContentX#+((#ContentWidth#-4*#Scale#)/2)/2+1*(((#ContentWidth#-4*#Scale#)/2)+4*#Scale#))
+X=(#ContentX#+#ContentWidth#/2)
 Y=(#Inset#+(795-#MediaSettingsQueueCollapsedHeight#)*#Scale#)
-W=((#ContentWidth#-4*#Scale#)/2)
-Text=Disconnect
-LeftMouseUpAction=[!CommandMeasure MeasureMediaSettings "ProviderControl('Queue','Disconnect')"]
+W=#ContentWidth#
+Text=Spotify sign-in: Connections
+LeftMouseUpAction=[!ActivateConfig "Parallax\Connections" "Connections.ini"]
 
 [MeterQueueGuidance]
 Meter=String
 MeterStyle=StyleLabel|MediaSettingsGuidance|MediaSettingsData
 Y=(#Inset#+(812-#MediaSettingsQueueCollapsedHeight#)*#Scale#)
-Text=Sign in starts polling. Restart applies changes.
+Text=Signing in also starts it. Restart applies changes.
 
 [MeterLinksHeading]
 Meter=String

@@ -106,6 +106,9 @@ function Suite.run(sourcePath, scratchPath, optionsSourcePath)
                         or args[4]:match('^%(#MediaQueueRowsY#%+[0-4]%*#MediaQueueRowPitch#%+#MediaQueue[A-Za-z]+#%)$'),
                         'inline geometry only indexes into the skin-owned row formula')
                     positions[target] = args[4]
+                elseif args[3] == 'MouseActionCursor' and target == 'MeterQueueHeaderNote' then
+                    check(options.tabs and (args[4] == '0' or args[4] == '1'), 'the note is a link or not')
+                    state.noteLink = args[4] == '1'
                 elseif args[3] == 'MouseActionCursor' then
                     -- Clickable rows (control granted, live and visible) only.
                     check((target:match('^MeterQueueRow[1-5]$') or target:match('^MeterQueueHit[1-5]$'))
@@ -160,6 +163,10 @@ function Suite.run(sourcePath, scratchPath, optionsSourcePath)
                     or target:match('^MeterQueueArt[1-5]$') or target:match('^MeterQueueArtist[1-5]$'),
                     'only row part visibility')
                 visible[target] = bang == '!ShowMeter'
+            elseif bang == '!ActivateConfig' then
+                equal(#args, 3, 'one fixed config')
+                check(options.tabs and target == 'Parallax\\Connections' and args[3] == 'Connections.ini', 'only Connections is opened')
+                state.opened = (state.opened or 0) + 1
             elseif bang == '!CommandMeasure' and target == 'MeasureQueueControl' then
                 -- A row click whose request could not be written: the control
                 -- process writes it. Integers only, never queue text.
@@ -1091,7 +1098,11 @@ function Suite.run(sourcePath, scratchPath, optionsSourcePath)
             other.time = 1002
             other.reader:update()
             equal(other.texts.MeterQueueRow1, words)
-            equal(other.cursors.MeterQueueHit1, '0')
+            -- The line about the sign-in is the way to it; the other is not a link.
+            equal(other.cursors.MeterQueueHit1, said == 'scope_required' and '1' or '0')
+            equal(other.reader:play(1), said == 'scope_required')
+            equal(other.reader:play(2), false)
+            equal(other.opened, said == 'scope_required' and 1 or nil)
             equal(other.visible.MeterQueueHeaderNote, false)
         end
         local none = drawer()
@@ -1105,6 +1116,10 @@ function Suite.run(sourcePath, scratchPath, optionsSourcePath)
         readonly.reader:update()
         equal(readonly.header, 'Queue')
         equal(readonly.note, 'Sign in again', 'what is wrong is told beside the tabs')
+        equal(readonly.noteLink, true, 'and is the way to Connections')
+        equal(readonly.reader.offersSignIn, true)
+        equal(readonly.reader:openConnections(), true)
+        equal(readonly.opened, 1)
         equal(readonly.visible.MeterQueueTabPlaylists, true)
         readonly.reader:show('playlists')
         equal(readonly.cursors.MeterQueueHit1, '0')

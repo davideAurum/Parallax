@@ -2,7 +2,7 @@
 [CmdletBinding()]
 param(
     [string]$RainmeterPath = (Join-Path $env:ProgramFiles 'Rainmeter\Rainmeter.exe'),
-    [ValidateSet('Settings','ColorPicker','Welcome','Update','Chronometer','CPU','RAM','GPU','IO','Network','Media','Visualizer')]
+    [ValidateSet('Settings','ColorPicker','Connections','Welcome','Update','Chronometer','CPU','RAM','GPU','IO','Network','Media','Visualizer')]
     [string[]]$Modules = @('Settings','Welcome','Chronometer','CPU','RAM','GPU','IO','Network','Media','Visualizer'),
     [ValidateRange(4,30)][int]$SettleSeconds = 8,
     [ValidateSet('source','0.75','1','1.25','1.5','2')][string]$Scale = 'source',
@@ -60,7 +60,7 @@ $iniPath = Join-Path $runRoot 'Rainmeter.ini'
 $ini = "[Rainmeter]`nSkinPath=$skinRoot\`nDisableVersionCheck=1`nDisableAutoUpdate=1`nLogging=1`nLanguage=1033`nTrayIcon=0`n"
 $entries = [Collections.Generic.List[object]]::new()
 foreach ($module in $Modules) {
-    if ($module -notin @('Settings','ColorPicker','Welcome','Update') -and $null -ne $Columns) {
+    if ($module -notin @('Settings','ColorPicker','Connections','Welcome','Update') -and $null -ne $Columns) {
         $moduleSettingsPath = Join-Path $parallaxRoot "@Resources\User\$module.inc"
         if (-not (Test-Path -LiteralPath $moduleSettingsPath -PathType Leaf)) { throw "Missing staged settings for $module column override." }
         $moduleSettings = Get-Content -LiteralPath $moduleSettingsPath -Raw
@@ -73,7 +73,7 @@ foreach ($module in $Modules) {
     if ($module -eq 'IO') { $file = $IOVariant }
     $config = "Parallax\$module"
     $relativeConfig = "$module\$file"
-    if ($UtilitySettings -and $module -notin @('Settings','ColorPicker','Welcome','Update')) {
+    if ($UtilitySettings -and $module -notin @('Settings','ColorPicker','Connections','Welcome','Update')) {
         $file = 'Settings.ini'
         $config = "Parallax\$module\Settings"
         $relativeConfig = "$module\Settings\$file"
@@ -141,7 +141,7 @@ try {
         $nativeReport = Get-Content -LiteralPath $reportPath -Raw
         if ($nativeReport -notmatch ('(?m)^Config=' + [regex]::Escape($entry.Config) + '\r?$')) { throw "Incorrect active config for $($entry.Module)." }
         if ($nativeReport -notmatch ('(?m)^File=' + [regex]::Escape($entry.File) + '\r?$')) { throw "Incorrect active variant for $($entry.Module)." }
-        $expectedColumns = if ($entry.Module -in @('Settings','Welcome')) { 2 } elseif ($entry.Module -in @('ColorPicker','Update')) { 1 } elseif ($UtilitySettings) { $null } else { $Columns }
+        $expectedColumns = if ($entry.Module -in @('Settings','Connections','Welcome')) { 2 } elseif ($entry.Module -in @('ColorPicker','Update')) { 1 } elseif ($UtilitySettings) { $null } else { $Columns }
         if ($null -ne $expectedColumns -and $nativeReport -notmatch ('(?m)^Columns=' + $expectedColumns + '\r?$')) { throw "Incorrect effective Columns for $($entry.Module)." }
     }
     $records = [Collections.Generic.List[object]]::new()

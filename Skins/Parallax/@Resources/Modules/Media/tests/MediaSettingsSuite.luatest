@@ -510,7 +510,7 @@ local function settings_bounds(expanded)
     for _,name in ipairs({'MeterBounds','MeterPanel','MeterTitle','MeterClose','MeterWidthLabel','MeterWidthValue',
         'MeterVisualizerDrawerLabel','MeterVisualizerDrawerValue','MeterTitleAnimationLabel','MeterTitleAnimationValue','MeterQueueExpandedLabel','MeterQueueExpandedValue','MeterQueueRowsLabel','MeterQueueRowsValue','MeterQueueDetailsLabel',
         'MeterQueueDetailsValue','MeterQueuePollLabel','MeterQueuePollValue','MeterStatus','MeterQueueRule','MeterQueueHeading',
-        'MeterSourceLabel','MeterSourceStart','MeterSourceStop','MeterSignIn','MeterStart','MeterStop','MeterRestart','MeterDisconnect','MeterLinksRule','MeterOpenQueue','MeterPlayerSetup','MeterHelp',
+        'MeterSourceLabel','MeterSourceStart','MeterSourceStop','MeterStart','MeterStop','MeterRestart','MeterConnections','MeterLinksRule','MeterOpenQueue','MeterPlayerSetup','MeterHelp',
         'MeterUtilitySettingsNote','MeterUtilitySettingsGlobalLink','MeterDisplayHeading','MeterDisplayRule','MeterSamplingHeading',
         'MeterSamplingRule','MeterSourceRule','MeterSourceGuidance','MeterQueueGuidance','MeterLinksHeading'}) do inside(name,width,height) end
     local scale=SELF:GetNumberOption('ExpectedScale')
@@ -579,7 +579,7 @@ local function settings_bounds(expanded)
         MeterVisualizerSettingsBaselineRow=496,MeterVisualizerSettingsQualityRow=384,MeterVisualizerSettingsAnimation=446,
         MeterVisualizerSettingsDecayRow=528,
         MeterSamplingHeading=562,MeterQueuePollValue=589,MeterStatus=616,
-        MeterSourceLabel=646,MeterSourceStart=683,MeterQueueHeading=730,MeterSignIn=767,MeterLinksHeading=842}) do
+        MeterSourceLabel=646,MeterSourceStart=683,MeterQueueHeading=730,MeterStart=767,MeterConnections=795,MeterLinksHeading=842}) do
         local meter=SKIN:GetMeter(name)
         check(meter:GetW()>0 and meter:GetH()>0,'Recovery/sampling control hidden: '..name)
         check(math.abs(meter:GetY(true)-(inset+(y-shift)*scale))<=1,'Dependent settings did not reflow: '..name)
@@ -767,7 +767,9 @@ local function settings_stage()
         settings_action("StepNumber('QueuePollSeconds',-1)")
         check(preferences().QueuePollSeconds=='119','Typed interior followed by arrow wrong')
         check(text('MeterStatus')=='Use Restart to apply interval.','Toggle lost restart reminder')
-        check(SKIN:GetMeter('MeterSignIn'):GetOption('LeftMouseUpAction'):find('"-PollSeconds" "119"',1,true)~=nil,'Visible sign-in action does not use saved interval')
+        check(SKIN:GetMeter('MeterSignIn')==nil and SKIN:GetMeter('MeterDisconnect')==nil,'The Spotify sign-in belongs to Connections')
+        check(SKIN:GetMeter('MeterConnections'):GetOption('LeftMouseUpAction')=='[!ActivateConfig "Parallax\\Connections" "Connections.ini"]','Connections link changed')
+        unchanged(function() settings_action("ProviderControl('Queue','Disconnect')") end,'Disconnect belongs to Connections')
         check(SKIN:GetMeter('MeterStart'):GetOption('LeftMouseUpAction'):find("ProviderControl('Queue','Start')",1,true)~=nil,'Start action bypasses the hidden provider controller')
         check(SKIN:GetMeter('MeterRestart'):GetOption('LeftMouseUpAction'):find("ProviderControl('Queue','Restart')",1,true)~=nil,'Restart action bypasses the hidden provider controller')
         settings_action("ProviderControl('Queue','Start')")
@@ -829,7 +831,7 @@ local function probe_names()
     end
     if kind:match('^Identity') then return {'MeterHeading'} end
     if is_settings() then return {'MeterTitle','MeterQueueHeading','MeterQueuePollLabel','MeterQueuePollValue',
-        'MeterStatus','MeterDisconnect','MeterPlayerSetup','MeterClose','MeterSourceLabel','MeterSourceStart','MeterSourceStop',
+        'MeterStatus','MeterConnections','MeterPlayerSetup','MeterClose','MeterSourceLabel','MeterSourceStart','MeterSourceStop',
         'MeterUtilitySettingsNote','MeterUtilitySettingsGlobalLink','MeterSourceGuidance','MeterQueueGuidance',
         'MeterVisualizerDrawerValue','MeterTitleAnimationLabel','MeterTitleAnimationValue'} end
     local names={'MeterHeading','MeterQueueHeading','MeterQueueHeaderTrack','MeterQueueRow1'}

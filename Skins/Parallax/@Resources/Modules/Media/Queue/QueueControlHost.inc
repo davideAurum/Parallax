@@ -86,6 +86,9 @@ StringAlign=Right
 Group=QueueRows
 Hidden=1
 UpdateDivider=-1
+; Only while it says Sign in again, which QueueReader.lua checks.
+MouseActionCursor=0
+LeftMouseUpAction=[!CommandMeasure MeasureQueueStatus "OpenConnections()"]
 
 ; Asks the running helper to read the shown view now (QueueReader.lua). Right end of the drawer's header row (InlineQueueMeters.inc), in the accent
 ; the standalone panel's actions use: Lucide refresh-cw (Icons\Lucide, pinned
@@ -122,7 +125,7 @@ LeftMouseUpAction=[!CommandMeasure MeasureQueueStatus "RefreshView()"]
 ; Normal drawer the text wraps, in a Compact one it ends in an ellipsis. Media.ini
 ; only, like the rest of this file: Setup has no drawer, and the standalone queue
 ; has its own status.
-; The link takes the second accent, as the gear that opens the same panel does.
+; The link takes the second accent and opens the panel that has the sign-in.
 [MeterQueueOff]
 Meter=String
 MeterStyle=StyleLabel
@@ -134,7 +137,7 @@ ClipString=2
 Hidden=1
 UpdateDivider=-1
 InlineSetting=Color | #AccentColor2#
-InlinePattern=Media settings$
-Text=Spotify queue is off: Media settings
+InlinePattern=Connections$
+Text=Spotify queue is off: Connections
 MouseActionCursor=1
-LeftMouseUpAction=[!ActivateConfig "Parallax\Media\Settings" "Settings.ini"]
+LeftMouseUpAction=[!ActivateConfig "Parallax\Connections" "Connections.ini"]

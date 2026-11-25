@@ -317,8 +317,10 @@ explicitly replace them. Edit Media options remains available for file editing.
 
 Changing the polling preference leaves an active worker at its old interval. Click **Restart**
 to stop the existing worker, wait for its lock, and start one replacement at the
-saved interval. Server Retry-After and quota pauses remain intact. Sign in,
-Start, Stop and Disconnect are also explicit buttons. Opening/closing the menu
+saved interval. Server Retry-After and quota pauses remain intact. Start and Stop
+are also explicit buttons; Sign in and Disconnect moved to
+[Connections](../CONNECTIONS.md) on 2026-11-25, which **Spotify sign-in:
+Connections** opens. Opening/closing the menu
 never authenticates or enables a helper. A refreshed view may restore a missing
 worker that was previously enabled, using the current saved interval.
 
@@ -1029,9 +1031,11 @@ player now says which one was never started, where the gap shows:
 | Where | Never started | After Start or Sign in |
 | --- | --- | --- |
 | Title, while WNP reports a generic Windows session playing | `Media Player: detection off` (`Media: detection off` compact) | `Spotify` when confirmed, otherwise `Unknown` as before |
-| Open queue drawer | `Spotify queue is off: Media settings` in the first row's place | The line goes; rows show when there are any |
+| Open queue drawer | `Spotify queue is off: Connections` in the first row's place | The line goes; rows show when there are any |
 
-Clicking either opens Media settings. The title takes the click and the hand
+Clicking the title opens Media settings, which starts detection; clicking the
+drawer line opens [Connections](../CONNECTIONS.md), which has the sign-in (Media
+settings until 2026-11-25). The title takes the click and the hand
 cursor only while it reads `detection off`; `MediaHeader.lua` sets the cursor
 once per change and `OpenSettings()` does nothing otherwise. The drawer line is
 `MeterQueueOff` in `Queue\QueueControlHost.inc`, so only Media.ini has it: Setup
@@ -1070,7 +1074,8 @@ checks that the line stays inside the sheet and below the transport circles.
 The real helpers, run once on a temporary data root outside Rainmeter: no file
 before; Source Start wrote its first snapshot after 3.4 s, Stop left `stopped`;
 queue Start without sign-in left `onboarding_required`. Not checked: physical
-clicks, dragging by the title, and a real fresh install.
+clicks, dragging by the title, and a real fresh install. Since 2026-11-25 the same
+test expects the drawer line to open a stand-in Connections config.
 
 ## Lucide metadata and playback icons
 
@@ -1265,7 +1270,7 @@ gap. The playback controls follow the bar's lower edge with an eight-pixel scale
 See the [queue setup guide](../../Skins/Parallax/@Resources/Modules/Media/Queue/README.md)
 for app configuration, lifecycle commands, status meanings, storage, and protocol.
 Register `http://127.0.0.1/callback` in your Spotify app, copy the public Client ID,
-and click Sign in in `Parallax\Media\Queue`. The helper opens Spotify consent,
+and click Sign in in [Connections](../CONNECTIONS.md) or `Parallax\Media\Queue`. The helper opens Spotify consent,
 uses PKCE S256 with a dynamic numeric loopback callback, and requests
 `user-read-currently-playing` (required) and, since 2026-10-27,
 `user-modify-playback-state` (optional, for row clicks). In live acceptance,
@@ -1385,7 +1390,9 @@ second view; `QueueReader.lua` draws it in the same five rows.
   the header sits behind the transport buttons, so only the view's name shows at
   the left and a click on it changes the view. A click's outcome and `Sign in again`
   show at the right (compact: in place of the label, which still changes the view);
-  an outcome goes after 8 s. They never hide the switch. The meters are in `Queue\QueueControlHost.inc`, so Setup (which
+  an outcome goes after 8 s. At double width the note `Sign in again` opens
+  [Connections](../CONNECTIONS.md), and so does the line asking for a sign-in to list
+  playlists (both since 2026-11-25). They never hide the switch. The meters are in `Queue\QueueControlHost.inc`, so Setup (which
   keeps `Song / Artist`) and the standalone Queue have no such view.
 - **Rows.** Cover, name, and song count (or the owner, where Spotify gives no
   count); the playing one reads `Playing, 129 songs`. The wheel over the rows pages
@@ -1455,6 +1462,24 @@ Sources: [quota modes](https://developer.spotify.com/documentation/web-api/conce
 [rate limits](https://developer.spotify.com/documentation/web-api/concepts/rate-limits).
 
 ## Validation report
+
+### Connections panel (2026-11-25)
+
+User request: manage the account from Global Settings. Sign in and Disconnect left
+Media settings for [Connections](../CONNECTIONS.md); Start, Stop and Restart now
+share one row and the freed row is **Spotify sign-in: Connections**, so the panel's
+height and every other position are unchanged. The drawer's queue-off line, its
+`Sign in again` note (double width) and the playlists' sign-in line open the panel.
+No helper, snapshot or storage change: the saved sign-in stays valid.
+
+Checked on the Surface laptop (Rainmeter 4.5.28.3936): `test_skin_contract.py` 35,
+`Test-MediaSettings.ps1` 60 layouts and 7 captures, `Test-QueueReader.ps1`,
+`Test-QueueView.ps1` 20 layouts, `Test-MediaNeverStarted.ps1` at both widths,
+static validation (26 configs, 0 errors, 0 warnings), and Media settings captured in
+the developer copy. The panel's own checks are in [CONNECTIONS.md](../CONNECTIONS.md#validation-report).
+
+Not verified: the new links by a physical click, and a real sign-in or Disconnect
+started from the panel.
 
 ### Direct row clicks and the Playlists view (2026-11-24)
 

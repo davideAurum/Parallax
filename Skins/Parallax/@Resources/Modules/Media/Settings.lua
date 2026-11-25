@@ -167,9 +167,6 @@ function Render()
     option('MeterQueueRowsValue', current('QueueRowLimit'))
     option('MeterQueueDetailsValue', current('QueueShowDetails') == '1' and 'Shown' or 'Hidden')
     option('MeterQueuePollValue', current('QueuePollSeconds'))
-    -- The helper buttons use only a validated numeric interval, including after
-    -- a saved click without refreshing or closing this settings config.
-    SKIN:Bang('!SetVariable', 'QueuePollSeconds', current('QueuePollSeconds'))
     option('MeterStatus', status)
     SKIN:Bang('!UpdateMeterGroup', 'MediaSettingsData')
     SKIN:Bang('!Redraw')
@@ -325,7 +322,7 @@ end
 
 local providerControls = {
     Source = { measure = 'MeasureMediaSourceControl', script = 'SourceProvider.ps1', actions = { Start=true, Stop=true } },
-    Queue = { measure = 'MeasureMediaQueueControl', script = 'QueueProvider.ps1', actions = { Start=true, Stop=true, Restart=true, Disconnect=true } }
+    Queue = { measure = 'MeasureMediaQueueControl', script = 'QueueProvider.ps1', actions = { Start=true, Stop=true, Restart=true } }
 }
 
 function ProviderControl(scope, action)

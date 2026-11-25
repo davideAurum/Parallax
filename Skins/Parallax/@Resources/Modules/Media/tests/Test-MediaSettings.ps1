@@ -463,9 +463,9 @@ ExpectedBarThickness=$(([double]$barThickness).ToString([Globalization.CultureIn
 "@
     $probes=if ($isSettings) {
         @(@('MeterTitle','Media settings'),@('MeterQueueHeading','Spotify queue'),@('MeterQueuePollLabel','Queue refresh (s)'),
-          @('MeterQueuePollValue','150'),@('MeterStatus','Use Restart to apply interval.'),@('MeterDisconnect','Disconnect'),
+          @('MeterQueuePollValue','150'),@('MeterStatus','Use Restart to apply interval.'),@('MeterConnections','Spotify sign-in: Connections'),
           @('MeterPlayerSetup','Player setup'),@('MeterClose','X'),@('MeterSourceLabel','Source detection'),@('MeterSourceStart','Start'),@('MeterSourceStop','Stop'),
-          @('MeterSourceGuidance','Identifies Spotify locally; no sign-in needed.'),@('MeterQueueGuidance','Sign in starts polling. Restart applies changes.'),
+          @('MeterSourceGuidance','Identifies Spotify locally; no sign-in needed.'),@('MeterQueueGuidance','Signing in also starts it. Restart applies changes.'),
           @('MeterUtilitySettingsNote','Media settings are found here.'),@('MeterUtilitySettingsGlobalLink','Global Settings are found here.'),
           # The suite also sets Hidden and Expanded: every Spectrum drawer state
           # must fit its 76px stepper field.

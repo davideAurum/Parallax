@@ -49,6 +49,8 @@ try {
     Assert-Equal (& $rewrite 'ContextAction=[!ActivateConfig "Parallax\Settings" "Settings.ini"]') 'ContextAction=[!ActivateConfig "ParallaxDev\Settings" "Settings.ini"]' 'INI config reference'
     Assert-Equal (& $rewrite "SKIN:Bang('!ActivateConfig', 'Parallax\\ColorPicker', 'ColorPicker.ini')" '.lua') "SKIN:Bang('!ActivateConfig', 'ParallaxDev\\ColorPicker', 'ColorPicker.ini')" 'Lua doubled backslashes'
     Assert-Equal (& $rewrite '!ActivateConfig "Parallax\Media\Settings" "Settings.ini"') '!ActivateConfig "ParallaxDev\Media\Settings" "Settings.ini"' 'nested config'
+    Assert-Equal (& $rewrite '!ActivateConfig "Parallax\Connections" "Connections.ini"') '!ActivateConfig "ParallaxDev\Connections" "Connections.ini"' 'Connections panel'
+    Assert-Equal (& $rewrite '!ActivateConfig "Parallax\Network\Connection" "Connection.ini"') '!ActivateConfig "ParallaxDev\Network\Connection" "Connection.ini"' 'Network connection panel'
     foreach ($same in 'Group=Parallax | ParallaxCPU', 'ParallaxIdleHeadline=MeterTitle', '!RefreshGroup Parallax', 'ParallaxVersion=1', 'Parallax\Unknown', 'XParallax\CPU', 'ParallaxDev\CPU', 'Parallax\CPUs') {
         Assert-Equal (& $rewrite $same) $same "must stay: $same"
     }
@@ -71,6 +73,7 @@ try {
         @('CPU\CPU.ini', 'CPU'), @('IO\IO-Disk.ini', 'IO'), @('CPU\Settings\Settings.ini', 'CPU'),
         @('@Resources\Modules\GPU\Meters.inc', 'GPU'), @('Settings\Settings.ini', 'Suite'), @('Idle\Idle.ini', 'Suite'),
         @('@Resources\Modules\Welcome\Welcome.lua', 'Suite'), @('@Resources\Scripts\Settings.lua', 'Suite'),
+        @('Connections\Connections.ini', 'Suite'), @('@Resources\Modules\Connections\Connections.lua', 'Suite'),
         @('@Resources\Scripts\SettingsInput.ps1', 'Shared'), @('@Resources\Defaults.inc', 'Shared'), @('@Resources\Styles.inc', 'Shared'),
         @('@Resources\Idle\Hook.inc', 'Shared'), @('@Resources\Fonts\x.ttf', 'Shared'), @('@Resources\Dev\Hook1.inc', 'Shared'),
         @('@Resources\User\CPU.inc', '<ignored>'), @('@Resources\User\Settings.inc', '<ignored>'),
@@ -130,7 +133,7 @@ try {
     Assert-That ($userSettings -match '(?m)^ParallaxDevBuild=1\s*$') 'dev flag written'
     Assert-That ($userSettings -match '(?m)^UpdateCheck=0\s*$') 'update checks stopped in the copy'
     Assert-That ((Get-Content -LiteralPath (Join-Path $release '@Resources\User\Settings.inc') -Raw) -notmatch 'ParallaxDevBuild') 'the release''s settings are untouched'
-    $leftover = @(Get-ChildItem -LiteralPath $dev -Recurse -File -Include *.ini, *.inc, *.lua | Select-String -Pattern '(?<![A-Za-z0-9_\\])Parallax\\{1,2}(Settings|ColorPicker|Welcome|Update|Idle|Chronometer|CPU|RAM|GPU|IO|Network|Media|Visualizer)(?![A-Za-z0-9_])')
+    $leftover = @(Get-ChildItem -LiteralPath $dev -Recurse -File -Include *.ini, *.inc, *.lua | Select-String -Pattern '(?<![A-Za-z0-9_\\])Parallax\\{1,2}(Settings|ColorPicker|Connections|Welcome|Update|Idle|Chronometer|CPU|RAM|GPU|IO|Network|Media|Visualizer)(?![A-Za-z0-9_])')
     Assert-Equal $leftover.Count 0 'no hard-coded release config name is left in the copy'
     $viaFinder = @(Get-ChildItem -LiteralPath $dev -Recurse -File -Include *.ini, *.inc, *.lua | Select-String -Pattern 'ParallaxDev\\')
     Assert-That ($viaFinder.Count -gt 20) 'config names were rewritten to the copy'

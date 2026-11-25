@@ -1218,8 +1218,9 @@ class SkinContractTests(unittest.TestCase):
     def test_never_started_hints_only_open_settings_from_the_player(self):
         # docs/modules/Media.md "Never-started helpers": the title and the open
         # drawer name an optional helper that was never started. A click opens
-        # Media settings; nothing here can start a helper or poll for one.
-        settings='[!ActivateConfig "Parallax\\Media\\Settings" "Settings.ini"]'
+        # Media settings (the title) or Connections, which has the sign-in (the
+        # drawer); nothing here can start a helper or poll for one.
+        connections='[!ActivateConfig "Parallax\\Connections" "Connections.ini"]'
         for config in CONFIGS:
             sections,_,_,_=read_config(config)
             self.assertEqual('MeterQueueOff' in sections,config=='Media.ini',config)
@@ -1239,9 +1240,9 @@ class SkinContractTests(unittest.TestCase):
                                 style=resolve_style(sections,'MeterQueueOff')
                                 self.assertEqual((style['Hidden'],style['UpdateDivider']),('1','-1'))
                                 self.assertNotIn('Group',style)
-                                self.assertEqual(style['Text'],'Spotify queue is off: Media settings')
+                                self.assertEqual(style['Text'],'Spotify queue is off: Connections')
                                 self.assertTrue(style['Text'].endswith(style['InlinePattern'].rstrip('$')))
-                                self.assertEqual(style['LeftMouseUpAction'],settings)
+                                self.assertEqual(style['LeftMouseUpAction'],connections)
                                 line=meter_bounds(style,val)
                                 panel=meter_bounds(resolve_style(sections,'MeterPanel'),val)
                                 if not expanded:
@@ -1492,13 +1493,11 @@ class SkinContractTests(unittest.TestCase):
             ('MeasureQueueProviderControl', 'Program'): powershell,
             ('MeasureQueueProviderControl', 'Parameter'): '-NoLogo -NoProfile -NonInteractive -WindowStyle Hidden -ExecutionPolicy Bypass -File "QueueProvider.ps1" -Command "Stop" -Quiet',
         }
-        interval = ' "-PollSeconds" "#QueuePollSeconds#"'
+        # Sign in and Disconnect are in Connections (Modules/Connections/tests).
         settings_allowed = {
-            ('MeterSignIn','LeftMouseUpAction'): prefix+'"-NoExit" '+provider+'"Connect"'+interval+']',
             ('MeterStart','LeftMouseUpAction'): '[!CommandMeasure MeasureMediaSettings "ProviderControl(\'Queue\',\'Start\')"]',
             ('MeterStop','LeftMouseUpAction'): '[!CommandMeasure MeasureMediaSettings "ProviderControl(\'Queue\',\'Stop\')"]',
             ('MeterRestart','LeftMouseUpAction'): '[!CommandMeasure MeasureMediaSettings "ProviderControl(\'Queue\',\'Restart\')"]',
-            ('MeterDisconnect','LeftMouseUpAction'): '[!CommandMeasure MeasureMediaSettings "ProviderControl(\'Queue\',\'Disconnect\')"]',
         }
         settings_allowed.update({
             ('MeterSourceStart','LeftMouseUpAction'): '[!CommandMeasure MeasureMediaSettings "ProviderControl(\'Source\',\'Start\')"]',
@@ -1813,7 +1812,7 @@ class SkinContractTests(unittest.TestCase):
                                          'MeterTitleAnimationLabel','MeterTitleAnimationDecrease','MeterTitleAnimationFrame',
                                          'MeterTitleAnimationValue','MeterTitleAnimationIncrease',
                                          'MeterQueueExpandedLabel','MeterQueueExpandedValue','MeterSourceStart','MeterSourceStop',
-                                         'MeterSignIn','MeterStart','MeterStop','MeterRestart','MeterDisconnect','MeterOpenQueue','MeterPlayerSetup','MeterHelp'):
+                                         'MeterStart','MeterStop','MeterRestart','MeterConnections','MeterOpenQueue','MeterPlayerSetup','MeterHelp'):
                                 self.assertGreater(box(name).width,0)
                                 self.assertEqual(val(resolve_style(sections,name).get('Hidden','0')),0)
                             for stem in ('Display','Sampling','Source','Queue','Links'):
@@ -1925,10 +1924,14 @@ class SkinContractTests(unittest.TestCase):
                     self.assertTrue(box('MeterStatus').above(box('MeterSourceLabel')))
                     self.assertTrue(box('MeterSourceStart').above(box('MeterSourceGuidance')))
                     self.assertTrue(box('MeterSourceStop').above(box('MeterSourceGuidance')))
-                    for controls in [('MeterSignIn','MeterStart','MeterStop'), ('MeterRestart','MeterDisconnect'),
+                    for controls in [('MeterStart','MeterStop','MeterRestart'),
                                      ('MeterOpenQueue','MeterPlayerSetup','MeterHelp')]:
                         for previous, following in zip(controls, controls[1:]):
                             self.assertTrue(box(previous).before(box(following)))
+                    self.assertTrue(box('MeterRestart').above(box('MeterConnections')))
+                    self.assertTrue(box('MeterConnections').above(box('MeterQueueGuidance')))
+                    self.assertEqual(sections['MeterConnections']['LeftMouseUpAction'],
+                                     '[!ActivateConfig "Parallax\\Connections" "Connections.ini"]')
                     continue
                 if name == 'Media.ini':
                     for icon, label in [('MeterSongIcon','MeterTrackTitle'),('MeterArtistIcon','MeterArtist'),('MeterAlbumIcon','MeterAlbum')]:

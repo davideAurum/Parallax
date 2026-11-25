@@ -18,8 +18,8 @@ offers no way to remove or reorder queue items, so the helper cannot. Since
    address. Spotify permits a dynamic port for registered loopback addresses;
    `localhost` is not accepted.
 3. Copy the public **Client ID**, not the client secret.
-4. Hover the Media header, click its gear, then click **Sign in**. Enter the
-   Client ID when prompted and approve read access on Spotify's browser page.
+4. Open **Connections** (Global Settings, or Media settings) and click **Sign in**.
+   Enter the Client ID when prompted and approve access on Spotify's browser page.
    The separate `Parallax\Media\Queue` panel also has a Sign in button.
 5. Start playback in Spotify to populate its queue. After consent the helper
    starts in the background and Rainmeter reads its local cache.
@@ -85,7 +85,7 @@ seconds; `-PollSeconds` accepts 30 through 150. Rainmeter reads its local snapsh
 every second and never launches a process for polling.
 
 **Stop** disables restart recovery, asks the helper to exit and clears rows after the in-flight request.
-**Disconnect** in the context menu stops it, deletes local tokens, replaces
+**Disconnect** (in Connections, or the queue panel's context menu) stops it, deletes local tokens, replaces
 the cache with an empty onboarding state and deletes the `covers` folder. It also disables recovery. Public app configuration and retry
 barriers remain. Access can also be revoked in Spotify account app settings.
 Closing the skin alone does not stop the helper; use Stop when finished. There

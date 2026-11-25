@@ -17,8 +17,8 @@
 Set-StrictMode -Version Latest
 
 $script:Monitors = @('Chronometer', 'CPU', 'GPU', 'IO', 'Media', 'Network', 'RAM', 'Visualizer')
-$script:ConfigFolders = $script:Monitors + @('Settings', 'ColorPicker', 'Welcome', 'Update', 'Idle')
-$script:RewriteRegex = [regex]'(?<![A-Za-z0-9_\\])Parallax(?=\\{1,2}(?:Settings|ColorPicker|Welcome|Update|Idle|Chronometer|CPU|RAM|GPU|IO|Network|Media|Visualizer)(?![A-Za-z0-9_]))'
+$script:ConfigFolders = $script:Monitors + @('Settings', 'ColorPicker', 'Connections', 'Welcome', 'Update', 'Idle')
+$script:RewriteRegex = [regex]'(?<![A-Za-z0-9_\\])Parallax(?=\\{1,2}(?:Settings|ColorPicker|Connections|Welcome|Update|Idle|Chronometer|CPU|RAM|GPU|IO|Network|Media|Visualizer)(?![A-Za-z0-9_]))'
 $script:RewriteExtensions = @('.ini', '.inc', '.lua')
 $script:TextExtensions = @('.ini', '.inc', '.lua', '.ps1', '.psm1', '.cs', '.txt', '.md', '.json')
 $script:StatusPath = '@Resources\Dev\Status.inc'
@@ -158,7 +158,7 @@ function Test-ParallaxDevTooling {
 }
 
 # $null for ignored files; otherwise the area a difference belongs to: a utility
-# name, 'Suite' (Settings, ColorPicker, Welcome, Update, Idle) or 'Shared'.
+# name, 'Suite' (Settings, ColorPicker, Connections, Welcome, Update, Idle) or 'Shared'.
 function Get-ParallaxDevArea {
     param([Parameter(Mandatory)][string]$Relative)
     $path = $Relative.Replace('/', '\')
@@ -169,11 +169,11 @@ function Get-ParallaxDevArea {
     if ($path -match '^(?<top>[^\\]+)\\') {
         $top = $Matches['top']
         foreach ($monitor in $script:Monitors) { if ($top -ieq $monitor) { return $monitor } }
-        foreach ($suite in 'Settings', 'ColorPicker', 'Welcome', 'Update', 'Idle') { if ($top -ieq $suite) { return 'Suite' } }
+        foreach ($suite in 'Settings', 'ColorPicker', 'Connections', 'Welcome', 'Update', 'Idle') { if ($top -ieq $suite) { return 'Suite' } }
         if ($top -ieq '@Resources' -and $path -match '^@Resources\\Modules\\(?<module>[^\\]+)\\') {
             $module = $Matches['module']
             foreach ($monitor in $script:Monitors) { if ($module -ieq $monitor) { return $monitor } }
-            if ($module -ieq 'ColorPicker' -or $module -ieq 'Welcome') { return 'Suite' }
+            if ($module -ieq 'ColorPicker' -or $module -ieq 'Connections' -or $module -ieq 'Welcome') { return 'Suite' }
         }
     }
     return 'Shared'

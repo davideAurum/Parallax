@@ -1,0 +1,424 @@
+-- Original Parallax Connections tests. The controller runs against a mocked skin,
+-- clock, environment and file system; nothing real is read, started or changed, and
+-- every bang and file access is checked against an allowlist.
+local Suite = {}
+
+function Suite.run(path)
+    local total, failed, lines = 0, 0, {}
+    local function eq(a, b, label)
+        total = total + 1
+        if a ~= b then error((label or 'value') .. ': expected ' .. tostring(b) .. ', got ' .. tostring(a), 2) end
+    end
+    local function ok(a, label) eq(not not a, true, label) end
+    local function test(name, body)
+        local pass, err = pcall(body)
+        lines[#lines + 1] = (pass and 'PASS: ' or 'FAIL: ') .. name .. (pass and '' or ': ' .. tostring(err))
+        if not pass then failed = failed + 1 end
+    end
+
+    local LOCAL = 'C:\\Users\\Synthetic\\AppData\\Local'
+    local ROOT = LOCAL .. '\\Parallax\\Media\\'
+    local RESOURCES = 'C:\\Skins\\Parallax\\@Resources\\'
+    local SPOTIFY, SOURCE = ROOT .. 'Spotify\\', ROOT .. 'Source\\'
+    local PLUGIN = 'C:\\Settings\\Plugins\\WebNowPlaying.dll'
+    local TEXTS = {}
+    for _, name in ipairs({ 'SpotifyState', 'SpotifyDetail', 'SignIn', 'Disconnect', 'SourceState', 'PluginState',
+        'HWiNFOState', 'UpdateState', 'Status' }) do TEXTS['Meter' .. name] = true end
+
+    -- files: path -> content, or false for one that exists but cannot be opened.
+    local function fixture(files, options)
+        options = options or {}
+        local f = { files = files or {}, text = {}, color = {}, shown = {}, variables = {}, opened = {}, runs = 0,
+            updates = 0, redraws = 0, bangs = 0, time = 100000, running = options.running or -1,
+            exports = options.exports or {}, host = -1 }
+        local skin = {}
+        local vars = { ['@'] = RESOURCES, SETTINGSPATH = 'C:\\Settings\\', PROGRAMPATH = 'C:\\Program\\',
+            UpdateCheck = options.updateCheck or '1' }
+        function skin:GetVariable(key, default) return vars[key] or default end
+        function skin:GetMeasure(name)
+            if name == 'MeasureHWiNFORunning' then return { GetValue = function() return f.running end } end
+            if name == 'MeasureHWiNFOUser' then return { GetStringValue = function() return f.exports.user or '0' end } end
+            if name == 'MeasureHWiNFOMachine' then return { GetStringValue = function() return f.exports.machine or '0' end } end
+            if name == 'MeasureConnectionsDisconnect' then return { GetValue = function() return f.host end } end
+            error('unexpected measure ' .. tostring(name))
+        end
+        function skin:Bang(bang, ...)
+            local a = { ... }
+            f.bangs = f.bangs + 1
+            if bang == '!SetOption' then
+                assert(#a == 3 and not a[3]:find('[%%%[%]"\r\n]'), 'fixed text only: ' .. tostring(a[3]))
+                assert(TEXTS[a[1]], 'unexpected target ' .. tostring(a[1]))
+                if a[2] == 'Text' then f.text[a[1]] = a[3]
+                else
+                    assert(a[2] == 'FontColor' and a[3]:match('^#%a+%d?#$'), 'a theme color')
+                    f.color[a[1]] = a[3]
+                end
+            elseif bang == '!ShowMeter' or bang == '!HideMeter' then
+                assert(#a == 1 and a[1] == 'MeterDisconnect', 'only Disconnect comes and goes')
+                f.shown.MeterDisconnect = bang == '!ShowMeter'
+            elseif bang == '!SetVariable' then
+                assert(#a == 2 and a[1] == 'QueuePollSeconds', 'only the interval')
+                f.variables[a[1]] = a[2]
+            elseif bang == '!UpdateMeterGroup' then assert(a[1] == 'ConnectionsData'); f.updates = f.updates + 1
+            elseif bang == '!UpdateMeter' then assert(a[1] == 'MeterSignIn')
+            elseif bang == '!UpdateMeasure' then assert(a[1] == 'MeasureConnectionsDisconnect')
+            elseif bang == '!CommandMeasure' then
+                assert(#a == 2 and a[1] == 'MeasureConnectionsDisconnect' and a[2] == 'Run', 'only the Disconnect host runs')
+                f.runs = f.runs + 1
+            elseif bang == '!Redraw' then f.redraws = f.redraws + 1
+            else error('unexpected bang ' .. tostring(bang)) end
+        end
+        local function open(name, mode)
+            assert(mode == 'rb', 'never opened for writing')
+            f.opened[name] = (f.opened[name] or 0) + 1
+            local content = f.files[name]
+            if content == nil then return nil, name .. ': No such file or directory', 2 end
+            if content == false then return nil, name .. ': Permission denied', 13 end
+            assert(not name:find('tokens', 1, true) or content == 'opaque', 'fixture')
+            return { read = function(_, count)
+                assert(not name:find('tokens', 1, true), 'a token file is never read')
+                assert(type(count) == 'number' and count <= 65536, 'bounded read')
+                return content ~= '' and content:sub(1, count) or nil
+            end, close = function() return true end }
+        end
+        local env = setmetatable({ SKIN = skin, io = { open = open },
+            os = { time = function() return f.time end, getenv = function(key)
+                assert(key == 'LOCALAPPDATA', 'only the data folder is looked up')
+                if options.noLocal then return nil end
+                return options.localRoot or LOCAL
+            end } }, { __index = _G })
+        local chunk = assert(loadfile(path))
+        setfenv(chunk, env)
+        chunk()
+        f.env = env
+        env.Initialize()
+        function f.state() return f.text.MeterSpotifyState end
+        function f.detail() return f.text.MeterSpotifyDetail end
+        return f
+    end
+
+    local function queue(state, more)
+        more = more or {}
+        local rows = { more.format or 'PARALLAX_QUEUE_V5', 'state=' .. state, 'observed=' .. (more.observed or 0),
+            'valid_until=' .. (more.expiry or 0), 'retry_not_before=0', 'count=' .. (more.count or 0) }
+        if more.format ~= 'PARALLAX_QUEUE_V2' then
+            rows[#rows + 1] = 'control=' .. (more.control or '0')
+            rows[#rows + 1] = 'notice='
+        end
+        rows[#rows + 1] = 'title1=' .. string.rep('41', 300)
+        return table.concat(rows, '\n') .. '\n'
+    end
+    local function ready(more)
+        more = more or {}
+        more.observed, more.expiry, more.count = more.observed or 99990, more.expiry or 100080, 1
+        more.control = more.control or '1'
+        return queue('ready', more)
+    end
+    local function list(state) return 'PARALLAX_PLAYLISTS_V1\nstate=' .. state .. '\nobserved=99990\ntotal=1\ncount=1\ncurrent=0\ntitle1=41\n' end
+    local function sourceFile(state, observed) return 'PARALLAX_SOURCE_V1\nstate=' .. state .. '\nobserved=' .. (observed or 0)
+        .. '\nvalid_until=' .. (observed and observed + 6 or 0) .. '\ncount=0\n' end
+    local function signed(snapshot, extra)
+        local files = { [SPOTIFY .. 'tokens.dpapi'] = 'opaque', [SPOTIFY .. 'client.json'] = '{}', [SPOTIFY .. 'queue.snapshot'] = snapshot }
+        for name, content in pairs(extra or {}) do files[name] = content end
+        return files
+    end
+
+    test('a fresh machine: nothing set up, nothing on, nothing started', function()
+        local f = fixture({})
+        eq(f.env.Update(), 0)
+        eq(f.state(), 'Not set up')
+        eq(f.detail(), 'Needs your own Spotify app ID. Help explains how.')
+        eq(f.color.MeterSpotifyState, '#MutedColor#')
+        eq(f.text.MeterSignIn, 'Sign in')
+        eq(f.shown.MeterDisconnect, false)
+        eq(f.text.MeterSourceState, 'Off')
+        eq(f.text.MeterPluginState, 'Plugin missing')
+        eq(f.color.MeterPluginState, '#WarningColor#')
+        eq(f.text.MeterHWiNFOState, 'Not running')
+        eq(f.text.MeterUpdateState, 'Daily, GitHub')
+        eq(f.runs, 0)
+        eq(f.env.Disconnect(), false, 'no sign-in, nothing to disconnect')
+        eq(f.runs, 0)
+    end)
+
+    test('an unchanged panel sends nothing more', function()
+        local f = fixture(signed(ready()))
+        f.env.Update()
+        local bangs, updates = f.bangs, f.updates
+        eq(updates, 1)
+        for _ = 1, 5 do f.time = f.time + 2 f.env.Update() end
+        eq(f.bangs, bangs, 'no bang without a change')
+        eq(f.redraws, 1)
+    end)
+
+    test('a signed-in account and what it may do', function()
+        local f = fixture(signed(ready()))
+        f.env.Update()
+        eq(f.state(), 'Signed in')
+        eq(f.color.MeterSpotifyState, '#GoodColor#')
+        eq(f.detail(), 'Queue and playback control. Playlists not checked yet.')
+        eq(f.text.MeterSignIn, 'Sign in again')
+        eq(f.shown.MeterDisconnect, true)
+        f.files[SPOTIFY .. 'playlists.snapshot'] = list('ready')
+        f.env.Update()
+        eq(f.detail(), 'Queue, playback control and playlists.')
+        f.files[SPOTIFY .. 'playlists.snapshot'] = list('error')
+        f.env.Update()
+        eq(f.detail(), 'Queue and playback control. Playlists unavailable.')
+        f.files[SPOTIFY .. 'playlists.snapshot'] = list('scope_required')
+        f.env.Update()
+        eq(f.state(), 'Sign in again')
+        eq(f.color.MeterSpotifyState, '#WarningColor#')
+        eq(f.detail(), 'To allow playlists.')
+        f.files[SPOTIFY .. 'queue.snapshot'] = ready({ control = '0' })
+        f.env.Update()
+        eq(f.detail(), 'To allow playback control and playlists.')
+        f.files[SPOTIFY .. 'playlists.snapshot'] = nil
+        f.env.Update()
+        eq(f.detail(), 'To allow playback control.')
+        f.files[SPOTIFY .. 'playlists.snapshot'] = 'PARALLAX_PLAYLISTS_V1\nstate=odd\n'
+        f.files[SPOTIFY .. 'queue.snapshot'] = ready()
+        f.env.Update()
+        eq(f.detail(), 'Queue and playback control. Playlists not checked yet.', 'an unusable list says nothing')
+        f.files[SPOTIFY .. 'queue.snapshot'] = queue('ready', { format = 'PARALLAX_QUEUE_V2', observed = 99990, expiry = 100080 })
+        f.env.Update()
+        eq(f.state(), 'Signed in')
+        eq(f.detail(), 'Queue. Playlists not checked yet.', 'V2 does not say whether control is allowed')
+    end)
+
+    test('every state the queue helper publishes', function()
+        for state, expected in pairs({
+            stopped = { 'Signed in', 'Queue helper is off. Start it in Media settings.' },
+            reauth_required = { 'Sign in again', 'Spotify needs a new sign-in.' },
+            onboarding_required = { 'Sign in again', 'Spotify needs a new sign-in.' },
+            forbidden = { 'Access denied', 'Spotify refused this account or app. See Help.' },
+            rate_limited = { 'Signed in', 'Spotify asked to wait. The queue resumes by itself.' },
+            quota_exceeded = { 'Signed in', 'The Spotify app has used its quota. See Help.' },
+            offline = { 'Signed in', 'Offline. The queue helper tries again.' },
+            service_unavailable = { 'Signed in', 'Spotify is unavailable. The helper tries again.' },
+            error = { 'Signed in', 'Queue unavailable. Try Restart in Media settings.' } }) do
+            local f = fixture(signed(queue(state)))
+            f.env.Update()
+            eq(f.state(), expected[1], state)
+            eq(f.detail(), expected[2], state)
+            eq(f.shown.MeterDisconnect, true, state)
+        end
+        local f = fixture(signed(ready({ observed = 99000, expiry = 99090 })))
+        f.env.Update()
+        eq(f.detail(), 'Queue helper is not running. See Media settings.', 'an expired read')
+        f.files[SPOTIFY .. 'queue.snapshot'] = ready({ observed = 100006, expiry = 100096 })
+        f.env.Update()
+        eq(f.detail(), 'Queue helper is not running. See Media settings.', 'a read from the future')
+        f.files[SPOTIFY .. 'queue.snapshot'] = nil
+        f.env.Update()
+        eq(f.detail(), 'Queue helper is off. Start it in Media settings.', 'no status file')
+    end)
+
+    test('unusable status files are never guessed at', function()
+        for name, data in pairs({ empty = '', noise = 'hello\n', future = ready():gsub('V5', 'V6', 1), state = queue('ready'):gsub('state=ready', 'state=odd', 1),
+            twice = ready():gsub('observed=', 'state=ready\nobserved=', 1), blocked = false }) do
+            local f = fixture(signed(data))
+            f.env.Update()
+            eq(f.state(), 'Signed in', name)
+            eq(f.detail(), 'Queue unavailable. Try Restart in Media settings.', name)
+        end
+        -- Rows past the header hold titles; whatever they hold changes nothing.
+        local f = fixture(signed(ready() .. 'state=stopped\ncontrol=0\n'))
+        f.env.Update()
+        eq(f.state(), 'Signed in')
+        eq(f.color.MeterSpotifyState, '#GoodColor#')
+    end)
+
+    test('signing in, and a sign-in that did not finish', function()
+        local f = fixture({ [SPOTIFY .. 'client.json'] = '{}' })
+        f.env.Update()
+        eq(f.state(), 'Not signed in')
+        eq(f.detail(), 'Sign in opens a console and your browser.')
+        eq(f.env.SignInOpened(), true)
+        eq(f.text.MeterStatus, 'Sign-in console opened. Close it once it says it is done.')
+        f.files[SPOTIFY .. 'queue.snapshot'] = queue('connecting')
+        f.env.Update()
+        eq(f.state(), 'Signing in')
+        eq(f.shown.MeterDisconnect, false)
+        f.time = f.time + 199
+        f.env.Update()
+        eq(f.state(), 'Signing in')
+        f.time = f.time + 1
+        f.env.Update()
+        eq(f.state(), 'Not signed in', 'the console was closed')
+        eq(f.detail(), 'The last sign-in did not finish.')
+        -- The helper says so itself when the browser step fails.
+        f.files[SPOTIFY .. 'queue.snapshot'] = queue('reauth_required')
+        f.env.Update()
+        eq(f.detail(), 'The last sign-in did not finish.')
+        -- It starts again, and this time it ends well.
+        f.files[SPOTIFY .. 'queue.snapshot'] = queue('connecting')
+        f.env.Update()
+        eq(f.state(), 'Signing in', 'a new attempt counts from its own start')
+        f.files[SPOTIFY .. 'tokens.dpapi'] = 'opaque'
+        f.files[SPOTIFY .. 'queue.snapshot'] = ready({ observed = f.time, expiry = f.time + 90 })
+        f.env.Update()
+        eq(f.state(), 'Signed in')
+        eq(f.shown.MeterDisconnect, true)
+        -- Signing in again keeps Disconnect within reach throughout.
+        f.files[SPOTIFY .. 'queue.snapshot'] = queue('connecting')
+        f.env.Update()
+        eq(f.state(), 'Signing in')
+        eq(f.shown.MeterDisconnect, true)
+        f.time = f.time + 200
+        f.env.Update()
+        eq(f.state(), 'Sign in again')
+    end)
+
+    test('a saved sign-in that cannot be opened this moment still counts', function()
+        local f = fixture(signed(ready()))
+        f.files[SPOTIFY .. 'tokens.dpapi'] = false
+        f.env.Update()
+        eq(f.state(), 'Signed in')
+    end)
+
+    test('Disconnect asks first, acts once and reports what happened', function()
+        local f = fixture(signed(ready()))
+        f.env.Update()
+        eq(f.env.Disconnect(), false, 'the first click asks')
+        eq(f.runs, 0)
+        eq(f.text.MeterDisconnect, 'Disconnect?')
+        eq(f.color.MeterDisconnect, '#WarningColor#')
+        eq(f.text.MeterStatus, 'Click again to remove the saved Spotify sign-in.')
+        f.time = f.time + 8
+        f.env.Update()
+        eq(f.text.MeterDisconnect, 'Disconnect', 'the question lapses')
+        eq(f.color.MeterDisconnect, '#AccentColor2#')
+        eq(f.env.Disconnect(), false, 'and is asked again')
+        f.time = f.time + 7
+        eq(f.env.Disconnect(), true)
+        eq(f.runs, 1)
+        eq(f.text.MeterStatus, 'Disconnecting...')
+        -- While it runs another click starts nothing.
+        f.host = 0
+        f.env.Disconnect()
+        eq(f.env.Disconnect(), false)
+        eq(f.runs, 1)
+        eq(f.text.MeterStatus, 'Disconnect is already running.')
+        f.host = 1
+        eq(f.env.DisconnectFinished(), false, 'the sign-in is still there')
+        eq(f.text.MeterStatus, 'Disconnect did not finish. Try again.')
+        f.env.Disconnect()
+        eq(f.env.Disconnect(), true)
+        f.files[SPOTIFY .. 'tokens.dpapi'] = nil
+        f.files[SPOTIFY .. 'queue.snapshot'] = queue('onboarding_required')
+        eq(f.env.DisconnectFinished(), true)
+        eq(f.text.MeterStatus, 'Disconnected. The saved sign-in was removed.')
+        eq(f.state(), 'Not signed in')
+        eq(f.shown.MeterDisconnect, false)
+        eq(f.env.DisconnectFinished(), false, 'a stray finish says nothing')
+        -- A failed process is not a success even if the file is gone.
+        local g = fixture(signed(ready()))
+        g.env.Update()
+        g.env.Disconnect()
+        g.env.Disconnect()
+        g.files[SPOTIFY .. 'tokens.dpapi'] = nil
+        g.host = 103
+        g.env.DisconnectFinished()
+        eq(g.text.MeterStatus, 'Disconnect did not finish. Try again.')
+        -- A sign-in removed elsewhere withdraws the question.
+        local h = fixture(signed(ready()))
+        h.env.Update()
+        h.env.Disconnect()
+        h.files[SPOTIFY .. 'tokens.dpapi'] = nil
+        h.env.Update()
+        eq(h.text.MeterDisconnect, 'Disconnect')
+        eq(h.env.Disconnect(), false)
+        eq(h.runs, 0)
+    end)
+
+    test('Spotify detection', function()
+        local f = fixture({})
+        local function shows(text, color, label)
+            f.env.Update()
+            eq(f.text.MeterSourceState, text, label)
+            eq(f.color.MeterSourceState, color, label)
+        end
+        local file, intent = SOURCE .. 'source.snapshot', SOURCE .. 'enabled.intent'
+        f.files[file] = sourceFile('ready', 99996)
+        shows('On', '#GoodColor#')
+        f.time = 100002
+        shows('Off', '#MutedColor#', 'expired, not meant to run')
+        f.files[intent] = 'PARALLAX_AUTOSTART_V1|1\n'
+        shows('Not running', '#WarningColor#', 'expired, meant to run')
+        f.files[intent] = 'PARALLAX_AUTOSTART_V1|0\n'
+        shows('Off', '#MutedColor#')
+        f.files[file] = sourceFile('stopped')
+        f.files[intent] = 'PARALLAX_AUTOSTART_V1|1\n'
+        shows('Off', '#MutedColor#', 'stopped')
+        f.files[file] = sourceFile('unavailable')
+        shows('Unavailable', '#WarningColor#')
+        f.files[file] = 'noise'
+        shows('Unavailable', '#WarningColor#')
+    end)
+
+    test('HWiNFO, WebNowPlaying and the update check', function()
+        local f = fixture({ [PLUGIN] = 'MZ' }, { updateCheck = '0' })
+        f.env.Update()
+        eq(f.text.MeterPluginState, 'Plugin installed')
+        eq(f.color.MeterPluginState, '#GoodColor#')
+        eq(f.text.MeterUpdateState, 'Off')
+        f.exports.user = 'Sensor0|Label0'
+        f.env.Update()
+        eq(f.text.MeterHWiNFOState, 'Not running', 'old exports do not count while it is closed')
+        f.running = 1
+        f.env.Update()
+        eq(f.text.MeterHWiNFOState, 'Running')
+        f.exports.user = '0'
+        f.env.Update()
+        eq(f.text.MeterHWiNFOState, 'Open Sensors')
+        eq(f.color.MeterHWiNFOState, '#WarningColor#')
+        f.exports.machine = 'Label0|Sensor0'
+        f.env.Update()
+        eq(f.text.MeterHWiNFOState, 'Running')
+        local g = fixture({}, { updateCheck = '7' })
+        g.env.Update()
+        eq(g.text.MeterUpdateState, 'Custom')
+    end)
+
+    test('no usable data folder', function()
+        for _, options in ipairs({ { noLocal = true }, { localRoot = 'relative\\path' }, { localRoot = 'C:\\bad"path' }, { localRoot = '\\\\server\\share' } }) do
+            local f = fixture({}, options)
+            f.env.Update()
+            eq(f.state(), 'Unknown')
+            eq(f.text.MeterSourceState, 'Unknown')
+            eq(f.shown.MeterDisconnect, false)
+        end
+    end)
+
+    test('Sign in hands over Media\'s saved interval', function()
+        local media = RESOURCES .. 'User\\Media.inc'
+        for data, expected in pairs({ ['[Variables]\r\nQueuePollSeconds=45\r\n'] = '45', ['QueuePollSeconds=45\nQueuePollSeconds = 60\n'] = '60',
+            ['QueuePollSeconds=29\n'] = '30', ['QueuePollSeconds=151\n'] = '30', ['QueuePollSeconds=(60*2)\n'] = '30',
+            ['QueuePollSeconds=030\n'] = '30', ['; nothing\n'] = '30', ['\255\254Q\0u\0e\0u\0e\0P\0o\0l\0l\0S\0e\0c\0o\0n\0d\0s\0=\0' .. '9\0' .. '0\0\r\0\n\0'] = '30' }) do
+            local f = fixture({ [media] = data })
+            eq(f.variables.QueuePollSeconds, expected, data:gsub('%c', ' '))
+        end
+        local f = fixture({})
+        eq(f.variables.QueuePollSeconds, '30')
+        f.files[media] = '[Variables]\nQueuePollSeconds=90\n'
+        eq(f.env.ReadInterval(), true)
+        eq(f.variables.QueuePollSeconds, '90', 'read again as the button goes down')
+        f.files[media] = '[Variables]\n\255\254x=1\n'
+        f.env.ReadInterval()
+        eq(f.variables.QueuePollSeconds, '30')
+    end)
+
+    test('only the files it names are opened, and a token file is never read', function()
+        local f = fixture(signed(ready(), { [SOURCE .. 'source.snapshot'] = sourceFile('ready', 99996) }))
+        f.env.Update()
+        local allowed = { [SPOTIFY .. 'tokens.dpapi'] = true, [SPOTIFY .. 'client.json'] = true, [SPOTIFY .. 'queue.snapshot'] = true,
+            [SPOTIFY .. 'playlists.snapshot'] = true, [SOURCE .. 'source.snapshot'] = true, [SOURCE .. 'enabled.intent'] = true,
+            [RESOURCES .. 'User\\Media.inc'] = true, [PLUGIN] = true, ['C:\\Program\\Plugins\\WebNowPlaying.dll'] = true }
+        for name in pairs(f.opened) do ok(allowed[name], 'unexpected file ' .. name) end
+    end)
+
+    return total, failed, lines
+end
+
+return Suite

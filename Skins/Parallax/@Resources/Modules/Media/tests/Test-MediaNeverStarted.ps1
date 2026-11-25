@@ -119,10 +119,13 @@ function Invoke-Layout([string]$ColumnCount) {
         if ($updated -match '(?m)^\s*Plugin\s*=') { throw "A fixture still loads a plugin: $($entryFile.FullName)" }
     }
 
-    # Stands in for Media settings: a click must load exactly this config.
+    # Stands in for Media settings (the title) and Connections (the drawer's
+    # line): a click must load exactly one of these configs.
     $openedPath = Join-Path $runRoot 'opened.txt'
     Write-TestFile (Join-Path $runRoot 'Opened.lua') "function Initialize() local f=assert(io.open([=[$openedPath]=],'ab'));f:write('x');f:close() end`nfunction Update() return 0 end`n"
-    Write-TestFile (Join-Path $parallax 'Media\Settings\Settings.ini') "[Rainmeter]`nUpdate=-1`nOnRefreshAction=[!DeactivateConfig]`n`n[MeasureOpened]`nMeasure=Script`nScriptFile=$runRoot\Opened.lua`n`n[MeterOpened]`nMeter=String`nText=x`n"
+    foreach ($standIn in 'Media\Settings\Settings.ini', 'Connections\Connections.ini') {
+        Write-TestFile (Join-Path $parallax $standIn) "[Rainmeter]`nUpdate=-1`nOnRefreshAction=[!DeactivateConfig]`n`n[MeasureOpened]`nMeasure=Script`nScriptFile=$runRoot\Opened.lua`n`n[MeterOpened]`nMeter=String`nText=x`n"
+    }
 
     # Reports what the skin shows once per provider cycle and performs the
     # meters' own click actions on request; it never touches Media's meters.

@@ -9,8 +9,9 @@ Inherit the [shared platform and bundling requirements](DEPENDENCIES.md#shared-r
 | Rainmeter Script/Lua and native Shape/String/Image meters | Required; supplied by Rainmeter | Draws the list and handles clicks with no background process, timer or polling. |
 | `Welcome.ini`, `Modules/Welcome/Welcome.lua`, `Modules/Welcome/Rows.inc` and shared Parallax includes | Bundled source; required | Component list, check state and geometry. Missing source is an incomplete installation. |
 | Rainmeter's own settings file at `#SETTINGSPATH#Rainmeter.ini` | Required for check marks only; supplied by Rainmeter | Read only, on explicit events, to find which configs Rainmeter records as active. If it cannot be read the check marks clear, the status line says so, and the buttons still load. |
-| `!ActivateConfig` / `!DeactivateConfig` | Required; supplied by Rainmeter | The only writes the panel performs. Rainmeter itself records the resulting active state. |
-| `DefaultWindowX` / `DefaultWindowY` with formulas | Required; supplied by Rainmeter | Where each panel, this one included, [opens the first time](#where-panels-open-the-first-time). The panel itself moves nothing. |
+| `!ActivateConfig` / `!DeactivateConfig` | Required; supplied by Rainmeter | What the check boxes and buttons do. Rainmeter itself records the resulting active state. |
+| `!Move`, `!SetVariable` and `!UpdateMeasure` to another config, `#CURRENTCONFIGX/Y/WIDTH/HEIGHT#`, `IfCondition`, `#WORKAREA…@n#` | Required for [Arrange](#arrange) and Undo; supplied by Rainmeter | Each panel carries one idle measure, `MeasureParallaxPlace` in `Geometry.inc`. A panel that does not answer is left where it is. |
+| `DefaultWindowX` / `DefaultWindowY` with formulas | Required; supplied by Rainmeter | Where each panel, this one included, [opens the first time](#where-panels-open-the-first-time). Loading a panel never moves it; only Arrange and Undo do. |
 | IBM Plex Sans fonts | Bundled, skin-local; SIL OFL 1.1 | Uses the suite font and typography. No system installation. |
 | The eight utility configs and Global Settings | Bundled; listed, not required | A component missing from the installation cannot be loaded; Rainmeter reports the failed activation in its log and the row stays clear. |
 
@@ -48,6 +49,8 @@ Clicking a row's check box, name or description toggles that component: an unche
 
 **Load all** activates every component in the list that is not already loaded, including Global Settings. **Unload all** deactivates every component the list reports as loaded; the Welcome panel itself is never in the list and stays open. The **X** in the title row closes only the panel.
 
+**Arrange** moves every loaded panel to its place and **Undo**, which appears after it, puts them back ([below](#arrange)).
+
 The status line reports how many of the nine components are loaded. A loaded row's name uses the body text color and an unloaded row's name uses the muted color, so the list reads at a glance without inspecting each box.
 
 ## Where panels open the first time
@@ -82,10 +85,23 @@ The numbers grow with the suite scale: 1140 × 651 is 1710 × 977 at 150%. The c
 ### Limits
 
 - **Only the first load.** A panel with a section in Rainmeter.ini keeps its recorded position, and changing the scale, width or options later rearranges nothing.
-- **0,0 left by an older version stays.** Until now Rainmeter recorded 0,0 on a first load. That cannot be told apart from a panel someone dragged to exactly 0,0, so both stay where they are. A panel dragged to exactly 0,0 from now on also stays there.
+- **0,0 left by an older version stays** until [Arrange](#arrange). Until now Rainmeter recorded 0,0 on a first load. That cannot be told apart from a panel someone dragged to exactly 0,0, so both stay where they are. A panel dragged to exactly 0,0 from now on also stays there.
 - **It does not look at the desktop.** A panel can open over one you placed there, another suite's skin, or Rainmeter's own starter skins (illustro), which sit where CPU opens. The [update prompt](UPDATES.md#the-update-prompt) opens over the top of the CPU panel's place.
 - **Shipped options.** A panel saved larger than it ships (two columns, more drives, timers, an open queue or spectrum drawer) can reach into its neighbor.
 - **The primary screen only.** A portrait or other screen under 1140 px wide overlaps.
+
+## Arrange
+
+Added on 2026-11-25, because a panel keeps its saved place and a copy that was used before 0.1.0-alpha.16 can have all of them in the top left corner. It happened to the owner's laptop: nine of ten panels were at 0,0 after the update.
+
+**Arrange** uses the same columns as the first placement, from the right, but packs them with the panels' real sizes, so a longer thread table, more drives or an open queue do not overlap the next panel. It moves the loaded components and Welcome itself, on the screen the middle of Welcome is on (the primary one if it is on none). It loads and unloads nothing, and leaves settings panels, Connections and the separate queue alone.
+
+- A panel its column has no room for goes under the first column with room, else into a new column on the left. If there is none, it steps down from the top left, 30 px at a time, so its title stays visible, and the status line says how many overlap.
+- A panel is as wide as it is now. A narrow one keeps to the right edge of a wide column.
+- **Undo** puts back every panel Arrange moved that is still loaded. It is offered until it is used or Welcome is refreshed or closed; places from before that are not kept anywhere.
+- It does not look at what else is on the desktop, and nothing is rearranged later when a panel grows.
+
+No panel can read another one's size, so each answers for itself. `Geometry.inc` gives every panel the variable `ParallaxPlaceAsked=0` and the measure `MeasureParallaxPlace` (`UpdateDivider=-1`, so it does nothing by itself). Welcome sets the variable to the panel's number and updates the measure, whose `IfTrueAction` calls Welcome's `Placed(number, x, y, w, h)`; then it clears the variable the same way. Rainmeter runs the answer before the `!UpdateMeasure` returns, so Welcome has every size when it starts to move. Only configs that Rainmeter's settings file reports as loaded are asked: a bang to one that is not logs an error. If that file cannot be read, nothing moves.
 
 ## How loaded state is determined
 
@@ -150,6 +166,16 @@ The test was checked against a copy with two faults: RAM placed at Network's top
 The ten panels that open from another one were loaded together in a fresh profile on the same screen (scratch script, not checked in): CPU settings at 0,0, then Media, Chronometer, GPU, Network, IO, Audio and RAM settings, Thread colors and the Spotify queue, each 30 px lower and further right, and Connections at its own 572,296, with no log errors. `Run-WelcomeSmoke.ps1` still passes (89 assertions, Load all and Unload all).
 
 Not established: a real 1920 × 1080 screen at 100% (the 1080p numbers above are simulated), several screens and mixed scaling, a taskbar on another edge, a real Skin Installer run (its source at 4.5.28.3936 activates the panel the way the test does), Rainmeter 4.5.26 itself (its source reads the same options the same way) and 5.x, a processor with more than 8 threads, more than one drive, and how the arrangement looks to someone new to it.
+
+### Arrange, 2026-11-25
+
+Surface laptop, Rainmeter 4.5.28.3936. `Run-WelcomeSmoke.ps1` passes with 200 suite assertions, 12 of its 29 tests new: the laptop's real sizes, the shipped sizes (the places match the table above), a narrow panel in a wide column, a panel moved under another column, a screen without room, only loaded panels asked, a panel that does not answer, a second screen, Undo, an unloaded panel at Undo, and unreadable settings or screens.
+
+`Run-PlacementSmoke.ps1` has a third profile with all ten panels saved at 0,0, Disk Meter 278 px tall instead of 160 and Visualizer one column wide. In the real Rainmeter, Arrange took them apart, Undo returned every one to 0,0, and after a second Arrange, Unload all and Load all they were where Arrange had put them. The fresh profile, whose places Rainmeter records as formulas, closes GPU: Arrange moved Disk Meter and Chronometer up, Undo put them back, and their new places survived a reload. It passes at 1600 × 1019 (the real screen, Keep on screen on), 1920 × 1032, and 3840 × 2112 at scale 2. At 1280 × 672 the stack came apart except Global Settings and Welcome, which stepped down from the top left. All but the first are simulated.
+
+The panel was captured at scale 1, 0.75 (180 px columns) and 2; the buttons fit. Undo was not in a capture.
+
+Not established: a click by hand, a real second screen, Welcome on a screen left of or above the primary one, a taskbar on another edge, Rainmeter 4.5.26 and 5.x, and the developer copy `ParallaxDev` (its rewrite covers both names used here; not run).
 
 ### Update check stalls at "Checking for updates...", fixed 2026-10-19 (historical)
 

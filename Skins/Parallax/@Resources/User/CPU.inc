@@ -32,8 +32,9 @@ CPUDecimals=1
 ; HWiNFO display precision. Voltage supports 0..3 decimal places; temperature supports 0..1.
 CPUVoltageDecimals=2
 CPUTemperatureDecimals=0
-; Advertised turbo boost limit for this CPU. This configured spec is not a live clock reading.
-CPUTurboClock=4.60 GHz
+; Advertised turbo limit of your processor, such as 4.60 GHz, shown after its base
+; speed. Empty shows none. It is a spec you type in, not a live clock reading.
+CPUTurboClock=
 ; Optional CPUThreadColor1 through CPUThreadColor64 values are saved by Thread Colors.
 ; They use opaque R,G,B values; absent entries use the bounded module palette.
 

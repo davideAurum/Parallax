@@ -1,7 +1,8 @@
 -- Parallax Welcome: the suite loader panel shown after installation.
 -- Load state is read from Rainmeter's own settings file on explicit events only.
 -- Nothing is polled, no provider is sampled, and the only writes are Rainmeter's
--- own config activation, performed through !ActivateConfig / !DeactivateConfig.
+-- own config activation, performed through !ActivateConfig / !DeactivateConfig,
+-- and the panel positions Rainmeter records when Arrange or Undo moves them.
 
 local settingsFile
 local rendered = false
@@ -31,12 +32,24 @@ for slot, entry in ipairs(components) do
     byKey[entry.key] = entry
 end
 
+-- Arrange uses the first placement's columns (Geometry.inc), from the right,
+-- with the panels' real sizes: more threads, drives or an open queue make a
+-- panel larger than the first placement allows for.
+local columnOrder = {
+    { 'CPU' }, { 'GPU', 'IO', 'Chronometer' }, { 'Network', 'RAM' },
+    { 'Visualizer', 'Media', 'Welcome' }, { 'Settings' }
+}
+local CROWDED_STEP = 30
+local answers -- while Arrange asks: key -> { x, y, w, h }
+local before  -- what Undo puts back: key -> { x, y }
+
 function Initialize()
     -- Rainmeter's own built-in path, read the same way Chronometer reads it.
     -- A user variable indirection is not used: it is not expanded for scripts.
     local path = SKIN:GetVariable('SETTINGSPATH')
     settingsFile = (path ~= nil and path ~= '' and path .. 'Rainmeter.ini') or nil
     rendered = false
+    answers, before = nil, nil
 end
 
 -- Rainmeter writes its settings file as UTF-16LE; generated test profiles are
@@ -91,7 +104,8 @@ end
 -- optimistic is an optional key -> boolean table applied to this render only.
 -- It shows the intent of a click immediately; the next event shows the state
 -- Rainmeter actually recorded, so a failed activation cannot stay on screen.
-function Render(optimistic)
+-- message replaces the status line for this render in the same way.
+function Render(optimistic, message)
     rendered = true
     local loaded = loadedSet()
     local count = 0
@@ -109,7 +123,7 @@ function Render(optimistic)
     else
         status = 'Rainmeter settings are not readable; check marks show clicks only.'
     end
-    SKIN:Bang('!SetOption', 'MeterWelcomeStatus', 'Text', status)
+    SKIN:Bang('!SetOption', 'MeterWelcomeStatus', 'Text', message or status)
     SKIN:Bang('!UpdateMeterGroup', 'WelcomeRows')
     SKIN:Bang('!UpdateMeter', 'MeterWelcomeStatus')
     SKIN:Bang('!Redraw')
@@ -161,4 +175,139 @@ function UnloadAll()
         optimistic[entry.key] = false
     end
     return Render(optimistic)
+end
+
+-- A panel's answer to ask(), sent by its MeasureParallaxPlace (Geometry.inc).
+function Placed(slot, x, y, w, h)
+    local entry = components[slot]
+    if answers and entry and w > 0 and h > 0 then
+        answers[entry.key] = { x = x, y = y, w = w, h = h }
+    end
+end
+
+local function running(active, entry)
+    return (active[entry.config:lower()] or 0) > 0
+end
+
+-- Where every loaded panel is and how large. Rainmeter runs each answer before
+-- its !UpdateMeasure returns. A panel that gives none is left where it is.
+local function ask(active)
+    answers = {}
+    for slot, entry in ipairs(components) do
+        if running(active, entry) then
+            for _, value in ipairs({ tostring(slot), '0' }) do
+                SKIN:Bang('!SetVariable', 'ParallaxPlaceAsked', value, entry.config)
+                SKIN:Bang('!UpdateMeasure', 'MeasureParallaxPlace', entry.config)
+            end
+        end
+    end
+    local panels = answers
+    answers = nil
+    panels.Welcome = { x = SKIN:GetX(), y = SKIN:GetY(), w = SKIN:GetW(), h = SKIN:GetH() }
+    return panels
+end
+
+-- The work area of the screen the middle of this panel is on, else the primary.
+local function workArea(panel)
+    local function area(name, screen)
+        local x, y = tonumber(SKIN:GetVariable(name .. 'X' .. screen)), tonumber(SKIN:GetVariable(name .. 'Y' .. screen))
+        local w, h = tonumber(SKIN:GetVariable(name .. 'WIDTH' .. screen)), tonumber(SKIN:GetVariable(name .. 'HEIGHT' .. screen))
+        return x and y and w and h and { x = x, y = y, w = w, h = h } or nil
+    end
+    local middleX, middleY = panel.x + panel.w / 2, panel.y + panel.h / 2
+    for number = 1, 32 do
+        local screen = area('WORKAREA', '@' .. number)
+        if not screen then break end
+        if middleX >= screen.x and middleX < screen.x + screen.w
+            and middleY >= screen.y and middleY < screen.y + screen.h then return screen end
+    end
+    return area('PWORKAREA', '')
+end
+
+-- key -> { x, y }, and how many panels the screen has no room for. Those step
+-- down from its top left, where they overlap others but keep their titles visible.
+local function layout(panels, screen)
+    local edge, bottom = screen.x + screen.w, screen.y + screen.h
+    local opened, later, places, crowded = {}, {}, {}, 0
+    local function open(width)
+        local column = { right = edge, width = width, next = screen.y }
+        edge = edge - width
+        opened[#opened + 1] = column
+        return column
+    end
+    local function stack(column, key)
+        places[key] = { x = column.right - panels[key].w, y = column.next }
+        column.next = column.next + panels[key].h
+    end
+    local function fits(column, key)
+        return column.next == screen.y or column.next + panels[key].h <= bottom
+    end
+    for _, keys in ipairs(columnOrder) do
+        local width = 0
+        for _, key in ipairs(keys) do
+            if panels[key] then width = math.max(width, panels[key].w) end
+        end
+        local column = width > 0 and edge - width >= screen.x and open(width) or nil
+        for _, key in ipairs(keys) do
+            if panels[key] then
+                if column and fits(column, key) then stack(column, key) else later[#later + 1] = key end
+            end
+        end
+    end
+    for _, key in ipairs(later) do
+        local found
+        for _, column in ipairs(opened) do
+            if not found and column.width >= panels[key].w and fits(column, key) then found = column end
+        end
+        if not found and edge - panels[key].w >= screen.x then found = open(panels[key].w) end
+        if found then
+            stack(found, key)
+        else
+            places[key] = { x = screen.x + crowded * CROWDED_STEP, y = screen.y + crowded * CROWDED_STEP }
+            crowded = crowded + 1
+        end
+    end
+    return places, crowded
+end
+
+local function move(key, place)
+    local x, y = string.format('%d', place.x), string.format('%d', place.y)
+    if key == 'Welcome' then SKIN:Bang('!Move', x, y) else SKIN:Bang('!Move', x, y, byKey[key].config) end
+end
+
+-- Moves every loaded panel to its column on this panel's screen.
+function Arrange()
+    local active = readActive()
+    if not active then return Render() end
+    local panels = ask(active)
+    local screen = workArea(panels.Welcome)
+    if not screen then return Render(nil, 'The screen size is not readable; nothing was moved.') end
+    local places, crowded = layout(panels, screen)
+    local count = 0
+    before = {}
+    for key, place in pairs(places) do
+        before[key] = { x = panels[key].x, y = panels[key].y }
+        move(key, place)
+        count = count + 1
+    end
+    SKIN:Bang('!ShowMeter', 'MeterWelcomeUndo')
+    local message = string.format('%d panels arranged. Undo puts them back.', count)
+    if crowded > 0 then message = string.format('%d panels arranged, %d overlapping: the screen is full.', count, crowded) end
+    return Render(nil, message)
+end
+
+-- Puts back every panel Arrange moved that is still loaded.
+function Undo()
+    local active = readActive()
+    if not before or not active then return Render() end
+    local count = 0
+    for key, place in pairs(before) do
+        if key == 'Welcome' or running(active, byKey[key]) then
+            move(key, place)
+            count = count + 1
+        end
+    end
+    before = nil
+    SKIN:Bang('!HideMeter', 'MeterWelcomeUndo')
+    return Render(nil, string.format('%d panels put back.', count))
 end

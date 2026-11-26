@@ -19,6 +19,9 @@ UpdateDivider=1
 Measure=Script
 Group=ParallaxIdlePause
 ScriptFile=#@#Modules\GPU\Temperature.lua
+; GPU Settings Second GPU: 1-3 also sample the second GPU in the same host
+; (SecondGPU.lua shows it); 0 (Off) leaves it unsampled.
+SecondGPU=#GPUSecondGPU#
 
 ; History source. Temperature.lua pushes exactly one point per new driver
 ; sample (the Core percentage), or a 0 per sampling interval while the direct

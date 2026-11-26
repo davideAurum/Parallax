@@ -48,6 +48,32 @@ AntiAlias=1
 ; refreshing), so no DynamicVariables: an update only pushes the next point.
 UpdateDivider=-1
 
+; Second GPU trace (Second GPU = Rows + history trace): an overlay on the
+; same canvas, transparent behind its line, drawn in the second GPU's load
+; colour so the section's load figure doubles as its legend. SecondGPU.lua
+; pushes one point per second-GPU sample, as the controller does for the main
+; trace, and shows it only while the section is open in that mode. Below the
+; startup cover, so both traces start together on screen.
+[MeterGPUSecondGraph]
+Meter=Line
+Group=GPUSecondTrace
+MeasureName=MeasureGPUSecondHistory
+X=#ContentX#
+Y=(#Inset#+(296+#GPUProcessBlock#+#GPUBarExtra#)*#Scale#)
+W=#ContentWidth#
+H=(#GraphHeight#*#Scale#)
+LineCount=1
+LineColor=#AccentColor#
+LineWidth=#Scale#
+SolidColor=0,0,0,0
+AutoScale=0
+Scale=1
+GraphStart=Right
+GraphOrientation=Vertical
+AntiAlias=1
+Hidden=1
+UpdateDivider=-1
+
 ; Native Line starts with a zero-filled ring buffer. Cover its uncollected
 ; left side; do not portray those zeros as observed GPU usage. Overlap by
 ; 2 logical pixels to cover the antialiased startup transition.

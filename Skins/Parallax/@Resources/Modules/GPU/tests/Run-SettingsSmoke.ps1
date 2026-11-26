@@ -126,6 +126,11 @@ function GPUSmokeFailLease() gpuSmokeFailLease = true end
     [IO.File]::WriteAllText($temperatureController, $failureShim+[IO.File]::ReadAllText($temperatureController), [Text.Encoding]::Unicode)
 }
 $temperatureResultPath=Join-Path $runRoot 'temperature-results.txt'
+# Second GPU section (SecondGPU.lua) and Temperature.lua's Second GPU option,
+# against fixtures; Temperature.lua again through its decoded UTF-8 copy.
+$secondSuite=Join-Path $PSScriptRoot 'SecondGPUSuite.lua'
+$secondController=Join-Path $parallaxRoot '@Resources\Modules\GPU\SecondGPU.lua'
+$secondResultPath=Join-Path $runRoot 'second-gpu-results.txt'
 $observedPath=Join-Path $runRoot 'gpu-observed.txt'
 $mainHarness=Join-Path $runRoot 'MainHarness.lua'
 Write-RunFile $mainHarness @"
@@ -325,6 +330,10 @@ function Initialize()
     runSuite([=[$overviewResultPath]=],[=[$overviewSuite]=],[=[$overviewController]=])
     runSuite([=[$processGraphResultPath]=],[=[$processGraphSuite]=],[=[$processGraphFixtureController]=])
     runSuite([=[$temperatureResultPath]=],[=[$temperatureSuite]=],[=[$temperatureFixtureController]=])
+    if read([=[$secondResultPath]=])=='' then
+        local ok,result=pcall(function()local n,r=dofile([=[$secondSuite]=]).run([=[$secondController]=],[=[$temperatureFixtureController]=]);return 'PASS: '..n..' assertions under '.._VERSION..'\n'..r end)
+        write([=[$secondResultPath]=],ok and result or ('FAIL: '..tostring(result)))
+    end
 end
 function Update()
     updatePasses=updatePasses+1
@@ -645,6 +654,9 @@ try {
     $temperatureResult=Get-Content -LiteralPath $temperatureResultPath -Raw
     if ($temperatureResult -notmatch '^PASS:') { throw $temperatureResult }
     Write-Output (($temperatureResult -split '\r?\n' | Where-Object { $_ -match '^(PASS: \d+ assertions|SUMMARY:)' }) -join "`n")
+    $secondResult=Get-Content -LiteralPath $secondResultPath -Raw
+    if ($secondResult -notmatch '^PASS:') { throw $secondResult }
+    Write-Output (($secondResult -split '\r?\n' | Where-Object { $_ -match '^(PASS: \d+ assertions|SUMMARY:)' }) -join "`n")
     Capture ''
     if ($TypedColumns) {Test-TypedColumns}
     if (-not $CaptureOnly) {

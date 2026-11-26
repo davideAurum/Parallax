@@ -3,7 +3,7 @@
 Parallax is a set of small desktop panels for Windows: a clock with timers, meters for the processor, memory, graphics card, disks and network, a media player, and an audio spectrum. It runs in [Rainmeter](https://www.rainmeter.net/), a free program that draws panels, called *skins*, on the desktop.
 
 <!-- download-badge:start (rewritten by tools\Package-Parallax.ps1; do not edit by hand) -->
-[![Click here to download](https://img.shields.io/github/v/release/davideAurum/Parallax?include_prereleases&logo=github&label=Click%20here%20to%20download&color=blueviolet&style=for-the-badge)](https://github.com/davideAurum/Parallax/releases/download/v0.1.0-alpha.16/Parallax_0.1.0-alpha.16.rmskin)
+[![Click here to download](https://img.shields.io/github/v/release/davideAurum/Parallax?include_prereleases&logo=github&label=Click%20here%20to%20download&color=blueviolet&style=for-the-badge)](https://github.com/davideAurum/Parallax/releases/download/v0.1.0-alpha.17/Parallax_0.1.0-alpha.17.rmskin)
 <!-- download-badge:end -->
 
 **This is early software, and nobody outside the maintainer has run it yet.** Please read [what has been checked and what has not](#verified-and-not-yet) before you install it. Older versions are on the [releases page](https://github.com/davideAurum/Parallax/releases).
@@ -131,8 +131,8 @@ All checks so far ran on the maintainer's own two PCs.
 
 ### Known issues
 
-- On a smaller screen some new panels open on top of one another, so drag them apart. A 1920 × 1080 screen has room for all of them at 100% Windows scaling. At 125% **Global Settings** covers part of three others, and at 150% **Welcome** is covered too. A panel that an older version left in the top-left corner stays there until you move it; the next release adds an **Arrange** button for that.
-- In 0.1.0-alpha.16 and older, the last rows of **Global Settings** and of the CPU, Chronometer and GPU settings are below such a screen. In the next release those panels stop at the screen's bottom edge and scroll: use the mouse wheel, or the two arrows beside the close button. **Media Player's settings** do not scroll. At 150% their controls from the Spotify queue's buttons down are below the screen; at 125% only the last row is, and only while the queue is expanded.
+- On a smaller screen some new panels open on top of one another, so drag them apart. A 1920 × 1080 screen has room for all of them at 100% Windows scaling. At 125% **Global Settings** covers part of three others, and at 150% **Welcome** is covered too. A panel that an older version left in the top-left corner stays there until you move it; 0.1.0-alpha.17 added an **Arrange** button in Welcome for that.
+- In 0.1.0-alpha.16 and older, the last rows of **Global Settings** and of the CPU, Chronometer and GPU settings are below such a screen. Since 0.1.0-alpha.17 those panels stop at the screen's bottom edge and scroll: use the mouse wheel, or the two arrows beside the close button. **Media Player's settings** do not scroll. At 150% their controls from the Spotify queue's buttons down are below the screen; at 125% only the last row is, and only while the queue is expanded.
 - In a copy first installed with 0.1.0-alpha.16 or older, on Intel processors whose name includes their base speed, CPU Meter can show `(4.60)` as the turbo speed whatever the real one is. It comes from a setting, not a reading, and updating keeps it. To fix it, right-click CPU Meter, choose **Edit CPU options**, change or clear `CPUTurboClock`, save, and refresh the panel.
 - On Windows before 11 24H2, or in a language other than English, Network Meter reads `Band unavailable`.
 - In Media Player's one-column layout, the right playback button covers part of the time.

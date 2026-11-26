@@ -15,6 +15,15 @@ GPUShowProcesses=1
 ; The table's VRAM column: 0 hides it and loads none of its GPU Process
 ; Memory measures; the GPU % column is unaffected.
 GPUShowProcessMemory=1
+; Main GPU, the one the header, Engine table and History follow: 0 Auto
+; (the first discrete GPU in Windows' high-performance order, else the first
+; integrated one), 1 Integrated, 2 Discrete. A choice with no matching GPU
+; falls back to Auto.
+GPUMainGPU=0
+; Second GPU, shown only when Windows exposes two hardware GPUs: 0 Off (not
+; sampled), 1 One line (name and load), 2 Rows (adds video load and memory
+; in use), 3 Rows + history trace (also drawn on the History graph).
+GPUSecondGPU=1
 GPUEnableSensors=1
 ; Power/clock source: 0=direct driver (default), 1=explicit HWiNFO override.
 ; Overrides also require GPUEnableSensors=1 and a valid mapping below.

@@ -127,24 +127,68 @@ public static class ParallaxGpuInfo
     // Base/boost are independent driver-reported graphics clock specifications,
     // never the current clock, memory clock, or an observed maximum.
     // Other results remain NONE, UNAVAILABLE, or AMBIGUOUS.
-    // "Main" means the first discrete GPU in Windows' high-performance order,
-    // or the first integrated GPU when Windows exposes no discrete one.
+    // "Main" follows the GPU Settings Main GPU choice (GPUMainGPU): Auto (0,
+    // the default) is the first discrete GPU in Windows' high-performance
+    // order, or the first integrated GPU when Windows exposes no discrete one;
+    // Integrated (1) is the first integrated GPU and Discrete (2) the first
+    // discrete one. A choice with no matching adapter falls back to Auto.
     // This list covers D3D12 graphics adapters; it is not a display-ownership query.
     // Memory type/vendor are queried from the selected hardware, never inferred
-    // from a model name or a machine-specific profile.
+    // from a model name or a machine-specific profile. The second GPU the meter
+    // may show is chosen by the telemetry host by the same ordering rule
+    // (ChooseSecond); this query reports only the main one.
     public static string Read()
     {
-        return ReadMetadata(false);
+        return ReadMetadata(false, "0");
     }
 
     // The skin also needs the selected adapter's exact identity for its
     // persistent temperature provider. No hardware identity is saved to settings.
     public static string ReadForSkin()
     {
-        return ReadMetadata(true);
+        return ReadMetadata(true, "0");
     }
 
-    private static string ReadMetadata(bool includeIdentity)
+    public static string ReadForSkin(string mainChoice)
+    {
+        return ReadMetadata(true, mainChoice);
+    }
+
+    // Main GPU choice text as GPU Settings saves it; anything else is Auto.
+    public static int MainChoice(string choice)
+    {
+        string text = (choice ?? "").Trim();
+        if (text == "1") return 1;
+        if (text == "2") return 2;
+        return 0;
+    }
+
+    // kinds holds one character per hardware graphics adapter in Windows'
+    // high-performance order: 'D' discrete, 'I' integrated. Returns the main
+    // adapter's index, or -1 when there is none. Pure, so it is testable
+    // without hardware (tests/Run-AdapterChecks.ps1).
+    public static int ChooseMain(string kinds, string choice)
+    {
+        if (kinds == null) return -1;
+        int discrete = kinds.IndexOf('D'), integrated = kinds.IndexOf('I');
+        int mode = MainChoice(choice);
+        if (mode == 1 && integrated >= 0) return integrated;
+        if (mode == 2 && discrete >= 0) return discrete;
+        return discrete >= 0 ? discrete : integrated;
+    }
+
+    // The second GPU: the next hardware adapter in the same order that is not
+    // the main one, so two discrete cards pair as well as a hybrid laptop's.
+    // With three or more only this one is shown; -1 when there is none.
+    public static int ChooseSecond(string kinds, int main)
+    {
+        if (kinds == null || main < 0) return -1;
+        for (int index = 0; index < kinds.Length; ++index)
+            if (index != main && (kinds[index] == 'D' || kinds[index] == 'I')) return index;
+        return -1;
+    }
+
+    private static string ReadMetadata(bool includeIdentity, string mainChoice)
     {
         IntPtr factory = IntPtr.Zero;
         IntPtr list = IntPtr.Zero;
@@ -164,6 +208,7 @@ public static class ParallaxGpuInfo
             uint count = Method<GetCount>(list, 4)(list);
             if (count > 512) return "UNAVAILABLE";
             int discreteCount = 0, integratedCount = 0;
+            StringBuilder kinds = new StringBuilder();
             for (uint index = 0; index < count; ++index)
             {
                 IntPtr adapter = IntPtr.Zero;
@@ -175,6 +220,7 @@ public static class ParallaxGpuInfo
                     if (!ReadBoolean(adapter, IsHardware)) continue;
                     if (ReadBoolean(adapter, IsIntegrated))
                     {
+                        kinds.Append('I');
                         ++integratedCount;
                         if (integrated == IntPtr.Zero)
                         {
@@ -183,6 +229,7 @@ public static class ParallaxGpuInfo
                         }
                         continue;
                     }
+                    kinds.Append('D');
                     ++discreteCount;
                     if (selected == IntPtr.Zero)
                     {
@@ -198,12 +245,17 @@ public static class ParallaxGpuInfo
             // Device arrival/removal during enumeration invalidates this snapshot.
             if (Method<GetFlag>(list, 5)(list)) return "UNAVAILABLE";
             if (discreteCount == 0 && integratedCount == 0) return "NONE";
-            // A discrete GPU always wins, so one that gains a working driver is
-            // selected at the next load with no setting to change.
-            bool useIntegrated = discreteCount == 0;
+            // Under Auto a discrete GPU always wins, so one that gains a working
+            // driver is selected at the next load with no setting to change.
+            // The main adapter is always the first of its kind in this order.
+            int main = ChooseMain(kinds.ToString(), mainChoice);
+            if (main < 0) return "NONE";
+            bool useIntegrated = kinds[main] == 'I';
             if (!canSort && (useIntegrated ? integratedCount : discreteCount) > 1) return "AMBIGUOUS";
             if (useIntegrated)
             {
+                // The Integrated choice can pass over a discrete adapter.
+                if (selected != IntPtr.Zero) Marshal.Release(selected);
                 selected = integrated;
                 integrated = IntPtr.Zero;
             }

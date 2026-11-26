@@ -30,8 +30,10 @@ MediaTitleAnimation=20
 ; artist; the default) or 0 Compact (18 px rows, 16 px covers, one line).
 QueueRowSize=1
 ; Album colors: 1 lets the current cover recolor the player (title icon,
-; progress bar, song/artist/album text and a tint on the gray surfaces); 0
-; keeps the theme. Needs the bundled Chameleon plugin.
+; progress bar, song/artist/album text and a tint on the gray surfaces); 2
+; does the same and slides the text gradient left to right while a track plays
+; (more CPU: Media then redraws about 10 times a second); 0 keeps the theme.
+; Needs the bundled Chameleon plugin.
 MediaAlbumColors=1
 ; How far the gray surfaces lean toward the cover's main color, 0-30 (%).
 MediaAlbumTint=10

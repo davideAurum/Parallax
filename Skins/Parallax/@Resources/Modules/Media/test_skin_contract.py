@@ -107,7 +107,8 @@ def number_text(number):
 def read_config(name, *, scale=1, columns=1, column_width=220,
                 expanded=0, row_limit=5, show_details=1, typography='default', surface=1, bar_thickness=6,
                 drawer=1, corner=None, preset=None, visualizer_columns=None, simulate_user=True,
-                missing=None, title_animation=None, capture=None, placement=1):
+                missing=None, title_animation=None, capture=None, placement=1,
+                album_colors=None):
     """Load an entrypoint like Rainmeter: includes in file order, paths eagerly.
 
     Rainmeter expands an @Include path as it reads it, with the variables known
@@ -216,6 +217,8 @@ def read_config(name, *, scale=1, columns=1, column_width=220,
                 variables['CornerRadius'] = str(corner)
             if title_animation is not None:
                 variables['MediaTitleAnimation'] = str(title_animation)
+            if album_colors is not None:
+                variables['MediaAlbumColors'] = str(album_colors)
 
     load(ROOT / 'Media' / name)
     if name=='Settings/Settings.ini':
@@ -1290,7 +1293,7 @@ class SkinContractTests(unittest.TestCase):
         # The tick is chosen once, in InlineQueueGeometry.inc and before the
         # divider derived from it, from flags each entrypoint settles before
         # that include; nothing overrides any of it later (XMOD-03's pitfall).
-        derived=('MediaAnimationInterval','MediaTitleFrameTicks','MediaTickInterval','MediaLegacyDivider','MediaPulseDivider')
+        derived=('MediaAnimationInterval','MediaTitleFrameTicks','MediaTextSlideTicks','MediaTickInterval','MediaLegacyDivider','MediaPulseDivider','MediaTextSlideDivider')
         geometry=[line.split('=',1)[0] for line in source_lines(RESOURCES/'Modules'/'Media'/'InlineQueueGeometry.inc') if '=' in line and not line.startswith(';')]
         self.assertEqual([key for key in geometry if key in derived],list(derived))
         for path in shipped_sources('.ini','.inc'):
@@ -1307,6 +1310,30 @@ class SkinContractTests(unittest.TestCase):
         self.assertEqual(sections['Variables']['MediaPlayerHost'],'1')
         sections,_,_,_=read_config('Setup.ini')
         self.assertEqual(sections['Variables']['MediaPlayerHost'],'0')
+
+    def test_album_colors_slide_loads_its_script_and_fast_tick(self):
+        # MediaAlbumColors=2 is On plus the sliding text gradient: the same
+        # color measures, TextSlide.lua at 10 fps, and the 50 ms tick it needs.
+        for colors in ('0','1','2'):
+            for animation in ('20','0'):
+                with self.subTest(colors=colors,animation=animation):
+                    sections,_,_,expand=read_config('Media.ini',title_animation=animation,album_colors=colors)
+                    val=lambda expression: numeric(expand(expression))
+                    slide=colors=='2'
+                    self.assertEqual('MeasureAlbumSlide' in sections,slide)
+                    self.assertEqual('MeasureAlbumColors' in sections,colors!='0')
+                    self.assertEqual(val('#MediaTextSlideTicks#'),2 if slide else 0)
+                    tick=val(sections['Rainmeter']['Update'])
+                    self.assertEqual(tick,50 if slide or animation=='20' else 1000)
+                    self.assertEqual(val('#MediaLegacyDivider#')*tick,1000)
+                    if slide:
+                        self.assertEqual(val(sections['MeasureAlbumSlide']['UpdateDivider'])*tick,100)
+                        names=list(sections)
+                        self.assertLess(names.index('MeasureAlbumColors'),names.index('MeasureAlbumSlide'))
+        # Setup has no player, so nothing slides and its tick is unchanged.
+        sections,_,_,expand=read_config('Setup.ini',album_colors='2')
+        self.assertEqual(numeric(expand(sections['Rainmeter']['Update'])),1000)
+        self.assertNotIn('MeasureAlbumSlide',sections)
 
     def test_title_rows_scale_and_center_across_supported_extremes(self):
         for config in CONFIGS:
@@ -1729,7 +1756,7 @@ class SkinContractTests(unittest.TestCase):
                                 # wide (Collapsed/Expanded at max type), while Title
                                 # animation keeps the default 56 (Off / 10 fps / 20 fps).
                                 stepper=numeric_field or stem in ('VisualizerDrawer','VisualizerPlacement','TitleAnimation','AlbumColors','QueueRowSize')
-                                field=76 if stem in ('VisualizerDrawer','VisualizerPlacement','QueueRowSize') else 56
+                                field=76 if stem in ('VisualizerDrawer','VisualizerPlacement','AlbumColors','QueueRowSize') else 56
                                 parts=[label,value]+(['Meter'+stem+p for p in ('Decrease','Frame','Increase')] if stepper else [])
                                 hidden=not expanded and stem in ('QueueRows','QueueDetails','QueueRowSize')
                                 if hidden:

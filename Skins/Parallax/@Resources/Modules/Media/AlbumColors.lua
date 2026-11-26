@@ -270,6 +270,17 @@ function AlbumColors.new(env)
             end
             self.applied.spectrum = spectrum ~= nil
         end
+        -- The sliding gradient (AlbumColors2.inc) takes the same two colors and
+        -- word ends. Sent after the still gradient and before the paint below.
+        if self.skin:GetMeasure('MeasureAlbumSlide') then
+            local call = 'Clear()'
+            if palette then
+                local function stop(f) return clamp(f or 1, 0.05, 1) end
+                call = string.format("Set('%s','%s',%.4f,%.4f,%.4f)", rgb(palette.text1), rgb(palette.text2),
+                    stop(fractions.title), stop(fractions.artist), stop(fractions.album))
+            end
+            self.skin:Bang('!CommandMeasure', 'MeasureAlbumSlide', call)
+        end
         -- Every meter here is static (UpdateDivider=-1) or would wait for its
         -- next due update; force each once and paint once.
         for _, name in ipairs(order) do self.skin:Bang('!UpdateMeter', name) end

@@ -4,6 +4,24 @@
 
 Checked 2026-09-13 against Rainmeter 4.5.26.3894 on Windows. This pass focused on frame pacing, redundant paint work, and subprocess launch behavior. It did not change the user's live Rainmeter profile or install dependencies.
 
+## Sliding text gradient (2026-11-25)
+
+Media's optional [sliding gradient](modules/Media.md#sliding-text-gradient-2026-11-25),
+off by default. Surface laptop (i7-11370H) on mains power, Rainmeter
+4.5.28.3936, `HardwareAcceleration=1`, isolated Media.ini with stand-in player
+data and the drawer closed. Rainmeter process CPU as a share of one logical
+core; DWM's compositing is not included.
+
+| Build | Title animation | Still | Slide 10 fps | Slide 20 fps |
+| --- | --- | ---: | ---: | ---: |
+| Prototype, median of 5 × 45 s | 20 fps | 3.8 (3.1–6.1) | 5.5 (4.7–8.9) | 7.6 (6.3–8.5) |
+| Prototype, median of 3 × 30 s | Off | 0.4 | 3.6 | 6.7 |
+| Shipped code, median of 3 × 30 s | Off | 0.3 | 3.9 | — |
+
+The runs with the title animation on vary widely, so their differences are
+rough. 10 fps was chosen; 20 fps is not offered. The shipped code was not
+re-measured with the title animation on.
+
 ## Findings and corrections
 
 - Chronometer, its event row, the GPU overview, RAM process/PAGE views, and Media were explicitly updating meter groups and calling `!Redraw` from their normal periodic Lua `Update()` paths. Rainmeter already performs the regular meter update and redraw at the end of each skin cycle, so these calls could create extra partial frames in the same tick. Periodic paths now only update cached options and defer painting to the normal cycle. Event-driven timer actions, settings redisplay, and Media hover feedback retain immediate meter updates and redraws.

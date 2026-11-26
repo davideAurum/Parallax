@@ -15,14 +15,15 @@ local allowed = {
     MediaTitleAnimation = { '0', '10', '20' },
     -- Queue rows: Normal (1, song above artist) or Compact (0, one line).
     QueueRowSize = { '1', '0' },
-    -- Album colors: the current cover recolors the player (1) or not (0).
-    MediaAlbumColors = { '0', '1' }
+    -- Album colors: the current cover recolors the player (1), also sliding its
+    -- text gradient while a track plays (2), or not (0).
+    MediaAlbumColors = { '0', '1', '2' }
 }
 local drawerNames = { ['0'] = 'Hidden', ['1'] = 'Collapsed', ['2'] = 'Expanded' }
 local placementNames = { ['0'] = 'Bottom', ['1'] = 'Top' }
 local animationNames = { ['0'] = 'Off', ['10'] = '10 fps', ['20'] = '20 fps' }
 local rowSizeNames = { ['1'] = 'Normal', ['0'] = 'Compact' }
-local onOffNames = { ['0'] = 'Off', ['1'] = 'On' }
+local albumNames = { ['0'] = 'Off', ['1'] = 'On', ['2'] = 'On + slide' }
 -- Wrapping previous/value/next choices (UTILITY-SETTINGS.md).
 local choiceKeys = { VisualizerDrawer = true, VisualizerPlacement = true, MediaTitleAnimation = true, QueueRowSize = true, MediaAlbumColors = true }
 local numberFields = {
@@ -128,7 +129,7 @@ local function current(key)
     if key == 'QueueRowSize' and not accepted(key, value) then
         return tonumber(value) == 0 and '0' or '1'
     end
-    -- Show what Media loads: only the literal 1 names AlbumColors1.inc.
+    -- Show what Media loads: only a literal 1 or 2 names an include with colors.
     if key == 'MediaAlbumColors' and not accepted(key, value) then return '0' end
     if key == 'MediaTitleAnimation' and not accepted(key, value) then
         local number = tonumber(value)
@@ -166,7 +167,7 @@ function Render()
     option('MeterVisualizerDrawerValue', drawerNames[current('VisualizerDrawer')])
     option('MeterVisualizerPlacementValue', placementNames[current('VisualizerPlacement')])
     option('MeterTitleAnimationValue', animationNames[current('MediaTitleAnimation')])
-    option('MeterAlbumColorsValue', onOffNames[current('MediaAlbumColors')])
+    option('MeterAlbumColorsValue', albumNames[current('MediaAlbumColors')])
     option('MeterAlbumTintValue', current('MediaAlbumTint'))
     option('MeterQueueRowSizeValue', rowSizeNames[current('QueueRowSize')])
     option('MeterQueueExpandedValue', current('QueueExpanded') == '1' and 'Expanded' or 'Collapsed')
@@ -189,7 +190,7 @@ function Initialize()
     status = values and 'Changes save when clicked.' or 'Cannot read Media settings.'
     -- Album colors need the bundled Chameleon plugin (Skin Installer puts it in
     -- the settings folder's Plugins). Say so rather than leaving On inert.
-    if values and current('MediaAlbumColors') == '1' then
+    if values and current('MediaAlbumColors') ~= '0' then
         local found = false
         for _, root in ipairs({ SKIN:GetVariable('SETTINGSPATH', ''), SKIN:GetVariable('PROGRAMPATH', '') }) do
             local file = root ~= '' and io.open(root .. 'Plugins\\Chameleon.dll', 'rb')

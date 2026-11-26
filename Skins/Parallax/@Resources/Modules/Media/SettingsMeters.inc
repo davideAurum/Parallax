@@ -225,7 +225,8 @@ Text=>
 LeftMouseUpAction=[!CommandMeasure MeasureMediaSettings "StepChoice('MediaTitleAnimation',1)"]
 
 ; Album colors (2026-11-19): On lets the current cover recolor the player
-; (AlbumColors1.inc); Off loads no color measure and keeps the theme.
+; (AlbumColors1.inc), On + slide also moves the text gradient while a track
+; plays (AlbumColors2.inc); Off loads no color measure and keeps the theme.
 [MeterAlbumColorsLabel]
 Meter=String
 MeterStyle=StyleUtilitySettingsLabel|MediaSettingsLabel|MediaSettingsData
@@ -246,20 +247,23 @@ Meter=Shape
 MeterStyle=StyleSettingsStepperFrame|MediaSettingsData
 X=(#ContentX#+142*#Scale#)
 Y=(#Inset#+212*#Scale#)
+W=(76*#Scale#)
+Shape=Rectangle (#Scale#/2),(#Scale#/2),(76*#Scale#-#Scale#),(19*#Scale#),(2*#Scale#) | Fill Color #GraphBackgroundColor# | Stroke Color #BorderColor# | StrokeWidth #Scale#
 LeftMouseUpAction=[!CommandMeasure MeasureMediaSettings "StepChoice('MediaAlbumColors',1)"]
 
 [MeterAlbumColorsValue]
 Meter=String
 MeterStyle=StyleSettingsStepperValue|MediaSettingsData
-X=(#ContentX#+170*#Scale#)
+X=(#ContentX#+180*#Scale#)
 Y=(#Inset#+213*#Scale#)
+W=(76*#Scale#)
 Text=On
 LeftMouseUpAction=[!CommandMeasure MeasureMediaSettings "StepChoice('MediaAlbumColors',1)"]
 
 [MeterAlbumColorsIncrease]
 Meter=String
 MeterStyle=StyleSettingsStepperButton|MediaSettingsData
-X=(#ContentX#+209*#Scale#)
+X=(#ContentX#+229*#Scale#)
 Y=(#Inset#+213*#Scale#)
 Text=>
 LeftMouseUpAction=[!CommandMeasure MeasureMediaSettings "StepChoice('MediaAlbumColors',1)"]

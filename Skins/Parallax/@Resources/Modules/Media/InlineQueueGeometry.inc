@@ -5,6 +5,10 @@ MediaAnimationInterval=50
 ; Title icon animation (User\Media.inc MediaTitleAnimation: 20, 10 or 0 for a
 ; static icon; any other number means 20) as skin ticks per animation frame.
 MediaTitleFrameTicks=(#MediaTitleAnimation#=0 ? 0 : (#MediaTitleAnimation#=10 ? 2 : 1))
+; Sliding text gradient (User\Media.inc MediaAlbumColors=2, AlbumColors2.inc):
+; ticks per frame, 10 fps on the fast tick, or 0 when it cannot move (off, no
+; player, or stood down for the idle pause).
+MediaTextSlideTicks=((#MediaPlayerHost#*(#MediaAlbumColors#=2)*(1-#MediaStandby#))>0 ? 2 : 0)
 ; Media's own tick (Media.ini/Setup.ini Update): the fast tick only where
 ; something can move, Media.ini's animated title icon (MediaPlayerHost, set by
 ; the entrypoint before its includes) or its open spectrum drawer while it
@@ -16,7 +20,7 @@ MediaTitleFrameTicks=(#MediaTitleAnimation#=0 ? 0 : (#MediaTitleAnimation#=10 ? 
 ; would be the wrong place to choose it). While Media is stood down for the
 ; idle pause (MediaStandby=1, CaptureState.inc) the title icon does not
 ; animate either, so the standby load ticks at the provider cadence.
-MediaTickInterval=((#MediaPlayerHost#*(#MediaTitleFrameTicks#>0)*(1-#MediaStandby#)+#MediaVisualizerHost#*(#VisualizerDrawer#=2)*(#MediaDrawerCapture#=0))>0 ? #MediaAnimationInterval# : #MediaInterval#)
+MediaTickInterval=((#MediaPlayerHost#*(#MediaTitleFrameTicks#>0)*(1-#MediaStandby#)+#MediaTextSlideTicks#+#MediaVisualizerHost#*(#VisualizerDrawer#=2)*(#MediaDrawerCapture#=0))>0 ? #MediaAnimationInterval# : #MediaInterval#)
 ; MediaLegacyDivider holds every measure that only ever needs the original
 ; #MediaInterval# cadence (WebNowPlaying polling, queue/options refresh) to it
 ; on the faster tick, so nothing polls more often than before the animation
@@ -26,6 +30,8 @@ MediaLegacyDivider=(Max(1,Round(#MediaInterval#/#MediaTickInterval#)))
 ; MediaPulse.lua's cadence: one animation frame, or with animation off the
 ; provider cadence of the play state it watches.
 MediaPulseDivider=(#MediaTitleFrameTicks#>0 ? #MediaTitleFrameTicks# : #MediaLegacyDivider#)
+; TextSlide.lua's cadence: one frame.
+MediaTextSlideDivider=(#MediaTextSlideTicks#>0 ? #MediaTextSlideTicks# : #MediaLegacyDivider#)
 ; Two columns retain the shared outer pitch while the cover overhangs the
 ; narrower surface, sized from its fixed top-left by the rule below.
 MediaWide=(#Columns#-1)

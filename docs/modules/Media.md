@@ -124,7 +124,7 @@ The user file ships these defaults in `[Variables]`:
 | `VisualizerPlacement` | `0` | Where the spectrum sits: `0` a tab of the drawer under the player, `1` a slider above it. Literal digits only (the value names an include). Media settings' Spectrum position. |
 | `QueueDrawerTab` | `0` | Written by Media: `1` makes the folder tab reopen on Spectrum; `2` opens on Playlists for one load. |
 | `QueueRowSize` | `1` | Queue drawer rows: `1` Normal (36-pixel rows, 32-pixel covers, song above artist) or `0` Compact (18-pixel rows, 16-pixel covers, one `Song / Artist` line). Any value but a literal `0` reads as Normal. Media settings' Queue row size (shown with the other queue details). |
-| `MediaAlbumColors` | `1` | Album colors: the current cover recolors the player. `0` keeps the theme and loads no plugin. Literal digits only (the value names the include). |
+| `MediaAlbumColors` | `1` | Album colors: the current cover recolors the player. `2` also [slides the text gradient](#sliding-text-gradient-2026-11-25) while a track plays. `0` keeps the theme and loads no plugin. Literal digits only (the value names the include). |
 | `MediaAlbumTint` | `10` | How far the gray surfaces lean toward the cover's main color, `0`–`30` %. |
 | `MediaTitleAnimation` | `20` | Title icon animation while a WebNowPlaying player reports Playing: `20` or `10` frames per second, or `0` for a static icon. Any other number means 20; use literal digits. With `0` and the drawer closed, Media updates once per `MediaInterval` instead of every 50 ms. Media settings' Title animation row. |
 
@@ -1745,6 +1745,35 @@ spectrum bars' cover gradient (the preview's output was idle), the hover
 highlight on screen, the look at 150% on the live desktop, and the full
 `Test-MediaSettings.ps1` matrix. libChameleon's license gap is resolved: the
 author added BSD-3 and confirmed redistribution (2026-11-20).
+
+### Sliding text gradient (2026-11-25)
+
+User request, after a prototype. Media settings ▸ **Album colors** has a third
+choice, **On + slide** (`MediaAlbumColors=2`; the default stays `1`). While a
+track plays, the cover's gradient on the song, artist and album text moves left
+to right at 10 fps, one loop every 8 s. The colors run first → second → first,
+so the loop has no seam, and the starting frame is the still gradient.
+
+- **Still:** paused or stopped (settles on the still gradient), a cover with no
+  usable color, Album colors Off or On, Idle pause, and Setup.
+- **Parts:** `AlbumColors2.inc` loads `AlbumColors1.inc` plus `TextSlide.lua`.
+  `AlbumColors.lua` stays the owner of the colors and sends them with each
+  recolor. `InlineQueueGeometry.inc` (`MediaTextSlideTicks`) gives Media the
+  50 ms tick even with Title animation Off.
+- **Cost:** each frame repaints the whole window
+  ([measurements](../PERFORMANCE.md#sliding-text-gradient-2026-11-25)).
+- **Needs** nothing new: the same bundled Chameleon plugin as Album colors.
+- The Album colors field is 76 px wide, as Spectrum drawer's.
+
+**Checks (Surface laptop, Rainmeter 4.5.28.3936).** `tests/TextSlideSuite.luatest`
+1228 and `tests/AlbumColorsSuite.luatest` 122 (native Lua, isolated);
+`test_skin_contract.py` 37; `Test-Media`, `Test-MediaHeader`,
+`Test-MediaTransport`, `Test-MediaNeverStarted`; `Test-MediaSettings` (60
+layouts, 7 captures). An isolated copy of Media.ini with Chameleon, a synthetic
+cover and stand-in player data: the text changed between frames while playing,
+did not change while paused (and matched plain On pixel for pixel), and moved
+again on resume. **Not verified:** a real WebNowPlaying cover or track change,
+a live Idle pause, other scales and widths, mixed DPI, and the live desktop.
 
 ### Shuffle, repeat and clickable queue (2026-10-27)
 

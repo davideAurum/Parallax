@@ -1,0 +1,119 @@
+-- Developer-only checks for TextSlide.lua: the gradient strings and when it
+-- moves, settles and stays out of the way. A mock skin records the bangs.
+local Suite = {}
+
+function Suite.Run(TextSlide)
+    local passed = 0
+    local function check(condition, message)
+        if not condition then error(message, 2) end
+        passed = passed + 1
+    end
+    local function equal(actual, expected, message)
+        check(actual == expected, (message or 'value') .. ': expected ' .. tostring(expected) .. ', got ' .. tostring(actual))
+    end
+
+    local gold, coral = { 255, 200, 100 }, { 240, 120, 90 }
+    local function stops(value)
+        local list = {}
+        for r, g, b, at in value:gmatch('(%d+),(%d+),(%d+),255 ; ([%d%.]+)') do
+            list[#list + 1] = { color = r .. ',' .. g .. ',' .. b, at = tonumber(at) }
+        end
+        return list
+    end
+
+    -- Phase 0 is the still gradient: first at the left, second where words end.
+    local rest = stops(TextSlide.gradient(gold, coral, 0.4, 0))
+    equal(#rest, 2, 'no turn inside the words at rest')
+    equal(rest[1].color, '255,200,100'); equal(rest[1].at, 0)
+    equal(rest[2].color, '240,120,90'); equal(rest[2].at, 0.4)
+    -- One loop later is the same picture.
+    equal(TextSlide.gradient(gold, coral, 0.4, 1), TextSlide.gradient(gold, coral, 0.4, 0), 'seamless loop')
+    -- A quarter loop: the first color has moved right, to half the words.
+    local quarter = stops(TextSlide.gradient(gold, coral, 0.4, 0.25))
+    equal(#quarter, 3)
+    equal(quarter[2].color, '255,200,100'); equal(quarter[2].at, 0.2)
+    equal(quarter[1].color, quarter[3].color, 'half mix at both ends')
+    -- Everywhere in the loop: at most one turn per half loop over the words,
+    -- ascending positions, nothing past the words.
+    for _, f in ipairs({ 0.05, 0.37, 1 }) do
+        for frame = 0, 79 do
+            local list = stops(TextSlide.gradient(gold, coral, f, frame / 80))
+            check(#list >= 2 and #list <= 4, 'stop count at ' .. frame)
+            equal(list[1].at, 0)
+            check(math.abs(list[#list].at - f) < 0.0001, 'ends where the words end')
+            for i = 2, #list do check(list[i].at > list[i - 1].at, 'ascending at ' .. frame) end
+        end
+    end
+
+    local state, title, bangs = 1, 'Song', {}
+    local placed = { X = '(10*2)', Y = '5', W = '100', H = '24' }
+    local skin = {}
+    function skin:GetMeasure(name)
+        if name == 'MeasureTitle' then return { GetStringValue = function() return title end } end
+        return { GetValue = function() return name == 'MeasureState' and state or 1 end }
+    end
+    function skin:GetMeter() return { GetOption = function(_, key) return placed[key] or '' end } end
+    function skin:ParseFormula() return 20 end
+    function skin:Bang(...) bangs[#bangs + 1] = { ... } end
+    local function count(bang, key)
+        local n = 0
+        for _, b in ipairs(bangs) do if b[1] == bang and (not key or b[3] == key) then n = n + 1 end end
+        return n
+    end
+    local function last(key)
+        for i = #bangs, 1, -1 do if bangs[i][1] == '!SetOption' and bangs[i][3] == key then return bangs[i][4] end end
+    end
+    local function take(f) bangs = {}; f() end
+
+    local slide = TextSlide.new({ skin = skin, ticks = 2, interval = 50, rest = 20 })
+    take(function() equal(slide:update(), 0) end)
+    equal(#bangs, 0, 'no colors yet: nothing')
+    take(function() slide:set('255,200,100', '240,120,90', 0.4, 0.5, 9) end)
+    equal(#bangs, 0, 'colors alone write nothing')
+    take(function() equal(slide:update(), 1) end)
+    equal(last('UpdateDivider'), '2', 'meters follow the frame rate')
+    equal(count('!SetOption', 'InlineSetting'), 3)
+    equal(count('!UpdateMeter'), 3, 'woken from the slow divider')
+    equal(count('!SetOption', 'X'), 3, 'positions made literal once')
+    local start = last('InlineSetting')
+    equal(start, TextSlide.gradient(gold, coral, 1, 0), 'starts from the still gradient, fraction capped')
+    take(function() slide:update() end)
+    check(last('InlineSetting') ~= start, 'moves')
+    equal(count('!Redraw'), 0, 'frames add no redraw')
+    equal(count('!SetOption', 'X'), 0)
+    local frame = last('InlineSetting')
+    take(function() slide:set('255,200,100', '240,120,90', 0.4, 0.5, 9) end)
+    equal(last('InlineSetting'), frame, 'a repeat apply keeps the current frame')
+    take(function() slide:set('1,2,3', '4,5,6', 0.4, 0.5, 9) end)
+    equal(last('InlineSetting'), TextSlide.gradient({ 1, 2, 3 }, { 4, 5, 6 }, 1, 0), 'a new cover starts over')
+    take(function() slide:update() end)
+
+    state = 2
+    take(function() equal(slide:update(), 0) end)
+    equal(last('InlineSetting'), TextSlide.gradient({ 1, 2, 3 }, { 4, 5, 6 }, 1, 0), 'pause settles on the still gradient')
+    equal(last('UpdateDivider'), '20'); equal(count('!Redraw'), 1)
+    take(function() slide:update() end)
+    equal(#bangs, 0, 'paused: no work')
+
+    state = 1
+    take(function() slide:update() end)
+    take(function() slide:clear() end)
+    equal(last('UpdateDivider'), '20')
+    equal(count('!SetOption', 'InlineSetting'), 0, 'clear leaves the theme color alone')
+    take(function() slide:update() end)
+    equal(#bangs, 0, 'no colors: nothing')
+
+    title = ' '
+    slide:set('255,200,100', '240,120,90', 1, 1, 1)
+    take(function() slide:update() end)
+    equal(#bangs, 0, 'no track: nothing')
+    title = 'Song'
+
+    local off = TextSlide.new({ skin = skin, ticks = 0, interval = 1000, rest = 1 })
+    off:set('255,200,100', '240,120,90', 1, 1, 1)
+    take(function() off:update() end)
+    equal(#bangs, 0, 'no frame ticks (stood down): never moves')
+    return passed
+end
+
+return Suite

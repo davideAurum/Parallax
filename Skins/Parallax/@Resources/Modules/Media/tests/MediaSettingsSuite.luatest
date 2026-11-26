@@ -524,7 +524,7 @@ local function settings_bounds(expanded)
         -- same previous/value/next group as the numbers; the drawer's field is
         -- 76px so Collapsed/Expanded fit, Off / 10 fps / 20 fps keep 56.
         local stepper=numeric or stem=='VisualizerDrawer' or stem=='VisualizerPlacement' or stem=='TitleAnimation' or stem=='AlbumColors' or stem=='QueueRowSize'
-        local field=(stem=='VisualizerDrawer' or stem=='VisualizerPlacement' or stem=='QueueRowSize') and 76 or 56
+        local field=(stem=='VisualizerDrawer' or stem=='VisualizerPlacement' or stem=='AlbumColors' or stem=='QueueRowSize') and 76 or 56
         local hidden=not expanded and (stem=='QueueRows' or stem=='QueueDetails' or stem=='QueueRowSize')
         local meters={label,value}
         if stepper then for _,part in ipairs({'Decrease','Frame','Increase'}) do

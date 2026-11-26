@@ -1775,6 +1775,17 @@ did not change while paused (and matched plain On pixel for pixel), and moved
 again on resume. **Not verified:** a real WebNowPlaying cover or track change,
 a live Idle pause, other scales and widths, mixed DPI, and the live desktop.
 
+### Load time with the drawer open (2026-11-25)
+
+Found during release preparation: after the bottom-drawer margin and height
+changes, Media with `VisualizerDrawer=2` took 4.5–9 s to load on the Surface
+laptop (alpha.16: 1.8–2.1 s), which also slowed every drawer toggle and the
+return from Idle pause. Rainmeter stores variables fully expanded, and
+`#ContentX#+#ContentWidth#` repeated the long ContentX chain twice in each
+variable built on it. `MediaContentRight` is the same value in a short form:
+1.1–1.6 s afterwards (drawer closed 0.4 s), with identical layout in
+`test_skin_contract.py`, and `Test-IdleStandDown -Skin Media` 39 of 39. Use
+`MediaContentRight` in `InlineQueueGeometry.inc`, never the sum.
 ### Shuffle, repeat and clickable queue (2026-10-27)
 
 **Shuffle and repeat.** 26S circles flank the transport trio, one 4S gap out

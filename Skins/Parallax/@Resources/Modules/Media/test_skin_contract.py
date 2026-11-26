@@ -1335,6 +1335,13 @@ class SkinContractTests(unittest.TestCase):
         self.assertEqual(numeric(expand(sections['Rainmeter']['Update'])),1000)
         self.assertNotIn('MeasureAlbumSlide',sections)
 
+    def test_geometry_names_the_content_right_edge_once(self):
+        # ContentX+ContentWidth cancels to MediaContentRight. Rainmeter stores
+        # variables fully expanded, so the long form multiplied Media's load
+        # time with the drawer open several times over (2026-11-25).
+        text='\n'.join(line for line in source_lines(RESOURCES/'Modules'/'Media'/'InlineQueueGeometry.inc') if not line.startswith(';'))
+        self.assertNotIn('#ContentX#+#ContentWidth#',text)
+
     def test_title_rows_scale_and_center_across_supported_extremes(self):
         for config in CONFIGS:
             for profile,size in (('min',6),('default',10),('max',12)):

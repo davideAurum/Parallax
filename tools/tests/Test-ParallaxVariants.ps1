@@ -38,6 +38,9 @@ $SkinRoot = (Get-Item -LiteralPath $SkinRoot).FullName
 $variantSets = @(
     , @()
     , @('VisualizerDrawer=0')
+    # Album colors off, and on with the sliding text gradient (AlbumColors<n>.inc).
+    , @('MediaAlbumColors=0')
+    , @('MediaAlbumColors=2')
     # The open drawer's capture variants (Modules\Media\DrawerCapture<n>.inc).
     , @('VisualizerDrawer=2', 'MediaDrawerCapture=0')
     , @('VisualizerDrawer=2', 'MediaDrawerCapture=1')

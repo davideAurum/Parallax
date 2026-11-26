@@ -85,6 +85,7 @@ LUA_DIVIDER_OWNERS = {
     'RAM/Display.lua': 'MeasureRAMSettings ReapplyDividers: Used GB/MB by unit, history cover (Tests/DisplayIdleTests.lua)',
     'CPU/CPU.lua': 'MeasureCPUController ReapplyDividers: all 64 Thread slots from slotLive (tests/validate_controller.lua idle case)',
     'Media/MediaPulse.lua': 'MeterPlayerIcon: Media.ini leaves standby by reloading, so nothing is re-applied in place',
+    'Media/TextSlide.lua': 'MeterTrackTitle, MeterArtist, MeterAlbum (already in ParallaxIdleFreeze): never moves in a standby load, and Media.ini leaves standby by reloading (tests/TextSlideSuite.luatest stood-down case)',
     'IO/IO.lua': 'MeasureIO ReapplyDividers: every IORow<letter> group from its row record (tests/ControllerSuite.lua idle case)',
     'GPU/Temperature.lua': 'its own ReapplyDividers: the restarted History cover (tests/TemperatureSuite.lua idle case)',
     'RAM/Process.lua':'its own measure MeasureRAMProcessView only (not a meter); paused with the skin and re-idled by its own Update',

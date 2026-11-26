@@ -129,6 +129,10 @@ MediaCoverRadius=((6+4*#MediaWide#)*#Scale#)
 ; Queue has its own surface-wide bounds below both artwork and controls.
 ContentX=(#Inset#+#Padding#+#MediaWide#*(#MediaCoverSize#+8*#Scale#-#Padding#))
 ContentWidth=(#Inset#+#PanelWidth#-#Padding#-#ContentX#)
+; The content's right edge, which equals ContentX+ContentWidth. Use this, never
+; that sum: Rainmeter stores variables fully expanded, so naming both repeats
+; the long ContentX chain in every variable built on it and slows each load.
+MediaContentRight=(#Inset#+#PanelWidth#-#Padding#)
 ; The title carries the current player ("Media Player: <name>"), so it is one
 ; row at both widths: from after the title icon to 24px before the content's
 ; right edge, which is the 18px gear plus a 6px gap. With the spectrum drawer
@@ -178,7 +182,7 @@ MediaTransportLeft=((#MediaCoverX#+#MediaCoverSize#)*#MediaWide#+#ContentX#*(1-#
 ; that centres the text in the same 18S box it used to top-align in, which
 ; draws it 1px lower than before (measured 2026-10-26, IBM Plex Sans 9pt,
 ; compact 220, scale 1).
-MediaTimingMaxWidth=(#MediaTransportToggles#*88*#Scale#+(1-#MediaTransportToggles#)*Max(1,#ContentX#+#ContentWidth#-#MediaTransportLeft#-104*#Scale#))
+MediaTimingMaxWidth=(#MediaTransportToggles#*88*#Scale#+(1-#MediaTransportToggles#)*Max(1,#MediaContentRight#-#MediaTransportLeft#-104*#Scale#))
 MediaTimingGap=(8*#Scale#)
 MediaAlbumTimingReserve=(#MediaTransportToggles#*(#MediaTimingMaxWidth#+#MediaTimingGap#))
 MediaTimingCenterY=(#MediaTransportToggles#*(#MediaMetadataY#+2*#MediaMetadataPitch#+12*#Scale#)+(1-#MediaTransportToggles#)*(#MediaProgressY#+#DataBarThicknessPx#+11*#Scale#))
@@ -226,7 +230,7 @@ MediaQueueTabCenterY=(#MediaQueueTabY#+#MediaQueueTabHeight#/2)
 ; The sheet stops at the progress bar's right edge rather than the panel's,
 ; so when it slides out it reads as a distinct layer instead of a
 ; continuation of the panel. That is also where the queue rows end.
-MediaQueueDrawerRight=(#ContentX#+#ContentWidth#)
+MediaQueueDrawerRight=#MediaContentRight#
 ; Its left edge is the big cover's left edge (2026-11-19, user request): the
 ; sheet runs behind the cover, which is drawn later, so the open rows use the
 ; full width below it. Compact art sits inside the panel, whose own left edge
@@ -234,7 +238,7 @@ MediaQueueDrawerRight=(#ContentX#+#ContentWidth#)
 ; Then in from there by the margin the sheet's right edge keeps inside the
 ; panel's (2026-11-25, user request), so both sides match. The sheet's contents
 ; hang off this edge and keep their own padding.
-MediaQueueDrawerMargin=(#Inset#+#PanelWidth#-#MediaQueueDrawerRight#)
+MediaQueueDrawerMargin=#Padding#
 MediaQueueDrawerLeft=(#MediaWide#*#MediaCoverX#+(1-#MediaWide#)*#MediaSurfaceX#+#MediaQueueDrawerMargin#)
 MediaQueueDrawerTop=(#MediaQueueTabY#-8*#Scale#)
 MediaQueueDrawerClosedBottom=(#MediaTop#+#MediaBodyHeightPx#)
@@ -346,7 +350,7 @@ MediaQueueWidth=#MediaDrawerContentWidth#
 ; whole pixels, as Rainmeter truncates the gear's own X: at scales where
 ; 18*Scale is fractional (0.75, 1.25) the tab is then 14 or 23px wide and the
 ; chevron, kept on the gear's centre, sits 0.25px left of the tab's centre.
-MediaVisualizerTabRight=(Floor(Min(#ContentX#+#ContentWidth#,#MediaSurfaceX#+#MediaSurfaceWidth#-#CornerRadius#*#Scale#)))
+MediaVisualizerTabRight=(Floor(Min(#MediaContentRight#,#MediaSurfaceX#+#MediaSurfaceWidth#-#CornerRadius#*#Scale#)))
 MediaVisualizerTabX=(Floor(#MediaVisualizerTabRight#-18*#Scale#))
 MediaVisualizerTabWidth=(#MediaVisualizerTabRight#-#MediaVisualizerTabX#)
 ; The sheet's outline is stroked half a border inside its box, like StylePanel.
@@ -426,7 +430,7 @@ MediaVisualizerRowRight=(#MediaVisualizerRowX#+#MediaVisualizerRowWidth#)
 ; gear's right edge and centred on its row; it swaps with the gear on hover.
 ; Above the player the volume takes the gear's spot; in the bottom drawer it
 ; ends the output row. The device name stops short of the chevron or of it.
-MediaVisualizerVolumeRight=(#MediaSpectrumOnTop#*(#ContentX#+#ContentWidth#)+(1-#MediaSpectrumOnTop#)*#MediaVisualizerRowRight#)
+MediaVisualizerVolumeRight=(#MediaSpectrumOnTop#*#MediaContentRight#+(1-#MediaSpectrumOnTop#)*#MediaVisualizerRowRight#)
 MediaVisualizerVolumeY=(#MediaSpectrumOnTop#*(#MediaHeaderY#+#TitleRowCenterY#-#Inset#)+(1-#MediaSpectrumOnTop#)*(#MediaVisualizerRowY#+7*#Scale#))
 MediaVisualizerRowY=(#MediaVisualizerPlotY#-#MediaVisualizerDeviceRow#)
 MediaVisualizerDeviceRight=(#MediaSpectrumOnTop#*#MediaVisualizerToggleX#+(1-#MediaSpectrumOnTop#)*(#MediaVisualizerRowRight#-44*#Scale#))

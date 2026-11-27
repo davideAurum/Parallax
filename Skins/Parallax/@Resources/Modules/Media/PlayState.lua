@@ -1,10 +1,11 @@
 -- The playback state every Media consumer reads, as [MeasureState]. It is the
--- provider's own state, except where "stopped" contradicts the provider's own
--- position: while a YouTube tab casts to a TV, the browser's local video has no
--- source, so the WebNowPlaying extension reports Stopped although the position
--- it reports keeps advancing. A moving position reads Playing; a position that
--- then holds reads Paused. Nothing else is inferred: a track that has not been
--- seen moving stays Stopped. No file I/O, bangs, timers or network.
+-- provider's own state, except where "stopped" or "paused" contradicts the
+-- provider's own position: while a YouTube tab casts to a TV, the browser's
+-- local video is idle, so the WebNowPlaying extension reports Stopped or Paused
+-- although the position it reports keeps advancing. A moving position reads
+-- Playing; a position that then holds reads Paused. Nothing else is inferred: a
+-- track that has not been seen moving keeps its reported state. No file I/O,
+-- bangs, timers or network.
 local ADVANCES, HOLDS = 2, 3 -- consecutive samples before the state changes
 local reported, connection, title, position, maxStep
 local inferred, lastTitle, lastPosition, advances, holds
@@ -34,14 +35,14 @@ function Update()
     local state = number(reported)
     local name = title and title:GetStringValue() or ''
     local now = number(position)
-    if state ~= 0 or number(connection) ~= 1 or not name:find('%S') or not now or now < 0 then
+    if (state ~= 0 and state ~= 2) or number(connection) ~= 1 or not name:find('%S') or not now or now < 0 then
         reset()
         return state or 0
     end
     if name ~= lastTitle then
         reset()
         lastTitle, lastPosition = name, now
-        return 0
+        return state
     end
     local step = now - lastPosition
     lastPosition = now
@@ -54,5 +55,5 @@ function Update()
     else
         advances, holds = 0, 0 -- a seek: keep what was already established
     end
-    return inferred or 0
+    return inferred or state
 end

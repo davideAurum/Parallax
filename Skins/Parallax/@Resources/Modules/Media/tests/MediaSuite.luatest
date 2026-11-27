@@ -999,7 +999,7 @@ function suite.run(sourcePath, optionsPath, playStatePath)
         end)
     end
 
-    scenario('a stopped player whose position moves reads as playing, then paused', function()
+    scenario('a stopped or paused player whose position moves reads as playing, then paused', function()
         local values = { connection = 1, reported = 0, title = 'Synthetic cast', position = 100 }
         local names = { MeasureConnection = 'connection', MeasureReportedState = 'reported',
             MeasureTitle = 'title', MeasurePosition = 'position' }
@@ -1044,6 +1044,16 @@ function suite.run(sourcePath, optionsPath, playStatePath)
         sample(3, 0, 'A still, stopped track stays stopped')
         sample(3, 0, 'A still, stopped track stays stopped')
         sample(3, 0, 'A still, stopped track stays stopped')
+        values.reported = 2
+        sample(10, 2, 'A paused report holds until the position moves')
+        sample(11, 2, 'Paused report: one advance')
+        sample(12, 1, 'Paused report that keeps moving is playing')
+        sample(12, 1, 'First hold')
+        sample(12, 1, 'Second hold')
+        sample(12, 2, 'Held again: paused')
+        sample(30, 2, 'A seek while paused stays paused')
+        sample(30, 2, 'Still paused')
+        values.reported = 0
         values.connection = 0
         sample(4, 0, 'Disconnected')
         sample(5, 0, 'Disconnected movement is ignored')
@@ -1051,7 +1061,7 @@ function suite.run(sourcePath, optionsPath, playStatePath)
     end)
 
     scenario('play/pause names the wanted state when the shown state differs', function()
-        for _, case in ipairs({ { 0, 1, 'Pause' }, { 0, 2, 'Play' }, { 1, 1, 'PlayPause' }, { 2, 2, 'PlayPause' } }) do
+        for _, case in ipairs({ { 0, 1, 'Pause' }, { 0, 2, 'Play' }, { 2, 1, 'Pause' }, { 1, 1, 'PlayPause' }, { 2, 2, 'PlayPause' } }) do
             local f = fixture()
             f.values.MeasureReportedState = { value = case[1] }
             f.env.Initialize()

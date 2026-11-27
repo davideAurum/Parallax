@@ -81,7 +81,7 @@ UpdateDivider=#MediaLegacyDivider#
 ; The shown state. Read directly by Media.lua (the play/pause icon),
 ; MediaPulse.lua (the title icon swap and pulse), MediaHeader.lua (the title's
 ; player name) and TextSlide.lua; no separate skin Variable needed. It differs
-; from the reported state only for a "stopped" player whose position moves
+; from the reported state only for a stopped or paused player whose position moves
 ; (a YouTube tab casting to a TV). Must follow Title and Position.
 [MeasureState]
 Measure=Script

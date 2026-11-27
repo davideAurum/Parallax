@@ -170,7 +170,7 @@ local function render(f)
     layout(true)
     local core, video = integer(f[11], 0, 100), integer(f[12], 0, 100)
     local loadOK = f[10] == 'OK'
-    text('MeterGPUSecondLoad', loadOK and core and (tostring(core) .. '%') or '--')
+    text('MeterGPUSecondLoad', loadOK and core and (tostring(core) .. '%') or f[10] == 'ASLEEP' and 'Asleep' or '--')
     if mode >= 2 then
         text('MeterGPUSecondVideoValue', loadOK and video and (tostring(video) .. '%') or '--')
         bar('MeterGPUSecondVideoBar', loadOK and video and video / 100 or nil)

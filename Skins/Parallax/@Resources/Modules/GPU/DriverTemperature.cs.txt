@@ -137,7 +137,7 @@ public static class ParallaxGpuTemperature
                 Frame frame = new Frame(terminal ?? "UNAVAILABLE");
                 if (driver != null)
                 {
-                    frame = driver.ReadFrame();
+                    frame = driver.Sample();
                     nameHex = driver.NameHex;
                     if (frame.TemperatureStatus == "DEVICE_CHANGED")
                     {
@@ -155,7 +155,7 @@ public static class ParallaxGpuTemperature
                     Frame secondFrame = new Frame(secondTerminal ?? "UNAVAILABLE");
                     if (second != null)
                     {
-                        secondFrame = second.ReadLoadFrame();
+                        secondFrame = second.SampleLoad();
                         if (secondFrame.UtilizationStatus == "DEVICE_CHANGED")
                         {
                             secondTerminal = "DEVICE_CHANGED";
@@ -343,7 +343,7 @@ public static class ParallaxGpuTemperature
     private static bool ValidStatus(string status)
     {
         return status == "STARTING" || status == "OK" || status == "UNSUPPORTED" ||
-            status == "UNAVAILABLE" || status == "DEVICE_CHANGED";
+            status == "UNAVAILABLE" || status == "DEVICE_CHANGED" || status == "ASLEEP";
     }
 
     private static bool ValidMemory(ulong physical, ulong allocatable, ulong available)
@@ -903,6 +903,20 @@ public static class ParallaxGpuTemperature
     [DllImport("kernel32.dll", ExactSpelling = true)]
     [DefaultDllImportSearchPaths(DllImportSearchPath.System32)]
     [return: MarshalAs(UnmanagedType.Bool)] private static extern bool CloseHandle(IntPtr handle);
+    [StructLayout(LayoutKind.Sequential)]
+    private struct DevicePropertyKey { public Guid Format; public uint Id; }
+    [DllImport("cfgmgr32.dll", ExactSpelling = true, CharSet = CharSet.Unicode)]
+    [DefaultDllImportSearchPaths(DllImportSearchPath.System32)]
+    private static extern int CM_Get_Device_ID_List_SizeW(out uint length, string filter, uint flags);
+    [DllImport("cfgmgr32.dll", ExactSpelling = true, CharSet = CharSet.Unicode)]
+    [DefaultDllImportSearchPaths(DllImportSearchPath.System32)]
+    private static extern int CM_Get_Device_ID_ListW(string filter, [Out] char[] buffer, uint length, uint flags);
+    [DllImport("cfgmgr32.dll", ExactSpelling = true, CharSet = CharSet.Unicode)]
+    [DefaultDllImportSearchPaths(DllImportSearchPath.System32)]
+    private static extern int CM_Locate_DevNodeW(out uint node, string id, uint flags);
+    [DllImport("cfgmgr32.dll", ExactSpelling = true, CharSet = CharSet.Unicode)]
+    [DefaultDllImportSearchPaths(DllImportSearchPath.System32)]
+    private static extern int CM_Get_DevNode_PropertyW(uint node, ref DevicePropertyKey key, out uint type, [Out] byte[] buffer, ref uint size, uint flags);
     [DllImport("ntdll.dll", ExactSpelling = true)]
     [DefaultDllImportSearchPaths(DllImportSearchPath.System32)]
     private static extern int NtQuerySystemInformation(int informationClass, IntPtr information, uint length, out uint returned);
@@ -937,6 +951,10 @@ public static class ParallaxGpuTemperature
         private QueryState sharedQuery;
         private string nvidiaStatus = "UNSUPPORTED", sharedSupport = "UNSUPPORTED";
         private bool initialized, opened, disposed, nvidiaBound;
+        // Windows' stored power state of the bound NVIDIA GPU: 1 is D0, 2-4 are
+        // D1-D3. Null when the device could not be matched; sampling is then
+        // not gated.
+        private Func<int> powerState;
         // Integrated adapters read DXCore instead of a vendor driver. Only engines
         // that have a table row are sampled; see SelectEngines.
         private const int MaximumEngines = 64;
@@ -1067,7 +1085,11 @@ public static class ParallaxGpuTemperature
                 else
                 {
                     nvidiaStatus = OpenNvidia();
-                    if (nvidiaStatus == "OK") { if (!loadOnly) powerSupport = OpenPower(); }
+                    if (nvidiaStatus == "OK")
+                    {
+                        if (!loadOnly) powerSupport = OpenPower();
+                        powerState = FindPowerState();
+                    }
                     // No NVIDIA driver bound to this adapter (another vendor, or
                     // no NVAPI): load and memory through DXCore, as integrated.
                     // A bound driver that fails at runtime stays UNAVAILABLE.
@@ -1189,6 +1211,87 @@ public static class ParallaxGpuTemperature
             frame.UtilizationStatus = ReadUtilization(frame);
             if (frame.UtilizationStatus == "DEVICE_CHANGED" || !IdentityMatches()) return new Frame("DEVICE_CHANGED");
             return frame;
+        }
+
+        // The host loop's entry points. NVAPI and NVML calls wake a sleeping
+        // hybrid-laptop GPU, so while Windows reports it out of D0 none is made,
+        // the NVAPI half of the identity check included. A card something else
+        // is using is in D0 and is read as before.
+        internal Frame Sample() { return Asleep() ? SleepingFrame() : ReadFrame(); }
+        internal Frame SampleLoad() { return Asleep() ? SleepingFrame() : ReadLoadFrame(); }
+
+        // Only a positively reported D1-D3 counts; an unknown or unreadable
+        // state samples as before.
+        internal bool Asleep()
+        {
+            if (!opened || disposed || !nvidiaBound || powerState == null) return false;
+            try { int state = powerState(); return state >= 2 && state <= 4; }
+            catch { return false; }
+        }
+
+        // Every driver-backed field reads ASLEEP. DXCore does not wake the GPU,
+        // so its identity check and shared-memory query still run.
+        private Frame SleepingFrame()
+        {
+            if (!AdapterMatches()) return new Frame("DEVICE_CHANGED");
+            Frame frame = new Frame("ASLEEP");
+            frame.SharedStatus = ReadShared(frame);
+            if (frame.SharedStatus == "DEVICE_CHANGED" || !AdapterMatches()) return new Frame("DEVICE_CHANGED");
+            return frame;
+        }
+
+        // The one display devnode at the bound GPU's PCI bus and slot. Reading
+        // its power data returns the Power Manager's stored value and sends the
+        // device nothing. https://learn.microsoft.com/en-us/windows-hardware/drivers/install/devpkey-device-powerdata
+        private Func<int> FindPowerState()
+        {
+            try
+            {
+                PciIdentity identity;
+                if (ReadNvidiaPci(physical, out identity) != "OK") return null;
+                const string DisplayClass = "{4d36e968-e325-11ce-bfc1-08002be10318}";
+                const uint PresentInClass = 0x300; // CM_GETIDLIST_FILTER_CLASS | _PRESENT
+                uint length;
+                if (CM_Get_Device_ID_List_SizeW(out length, DisplayClass, PresentInClass) != 0 || length == 0 || length > 65536) return null;
+                char[] ids = new char[length];
+                if (CM_Get_Device_ID_ListW(DisplayClass, ids, length, PresentInClass) != 0) return null;
+                string prefix = String.Format(CultureInfo.InvariantCulture, "PCI\\VEN_10DE&DEV_{0:X4}&", identity.Device >> 16);
+                int matches = 0;
+                uint found = 0;
+                foreach (string id in new string(ids).Split(new char[] { '\0' }, StringSplitOptions.RemoveEmptyEntries))
+                {
+                    uint node, bus, address;
+                    if (!id.StartsWith(prefix, StringComparison.OrdinalIgnoreCase) || CM_Locate_DevNodeW(out node, id, 0) != 0) continue;
+                    if (!ReadDeviceUInt32(node, 23, out bus) || !ReadDeviceUInt32(node, 30, out address)) continue; // BusNumber, Address
+                    if (bus != identity.Bus || (address >> 16) != identity.Slot) continue;
+                    found = node;
+                    ++matches;
+                }
+                if (matches != 1) return null;
+                return delegate
+                {
+                    uint state; // CM_POWER_DATA.PD_MostRecentPowerState, offset 4.
+                    return ReadDeviceUInt32(found, 32, 4, out state) ? (int)state : 0;
+                };
+            }
+            catch { return null; }
+        }
+
+        private static bool ReadDeviceUInt32(uint node, uint property, out uint value)
+        {
+            return ReadDeviceUInt32(node, property, 0, out value);
+        }
+
+        // A property of DEVPKEY_Device's format, read as the UInt32 at offset.
+        private static bool ReadDeviceUInt32(uint node, uint property, int offset, out uint value)
+        {
+            value = 0;
+            DevicePropertyKey key = new DevicePropertyKey { Format = new Guid("a45c254e-df1c-4efd-8020-67d146a850e0"), Id = property };
+            byte[] buffer = new byte[128];
+            uint size = (uint)buffer.Length, type;
+            if (CM_Get_DevNode_PropertyW(node, ref key, out type, buffer, ref size, 0) != 0 || size < offset + 4 || size > buffer.Length) return false;
+            value = BitConverter.ToUInt32(buffer, offset);
+            return true;
         }
 
         private string ReadMemory(Frame frame)
@@ -1704,13 +1807,23 @@ public static class ParallaxGpuTemperature
             catch { return "UNAVAILABLE"; }
         }
 
-        private bool IdentityMatches()
+        // The DXCore half of the identity check; it does not wake the GPU.
+        private bool AdapterMatches()
         {
             try
             {
                 if (!opened || disposed || !Method<GetFlag>(adapter, 3)(adapter) || Method<GetFlag>(list, 5)(list)) return false;
                 ulong luid;
-                if (!ReadLuid(adapter, out luid) || luid != requestedLuid) return false;
+                return ReadLuid(adapter, out luid) && luid == requestedLuid;
+            }
+            catch { return false; }
+        }
+
+        private bool IdentityMatches()
+        {
+            try
+            {
+                if (!AdapterMatches()) return false;
                 if (!nvidiaBound) return true;
                 Marshal.WriteInt64(luidBuffer, 0);
                 LogicalData data = NewLogicalData();

@@ -81,7 +81,7 @@ function Invoke-Layout([string]$ColumnCount) {
     Write-TestFile (Join-Path $parallax '@Resources\User\Media.inc') "[Variables]`nColumns=$ColumnCount`nPanelHeight=162`nMediaInterval=1000`nQueueExpanded=1`nQueueRowLimit=3`nQueueShowDetails=1`nQueuePollSeconds=30`nVisualizerDrawer=1`nMediaTitleAnimation=0`n"
 
     # WebNowPlaying reports a generic Windows session playing one track.
-    $numeric = @{ MeasureConnection='1'; MeasureState='1'; MeasurePosition='45'; MeasureDuration='180'; MeasureProgress='25'
+    $numeric = @{ MeasureConnection='1'; MeasureReportedState='1'; MeasurePosition='45'; MeasureDuration='180'; MeasureProgress='25'
         MeasureCanPrevious='1'; MeasureCanPlayPause='1'; MeasureCanNext='1'; MeasureShuffle='0'; MeasureRepeat='0'; MeasureCanShuffle='1'; MeasureCanRepeat='1' }
     $strings = @{ MeasurePlayer='Windows Media Session'; MeasureTitle='Synthetic title'; MeasureArtist='Synthetic artist'
         MeasureSourceArtist='Synthetic artist'; MeasureAlbum='Synthetic album'; MeasureCover='' }

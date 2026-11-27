@@ -234,7 +234,7 @@ function Copy-Skin([string]$Root, [string]$Source, [string]$Name, $Layout) {
     $media = Join-Path $target '@Resources\Modules\Media'
     $providerPath = Join-Path $media 'WebNowPlaying.inc'
     $provider = [IO.File]::ReadAllText($providerPath)
-    $numeric = @{ MeasureConnection = '1'; MeasureState = '#FixtureState#'; MeasurePosition = '45'; MeasureDuration = '180'; MeasureProgress = '25'
+    $numeric = @{ MeasureConnection = '1'; MeasureReportedState = '#FixtureState#'; MeasurePosition = '45'; MeasureDuration = '180'; MeasureProgress = '25'
         MeasureCanPrevious = '1'; MeasureCanPlayPause = '1'; MeasureCanNext = '1'
         MeasureShuffle = '0'; MeasureRepeat = '0'; MeasureCanShuffle = '1'; MeasureCanRepeat = '1' }
     $strings = @{ MeasurePlayer = 'Synthetic player'; MeasureTitle = 'Synthetic title'; MeasureArtist = 'Synthetic artist'

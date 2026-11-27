@@ -157,7 +157,7 @@ local function evaluate()
     local away = variable('ParallaxIdleAway', '0') == '1'
     local beat = tonumber(variable('ParallaxIdleBeat', '0')) or 0
     local stale = now - math.max(beat, rearmAt or loadAt) > staleSeconds
-    local playing = measureValue('MeasureState') == 1
+    local playing = measureValue('MeasureReportedState') == 1
 
     if loadedCapture == '1' then
         if synced and not away then return request(0, 'unpark', now) end

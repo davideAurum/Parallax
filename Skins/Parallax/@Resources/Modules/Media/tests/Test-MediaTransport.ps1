@@ -85,7 +85,7 @@ Write-TestFile (Join-Path $parallax '@Resources\User\Media.inc') ("[Variables]`n
 # changes, exactly as WebNowPlaying reports a change made in another app.
 $providerPath = Join-Path $parallax '@Resources\Modules\Media\WebNowPlaying.inc'
 $provider = [IO.File]::ReadAllText($providerPath)
-$numeric = @{ MeasureConnection = '1'; MeasureState = '#FixtureState#'; MeasurePosition = '45'; MeasureDuration = '180'; MeasureProgress = '25'
+$numeric = @{ MeasureConnection = '1'; MeasureReportedState = '#FixtureState#'; MeasurePosition = '45'; MeasureDuration = '180'; MeasureProgress = '25'
     MeasureCanPrevious = '1'; MeasureCanPlayPause = '1'; MeasureCanNext = '#FixtureCanNext#'
     # Shuffle off and repeat-one on, so a capture shows both toggle faces.
     MeasureShuffle = '0'; MeasureRepeat = '1'; MeasureCanShuffle = '1'; MeasureCanRepeat = '1' }

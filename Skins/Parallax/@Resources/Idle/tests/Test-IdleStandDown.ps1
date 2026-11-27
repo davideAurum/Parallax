@@ -231,7 +231,7 @@ $mediaPrepare = {
     $media = Join-Path $Target '@Resources\Modules\Media'
     $providerPath = Join-Path $media 'WebNowPlaying.inc'
     $provider = [IO.File]::ReadAllText($providerPath)
-    $numeric = @{ MeasureConnection = '1'; MeasureState = '2'; MeasurePosition = '45'; MeasureDuration = '180'; MeasureProgress = '25'
+    $numeric = @{ MeasureConnection = '1'; MeasureReportedState = '2'; MeasurePosition = '45'; MeasureDuration = '180'; MeasureProgress = '25'
         MeasureCanPrevious = '1'; MeasureCanPlayPause = '1'; MeasureCanNext = '1' }
     $strings = @{ MeasurePlayer = 'Synthetic player'; MeasureTitle = 'Synthetic title'; MeasureArtist = 'Synthetic artist'
         MeasureSourceArtist = 'Synthetic artist'; MeasureAlbum = 'Synthetic album'; MeasureCover = ''; MeasureMediaSource = 'Spotify' }

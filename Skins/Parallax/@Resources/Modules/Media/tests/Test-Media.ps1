@@ -10,6 +10,7 @@ $sourcePath = [IO.Path]::GetFullPath((Join-Path $PSScriptRoot '..\Media.lua'))
 # MediaOptions.lua: the drawer toggles and the capture-lease writer (ApplyLease).
 $optionsSourcePath = [IO.Path]::GetFullPath((Join-Path $PSScriptRoot '..\MediaOptions.lua'))
 $sourceSuitePath = Join-Path $PSScriptRoot 'MediaSuite.luatest'
+$playStateSourcePath = [IO.Path]::GetFullPath((Join-Path $PSScriptRoot '..\PlayState.lua'))
 $tempParent = [IO.Path]::GetFullPath([IO.Path]::GetTempPath())
 $runRoot = [IO.Path]::GetFullPath((Join-Path $tempParent ('Parallax-Media-test-' + [Guid]::NewGuid().ToString('N'))))
 if (-not $runRoot.StartsWith($tempParent.TrimEnd('\') + '\', [StringComparison]::OrdinalIgnoreCase)) { throw 'Test root must be inside the temp parent.' }
@@ -35,6 +36,8 @@ foreach ($path in @($suitePath, $productionPath, $optionsPath, $resultPath, $run
 }
 Copy-Item -LiteralPath $sourcePath -Destination $productionPath
 Copy-Item -LiteralPath $optionsSourcePath -Destination $optionsPath
+$playStatePath = Join-Path $runRoot 'Production\PlayState.lua'
+Copy-Item -LiteralPath $playStateSourcePath -Destination $playStatePath
 Copy-Item -LiteralPath $sourceSuitePath -Destination $suitePath
 $sourceHash = (Get-FileHash -LiteralPath $productionPath -Algorithm SHA256).Hash
 $optionsHash = (Get-FileHash -LiteralPath $optionsPath -Algorithm SHA256).Hash
@@ -83,7 +86,7 @@ function Update() return 0 end
 function AuditAndQuit()
     local ok, report = pcall(function()
         local suite = dofile([=[$suitePath]=])
-        local count, cases = suite.run([=[$productionPath]=], [=[$optionsPath]=])
+        local count, cases = suite.run([=[$productionPath]=], [=[$optionsPath]=], [=[$playStatePath]=])
         return 'PASS: '..count..' assertions in '..#cases..' synthetic Media scenarios; '.._VERSION..'.\n'
             ..table.concat(cases, '\n')..'\n'
             ..'Production SHA256: $sourceHash\n'

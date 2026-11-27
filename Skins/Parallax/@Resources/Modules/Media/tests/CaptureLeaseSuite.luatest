@@ -70,7 +70,7 @@ function Suite.Run(leasePath, linkPath)
             if name == 'MeasureVisualizerState' then
                 if state.signal == nil then return nil end
                 return { GetValue = function() return state.signal end }
-            elseif name == 'MeasureState' then
+            elseif name == 'MeasureReportedState' then
                 if state.wnp == nil then return nil end
                 return { GetValue = function() return state.wnp end }
             end

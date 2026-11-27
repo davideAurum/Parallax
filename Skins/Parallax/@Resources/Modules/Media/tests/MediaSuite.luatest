@@ -3,7 +3,7 @@
 -- Production Media.lua runs unchanged under a mock SKIN in Rainmeter's Lua 5.1.
 local suite = {}
 
-function suite.run(sourcePath, optionsPath)
+function suite.run(sourcePath, optionsPath, playStatePath)
     local passed, cases = 0, {}
     local function check(condition, message)
         assert(condition, message)
@@ -21,6 +21,7 @@ function suite.run(sourcePath, optionsPath)
             MeasureTitle = { text = 'Synthetic title for tests only' },
             MeasureCover = { text = 'synthetic-cover-no-file.png' },
             MeasureState = { value = 1 },
+            MeasureReportedState = false,
             MeasurePosition = { value = 30 },
             MeasureDuration = { value = 180 },
             MeasureCanPrevious = { value = 1 },
@@ -997,6 +998,70 @@ function suite.run(sourcePath, optionsPath)
             check(settings.value('MediaDrawerCapture') == '2', 'Media settings opening the drawer also defers')
         end)
     end
+
+    scenario('a stopped player whose position moves reads as playing, then paused', function()
+        local values = { connection = 1, reported = 0, title = 'Synthetic cast', position = 100 }
+        local names = { MeasureConnection = 'connection', MeasureReportedState = 'reported',
+            MeasureTitle = 'title', MeasurePosition = 'position' }
+        local env = setmetatable({ SKIN = {
+            GetVariable = function() return '1000' end,
+            GetMeasure = function(_, name)
+                local key = assert(names[name], name)
+                return { GetValue = function() return values[key] end,
+                    GetStringValue = function() return values[key] end }
+            end
+        } }, { __index = _G })
+        local chunk = assert(loadfile(playStatePath))
+        setfenv(chunk, env)
+        chunk()
+        env.Initialize()
+        local function sample(position, expected, message)
+            values.position = position
+            local state = env.Update()
+            check(state == expected, message .. ' (got ' .. tostring(state) .. ')')
+        end
+        sample(100, 0, 'A first sample proves nothing')
+        sample(101, 0, 'One advance is not enough')
+        sample(102, 1, 'Two advances read as playing')
+        sample(102, 1, 'One repeated second is jitter')
+        sample(103, 1, 'Playing continues')
+        sample(600, 1, 'A seek keeps the established state')
+        sample(600, 1, 'First hold')
+        sample(600, 1, 'Second hold')
+        sample(600, 2, 'A held position reads as paused')
+        sample(601, 2, 'One advance keeps paused')
+        sample(602, 1, 'Resumed')
+        values.title = 'Synthetic next video'
+        sample(0, 0, 'A new title starts over')
+        sample(1, 0, 'New title: one advance')
+        sample(2, 1, 'New title: playing')
+        for _, reported in ipairs({ 1, 2 }) do
+            values.reported = reported
+            sample(3, reported, 'A reported playing or paused state passes through')
+        end
+        values.reported = 0
+        sample(3, 0, 'A real stop after playback starts over')
+        sample(3, 0, 'A still, stopped track stays stopped')
+        sample(3, 0, 'A still, stopped track stays stopped')
+        sample(3, 0, 'A still, stopped track stays stopped')
+        values.connection = 0
+        sample(4, 0, 'Disconnected')
+        sample(5, 0, 'Disconnected movement is ignored')
+        sample(6, 0, 'Disconnected movement is ignored')
+    end)
+
+    scenario('play/pause names the wanted state when the shown state differs', function()
+        for _, case in ipairs({ { 0, 1, 'Pause' }, { 0, 2, 'Play' }, { 1, 1, 'PlayPause' }, { 2, 2, 'PlayPause' } }) do
+            local f = fixture()
+            f.values.MeasureReportedState = { value = case[1] }
+            f.env.Initialize()
+            f.values.MeasureState.value = case[2]
+            f.env.Update()
+            f.reset()
+            check(f.env.Control('PlayPause') == true, 'Click accepted')
+            check(f.calls()[1][3] == case[3], 'Reported ' .. case[1] .. ', shown ' .. case[2] .. ' sends ' .. case[3])
+        end
+    end)
 
     return passed, cases
 end

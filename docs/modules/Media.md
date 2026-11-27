@@ -70,7 +70,7 @@ user-selected Lucide metadata and playback icons are attributed below.
 | Spectrum drawer — optional, plugins bundled with Rainmeter | Rainmeter's bundled AudioLevel and Win7AudioPlugin plugins, a Windows output endpoint, and the Visualizer module's shared `Modules/Visualizer/{Fallbacks,Options,Capture,Audio,Spectrum}.inc`, `HeightPresets/*.inc`, `Color.lua`, `SpectrumPaths.lua` and `User/Visualizer.inc`. Media settings' Spectrum section adds `Modules/Visualizer/SettingsShared.inc` and `Settings.lua` (event-only; its numeric input is the shared one-shot helper, launched only by a click). Writes `AnchorY` and its `ParallaxDrawerAnchorY` record in this config's own Rainmeter.ini section on tab clicks, Media settings saves and any load whose drawer-owned anchor does not match (that load-time repair's `!SetAnchor` also rewrites `AnchorX` with its existing value); a user-set anchor is never changed. Since 2026-10-23 the open drawer's capture lease also uses the bundled input-idle coordinator config `Parallax\Idle` (`Idle/Idle.ini`, `@Resources/Idle/Coordinator.lua` and `Link.lua`), which reads Rainmeter's built-in SysInfo `IDLE_TIME` (keyboard and mouse input only) every 2 s while you are away or skins are paused, and about once a minute while you are at the computer, and is loaded only while the drawer is open and not deferred, and the bundled runtime state file `Modules/Media/CaptureState.inc` (shipped at zeros, written only by `MediaOptions.ApplyLease`). | Capture and Win7Audio exist only while `VisualizerDrawer=2` and the capture is live (`MediaDrawerCapture=0`); collapsed, hidden, paused, deferred and Setup load no AudioLevel or Win7Audio measure. The lease parks the capture after 2 minutes of silence while you are away 5 minutes and nothing plays, and resumes it on input, WebNowPlaying Playing or a click ([Capture lease](#capture-lease)). Without the coordinator (missing or unloaded) the drawer stays live: a paused drawer resumes 10 s after a load without a sync, or 3 minutes after the last beat. Live, it runs on Media's 50 ms tick (100 ms for the Visualizer's 100 ms choice); Win7Audio volume, device name and device status once a second each (the volume was read every 250 ms before 2026-10-22). Win7Audio errors show `--`, mute shows `Muted`; a failed numeric getter can leave an old volume. The output row's click/wheel switches the system default output (no volume or mute command). A missing or unavailable endpoint shows `Output unavailable`; quiet output shows `Idle - quiet`; an invalid format shows `Unsupported format`. While the standalone Audio Visualizer is loaded the drawer defers to it (state 2) instead of running a second capture, and takes the capture back when it unloads; the standalone's event-only `Companion.lua` notifies Media through two silent group bangs. |
 | Fonts and icons — bundled | Private IBM Plex Sans fonts ([license](../../Skins/Parallax/@Resources/Licenses/IBM-Plex-OFL.txt)); native Shape adaptations of Lucide artwork ([provenance and licenses](../../Skins/Parallax/@Resources/Modules/Media/Icons/Lucide/README.md)). | No download, system font installation or SVG-rendering plugin required. |
 | Typed numeric settings — bundled | Rainmeter's bundled RunCommand plugin, Windows PowerShell/.NET WinForms and the shared `Scripts/SettingsInput.ps1` overlay. | An explicit numeric-field click starts one temporary editor. Fixed numeric/cancel output is revalidated before saving; invalid, cancelled, unrequested or hidden-field results do not save. No polling or provider starts. |
-| Playback metadata and controls — optional, plugin bundled | [WebNowPlaying](https://wnp.keifufu.dev/rainmeter/getting-started) plugin 2.0.7.0 (MIT License, keifufu and Trevor Hamilton), bundled in the Parallax `.rmskin` from `packaging/Plugins/WebNowPlaying` and installed by Skin Installer unless a newer version is present ([license](../../Skins/Parallax/@Resources/Licenses/WebNowPlaying-LICENSE.txt), [provenance](../../packaging/Plugins/WebNowPlaying/README.md)); a supported player. Browser playback additionally requires the separately installed WebNowPlaying browser extension; desktop adapters are also separate. A development copy of the skin without the package needs a manual plugin install (2.x+). | Sampled on the skin update; `MediaInterval` does not throttle WNP internally. Inactive connections show no active media; unsupported controls remain disabled. Setup unloads the optional plugin. Since 2026-10-27 the shuffle and repeat toggles read WNP's `Shuffle`, `Repeat`, `SupportsToggleShuffleActive` and `SupportsToggleRepeatMode` player types and send its `Shuffle` and `Repeat` commands; a player that does not report support shows them muted and unclickable. Whether a given player (Spotify desktop included) reports that support is unverified. |
+| Playback metadata and controls — optional, plugin bundled | [WebNowPlaying](https://wnp.keifufu.dev/rainmeter/getting-started) plugin 2.0.7.0 (MIT License, keifufu and Trevor Hamilton), bundled in the Parallax `.rmskin` from `packaging/Plugins/WebNowPlaying` and installed by Skin Installer unless a newer version is present ([license](../../Skins/Parallax/@Resources/Licenses/WebNowPlaying-LICENSE.txt), [provenance](../../packaging/Plugins/WebNowPlaying/README.md)); a supported player. Browser playback additionally requires the separately installed WebNowPlaying browser extension; desktop adapters are also separate. A development copy of the skin without the package needs a manual plugin install (2.x+). | Sampled on the skin update; `MediaInterval` does not throttle WNP internally. Inactive connections show no active media; unsupported controls remain disabled. Setup unloads the optional plugin. Since 2026-10-27 the shuffle and repeat toggles read WNP's `Shuffle`, `Repeat`, `SupportsToggleShuffleActive` and `SupportsToggleRepeatMode` player types and send its `Shuffle` and `Repeat` commands; a player that does not report support shows them muted and unclickable. Whether a given player (Spotify desktop included) reports that support is unverified. Since 2026-11-27 the shown state comes from the bundled `PlayState.lua`, which reads a stopped player whose position moves as [casting playback](#casting-to-a-tv-2026-11-27); no extra dependency. |
 | Album colors — optional, plugin bundled (2026-11-19) | [Chameleon](https://github.com/socks-the-fox/chameleon) plugin 1.6.5.0 (3-clause BSD, Socks the Fox), bundled in the `.rmskin` from `packaging/Plugins/Chameleon` ([license](../../Skins/Parallax/@Resources/Licenses/Chameleon-LICENSE.txt), [provenance and license status](../../packaging/Plugins/Chameleon/README.md)); `Modules/Media/AlbumColors1.inc` and `AlbumColors.lua`; WebNowPlaying's cover file. | Only while `MediaAlbumColors=1` (default; `0` loads the comment-only `AlbumColors0.inc`). Four plugin measures and one script at `MediaLegacyDivider` (the 1-second provider cadence), never on the 50 ms tick; Chameleon re-samples on its own when WebNowPlaying overwrites the cover (measured ~1 s). A recolor runs only when the sampled colors or the shown text change: `!SetOption` on fixed meters plus forced updates and one redraw (measured ~2 ms), no DynamicVariables on any meter and no refresh. A grayscale or missing cover, or a missing plugin, keeps the theme; Media settings then says the plugin is missing. See [Album colors](#album-colors-2026-11-19). |
 | Spotify source identification — optional | Bundled `SourceProvider.ps1` and the shared `ProviderOwner.psm1` owner lease, Rainmeter's bundled RunCommand plugin, Windows PowerShell 5.1, built-in .NET and Windows media-session APIs. No Spotify authentication or network request. | Explicit Start uses a dormant `State=Hide` RunCommand control and enables one persistent observer targeting a 2-second collection cadence, with load-time recovery through `MediaLifecycle.lua`/`Lifecycle.inc`. Stop uses the same hidden event-only path. Between collections the observer waits on its owner Rainmeter and a stop event, not a poll, and rewrites its snapshot every cycle while Spotify plays and otherwise only on change, plus a heartbeat about every 4 seconds. Observations expire after 6 seconds. Inconclusive evidence leaves generic Windows playback identified as `Unknown`, and `detection off` while the observer was [never started](#never-started-helpers). |
 | Idle pause — optional, bundled suite component | The hidden `Parallax\Idle` input-idle coordinator (built-in SysInfo `IDLE_TIME`) through `@Resources/Idle/Hook.inc` and `StandDown.lua`; `Modules/Media/CaptureState.inc` (`MediaStandby`) written only by `MediaOptions.lua`. | Only while Global Settings **Idle pause** is 5, 10 or 30 minutes (default Off). Media.ini reloads once into standby (provider cadence, drawer parked) and freezes; input reloads it once back. Setup and Queue freeze in place. Off loads a comment-only include; a standby state saved while the pause is Off is cleared at the next Media.ini load. No coordinator sync 10 s after a standby load, or no beat for 3 minutes, returns to live. See [Idle pause](#idle-pause). |
@@ -842,6 +842,7 @@ or retain video metadata.
 | Connection not 1 | No active media; track data hidden; controls inactive. |
 | Connected, blank title | No active media; no invented title or cover. |
 | Connected title and state 0/1/2 | Internal stopped/playing/paused state; play/pause symbol reflects playback. |
+| State 0 while the reported position advances | Shown as playing, then paused if the position holds ([casting](#casting-to-a-tv-2026-11-27)). |
 | Unknown numeric state | Internally unknown; no visible state caption. |
 | Missing artist/album/cover | Explicit unavailable text or neutral cover placeholder. |
 | Positive duration and nonnegative position | Provider-reported progress and time. |
@@ -864,6 +865,49 @@ selection, or audio capture. Desktop volume/rating are unsupported by WNP's
 Windows API path. Media's own optional [spectrum drawer](#spectrum-drawer)
 captures mixed output audio only while it is open; it neither loads nor
 controls the separate Visualizer config.
+
+### Casting to a TV (2026-11-27)
+
+**Symptom** (user report): with a YouTube tab cast to a TV, Media showed the
+right title, channel, mix and artwork but read `stopped`.
+
+**Observed** during a live Chrome cast, read-only:
+
+- The browser plays nothing itself. The WebNowPlaying extension takes its state
+  from the page's `.html5-main-video[src]` element and reports Stopped when
+  there is none ([YouTube adapter](https://github.com/keifufu/WebNowPlaying/blob/main/src/extension/content/injected/sites/YouTube.ts)).
+  Title, channel, playlist, artwork and duration come from page data, and the
+  position still advanced: 0:39, then 1:36 in captures about 57 s apart. It ran
+  about 7 s behind the TV's own position.
+- Windows published no media session for Chrome while the cast ran.
+- Chrome's audio session on this computer was inactive with a zero peak.
+
+**Handling.** `[MeasureReportedState]` is the plugin's state.
+`[MeasureState]` (`PlayState.lua`), which the icon, title, title animation and
+text slide read, passes it through, except that a connected, titled player
+reporting Stopped reads Playing after two consecutive samples in which the
+position advanced, and Paused once it then holds for three. A jump is treated as
+a seek and a new title starts over. So Media takes about 2 s to show a cast, and
+a cast that is already paused when Media loads reads `stopped` until it moves.
+Nothing says "casting": the position alone cannot prove it. No network request,
+helper or dependency is involved; the TV is not contacted.
+
+While the shown state differs from the reported one, the center button sends
+`Pause` or `Play` instead of `PlayPause`, which WNP would always resolve to play
+for a stopped player. Whether the extension's commands reach the TV is
+**not yet verified**.
+
+**Spectrum.** It cannot follow a cast. It captures this computer's output
+device, and the TV fetches and plays the audio itself, so it stays at
+`Idle - quiet`. The capture lease reads `[MeasureReportedState]`, so a cast does
+not keep a silent capture running. Sound sent through a Windows output device
+(an HDMI or wireless display used as a speaker) is captured as usual.
+
+Checks (2026-11-27): `tests/Test-Media.ps1` (853, including the state rule and
+the button command), `test_skin_contract.py` (38) and
+`tests/Test-MediaTransport.ps1` and `tests/Test-MediaNeverStarted.ps1`. Not run: `Test-MediaCaptureLease.ps1` (its
+suite's mock was only renamed) and the other provider-fixture tests whose
+measure map was renamed the same way. Not seen: the new code on a live cast.
 
 ## Optional Spotify source detection
 

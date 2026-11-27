@@ -39,6 +39,7 @@ function Initialize()
     measures, applied, pending, playPauseHovered = {}, {}, {}, false
     transportHovered, activeTiming = {}, nil
     local names = { 'MeasureConnection', 'MeasureTitle', 'MeasureCover', 'MeasureState',
+        'MeasureReportedState',
         'MeasurePosition', 'MeasureDuration', 'MeasureCanPrevious', 'MeasureCanPlayPause', 'MeasureCanNext',
         'MeasureShuffle', 'MeasureRepeat', 'MeasureCanShuffle', 'MeasureCanRepeat' }
     for _, name in ipairs(names) do measures[name] = SKIN:GetMeasure(name) end
@@ -233,7 +234,14 @@ function Control(command)
     local spec = commands[command] or toggles[command]
     -- Recheck the latest sampled values at click time; these are not a heartbeat.
     if spec and connected() and number(spec.measure) == 1 then
-        SKIN:Bang('!CommandMeasure', 'MeasureConnection', command)
+        local sent = command
+        -- A casting tab reports Stopped, so WNP's own toggle would only ever
+        -- send play. Name the wanted state when the shown state differs.
+        local shown, reported = number('MeasureState'), number('MeasureReportedState')
+        if command == 'PlayPause' and reported and shown ~= reported then
+            sent = shown == 1 and 'Pause' or 'Play'
+        end
+        SKIN:Bang('!CommandMeasure', 'MeasureConnection', sent)
         return true
     end
     return false

@@ -61,10 +61,10 @@ RegExpSubstitute=1
 Substitute="^0$":""
 UpdateDivider=#MediaLegacyDivider#
 
-; State: 1=Playing, 2=Paused, 0=Stopped. Read directly by Media.lua (the
-; play/pause icon), MediaPulse.lua (the title icon swap and pulse) and
-; MediaHeader.lua (the title's player name); no separate skin Variable needed.
-[MeasureState]
+; State: 1=Playing, 2=Paused, 0=Stopped, as the provider reports it. Everything
+; shown reads [MeasureState] below; the capture lease reads this one, because a
+; cast plays no sound here.
+[MeasureReportedState]
 Measure=Plugin
 Group=ParallaxIdlePause
 Plugin=WebNowPlaying
@@ -76,6 +76,17 @@ Measure=Plugin
 Group=ParallaxIdlePause
 Plugin=WebNowPlaying
 PlayerType=Position
+UpdateDivider=#MediaLegacyDivider#
+
+; The shown state. Read directly by Media.lua (the play/pause icon),
+; MediaPulse.lua (the title icon swap and pulse), MediaHeader.lua (the title's
+; player name) and TextSlide.lua; no separate skin Variable needed. It differs
+; from the reported state only for a "stopped" player whose position moves
+; (a YouTube tab casting to a TV). Must follow Title and Position.
+[MeasureState]
+Measure=Script
+Group=ParallaxIdlePause
+ScriptFile=#@#Modules\Media\PlayState.lua
 UpdateDivider=#MediaLegacyDivider#
 
 [MeasureDuration]

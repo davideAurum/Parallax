@@ -919,7 +919,7 @@ Checks (2026-11-27): `tests/Test-Media.ps1` (including the state rule and
 the button command), `test_skin_contract.py` (38) and
 `tests/Test-MediaTransport.ps1` and `tests/Test-MediaNeverStarted.ps1`. Not run: `Test-MediaCaptureLease.ps1` (its
 suite's mock was only renamed) and the other provider-fixture tests whose
-measure map was renamed the same way. On the dev copy with a live cast it read playing a few seconds after each new video and held for a 55 s watch with a 5 s freeze; not yet seen there: a ~15 s freeze, a pause on the TV, or the button.
+measure map was renamed the same way. On the dev copy with a live cast it read playing a few seconds after each new video and held for a 55 s watch with a 5 s freeze; The user then confirmed that a pause on the TV switches it to paused. Not yet checked: the button.
 
 ## Optional Spotify source detection
 

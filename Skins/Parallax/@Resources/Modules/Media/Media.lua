@@ -242,6 +242,7 @@ function Control(command)
             sent = shown == 1 and 'Pause' or 'Play'
         end
         SKIN:Bang('!CommandMeasure', 'MeasureConnection', sent)
+        if sent == 'Pause' then SKIN:Bang('!CommandMeasure', 'MeasureState', 'ExpectPause()') end
         return true
     end
     return false

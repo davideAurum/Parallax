@@ -901,13 +901,17 @@ progress bar still freeze and jump as the browser reports them; Media does not
 estimate between updates. A cast already paused when Media loads shows the
 reported state until it moves. A second live cast the same day reported Paused
 rather than Stopped while its position advanced, so both are covered.
+A pause from Media's own button does not wait that long: for 10 s after sending
+`Pause`, a 3 s hold is enough, so the next click resumes. A freeze that happens
+to follow a pause the TV ignored would read paused until the position catches up.
+
 Nothing says "casting": the position alone cannot prove it. No network request,
 helper or dependency is involved; the TV is not contacted.
 
 While the shown state differs from the reported one, the center button sends
 `Pause` or `Play` instead of `PlayPause`, which WNP would always resolve to play
-for a stopped or paused player. Whether the extension's commands reach the TV is
-**not yet verified**.
+for a stopped or paused player. That the button pauses and resumes the TV was
+confirmed by the user on a live cast (the 3 s confirmation was added afterwards).
 
 **Spectrum.** It cannot follow a cast. It captures this computer's output
 device, and the TV fetches and plays the audio itself, so it stays at
@@ -919,7 +923,7 @@ Checks (2026-11-27): `tests/Test-Media.ps1` (including the state rule and
 the button command), `test_skin_contract.py` (38) and
 `tests/Test-MediaTransport.ps1` and `tests/Test-MediaNeverStarted.ps1`. Not run: `Test-MediaCaptureLease.ps1` (its
 suite's mock was only renamed) and the other provider-fixture tests whose
-measure map was renamed the same way. On the dev copy with a live cast it read playing a few seconds after each new video and held for a 55 s watch with a 5 s freeze; The user then confirmed that a pause on the TV switches it to paused. Not yet checked: the button.
+measure map was renamed the same way. On the dev copy with a live cast it read playing a few seconds after each new video and held for a 55 s watch with a 5 s freeze; The user then confirmed that a pause on the TV switches it to paused. and that the center button pauses and resumes it.
 
 ## Optional Spotify source detection
 

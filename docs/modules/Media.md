@@ -911,7 +911,7 @@ helper or dependency is involved; the TV is not contacted.
 While the shown state differs from the reported one, the center button sends
 `Pause` or `Play` instead of `PlayPause`, which WNP would always resolve to play
 for a stopped or paused player. That the button pauses and resumes the TV was
-confirmed by the user on a live cast (the 3 s confirmation was added afterwards).
+confirmed by the user on a live cast, and again after the 3 s confirmation.
 
 **Spectrum.** It cannot follow a cast. It captures this computer's output
 device, and the TV fetches and plays the audio itself, so it stays at

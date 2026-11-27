@@ -108,6 +108,28 @@ function Suite.run(secondPath, temperaturePath)
         return f
     end
 
+    -- Every change of the section height must re-read, after the new height
+    -- is set, both the layout group (panel, bounds, section rows, process
+    -- table header and History) and the process cells' own group: without it
+    -- nothing below the section moves at runtime. Each group: DynamicVariables
+    -- 1, an update, then DynamicVariables 0, in that order.
+    local function requireReread(f, label)
+        local last = 0
+        for index, call in ipairs(f.calls) do
+            if call:find('^!SetVariable GPUSecondBlock ') then last = index end
+        end
+        ok(last > 0, label .. ': the section height was set')
+        for _, group in ipairs({'GPUSecondLayout', 'GPUProcessGraph'}) do
+            local steps = {'!SetOptionGroup ' .. group .. ' DynamicVariables 1', '!UpdateMeterGroup ' .. group,
+                '!SetOptionGroup ' .. group .. ' DynamicVariables 0'}
+            local step = 1
+            for index = last + 1, #f.calls do
+                if steps[step] and f.calls[index] == steps[step] then step = step + 1 end
+            end
+            eq(step, #steps + 1, label .. ': ' .. group .. ' re-read after the height change')
+        end
+    end
+
     test('Off reads nothing and changes nothing', function()
         for _, mode in ipairs({'0', '', '4', 'x', '1.0'}) do
             local f = fixture(mode)
@@ -139,6 +161,7 @@ function Suite.run(secondPath, temperaturePath)
         local f = fixture('1')
         f:session(hex(dataPath)); f:sample(); f:update()
         eq(f.variables.GPUSecondBlock, '24'); eq(f.visible.GPUSecondLine, true)
+        requireReread(f, 'One line opens')
         eq(f.variables.GPUSecondShown, '1'); eq(f.variables.GPUSecondRowsShown, '0')
         eq(f.variables.GPUNaturalHeight, '486'); eq(f.variables.PanelHeightPx, '486'); eq(f.variables.WindowHeight, '494')
         eq(f.visible.GPUSecondRows, nil, 'rows stay hidden'); eq(f.visible.GPUSecondTrace, nil, 'trace stays hidden')
@@ -153,6 +176,7 @@ function Suite.run(secondPath, temperaturePath)
         local f = fixture('2')
         f:session(hex(dataPath)); f:sample(); f:update()
         eq(f.variables.GPUSecondBlock, '56'); eq(f.visible.GPUSecondRows, true); eq(f.visible.GPUSecondTrace, nil)
+        requireReread(f, 'Rows opens')
         eq(f.variables.GPUSecondRowsShown, '1'); eq(f.variables.PanelHeightPx, '518'); eq(f.variables.WindowHeight, '526')
         eq(f:text('MeterGPUSecondVideoValue'), '12%'); eq(f:text('MeterGPUSecondMemoryLabel'), 'VRAM')
         eq(f:text('MeterGPUSecondMemoryValue'), '1.3/4.3 GB')
@@ -185,6 +209,7 @@ function Suite.run(secondPath, temperaturePath)
             f:sample({[6] = status, [7] = '?', [8] = '?', [9] = '?', [10] = '?', [11] = '?', [12] = '?', [13] = '?', [14] = '?'})
             f:update()
             eq(f.variables.GPUSecondBlock, '0', status); eq(f.visible.GPUSecondLine, false); eq(f.visible.GPUSecondRows, false)
+            requireReread(f, status .. ' collapses')
             eq(f.variables.PanelHeightPx, '462', 'collapsed panel is as today'); eq(f.variables.WindowHeight, '470'); eq(f.variables.GPUSecondShown, '0')
         end
         local f = fixture('1')

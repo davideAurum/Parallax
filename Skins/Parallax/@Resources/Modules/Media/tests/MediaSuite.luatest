@@ -1000,11 +1000,11 @@ function suite.run(sourcePath, optionsPath, playStatePath)
     end
 
     scenario('a stopped or paused player whose position moves reads as playing, then paused', function()
+        local clock = 1000
         local values = { connection = 1, reported = 0, title = 'Synthetic cast', position = 100 }
         local names = { MeasureConnection = 'connection', MeasureReportedState = 'reported',
             MeasureTitle = 'title', MeasurePosition = 'position' }
-        local env = setmetatable({ SKIN = {
-            GetVariable = function() return '1000' end,
+        local env = setmetatable({ os = { time = function() return clock end }, SKIN = {
             GetMeasure = function(_, name)
                 local key = assert(names[name], name)
                 return { GetValue = function() return values[key] end,
@@ -1015,49 +1015,50 @@ function suite.run(sourcePath, optionsPath, playStatePath)
         setfenv(chunk, env)
         chunk()
         env.Initialize()
+        -- One provider sample a second; position is what the tab shows then.
         local function sample(position, expected, message)
+            clock = clock + 1
             values.position = position
             local state = env.Update()
             check(state == expected, message .. ' (got ' .. tostring(state) .. ')')
         end
+        local function hold(seconds, position, expected, message)
+            for _ = 1, seconds do sample(position, expected, message) end
+        end
         sample(100, 0, 'A first sample proves nothing')
         sample(101, 0, 'One advance is not enough')
         sample(102, 1, 'Two advances read as playing')
-        sample(102, 1, 'One repeated second is jitter')
-        sample(103, 1, 'Playing continues')
+        -- The observed cast pattern: a long freeze, then a catch-up jump.
+        hold(15, 102, 1, 'A 15 s freeze stays playing')
+        sample(118, 1, 'Catch-up jump')
+        sample(119, 1, 'Ticking again')
         sample(600, 1, 'A seek keeps the established state')
-        sample(600, 1, 'First hold')
-        sample(600, 1, 'Second hold')
-        sample(600, 2, 'A held position reads as paused')
-        sample(601, 2, 'One advance keeps paused')
-        sample(602, 1, 'Resumed')
+        hold(19, 600, 1, 'Held under 20 s')
+        sample(600, 2, 'Held 20 s reads as paused')
+        sample(605, 2, 'One seek while paused stays paused')
+        hold(7, 605, 2, 'Still paused')
+        sample(610, 2, 'A second seek out of step with the clock stays paused')
+        sample(611, 2, 'Resumed: one advance')
+        sample(612, 1, 'Resumed')
+        -- Lumps alone are enough to detect playback.
         values.title = 'Synthetic next video'
         sample(0, 0, 'A new title starts over')
-        sample(1, 0, 'New title: one advance')
-        sample(2, 1, 'New title: playing')
+        hold(14, 0, 0, 'New title freeze')
+        sample(15, 0, 'First catch-up jump')
+        hold(14, 15, 0, 'Second freeze')
+        sample(30, 1, 'Second catch-up jump reads as playing')
         for _, reported in ipairs({ 1, 2 }) do
             values.reported = reported
-            sample(3, reported, 'A reported playing or paused state passes through')
+            sample(31, reported, 'A first reported playing or paused state passes through')
         end
+        sample(32, 2, 'Paused report: one advance')
+        sample(33, 1, 'Paused report that keeps moving is playing')
+        values.reported = 1
+        sample(34, 1, 'Reported playing')
         values.reported = 0
-        sample(3, 0, 'A real stop after playback starts over')
-        sample(3, 0, 'A still, stopped track stays stopped')
-        sample(3, 0, 'A still, stopped track stays stopped')
-        sample(3, 0, 'A still, stopped track stays stopped')
-        values.reported = 2
-        sample(10, 2, 'A paused report holds until the position moves')
-        sample(11, 2, 'Paused report: one advance')
-        sample(12, 1, 'Paused report that keeps moving is playing')
-        sample(12, 1, 'First hold')
-        sample(12, 1, 'Second hold')
-        sample(12, 2, 'Held again: paused')
-        sample(30, 2, 'A seek while paused stays paused')
-        sample(30, 2, 'Still paused')
-        values.reported = 0
+        hold(25, 34, 0, 'A real stop stays stopped')
         values.connection = 0
-        sample(4, 0, 'Disconnected')
-        sample(5, 0, 'Disconnected movement is ignored')
-        sample(6, 0, 'Disconnected movement is ignored')
+        for offset = 1, 3 do sample(34 + offset, 0, 'Disconnected movement is ignored') end
     end)
 
     scenario('play/pause names the wanted state when the shown state differs', function()

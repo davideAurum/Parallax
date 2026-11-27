@@ -2,16 +2,20 @@
 -- provider's own state, except where "stopped" or "paused" contradicts the
 -- provider's own position: while a YouTube tab casts to a TV, the browser's
 -- local video is idle, so the WebNowPlaying extension reports Stopped or Paused
--- although the position it reports keeps advancing. A moving position reads
--- Playing; a position that then holds reads Paused. Nothing else is inferred: a
--- track that has not been seen moving keeps its reported state. No file I/O,
--- bangs, timers or network.
-local ADVANCES, HOLDS = 2, 3 -- consecutive samples before the state changes
-local reported, connection, title, position, maxStep
-local inferred, lastTitle, lastPosition, advances, holds
+-- although the position it reports keeps advancing. A position that keeps pace
+-- with the clock reads Playing; one that then holds reads Paused. The tab does
+-- not update it evenly: it ticks for a few seconds, freezes for up to about 15,
+-- then jumps by the time it missed. Nothing else is inferred: a track that has
+-- not been seen moving keeps its reported state. No file I/O, bangs, timers or
+-- network.
+-- ADVANCES position changes that match the clock (within TOLERANCE seconds) read
+-- as playing; HOLD seconds without a change read as paused.
+local ADVANCES, TOLERANCE, HOLD = 2, 2, 20
+local reported, connection, title, position
+local inferred, lastTitle, lastPosition, changedAt, advances
 
 local function reset()
-    inferred, lastTitle, lastPosition, advances, holds = nil, nil, nil, 0, 0
+    inferred, lastTitle, lastPosition, changedAt, advances = nil, nil, nil, nil, 0
 end
 
 function Initialize()
@@ -19,9 +23,6 @@ function Initialize()
     reported = SKIN:GetMeasure('MeasureReportedState')
     title = SKIN:GetMeasure('MeasureTitle')
     position = SKIN:GetMeasure('MeasurePosition')
-    -- One sample may advance by about its own length; more than that is a seek.
-    local seconds = (tonumber(SKIN:GetVariable('MediaInterval')) or 1000) / 1000
-    maxStep = math.max(seconds, 1) * 2 + 1
     reset()
 end
 
@@ -39,21 +40,26 @@ function Update()
         reset()
         return state or 0
     end
+    local clock = os.time()
     if name ~= lastTitle then
         reset()
-        lastTitle, lastPosition = name, now
+        lastTitle, lastPosition, changedAt = name, now, clock
         return state
     end
-    local step = now - lastPosition
-    lastPosition = now
+    local step, elapsed = now - lastPosition, clock - changedAt
     if step == 0 then
-        advances, holds = 0, holds + 1
-        if inferred == 1 and holds >= HOLDS then inferred = 2 end
-    elseif step > 0 and step <= maxStep then
-        advances, holds = advances + 1, 0
-        if advances >= ADVANCES then inferred = 1 end
+        if elapsed >= HOLD then
+            advances = 0
+            if inferred == 1 then inferred = 2 end
+        end
     else
-        advances, holds = 0, 0 -- a seek: keep what was already established
+        lastPosition, changedAt = now, clock
+        if step > 0 and math.abs(step - elapsed) <= TOLERANCE then
+            advances = advances + 1
+            if advances >= ADVANCES then inferred = 1 end
+        else
+            advances = 0 -- a seek: keep what was already established
+        end
     end
     return inferred or state
 end

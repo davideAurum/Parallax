@@ -887,12 +887,20 @@ right title, channel, mix and artwork but read `stopped`.
 **Handling.** `[MeasureReportedState]` is the plugin's state.
 `[MeasureState]` (`PlayState.lua`), which the icon, title, title animation and
 text slide read, passes it through, except that a connected, titled player
-reporting Stopped or Paused reads Playing after two consecutive samples in which the
-position advanced, and Paused once it then holds for three. A jump is treated as
-a seek and a new title starts over. So Media takes about 2 s to show a cast, and
-a cast that is already paused when Media loads shows the reported state until it
-moves. A second live cast the same day reported Paused rather than Stopped while
-its position advanced, so both are covered.
+reporting Stopped or Paused reads Playing once two position changes have each
+matched the clock (within 2 s), and Paused once the position then holds for
+20 s. Anything else that moves it is treated as a seek, and a new title starts
+over.
+
+The long hold is because the casting tab updates the position unevenly. Sampled
+on the dev copy for 75 s while the TV played: it ticked every second for about
+6 s, froze for up to about 15 s, then jumped by the time it had missed. So a
+real pause on the TV takes 20 s to show, a cast shows as playing after a few
+seconds (up to about 30 s if it starts in a freeze), and the time readout and
+progress bar still freeze and jump as the browser reports them; Media does not
+estimate between updates. A cast already paused when Media loads shows the
+reported state until it moves. A second live cast the same day reported Paused
+rather than Stopped while its position advanced, so both are covered.
 Nothing says "casting": the position alone cannot prove it. No network request,
 helper or dependency is involved; the TV is not contacted.
 
@@ -907,11 +915,11 @@ device, and the TV fetches and plays the audio itself, so it stays at
 not keep a silent capture running. Sound sent through a Windows output device
 (an HDMI or wireless display used as a speaker) is captured as usual.
 
-Checks (2026-11-27): `tests/Test-Media.ps1` (865, including the state rule and
+Checks (2026-11-27): `tests/Test-Media.ps1` (including the state rule and
 the button command), `test_skin_contract.py` (38) and
 `tests/Test-MediaTransport.ps1` and `tests/Test-MediaNeverStarted.ps1`. Not run: `Test-MediaCaptureLease.ps1` (its
 suite's mock was only renamed) and the other provider-fixture tests whose
-measure map was renamed the same way. Not seen: the new code on a live cast.
+measure map was renamed the same way. On the dev copy with a live cast it read playing a few seconds after each new video and held for a 55 s watch with a 5 s freeze; not yet seen there: a ~15 s freeze, a pause on the TV, or the button.
 
 ## Optional Spotify source detection
 

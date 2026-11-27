@@ -18,7 +18,7 @@ assert sections['Variables']['Columns'] == '2'
 # Process VRAM detail, which collapses while the table is off.
 assert sections['Variables']['GPUShowProcesses'] in ('0', '1')
 assert sections['Variables']['GPUSettingsVRAMRow'] == '(#GPUShowProcesses#=1)'
-assert sections['Variables']['GPUSettingsShift'] == '(28+28*#GPUSettingsVRAMRow#)'
+assert sections['Variables']['GPUSettingsShift'] == '(84+28*#GPUSettingsVRAMRow#)'
 assert sections['Variables']['PanelHeight'] == '(648+#GPUSettingsShift#)'
 assert sections['Variables']['GPUPowerSource'] == '0'
 assert sections['Variables']['GPUClockSource'] == '0'
@@ -40,7 +40,7 @@ assert sections['Variables']['PanelScrollEditor'] == 'MeasureGPUSettingsInput'
 assert not [(name, key) for name, opts in sections.items() for key in opts if key.lower().startswith('tooltip')], 'tooltips were removed 2026-10-11'
 assert 'tooltip' not in (Path(__file__).resolve().parents[1] / 'Settings.lua').read_text(encoding='utf-8').lower()
 steppers = {'Columns': 56, 'PowerSource': 56, 'ClockSource': 56, 'Hive': 112}
-assert len(meters) == 65
+assert len(meters) == 69
 assert sections['MeasureGPUSettingsInput']['StartInFolder'] == '#@#Scripts\\'
 assert sections['MeasureGPUSettingsInput']['Parameter'] == ''
 assert sections['MeasureGPUSettingsInput']['FinishAction'] == '[!UpdateMeasure MeasureGPUSettingsInput][!CommandMeasure MeasureGPUSettings "CommitColumnsInput()"]'
@@ -122,7 +122,7 @@ for width, scale, monitor_columns, title_size, table in itertools.product(
     n = lambda value: api['number'](value, variables)
     bounds = (n('#WindowWidth#'), n('#WindowHeight#'))
     assert n('#Columns#') == 2
-    assert math.isclose(n('#PanelHeight#'), 704 if table == '1' else 676)
+    assert math.isclose(n('#PanelHeight#'), 760 if table == '1' else 732)
     top = lambda field: n(meters['MeterSettings' + field + ('Frame' if field in steppers else 'Value')]['Y'])
     assert top('Height') - top('Columns') == 28 * scale
     assert math.isclose(top('Processes') - top('Height'), 28 * scale)
@@ -135,11 +135,16 @@ for width, scale, monitor_columns, title_size, table in itertools.product(
             row = meters['MeterSettingsProcessMemory' + suffix]
             assert n(row['Hidden']) == 1 and n(row['Y']) == 0 and n(row['W']) == 0 and n(row['H']) == 0
             assert all(n(part) == 0 for part in row.get('Padding', '0,0,0,0').split(','))
-    assert math.isclose(n(meters['MeterSettingsSensorsSection']['Y']) - top(shown[-1]), (162 - 128 - 2) * scale + 2 * scale)
+    assert math.isclose(n(meters['MeterSettingsSensorsSection']['Y']) - top('SecondGPU'), (162 - 128 - 2) * scale + 2 * scale)
     fields = ('Temperature', 'PowerSource', 'ClockSource', 'Sensors', 'Hive', 'Key', 'Power', 'Clock')
     for before, after in zip(fields, fields[1:]):
         assert math.isclose(top(after) - top(before), 28 * scale)
-    for field in ('Columns', 'Height') + shown + fields:
+    # Main GPU and Second GPU (2026-11-26): two 28 px rows after the last Display row.
+    assert math.isclose(top('MainGPU') - top(shown[-1]), 28 * scale) and math.isclose(top('SecondGPU') - top('MainGPU'), 28 * scale)
+    for name in ('MainGPU', 'SecondGPU'):
+        for suffix in ('Label', 'Value'):
+            assert meters['MeterSettings' + name + suffix]['LeftMouseUpAction'] == f'[!CommandMeasure MeasureGPUSettings "Cycle{name}()"]'
+    for field in ('Columns', 'Height') + shown + ('MainGPU', 'SecondGPU') + fields:
         label, value = meters['MeterSettings' + field + 'Label'], meters['MeterSettings' + field + 'Value']
         assert math.isclose(n(label['X']), n('#ContentX#'))
         assert math.isclose(n(label['Y']), top(field) + 2 * scale)

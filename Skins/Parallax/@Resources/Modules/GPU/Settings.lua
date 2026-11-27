@@ -10,7 +10,7 @@ local fields = { 'Temperature', 'Power', 'Clock' }
 local fitHeight = '462'
 local defaults = {
     Columns = '1', PanelHeight = fitHeight, GPUEnableSensors = '0',
-    GPUShowProcesses = '1', GPUShowProcessMemory = '1',
+    GPUShowProcesses = '1', GPUShowProcessMemory = '1', GPUMainGPU = '0', GPUSecondGPU = '1',
     GPUPowerSource = '0', GPUClockSource = '0',
     GPURegHKey = 'HKEY_CURRENT_USER', GPURegKey = 'SOFTWARE\\HWiNFO64\\VSB'
 }
@@ -112,6 +112,11 @@ local function set(meter, option, value)
     SKIN:Bang('!SetOption', meter, option, text)
 end
 
+-- Main GPU: which GPU the header, Engine table and History follow; Second
+-- GPU: how a second hardware GPU is shown (docs/modules/GPU.md, Two GPUs).
+local mainNames = {['0'] = 'Auto', ['1'] = 'Integrated', ['2'] = 'Discrete'}
+local secondNames = {['0'] = 'Off', ['1'] = 'One line', ['2'] = 'Rows', ['3'] = 'Rows + history'}
+
 local function render()
     if not state then return end
     local v = state.values
@@ -120,6 +125,8 @@ local function render()
     set('MeterSettingsSensorsValue', 'Text', v.GPUEnableSensors == '1' and 'On' or v.GPUEnableSensors == '0' and 'Off' or 'Custom')
     set('MeterSettingsProcessesValue', 'Text', v.GPUShowProcesses == '1' and 'On' or v.GPUShowProcesses == '0' and 'Off' or 'Custom')
     set('MeterSettingsProcessMemoryValue', 'Text', v.GPUShowProcessMemory == '1' and 'On' or v.GPUShowProcessMemory == '0' and 'Off' or 'Custom')
+    set('MeterSettingsMainGPUValue', 'Text', mainNames[v.GPUMainGPU] or 'Custom')
+    set('MeterSettingsSecondGPUValue', 'Text', secondNames[v.GPUSecondGPU] or 'Custom')
     for _, field in ipairs({'Power', 'Clock'}) do
         local source = v['GPU' .. field .. 'Source']
         set('MeterSettings' .. field .. 'SourceValue', 'Text', source == '0' and 'Driver' or source == '1' and 'HWiNFO' or 'Custom')
@@ -184,6 +191,8 @@ local function valid(key, value)
         return value == '0' or value == '1'
     end
     if key == 'GPUPowerSource' or key == 'GPUClockSource' then return value == '0' or value == '1' end
+    if key == 'GPUMainGPU' then return mainNames[value] ~= nil end
+    if key == 'GPUSecondGPU' then return secondNames[value] ~= nil end
     if key == 'GPURegHKey' then return value == 'HKEY_CURRENT_USER' or value == 'HKEY_LOCAL_MACHINE' end
     if key == 'GPURegKey' then return false end
     for _, field in ipairs(fields) do
@@ -257,6 +266,17 @@ local function cycled(current, choices, direction)
     local index = direction == 1 and 0 or #choices + 1
     for i, choice in ipairs(choices) do if choice == current then index = i; break end end
     return choices[(index - 1 + direction) % #choices + 1]
+end
+
+-- Click to cycle; a Custom (unrecognised) value starts again at the first.
+function CycleMainGPU()
+    if not refreshValues() then return false end
+    return save({GPUMainGPU = cycled(state.values.GPUMainGPU, {'0', '1', '2'}, 1)})
+end
+
+function CycleSecondGPU()
+    if not refreshValues() then return false end
+    return save({GPUSecondGPU = cycled(state.values.GPUSecondGPU, {'0', '1', '2', '3'}, 1)})
 end
 
 function CycleSource(field, direction)

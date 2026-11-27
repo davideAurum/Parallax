@@ -189,17 +189,28 @@ Disabled=1
 ; Original helper selects a DXCore adapter (a discrete GPU, or an integrated one
 ; when Windows exposes no discrete GPU), queries its metadata, and
 ; provides the exact adapter identity to the direct telemetry provider.
+; GPU Settings Main GPU (GPUMainGPU): 0 Auto, 1 Integrated, 2 Discrete. Only
+; this number reaches the query's command line, never the saved text itself;
+; any other value reads 0 (Auto). AdapterInfo.cs.txt falls back to Auto when
+; no adapter of the chosen kind exists.
+[MeasureGPUMainChoice]
+Measure=Calc
+Formula=(#GPUMainGPU#=1)+2*(#GPUMainGPU#=2)
+UpdateDivider=-1
+
 [MeasureGPUInfo]
 Measure=Plugin
 Plugin=RunCommand
 Program=%SystemRoot%\System32\WindowsPowerShell\v1.0\powershell.exe
 StartInFolder=#@#Modules\GPU\
-Parameter=-NoLogo -NoProfile -NonInteractive -Command "[Console]::OutputEncoding=[Text.UTF8Encoding]::new($false); $ErrorActionPreference='Stop'; try { Add-Type -TypeDefinition ([IO.File]::ReadAllText('AdapterInfo.cs.txt')); [Console]::Write([ParallaxGpuInfo]::ReadForSkin()) } catch { [Console]::Write('UNAVAILABLE') }"
+Parameter=-NoLogo -NoProfile -NonInteractive -Command "[Console]::OutputEncoding=[Text.UTF8Encoding]::new($false); $ErrorActionPreference='Stop'; try { Add-Type -TypeDefinition ([IO.File]::ReadAllText('AdapterInfo.cs.txt')); [Console]::Write([ParallaxGpuInfo]::ReadForSkin('[MeasureGPUMainChoice:0]')) } catch { [Console]::Write('UNAVAILABLE') }"
 State=Hide
 OutputType=UTF8
 Timeout=12000
 UpdateDivider=1
 FinishAction=[!UpdateMeasure MeasureGPUInfo][!UpdateMeasure MeasureGPUView]
+; Reads the Main GPU number above when the query runs.
+DynamicVariables=1
 
 ; Keep the view last: it reads the current counter, metadata and registry measures.
 [MeasureGPUView]

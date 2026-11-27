@@ -43,7 +43,7 @@ public static class ParallaxGpuTemperature
 
     private sealed class Paths
     {
-        internal readonly string Data, Lease, Temporary;
+        internal readonly string Data, Lease, Temporary, Second, SecondTemporary;
         internal Paths(string token)
         {
             token = ValidateToken(token);
@@ -52,6 +52,10 @@ public static class ParallaxGpuTemperature
             Data = stem + ".dat";
             Lease = stem + ".lease";
             Temporary = stem + ".tmp";
+            // The second GPU's samples (GPU Settings Second GPU, not Off) ride a
+            // sibling file so the main snapshot's protocol is unchanged.
+            Second = stem + ".second";
+            SecondTemporary = stem + ".second.tmp";
         }
     }
 
@@ -65,6 +69,15 @@ public static class ParallaxGpuTemperature
     // processes to orphan.
     public static void Run(string token, string luidHex, int intervalMs)
     {
+        Run(token, luidHex, intervalMs, null);
+    }
+
+    // secondMode "1" also samples the second GPU: the next hardware adapter in
+    // Windows' high-performance order other than the main one (the rule of
+    // AdapterInfo.cs.txt's ChooseSecond), for its load, video load and memory
+    // in use only. Anything else samples the main GPU alone, as before.
+    public static void Run(string token, string luidHex, int intervalMs, string secondMode)
+    {
         token = ValidateToken(token);
         string luid = ValidateLuid(luidHex);
         ValidateInterval(intervalMs);
@@ -75,7 +88,10 @@ public static class ParallaxGpuTemperature
         for (int attempt = 0; attempt < 10 && !ReadLease(paths.Lease, token, Now(), intervalMs, out validLease); ++attempt)
             Thread.Sleep(50);
         if (validLease == null) return;
-        Driver driver = null;
+        Driver driver = null, second = null;
+        bool sampleSecond = secondMode == "1" && luid != NamesOnlyLuid;
+        string secondTerminal = null, secondLuid = null, secondName = "?";
+        char secondKind = '?';
         ParentGuard parent = null;
         ProcessNames processNames = new ProcessNames();
         try
@@ -91,6 +107,21 @@ public static class ParallaxGpuTemperature
                 nameHex = driver.NameHex;
                 if (terminal == "OK") terminal = null;
                 else { driver.Dispose(); driver = null; }
+            }
+            if (sampleSecond)
+            {
+                ulong secondId;
+                secondTerminal = Driver.FindSecond(UInt64.Parse(luid, NumberStyles.AllowHexSpecifier, CultureInfo.InvariantCulture), out secondId);
+                if (secondTerminal == "OK")
+                {
+                    secondLuid = secondId.ToString("X16", CultureInfo.InvariantCulture);
+                    second = new Driver(secondId, true);
+                    secondTerminal = second.Open();
+                    secondName = second.NameHex;
+                    secondKind = second.Integrated ? 'I' : 'D';
+                    if (secondTerminal == "OK") secondTerminal = null;
+                    else { second.Dispose(); second = null; }
+                }
             }
             long sequence = 0;
             while (parent.Alive)
@@ -118,11 +149,34 @@ public static class ParallaxGpuTemperature
                 if (sequence == MaximumSequence) break;
                 string processMap = processNames.Read(validLease.ProcessIds);
                 string sample = Snapshot(token, ++sequence, Now(), frame, luid, nameHex, validLease.RequestId, processMap);
+                string secondSample = null;
+                if (sampleSecond)
+                {
+                    Frame secondFrame = new Frame(secondTerminal ?? "UNAVAILABLE");
+                    if (second != null)
+                    {
+                        secondFrame = second.ReadLoadFrame();
+                        if (secondFrame.UtilizationStatus == "DEVICE_CHANGED")
+                        {
+                            secondTerminal = "DEVICE_CHANGED";
+                            second.Dispose();
+                            second = null;
+                        }
+                    }
+                    secondSample = SecondSnapshot(token, sequence, Now(), secondTerminal ?? "OK", secondLuid,
+                        secondKind, secondName, secondFrame, second != null ? second.SharedLimit : 0);
+                }
                 // Never recreate session files after the skin's cleanup.
                 if (!File.Exists(paths.Lease)) break;
                 try { WriteSnapshot(paths, sample, false); }
                 catch (IOException) { /* A reader may temporarily deny replacement; retry next interval. */ }
                 catch (UnauthorizedAccessException) { /* Keep the last closed sample; its timestamp will age. */ }
+                if (secondSample != null)
+                {
+                    try { WriteFile(paths.SecondTemporary, paths.Second, secondSample, !File.Exists(paths.Second)); }
+                    catch (IOException) { /* Retried next interval, like the main sample. */ }
+                    catch (UnauthorizedAccessException) { }
+                }
                 // Terminal states stay observable while leased, without any more
                 // GPU calls. The UI can show the reason instead of missing a file.
                 if (!WaitInterval(parent, paths, intervalMs)) break;
@@ -132,9 +186,12 @@ public static class ParallaxGpuTemperature
         {
             processNames.Dispose();
             if (driver != null) driver.Dispose();
+            if (second != null) second.Dispose();
             if (parent != null) parent.Dispose();
             Delete(paths.Temporary);
             Delete(paths.Data);
+            Delete(paths.SecondTemporary);
+            Delete(paths.Second);
             Delete(paths.Lease);
         }
     }
@@ -386,16 +443,75 @@ public static class ParallaxGpuTemperature
 
     private static void WriteSnapshot(Paths paths, string text, bool initial)
     {
+        WriteFile(paths.Temporary, paths.Data, text, initial);
+    }
+
+    private static void WriteFile(string temporary, string data, string text, bool initial)
+    {
         bool ownTemporary = false;
         try
         {
-            WriteNew(paths.Temporary, text);
+            WriteNew(temporary, text);
             ownTemporary = true;
-            if (initial) File.Move(paths.Temporary, paths.Data);
-            else File.Replace(paths.Temporary, paths.Data, null);
+            if (initial) File.Move(temporary, data);
+            else File.Replace(temporary, data, null);
             ownTemporary = false;
         }
-        finally { if (ownTemporary) Delete(paths.Temporary); }
+        finally { if (ownTemporary) Delete(temporary); }
+    }
+
+    // One line, fourteen fields:
+    // GPU_SECOND|1|token|sequence|epoch|status|luid|kind|nameHex|loadStatus|core|video|memoryTotal|memoryUsed
+    // status is OK, NONE (no second hardware GPU), UNSUPPORTED, UNAVAILABLE or
+    // DEVICE_CHANGED (the adapter went away; no further reads). kind is D
+    // (discrete) or I (integrated). core is the GPU domain on NVIDIA, or the
+    // busiest 3D/Compute engine through DXCore; video the video domain or the
+    // busiest video engine. Memory in use: occupied of the physical (or DXCore
+    // dedicated) framebuffer on a discrete GPU, shared residency of Windows'
+    // shared-memory limit on an integrated one. "?" is unknown. The sequence
+    // and epoch are the main sample's, so one session pairs both files.
+    private static string SecondSnapshot(string token, long sequence, long epoch, string status, string luid,
+        char kind, string nameHex, Frame frame, ulong sharedLimit)
+    {
+        token = ValidateToken(token);
+        if (sequence < 0 || sequence > MaximumSequence || epoch < 0 || epoch > 253402300799L)
+            throw new InvalidOperationException("Invalid sample sequence or timestamp.");
+        if (status != "OK" && status != "NONE" && status != "UNSUPPORTED" && status != "UNAVAILABLE" && status != "DEVICE_CHANGED")
+            status = "UNAVAILABLE";
+        bool known = status == "OK" && luid != null && IsHex(luid, 16) && (kind == 'D' || kind == 'I');
+        if (!known && status == "OK") status = "UNAVAILABLE";
+        if (nameHex == null || (nameHex != "?" && (nameHex.Length == 0 ||
+            nameHex.Length > MaximumNameBytes * 2 || (nameHex.Length & 1) != 0 || !IsHex(nameHex, nameHex.Length)))) nameHex = "?";
+        string loadStatus = "?", core = "?", video = "?", total = "?", used = "?";
+        if (status == "OK" && frame != null)
+        {
+            loadStatus = ValidStatus(frame.UtilizationStatus) ? frame.UtilizationStatus : "UNAVAILABLE";
+            if (loadStatus == "OK")
+            {
+                if (frame.Utilization[0].HasValue && frame.Utilization[0].Value <= 100) core = Number(frame.Utilization[0].Value);
+                if (frame.Utilization[2].HasValue && frame.Utilization[2].Value <= 100) video = Number(frame.Utilization[2].Value);
+            }
+            if (kind == 'I')
+            {
+                if (frame.SharedStatus == "OK" && frame.SharedResident.HasValue && sharedLimit > 0 &&
+                    sharedLimit <= (ulong)MaximumSequence && frame.SharedResident.Value <= (ulong)MaximumSequence)
+                {
+                    total = Number((long)sharedLimit);
+                    used = Number((long)frame.SharedResident.Value);
+                }
+            }
+            else if (frame.MemoryStatus == "OK" && frame.Physical.HasValue && frame.Allocatable.HasValue && frame.Available.HasValue &&
+                ValidMemory(frame.Physical.Value, frame.Allocatable.Value, frame.Available.Value))
+            {
+                total = Number((long)frame.Physical.Value);
+                used = Number((long)(frame.Physical.Value - frame.Available.Value));
+            }
+        }
+        string text = String.Join("|", new string[] { "GPU_SECOND", "1", token, Number(sequence), Number(epoch), status,
+            known ? luid.ToUpperInvariant() : "?", known ? kind.ToString() : "?", known ? nameHex : "?",
+            loadStatus, core, video, total, used });
+        if (text.Length > MaximumSnapshotBytes) throw new InvalidOperationException("Oversized sample.");
+        return text;
     }
 
     private static void Delete(string path)
@@ -825,7 +941,17 @@ public static class ParallaxGpuTemperature
         // that have a table row are sampled; see SelectEngines.
         private const int MaximumEngines = 64;
         private bool integrated;
-        private ulong dedicatedBytes;
+        // DXCore-read: an integrated adapter, or a discrete one without a bound
+        // NVIDIA driver (AMD, Intel Arc and other vendors): load and memory come
+        // from DXCore engine running time and memory usage; temperature, power
+        // and clock stay unsupported.
+        private bool dxcore;
+        // A second GPU reads only load, video load and memory (ReadLoadFrame),
+        // so its open skips NVML power.
+        private readonly bool loadOnly;
+        private ulong dedicatedBytes, sharedLimitBytes;
+        internal bool Integrated { get { return integrated; } }
+        internal ulong SharedLimit { get { return sharedLimitBytes; } }
         private QueryState engineQuery;
         private uint[] engineIds = new uint[0];
         private bool[] engineIsCore = new bool[0];
@@ -834,6 +960,69 @@ public static class ParallaxGpuTemperature
         private string engineSupport = "UNSUPPORTED";
         internal string NameHex = "?";
         internal Driver(ulong luid) { requestedLuid = luid; }
+        internal Driver(ulong luid, bool loadOnly) { requestedLuid = luid; this.loadOnly = loadOnly; }
+
+        // The second GPU: the first hardware graphics adapter in Windows'
+        // high-performance order whose LUID is not the main one (AdapterInfo's
+        // ChooseSecond). NONE when there is no such adapter; an unsorted list
+        // with two or more candidates reads UNSUPPORTED rather than a guess.
+        internal static string FindSecond(ulong mainLuid, out ulong secondLuid)
+        {
+            secondLuid = 0;
+            IntPtr factory = IntPtr.Zero, list = IntPtr.Zero;
+            try
+            {
+                Guid factoryId = FactoryId, listId = ListId;
+                Check(DXCoreCreateAdapterFactory(ref factoryId, out factory));
+                Check(Method<CreateList>(factory, 3)(factory, 1, new Guid[] { GraphicsAttribute }, ref listId, out list));
+                bool canSort = Method<Supports>(list, 8)(list, 2);
+                if (canSort) Check(Method<SortList>(list, 7)(list, 1, new uint[] { 2 }));
+                uint count = Method<GetCount>(list, 4)(list);
+                if (count > 512) return "UNAVAILABLE";
+                List<ulong> others = new List<ulong>();
+                bool sawMain = false;
+                for (uint index = 0; index < count; ++index)
+                {
+                    IntPtr candidate = IntPtr.Zero;
+                    try
+                    {
+                        Guid adapterId = AdapterId;
+                        Check(Method<GetAdapter>(list, 3)(list, index, ref adapterId, out candidate));
+                        if (!Method<GetFlag>(candidate, 3)(candidate)) return "UNAVAILABLE";
+                        if (!ReadBoolean(candidate, 11)) continue;
+                        ulong luid;
+                        if (!ReadLuid(candidate, out luid)) return "UNAVAILABLE";
+                        if (luid == mainLuid) sawMain = true;
+                        else if (!others.Contains(luid)) others.Add(luid);
+                    }
+                    finally { if (candidate != IntPtr.Zero) Marshal.Release(candidate); }
+                }
+                if (Method<GetFlag>(list, 5)(list)) return "UNAVAILABLE";
+                int choice = ChooseSecondIndex(sawMain, others.Count, canSort);
+                if (choice == -2) return "UNSUPPORTED";
+                if (choice < 0) return "NONE";
+                secondLuid = others[choice];
+                return "OK";
+            }
+            catch (DllNotFoundException) { return "UNSUPPORTED"; }
+            catch (EntryPointNotFoundException) { return "UNSUPPORTED"; }
+            catch { return "UNAVAILABLE"; }
+            finally
+            {
+                if (list != IntPtr.Zero) Marshal.Release(list);
+                if (factory != IntPtr.Zero) Marshal.Release(factory);
+            }
+        }
+
+        // Pure part of FindSecond: the first other adapter in order; -1 none;
+        // -2 when two or more others exist in an unsorted list (no honest pick).
+        // The main adapter must itself be present, or the pairing is unknown.
+        internal static int ChooseSecondIndex(bool sawMain, int others, bool sorted)
+        {
+            if (!sawMain || others <= 0) return -1;
+            if (!sorted && others > 1) return -2;
+            return 0;
+        }
 
         internal string Open()
         {
@@ -868,11 +1057,21 @@ public static class ParallaxGpuTemperature
                 ConfigureShared();
                 opened = true;
                 // Integrated adapters leave every NVIDIA-backed reading UNSUPPORTED.
-                if (integrated) ConfigureEngines();
+                if (integrated)
+                {
+                    ulong limit;
+                    if (ReadUInt64(adapter, 9, out limit) && limit <= (ulong)MaximumSequence) sharedLimitBytes = limit;
+                    dxcore = true;
+                    ConfigureEngines();
+                }
                 else
                 {
                     nvidiaStatus = OpenNvidia();
-                    if (nvidiaStatus == "OK") powerSupport = OpenPower();
+                    if (nvidiaStatus == "OK") { if (!loadOnly) powerSupport = OpenPower(); }
+                    // No NVIDIA driver bound to this adapter (another vendor, or
+                    // no NVAPI): load and memory through DXCore, as integrated.
+                    // A bound driver that fails at runtime stays UNAVAILABLE.
+                    else if (nvidiaStatus == "UNSUPPORTED") { dxcore = true; ConfigureEngines(); }
                 }
                 return IdentityMatches() ? "OK" : "DEVICE_CHANGED";
             }
@@ -976,10 +1175,26 @@ public static class ParallaxGpuTemperature
             return frame;
         }
 
+        // The second GPU's reduced frame: load, video load and memory in use,
+        // inside the same identity bracket; no temperature, power or clock call.
+        internal Frame ReadLoadFrame()
+        {
+            if (!opened || disposed) return new Frame("UNAVAILABLE");
+            if (!IdentityMatches()) return new Frame("DEVICE_CHANGED");
+            Frame frame = new Frame("UNSUPPORTED");
+            frame.MemoryStatus = ReadMemory(frame);
+            if (frame.MemoryStatus == "DEVICE_CHANGED") return new Frame("DEVICE_CHANGED");
+            frame.SharedStatus = ReadShared(frame);
+            if (frame.SharedStatus == "DEVICE_CHANGED") return new Frame("DEVICE_CHANGED");
+            frame.UtilizationStatus = ReadUtilization(frame);
+            if (frame.UtilizationStatus == "DEVICE_CHANGED" || !IdentityMatches()) return new Frame("DEVICE_CHANGED");
+            return frame;
+        }
+
         private string ReadMemory(Frame frame)
         {
             if (!opened || disposed) return "UNAVAILABLE";
-            if (integrated) return ReadDedicated(frame);
+            if (integrated || dxcore) return ReadDedicated(frame);
             try
             {
                 if (nvidiaStatus != "OK") return NvidiaUnavailable();
@@ -1224,7 +1439,7 @@ public static class ParallaxGpuTemperature
         private string ReadUtilization(Frame frame)
         {
             if (!opened || disposed) return "UNAVAILABLE";
-            if (integrated) return ReadEngines(frame);
+            if (integrated || dxcore) return ReadEngines(frame);
             try
             {
                 if (utilization == null || nvidiaStatus != "OK") return NvidiaUnavailable();
@@ -1622,6 +1837,7 @@ public static class ParallaxGpuTemperature
         [UnmanagedFunctionPointer(CallingConvention.StdCall)]
         private delegate int GetAdapter(IntPtr self, uint index, ref Guid id, out IntPtr adapter);
         [UnmanagedFunctionPointer(CallingConvention.StdCall)] private delegate uint GetCount(IntPtr self);
+        [UnmanagedFunctionPointer(CallingConvention.StdCall)] private delegate int SortList(IntPtr self, uint count, [In] uint[] preferences);
         [UnmanagedFunctionPointer(CallingConvention.StdCall)]
         [return: MarshalAs(UnmanagedType.I1)] private delegate bool GetFlag(IntPtr self);
         [UnmanagedFunctionPointer(CallingConvention.StdCall)]

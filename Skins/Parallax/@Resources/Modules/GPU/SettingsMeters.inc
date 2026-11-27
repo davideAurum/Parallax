@@ -177,6 +177,46 @@ Hidden=(1-#GPUSettingsVRAMRow#)
 Text=On
 LeftMouseUpAction=[!CommandMeasure MeasureGPUSettings "ToggleProcessMemory()"]
 
+; Main GPU and Second GPU (2026-11-26): click to cycle, saved at once and
+; GPU refreshes. 28 px rows after Process VRAM, moving up with it.
+[MeterSettingsMainGPULabel]
+Meter=String
+MeterStyle=StyleUtilitySettingsLabel|GPUSettingsLabel
+Container=MeterScrollBody
+Y=(#Inset#+(186+28*#GPUSettingsVRAMRow#)*#Scale#)
+W=(134*#Scale#)
+Text=Main GPU
+LeftMouseUpAction=[!CommandMeasure MeasureGPUSettings "CycleMainGPU()"]
+
+[MeterSettingsMainGPUValue]
+Meter=String
+MeterStyle=StyleUtilitySettingsValue|GPUSettingsValue
+Container=MeterScrollBody
+Y=(#Inset#+(184+28*#GPUSettingsVRAMRow#)*#Scale#)
+X=(#ContentX#+140*#Scale#)
+W=(#ContentWidth#-146*#Scale#)
+Text=Auto
+LeftMouseUpAction=[!CommandMeasure MeasureGPUSettings "CycleMainGPU()"]
+
+[MeterSettingsSecondGPULabel]
+Meter=String
+MeterStyle=StyleUtilitySettingsLabel|GPUSettingsLabel
+Container=MeterScrollBody
+Y=(#Inset#+(214+28*#GPUSettingsVRAMRow#)*#Scale#)
+W=(134*#Scale#)
+Text=Second GPU
+LeftMouseUpAction=[!CommandMeasure MeasureGPUSettings "CycleSecondGPU()"]
+
+[MeterSettingsSecondGPUValue]
+Meter=String
+MeterStyle=StyleUtilitySettingsValue|GPUSettingsValue
+Container=MeterScrollBody
+Y=(#Inset#+(212+28*#GPUSettingsVRAMRow#)*#Scale#)
+X=(#ContentX#+140*#Scale#)
+W=(#ContentWidth#-146*#Scale#)
+Text=One line
+LeftMouseUpAction=[!CommandMeasure MeasureGPUSettings "CycleSecondGPU()"]
+
 [MeterSettingsSensorsSection]
 Meter=String
 MeterStyle=StyleUtilitySettingsSection|GPUSettingsSection

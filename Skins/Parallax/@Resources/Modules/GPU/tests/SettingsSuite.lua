@@ -316,6 +316,24 @@ function Suite.run(path)
     test('close and explicit refresh only target their intended configurations',function()
         local f=fixture();f.env.Close();idle(f);eq(f.closes,1);f.env.RefreshGPU();eq(#f.writes,0);eq(#f.refreshes,1)
     end)
+    -- Main GPU and Second GPU (2026-11-26): click to cycle, one key saved, GPU
+    -- refreshes; an older GPU.inc without the keys reads Auto / One line.
+    test('Main GPU and Second GPU cycle, save one key and refresh GPU',function()
+        allowed.GPUMainGPU=true;allowed.GPUSecondGPU=true
+        local f=fixture();eq(f.options.MeterSettingsMainGPUValue.Text,'Auto');eq(f.options.MeterSettingsSecondGPUValue.Text,'One line')
+        eq(f.persisted.GPUMainGPU,nil,'an older GPU.inc without the keys reads the defaults')
+        for _,step in ipairs({{'1','Integrated'},{'2','Discrete'},{'0','Auto'}}) do
+            f:clear();f.env.CycleMainGPU();saved(f,{GPUMainGPU=step[1]});eq(f.options.MeterSettingsMainGPUValue.Text,step[2]);eq(f.selfRefreshes,0)
+        end
+        for _,step in ipairs({{'2','Rows'},{'3','Rows + history'},{'0','Off'},{'1','One line'}}) do
+            f:clear();f.env.CycleSecondGPU();saved(f,{GPUSecondGPU=step[1]});eq(f.options.MeterSettingsSecondGPUValue.Text,step[2]);eq(f.selfRefreshes,0)
+        end
+        local custom=fixture({GPUMainGPU='Integrated',GPUSecondGPU='9'})
+        eq(custom.options.MeterSettingsMainGPUValue.Text,'Custom');eq(custom.options.MeterSettingsSecondGPUValue.Text,'Custom')
+        custom:clear();custom.env.CycleMainGPU();saved(custom,{GPUMainGPU='0'})
+        custom:clear();custom.env.CycleSecondGPU();saved(custom,{GPUSecondGPU='0'})
+    end)
+
     lines[#lines+1]=string.format('SUMMARY: %d assertions, %d failed',total,failed)
     local report=table.concat(lines,'\n');if failed>0 then error(report,0) end;return total,report
 end

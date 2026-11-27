@@ -126,6 +126,11 @@ function GPUSmokeFailLease() gpuSmokeFailLease = true end
     [IO.File]::WriteAllText($temperatureController, $failureShim+[IO.File]::ReadAllText($temperatureController), [Text.Encoding]::Unicode)
 }
 $temperatureResultPath=Join-Path $runRoot 'temperature-results.txt'
+# Second GPU section (SecondGPU.lua) and Temperature.lua's Second GPU option,
+# against fixtures; Temperature.lua again through its decoded UTF-8 copy.
+$secondSuite=Join-Path $PSScriptRoot 'SecondGPUSuite.lua'
+$secondController=Join-Path $parallaxRoot '@Resources\Modules\GPU\SecondGPU.lua'
+$secondResultPath=Join-Path $runRoot 'second-gpu-results.txt'
 $observedPath=Join-Path $runRoot 'gpu-observed.txt'
 $mainHarness=Join-Path $runRoot 'MainHarness.lua'
 Write-RunFile $mainHarness @"
@@ -325,6 +330,10 @@ function Initialize()
     runSuite([=[$overviewResultPath]=],[=[$overviewSuite]=],[=[$overviewController]=])
     runSuite([=[$processGraphResultPath]=],[=[$processGraphSuite]=],[=[$processGraphFixtureController]=])
     runSuite([=[$temperatureResultPath]=],[=[$temperatureSuite]=],[=[$temperatureFixtureController]=])
+    if read([=[$secondResultPath]=])=='' then
+        local ok,result=pcall(function()local n,r=dofile([=[$secondSuite]=]).run([=[$secondController]=],[=[$temperatureFixtureController]=]);return 'PASS: '..n..' assertions under '.._VERSION..'\n'..r end)
+        write([=[$secondResultPath]=],ok and result or ('FAIL: '..tostring(result)))
+    end
 end
 function Update()
     updatePasses=updatePasses+1
@@ -609,7 +618,7 @@ if ('__ACTION__' -eq 'invalid') {
             } 'Typed Columns result did not reach the production completion action.' 12
             Wait-Condition {Text-Matches $observedPath ('(?m)^Columns='+$scenario.Columns+'\r?$')} 'Typed Columns did not preserve or reload the expected monitor width.' 12
             if (-not $scenario.Changed -and ((Get-FileHash -LiteralPath $userPath).Hash -ne $beforeTypedHash -or (Get-Item -LiteralPath $observedPath).LastWriteTimeUtc -ne $beforeTypedReload)) {throw 'Cancelled or invalid Columns input wrote preferences or refreshed GPU.'}
-            if (-not (Text-Matches (Join-Path $runRoot 'settings-observed.txt') '(?m)^PanelHeight=704\r?$')) {throw 'Typed Columns changed settings geometry.'}
+            if (-not (Text-Matches (Join-Path $runRoot 'settings-observed.txt') '(?m)^PanelHeight=760\r?$')) {throw 'Typed Columns changed settings geometry.'}
             Write-RunFile (Join-Path $runRoot ('typed-columns-'+($case+1)+'-result.txt')) (Get-Content -LiteralPath (Join-Path $runRoot 'typed-input-observed.txt') -Raw)
         }
     } finally {Write-RunFile $inputPath $inputSource}
@@ -645,6 +654,9 @@ try {
     $temperatureResult=Get-Content -LiteralPath $temperatureResultPath -Raw
     if ($temperatureResult -notmatch '^PASS:') { throw $temperatureResult }
     Write-Output (($temperatureResult -split '\r?\n' | Where-Object { $_ -match '^(PASS: \d+ assertions|SUMMARY:)' }) -join "`n")
+    $secondResult=Get-Content -LiteralPath $secondResultPath -Raw
+    if ($secondResult -notmatch '^PASS:') { throw $secondResult }
+    Write-Output (($secondResult -split '\r?\n' | Where-Object { $_ -match '^(PASS: \d+ assertions|SUMMARY:)' }) -join "`n")
     Capture ''
     if ($TypedColumns) {Test-TypedColumns}
     if (-not $CaptureOnly) {
@@ -663,7 +675,7 @@ try {
         Action 'powersource';Wait-Condition {Text-Matches $observedPath '(?m)^GPUPowerSource=0$'} 'Driver power source did not persist.'
         Action 'clocksource';Wait-Condition {Text-Matches $observedPath '(?m)^GPUClockSource=0$'} 'Driver clock source did not persist.'
         Action 'fit';Wait-Condition {Text-Matches $observedPath '(?m)^PanelHeight=462$'} 'GPU did not reload fitted height.'
-        if (-not (Text-Matches (Join-Path $runRoot 'settings-observed.txt') '(?m)^PanelHeight=704$')) { throw 'Settings geometry changed with monitor height.' }
+        if (-not (Text-Matches (Join-Path $runRoot 'settings-observed.txt') '(?m)^PanelHeight=760$')) { throw 'Settings geometry changed with monitor height.' }
         Action 'browse';Wait-Condition {Text-Matches (Join-Path $runRoot 'discovery-observed.txt') '(?m)^1\r?$'} 'Real discovery did not complete.'
         $realDiscovery=Get-Content -LiteralPath (Join-Path $runRoot 'discovery-observed.txt') -Raw
         Write-RunFile (Join-Path $runRoot 'real-discovery-result.txt') $realDiscovery

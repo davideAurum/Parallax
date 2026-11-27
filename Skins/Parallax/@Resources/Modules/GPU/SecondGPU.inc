@@ -1,7 +1,8 @@
 ; Second GPU section (GPU Settings Second GPU, GPUSecondGPU): the next
 ; hardware GPU in Windows' high-performance order beside the main one, read by
 ; the same telemetry host (DriverTemperature.cs.txt, <session>.second) and shown
-; by SecondGPU.lua below the History graph, in the Engine table's row styles.
+; by SecondGPU.lua between the memory rows and the process table, in the
+; Engine table's row styles.
 ;   One line (1):  name and load, the load in the trace colour.
 ;   Rows (2):      adds a Video row with its bar and a memory-in-use row
 ;                  (VRAM on a discrete GPU, Shared on an integrated one).
@@ -9,9 +10,11 @@
 ;   Off (0):       nothing is sampled or shown.
 ; Collapsed (GPUSecondBlock=0) every meter here is hidden and has no height,
 ; so a single-GPU panel is unchanged. SecondGPU.lua opens it by setting
-; GPUSecondBlock and re-reading the GPUSecondLayout group (the panel and these
-; rows), then showing GPUSecondLine / GPUSecondRows / GPUSecondTrace.
-; Rows sit 16 px below the graph (its 8 px margin plus 8 px), 16 px apart.
+; GPUSecondBlock and re-reading the GPUSecondLayout group (the panel, these
+; rows, the process table and the History block, which all move down by it),
+; then showing GPUSecondLine / GPUSecondRows / GPUSecondTrace.
+; Rows start 8 px below the Shared row, 16 px apart, with 8 px before the
+; process table (or History): 24 px for One line, 56 px for Rows.
 
 [MeasureGPUSecondHistory]
 Measure=Calc
@@ -30,7 +33,7 @@ Mode=#GPUSecondGPU#
 Meter=String
 MeterStyle=GPUStyleEngineLabel
 Group=GPUSecondLayout|GPUSecondLine|ParallaxIdleFreeze
-Y=(#GPUSecondTop#+16*#Scale#*#GPUSecondShown#)
+Y=#GPUSecondTop#
 W=(#ContentWidth#-#GPUEngineValueWidth#-4*#Scale#)
 H=(16*#Scale#*#GPUSecondShown#)
 Text=Second GPU
@@ -40,7 +43,7 @@ Hidden=1
 Meter=String
 MeterStyle=GPUStyleEngineValue
 Group=GPUSecondLayout|GPUSecondLine|ParallaxIdleFreeze
-Y=(#GPUSecondTop#+16*#Scale#*#GPUSecondShown#)
+Y=#GPUSecondTop#
 H=(16*#Scale#*#GPUSecondShown#)
 FontColor=#AccentColor#
 Hidden=1
@@ -49,7 +52,7 @@ Hidden=1
 Meter=String
 MeterStyle=GPUStyleEngineLabel
 Group=GPUSecondLayout|GPUSecondRows|ParallaxIdleFreeze
-Y=(#GPUSecondTop#+32*#Scale#*#GPUSecondRowsShown#)
+Y=(#GPUSecondTop#+16*#Scale#*#GPUSecondRowsShown#)
 H=(16*#Scale#*#GPUSecondRowsShown#)
 Text=Video
 Hidden=1
@@ -58,7 +61,7 @@ Hidden=1
 Meter=Shape
 MeterStyle=GPUStyleEngineBar
 Group=GPUSecondLayout|GPUSecondRows|ParallaxIdleFreeze
-Y=(#GPUSecondTop#+(32*#Scale#+(16*#Scale#-#DataBarThicknessPx#)/2)*#GPUSecondRowsShown#)
+Y=(#GPUSecondTop#+(16*#Scale#+(16*#Scale#-#DataBarThicknessPx#)/2)*#GPUSecondRowsShown#)
 H=(#DataBarThicknessPx#*#GPUSecondRowsShown#)
 Hidden=1
 
@@ -66,7 +69,7 @@ Hidden=1
 Meter=String
 MeterStyle=GPUStyleEngineValue
 Group=GPUSecondLayout|GPUSecondRows|ParallaxIdleFreeze
-Y=(#GPUSecondTop#+32*#Scale#*#GPUSecondRowsShown#)
+Y=(#GPUSecondTop#+16*#Scale#*#GPUSecondRowsShown#)
 H=(16*#Scale#*#GPUSecondRowsShown#)
 Hidden=1
 
@@ -74,7 +77,7 @@ Hidden=1
 Meter=String
 MeterStyle=GPUStyleEngineLabel
 Group=GPUSecondLayout|GPUSecondRows|ParallaxIdleFreeze
-Y=(#GPUSecondTop#+48*#Scale#*#GPUSecondRowsShown#)
+Y=(#GPUSecondTop#+32*#Scale#*#GPUSecondRowsShown#)
 H=(16*#Scale#*#GPUSecondRowsShown#)
 Text=VRAM
 Hidden=1
@@ -85,7 +88,7 @@ Meter=String
 MeterStyle=GPUStyleEngineLabel
 Group=GPUSecondLayout|GPUSecondRows|ParallaxIdleFreeze
 X=(#ContentX#+#ContentWidth#)
-Y=(#GPUSecondTop#+48*#Scale#*#GPUSecondRowsShown#)
+Y=(#GPUSecondTop#+32*#Scale#*#GPUSecondRowsShown#)
 W=(#ContentWidth#-#GPUEngineLabelWidth#-4*#Scale#)
 H=(16*#Scale#*#GPUSecondRowsShown#)
 StringAlign=Right

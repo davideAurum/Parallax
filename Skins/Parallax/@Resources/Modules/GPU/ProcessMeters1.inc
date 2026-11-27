@@ -41,9 +41,9 @@ Text=--
 
 [MeterGPUProcessHeading]
 Meter=String
-Group=ParallaxIdleFreeze
+Group=ParallaxIdleFreeze|GPUSecondLayout
 MeterStyle=StyleLabel
-Y=(#Inset#+(276+#GPUBarExtra#)*#Scale#)
+Y=(#Inset#+(276+#GPUBarExtra#+#GPUSecondBlock#)*#Scale#)
 W=#GPUProcessNameWidth#
 H=(16*#Scale#)
 FontColor=#HeaderTextColor#
@@ -61,8 +61,9 @@ Text=Process
 ; convention of native Shapes over raster assets).
 [MeterGPUProcessUtilHeader]
 Meter=Shape
+Group=GPUSecondLayout
 X=(#ContentX#+#ContentWidth#-#GPUProcessValueWidth#/2-7*#Scale#)
-Y=(#Inset#+(277+#GPUBarExtra#)*#Scale#)
+Y=(#Inset#+(277+#GPUBarExtra#+#GPUSecondBlock#)*#Scale#)
 W=(14*#Scale#)
 H=(14*#Scale#)
 Shape=Path GPUProcessGaugeArc | Extend GPUProcessHeaderIconStroke2
@@ -76,8 +77,9 @@ UpdateDivider=-1
 
 [MeterGPUProcessHeaderRule]
 Meter=Shape
+Group=GPUSecondLayout
 MeterStyle=StyleTableHeaderRule
-Y=(#Inset#+(292+#GPUBarExtra#)*#Scale#)
+Y=(#Inset#+(292+#GPUBarExtra#+#GPUSecondBlock#)*#Scale#)
 W=#ContentWidth#
 H=(#TableHeaderBorderThickness#*#Scale#)
 Shape=Line 0,(#TableHeaderBorderThickness#*#Scale#/2),#ContentWidth#,(#TableHeaderBorderThickness#*#Scale#/2) | Stroke Color #TableHeaderBorderColor# | StrokeWidth (#TableHeaderBorderThickness#*#Scale#)
@@ -86,63 +88,64 @@ Shape=Line 0,(#TableHeaderBorderThickness#*#Scale#/2),#ContentWidth#,(#TableHead
 Meter=String
 MeterStyle=GPUStyleProcessName
 Group=GPUProcessGraph|GPUProcessRow1|ParallaxIdleFreeze
-Y=(#Inset#+(296+#GPUBarExtra#)*#Scale#)
+Y=(#Inset#+(296+#GPUBarExtra#+#GPUSecondBlock#)*#Scale#)
 
 [MeterGPUProcessValue1]
 Meter=String
 MeterStyle=GPUStyleProcessValue
 Group=GPUProcessGraph|GPUProcessRow1|ParallaxIdleFreeze
-Y=(#Inset#+(296+#GPUBarExtra#)*#Scale#)
+Y=(#Inset#+(296+#GPUBarExtra#+#GPUSecondBlock#)*#Scale#)
 
 [MeterGPUProcessName2]
 Meter=String
 MeterStyle=GPUStyleProcessName
 Group=GPUProcessGraph|GPUProcessRow2|ParallaxIdleFreeze
-Y=(#Inset#+(312+#GPUBarExtra#)*#Scale#)
+Y=(#Inset#+(312+#GPUBarExtra#+#GPUSecondBlock#)*#Scale#)
 
 [MeterGPUProcessValue2]
 Meter=String
 MeterStyle=GPUStyleProcessValue
 Group=GPUProcessGraph|GPUProcessRow2|ParallaxIdleFreeze
-Y=(#Inset#+(312+#GPUBarExtra#)*#Scale#)
+Y=(#Inset#+(312+#GPUBarExtra#+#GPUSecondBlock#)*#Scale#)
 
 [MeterGPUProcessName3]
 Meter=String
 MeterStyle=GPUStyleProcessName
 Group=GPUProcessGraph|GPUProcessRow3|ParallaxIdleFreeze
-Y=(#Inset#+(328+#GPUBarExtra#)*#Scale#)
+Y=(#Inset#+(328+#GPUBarExtra#+#GPUSecondBlock#)*#Scale#)
 
 [MeterGPUProcessValue3]
 Meter=String
 MeterStyle=GPUStyleProcessValue
 Group=GPUProcessGraph|GPUProcessRow3|ParallaxIdleFreeze
-Y=(#Inset#+(328+#GPUBarExtra#)*#Scale#)
+Y=(#Inset#+(328+#GPUBarExtra#+#GPUSecondBlock#)*#Scale#)
 
 [MeterGPUProcessName4]
 Meter=String
 MeterStyle=GPUStyleProcessName
 Group=GPUProcessGraph|GPUProcessRow4|ParallaxIdleFreeze
-Y=(#Inset#+(344+#GPUBarExtra#)*#Scale#)
+Y=(#Inset#+(344+#GPUBarExtra#+#GPUSecondBlock#)*#Scale#)
 
 [MeterGPUProcessValue4]
 Meter=String
 MeterStyle=GPUStyleProcessValue
 Group=GPUProcessGraph|GPUProcessRow4|ParallaxIdleFreeze
-Y=(#Inset#+(344+#GPUBarExtra#)*#Scale#)
+Y=(#Inset#+(344+#GPUBarExtra#+#GPUSecondBlock#)*#Scale#)
 
 [MeterGPUProcessName5]
 Meter=String
 MeterStyle=GPUStyleProcessName
 Group=GPUProcessGraph|GPUProcessRow5|ParallaxIdleFreeze
-Y=(#Inset#+(360+#GPUBarExtra#)*#Scale#)
+Y=(#Inset#+(360+#GPUBarExtra#+#GPUSecondBlock#)*#Scale#)
 
 [MeterGPUProcessValue5]
 Meter=String
 MeterStyle=GPUStyleProcessValue
 Group=GPUProcessGraph|GPUProcessRow5|ParallaxIdleFreeze
-Y=(#Inset#+(360+#GPUBarExtra#)*#Scale#)
+Y=(#Inset#+(360+#GPUBarExtra#+#GPUSecondBlock#)*#Scale#)
 
 [MeterGPUProcessFooterRule]
 Meter=Shape
+Group=GPUSecondLayout
 MeterStyle=StyleRule
-Y=(#Inset#+(378+#GPUBarExtra#)*#Scale#)
+Y=(#Inset#+(378+#GPUBarExtra#+#GPUSecondBlock#)*#Scale#)

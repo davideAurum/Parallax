@@ -1,7 +1,7 @@
 -- Original Parallax second-GPU section (GPU Settings Second GPU). Reads the
 -- second GPU's samples that the one telemetry host writes beside its main
 -- snapshot (<session>.second, GPU_SECOND|1; DriverTemperature.cs.txt) and
--- shows them below the History graph. No process, no polling command, no
+-- shows them between the memory rows and the process table. No process, no polling command, no
 -- writes except Rainmeter options. Temperature.lua tells this measure which
 -- session file to read (Session), and nothing at all while Second GPU is Off.
 local mode, path, token, interval, lastSequence, shown, block, previous, geometry, nameText
@@ -89,19 +89,23 @@ end
 -- follow. PanelHeightPx keeps GPU.ini's rule, Round(Max(minimum, natural) *
 -- Scale), with the section added to the natural height.
 local function layout(open)
-    local height = open and (mode >= 2 and 64 or 32) or 0
+    -- 24 px for One line, 56 for Rows: rows of 16 px with 8 px either side.
+    local height = open and (mode >= 2 and 56 or 24) or 0
     if height == block or not base then return end
     block, shown = height, open
     local panel = math.floor(math.max(base.minimum, base.natural + height) * base.scale + 0.5)
     SKIN:Bang('!SetVariable', 'GPUSecondBlock', tostring(height))
     SKIN:Bang('!SetVariable', 'GPUSecondShown', height > 0 and '1' or '0')
-    SKIN:Bang('!SetVariable', 'GPUSecondRowsShown', height > 32 and '1' or '0')
+    SKIN:Bang('!SetVariable', 'GPUSecondRowsShown', height > 24 and '1' or '0')
     SKIN:Bang('!SetVariable', 'GPUNaturalHeight', tostring(base.natural + height))
     SKIN:Bang('!SetVariable', 'PanelHeightPx', tostring(panel))
     SKIN:Bang('!SetVariable', 'WindowHeight', tostring(base.window + panel - base.panel))
-    SKIN:Bang('!SetOptionGroup', 'GPUSecondLayout', 'DynamicVariables', '1')
-    SKIN:Bang('!UpdateMeterGroup', 'GPUSecondLayout')
-    SKIN:Bang('!SetOptionGroup', 'GPUSecondLayout', 'DynamicVariables', '0')
+    -- The process cells keep their own group (GPUProcessGraph) and move with it.
+    for _, group in ipairs({'GPUSecondLayout', 'GPUProcessGraph'}) do
+        SKIN:Bang('!SetOptionGroup', group, 'DynamicVariables', '1')
+        SKIN:Bang('!UpdateMeterGroup', group)
+        SKIN:Bang('!SetOptionGroup', group, 'DynamicVariables', '0')
+    end
     if open then
         SKIN:Bang('!ShowMeterGroup', 'GPUSecondLine')
         if mode >= 2 then SKIN:Bang('!ShowMeterGroup', 'GPUSecondRows') end

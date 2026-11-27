@@ -60,9 +60,9 @@ function Suite.run(secondPath, temperaturePath)
                 assert(derived[args[1]], 'only the section height and its derived variables: ' .. tostring(args[1]))
                 f.variables[args[1]] = args[2]
             elseif command == '!SetOptionGroup' then
-                assert(args[1] == 'GPUSecondLayout' and args[2] == 'DynamicVariables' and (args[3] == '1' or args[3] == '0'), 'one layout re-read')
+                assert((args[1] == 'GPUSecondLayout' or args[1] == 'GPUProcessGraph') and args[2] == 'DynamicVariables' and (args[3] == '1' or args[3] == '0'), 'one layout re-read')
             elseif command == '!UpdateMeterGroup' then
-                assert(args[1] == 'GPUSecondLayout')
+                assert(args[1] == 'GPUSecondLayout' or args[1] == 'GPUProcessGraph')
             elseif command == '!ShowMeterGroup' or command == '!HideMeterGroup' then
                 assert(args[1] == 'GPUSecondLine' or args[1] == 'GPUSecondRows' or args[1] == 'GPUSecondTrace')
                 f.visible = f.visible or {}
@@ -108,6 +108,28 @@ function Suite.run(secondPath, temperaturePath)
         return f
     end
 
+    -- Every change of the section height must re-read, after the new height
+    -- is set, both the layout group (panel, bounds, section rows, process
+    -- table header and History) and the process cells' own group: without it
+    -- nothing below the section moves at runtime. Each group: DynamicVariables
+    -- 1, an update, then DynamicVariables 0, in that order.
+    local function requireReread(f, label)
+        local last = 0
+        for index, call in ipairs(f.calls) do
+            if call:find('^!SetVariable GPUSecondBlock ') then last = index end
+        end
+        ok(last > 0, label .. ': the section height was set')
+        for _, group in ipairs({'GPUSecondLayout', 'GPUProcessGraph'}) do
+            local steps = {'!SetOptionGroup ' .. group .. ' DynamicVariables 1', '!UpdateMeterGroup ' .. group,
+                '!SetOptionGroup ' .. group .. ' DynamicVariables 0'}
+            local step = 1
+            for index = last + 1, #f.calls do
+                if steps[step] and f.calls[index] == steps[step] then step = step + 1 end
+            end
+            eq(step, #steps + 1, label .. ': ' .. group .. ' re-read after the height change')
+        end
+    end
+
     test('Off reads nothing and changes nothing', function()
         for _, mode in ipairs({'0', '', '4', 'x', '1.0'}) do
             local f = fixture(mode)
@@ -135,12 +157,13 @@ function Suite.run(secondPath, temperaturePath)
         eq(#f.reads, 1, 'the valid session is read')
     end)
 
-    test('One line opens a 32 px section with the name and load only', function()
+    test('One line opens a 24 px section with the name and load only', function()
         local f = fixture('1')
         f:session(hex(dataPath)); f:sample(); f:update()
-        eq(f.variables.GPUSecondBlock, '32'); eq(f.visible.GPUSecondLine, true)
+        eq(f.variables.GPUSecondBlock, '24'); eq(f.visible.GPUSecondLine, true)
+        requireReread(f, 'One line opens')
         eq(f.variables.GPUSecondShown, '1'); eq(f.variables.GPUSecondRowsShown, '0')
-        eq(f.variables.GPUNaturalHeight, '494'); eq(f.variables.PanelHeightPx, '494'); eq(f.variables.WindowHeight, '502')
+        eq(f.variables.GPUNaturalHeight, '486'); eq(f.variables.PanelHeightPx, '486'); eq(f.variables.WindowHeight, '494')
         eq(f.visible.GPUSecondRows, nil, 'rows stay hidden'); eq(f.visible.GPUSecondTrace, nil, 'trace stays hidden')
         eq(f:text('MeterGPUSecondName'), 'Fixture RTX'); eq(f:text('MeterGPUSecondLoad'), '37%')
         eq(f:text('MeterGPUSecondVideoValue'), nil, 'no row writes in One line'); eq(f.points, nil, 'no trace in One line')
@@ -152,8 +175,9 @@ function Suite.run(secondPath, temperaturePath)
     test('Rows adds Video with its bar and memory in use; Shared on an integrated GPU', function()
         local f = fixture('2')
         f:session(hex(dataPath)); f:sample(); f:update()
-        eq(f.variables.GPUSecondBlock, '64'); eq(f.visible.GPUSecondRows, true); eq(f.visible.GPUSecondTrace, nil)
-        eq(f.variables.GPUSecondRowsShown, '1'); eq(f.variables.PanelHeightPx, '526'); eq(f.variables.WindowHeight, '534')
+        eq(f.variables.GPUSecondBlock, '56'); eq(f.visible.GPUSecondRows, true); eq(f.visible.GPUSecondTrace, nil)
+        requireReread(f, 'Rows opens')
+        eq(f.variables.GPUSecondRowsShown, '1'); eq(f.variables.PanelHeightPx, '518'); eq(f.variables.WindowHeight, '526')
         eq(f:text('MeterGPUSecondVideoValue'), '12%'); eq(f:text('MeterGPUSecondMemoryLabel'), 'VRAM')
         eq(f:text('MeterGPUSecondMemoryValue'), '1.3/4.3 GB')
         ok(f.options['MeterGPUSecondVideoBar:Shape2']:find('Line 0,3.000,11.760,3.000 | StrokeWidth 6.000', 1, true), 'bar at 12% of 98 px')
@@ -180,11 +204,12 @@ function Suite.run(secondPath, temperaturePath)
         for _, status in ipairs({'NONE', 'UNSUPPORTED', 'DEVICE_CHANGED'}) do
             local f = fixture('2')
             f:session(hex(dataPath)); f:sample(); f:update()
-            eq(f.variables.GPUSecondBlock, '64')
+            eq(f.variables.GPUSecondBlock, '56')
             f.sequence, f.now = 2, f.now + 2
             f:sample({[6] = status, [7] = '?', [8] = '?', [9] = '?', [10] = '?', [11] = '?', [12] = '?', [13] = '?', [14] = '?'})
             f:update()
             eq(f.variables.GPUSecondBlock, '0', status); eq(f.visible.GPUSecondLine, false); eq(f.visible.GPUSecondRows, false)
+            requireReread(f, status .. ' collapses')
             eq(f.variables.PanelHeightPx, '462', 'collapsed panel is as today'); eq(f.variables.WindowHeight, '470'); eq(f.variables.GPUSecondShown, '0')
         end
         local f = fixture('1')
@@ -197,7 +222,7 @@ function Suite.run(secondPath, temperaturePath)
         f:session(hex(dataPath)); f:sample(); f:update()
         f.now = f.now + 9; f:update()
         eq(f:text('MeterGPUSecondLoad'), '--', 'stale'); eq(f:text('MeterGPUSecondMemoryValue'), '--')
-        eq(f.variables.GPUSecondBlock, '64', 'a stale sample keeps the layout')
+        eq(f.variables.GPUSecondBlock, '56', 'a stale sample keeps the layout')
         for _, overrides in ipairs({{[3] = string.rep('f', 32)}, {[1] = 'GPU_TEMP'}, {[2] = '2'}, {[4] = '-1'}, {[5] = 'x'}}) do
             local g = fixture('2')
             g:session(hex(dataPath)); g:sample(overrides); g:update()

@@ -21,8 +21,9 @@ Text=--
 ; header-icon size), adapted to native Shapes rather than a bitmap.
 [MeterGPUProcessMemoryHeader]
 Meter=Shape
+Group=GPUSecondLayout
 X=(#ContentX#+#ContentWidth#-#GPUProcessValueWidth#-4*#Scale#-#GPUProcessMemoryWidth#/2-7*#Scale#)
-Y=(#Inset#+(277+#GPUBarExtra#)*#Scale#)
+Y=(#Inset#+(277+#GPUBarExtra#+#GPUSecondBlock#)*#Scale#)
 W=(14*#Scale#)
 H=(14*#Scale#)
 Shape=Path GPUProcessCardBoard | Extend GPUProcessHeaderIconStroke
@@ -39,28 +40,28 @@ UpdateDivider=-1
 Meter=String
 MeterStyle=GPUStyleProcessMemory
 Group=GPUProcessGraph|GPUProcessRow1|ParallaxIdleFreeze
-Y=(#Inset#+(296+#GPUBarExtra#)*#Scale#)
+Y=(#Inset#+(296+#GPUBarExtra#+#GPUSecondBlock#)*#Scale#)
 
 [MeterGPUProcessMemory2]
 Meter=String
 MeterStyle=GPUStyleProcessMemory
 Group=GPUProcessGraph|GPUProcessRow2|ParallaxIdleFreeze
-Y=(#Inset#+(312+#GPUBarExtra#)*#Scale#)
+Y=(#Inset#+(312+#GPUBarExtra#+#GPUSecondBlock#)*#Scale#)
 
 [MeterGPUProcessMemory3]
 Meter=String
 MeterStyle=GPUStyleProcessMemory
 Group=GPUProcessGraph|GPUProcessRow3|ParallaxIdleFreeze
-Y=(#Inset#+(328+#GPUBarExtra#)*#Scale#)
+Y=(#Inset#+(328+#GPUBarExtra#+#GPUSecondBlock#)*#Scale#)
 
 [MeterGPUProcessMemory4]
 Meter=String
 MeterStyle=GPUStyleProcessMemory
 Group=GPUProcessGraph|GPUProcessRow4|ParallaxIdleFreeze
-Y=(#Inset#+(344+#GPUBarExtra#)*#Scale#)
+Y=(#Inset#+(344+#GPUBarExtra#+#GPUSecondBlock#)*#Scale#)
 
 [MeterGPUProcessMemory5]
 Meter=String
 MeterStyle=GPUStyleProcessMemory
 Group=GPUProcessGraph|GPUProcessRow5|ParallaxIdleFreeze
-Y=(#Inset#+(360+#GPUBarExtra#)*#Scale#)
+Y=(#Inset#+(360+#GPUBarExtra#+#GPUSecondBlock#)*#Scale#)

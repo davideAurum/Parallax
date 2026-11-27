@@ -533,7 +533,7 @@ for name in SECOND_METERS:
     groups = {group.strip() for group in meters[name].get("Group", "").split("|")}
     expected = "GPUSecondTrace" if name == "MeterGPUSecondGraph" else "GPUSecondLine" if name in SECOND_LINE else "GPUSecondRows"
     assert expected in groups, name
-    assert name == "MeterGPUSecondGraph" or "GPUSecondLayout" in groups, name
+    assert "GPUSecondLayout" in groups, name
 for name in ("MeterBounds", "MeterPanel"):
     assert "GPUSecondLayout" in {group.strip() for group in meters[name].get("Group", "").split("|")}, name
 assert sections["Variables"]["GPUSecondBlock"] == "0", "the section starts collapsed"
@@ -909,39 +909,62 @@ def check_case(column_width, scale, columns, title_size, bar_thickness, saved_he
 
 
 def check_second(column_width, scale, bar_thickness, saved_height, second_block):
-    """The second-GPU section opened (32 One line, 64 Rows) or collapsed (0)."""
+    """The second-GPU section between the memory rows and the process table:
+    collapsed (0), One line (24) or Rows (56); everything below it moves down
+    by the section and still fits the grown panel, with or without the table."""
     variables = dict(sections["Variables"], ColumnWidth=str(column_width), Scale=str(scale), Columns="1",
                      TitleFontSize="12", DataBarThickness=str(bar_thickness), GPUSecondBlock=str(second_block))
     if saved_height is not None:
         variables["PanelHeight"] = str(saved_height)
     n = lambda value: number(value, variables)
     case = ("second", column_width, scale, bar_thickness, saved_height, second_block)
-    box = {name: meter_box(name, meters[name], n) for name in (*SECOND_METERS, "MeterGPUUtilizationGraph", "MeterPanel")}
+    box = {name: meter_box(name, options, n) for name, options in meters.items()}
     inset, content_x, content_w = n("#Inset#"), n("#ContentX#"), n("#ContentWidth#")
     content_right = content_x + content_w
     extra = max(0, bar_thickness - 6)
-    natural = 304 + (110 if TABLE else 0) + n("#GraphHeight#") + extra + second_block
+    block = 110 if TABLE else 0
+    natural = 304 + block + n("#GraphHeight#") + extra + second_block
     saved = n("#PanelHeight#")
     fit = saved == 650 or (saved == 462 and not TABLE)
     assert n("#GPUNaturalHeight#") == natural, case
     panel_h = n("#PanelHeightPx#")
     assert panel_h == math.floor(max(0 if fit else saved, natural) * scale + .5), case
-    assert n("#WindowHeight#") == panel_h + 2 * inset or math.isclose(n("#WindowHeight#"), panel_h + 2 * inset)
+    assert math.isclose(n("#WindowHeight#"), panel_h + 2 * inset), case
     panel_bottom = inset + panel_h
-    graph_bottom = box["MeterGPUUtilizationGraph"][1] + box["MeterGPUUtilizationGraph"][3]
-    assert math.isclose(n("#GPUSecondTop#"), graph_bottom), case
-    assert all(math.isclose(a, b) for a, b in zip(box["MeterGPUSecondGraph"], box["MeterGPUUtilizationGraph"])), case
     top = lambda name: box[name][1]
     bottom = lambda name: box[name][1] + box[name][3]
     left = lambda name: box[name][0]
     right = lambda name: box[name][0] + box[name][2]
-    line_open, rows_open = second_block > 0, second_block > 32
+    section_top = inset + (276 + extra) * scale
+    assert math.isclose(n("#GPUSecondTop#"), section_top), case
+    assert bottom("MeterGPUSharedLabel") + 8 * scale <= EPS + section_top, case
+    # Everything after the memory rows moves down by exactly the section.
+    shifted = [name for name in meters if name.startswith("MeterGPUProcess") or name in (
+        "MeterGPUHistoryLabel", "MeterGPUHistoryRange", "MeterGPUUtilizationGraph", "MeterGPUSecondGraph",
+        "MeterGPUGraphUncollected", "MeterGPUGraphFrame")]
+    collapsed = dict(variables, GPUSecondBlock="0")
+    for name in shifted:
+        before = meter_box(name, meters[name], lambda value: number(value, collapsed))
+        assert math.isclose(top(name), before[1] + second_block * scale), (name, case)
+        groups = {group.strip() for group in meters[name].get("Group", "").split("|")}
+        # The startup cover re-reads itself every update while it is shown;
+        # process cells are re-read through their own GPUProcessGraph group.
+        assert name == "MeterGPUGraphUncollected" or groups & {"GPUSecondLayout", "GPUProcessGraph"}, name
+    following = "MeterGPUProcessHeading" if TABLE else "MeterGPUHistoryLabel"
+    assert math.isclose(top(following), section_top + second_block * scale), case
+    assert all(math.isclose(a, b) for a, b in zip(box["MeterGPUSecondGraph"], box["MeterGPUUtilizationGraph"])), case
+    graph_bottom = bottom("MeterGPUUtilizationGraph")
+    assert graph_bottom <= EPS + panel_bottom and graph_bottom + 8 * scale <= EPS + panel_bottom + 0.5, case
+    for name, (x, y, w, h) in box.items():
+        assert x + EPS >= 0 and y + EPS >= 0 and x + w <= EPS + n("#WindowWidth#") and y + h <= EPS + n("#WindowHeight#"), (name, case)
+        if meters[name]["Meter"] == "String":
+            assert y + h <= EPS + panel_bottom, (name, case)
+    line_open, rows_open = second_block > 0, second_block > 24
     for name in SECOND_METERS - {"MeterGPUSecondGraph"}:
-        is_row = name in SECOND_ROWS
-        visible = rows_open if is_row else line_open
+        visible = rows_open if name in SECOND_ROWS else line_open
         x, y, w, h = box[name]
         assert x + EPS >= inset and x + w <= EPS + n("#WindowWidth#") - inset, (name, case)
-        assert y + EPS >= graph_bottom and y + h <= EPS + panel_bottom, (name, case)
+        assert y + EPS >= section_top and y + h <= EPS + top(following), (name, case)
         if meters[name]["Meter"] == "String":
             assert meters[name]["ClipString"] == "1", name
         if not visible:
@@ -949,26 +972,26 @@ def check_second(column_width, scale, bar_thickness, saved_height, second_block)
     if not line_open:
         return
     for name in SECOND_LINE:
-        assert math.isclose(top(name), graph_bottom + 16 * scale) and math.isclose(box[name][3], 16 * scale), (name, case)
+        assert math.isclose(top(name), section_top) and math.isclose(box[name][3], 16 * scale), (name, case)
     assert math.isclose(left("MeterGPUSecondName"), content_x)
     assert right("MeterGPUSecondName") + 4 * scale <= EPS + left("MeterGPUSecondLoad"), case
     assert math.isclose(right("MeterGPUSecondLoad"), content_right), case
-    assert bottom("MeterGPUSecondName") + 8 * scale <= EPS + panel_bottom + 0.5, case
+    last = "MeterGPUSecondMemoryLabel" if rows_open else "MeterGPUSecondName"
+    assert math.isclose(bottom(last) + 8 * scale, top(following)), (last, case)
     if not rows_open:
         return
     for index, (label, value) in enumerate((("MeterGPUSecondVideoLabel", "MeterGPUSecondVideoValue"),
                                              ("MeterGPUSecondMemoryLabel", "MeterGPUSecondMemoryValue")), 1):
-        assert math.isclose(top(label), graph_bottom + (16 + 16 * index) * scale) and math.isclose(top(value), top(label)), (label, case)
+        assert math.isclose(top(label), section_top + 16 * index * scale) and math.isclose(top(value), top(label)), (label, case)
         assert math.isclose(box[label][3], 16 * scale) and math.isclose(box[value][3], 16 * scale), (label, case)
         assert top(label) + EPS >= bottom("MeterGPUSecondName" if index == 1 else "MeterGPUSecondVideoLabel"), (label, case)
         assert math.isclose(left(label), content_x) and math.isclose(right(value), content_right), (value, case)
-        assert right(label) <= EPS + left(value) + (0 if index == 2 else 0), (label, case)
+        assert right(label) <= EPS + left(value), (label, case)
     validate_bar_geometry("MeterGPUSecondVideoBar", meters["MeterGPUSecondVideoBar"], n, scale, bar_thickness,
                           n("#GPUEngineBarX#"), n("#GPUEngineBarWidth#"))
     assert math.isclose(top("MeterGPUSecondVideoBar") + box["MeterGPUSecondVideoBar"][3] / 2, top("MeterGPUSecondVideoLabel") + 8 * scale), case
     assert right("MeterGPUSecondVideoLabel") <= EPS + left("MeterGPUSecondVideoBar"), case
     assert right("MeterGPUSecondVideoBar") + 4 * scale <= EPS + left("MeterGPUSecondVideoValue"), case
-    assert bottom("MeterGPUSecondMemoryLabel") + 8 * scale <= EPS + panel_bottom + 0.5, case
 
 
 rows = []
@@ -1000,10 +1023,10 @@ if "--all-scales" in sys.argv[1:]:
 
 second_cases = [(column_width, scale, bar_thickness, saved_height, second_block)
                 for column_width in (180, 220, 320) for scale in (0.75, 1, 1.25, 2) for bar_thickness in (1, 6, 12)
-                for saved_height in (None, 462, 650, 750) for second_block in (0, 32, 64)]
+                for saved_height in (None, 462, 650, 750) for second_block in (0, 24, 56)]
 for second_case in second_cases:
     check_second(*second_case)
-rows.append(f"second GPU section: {len(second_cases)} collapsed/One line/Rows cases inside the grown panel")
+rows.append(f"second GPU section: {len(second_cases)} collapsed/One line/Rows cases between the memory rows and the process table")
 
 # Check the actual sensor-divider formula at default and slower/faster intervals.
 for metrics, sensors in ((1000, 2000), (1500, 2000), (500, 2000), (3000, 2000)):

@@ -10,8 +10,9 @@
 
 [MeterGPUHistoryLabel]
 Meter=String
+Group=GPUSecondLayout
 MeterStyle=StyleHeader
-Y=(#Inset#+(276+#GPUProcessBlock#+#GPUBarExtra#)*#Scale#)
+Y=(#Inset#+(276+#GPUProcessBlock#+#GPUBarExtra#+#GPUSecondBlock#)*#Scale#)
 W=(#ContentWidth#-60*#Scale#)
 H=(18*#Scale#)
 Text=History
@@ -19,9 +20,10 @@ UpdateDivider=-1
 
 [MeterGPUHistoryRange]
 Meter=String
+Group=GPUSecondLayout
 MeterStyle=StyleLabel
 X=(#ContentX#+#ContentWidth#)
-Y=(#Inset#+(276+#GPUProcessBlock#+#GPUBarExtra#)*#Scale#)
+Y=(#Inset#+(276+#GPUProcessBlock#+#GPUBarExtra#+#GPUSecondBlock#)*#Scale#)
 W=(58*#Scale#)
 H=(18*#Scale#)
 StringAlign=Right
@@ -30,9 +32,10 @@ UpdateDivider=-1
 
 [MeterGPUUtilizationGraph]
 Meter=Line
+Group=GPUSecondLayout
 MeasureName=MeasureGPUUtilizationHistory
 X=#ContentX#
-Y=(#Inset#+(296+#GPUProcessBlock#+#GPUBarExtra#)*#Scale#)
+Y=(#Inset#+(296+#GPUProcessBlock#+#GPUBarExtra#+#GPUSecondBlock#)*#Scale#)
 W=#ContentWidth#
 H=(#GraphHeight#*#Scale#)
 LineCount=1
@@ -56,10 +59,10 @@ UpdateDivider=-1
 ; startup cover, so both traces start together on screen.
 [MeterGPUSecondGraph]
 Meter=Line
-Group=GPUSecondTrace
+Group=GPUSecondTrace|GPUSecondLayout
 MeasureName=MeasureGPUSecondHistory
 X=#ContentX#
-Y=(#Inset#+(296+#GPUProcessBlock#+#GPUBarExtra#)*#Scale#)
+Y=(#Inset#+(296+#GPUProcessBlock#+#GPUBarExtra#+#GPUSecondBlock#)*#Scale#)
 W=#ContentWidth#
 H=(#GraphHeight#*#Scale#)
 LineCount=1
@@ -81,7 +84,7 @@ UpdateDivider=-1
 Meter=Shape
 Group=ParallaxIdleFreeze
 X=#ContentX#
-Y=(#Inset#+(296+#GPUProcessBlock#+#GPUBarExtra#)*#Scale#)
+Y=(#Inset#+(296+#GPUProcessBlock#+#GPUBarExtra#+#GPUSecondBlock#)*#Scale#)
 Shape=Rectangle 0,0,(Min(#ContentWidth#,Max(0,(#ContentWidth#-[MeasureGPUGraphSamples]+2*#Scale#)*([MeasureGPUGraphSamples]<#ContentWidth#)))),(#GraphHeight#*#Scale#) | Fill Color #GraphBackgroundColor#,255 | StrokeWidth 0
 ; DynamicVariables is required while the graph fills: without it
 ; [MeasureGPUGraphSamples] is read once at load (0 samples), leaving this cover
@@ -95,6 +98,7 @@ UpdateDivider=1
 ; Overlay guide after the startup cover so blank history still has a frame.
 [MeterGPUGraphFrame]
 Meter=Shape
+Group=GPUSecondLayout
 MeterStyle=StyleGraph
-Y=(#Inset#+(296+#GPUProcessBlock#+#GPUBarExtra#)*#Scale#)
+Y=(#Inset#+(296+#GPUProcessBlock#+#GPUBarExtra#+#GPUSecondBlock#)*#Scale#)
 Shape=Rectangle 0.5,0.5,(#ContentWidth#-1),(#GraphHeight#*#Scale#-1),(2*#Scale#) | Fill Color 0,0,0,0 | Stroke Color #BorderColor# | StrokeWidth 1

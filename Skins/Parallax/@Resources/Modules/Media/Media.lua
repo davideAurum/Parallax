@@ -43,6 +43,27 @@ function Initialize()
         'MeasurePosition', 'MeasureDuration', 'MeasureCanPrevious', 'MeasureCanPlayPause', 'MeasureCanNext',
         'MeasureShuffle', 'MeasureRepeat', 'MeasureCanShuffle', 'MeasureCanRepeat' }
     for _, name in ipairs(names) do measures[name] = SKIN:GetMeasure(name) end
+    -- Media.ini's player card (TvCard.inc): whether it shows this PC or the TV.
+    -- Without it (Setup, test hosts) the card is always this PC, as before.
+    measures.MeasureTvCard = SKIN:GetMeasure('MeasureTvCard')
+    if measures.MeasureTvCard then
+        for _, name in ipairs({ 'MeasureTvCover', 'MeasureTvTiming' }) do measures[name] = SKIN:GetMeasure(name) end
+    end
+end
+
+-- What a transport button asks of the TV while the card shows it; previous,
+-- shuffle and repeat have no TV command.
+local TV_COMMANDS = { PlayPause = true, Next = 'next' }
+local TV_PLAYING = { playing = true, ad = true }
+
+-- The card's screen and the TV's play state, from MeasureTvCard's first two
+-- fields (QueueReader.CARD_FIELDS). Only words are read here, never a title.
+local function tvCard()
+    local measure = measures.MeasureTvCard
+    local packed = measure and measure:GetStringValue()
+    if type(packed) ~= 'string' then return false, '' end
+    local screen, play = packed:match('^(%a*)\031(%a*)\031')
+    return screen == 'tv', play or ''
 end
 
 local function number(name)
@@ -90,28 +111,60 @@ end
 
 function Update(immediate)
     local online = connected()
-    local track = online and nonblank('MeasureTitle') or false
+    -- In TV mode the card frame (MediaTrack: cover placeholder, frame, icons)
+    -- stays and the TV's own meters (TvPlayerMeters.inc) replace this PC's text.
+    local tv, tvPlay = tvCard()
+    local localTrack = online and nonblank('MeasureTitle') or false
+    local track = localTrack and not tv
+    local shown = track or tv
     local state = number('MeasureState')
     local duration, position = number('MeasureDuration'), number('MeasurePosition')
     local timeline = track and duration and duration > 0 and position and position >= 0 or false
+    local tvTimeline = tv and nonblank('MeasureTvTiming') or false
     activeTiming = timeline and 'MeterTiming' or 'MeterTimingUnavailable'
-    local trackChanged = group('MediaTrack', track)
+    local trackChanged = group('MediaTrack', shown)
     local changed = trackChanged
-    changed = meter('MeterNoMedia', not track) or changed
+    changed = meter('MeterNoMedia', not shown) or changed
     changed = group('MediaTimeline', timeline) or changed
-    changed = meter('MeterTimingUnavailable', not timeline) or changed
+    changed = meter('MeterTimingUnavailable', not timeline and not tvTimeline) or changed
     -- Cover and its label belong to MediaTrack; reapply after a group change.
     local cover = track and nonblank('MeasureCover') or false
-    if applied.coverTrack ~= track then
+    local tvCover = tv and nonblank('MeasureTvCover') or false
+    if applied.coverTrack ~= shown or applied.coverTv ~= tv then
         applied['meter:MeterCover'], applied['meter:MeterCoverLabel'] = nil, nil
-        applied.coverTrack = track
+        for _, name in ipairs({ 'MeterTrackTitle', 'MeterArtist', 'MeterAlbum' }) do applied['meter:' .. name] = nil end
+        applied.coverTrack, applied.coverTv = shown, tv
     end
     changed = meter('MeterCover', cover) or changed
-    changed = meter('MeterCoverLabel', track and not cover) or changed
-    changed = meter('MeterArtworkPlaceholder', not track and tonumber(SKIN:GetVariable('Columns')) == 2) or changed
-    changed = meter('MeterArtworkLabel', not track and tonumber(SKIN:GetVariable('Columns')) == 2) or changed
+    changed = meter('MeterCoverLabel', (track and not cover) or (tv and not tvCover)) or changed
+    if measures.MeasureTvCard then
+        -- The queue drawer follows the card (QueueReader.lua). It updates before
+        -- this, so a switch asks it to read again now: card and drawer agree.
+        if applied.screenTv ~= nil and applied.screenTv ~= tv then SKIN:Bang('!UpdateMeasure', 'MeasureQueueStatus') end
+        applied.screenTv = tv
+        -- The open spectrum drawer (DrawerCapture0.inc) says the audio is on the
+        -- TV, instead of "Idle - quiet", while there is no signal here and the
+        -- card shows the TV or this PC's tab is casting: shown playing while
+        -- the browser reports its own video paused or stopped (PlayState.lua),
+        -- the only cast signal there is. A fixed word, never metadata.
+        local reported = number('MeasureReportedState')
+        local casting = localTrack and state == 1 and reported ~= nil and reported ~= 1
+        change('var:MediaAudioElsewhere', (tv or casting) and '1' or '0', '!SetVariable', 'MediaAudioElsewhere', (tv or casting) and '1' or '0')
+        -- This PC's text hides under the TV's; the group alone governs it otherwise.
+        for _, name in ipairs({ 'MeterTrackTitle', 'MeterArtist', 'MeterAlbum' }) do
+            changed = meter(name, track) or changed
+        end
+        changed = group('MediaTv', tv) or changed
+        changed = meter('MeterTvCover', tvCover) or changed
+        changed = meter('MeterTvProgress', tvTimeline) or changed
+        changed = meter('MeterTvTiming', tvTimeline) or changed
+    end
+    changed = meter('MeterArtworkPlaceholder', not shown and tonumber(SKIN:GetVariable('Columns')) == 2) or changed
+    changed = meter('MeterArtworkLabel', not shown and tonumber(SKIN:GetVariable('Columns')) == 2) or changed
     for name, command in pairs(commands) do
-        local enabled = online and number(command.measure) == 1
+        -- The TV takes play, pause and next (QueueReader's request file); it has
+        -- no previous, so that one is greyed while the card shows the TV.
+        local enabled = (tv and TV_COMMANDS[name] ~= nil) or (not tv and online and number(command.measure) == 1)
         -- The face is #AccentColor#, so an accent glyph would be invisible;
         -- enabled glyphs use #MediaTransportGlyphColor# (white) against it.
         local color = SKIN:GetVariable(enabled and 'MediaTransportGlyphColor' or 'MutedColor')
@@ -121,7 +174,8 @@ function Update(immediate)
         changed = option(command.meter, 'MouseActionCursor', enabled and '1' or '0') or changed
     end
     for name, toggle in pairs(toggles) do
-        local enabled = online and number(toggle.measure) == 1
+        -- No shuffle or repeat command reaches the TV: greyed while it is shown.
+        local enabled = not tv and online and number(toggle.measure) == 1
         local value = enabled and number(toggle.state) or nil
         local on = value ~= nil and toggle.on(value)
         -- On: the trio's accent face. Off: the opaque neutral face and border
@@ -136,12 +190,13 @@ function Update(immediate)
         changed = option(toggle.meter, 'MouseActionCursor', enabled and '1' or '0') or changed
     end
     -- Repeat one (WNP 1) adds Lucide repeat-1's "1"; off and all show plain repeat.
-    local repeatOne = online and number('MeasureCanRepeat') == 1 and number('MeasureRepeat') == 1
+    local repeatOne = not tv and online and number('MeasureCanRepeat') == 1 and number('MeasureRepeat') == 1
     changed = option('MeterRepeat', 'Shape8', repeatOne and 'Path LucideRepeatOnePath | Extend LucideToggleStroke' or emptyShape) or changed
-    local hovered = online and number('MeasureCanPlayPause') == 1 and playPauseHovered
+    local hovered = (tv or (online and number('MeasureCanPlayPause') == 1)) and playPauseHovered
     -- Artwork shows the reported state; hover previews the opposite action.
     -- Paused uses Step Forward to resume; playing uses Play Off to pause.
-    local playPauseMode = online and state == 2 and (hovered and 'stepForward' or 'pause')
+    local paused = (tv and not TV_PLAYING[tvPlay]) or (not tv and online and state == 2)
+    local playPauseMode = paused and (hovered and 'stepForward' or 'pause')
         or (hovered and 'playOff' or 'play')
     for index, shape in ipairs(playPauseShapes[playPauseMode]) do
         -- Background occupies Shape..Shape3, so the art starts at Shape4.
@@ -161,6 +216,7 @@ function Update(immediate)
     -- the window repaints at the end of the same cycle (test_skin_contract.py
     -- guards that). Hover runs outside the cycle and repaints here.
     if changed and immediate == true then SKIN:Bang('!Redraw') end
+    if tv then return 'TV' end
     if not online then return 'WNP disconnected' end
     if not track then return 'WNP idle' end
     if state == 1 then return 'Playing' end
@@ -231,6 +287,17 @@ function HoverTransport(command, entered)
 end
 
 function Control(command)
+    -- While the card shows the TV, play, pause and next go to the TV through the
+    -- drawer's reader, the one writer of the worker's request file. Each click
+    -- writes one request; nothing is resent. Only a fixed word is passed.
+    local tv, play = tvCard()
+    if tv then
+        local kind = TV_COMMANDS[command]
+        if not kind then return false end
+        if kind == true then kind = TV_PLAYING[play] and 'pause' or 'play' end
+        SKIN:Bang('!CommandMeasure', 'MeasureQueueStatus', "TvControl('" .. kind .. "')")
+        return true
+    end
     local spec = commands[command] or toggles[command]
     -- Recheck the latest sampled values at click time; these are not a heartbeat.
     if spec and connected() and number(spec.measure) == 1 then

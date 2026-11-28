@@ -183,12 +183,13 @@ function Install-RunCommandFixtures([string]$CaseRoot) {
     # Album colors load the bundled Chameleon plugin; the visual fixtures keep
     # the theme instead (its colour rules have their own suite), so the guard
     # below can keep rejecting every Plugin= line.
+    foreach($stub in 'VideoCover\VideoCover1.inc','VideoPreview\VideoPreview1.inc') { [IO.File]::WriteAllText((Join-Path $CaseRoot ('@Resources\Modules\Media\' + $stub)), "; Fixture: off.`n") }
     $albumColors=Join-Path $CaseRoot '@Resources\Modules\Media\AlbumColors1.inc'
     if (Test-Path -LiteralPath $albumColors) { Write-TestFile $albumColors "; Fixture: album colors off (no plugin in UI fixtures).`n" }
     # Lifecycle.inc's resume hosts are inert, but are replaced too so the
     # fixture guard below can keep rejecting every Plugin= line.
     $names=@('MeasureMediaSourceControl','MeasureMediaQueueControl','MeasureQueueProviderControl',
-        'MeasureMediaSourceResume','MeasureMediaQueueResume','MeasureVisualizerSettingsInput')
+        'MeasureMediaSourceResume','MeasureMediaQueueResume','MeasureMediaTvResume','MeasureVisualizerSettingsInput')
     foreach ($entryPath in Get-ChildItem -LiteralPath $CaseRoot -Recurse -File | Where-Object { $_.Extension -in @('.ini','.inc') }) {
         $entry=[IO.File]::ReadAllText($entryPath.FullName)
         $changed=$false
@@ -386,6 +387,12 @@ function Tripwire() SKIN:Bang('!SetVariable','IdentitySentinel','escaped'); retu
         $pulseDivider=[regex]::Match($productionProvider,'(?m)^\[MeasureMediaPulse\]\r?\n(?:[^\[\r\n][^\r\n]*\r?\n)*?UpdateDivider=([^\r\n]+)\r?$')
         if (-not $pulseDivider.Success) { throw 'Production MeasureMediaPulse must state its own UpdateDivider.' }
         $synthetic+="[MeasureMediaPulse]`nMeasure=Script`nScriptFile=#@#Modules\Media\MediaPulse.lua`nUpdateDivider=$($pulseDivider.Groups[1].Value)`n`n"
+        # The player card on the TV (TvCard.inc): empty stand-ins, so the TV meters
+        # have their measures and the card stays on this PC. The real card would
+        # read the user's TV folder, which a test never does.
+        foreach ($tvMeasure in @('MeasureTvCard','MeasureTvTitle','MeasureTvChannel','MeasureTvCover','MeasureTvTiming','MeasureTvProgress')) {
+            $synthetic+="[$tvMeasure]`nMeasure=String`nString=`nUpdateDivider=-1`n`n"
+        }
         $synthetic+="[MeasureMediaUI]`nMeasure=Script`nScriptFile=#@#Modules\Media\Media.lua`n"
         Write-TestFile (Join-Path $caseRoot '@Resources\Modules\Media\WebNowPlaying.inc') $synthetic
         if (($IdentityFocused -or $QueueToggleFocused) -and $isPlayer) {

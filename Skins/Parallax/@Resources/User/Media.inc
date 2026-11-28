@@ -37,3 +37,6 @@ QueueRowSize=1
 MediaAlbumColors=1
 ; How far the gray surfaces lean toward the cover's main color, 0-30 (%).
 MediaAlbumTint=10
+; Cover: 0 shows the whole picture (a wide video has bars above and below); 1
+; zooms to fill the square, cutting the sides. Also in Media's right-click menu.
+MediaCoverZoom=0

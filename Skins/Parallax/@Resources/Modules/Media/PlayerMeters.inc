@@ -59,7 +59,10 @@ X=0
 Y=0
 W=#MediaCoverSize#
 H=#MediaCoverSize#
-PreserveAspectRatio=2
+; MediaCoverZoom: 0 fits (a wide video thumbnail is shown whole over the
+; placeholder's fill), 1 fills the square and cuts the sides. Square album art
+; looks the same either way.
+PreserveAspectRatio=(1+#MediaCoverZoom#)
 Hidden=1
 UpdateDivider=#MediaLegacyDivider#
 
@@ -226,6 +229,10 @@ MeterStyle=MediaTimingStyle
 Text=-- / --
 Group=MediaDynamic
 UpdateDivider=-1
+
+; The card's TV view (TvPlayerMeters.inc), above the cover mask, below the transport.
+[MediaTvMetersInclude]
+@IncludeTvMeters=#@#Modules\Media\TvPlayerMeters.inc
 
 [MediaTransportInclude]
 @Include17=#@#Modules\Media\TransportIcons.inc

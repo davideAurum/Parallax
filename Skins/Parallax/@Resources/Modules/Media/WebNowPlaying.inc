@@ -156,6 +156,11 @@ Plugin=WebNowPlaying
 PlayerType=SupportsToggleRepeatMode
 UpdateDivider=#MediaLegacyDivider#
 
+; Media's player card on the TV (TvCard.inc): reads this update's player state
+; above, and comes before Media.lua below.
+[MediaTvCardInclude]
+@IncludeTvCard=#@#Modules\Media\TvCard.inc
+
 ; Passive source reader uses this update's metadata and never starts the helper.
 [MeasureMediaSource]
 Measure=Script

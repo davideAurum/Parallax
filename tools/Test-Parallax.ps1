@@ -162,6 +162,10 @@ foreach ($module in 'Settings', 'Welcome', 'Chronometer', 'CPU', 'RAM', 'GPU', '
     }
 }
 $keyKinds = @{}
+# The one other visible console: the Connections TV row's Pair button, which asks
+# for the TV's code. Only this whole action, on that button, in that file.
+$tvPairAction = '["powershell.exe" "-NoLogo" "-NoProfile" "-ExecutionPolicy" "Bypass" "-NoExit" "-File" "#@#Modules\Media\TvQueue\TvProvider.ps1" "-Command" "Pair"][!CommandMeasure MeasureTvConnections "PairOpened()"]'
+$connectionsPanel = Join-Path $SkinRoot 'Connections\Connections.ini'
 foreach ($config in $configs) {
     $state = @{
         ConfigDirectory = $config.DirectoryName
@@ -192,8 +196,10 @@ foreach ($config in $configs) {
             if (-not $kind) { continue }
             $rawValue = $section.Keys[$key].Value
             if ($kind -eq 'Action' -and $rawValue -match '(?i)powershell(?:\.exe)?' -and
-                -not ($rawValue -match '(?i)-NoExit' -and $rawValue -match '(?i)-Command"?\s+"?Connect')) {
-                Add-Issue 'Error' $section.File $section.Keys[$key].Line 'One-shot PowerShell actions must run through a State=Hide RunCommand measure; only the deliberately visible Connect flow may launch directly.'
+                -not ($rawValue -match '(?i)-NoExit' -and $rawValue -match '(?i)-Command"?\s+"?Connect') -and
+                -not ($rawValue -ceq $tvPairAction -and $key -ieq 'LeftMouseUpAction' -and $section.File -ieq $connectionsPanel -and
+                    [object]::ReferenceEquals($section, $state.Sections['MeterTvPair']))) {
+                Add-Issue 'Error' $section.File $section.Keys[$key].Line 'One-shot PowerShell actions must run through a State=Hide RunCommand measure; only the deliberately visible Connect flow and the Connections TV Pair button may launch directly.'
             }
             if ($kind -eq 'Reference') {
                 $reference = Expand-PathVariables $section.Keys[$key].Value $state.Variables

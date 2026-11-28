@@ -138,6 +138,7 @@ Semantic versioning from here on: `1.0.x` for fixes, `1.x.0` for features, and `
 
 - Updater: an opt-in check when Welcome opens, a Global Settings entry, a stable/beta channel, and a signed manifest ([UPDATES.md](UPDATES.md#possible-later-steps)).
 - The customization items frozen out of the beta on 2026-10-28: ordering, graph ranges, warning thresholds and countdown list length. Beta users' requests decide the order.
+- RAM Meter: an obvious warning when memory is close to limiting the computer (raised 2026-11-28). Part of the frozen warning thresholds above; brief for a separate session in [handoffs/ram-pressure-warning.md](handoffs/ram-pressure-warning.md).
 - Multiple disks in Disk Meter; RAM cache and compressed-memory details; optional per-process network attribution, if the overhead justifies it.
 
 ## Feature history

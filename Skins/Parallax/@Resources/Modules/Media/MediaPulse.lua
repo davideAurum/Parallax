@@ -48,6 +48,8 @@ function Initialize()
     for _, name in ipairs({ 'MeasureConnection', 'MeasureState', 'MeasureTitle' }) do
         measures[name] = SKIN:GetMeasure(name)
     end
+    -- Media.ini's player card (TvCard.inc): a TV it shows playing animates too.
+    measures.MeasureTvCard = SKIN:GetMeasure('MeasureTvCard')
     -- Skin ticks per animation frame (InlineQueueGeometry.inc): 1 at 20 fps,
     -- 2 at 10 fps, 0 for a static icon. This measure runs at the same
     -- MediaPulseDivider, so each update is one frame. Anything unreadable is
@@ -118,6 +120,8 @@ function Update()
     -- MediaHeader.lua applies the identical test to the title text, so the
     -- icon and "Media Player: <name>" always switch together.
     local playing = number('MeasureConnection') == 1 and number('MeasureState') == 1 and nonblank('MeasureTitle')
+    local card = measures.MeasureTvCard and measures.MeasureTvCard:GetStringValue()
+    if type(card) == 'string' and card:sub(1, 3) == 'tv\031' then playing = card:match('^tv\031(%a*)') == 'playing' end
     local animating = playing and frames > 0
     -- Same state as last time and nothing moving (not playing, or a static
     -- icon): the frame is already applied, so there is nothing to do.

@@ -28,9 +28,9 @@ function suite.run(sourcePath)
     local box = { X = '((4+6)+(168+8))', Y = '(4+12+15-4-14/2)' }
     -- InlineQueueGeometry.inc's values at the default 20 fps on a 50 ms tick.
     local twenty = { MediaTitleFrameTicks = '1', MediaTickInterval = '50' }
-    local function fixture(variables, playing, geometry)
+    local function fixture(variables, playing, geometry, card)
         local values = { MeasureConnection = { value = 1 }, MeasureState = { value = playing and 1 or 2 },
-            MeasureTitle = { text = 'Synthetic fixture title' } }
+            MeasureTitle = { text = 'Synthetic fixture title' }, MeasureTvCard = card or false }
         local log, options = {}, {}
         local mock = {}
         geometry = geometry or box
@@ -57,6 +57,7 @@ function suite.run(sourcePath)
         function mock:GetMeasure(name)
             local value = values[name]
             assert(value ~= nil, 'Unexpected measure lookup: ' .. tostring(name))
+            if value == false then return nil end
             return { GetValue = function() return value.value end, GetStringValue = function() return value.text end }
         end
         function mock:GetVariable(name, default)
@@ -140,6 +141,18 @@ function suite.run(sourcePath)
         -- The load's own first update forces and paints every meter.
         check(count(bangs, '!UpdateMeter') == 0 and count(bangs, '!Redraw') == 0,
             'First tick must not paint meters before their first update')
+    end)
+
+    scenario('a TV the card shows playing animates the icon', function()
+        local card = { text = 'tv\031playing\031T\031C\031\031\0310' }
+        local f = fixture(nil, false, nil, card)
+        local result = f.tick()
+        check(result == 1, 'the TV plays, though this PC is paused')
+        card.text = 'tv\031paused\031T\031C\031\031\0310'
+        check(f.tick() == 0, 'paused on the TV')
+        card.text = 'pc\031\031\031\031\031\0310'
+        f.play(true)
+        check(f.tick() == 1, 'back on this PC: its own state')
     end)
 
     scenario('idle ticks issue nothing', function()

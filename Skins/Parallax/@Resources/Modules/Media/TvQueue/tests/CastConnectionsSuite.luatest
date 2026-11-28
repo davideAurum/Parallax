@@ -1,0 +1,243 @@
+-- Developer-only synthetic checks of Connections' Casts row (CastConnections.lua)
+-- against a mocked skin, clock, environment and file system; nothing real is
+-- read, started or changed.
+local Suite = {}
+
+function Suite.run(sourcePath)
+    local passed, cases = 0, {}
+    local function check(condition, message) assert(condition, message); passed = passed + 1 end
+    local function equal(actual, expected, message)
+        check(actual == expected, (message or 'value') .. ': expected ' .. tostring(expected) .. ', got ' .. tostring(actual))
+    end
+    local function scenario(name, body)
+        local before = passed
+        local ok, message = pcall(body)
+        assert(ok, name .. ': ' .. tostring(message))
+        cases[#cases + 1] = name .. ': ' .. (passed - before) .. ' assertions'
+    end
+    local ROOT = 'C:\\Users\\Synthetic\\AppData\\Local\\Parallax\\Media\\YouTube\\'
+    local INTENT, KEY, STATUS = ROOT .. 'cast.intent', ROOT .. 'cast.dpapi', ROOT .. 'cast.status'
+    local TARGETS = { MeterCastState = true, MeterCastDetail = true, MeterCastSwitch = true, MeterCastForget = true }
+    local ON, OFF = 'PARALLAX_TV_CAST_V1|1\n', 'PARALLAX_TV_CAST_V1|0\n'
+    local function status(state, valid) return 'PARALLAX_TV_CASTSTATE_V1|' .. state .. '|' .. valid .. '\n' end
+    local function fixture(files, options)
+        options = options or {}
+        local f = { files = files or {}, text = {}, color = {}, shown = {}, runs = 0, params = {}, time = 100000, vars = {} }
+        local skin = {}
+        function skin:GetMeasure(name) equal(name, 'MeasureTvControl', 'only the command host is looked up'); return {} end
+        -- The TV row's busy time (TvCommandBusyUntil) is the only variable read.
+        function skin:GetVariable(name, default) equal(name, 'TvCommandBusyUntil', 'only the TV busy time is read'); return f.vars[name] or default end
+        function skin:Bang(bang, ...)
+            local a = { ... }
+            if bang == '!SetOption' then
+                if a[1] == 'MeasureTvControl' then
+                    equal(a[2], 'Parameter', 'only the command line is set')
+                    local command = a[3]:match('^%-NoLogo %-NoProfile %-NonInteractive %-WindowStyle Hidden %-ExecutionPolicy Bypass %-File "TvProvider%.ps1" %-Command "(%a+)" %-Quiet$')
+                    check(command == 'CastOn' or command == 'CastOff' or command == 'CastForget', 'one of three fixed command lines: ' .. tostring(a[3]))
+                    f.params[#f.params + 1] = command
+                else
+                    check(TARGETS[a[1]], 'unexpected target ' .. tostring(a[1]))
+                    check(not a[3]:find('[%[%]"%%\r\n]'), 'fixed text only')
+                    if a[2] == 'Text' then f.text[a[1]] = a[3] else equal(a[2], 'FontColor'); f.color[a[1]] = a[3] end
+                end
+            elseif bang == '!ShowMeter' or bang == '!HideMeter' then
+                check(a[1] == 'MeterCastSwitch' or a[1] == 'MeterCastForget', 'only the buttons come and go')
+                f.shown[a[1]] = bang == '!ShowMeter'
+            elseif bang == '!UpdateMeasure' then equal(a[1], 'MeasureTvControl')
+            elseif bang == '!CommandMeasure' then check(a[1] == 'MeasureTvControl' and a[2] == 'Run', 'only the host runs'); f.runs = f.runs + 1
+            elseif bang == '!UpdateMeterGroup' then equal(a[1], 'CastConnectionsData')
+            elseif bang == '!SetVariable' then equal(a[1], 'CastCommandBusyUntil', 'only the Casts busy time is published'); f.vars[a[1]] = a[2]
+            elseif bang == '!Redraw' then
+            else error('unexpected bang ' .. tostring(bang)) end
+        end
+        local function open(name, mode)
+            equal(mode, 'rb', 'never opened for writing')
+            check(name == INTENT or name == KEY or name == STATUS, 'only the cast files: ' .. tostring(name))
+            local content = f.files[name]
+            if content == nil then return nil, name .. ': No such file or directory', 2 end
+            return { read = function(_, count)
+                check(name ~= KEY, 'the cast key is never read')
+                check(count <= 64, 'small reads only')
+                return content:sub(1, count)
+            end, close = function() return true end }
+        end
+        local env = setmetatable({ SKIN = skin, io = { open = open }, os = { time = function() return f.time end,
+            getenv = function(key) equal(key, 'LOCALAPPDATA'); if options.noLocal then return nil end; return 'C:\\Users\\Synthetic\\AppData\\Local' end } },
+            { __index = _G })
+        local chunk = assert(loadfile(sourcePath))
+        setfenv(chunk, env)
+        chunk()
+        f.env = env
+        env.Initialize()
+        env.Update()
+        return f
+    end
+
+    scenario('off by default', function()
+        local f = fixture({})
+        equal(f.text.MeterCastState, 'Off'); equal(f.text.MeterCastSwitch, 'Turn on')
+        equal(f.shown.MeterCastSwitch, true, 'the switch is visible'); equal(f.shown.MeterCastForget, false, 'nothing stored: no Forget')
+        equal(f.runs, 0, 'nothing runs by itself')
+        local none = fixture({}, { noLocal = true })
+        equal(none.text.MeterCastState, 'Unknown'); equal(none.shown.MeterCastSwitch, false)
+        equal(none.env.Switch(), false, 'no folder: nothing to turn on')
+    end)
+
+    scenario('turning on and off', function()
+        local f = fixture({})
+        check(f.env.Switch(), 'Turn on runs')
+        equal(f.params[1], 'CastOn'); equal(f.runs, 1); equal(f.text.MeterCastDetail, 'Turning casts on...')
+        equal(f.env.Switch(), false, 'a second click while busy runs nothing'); equal(f.runs, 1)
+        f.env.CommandFinished()
+        f.files[INTENT] = ON; f.files[STATUS] = status('searching', 100150)
+        f.env.Update()
+        equal(f.text.MeterCastState, 'Looking'); equal(f.text.MeterCastSwitch, 'Turn off'); equal(f.shown.MeterCastForget, true)
+        check(f.env.Switch()); equal(f.params[2], 'CastOff', 'on and running: Turn off')
+    end)
+
+    scenario('honest states', function()
+        local want = { following = { 'Following', '#GoodColor#' }, waiting = { 'On', '#GoodColor#' }, searching = { 'Looking', '#MutedColor#' },
+            no_device = { 'No TV found', '#MutedColor#' }, several = { 'Several casts', '#WarningColor#' }, tv_app = { 'TV app', '#MutedColor#' },
+            no_key = { 'No cast key', '#WarningColor#' }, error = { 'Unavailable', '#WarningColor#' } }
+        for state, expected in pairs(want) do
+            local f = fixture({ [INTENT] = ON, [STATUS] = status(state, 100150) })
+            equal(f.text.MeterCastState, expected[1], state); equal(f.color.MeterCastState, expected[2], state .. ' tone')
+            equal(f.text.MeterCastSwitch, 'Turn off', state)
+            f.time = 100200
+            f.env.Update()
+            equal(f.text.MeterCastState, 'On, not running', state .. ' past valid_until: the worker is gone')
+            equal(f.text.MeterCastSwitch, 'Start', 'and Start runs it again')
+            check(f.env.Switch()); equal(f.params[1], 'CastOn')
+        end
+        local f = fixture({ [INTENT] = ON, [STATUS] = 'PARALLAX_TV_CASTSTATE_V1|Living Room|100150\n' })
+        equal(f.text.MeterCastState, 'On, not running', 'an unreadable state is not shown')
+        f = fixture({ [INTENT] = OFF, [STATUS] = status('following', 100150) })
+        equal(f.text.MeterCastState, 'Off', 'the switch off wins over a stale state'); equal(f.shown.MeterCastForget, true, 'a switch file is something to forget')
+    end)
+
+    scenario('Forget asks first', function()
+        local f = fixture({ [INTENT] = ON, [KEY] = 'sealed', [STATUS] = status('following', 100150) })
+        equal(f.env.Forget(), false, 'the first click only asks')
+        equal(f.text.MeterCastForget, 'Forget?'); equal(f.text.MeterCastDetail, 'Click Forget again to remove the cast key.')
+        check(f.env.Forget(), 'the second click acts'); equal(f.params[1], 'CastForget')
+        local g = fixture({ [KEY] = 'sealed' })
+        equal(g.shown.MeterCastForget, true, 'a key alone shows Forget')
+        g.env.Forget(); g.time = g.time + 9; g.env.Update()
+        equal(g.text.MeterCastForget, 'Forget', 'the question times out')
+        local h = fixture({})
+        equal(h.env.Forget(), false, 'nothing stored: Forget does nothing'); equal(h.runs, 0)
+    end)
+    scenario('one host, shared with the TV row', function()
+        local f = fixture({})
+        f.vars.TvCommandBusyUntil = '100010'
+        equal(f.env.Switch(), false, 'a TV command running: the click is refused, not dropped silently')
+        equal(f.runs, 0); equal(f.text.MeterCastDetail, 'A TV command is still running.')
+        f.time = 100010; f.env.Update()
+        equal(f.text.MeterCastDetail, 'Turn on to follow a cast from Chrome.', "the note ends with the TV command's busy time")
+        check(f.env.Switch(), 'then it runs')
+        equal(f.vars.CastCommandBusyUntil, '100030', 'and publishes its busy time for the TV row')
+        f.env.CommandFinished()
+        equal(f.vars.CastCommandBusyUntil, '0', 'its own finish clears it')
+        f.vars.CastCommandBusyUntil = 'untouched'
+        f.env.CommandFinished()
+        equal(f.vars.CastCommandBusyUntil, 'untouched', 'a finish when this row ran nothing changes nothing here')
+    end)
+
+    -- TvConnections.lua and CastConnections.lua in one mocked skin, as in
+    -- Connections.ini: options, variables and the host's runs are shared, the
+    -- TV row's measure value comes from its own Update (every 2 s there), and
+    -- the host's FinishAction calls both rows' CommandFinished.
+    local function rows()
+        local tvPath = sourcePath:gsub('CastConnections%.lua$', 'TvConnections.lua')
+        local st = { options = {}, vars = {}, runs = {}, time = 100000, tvValue = nil,
+            files = { [ROOT .. 'pairing.dpapi'] = 'sealed', [ROOT .. 'tv.snapshot'] = 'PARALLAX_TV_V1\nstate=stopped\nobserved=0\nvalid_until=0\nretry_at=0\nplay=\nposition_ms=0\nposition_at_ms=0\nduration_ms=0\nupnext=\nlist=\ntotal=0\ncount=0\nnotice=\ncurrent_title=\n' } }
+        local skin = {}
+        function skin:GetVariable(name, default) return st.vars[name] or default end
+        function skin:GetMeasure(name)
+            if name == 'MeasureTvConnections' then return { GetValue = function() return st.tvValue end } end
+            equal(name, 'MeasureTvControl', 'known measures only'); return {}
+        end
+        function skin:Bang(bang, ...)
+            local a = { ... }
+            if bang == '!SetOption' then st.options[a[1]] = st.options[a[1]] or {}; st.options[a[1]][a[2]] = a[3]
+            elseif bang == '!SetVariable' then st.vars[a[1]] = a[2]
+            elseif bang == '!CommandMeasure' then
+                equal(a[1], 'MeasureTvControl'); st.runs[#st.runs + 1] = st.options.MeasureTvControl.Parameter:match('%-Command "(%a+)"')
+            end
+        end
+        local function open(name, mode)
+            equal(mode, 'rb', 'never opened for writing')
+            local content = st.files[name]
+            if content == nil then return nil, name .. ': No such file or directory', 2 end
+            return { read = function(_, count) return content:sub(1, count) end, close = function() return true end }
+        end
+        local function load(path)
+            local env = setmetatable({ SKIN = skin, io = { open = open }, os = { time = function() return st.time end,
+                getenv = function() return 'C:\\Users\\Synthetic\\AppData\\Local' end } }, { __index = _G })
+            local chunk = assert(loadfile(path)); setfenv(chunk, env); chunk()
+            env.Initialize()
+            return env
+        end
+        st.tv, st.cast = load(tvPath), load(sourcePath)
+        st.update = function() st.tvValue = st.tv.Update(); st.cast.Update() end
+        st.finish = function() st.tv.CommandFinished(); st.cast.CommandFinished() end
+        st.text = function(meter) return st.options[meter] and st.options[meter].Text end
+        st.update()
+        return st
+    end
+
+    scenario('TV run, update, finish, then a Casts click', function()
+        local st = rows()
+        check(st.tv.Switch(), 'the TV row runs Start'); equal(#st.runs, 1)
+        equal(st.text('MeterTvDetail'), 'Starting the TV worker...')
+        equal(st.cast.Switch(), false, 'a Casts click right away is refused'); equal(#st.runs, 1, 'the busy host is not asked again')
+        equal(st.text('MeterCastDetail'), 'A TV command is still running.')
+        st.time = st.time + 2; st.update()
+        equal(st.cast.Switch(), false, 'still refused after an update'); equal(#st.runs, 1)
+        st.finish()
+        equal(st.text('MeterTvDetail'), 'The TV worker is off. Start reads the TV.', "the TV row's note ends with its finish")
+        equal(st.text('MeterCastDetail'), 'Turn on to follow a cast from Chrome.', "so does the Casts row's refusal note")
+        st.time = st.time + 2; st.update()
+        check(st.cast.Switch(), 'the Casts click runs'); equal(st.runs[2], 'CastOn')
+        equal(st.text('MeterCastDetail'), 'Turning casts on...')
+    end)
+
+    scenario('a TV command that never reports back', function()
+        local st = rows()
+        check(st.tv.Switch()); equal(#st.runs, 1)
+        equal(st.cast.Switch(), false); equal(st.text('MeterCastDetail'), 'A TV command is still running.')
+        st.time = st.time + 19; st.update()
+        equal(st.cast.Switch(), false, 'refused for the 20 s it counts as running'); equal(#st.runs, 1)
+        st.time = st.time + 2; st.update()
+        equal(st.text('MeterTvDetail'), 'The TV worker is off. Start reads the TV.', 'after 20 s the TV note ends')
+        equal(st.text('MeterCastDetail'), 'Turn on to follow a cast from Chrome.', 'and the Casts note too')
+        check(st.cast.Switch(), 'then the Casts click runs'); equal(#st.runs, 2)
+        equal(st.tv.Switch(), false, 'and a TV click right after it is refused'); equal(st.text('MeterTvDetail'), 'A Casts command is still running.')
+        st.time = st.time + 21; st.update()
+        equal(st.text('MeterCastDetail'), 'Turn on to follow a cast from Chrome.', 'a Casts command that never reports back ends too')
+        equal(st.text('MeterTvDetail'), 'The TV worker is off. Start reads the TV.')
+        check(st.tv.Switch(), 'and the TV row runs again'); equal(#st.runs, 3)
+    end)
+
+    scenario('Casts run, TV click refused, finish, Casts click', function()
+        local st = rows()
+        check(st.cast.Switch(), 'the Casts row runs'); equal(st.runs[1], 'CastOn')
+        equal(st.tv.Switch(), false, 'a TV click right away is refused'); equal(#st.runs, 1)
+        equal(st.text('MeterTvDetail'), 'A Casts command is still running.')
+        st.time = st.time + 2; st.update()
+        equal(st.tv.Switch(), false, 'still refused after an update'); equal(#st.runs, 1)
+        st.finish()
+        equal(st.vars.CastCommandBusyUntil, '0'); equal(st.vars.TvCommandBusyUntil, nil, 'the TV row ran nothing, published nothing')
+        equal(st.text('MeterTvDetail'), 'The TV worker is off. Start reads the TV.', 'the TV refusal note ends with the finish')
+        equal(st.text('MeterCastDetail'), 'Turn on to follow a cast from Chrome.')
+        check(st.cast.Switch(), 'a second Casts click runs: the TV refusal left no busy time behind'); equal(#st.runs, 2)
+        st.finish()
+        check(st.tv.Switch(), 'and so does a TV click'); equal(#st.runs, 3)
+        equal(st.vars.TvCommandBusyUntil, tostring(st.time + 20))
+        st.finish()
+        equal(st.vars.TvCommandBusyUntil, '0', 'the TV finish clears its busy time')
+    end)
+    return passed, cases
+end
+
+return Suite

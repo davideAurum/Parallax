@@ -116,7 +116,7 @@ Write-TestFile (Join-Path $parallax '@Resources\Modules\Media\ProviderControlFix
 foreach ($entryFile in Get-ChildItem -LiteralPath $parallax -Recurse -File | Where-Object { $_.Extension -in @('.ini', '.inc') }) {
     $text = [IO.File]::ReadAllText($entryFile.FullName)
     $updated = $text
-    foreach ($name in @('MeasureMediaSourceResume', 'MeasureMediaQueueResume', 'MeasureQueueProviderControl')) {
+    foreach ($name in @('MeasureMediaSourceResume', 'MeasureMediaQueueResume', 'MeasureMediaTvResume', 'MeasureQueueProviderControl')) {
         $updated = [regex]::Replace($updated, '(?ms)^\[' + $name + '\]\r?\n.*?(?=^\[|\z)', "[$name]`nMeasure=Script`nScriptFile=#@#Modules\Media\ProviderControlFixture.lua`nUpdateDivider=-1`n`n")
     }
     # The queue reader reads only a file inside this run root (absent: no queue).
@@ -126,6 +126,7 @@ foreach ($entryFile in Get-ChildItem -LiteralPath $parallax -Recurse -File | Whe
 }
 # Album colors load the bundled Chameleon plugin; this fixture keeps the theme,
 # so the guard below can keep rejecting every Plugin= line.
+foreach($stub in 'VideoCover\VideoCover1.inc','VideoPreview\VideoPreview1.inc') { [IO.File]::WriteAllText((Join-Path $parallax ('@Resources\Modules\Media\' + $stub)), "; Fixture: off.`n") }
 $albumColors = Join-Path $parallax '@Resources\Modules\Media\AlbumColors1.inc'
 if (Test-Path -LiteralPath $albumColors) { Write-TestFile $albumColors "; Fixture: album colors off (no plugin in fixtures).`n" }
 foreach ($fixture in Get-ChildItem -LiteralPath $parallax -Recurse -File | Where-Object { $_.Extension -in @('.ini', '.inc') }) {

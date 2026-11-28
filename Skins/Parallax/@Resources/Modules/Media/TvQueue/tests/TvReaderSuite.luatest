@@ -1,0 +1,501 @@
+-- Developer-only synthetic checks of Media's drawer showing the TV's up next
+-- (QueueReader.lua with TvQueue on). All snapshots are made up; no file outside
+-- the injected mocks is read or written.
+local Suite = {}
+
+function Suite.run(sourcePath)
+    local passed, cases = 0, {}
+    local function check(condition, message)
+        assert(condition, message)
+        passed = passed + 1
+    end
+    local function equal(actual, expected, message)
+        check(actual == expected, (message or 'value') .. ': expected ' .. tostring(expected) .. ', got ' .. tostring(actual))
+    end
+    local function scenario(name, body)
+        local before = passed
+        local ok, message = pcall(body)
+        assert(ok, name .. ': ' .. tostring(message))
+        cases[#cases + 1] = name .. ': ' .. (passed - before) .. ' assertions'
+    end
+    local function hex(text)
+        return (text:gsub('.', function(character) return string.format('%02X', character:byte()) end))
+    end
+    local forbidden = function() error('Unexpected noninjected I/O') end
+    local module_env = setmetatable({ io = { open = forbidden }, os = { time = forbidden, getenv = forbidden } }, { __index = _G })
+    local chunk = assert(loadfile(sourcePath))
+    setfenv(chunk, module_env)
+    local Reader = chunk()
+    local DASH = '\226\128\147'
+
+    local function tvsnap(overrides, titles)
+        titles = titles or {}
+        local f = { state = 'ready', observed = '1000', valid_until = '1150', retry_at = '0', play = 'playing',
+            position_ms = '12000', position_at_ms = '1000000000', duration_ms = '200000', upnext = 'known', list = 'list',
+            total = tostring(#titles), count = tostring(#titles), notice = '', current_title = hex('Now on the TV') }
+        for key, value in pairs(overrides or {}) do f[key] = tostring(value) end
+        local lines = { 'PARALLAX_TV_V1' }
+        for _, key in ipairs({ 'state', 'observed', 'valid_until', 'retry_at', 'play', 'position_ms', 'position_at_ms',
+            'duration_ms', 'upnext', 'list', 'total', 'count', 'notice', 'current_title' }) do lines[#lines + 1] = key .. '=' .. f[key] end
+        -- A stage 3 worker adds these two; tests of older snapshots leave them out.
+        if f.current_channel then lines[#lines + 1] = 'current_channel=' .. f.current_channel; lines[#lines + 1] = 'cover=' .. (f.cover or '') end
+        for index, title in ipairs(titles) do lines[#lines + 1] = 'title' .. index .. '=' .. hex(title) end
+        return table.concat(lines, '\n') .. '\n'
+    end
+    local function stopped(state)
+        return 'PARALLAX_TV_V1\nstate=' .. state .. '\nobserved=0\nvalid_until=0\nretry_at=0\nplay=\nposition_ms=0\nposition_at_ms=0\n'
+            .. 'duration_ms=0\nupnext=\nlist=\ntotal=0\ncount=0\nnotice=\ncurrent_title=\n'
+    end
+    local function spotify(rows)
+        local lines = { 'PARALLAX_QUEUE_V5', 'state=ready', 'observed=1000', 'valid_until=1090', 'retry_not_before=0',
+            'count=' .. #rows, 'control=1', 'notice=', 'current_title=', 'current_detail=' }
+        for index, row in ipairs(rows) do
+            lines[#lines + 1] = 'title' .. index .. '=' .. hex(row[1])
+            lines[#lines + 1] = 'detail' .. index .. '=' .. hex(row[2])
+            lines[#lines + 1] = 'image' .. index .. '='
+        end
+        return table.concat(lines, '\n') .. '\n'
+    end
+    local SPOTIFY, TV, REQUEST = 'SYN\\Spotify\\queue.snapshot', 'SYN\\YouTube\\tv.snapshot', 'SYN\\YouTube\\tv.request'
+    local IDLE = { connection = 0, player = '', title = '', artist = '', state = 0 }
+    local function drawer(o)
+        local st = { files = {}, texts = {}, visible = {}, cursors = {}, now = o.now or 1001, renames = 0, measures = {} }
+        st.files[SPOTIFY], st.files[TV] = o.spotify, o.tv
+        st.track = o.track or IDLE
+        local skin = {}
+        function skin:GetMeasure(name)
+            st.measures[name] = true
+            local key = ({ MeasureConnection = 'connection', MeasurePlayer = 'player', MeasureTitle = 'title',
+                MeasureSourceArtist = 'artist', MeasureState = 'state', MeasureReportedState = 'reported' })[name]
+            if key then return { GetValue = function() return st.track[key] end, GetStringValue = function() return st.track[key] end } end
+            -- Media's player card, where a test gives one: its packed value.
+            if name == 'MeasureTvCard' then
+                if not o.card then return nil end
+                return { GetStringValue = function() return st.card end, GetValue = function() return 0 end }
+            end
+            equal(name, 'MeasureQueueControl', 'only known measures are looked up')
+            return {}
+        end
+        function skin:GetMeter() return {} end
+        function skin:GetVariable(_, fallback) return fallback end
+        function skin:Bang(...)
+            local a = { ... }
+            if a[1] == '!SetOption' and a[3] == 'Text' then st.texts[a[2]] = a[4] end
+            if a[1] == '!SetOption' and a[3] == 'MouseActionCursor' then st.cursors[a[2]] = a[4] end
+            if a[1] == '!ShowMeter' then st.visible[a[2]] = true elseif a[1] == '!HideMeter' then st.visible[a[2]] = false end
+            if a[1] == '!CommandMeasure' then st.command = a[3] end
+        end
+        local function open(path, mode)
+            if mode == 'rb' then
+                local data = st.files[path]
+                if not data then return nil, path .. ': No such file or directory', 2 end
+                return { read = function(_, n) return data:sub(1, n) end, close = function() return true end }
+            end
+            check(mode == 'wb' and (path == 'SYN\\YouTube\\.tv-request.tmp' or path == 'SYN\\Spotify\\.queue-follow.tmp'), 'writes go only to the request temp files: ' .. tostring(path))
+            local buffer = {}
+            return { write = function(_, text) buffer[#buffer + 1] = text return true end,
+                close = function() st.files[path] = table.concat(buffer) return true end }
+        end
+        st.env = { skin = skin, open = open, now = function() return st.now end,
+            rename = function(from, to)
+                if st.files[to] then return nil, 'exists' end
+                st.files[to], st.files[from], st.renames = st.files[from], nil, st.renames + 1
+                return true
+            end,
+            remove = function(path) st.files[path] = nil return true end, getenv = forbidden,
+            cachePath = SPOTIFY, tv = o.tvOn ~= false, tvPath = TV, inline = true, expanded = 1, rowLimit = 5, showDetails = 1,
+            spectrumTab = o.spectrumTab == true }
+        st.reader = Reader.new(st.env)
+        return st
+    end
+    local eight = { 'Alpha', '', 'Gamma', 'Delta', 'Epsilon', 'Zeta', 'Eta', 'Theta' }
+
+    scenario('the TV snapshot parses strictly', function()
+        local value = Reader.parseTv(tvsnap(nil, { 'One', '' }), 1001)
+        check(value ~= nil, 'valid ready snapshot')
+        equal(value.state, 'ready'); equal(value.count, 2); equal(value.rows[1].title, 'One'); equal(value.rows[2].title, '')
+        equal(value.current, 'Now on the TV'); equal(value.upnext, 'known'); equal(value.notice, nil)
+        equal(Reader.parseTv(tvsnap({ upnext = 'unknown' }), 1001).upnext, 'unknown', 'not known yet, with no rows')
+        equal(Reader.parseTv(tvsnap({ notice = 'failed' }, { 'x' }), 1001).notice, 'The TV did not answer')
+        equal(Reader.parseTv(tvsnap(nil, { 'x' }), 1150).state, 'stale', 'past valid_until is stale')
+        equal(Reader.parseTv(stopped('no_screen'), 1001).state, 'no_screen')
+        local bad = {
+            tvsnap({ list = 'mix' }, { 'x' }), tvsnap({ list = 'playlist' }, { 'x' }), tvsnap({ upnext = 'unknown' }, { 'x' }),
+            tvsnap({ upnext = 'known' }), tvsnap({ count = '3' }, { 'x' }), tvsnap({ total = '0' }, { 'x' }),
+            tvsnap({ notice = 'done' }, { 'x' }), tvsnap({ state = 'buffering' }, { 'x' }), tvsnap({ observed = '2000' }, { 'x' }),
+            tvsnap({ play = 'buffering' }, { 'x' }), tvsnap({ current_title = 'ZZ' }, { 'x' }),
+            (tvsnap(nil, { 'x' }):gsub('observed=1000\nvalid_until=1150', 'valid_until=1150\nobserved=1000')),
+            tvsnap(nil, { 'x' }) .. 'title2=41\n', (tvsnap(nil, { 'x' }):gsub('PARALLAX_TV_V1', 'PARALLAX_TV_V2')),
+            (stopped('offline'):gsub('count=0', 'count=1')) .. 'title1=41\n', (stopped('offline'):gsub('play=', 'play=playing')),
+            tvsnap(nil, { 'x' }) .. '\200', ''
+        }
+        for index, data in ipairs(bad) do equal(Reader.parseTv(data, 1001), nil, 'malformed TV snapshot ' .. index .. ' rejected') end
+    end)
+
+    scenario("with nothing playing here the drawer shows the TV's up next", function()
+        local st = drawer({ tv = tvsnap(nil, eight), spotify = spotify({ { 'Spotify song', 'Artist' } }) })
+        equal(st.reader:update(), 'Next 5')
+        equal(st.reader.source, 'tv')
+        equal(st.texts.MeterQueueRow1, 'Alpha'); equal(st.texts.MeterQueueRow2, 'Title unavailable', 'an unknown title is a placeholder')
+        equal(st.texts.MeterQueueRow5, 'Epsilon'); equal(st.texts.MeterQueueArtist1, '', 'no artist line for TV rows')
+        equal(st.texts.MeterQueueHeaderNote, 'TV 1' .. DASH .. '5 of 8', "the note says the rows are the TV's")
+        equal(st.visible.MeterQueueTabPlaylists, true, 'the Playlists tab stays for YouTube')
+        equal(st.visible.MeterQueueTabBar, true)
+        equal(st.visible.MeterQueueTabQueue, true)
+        equal(st.cursors.MeterQueueHit1, '1', 'TV rows are clickable'); equal(st.cursors.MeterQueueHit5, '1')
+        check(st.measures.MeasureState, 'the shown play state is read')
+        check(st.reader:scrollBy(3), 'the rows scroll')
+        equal(st.texts.MeterQueueRow1, 'Delta'); equal(st.texts.MeterQueueHeaderNote, 'TV 4' .. DASH .. '8 of 8')
+        check(st.reader:show('playlists'), 'the Playlists tab opens')
+        equal(st.texts.MeterQueueRow1, 'Playlists are not supported for YouTube yet', 'and says so inside the tab')
+        equal(st.texts.MeterQueueHeaderNote, '', 'not in the label'); equal(st.cursors.MeterQueueHit1, '0')
+        equal(st.files['SYN\\Spotify\\action.request'], nil, 'no playlists request is sent')
+        local short = drawer({ tv = tvsnap({ total = 30 }, { 'One', 'Two' }) })
+        short.reader:update()
+        equal(short.texts.MeterQueueHeaderNote, 'On the TV', 'with nothing to scroll the note just says where')
+    end)
+
+    scenario('this PC wins: a local player hides the TV', function()
+        local st = drawer({ tv = tvsnap(nil, eight), spotify = spotify({ { 'Spotify song', 'Artist' } }),
+            track = { connection = 1, player = 'Spotify', title = 'Local', artist = 'A', state = 1 } })
+        equal(st.reader:update(), 'Next 1')
+        equal(st.reader.source, 'spotify'); equal(st.texts.MeterQueueRow1, 'Spotify song')
+        equal(st.visible.MeterQueueTabPlaylists, true, 'Spotify keeps its Playlists tab')
+        st.track = { connection = 1, player = 'Spotify', title = 'Local', artist = 'A', state = 2 }
+        st.reader:update()
+        equal(st.reader.source, 'tv', 'a paused local player gives way to the TV'); equal(st.texts.MeterQueueRow1, 'Alpha')
+        st.track = { connection = 1, player = 'YouTube', title = 'Local video', artist = 'Channel', state = 1 }
+        equal(st.reader:update(), 'YouTube up next is not available yet')
+        equal(st.reader.source, 'youtube')
+        equal(st.texts.MeterQueueRow1, 'YouTube up next is not available yet', 'local YouTube says its up next is not available yet')
+        equal(st.visible.MeterQueueRow2, false); equal(st.cursors.MeterQueueHit1, '0', 'the message is not clickable')
+        equal(st.visible.MeterQueueTile1, false, 'a message row has no tile')
+        equal(st.visible.MeterQueueTabPlaylists, true)
+        equal(st.reader:play(1), false, 'clicking the message does nothing')
+        equal(st.reader:refreshView(), false)
+        st.track = IDLE
+        st.reader:update()
+        equal(st.reader.source, 'tv')
+    end)
+
+    scenario('honest TV states', function()
+        local st = drawer({ tv = tvsnap({ upnext = 'unknown', total = 0 }), spotify = spotify({ { 'Spotify song', 'Artist' } }) })
+        equal(st.reader:update(), 'Up next not known yet', 'a very short list is not known yet, never empty')
+        equal(st.texts.MeterQueueRow1, 'Up next not known yet'); equal(st.cursors.MeterQueueHit1, '0')
+        st.files[TV] = tvsnap({ upnext = 'end', total = 0 })
+        equal(st.reader:update(), 'Nothing listed after this video')
+        st.files[TV] = tvsnap({ upnext = 'none', total = 0 })
+        st.reader:update()
+        equal(st.reader.source, 'spotify', 'nothing loaded on the TV: back to Spotify'); equal(st.texts.MeterQueueRow1, 'Spotify song')
+        for _, state in ipairs({ 'no_screen', 'offline', 'stopped', 'not_paired', 'pair_again' }) do
+            st.files[TV] = stopped(state)
+            st.reader:update()
+            equal(st.reader.source, 'spotify', state .. ' shows no TV rows')
+        end
+        st.files[TV] = tvsnap(nil, eight)
+        st.now = 1150
+        st.reader:update()
+        equal(st.reader.source, 'spotify', 'a snapshot the worker stopped renewing is not shown')
+        st.files[TV] = nil
+        st.now = 1001
+        st.reader:update()
+        equal(st.reader.source, 'spotify', 'no TV snapshot at all')
+        st.files[TV] = 'garbage'
+        st.reader:update()
+        equal(st.reader.source, 'spotify', 'a malformed TV snapshot')
+    end)
+
+    scenario('a row click asks the worker to jump there', function()
+        local st = drawer({ tv = tvsnap(nil, eight) })
+        st.reader:update()
+        check(st.reader:play(2), 'the click is taken')
+        equal(st.files[REQUEST], 'PARALLAX_TV_REQUEST_V1|jump|2|1000|1001\n', 'one request: row and observed time, no ids')
+        equal(st.files['SYN\\YouTube\\.tv-request.tmp'], nil, 'it appears by a rename')
+        equal(st.texts.MeterQueueArtist2, 'Starting', 'the clicked row says so')
+        equal(st.cursors.MeterQueueHit1, '0', 'nothing else is clickable meanwhile')
+        equal(st.files['SYN\\Spotify\\action.request'], nil, 'Spotify is not asked')
+        st.files[TV] = tvsnap({ observed = 1003, total = 6 }, { 'Gamma', 'Delta', 'Epsilon', 'Zeta', 'Eta', 'Theta' })
+        st.now = 1004
+        st.reader:update()
+        equal(st.reader.starting, nil, 'new rows end the wait'); equal(st.texts.MeterQueueRow1, 'Gamma')
+        equal(st.cursors.MeterQueueHit1, '1')
+        st.reader:scrollBy(1)
+        st.files[REQUEST] = nil
+        check(st.reader:play(1), 'a click on scrolled rows')
+        equal(st.files[REQUEST], 'PARALLAX_TV_REQUEST_V1|jump|2|1003|1004\n', 'a scrolled row is named by its place in the snapshot')
+        check(st.reader:play(1) == false, 'no second click while one is under way')
+        st.reader.starting = nil
+        st.reader:update()
+        st.files[REQUEST] = 'PARALLAX_TV_REQUEST_V1|refresh|0|0|1004\n'
+        check(st.reader:play(1), 'a newer click replaces an unread request')
+        check(st.files[REQUEST]:find('|jump|', 1, true) ~= nil)
+        st.reader.starting = nil
+        st.files[REQUEST] = nil
+        check(st.reader:refreshView(), 'Refresh asks the worker')
+        equal(st.files[REQUEST], 'PARALLAX_TV_REQUEST_V1|refresh|0|0|1004\n')
+    end)
+
+    scenario("a request's outcome shows for a while", function()
+        local st = drawer({ tv = tvsnap(nil, eight) })
+        st.reader:update()
+        check(st.reader:play(1), 'click')
+        st.files[TV] = tvsnap({ notice = 'failed' }, eight)
+        st.now = 1003
+        st.reader:update()
+        equal(st.reader.starting, nil, 'an answer with a notice ends the wait, even under the same rows')
+        equal(st.texts.MeterQueueHeaderNote, 'The TV did not answer')
+        st.now = 1012
+        st.reader:update()
+        equal(st.texts.MeterQueueHeaderNote, 'TV 1' .. DASH .. '5 of 8', 'and goes after a few seconds')
+        st.files[TV] = tvsnap({ notice = 'queue_changed', upnext = 'unknown', total = 0 })
+        st.reader:update()
+        equal(st.texts.MeterQueueHeaderNote, 'Up next changed')
+    end)
+
+    scenario('without TvQueue nothing changes', function()
+        local st = drawer({ tvOn = false, tv = tvsnap(nil, eight), spotify = spotify({ { 'Spotify song', 'Artist' } }) })
+        st.reader:update()
+        equal(st.reader.source, 'spotify'); equal(st.reader.tvPath, nil)
+        equal(st.measures.MeasureState, nil, 'the play state is not even looked up')
+        equal(st.texts.MeterQueueRow1, 'Spotify song')
+    end)
+
+    scenario("Initialize asks for TvQueue only in a drawer on the user's own snapshots", function()
+        local asked = {}
+        local st = drawer({ tv = tvsnap(nil, eight) })
+        local env = setmetatable({ SKIN = st.env.skin, SELF = {
+            GetNumberOption = function(_, name, default) return name == 'QueueExpanded' and 1 or default end,
+            GetOption = function(_, name, default)
+                asked[name] = true
+                if name == 'QueueInline' or name == 'TvQueue' then return '1' end
+                return default
+            end }, io = { open = st.env.open }, os = { time = st.env.now, getenv = function(name)
+                equal(name, 'LOCALAPPDATA'); return 'SYN\\' end } }, { __index = _G })
+        local runtime = assert(loadfile(sourcePath))
+        setfenv(runtime, env)
+        runtime()
+        env.Initialize()
+        check(asked.TvQueue and asked.TvCachePath, 'TvQueue and TvCachePath read')
+        st.files['SYN\\Parallax\\Media\\YouTube\\tv.snapshot'] = tvsnap(nil, { 'From the standard folder' })
+        env.Update()
+        equal(st.texts.MeterQueueRow1, 'From the standard folder', 'the standard folder is LOCALAPPDATA\\Parallax\\Media\\YouTube')
+    end)
+    scenario('the TV snapshot carries the channel, thumbnail and position for the card', function()
+        local value = Reader.parseTv(tvsnap({ current_channel = hex('A channel'), cover = '2' }, { 'One' }), 1001)
+        check(value ~= nil, 'a stage 3 snapshot parses')
+        equal(value.channel, 'A channel'); equal(value.cover, 2); equal(value.rows[1].title, 'One', 'rows follow the two new lines')
+        equal(value.position_ms, 12000); equal(value.position_at_ms, 1000000000); equal(value.duration_ms, 200000)
+        local old = Reader.parseTv(tvsnap(nil, { 'One' }), 1001)
+        equal(old.channel, nil, 'an older worker names no channel'); equal(old.cover, nil)
+        equal(Reader.parseTv(tvsnap({ current_channel = '', upnext = 'unknown' }), 1001).cover, nil, 'an empty slot is no thumbnail')
+        local bad = {
+            tvsnap({ current_channel = hex('x'), cover = '3' }, { 'r' }), tvsnap({ current_channel = hex('x'), cover = 'a' }, { 'r' }),
+            tvsnap({ current_channel = 'Z1' }, { 'r' }),
+            (tvsnap({ current_channel = hex('x'), cover = '1' }, { 'r' }):gsub('cover=1\n', '')),
+            (stopped('offline'):gsub('current_title=\n', 'current_title=\ncurrent_channel=41\ncover=\n')),
+            (stopped('offline'):gsub('current_title=\n', 'current_title=\ncurrent_channel=\ncover=1\n')),
+        }
+        for index, data in ipairs(bad) do equal(Reader.parseTv(data, 1001), nil, 'malformed card fields ' .. index .. ' rejected') end
+        equal(Reader.parseTv((stopped('offline'):gsub('current_title=\n', 'current_title=\ncurrent_channel=\ncover=\n')), 1001).state, 'offline',
+            'a stage 3 nonready snapshot with empty fields')
+        local playing = Reader.parseTv(tvsnap({ upnext = 'unknown' }), 1001)
+        local at, length = Reader.tvPosition(playing, 1000000 + 5)
+        equal(at, 17, 'a playing video advances with the clock'); equal(length, 200)
+        equal(Reader.tvPosition(playing, 1000000 + 999), 200, 'never past the end')
+        equal(Reader.tvPosition(Reader.parseTv(tvsnap({ play = 'paused', upnext = 'unknown' }), 1001), 1000000 + 5), 12, 'a paused one holds')
+    end)
+
+    scenario('one rule: this PC wins, else a playing TV, else what was shown last', function()
+        local function tv(play, upnext) return { state = 'ready', play = play, upnext = upnext or 'known' } end
+        local cases = {
+            -- previous, here, tv, expected, what
+            { nil, 'playing', tv('playing'), 'pc', 'something playing here wins over a playing TV' },
+            { 'tv', 'playing', tv('playing'), 'pc', 'and takes the card back' },
+            { nil, 'loaded', tv('playing'), 'tv', 'a playing TV beats a paused PC' },
+            { 'pc', 'none', tv('ad'), 'tv', 'an ad plays too' },
+            { 'tv', 'loaded', tv('paused'), 'tv', 'pausing the TV from the card does not flip to a paused PC' },
+            { 'tv', 'loaded', tv('loading'), 'tv', 'nor does a TV loading the next video' },
+            { 'pc', 'loaded', tv('paused'), 'pc', 'pausing on the PC with an idle TV does not flip' },
+            { nil, 'loaded', tv('paused'), 'pc', 'at load a paused PC keeps the card' },
+            { nil, 'none', tv('paused'), 'tv', 'at load with nothing here, a loaded TV shows' },
+            { 'pc', 'none', tv('paused'), 'tv', 'a PC with nothing at all gives way to a loaded TV' },
+            { 'tv', 'loaded', tv('paused', 'none'), 'pc', 'a TV with nothing loaded is never shown' },
+            { 'tv', 'none', nil, 'pc', 'nor one whose worker is gone' },
+            { 'tv', 'none', { state = 'no_screen' }, 'pc', 'nor one not ready' },
+        }
+        for _, case in ipairs(cases) do equal(Reader.screen(case[1], case[2], case[3]), case[4], case[5]) end
+    end)
+
+    local function card(o)
+        local st = { files = { [TV] = o.tv }, now = o.now or 1000001, track = o.track or IDLE }
+        local skin = {}
+        function skin:GetMeasure(name)
+            local key = ({ MeasureConnection = 'connection', MeasurePlayer = 'player', MeasureTitle = 'title',
+                MeasureState = 'state', MeasureReportedState = 'reported' })[name]
+            check(key ~= nil, 'the card reads only the player measures: ' .. tostring(name))
+            return { GetValue = function() return st.track[key] end, GetStringValue = function() return st.track[key] end }
+        end
+        function skin:Bang() error('the card bangs nothing') end
+        local function open(path, mode)
+            equal(mode, 'rb', 'the card only reads')
+            local data = st.files[path]
+            if not data then return nil, path .. ': No such file or directory', 2 end
+            return { read = function(_, n) return data:sub(1, n) end, close = function() return true end }
+        end
+        st.card = Reader.newCard({ skin = skin, open = open, now = function() return st.now end, tvPath = o.path or TV, getenv = forbidden })
+        st.fields = function()
+            local packed, out, at = st.card:update(), {}, 1
+            for index, name in ipairs(Reader.CARD_FIELDS) do
+                local stop = packed:find('\031', at, true)
+                out[name] = packed:sub(at, (stop or #packed + 1) - 1)
+                at = stop and stop + 1 or #packed + 1
+            end
+            return out, packed
+        end
+        return st
+    end
+
+    -- Card snapshots are observed at the card's clock (unix seconds near 1000000).
+    local function cs(overrides)
+        local o = { observed = 1000000, valid_until = 1000150, upnext = 'unknown' }
+        for key, value in pairs(overrides or {}) do o[key] = value end
+        return tvsnap(o)
+    end
+    scenario("the card's TV values", function()
+        local st = card({ tv = cs({ current_channel = hex('A channel'), cover = '1', position_at_ms = '1000000000' }) })
+        local f, packed = st.fields()
+        equal(#Reader.CARD_FIELDS, 7); equal(select(2, packed:gsub('\031', '')), 6, 'seven fields, six separators')
+        equal(f.screen, 'tv', 'nothing here: the card shows the TV'); equal(f.play, 'playing')
+        equal(f.title, 'Now on the TV'); equal(f.channel, 'A channel')
+        equal(f.cover, 'SYN\\YouTube\\tv.cover1.jpg', 'the thumbnail beside the snapshot')
+        equal(f.timing, '0:13 / 3:20', 'position advanced by the clock, and the length'); equal(f.progress, '6.50')
+        st.now = 1000061
+        f = st.fields()
+        equal(f.timing, '1:13 / 3:20')
+        st.files[TV] = cs({ current_title = '', duration_ms = 0, position_ms = 0 })
+        f = st.fields()
+        equal(f.title, 'Title unavailable', 'honest placeholders'); equal(f.channel, 'Channel unavailable', 'an older worker names no channel')
+        equal(f.cover, ''); equal(f.timing, '', 'no length yet: no time'); equal(f.progress, '0')
+        st.files[TV] = cs({ current_channel = hex('A channel'), cover = '2', duration_ms = 4000000 })
+        equal(st.fields().timing, '1:13 / 1:06:40', 'hours when needed')
+        st.track = { connection = 1, player = 'Spotify', title = 'Local', artist = 'A', state = 1, reported = 1 }
+        f = st.fields()
+        equal(f.screen, 'pc', 'something playing here takes the card'); equal(f.title, '', 'and no TV value is handed on')
+        st.track.state, st.track.reported = 2, 2
+        equal(st.fields().screen, 'tv', 'paused here while the TV plays: the TV')
+    end)
+
+    scenario('the card stays on what it showed last', function()
+        local st = card({ tv = cs({ play = 'paused' }), track = { connection = 1, player = 'Spotify', title = 'Local', artist = 'A', state = 2, reported = 2 } })
+        equal(st.fields().screen, 'pc', 'a paused PC and a paused TV: the PC, shown first')
+        st.files[TV] = cs({ play = 'playing' })
+        equal(st.fields().screen, 'tv', 'the TV starts playing')
+        st.files[TV] = cs({ play = 'paused' })
+        equal(st.fields().screen, 'tv', 'paused from the card: still the TV')
+        st.track.state = 1
+        equal(st.fields().screen, 'pc', 'the PC plays again')
+        st.track.state = 2
+        equal(st.fields().screen, 'pc', 'and paused stays')
+        st.now = 1000150
+        st.track = IDLE
+        equal(st.fields().screen, 'pc', 'an expired TV snapshot is never shown')
+        local missing = card({})
+        equal(missing.fields().screen, 'pc', 'no TV snapshot at all')
+        local odd = card({ path = 'SYN\\[x]\\tv.snapshot' })
+        odd.files['SYN\\[x]\\tv.snapshot'] = cs({ cover = '1', current_channel = '' })
+        equal(odd.fields().cover, '', 'a folder Rainmeter could misread gives no thumbnail path')
+    end)
+
+    scenario('the drawer follows the card', function()
+        local st = drawer({ tv = tvsnap(nil, eight), spotify = spotify({ { 'Spotify song', 'Artist' } }), card = true,
+            track = { connection = 1, player = 'Spotify', title = 'Local', artist = 'A', state = 2, reported = 2 } })
+        st.card = 'pc\031\031\031\031\031\0310'
+        st.reader:update()
+        equal(st.reader.source, 'spotify', 'the card shows the PC: so does the drawer, though the TV plays')
+        st.card = 'tv\031playing\031T\031C\031\031\0310'
+        st.reader:update()
+        equal(st.reader.source, 'tv', 'the card shows the TV: the drawer has its up next')
+        st.files[TV] = tvsnap({ upnext = 'none', total = 0 })
+        st.reader:update()
+        equal(st.reader.source, 'spotify', 'never TV rows the snapshot does not have')
+        local alone = drawer({ tv = tvsnap({ play = 'paused' }, eight), spotify = spotify({ { 'Spotify song', 'Artist' } }),
+            track = { connection = 1, player = 'Spotify', title = 'Local', artist = 'A', state = 2, reported = 2 } })
+        alone.reader:update()
+        equal(alone.reader.source, 'spotify', 'without a card the drawer applies the same rule: a paused PC keeps it')
+        local yt = drawer({ tv = tvsnap({ upnext = 'none', total = 0 }),
+            track = { connection = 1, player = 'YouTube', title = 'Local video', artist = 'C', state = 2, reported = 2 } })
+        equal(yt.reader:update(), 'YouTube up next is not available yet', 'a paused YouTube here says so too')
+    end)
+    scenario("the card's transport asks the worker once per click", function()
+        local st = drawer({ tv = tvsnap(nil, eight), card = true })
+        st.card = 'tv\031playing\031T\031C\031\031\0310'
+        st.reader:update()
+        check(st.reader:tvControl('pause'), 'pause is taken')
+        equal(st.files[REQUEST], 'PARALLAX_TV_REQUEST_V1|pause|0|0|1001\n', 'one request: a fixed word and the time, no ids')
+        equal(st.renames, 1, 'written once, by a rename; never resent')
+        st.reader:update(); st.reader:update()
+        equal(st.renames, 1, 'updates resend nothing')
+        check(st.reader:tvControl('next')); equal(st.files[REQUEST], 'PARALLAX_TV_REQUEST_V1|next|0|0|1001\n', 'a newer click replaces an unread one')
+        check(st.reader:tvControl('play')); equal(st.files[REQUEST], 'PARALLAX_TV_REQUEST_V1|play|0|0|1001\n')
+        st.files[REQUEST] = nil
+        for _, word in ipairs({ 'previous', 'jump', 'refresh', 'Pause', "pause')" }) do
+            equal(st.reader:tvControl(word), false, word .. ' is not a card command')
+        end
+        st.card = 'pc\031\031\031\031\031\0310'
+        equal(st.reader:tvControl('pause'), false, 'nothing goes to the TV while the card shows this PC')
+        st.card = 'tv\031playing\031T\031C\031\031\0310'
+        st.files[TV] = stopped('no_screen')
+        equal(st.reader:tvControl('pause'), false, 'nor to a TV that is not ready')
+        equal(st.files[REQUEST], nil, 'no request was written')
+        local off = drawer({ tvOn = false, tv = tvsnap(nil, eight) })
+        equal(off.reader:tvControl('pause'), false, 'a drawer without TvQueue writes nothing')
+    end)
+    scenario('a Chrome tab casting to a TV: up next is not available', function()
+        local st = drawer({ tv = tvsnap(nil, eight), spotify = spotify({ { 'Spotify song', 'Artist' } }),
+            track = { connection = 1, player = 'YouTube', title = 'Cast video', artist = 'C', state = 1, reported = 2 } })
+        equal(st.reader:update(), 'Up next is not available while casting', 'shown playing, reported paused: casting')
+        equal(st.reader.source, 'casting'); equal(st.texts.MeterQueueRow1, 'Up next is not available while casting')
+        equal(st.cursors.MeterQueueHit1, '0', 'not clickable'); equal(st.reader:play(1), false)
+        equal(st.reader:refreshView(), false, 'nothing to refresh'); equal(st.reader:tvControl('pause'), false, 'the TV is not asked')
+        equal(st.visible.MeterQueueTabPlaylists, true)
+        st.track.reported = 0
+        equal(st.reader:update(), 'Up next is not available while casting', 'reported stopped casts too')
+        st.track.reported = 1
+        equal(st.reader:update(), 'YouTube up next is not available yet', 'playing in the tab itself is not a cast')
+        st.track.state, st.track.reported = 2, 2
+        st.files[TV] = tvsnap({ upnext = 'none', total = 0 })
+        equal(st.reader:update(), 'YouTube up next is not available yet', 'a cast paused on the TV cannot be told from a paused tab')
+    end)
+    scenario('the Playlists tab under YouTube or the TV asks for nothing', function()
+        local st = drawer({ tv = tvsnap(nil, eight), spectrumTab = true })
+        st.reader:update()
+        check(st.reader:show('playlists'))
+        equal(st.reader:play(1), false, 'the message row starts nothing')
+        equal(st.reader:scrollBy(1), false, 'and does not scroll')
+        equal(st.reader:refreshView(), false, 'Refresh asks nothing there')
+        for _ = 1, 5 do st.now = st.now + 10; st.files[TV] = tvsnap({ observed = st.now - 1, valid_until = st.now + 100 }, eight); st.reader:update() end
+        equal(st.files['SYN\\Spotify\\action.request'], nil, 'never a playlists or playlist-start request')
+        equal(st.files[REQUEST], nil, 'nor a TV request')
+        check(st.reader:show('queue'), 'back to the queue'); equal(st.texts.MeterQueueRow1, 'Alpha')
+        -- Compact layout: one label cycles Queue, Playlists, Spectrum, as for Spotify.
+        st.reader.oneTab = true
+        check(st.reader:show('queue'), 'the label moves on to Playlists'); equal(st.reader.view, 'playlists')
+        equal(st.texts.MeterQueueRow1, 'Playlists are not supported for YouTube yet')
+        st.command = nil
+        check(st.reader:show('playlists'), 'then to Spectrum'); equal(st.command, 'ShowSpectrum()')
+        equal(st.files['SYN\\Spotify\\action.request'], nil, 'still nothing asked')
+        -- A source change starts on the queue: no Spotify list is asked for by itself.
+        local sw = drawer({ tv = tvsnap(nil, eight), spotify = spotify({ { 'Spotify song', 'Artist' } }) })
+        sw.reader:update()
+        check(sw.reader:show('playlists'))
+        sw.track = { connection = 1, player = 'Spotify', title = 'Local', artist = 'A', state = 1 }
+        sw.reader:update()
+        equal(sw.reader.source, 'spotify'); equal(sw.reader.view, 'queue', 'Spotify opens on its queue')
+        equal(sw.texts.MeterQueueRow1, 'Spotify song')
+        local asked = sw.files['SYN\\Spotify\\action.request'] or ''
+        check(not asked:find('|playlists|', 1, true) and not asked:find('|open|', 1, true), 'no playlists request on the switch (a queue refresh is as before)')
+    end)
+    return passed, cases
+end
+
+return Suite

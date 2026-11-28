@@ -14,7 +14,7 @@ function suite.run(sourcePath, optionsPath, playStatePath)
         test()
         cases[#cases + 1] = name .. ': ' .. (passed - before) .. ' assertions'
     end
-    local function fixture()
+    local function fixture(extra)
         local calls = {}
         local values = {
             MeasureConnection = { value = 1 },
@@ -22,6 +22,8 @@ function suite.run(sourcePath, optionsPath, playStatePath)
             MeasureCover = { text = 'synthetic-cover-no-file.png' },
             MeasureState = { value = 1 },
             MeasureReportedState = false,
+            -- Media.ini's TV card (TvCard.inc); absent unless a scenario adds it.
+            MeasureTvCard = false,
             MeasurePosition = { value = 30 },
             MeasureDuration = { value = 180 },
             MeasureCanPrevious = { value = 1 },
@@ -43,6 +45,8 @@ function suite.run(sourcePath, optionsPath, playStatePath)
             Columns = '2',
             Scale = '1'
         }
+        -- A scenario may add measures (the TV card) before Initialize looks them up.
+        for name, value in pairs(extra or {}) do values[name] = value end
         local geometry = { left = 200, right = 448 }
         local timing = { MeterTiming = { x = 365, w = 83 }, MeterTimingUnavailable = { x = 390, w = 58 } }
         local mock = {}
@@ -1086,6 +1090,130 @@ function suite.run(sourcePath, optionsPath, playStatePath)
         end
     end)
 
+    local function tvCard(screen, play, cover, timing)
+        return { text = screen .. '\031' .. play .. '\031T\031C\031' .. cover .. '\031' .. timing .. '\0310' }
+    end
+    local function withCard(screen, play, cover, timing)
+        return { MeasureTvCard = tvCard(screen, play, cover, timing), MeasureTvCover = { text = cover }, MeasureTvTiming = { text = timing } }
+    end
+
+    scenario('the card shows the TV in place of this PC', function()
+        local f = fixture(withCard('tv', 'playing', 'SYN\\tv.cover1.jpg', '0:10 / 1:00'))
+        f.values.MeasureState.value = 2
+        check(f.env.Update() == 'TV', 'TV status')
+        check(f.visible('MediaTrack', true) == true, 'the card frame (placeholder, frame, icons) stays')
+        for _, name in ipairs({ 'MeterTrackTitle', 'MeterArtist', 'MeterAlbum', 'MeterCover' }) do
+            check(f.visible(name) == false, "this PC's " .. name .. ' hides under the TV')
+        end
+        check(f.visible('MediaTv', true) == true, "the TV's title, channel and place show")
+        check(f.visible('MeterTvCover') == true, "the TV's thumbnail shows")
+        check(f.visible('MeterCoverLabel') == false, 'no N/A over a thumbnail')
+        check(f.visible('MediaTimeline', true) == false, "this PC's timeline hides")
+        check(f.visible('MeterTvProgress') == true and f.visible('MeterTvTiming') == true, "the TV's progress and time show")
+        check(f.visible('MeterTimingUnavailable') == false, 'no unknown-time marker')
+        check(f.visible('MeterNoMedia') == false, 'not "no active media"')
+        check(f.count('!UpdateMeasure') == 0, 'the first sample asks the drawer nothing')
+        f.assertRefresh()
+        f.reset()
+        check(f.env.Update() == 'TV' and #f.calls() == 0, 'an unchanged TV sample issues no bang')
+        f.values.MeasureTvCard.text = tvCard('pc', '', '', '').text
+        f.values.MeasureTvCover.text, f.values.MeasureTvTiming.text = '', ''
+        check(f.env.Update() == 'Paused', 'back on this PC')
+        check(f.visible('MeterTrackTitle') == true and f.visible('MeterArtist') == true and f.visible('MeterAlbum') == true, "this PC's text returns")
+        check(f.visible('MeterCover') == true, "this PC's cover returns")
+        check(f.visible('MediaTv', true) == false and f.visible('MeterTvCover') == false and f.visible('MeterTvProgress') == false, "the TV's meters hide")
+        check(f.visible('MediaTimeline', true) == true, "this PC's timeline returns")
+        check(f.count('!UpdateMeasure', 'MeasureQueueStatus') == 1, 'a switch asks the drawer to follow at once')
+    end)
+
+    scenario('honest TV placeholders and no local player', function()
+        local f = fixture(withCard('tv', 'paused', '', ''))
+        f.values.MeasureConnection.value = 0
+        check(f.env.Update() == 'TV', 'the TV shows without any local player')
+        check(f.visible('MediaTrack', true) == true and f.visible('MeterNoMedia') == false, 'the card is shown')
+        check(f.visible('MeterTvCover') == false and f.visible('MeterCoverLabel') == true, 'no thumbnail: the N/A label')
+        check(f.visible('MeterTvProgress') == false and f.visible('MeterTimingUnavailable') == true, 'no length: -- / --')
+        check(f.visible('MeterArtworkPlaceholder') == false, 'the idle placeholder stays hidden')
+        local idle = fixture(withCard('pc', '', '', ''))
+        idle.values.MeasureConnection.value = 0
+        check(idle.env.Update() == 'WNP disconnected', 'card on this PC with nothing: as before')
+        check(idle.visible('MediaTrack', true) == false and idle.visible('MeterNoMedia') == true, 'no active media')
+        check(idle.visible('MediaTv', true) == false, 'no TV meters')
+    end)
+    scenario('play, pause and next act on the TV; previous, shuffle and repeat are greyed', function()
+        local f = fixture(withCard('tv', 'playing', '', '0:10 / 1:00'))
+        f.values.MeasureState.value = 2
+        f.values.MeasureShuffle.value, f.values.MeasureRepeat.value = 1, 1
+        f.env.Update()
+        check(f.symbol() == 'play', "the TV's state, not this PC's paused one")
+        check(f.strokeColor('MeterPlayPause') == '255,255,255' and f.option('MeterPlayPause', 'MouseActionCursor') == '1', 'play/pause works on the TV')
+        check(f.strokeColor('MeterNext') == '255,255,255' and f.option('MeterNext', 'MouseActionCursor') == '1', 'next works on the TV')
+        check(f.strokeColor('MeterPrevious') == '111,112,113' and f.option('MeterPrevious', 'MouseActionCursor') == '0', 'previous is greyed: no TV command')
+        for _, meter in ipairs({ 'MeterShuffle', 'MeterRepeat' }) do
+            check(f.option(meter, 'MouseActionCursor') == '0', meter .. ' is greyed on the TV')
+            check(f.option(meter, 'MediaTransportToggleFace'):find('Fill Color 25,26,27,255 ', 1, true) == 1, meter .. ' claims no state on the TV')
+        end
+        check(f.option('MeterRepeat', 'Shape8') == 'Rectangle 0,0,1,1 | Fill Color 0,0,0,0 | StrokeWidth 0', "no repeat-one stroke from this PC's player")
+        f.reset()
+        check(f.env.Control('PlayPause') == true and #f.calls() == 1, 'one bang per click')
+        local call = f.calls()[1]
+        check(call[1] == '!CommandMeasure' and call[2] == 'MeasureQueueStatus' and call[3] == "TvControl('pause')", 'a playing TV is asked to pause, through the drawer reader')
+        f.reset()
+        check(f.env.Control('Next') == true and f.calls()[1][3] == "TvControl('next')", 'next goes to the TV')
+        f.reset()
+        for _, command in ipairs({ 'Previous', 'Shuffle', 'Repeat', 'Bogus' }) do
+            check(f.env.Control(command) == false, command .. ' does nothing on the TV')
+        end
+        check(#f.calls() == 0, 'and sends nothing anywhere: not to this PC either')
+        f.values.MeasureTvCard.text = tvCard('tv', 'paused', '', '').text
+        f.env.Update()
+        check(f.symbol() == 'pause', 'a paused TV shows the paused art')
+        check(f.env.HoverPlayPause(true) == true and f.symbol() == 'stepForward', 'hover previews resume')
+        f.reset()
+        check(f.env.Control('PlayPause') == true and f.calls()[1][3] == "TvControl('play')", 'a paused TV is asked to play')
+        f.values.MeasureTvCard.text = tvCard('tv', 'ended', '', '').text
+        f.env.Update()
+        f.reset()
+        check(f.env.Control('PlayPause') == true and f.calls()[1][3] == "TvControl('play')", 'an ended or loading TV is asked to play')
+        f.values.MeasureTvCard.text = tvCard('pc', '', '', '').text
+        f.env.HoverPlayPause(false)
+        f.env.Update()
+        f.reset()
+        check(f.env.Control('Previous') == true and f.calls()[1][2] == 'MeasureConnection' and f.calls()[1][3] == 'Previous', "back on this PC: this PC's player again")
+    end)
+    scenario('the spectrum drawer learns when the audio is on the TV', function()
+        local function variable(f)
+            local found = nil
+            for _, call in ipairs(f.calls()) do
+                if call[1] == '!SetVariable' then
+                    check(call[2] == 'MediaAudioElsewhere', 'only the one fixed variable')
+                    found = call[3]
+                end
+            end
+            return found
+        end
+        local f = fixture(withCard('tv', 'playing', '', ''))
+        f.env.Update()
+        check(variable(f) == '1', 'the card shows the TV: the audio is there')
+        f.reset()
+        f.env.Update()
+        check(variable(f) == nil, 'set once, not every sample')
+        f.values.MeasureTvCard.text = tvCard('pc', '', '', '').text
+        f.env.Update()
+        check(variable(f) == '0', 'back on this PC, playing here: not on the TV')
+        local cast = fixture({ MeasureTvCard = tvCard('pc', '', '', ''), MeasureTvCover = { text = '' }, MeasureTvTiming = { text = '' },
+            MeasureReportedState = { value = 2 } })
+        cast.values.MeasureState.value = 1
+        cast.env.Update()
+        check(variable(cast) == '1', "a casting tab (shown playing, its own video paused) plays on the TV")
+        cast.reset()
+        cast.values.MeasureState.value = 2
+        cast.env.Update()
+        check(variable(cast) == '0', 'a paused tab is not detectably casting')
+        local plain = fixture()
+        plain.env.Update()
+        check(variable(plain) == nil, 'without the card (Setup, tests) nothing is set')
+    end)
     return passed, cases
 end
 

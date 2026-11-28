@@ -15,7 +15,9 @@ Still unverified: from alpha.17, the sliding gradient with a real cover, a track
 
 ## On main, not in any release
 
-Nothing yet.
+- Media shows the whole current cover: a wide video thumbnail is no longer cut off at the sides ([details](modules/Media.md#whole-cover-2026-11-27)). Not seen in a running Rainmeter yet.
+- Media settings (a new Cover row) and the right-click menu choose between the whole cover picture and zooming to fill the square ([details](modules/Media.md#cover-zoom-2026-11-27)).
+- **YouTube on the TV**: Media's queue drawer lists the up next of YouTube in the TV's own app while nothing plays on this PC, and a row click makes the TV jump there. Experimental, on YouTube's unofficial remote API ([Media](modules/Media.md#youtube-on-the-tv-tv-queue-2026-11-27)). Loading Media's player resumes a worker started earlier and not stopped. Pair, Start, Stop and Forget are on the Connections panel's new TV row ([Connections](CONNECTIONS.md#youtube-on-the-tv)). Checked: a live gate on one TV (pause, play, next, a row jump) and offline suites; the drawer itself only with synthetic snapshots.
 
 ## Open: before 0.2.0-beta.1
 

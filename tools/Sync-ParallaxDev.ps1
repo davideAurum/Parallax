@@ -21,8 +21,10 @@ Other actions: Compare (re-compare only), Enable (create the copy and load it be
 Settings > Developer does), Disable (unload the copy; its files stay), Reset (move the copy aside as
 @ParallaxDev-backup-<time> inside the Skins folder, clone the release again, then sync).
 
-The refresh sends Rainmeter bangs from the command line, which reach whichever Rainmeter answers (normally the one you
-run). -NoRefresh writes the files and the comparison only. Do not use this against an isolated test instance.
+The refresh sends bangs to one Rainmeter only: the one running -RainmeterPath with the Rainmeter.ini in -SettingsPath
+(Parallax.Bang.psm1), so an isolated test instance never receives them. If others are running and that one cannot be
+identified, this fails. -NoRefresh writes the files and the comparison only; use it for work that runs in parallel
+with other use of the live Rainmeter (docs\DEVMODE.md).
 #>
 [CmdletBinding()]
 param(
@@ -42,6 +44,7 @@ $ErrorActionPreference = 'Stop'
 $ProjectRoot = (Get-Item -LiteralPath $ProjectRoot).FullName
 $sourceSkin = Join-Path $ProjectRoot 'Skins\Parallax'
 Import-Module (Join-Path $sourceSkin '@Resources\Dev\DevCopy.psm1') -Force
+Import-Module (Join-Path $PSScriptRoot 'Parallax.Bang.psm1') -Force
 
 if (-not $SkinsPath) {
     $rainmeterIni = Join-Path $SettingsPath 'Rainmeter.ini'
@@ -56,9 +59,9 @@ $SkinsPath = (Get-Item -LiteralPath $SkinsPath).FullName
 function Invoke-RainmeterBang {
     param([string[]]$Arguments)
     if ($NoRefresh) { return }
-    if (-not (Test-Path -LiteralPath $RainmeterPath -PathType Leaf)) { Write-Warning 'Rainmeter.exe not found; nothing refreshed.'; return }
     if (-not (Get-Process -Name Rainmeter -ErrorAction SilentlyContinue)) { Write-Warning 'Rainmeter is not running; nothing refreshed.'; return }
-    & $RainmeterPath @Arguments
+    Send-ParallaxBang -Bang $Arguments[0] -Arguments @($Arguments | Select-Object -Skip 1) `
+        -RainmeterPath $RainmeterPath -IniPath (Join-Path $SettingsPath 'Rainmeter.ini')
 }
 
 function Use-ParallaxStage {

@@ -12,7 +12,7 @@ local CLOCK_SLACK = 5
 -- at "connecting" belongs to a console that was closed.
 local CONNECT_SECONDS = 200
 local CONFIRM_SECONDS = 8
-local DEFAULT_STATUS = 'Only Sign in and Disconnect change anything here.'
+local DEFAULT_STATUS = 'Only Sign in, Disconnect and TV buttons change things.'
 local QUEUE_FORMATS = { PARALLAX_QUEUE_V2 = true, PARALLAX_QUEUE_V3 = true, PARALLAX_QUEUE_V4 = true, PARALLAX_QUEUE_V5 = true }
 local QUEUE_STATES = { ready = true, stopped = true, connecting = true, onboarding_required = true,
     reauth_required = true, forbidden = true, rate_limited = true, quota_exceeded = true,

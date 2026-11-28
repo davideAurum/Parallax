@@ -23,6 +23,25 @@ ParallaxCompanionCheck=0
 [MediaVisualizerCaptureParentInclude]
 @Include22=#@#Modules\Visualizer\Capture.inc
 
+; Media only, after Capture.inc's state: with no signal here while the audio
+; plays on the TV (MediaAudioElsewhere, set by Media.lua from the player card or
+; a casting tab), the quiet overlay says so instead of "Idle - quiet". Both
+; texts are fixed. It follows each change of either, on the capture cadence,
+; after Capture.inc's own transition text in the same update.
+[MeasureMediaAudioOnTv]
+Measure=Calc
+Group=ParallaxIdlePause
+Formula=((MeasureVisualizerState=1)&&(#MediaAudioElsewhere#=1)) ? 1 : ((MeasureVisualizerState=1) ? 2 : 0)
+DynamicVariables=1
+IfCondition=MeasureMediaAudioOnTv=1
+IfTrueAction=[!SetOption MeterVisualizerUnavailable Text "Audio is on the TV"][!UpdateMeter MeterVisualizerUnavailable]
+IfCondition2=MeasureMediaAudioOnTv=2
+IfTrueAction2=[!SetOption MeterVisualizerUnavailable Text "Idle - quiet"][!UpdateMeter MeterVisualizerUnavailable]
+IfConditionMode=0
+; Repaints a change, but not on the load's first update (as Capture.inc does).
+OnChangeAction=[!Redraw]
+UpdateDivider=#VisualizerCaptureDivider#
+
 ; The standalone's output-row measures: dB ticks, Win7Audio volume and device
 ; switching, device name and discovery. Win7Audio exists only while live too.
 [MediaVisualizerAudioInclude]

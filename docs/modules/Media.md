@@ -76,6 +76,10 @@ user-selected Lucide metadata and playback icons are attributed below.
 | Idle pause — optional, bundled suite component | The hidden `Parallax\Idle` input-idle coordinator (built-in SysInfo `IDLE_TIME`) through `@Resources/Idle/Hook.inc` and `StandDown.lua`; `Modules/Media/CaptureState.inc` (`MediaStandby`) written only by `MediaOptions.lua`. | Only while Global Settings **Idle pause** is 5, 10 or 30 minutes (default Off). Media.ini reloads once into standby (provider cadence, drawer parked) and freezes; input reloads it once back. Setup and Queue freeze in place. Off loads a comment-only include; a standby state saved while the pause is Off is cleared at the next Media.ini load. No coordinator sync 10 s after a standby load, or no beat for 3 minutes, returns to live. See [Idle pause](#idle-pause). |
 | Update check — optional, bundled suite component | Automatic update check: Rainmeter's built-in WebParser and the bundled `@Resources/Update/Hook1.inc` (`Update.lua`, `Feed.inc`, `State.inc`, `Version.inc`). | Optional bundled suite component, on by default: Global Settings **Updates** > **Auto check** Daily (`UpdateCheck=1`). Off loads the comment-only `Hook0.inc`. About once a day, one request for the release feed on github.com, made by whichever loaded utility finds the check due (60 s after a load, then an hourly `[!Delay]` look); a newer release opens the `Parallax\Update` prompt. No meter, process or plugin; offline and failed checks are recorded quietly and retried after an hour. See [Updates](../UPDATES.md). |
 | Spotify queue — optional | Bundled `QueueProvider.ps1`, `QueueCore.psm1`, `QueueAuth.psm1` and the shared `ProviderOwner.psm1` owner lease; Rainmeter's bundled RunCommand plugin; Windows PowerShell 5.1/.NET; network access; Spotify Developer app public Client ID and user-authorized PKCE sign-in. The [queue setup guide](../../Skins/Parallax/@Resources/Modules/Media/Queue/README.md) records Development Mode prerequisites, including owner Premium and user allowlisting. No client secret. | Start, Stop, Restart and Disconnect use dormant `State=Hide` RunCommand controls with a fixed allowlist and do not overlap. One opt-in worker requests every 30 seconds by default, configurable to 30–150 seconds, subject to backoff/quota pauses. Sign in deliberately retains a visible setup console/browser flow. Passive views read local snapshots on their update. Missing, stopped, expired or failed data produces explicit status and suppresses rows. Since 2026-10-27, clicking a row or **Refresh** runs one short hidden `QueueProvider.ps1 -Command Play`/`Refresh` on a dormant `State=Hide` RunCommand host (`Queue/QueueControlHost.inc` in Media.ini; Queue.ini's existing host); it only hands a request file to the running worker and exits. Since 2026-11-24 a row click writes that file itself and the process is only its fallback. Playing a row needs the optional `user-modify-playback-state` permission, now requested at sign-in; a grant without it keeps reading the queue but rows are not clickable until you sign in again. Spotify's skip and start endpoints act on the account's active device and need Premium. A click on a later row also reads what is playing and, once per album or playlist, its song addresses, kept in memory only. Since 2026-11-19 each read also fetches the shown items' covers (Spotify's smallest image, 64 px for albums) once from Spotify's image CDN only (`*.scdn.co`, `*.spotifycdn.com`), over HTTPS, without the token, at most 256 KB and 5 s each, into `covers\` beside the snapshot (current-user ACL, pruned to 120 files, deleted on Disconnect); a failed URL waits 5 minutes. Since 2026-11-24 the snapshot (`PARALLAX_QUEUE_V5`) also names the track its rows come after, and the drawer [follows the player](#queue-follows-the-player-2026-11-24): a track change asks the running worker for one extra read (at most three), by a request file the reader writes itself, with no process. The [Playlists view](#playlists-view-2026-11-24) needs a sign-in that includes `playlist-read-private` (and `playlist-read-collaborative` for collaborative ones); without it the view says **Sign in again** and the queue is unaffected. It reads the list only when opened or refreshed. |
+| Casts followed on the TV — optional, opt-in, experimental (2026-11-28) | The TV queue's bundled files above (the Cast code is in `TvLounge.psm1`, the cast key in `TvStore.psm1`) and Connections' bundled `Modules/Connections/CastConnections.lua`; Windows PowerShell 5.1 and built-in .NET (TLS, DPAPI); a Google Cast device on the home network (tried: one smart TV) reachable from this PC on a private or link-local IPv4 address (mDNS on UDP 5353, the Cast channel on TCP 8009); network access to `www.youtube.com` for commands (the Lounge API with the cast key). No TV-code pairing needed, no account, plugin, download or third-party code. Data only in `%LOCALAPPDATA%\Parallax\Media\YouTube` (`cast.intent`, `cast.dpapi`, `cast.status`). | Off until **Connections > Casts > Turn on**. Then the same long-lived worker asks mDNS for Cast devices (once, then after 30 s, 60 s, 120 s, up to 5 min while none is found; again every 15 min when not following), keeps one read-only Cast channel per device (at most 4; PING every 5 s, receiver status every 20 s, media status every 5 s while following) and launches no process. It sends a device only CONNECT, GET_STATUS, PING, PONG and, to a YouTube app already running, `getMdxSessionStatus` (enforced in code). Cast devices use self-signed certificates: the worker accepts the device's certificate for that one TLS stream only (never process-wide), so the channel is encrypted but the device is not authenticated. Play, pause and next bind a Lounge session with the cast key, send once and leave; the token is asked of YouTube at the first command only. If no device is found the row says so and the card follows the normal rules; if the Cast channel or YouTube changes, the row shows `Unavailable` or `No cast key` and nothing is guessed. **Forget** (Casts row) removes the switch, the key and the state; the TV row's Forget also removes them. See [Casts followed on the TV](#casts-followed-on-the-tv-stage-3-2026-11-28). |
+| YouTube on the TV (TV queue) — optional, experimental (2026-11-27) | Bundled `TvQueue/TvProvider.ps1`, `TvLounge.psm1`, `TvStore.psm1` and the shared `ProviderOwner.psm1` owner lease; Windows PowerShell 5.1 and built-in .NET (DPAPI for the pairing); network access to `www.youtube.com` (YouTube's **unofficial, undocumented** Lounge remote API, and public oEmbed for titles); a TV whose YouTube app offers **Link with TV code**. No account sign-in, key, plugin, download or third-party code (written from protocol facts; nothing from GPL projects). Data only in `%LOCALAPPDATA%\Parallax\Media\YouTube` (current-user ACL). | Nothing runs until you pair (a visible console) or press Start. One long-lived opt-in worker holds one long poll to YouTube for the TV's events and sends commands on that same session; it steps every 250 ms locally (requests, Stop), launches no process to poll, backs off 5–300 s after failures and rejoins at least 10 s after the TV leaves. Titles: one oEmbed lookup per shown video, cached in memory only. The drawer reads `tv.snapshot` on its existing update; it shows the TV only while nothing plays on this PC. A row click writes `tv.request` (no process). If YouTube changes the API, the worker shows `error` and the drawer stays as it was. Since stage 3 the same oEmbed answer also gives the channel name, and the worker downloads the current video's thumbnail from YouTube's public thumbnail host (`i.ytimg.com`, `mqdefault.jpg`, one request per video, the video id only, no token; a JPEG of at most 256 KB) into one of two private slots, `tv.cover1.jpg` / `tv.cover2.jpg`, removed by Forget, Stop and a clean worker end; without it the card shows N/A. Loading the player (`Media.ini`) resumes a worker you started and did not stop, through one inert hidden host, `MeasureMediaTvResume`. Pair, Start, Stop and Forget are on the [Connections](../CONNECTIONS.md#youtube-on-the-tv) panel's TV row. See [YouTube on the TV](#youtube-on-the-tv-tv-queue-2026-11-27). |
+| Cover preview — optional, in development, off by default (`MediaCoverPreview=1`) | Network access to `i.ytimg.com` (YouTube's thumbnail host, undocumented frame addresses); the WebNowPlaying plugin's cover address; built-in `WebParser`. | Three small downloads per video, cycled once a second while it plays. Offline or without frames the normal cover stays. |
+| Live video cover — optional, in development, off by default (`MediaVideoCover=1`) | Our own `ParallaxVideoCover` plugin, an experimental 64-bit plugin, **not bundled**; [source](../../packaging/Plugins/ParallaxVideoCover/README.md), built with Visual Studio Build Tools (C++ workload); browser picture-in-picture, or Chrome's installed YouTube web app (read through Windows UI Automation, which switches Chrome's accessibility support on). | Without the plugin Rainmeter logs that it cannot load and the cover stays. |
 
 Both provider helpers require an explicit initial Start (or successful queue sign-in).
 They save private enabled intent and can resume once when their Media view loads
@@ -176,7 +180,8 @@ are independent; supported global maxima are 12/10/10 points, with no local size
 clamp. Metadata has no local font-size increment.
 
 Extreme custom sizes or fonts may clip; text has fixed bounds and never expands
-the skin. Covers preserve aspect ratio while cropping. Preserved user files may
+the skin. The current cover preserves aspect ratio and is
+[shown whole](#whole-cover-2026-11-27); queue row covers are cropped to fill. Preserved user files may
 still contain the earlier 332-pixel height: set `PanelHeight=162` and refresh to
 adopt the compact default; the entrypoints never override saved preferences.
 
@@ -1590,6 +1595,278 @@ invented reset. The queue guide documents safe recovery. Development Mode needs
 owner Premium and allowlisting, and shares developer quota.
 Sources: [quota modes](https://developer.spotify.com/documentation/web-api/concepts/quota-modes),
 [rate limits](https://developer.spotify.com/documentation/web-api/concepts/rate-limits).
+
+## YouTube on the TV (TV queue, 2026-11-27)
+
+Experimental. With YouTube playing in the **TV's own YouTube app** and nothing
+playing on this PC, the queue drawer lists the TV's up next and a row click makes
+the TV jump there. The setup, data and formats
+and what early live tests showed are in the
+[TV queue README](../../Skins/Parallax/@Resources/Modules/Media/TvQueue/README.md).
+
+- **Pairing.** On the TV: YouTube > Settings > **Link with TV code**. Then
+  **Pair** on the Connections panel (or `TvProvider.ps1 -Command Pair` in Windows
+  PowerShell), type the code; the worker starts. The TV's name, screen id and token are sealed with DPAPI for this
+  Windows account. Forget removes them; the TV's own Linked devices list can also
+  remove Parallax.
+- **This PC wins.** While Media shows something playing, the drawer is as before.
+  YouTube playing here says *YouTube up next is not available yet*. A cast to the
+  TV is a different screen and gives no up next. Stage 3 changed this rule: the
+  drawer now follows the player card ([below](#player-card-on-the-tv-stage-3-2026-11-28)).
+- **Rows.** Up to 20, from the TV's id list, titles from public oEmbed (an unknown
+  title says *Title unavailable*). The note says *On the TV*. A list of only the
+  current video is *Up next not known yet*, never an empty queue; the last listed
+  video says *Nothing listed after this video*. No Mix or playlist label: the list
+  id does not tell them apart (live gate, 2026-11-27). Since stage 3 (M5) the Playlists
+  tab stays in place for YouTube and the TV; opened, it says *Playlists are not
+  supported for YouTube yet* inside the tab and asks for nothing (no playlists or
+  playlist-start request; a change of source returns to the queue view). The compact
+  layout's label cycles Queue, Playlists, Spectrum as for Spotify.
+- **Clicks.** A row click or Refresh writes one request file; the worker sends
+  `setPlaylist` (video, its index, the list id) or `getNowPlaying` once, on the
+  session it listens on. Pause, play and next come from the player card's
+  transport since stage 3.
+- **Resume.** Loading the player (`Media.ini`, not Setup or Queue) starts the
+  worker again, once and hidden, when you started it before, did not stop it and a
+  TV is paired.
+- **States.** `not_paired`, `connecting`, `ready`, `no_screen` (TV app closed or TV
+  off), `offline`, `pair_again`, `error`, `stopped`. Only `ready` with something
+  loaded reaches the drawer.
+
+**Live gate (2026-11-27, one TV):** pause, play,
+next and a jump to the third listed row were each obeyed and reported on the
+listening session; the list kept its order after the jump; a pause from the TV
+remote arrived with no command sent. The list was a Mix whose id the `RD` prefix
+rule reads as a playlist.
+
+**Offline checks:** `TvQueue/tests/Test-TvCore.ps1` (framing, merge, up next, DPAPI,
+snapshot, requests, HTTP against a 127.0.0.1 stand-in), `Test-TvWorker.ps1` (the
+worker step by step against the stand-in) and `Test-TvLua.ps1` (the drawer,
+Connections' TV controller and the resume, in an isolated Rainmeter). The existing
+queue-reader, Queue view, lifecycle, never-started and transport suites pass
+unchanged.
+
+### Player card on the TV (stage 3, 2026-11-28)
+
+Needs the TV worker
+above paired and running; adds no launch surface, plugin or helper.
+
+- **One rule** (`QueueReader.screen`): something playing on this PC shows this PC;
+  else a TV that plays shows the TV; when nothing plays anywhere the card stays on
+  what it showed last (pausing the TV from the card keeps the TV; pausing here with
+  an idle TV keeps this PC). A PC with no track at all gives way to a TV that has
+  something loaded. The TV is shown only from a ready, unexpired snapshot with
+  something loaded, so a stopped worker hands the card back at once. The queue
+  drawer follows the card, in the same update (Media.lua asks it to read again on
+  a switch).
+- **What it shows.** `TvCard.inc` (through `WebNowPlaying.inc`, before Media.lua)
+  holds `MeasureTvCard`, a second instance of `QueueReader.lua` (`TvCard=1`), and
+  `TvField.lua` measures that hand its title, channel, thumbnail path, time and
+  progress to the meters in `TvPlayerMeters.inc` (through `PlayerMeters.inc`). The
+  card keeps its frame and icons; the TV's title, channel, *On the TV*, thumbnail
+  (cropped to the square), progress and time replace this PC's. Missing values say
+  *Title unavailable*, *Channel unavailable*, N/A and `-- / --`. The header reads
+  *Media Player: TV* (*TV paused*), and the title icon animates while the TV plays.
+  No title goes through a bang: meters read the measures.
+- **Controls.** Play/pause and next write one request each (`TvControl` in the
+  drawer's reader, the one writer of `tv.request`); nothing is resent. A paused,
+  ended or loading TV is asked to play, a playing one to pause. Previous, shuffle
+  and repeat are greyed and do nothing on either screen: the TV has no command
+  for them.
+- **Casting from this PC** (a Chrome tab casting to the TV) is this PC's casting
+  tab: the card shows it, the drawer says *Up next is not available while
+  casting*, and the controls go to the tab as before. A cast is recognised only by
+  the tab being shown playing while it reports its own video paused or stopped
+  (`PlayState.lua`): not before the tab has been seen moving, and not while the
+  cast is paused (then it reads as a paused tab). A cast from another device is
+  not shown.
+- **Spectrum drawer.** With no signal here, the open drawer says *Audio is on the
+  TV* instead of *Idle - quiet* while the card shows the TV or a cast is detected
+  (`MediaAudioElsewhere`, set by Media.lua; `MeasureMediaAudioOnTv` in
+  `DrawerCapture0.inc`). Signal here always shows the bars.
+
+**Checks allow its launch lines by name.** `Media.ini` alone declares the inert
+host `MeasureMediaTvResume`, above `[Variables]` so `MeasureMediaHeader` stays the
+last measure; `test_skin_contract.py` allows that third host there only.
+`MediaLifecycle.lua` resumes through it only when the intent file reads
+`PARALLAX_TV_INTENT_V1|1` and there is no stop barrier. The Connections launches
+are checked as described in [Connections](../CONNECTIONS.md#youtube-on-the-tv);
+changing the Pair button's action means changing `tools/Test-Parallax.ps1` too.
+
+**Offline checks:** `Test-TvCore.ps1`, `Test-TvWorker.ps1` (channel, thumbnail
+slots, one download per video, Forget), `Test-TvLua.ps1` (snapshot fields, the
+rule, card values, drawer following the card, card commands, casting line,
+`TvField.lua`), `tests/Test-Media.ps1` (TV view, controls, spectrum variable) and
+`Test-MediaHeader.ps1` (header, icon). **Not verified:** everything live (see
+[live checks still open](#live-checks-still-open)), the
+look of the TV view in a running skin, album colors (they follow this PC's cover
+only). `Test-MediaTransport.ps1`, `Test-MediaNeverStarted.ps1` and
+`Test-MediaSettings.ps1` pass with the fixtures neutralizing the TV resume
+host; `Test-MediaSettings.ps1`'s synthetic provider gives the TV
+meters empty stand-in measures, so no test reads the user's TV folder.
+
+**Unverified:** the drawer on the live desktop with the real TV (only synthetic
+snapshots so far), how long a pairing lasts, recovery after sleep, other TVs and
+app versions, private videos' titles, the resume on a live Media load (only its
+logic and the host's declaration are tested), and the Connections row's buttons
+and appearance on a live desktop.
+
+### Casts followed on the TV (stage 3, 2026-11-28)
+
+Added after the live try
+of 2026-11-27: during a Chrome cast the TV moved on after the first video while the
+casting tab (and so the card) stayed on the old title reading paused, and Next from
+Media advanced only the tab. Opt-in: **Connections > YouTube on the TV > Casts >
+Turn on**. Works with or without a TV paired by code.
+
+- **What it reads.** The TV worker finds Cast devices on the home network (mDNS),
+  keeps a read-only Cast channel to them and follows the YouTube cast on the same
+  snapshot the card reads (`source=cast`): title and channel from the TV's own
+  media status, play state, position and length; the thumbnail as for the TV app.
+  It follows only the device whose Cast name matches the TV paired by code, or else
+  the single device running YouTube; with two or more it says *Several casts* and
+  follows none. A cast whose screen is the one paired by code is the TV's own app
+  and is left to the TV row's worker session.
+- **The card follows the TV** (`QueueReader.castView`, ruled after grading): a
+  followed cast counts as the TV under the one rule (something playing on this PC
+  wins; else a playing TV or cast shows; nothing playing keeps what was shown last),
+  with or without a casting tab here. So a playing cast beats a paused Spotify, it
+  stays shown after the casting tab is closed, and a cast from a phone to this TV
+  shows too. The casting tab never wins: a YouTube player here that is not itself
+  playing (the browser does not report its video playing: the tab, paused or
+  lagging) counts as nothing. YouTube really playing here, and any other player,
+  are this PC as usual. When the cast stops, the snapshot leaves the cast at once
+  and the normal rules apply.
+- **Controls.** Play/pause and next go to the cast: the worker asks the cast app
+  for its screen id once per cast session (the cast key can differ per cast),
+  asks YouTube for its token at the first command, binds a Lounge session, sends
+  the command once and leaves. A refused key is asked for again from the cast app;
+  the command is not resent. Previous stays greyed. The drawer says *Up next is
+  not available while casting* (no up next for casts).
+- **Privacy.** The cast key (screen id and token) is sealed with DPAPI for this
+  Windows account in `cast.dpapi`; no device name, address, screen id, token or
+  video id is written to the snapshot, `cast.status` or the diagnostics log.
+  **Forget** on the Casts row removes the switch, the key and the state. The worker
+  saves a key only while casts are on, checked under the same lock Forget holds
+  while it removes them, so nothing is written back after Forget.
+- **Update.** A worker already running when Parallax is updated is restarted once,
+  hidden, the next time Media's player loads (its code stamp, `worker.stamp`,
+  differs from the files on disk; a worker from before stamps counts as old).
+  Resume only starts a new worker with `-Takeover`, which stops the old one and
+  waits for it itself, so a Resume cut off by its host's 15 s timeout leaves no stop
+  barrier behind. The user's Stop is respected and it never loops (`upgrade.marker`).
+
+**Offline checks:** `TvQueue/tests/Test-TvCastCore.ps1` (address rule, mDNS
+parsing, Cast frames, the TLS channel against a stand-in device on 127.0.0.1, the
+allowlist of messages, status parsing, the DPAPI key, Forget, the source line),
+`Test-TvCastWorker.ps1` (the switch, following, next/pause/play once each, the TV
+moving on by itself, the end of a cast, a new key per cast, several devices, the
+TV's own app, gentle discovery, Forget, nothing secret in snapshot or log),
+`Test-TvCastLua.ps1` (the reader's cast rule, card and drawer, Connections' Casts
+row) and `Test-TvUpgrade.ps1` (the restart after an update). **Not verified:**
+everything on a real network and TV: discovery on this PC's network, the Cast
+channel held for hours, whether the TV pushes media status (the worker also asks
+every 5 s), whether the Cast name matches the TV-code pairing's name, the TV's own
+app showing as a Cast app, commands with the cast key in this worker, the Casts
+row's look and text fit on a live desktop, and the restart after a real update.
+See [live checks still open](#live-checks-still-open).
+
+### Live checks still open
+
+By hand, with a real TV and only visible controls. Commands reach the TV, so run
+them only when it may be interrupted. Record what happened, not titles or device
+names.
+
+- **Card follows what plays:** the TV app playing with nothing here shows the TV
+  within about 2 s (header, title, channel, thumbnail, moving time); playing
+  something here switches back; pausing here keeps this PC until the TV plays; an
+  open queue drawer switches with the card; **Stop** on the TV row removes the TV
+  at once.
+- **TV controls:** play/pause and next act once per click; previous, shuffle and
+  repeat are grey and do nothing; the Playlists tab says YouTube is not supported.
+- **Casts:** **Turn on** reads *Looking*, then *On* or *No TV found*; a Chrome cast
+  reads *Following* within a few seconds; the card follows the TV when it advances
+  on its own; next and play/pause reach the TV; this PC still wins while it plays;
+  stopping the cast restores the normal rules; a second cast session still takes
+  commands; a cast from a phone; the TV app with casts on never reads *Following*;
+  **Turn off** and the two-click **Forget**.
+- **Spectrum drawer:** *Audio is on the TV* while the card shows the TV or a cast.
+- **After an update:** a running worker restarts once on the next player load; one
+  stopped by the user stays stopped.
+- Also unmeasured: the time to find the TV, whether the TV pushes media status
+  (else the card trails by up to 5 s), and whether the Casts row's texts fit at
+  the narrowest layout.
+
+## YouTube up next from this PC (looked into, not built)
+
+For YouTube playing in a browser here the drawer says *YouTube up next is not
+available yet*. Findings from a throwaway Chrome extension and page readings on
+2026-11-27 (one browser, a few cases; the extension is not in this repository):
+
+- The watch page can give the list: the playlist panel's items (playlist, Mix,
+  queue) or the player's Next button (single video, end of a list). The
+  right-hand column is **not** up next, and the panel's position count can differ
+  from the rows listed.
+- **With shuffle on the page's order is wrong**, although the panel, the player's
+  order and the Next button agree with each other. Show no up next then.
+- After a drag in the queue the highlighted row was wrong. Place the list by the
+  playing video, confirmed by the Next button, not by the highlight alone.
+- During a cast the page's list is not what the TV plays.
+- Not checked: background tabs, loop, ads, miniplayer, autoplay off, and detecting
+  shuffle or casting reliably.
+- Delivery to Rainmeter would need the extension and one long-lived local helper
+  writing a bounded snapshot. Candidates: native messaging over one open port (no
+  listening port; needs an `HKCU` registry value, which needs its own consent and
+  removal) or a loopback HTTP/WebSocket helper (no registry; needs an origin check
+  and a token). `sendNativeMessage` starts a process per message and is ruled out.
+  Route and extension distribution are undecided.
+
+## Video cover and cover preview (in development, 2026-11-27)
+
+Two experiments for a moving cover. Both are off by default (`Media.ini`), have no
+settings row and are not release features.
+
+### Live video cover (`MediaVideoCover=1`)
+
+`VideoCover/VideoCover1.inc` asks a `ParallaxVideoCover` plugin to draw a Windows
+(DWM) thumbnail on Media's own window, over the cover: the browser's
+picture-in-picture (PiP) window when open, otherwise the video element inside the
+YouTube web app's window (never an ordinary tab). Two columns, a YouTube player,
+not under Idle pause; `MediaCoverZoom` applies. **No release contains the
+plugin**: without a DLL built from [its source](../../packaging/Plugins/ParallaxVideoCover/README.md),
+the setting only makes Rainmeter log a load failure.
+
+Known limits:
+
+- Opening PiP is manual and its window stays on screen (it can be dragged almost
+  off it). Minimizing PiP sends the video back to the tab and ends it.
+- A minimized source window, or a video more than half scrolled out of view, shows
+  nothing. A paused or still picture does not change.
+- PiP is found by its English window title.
+- The thumbnail is drawn over the skin's content: rounded corners are not clipped,
+  and skin transparency and fading do not apply to it.
+- Protected video reads as black to programs although it can show on screen, so
+  program readings cannot verify it.
+- Watching involves no input, so Idle pause ends the video.
+
+Checked in a separate Rainmeter with a stand-in window and once against the real
+YouTube web app. Untried: the video in the real Media skin, Edge, other languages,
+scaled displays, 32-bit, battery and discrete-GPU effects.
+
+Ruled out: taking YouTube's video data (against its terms), and mirroring a whole
+browser window (it shows other pages after a tab change).
+
+### Cover preview (`MediaCoverPreview=1`)
+
+While a YouTube video plays, `VideoPreview/` cycles three still frames of it
+(`mq1.jpg` to `mq3.jpg` on `i.ytimg.com`, undocumented addresses) over the cover,
+0.6 s each with a 0.25 s fade. The fade needs the fast tick (Title animation on).
+No plugin or capture. A video without those frames keeps its normal cover.
+Untried: pause, a change of video, a video without frames, one column, and load.
+
+Smoother previews (YouTube's animated WebP and storyboard sheets) are only behind
+signed addresses in the page data, so they would need something inside the
+browser. Not built.
 
 ## Validation report
 
@@ -3246,6 +3523,33 @@ none were copied into source, fixtures, screenshots, or package assets.
 The later gear/accordion revision was verified only in isolated native skins.
 Refresh all once in Rainmeter to discover the new settings config, then hover
 the Media header for its gear and click **Queue** or its **List Plus** icon to expand the inline section.
+
+### Whole cover (2026-11-27)
+
+User request, after [looking into mirroring the video](#video-cover-and-cover-preview-in-development-2026-11-27).
+`MeterCover` uses `PreserveAspectRatio=1` (fit) instead of `2` (crop to fill).
+A 16:9 YouTube thumbnail was losing the 44% at its sides; it is now shown whole
+and centered, with the cover placeholder's fill above and below. Square album art
+looks the same as before. The rule is by image shape, not by player, so any other
+non-square art is also shown whole. Queue row covers are unchanged. No new
+dependency.
+
+Checked: `test_skin_contract.py`; Rainmeter's `MeterImage::Draw` source centers a
+fitted image. **Not verified:** the look in a running Rainmeter.
+
+### Cover zoom (2026-11-27)
+
+User request: wide videos leave bars above and below the square cover. Media's
+right-click menu now has **Cover: show the whole picture** (default) and **Cover:
+zoom to fill the square**, which cuts the sides (`MediaCoverZoom` 0 or 1 in
+`User/Media.inc`; the cover's `PreserveAspectRatio` is 1 or 2). Media settings
+also has a **Cover** row (Whole / Zoomed), added at the user's request; it makes
+that panel 28 px taller (954 px expanded, 870 collapsed), already more than some
+small screens. The unfinished video cover follows the same choice. No new
+dependency.
+
+Checked: `test_skin_contract.py`. **Not verified:** the menu and both looks in a
+running Rainmeter.
 
 ## Integration and next checks
 

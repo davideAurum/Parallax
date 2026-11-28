@@ -1,0 +1,57 @@
+-- Developer-only synthetic checks of TvField.lua: one field of Media's player
+-- card for a meter. Mocked skin; made-up values only.
+local Suite = {}
+
+function Suite.run(sourcePath)
+    local passed, cases = 0, {}
+    local function check(condition, message) assert(condition, message); passed = passed + 1 end
+    local function equal(actual, expected, message)
+        check(actual == expected, (message or 'value') .. ': expected ' .. tostring(expected) .. ', got ' .. tostring(actual))
+    end
+    local function scenario(name, body)
+        local before = passed
+        local ok, message = pcall(body)
+        assert(ok, name .. ': ' .. tostring(message))
+        cases[#cases + 1] = name .. ': ' .. (passed - before) .. ' assertions'
+    end
+    local function field(name, packed)
+        local holder = { packed = packed }
+        local skin = {}
+        function skin:GetMeasure(measure)
+            equal(measure, 'MeasureTvCard', 'only the card is read')
+            if holder.packed == false then return nil end
+            return { GetStringValue = function() return holder.packed end }
+        end
+        function skin:Bang() error('a field bangs nothing') end
+        local env = setmetatable({ SKIN = skin, SELF = { GetOption = function(_, option, default)
+            equal(option, 'Field'); return name end } }, { __index = _G })
+        local chunk = assert(loadfile(sourcePath))
+        setfenv(chunk, env)
+        chunk()
+        env.Initialize()
+        return env, holder
+    end
+    local FULL = 'tv\031playing\031A title\031A channel\031C:\\Synthetic\\tv.cover1.jpg\0310:13 / 3:20\0316.50'
+
+    scenario('each field reaches its meter', function()
+        for name, expected in pairs({ screen = 'tv', play = 'playing', title = 'A title', channel = 'A channel',
+            cover = 'C:\\Synthetic\\tv.cover1.jpg', timing = '0:13 / 3:20' }) do
+            equal(field(name, FULL).Update(), expected, name)
+        end
+        equal(field('progress', FULL).Update(), 6.5, 'progress is a number')
+        local env, holder = field('title', FULL)
+        holder.packed = 'pc\031\031\031\031\031\0310'
+        equal(env.Update(), '', 'on this PC every TV field is empty')
+    end)
+
+    scenario('nothing odd leaks through', function()
+        equal(field('title', false).Update(), '', 'no card measure')
+        equal(field('timing', 'tv\031playing').Update(), '', 'a short value')
+        equal(field('progress', 'tv\031\031\031\031\031\031abc').Update(), 0, 'a progress that is no number')
+        equal(field('progress', 'tv\031\031\031\031\031\031250').Update(), 100, 'never past 100')
+        equal(field('nonsense', FULL).Update(), '', 'an unknown field name')
+    end)
+    return passed, cases
+end
+
+return Suite

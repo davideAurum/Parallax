@@ -105,10 +105,11 @@ function Invoke-Layout([string]$ColumnCount) {
     $sourceSnapshot = Join-Path $dataRoot 'Source\source.snapshot'
     $queueSnapshot = Join-Path $dataRoot 'Spotify\queue.snapshot'
     Write-TestFile (Join-Path $parallax '@Resources\Modules\Media\ProviderControlFixture.lua') "function Update() return 1 end`nfunction Run() end`n"
+    foreach($stub in 'VideoCover\VideoCover1.inc','VideoPreview\VideoPreview1.inc') { [IO.File]::WriteAllText((Join-Path $parallax ('@Resources\Modules\Media\' + $stub)), "; Fixture: off.`n") }
     Write-TestFile (Join-Path $parallax '@Resources\Modules\Media\AlbumColors1.inc') "; Fixture: album colors off (no plugin in fixtures).`n"
     foreach ($entryFile in Get-ChildItem -LiteralPath $parallax -Recurse -File | Where-Object { $_.Extension -in @('.ini', '.inc') }) {
         $text = [IO.File]::ReadAllText($entryFile.FullName); $updated = $text
-        foreach ($name in @('MeasureMediaSourceResume', 'MeasureMediaQueueResume', 'MeasureQueueProviderControl')) {
+        foreach ($name in @('MeasureMediaSourceResume', 'MeasureMediaQueueResume', 'MeasureMediaTvResume', 'MeasureQueueProviderControl')) {
             $updated = [regex]::Replace($updated, '(?ms)^\[' + $name + '\]\r?\n.*?(?=^\[|\z)', "[$name]`nMeasure=Script`nScriptFile=#@#Modules\Media\ProviderControlFixture.lua`nUpdateDivider=-1`n`n")
         }
         foreach ($reader in @(@('Queue\QueueReader.lua', "QueueCachePath=$queueSnapshot"), @('Source\SourceReader.lua', "SourceCachePath=$sourceSnapshot"))) {

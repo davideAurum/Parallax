@@ -1,0 +1,88 @@
+-- Developer-only synthetic checks of the TV worker's resume on Media load
+-- (MediaLifecycle.lua). Mocked skin, environment and files; nothing runs.
+local Suite = {}
+
+function Suite.run(sourcePath)
+    local passed, cases = 0, {}
+    local function check(condition, message) assert(condition, message); passed = passed + 1 end
+    local function equal(actual, expected, message)
+        check(actual == expected, (message or 'value') .. ': expected ' .. tostring(expected) .. ', got ' .. tostring(actual))
+    end
+    local function scenario(name, body)
+        local before = passed
+        local ok, message = pcall(body)
+        assert(ok, name .. ': ' .. tostring(message))
+        cases[#cases + 1] = name .. ': ' .. (passed - before) .. ' assertions'
+    end
+    local LOCAL, ROAMING = 'C:\\Fixture\\Local', 'C:\\Fixture\\Roaming'
+    local RESOURCES = 'C:\\Fixture\\Skins\\Parallax\\@Resources\\'
+    local TV = LOCAL .. '\\Parallax\\Media\\YouTube\\'
+    local MARKER = 'PARALLAX_TV_INTENT_V1|1\n'
+    local function fixture(options)
+        options = options or {}
+        local f = { files = options.files or {}, bangs = {}, runs = {}, opened = {} }
+        local skin = {}
+        function skin:GetVariable(name, fallback)
+            local values = { ['@'] = RESOURCES, CURRENTFILE = options.config or 'Media.ini', QueuePollSeconds = '30',
+                SETTINGSPATH = ROAMING .. '\\Rainmeter\\' }
+            local value = values[name]
+            return value == nil and fallback or value
+        end
+        if not options.noGetMeasure then
+            function skin:GetMeasure(name)
+                equal(name, 'MeasureMediaTvResume', 'only the TV host is looked up')
+                return options.host and {} or nil
+            end
+        end
+        function skin:Bang(...)
+            local a = { ... }
+            f.bangs[#f.bangs + 1] = a
+            check(a[2] == 'MeasureMediaTvResume', 'only the TV host is used here: ' .. tostring(a[2]))
+            if a[1] == '!SetOption' then f[a[3]] = a[4] elseif a[1] == '!CommandMeasure' then f.runs[#f.runs + 1] = a[3] end
+        end
+        local function open(path, mode)
+            equal(mode, 'rb')
+            f.opened[path] = true
+            local content = f.files[path]
+            if content == nil then return nil, 'missing', 2 end
+            return { read = function(_, n) check(n == 32, 'bounded read'); return content:sub(1, n) end, close = function() return true end }
+        end
+        local env = setmetatable({ SKIN = skin, io = { open = open }, os = {
+            getenv = function(name) return ({ LOCALAPPDATA = LOCAL, SystemRoot = 'C:\\Windows', APPDATA = ROAMING })[name] end,
+            time = function() return 1800000000 end, clock = function() return 1 end } }, { __index = _G })
+        local chunk = assert(loadfile(sourcePath)); setfenv(chunk, env); chunk()
+        env.Initialize()
+        env.ResumeProviders()
+        return f
+    end
+
+    scenario('a started TV worker resumes on Media load through its own hidden host', function()
+        local f = fixture({ host = true, files = { [TV .. 'enabled.intent'] = MARKER } })
+        equal(#f.runs, 1); equal(f.runs[1], 'Run')
+        equal(f.Program, 'C:\\Windows\\System32\\WindowsPowerShell\\v1.0\\powershell.exe')
+        equal(f.Parameter, '-NoLogo -NoProfile -NonInteractive -ExecutionPolicy Bypass -WindowStyle Hidden -File "'
+            .. RESOURCES .. 'Modules\\Media\\TvQueue\\TvProvider.ps1" -Command "Resume" -Quiet')
+        equal(f.bangs[3][1], '!UpdateMeasure', 'the host re-reads its options before it runs')
+    end)
+
+    scenario('nothing resumes the TV otherwise', function()
+        local cases = {
+            { 'no host declared', { files = { [TV .. 'enabled.intent'] = MARKER } } },
+            { 'a skin without GetMeasure (older test hosts)', { noGetMeasure = true, files = { [TV .. 'enabled.intent'] = MARKER } } },
+            { 'no intent', { host = true } },
+            { "Spotify's marker is not the TV's", { host = true, files = { [TV .. 'enabled.intent'] = 'PARALLAX_AUTOSTART_V1|1\n' } } },
+            { 'intent off', { host = true, files = { [TV .. 'enabled.intent'] = 'PARALLAX_TV_INTENT_V1|0\n' } } },
+            { 'Stop barrier', { host = true, files = { [TV .. 'enabled.intent'] = MARKER, [TV .. 'stop.request'] = 'stop\n' } } },
+            { 'Setup.ini', { host = true, config = 'Setup.ini', files = { [TV .. 'enabled.intent'] = MARKER } } },
+        }
+        for _, case in ipairs(cases) do
+            local f = fixture(case[2])
+            equal(#f.runs, 0, case[1])
+        end
+        local f = fixture({ files = { [TV .. 'enabled.intent'] = MARKER } })
+        equal(f.opened[TV .. 'enabled.intent'], nil, 'without the host the TV folder is not even read')
+    end)
+    return passed, cases
+end
+
+return Suite

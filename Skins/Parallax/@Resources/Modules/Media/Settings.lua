@@ -5,7 +5,8 @@
 local settingsPath, values, status, restartPending, layoutExpanded
 local editingRequest, settingsRevision, providerLaunched
 local defaults = { Columns = '1', QueueExpanded = '0', QueueRowLimit = '5', QueueShowDetails = '1', QueuePollSeconds = '30',
-    VisualizerDrawer = '1', VisualizerPlacement = '0', MediaTitleAnimation = '20', QueueRowSize = '1', MediaAlbumColors = '1', MediaAlbumTint = '10' }
+    VisualizerDrawer = '1', VisualizerPlacement = '0', MediaTitleAnimation = '20', QueueRowSize = '1', MediaAlbumColors = '1', MediaAlbumTint = '10',
+    MediaCoverZoom = '0' }
 local allowed = {
     QueueExpanded = { '0', '1' }, QueueShowDetails = { '0', '1' },
     VisualizerDrawer = { '0', '1', '2' },
@@ -17,15 +18,19 @@ local allowed = {
     QueueRowSize = { '1', '0' },
     -- Album colors: the current cover recolors the player (1), also sliding its
     -- text gradient while a track plays (2), or not (0).
-    MediaAlbumColors = { '0', '1', '2' }
+    MediaAlbumColors = { '0', '1', '2' },
+    -- The cover: the whole picture (0) or zoomed to fill the square (1).
+    MediaCoverZoom = { '0', '1' }
 }
 local drawerNames = { ['0'] = 'Hidden', ['1'] = 'Collapsed', ['2'] = 'Expanded' }
 local placementNames = { ['0'] = 'Bottom', ['1'] = 'Top' }
 local animationNames = { ['0'] = 'Off', ['10'] = '10 fps', ['20'] = '20 fps' }
 local rowSizeNames = { ['1'] = 'Normal', ['0'] = 'Compact' }
 local albumNames = { ['0'] = 'Off', ['1'] = 'On', ['2'] = 'On + slide' }
+local zoomNames = { ['0'] = 'Whole', ['1'] = 'Zoomed' }
 -- Wrapping previous/value/next choices (UTILITY-SETTINGS.md).
-local choiceKeys = { VisualizerDrawer = true, VisualizerPlacement = true, MediaTitleAnimation = true, QueueRowSize = true, MediaAlbumColors = true }
+local choiceKeys = { VisualizerDrawer = true, VisualizerPlacement = true, MediaTitleAnimation = true, QueueRowSize = true, MediaAlbumColors = true,
+    MediaCoverZoom = true }
 local numberFields = {
     Columns = { minimum = 1, maximum = 2, meter = 'MeterWidthFrame' },
     QueueRowLimit = { minimum = 1, maximum = 5, meter = 'MeterQueueRowsFrame' },
@@ -131,6 +136,8 @@ local function current(key)
     end
     -- Show what Media loads: only a literal 1 or 2 names an include with colors.
     if key == 'MediaAlbumColors' and not accepted(key, value) then return '0' end
+    -- Show what Media lays out: only a number equal to 1 zooms.
+    if key == 'MediaCoverZoom' then return tonumber(value) == 1 and '1' or '0' end
     if key == 'MediaTitleAnimation' and not accepted(key, value) then
         local number = tonumber(value)
         if number == nil or number == 0 then return '0' end
@@ -147,7 +154,7 @@ local function renderLayout()
     if layoutExpanded == expanded then return end
     layoutExpanded = expanded
     local collapsedHeight = (1 - expanded) * 84
-    local settingsHeight = 926 - collapsedHeight
+    local settingsHeight = 954 - collapsedHeight
     -- Rainmeter expands nested variable references at load, so rebuild both
     -- physical heights instead of retaining the initial collapsed expression.
     local heightPx = SKIN:ParseFormula(SKIN:ReplaceVariables('(Round(' .. settingsHeight .. '*#Scale#))'))
@@ -156,7 +163,7 @@ local function renderLayout()
     SKIN:Bang('!SetVariable', 'MediaSettingsQueueCollapsedHeight', collapsedHeight)
     SKIN:Bang('!SetVariable', 'SettingsPanelHeight', settingsHeight)
     -- The shared Spectrum steppers sit below the queue rows.
-    SKIN:Bang('!SetVariable', 'VisualizerSettingsTop', 312 - collapsedHeight)
+    SKIN:Bang('!SetVariable', 'VisualizerSettingsTop', 340 - collapsedHeight)
     SKIN:Bang('!SetVariable', 'PanelHeightPx', heightPx)
     SKIN:Bang('!SetVariable', 'WindowHeight', heightPx + gap)
 end
@@ -169,6 +176,7 @@ function Render()
     option('MeterTitleAnimationValue', animationNames[current('MediaTitleAnimation')])
     option('MeterAlbumColorsValue', albumNames[current('MediaAlbumColors')])
     option('MeterAlbumTintValue', current('MediaAlbumTint'))
+    option('MeterCoverZoomValue', zoomNames[current('MediaCoverZoom')])
     option('MeterQueueRowSizeValue', rowSizeNames[current('QueueRowSize')])
     option('MeterQueueExpandedValue', current('QueueExpanded') == '1' and 'Expanded' or 'Collapsed')
     option('MeterQueueRowsValue', current('QueueRowLimit'))

@@ -17,7 +17,7 @@ function suite.run(sourcePath)
         local values = {
             MeasureConnection = { value = 1 }, MeasurePlayer = { text = 'Spotify' },
             MeasureMediaSource = { text = 'Spotify' }, MeasureTitle = { text = 'Synthetic fixture title' },
-            MeasureState = { value = 1 }
+            MeasureState = { value = 1 }, MeasureTvCard = false
         }
         for name, value in pairs(overrides or {}) do values[name] = value end
         local calls = 0
@@ -243,6 +243,16 @@ function suite.run(sourcePath)
         f.expect('Spotify')
     end)
 
+    scenario('the card on the TV says TV', function()
+        local f = fixture({ MeasureTvCard = { text = 'tv\031playing\031T\031C\031\031\0310' }, MeasureState = { value = 2 } })
+        check(f.env.Update() == 'Media Player: TV', 'a TV the card shows')
+        f.values.MeasureTvCard.text = 'tv\031paused\031T\031C\031\031\0310'
+        check(f.env.Update() == 'Media Player: TV paused', 'paused on the TV')
+        f.values.MeasureTvCard.text = 'pc\031\031\031\031\031\0310'
+        check(f.env.Update() == 'Media Player: paused', 'back on this PC: its own state')
+        local compact = fixture({ MeasureTvCard = { text = 'tv\031playing\031T\031C\031\031\0310' } }, '1')
+        check(compact.env.Update() == 'Media: TV', 'the compact label too')
+    end)
     return passed, cases
 end
 

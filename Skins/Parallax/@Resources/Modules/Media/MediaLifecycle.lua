@@ -91,4 +91,26 @@ function ResumeProviders()
     local interval = type(raw) == 'string' and raw:match('^%d+$') and tonumber(raw) or nil
     if not interval or interval < 30 or interval > 150 then interval = 30 end
     resume('Spotify', 'MeasureMediaQueueResume', 'Queue\\QueueProvider.ps1', string.format('%d', interval))
+    -- The TV queue worker (TvQueue), from Media.ini only and only where the view
+    -- declares its own inert host, MeasureMediaTvResume. Its intent file has its
+    -- own marker; the worker checks the pairing, stop barrier and intent again.
+    if config == 'Media.ini' then
+        local found, host = pcall(function() return SKIN:GetMeasure('MeasureMediaTvResume') end)
+        if found and host then
+            local folder = localRoot .. 'YouTube\\'
+            local ok, file = pcall(io.open, folder .. 'enabled.intent', 'rb')
+            if not ok or not file then return end
+            local readOK, content = pcall(file.read, file, 32)
+            pcall(file.close, file)
+            if not readOK or content ~= 'PARALLAX_TV_INTENT_V1|1\n' then return end
+            local stopOK, stop, _, code = pcall(io.open, folder .. 'stop.request', 'rb')
+            if stop then pcall(stop.close, stop) end
+            if not stopOK or stop or code ~= 2 then return end
+            SKIN:Bang('!SetOption', 'MeasureMediaTvResume', 'Program', program)
+            SKIN:Bang('!SetOption', 'MeasureMediaTvResume', 'Parameter', '-NoLogo -NoProfile -NonInteractive -ExecutionPolicy Bypass -WindowStyle Hidden -File "'
+                .. resources .. 'TvQueue\\TvProvider.ps1" -Command "Resume" -Quiet')
+            SKIN:Bang('!UpdateMeasure', 'MeasureMediaTvResume')
+            SKIN:Bang('!CommandMeasure', 'MeasureMediaTvResume', 'Run')
+        end
+    end
 end

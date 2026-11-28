@@ -57,6 +57,11 @@ local function self() return SELF:GetName() end
 -- probe meter has been laid out.
 function Apply()
     state = common.stateFor(common.parseStatus(readFile(resources() .. 'Dev\\Status.inc')), MODULE)
+    -- A title fed by a measure can change while the skin runs (Media names its
+    -- source), so that measure asks for a new placement when its value changes.
+    if TITLE_MEASURE ~= '' then
+        SKIN:Bang('!SetOption', TITLE_MEASURE, 'OnChangeAction', '[!CommandMeasure ' .. self() .. ' "Apply()"]')
+    end
     SKIN:Bang('!SetOption', PROBE, 'Text', titleText())
     SKIN:Bang('!UpdateMeter', PROBE)
     SKIN:Bang('[!Delay 40][!CommandMeasure ' .. self() .. ' "Place()"]')

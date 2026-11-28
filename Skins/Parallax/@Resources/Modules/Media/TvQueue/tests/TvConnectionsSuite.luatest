@@ -1,0 +1,133 @@
+-- Developer-only synthetic checks of Connections' TV row (TvConnections.lua). The
+-- controller runs against a mocked skin, clock, environment and file system;
+-- nothing real is read, started or changed.
+local Suite = {}
+
+function Suite.run(sourcePath)
+    local passed, cases = 0, {}
+    local function check(condition, message) assert(condition, message); passed = passed + 1 end
+    local function equal(actual, expected, message)
+        check(actual == expected, (message or 'value') .. ': expected ' .. tostring(expected) .. ', got ' .. tostring(actual))
+    end
+    local function scenario(name, body)
+        local before = passed
+        local ok, message = pcall(body)
+        assert(ok, name .. ': ' .. tostring(message))
+        cases[#cases + 1] = name .. ': ' .. (passed - before) .. ' assertions'
+    end
+    local ROOT = 'C:\\Users\\Synthetic\\AppData\\Local\\Parallax\\Media\\YouTube\\'
+    local PAIRING, SNAPSHOT = ROOT .. 'pairing.dpapi', ROOT .. 'tv.snapshot'
+    local TARGETS = { MeterTvState = true, MeterTvDetail = true, MeterTvPair = true, MeterTvSwitch = true, MeterTvForget = true }
+    local function snap(state, validUntil)
+        return 'PARALLAX_TV_V1\nstate=' .. state .. '\nobserved=0\nvalid_until=' .. validUntil .. '\nretry_at=0\nplay=\n'
+            .. 'position_ms=0\nposition_at_ms=0\nduration_ms=0\nupnext=\nlist=\ntotal=0\ncount=0\nnotice=\ncurrent_title=\n'
+    end
+    local function fixture(files, options)
+        options = options or {}
+        local f = { files = files or {}, text = {}, color = {}, shown = {}, opened = {}, runs = 0, params = {}, time = 100000 }
+        local skin = {}
+        function skin:GetVariable(_, default) return default end
+        function skin:GetMeasure(name)
+            equal(name, 'MeasureTvControl', 'only the TV host is looked up')
+            return {}
+        end
+        function skin:Bang(bang, ...)
+            local a = { ... }
+            if bang == '!SetOption' then
+                if a[1] == 'MeasureTvControl' then
+                    equal(a[2], 'Parameter', 'only the command line is set')
+                    check(a[3]:match('^%-NoLogo %-NoProfile %-NonInteractive %-WindowStyle Hidden %-ExecutionPolicy Bypass %-File "TvProvider%.ps1" %-Command "(%a+)" %-Quiet$') ~= nil, 'one fixed command line')
+                    f.params[#f.params + 1] = a[3]:match('%-Command "(%a+)"')
+                else
+                    check(TARGETS[a[1]], 'unexpected target ' .. tostring(a[1]))
+                    check(not a[3]:find('[%[%]"%%\r\n]'), 'fixed text only')
+                    if a[2] == 'Text' then f.text[a[1]] = a[3] else equal(a[2], 'FontColor'); f.color[a[1]] = a[3] end
+                end
+            elseif bang == '!ShowMeter' or bang == '!HideMeter' then
+                check(a[1] == 'MeterTvSwitch' or a[1] == 'MeterTvForget', 'only Start/Stop and Forget come and go')
+                f.shown[a[1]] = bang == '!ShowMeter'
+            elseif bang == '!UpdateMeasure' then equal(a[1], 'MeasureTvControl')
+            elseif bang == '!CommandMeasure' then
+                check(a[1] == 'MeasureTvControl' and a[2] == 'Run', 'only the TV host runs'); f.runs = f.runs + 1
+            elseif bang == '!UpdateMeterGroup' then equal(a[1], 'TvConnectionsData')
+            elseif bang == '!SetVariable' then equal(a[1], 'TvCommandBusyUntil', 'only the TV busy time is published')
+            elseif bang == '!Redraw' then
+            else error('unexpected bang ' .. tostring(bang)) end
+        end
+        local function open(name, mode)
+            equal(mode, 'rb', 'never opened for writing')
+            check(name == PAIRING or name == SNAPSHOT, 'only the pairing file and snapshot: ' .. tostring(name))
+            f.opened[name] = (f.opened[name] or 0) + 1
+            local content = f.files[name]
+            if content == nil then return nil, name .. ': No such file or directory', 2 end
+            return { read = function(_, count)
+                check(name ~= PAIRING, 'the pairing file is never read')
+                check(count <= 512, 'only the header is read')
+                return content:sub(1, count)
+            end, close = function() return true end }
+        end
+        local env = setmetatable({ SKIN = skin, io = { open = open }, os = { time = function() return f.time end,
+            getenv = function(key) equal(key, 'LOCALAPPDATA'); if options.noLocal then return nil end; return 'C:\\Users\\Synthetic\\AppData\\Local' end } },
+            { __index = _G })
+        local chunk = assert(loadfile(sourcePath))
+        setfenv(chunk, env)
+        chunk()
+        f.env = env
+        env.Initialize()
+        env.Update()
+        return f
+    end
+
+    scenario('states', function()
+        local f = fixture({}, { noLocal = true })
+        equal(f.text.MeterTvState, 'Unknown')
+        f = fixture({})
+        equal(f.text.MeterTvState, 'Not paired'); equal(f.text.MeterTvPair, 'Pair')
+        equal(f.shown.MeterTvSwitch, false); equal(f.shown.MeterTvForget, false)
+        f = fixture({ [PAIRING] = 'opaque' })
+        equal(f.text.MeterTvState, 'Paired'); equal(f.text.MeterTvDetail, 'The TV worker is off. Start reads the TV.')
+        equal(f.text.MeterTvSwitch, 'Start'); equal(f.shown.MeterTvSwitch, true); equal(f.text.MeterTvPair, 'Pair again')
+        local expected = { ready = { 'Connected', '#GoodColor#' }, no_screen = { 'TV app closed', '#MutedColor#' },
+            connecting = { 'Connecting', '#MutedColor#' }, offline = { 'Offline', '#MutedColor#' }, error = { 'Unavailable', '#WarningColor#' } }
+        for state, want in pairs(expected) do
+            f = fixture({ [PAIRING] = 'opaque', [SNAPSHOT] = snap(state, 100100) })
+            equal(f.text.MeterTvState, want[1], state); equal(f.color.MeterTvState, want[2], state .. ' tone')
+            equal(f.text.MeterTvSwitch, 'Stop', state .. ': a running worker offers Stop')
+            f.time = 100200; f.env.Update()
+            equal(f.text.MeterTvState, 'Paired', state .. ' past valid_until: not running'); equal(f.text.MeterTvSwitch, 'Start')
+        end
+        f = fixture({ [PAIRING] = 'opaque', [SNAPSHOT] = snap('pair_again', 0) })
+        equal(f.text.MeterTvState, 'Pair again'); equal(f.color.MeterTvState, '#WarningColor#')
+        f = fixture({ [PAIRING] = 'opaque', [SNAPSHOT] = snap('stopped', 0) })
+        equal(f.text.MeterTvState, 'Paired')
+        f = fixture({ [PAIRING] = 'opaque', [SNAPSHOT] = 'garbage\n' })
+        equal(f.text.MeterTvState, 'Paired', 'an unreadable snapshot is not a state')
+        f = fixture({ [SNAPSHOT] = snap('ready', 100100) })
+        equal(f.text.MeterTvState, 'Not paired', 'without a pairing file nothing else counts')
+    end)
+
+    scenario('Start, Stop and Forget run the worker once each', function()
+        local f = fixture({ [PAIRING] = 'opaque' })
+        equal(f.env.Switch(), true); equal(f.params[1], 'Start'); equal(f.runs, 1)
+        equal(f.text.MeterTvDetail, 'Starting the TV worker...')
+        equal(f.env.Switch(), false, 'no second command while one runs'); equal(f.runs, 1)
+        equal(f.text.MeterTvDetail, 'The last TV command is still running.')
+        f.env.CommandFinished()
+        f.files[SNAPSHOT] = snap('ready', 100100); f.env.Update()
+        equal(f.env.Switch(), true); equal(f.params[2], 'Stop')
+        f.env.CommandFinished()
+        equal(f.env.Forget(), false, 'the first Forget click asks'); equal(f.runs, 2)
+        equal(f.text.MeterTvForget, 'Forget?'); equal(f.text.MeterTvDetail, 'Click Forget again to remove the TV pairing.')
+        f.time = f.time + 9; f.env.Update()
+        equal(f.text.MeterTvForget, 'Forget', 'the question times out')
+        f.env.Forget()
+        equal(f.env.Forget(), true, 'the second click acts'); equal(f.params[3], 'Forget'); equal(f.runs, 3)
+        local empty = fixture({})
+        equal(empty.env.Switch(), false); equal(empty.env.Forget(), false); equal(empty.runs, 0, 'nothing runs without a pairing')
+        empty.env.PairOpened()
+        check(empty.text.MeterTvDetail:find('Link with TV code', 1, true) ~= nil, 'Pair says where the code is')
+    end)
+    return passed, cases
+end
+
+return Suite

@@ -69,6 +69,10 @@ def shipped_sources(*suffixes):
 # Parameter or StartInFolder, so loading a view still launches nothing: only a
 # validated MediaLifecycle.ResumeProviders() supplies a command and runs them.
 RESUME_HOSTS = ('MeasureMediaSourceResume', 'MeasureMediaQueueResume')
+# The TV queue worker's resume host: declared by Media.ini itself, in no other
+# view, ahead of the includes.
+TV_RESUME_HOST = 'MeasureMediaTvResume'
+MEDIA_RESUME_HOSTS = (TV_RESUME_HOST,) + RESUME_HOSTS
 RESUME_HOST_OPTIONS = {'Measure': 'Plugin', 'Plugin': 'RunCommand', 'State': 'Hide',
                        'OutputType': 'UTF8', 'Timeout': '15000', 'UpdateDivider': '-1',
                        'DynamicVariables': '1'}
@@ -1335,6 +1339,56 @@ class SkinContractTests(unittest.TestCase):
         self.assertEqual(numeric(expand(sections['Rainmeter']['Update'])),1000)
         self.assertNotIn('MeasureAlbumSlide',sections)
 
+    def test_cover_zoom_is_a_menu_choice_that_defaults_to_whole(self):
+        entry=[line for line in source_lines(ROOT/'Media'/'Media.ini') if not line.startswith(';')]
+        first_include=next(i for i,line in enumerate(entry) if line.startswith('@Include'))
+        self.assertLess(entry.index('MediaCoverZoom=0'),first_include)
+        self.assertIn('MediaCoverZoom=0',source_lines(RESOURCES/'User'/'Media.inc'))
+        for number,value in ((7,'0'),(8,'1')):
+            action=next(line for line in entry if line.startswith(f'ContextAction{number}='))
+            self.assertIn(f'"MediaCoverZoom" "{value}" "#@#User\\Media.inc"][!Refresh]',action)
+        meters=source_lines(RESOURCES/'Modules'/'Media'/'PlayerMeters.inc')
+        self.assertIn('PreserveAspectRatio=(1+#MediaCoverZoom#)',meters)
+
+    def test_video_cover_plugin_loads_only_when_on(self):
+        # MediaVideoCover=0 (shipped) loads nothing; 1 loads the plugin measure in
+        # the player only, paused by Idle pause, with a backing meter that stays
+        # hidden until the plugin reports a picture.
+        entry=[line for line in source_lines(ROOT/'Media'/'Media.ini') if not line.startswith(';')]
+        self.assertIn('MediaVideoCover=0',entry)
+        self.assertLess(entry.index('MediaVideoCover=0'),next(i for i,line in enumerate(entry) if line.startswith('@Include')))
+        include='@Include25=#@#Modules\\Media\\VideoCover\\VideoCover#MediaVideoCover#.inc'
+        self.assertIn(include,entry)
+        self.assertNotIn(include,source_lines(ROOT/'Media'/'Setup.ini'))
+        folder=RESOURCES/'Modules'/'Media'/'VideoCover'
+        off=[line for line in source_lines(folder/'VideoCover0.inc') if line.strip() and not line.startswith(';')]
+        self.assertEqual(off,[])
+        on=source_lines(folder/'VideoCover1.inc')
+        for line in ('[MeasureVideoCover]','Plugin=ParallaxVideoCover','Group=ParallaxIdlePause',
+                     'UpdateDivider=1','AllowPlayer=YouTube','Zoom=#MediaCoverZoom#',
+                     '[MeterVideoCoverBack]','Hidden=1'):
+            self.assertIn(line,on)
+
+    def test_cover_preview_loads_only_when_on(self):
+        # MediaCoverPreview=0 (shipped) requests nothing; 1 adds three downloads
+        # that stay off until a video is named, and one hidden image in the mask.
+        entry=[line for line in source_lines(ROOT/'Media'/'Media.ini') if not line.startswith(';')]
+        self.assertIn('MediaCoverPreview=0',entry)
+        include='@Include26=#@#Modules\\Media\\VideoPreview\\VideoPreview#MediaCoverPreview#.inc'
+        self.assertIn(include,entry)
+        self.assertNotIn(include,source_lines(ROOT/'Media'/'Setup.ini'))
+        folder=RESOURCES/'Modules'/'Media'/'VideoPreview'
+        off=[line for line in source_lines(folder/'VideoPreview0.inc') if line.strip() and not line.startswith(';')]
+        self.assertEqual(off,[])
+        on=source_lines(folder/'VideoPreview1.inc')
+        self.assertEqual(on.count('Disabled=1'),3)
+        self.assertEqual(on.count('Measure=WebParser'),3)
+        for line in ('PlayerType=CoverWebAddress','[MeterCoverPreview]','[MeterCoverPreviewNext]','ImageAlpha=0',
+                     'Container=MeterCoverMask','Hidden=1','UpdateDivider=-1','UpdateDivider=1'):
+            self.assertIn(line,on)
+        script=(folder/'VideoPreview.lua').read_text(encoding='utf-8')
+        self.assertIn("'https://i.ytimg.com/vi/' .. id .. '/mq' .. frame .. '.jpg'",script)
+
     def test_geometry_names_the_content_right_edge_once(self):
         # ContentX+ContentWidth cancels to MediaContentRight. Rainmeter stores
         # variables fully expanded, so the long form multiplied Media's load
@@ -1445,9 +1499,9 @@ class SkinContractTests(unittest.TestCase):
                                 self.assertTrue(meter_bounds(panel,val).inside(window))
                                 self.assertTrue(meter_bounds(rule,val).inside(window))
 
-    def assert_inert_resume_hosts(self, sections):
+    def assert_inert_resume_hosts(self, sections, hosts=RESUME_HOSTS):
         """The hosts may hide a launch, but must not be able to start one."""
-        for name in RESUME_HOSTS:
+        for name in hosts:
             host = sections[name]
             self.assertEqual({key: host.get(key) for key in RESUME_HOST_OPTIONS}, RESUME_HOST_OPTIONS)
             for option in RESUME_HOST_FORBIDDEN:
@@ -1477,11 +1531,15 @@ class SkinContractTests(unittest.TestCase):
             self.assertEqual(expand(sections['Rainmeter']['OnRefreshAction']),
                              '[!CommandMeasure MeasureMediaLifecycle "ResumeProviders()"]')
             self.assertEqual(sections['MeasureMediaLifecycle']['UpdateDivider'], '-1')
-            self.assert_inert_resume_hosts(sections)
+            if config == 'Media.ini':
+                self.assert_inert_resume_hosts(sections, MEDIA_RESUME_HOSTS)
+            else:
+                self.assert_inert_resume_hosts(sections)
+                self.assertNotIn(TV_RESUME_HOST, sections)
         sections, _, _, _ = read_config('Settings/Settings.ini')
         self.assertNotIn('MeasureMediaLifecycle', sections)
         self.assertNotIn('ResumeProviders', str(sections))
-        for host in RESUME_HOSTS:
+        for host in MEDIA_RESUME_HOSTS:
             self.assertNotIn(host, sections)
 
     def test_plugin_types_commands_and_script_order(self):
@@ -1577,10 +1635,12 @@ class SkinContractTests(unittest.TestCase):
                 self.assertEqual(sections['MeterMediaOptions']['Hidden'], '1')
                 self.assertEqual(sections['MeterMediaOptions']['LeftMouseUpAction'],
                                  '[!ActivateConfig "Parallax\\Media\\Settings" "Settings.ini"]')
-            # Every lifecycle view owns the two inert hidden hosts. They are the
-            # only RunCommand named here without a command: the launch itself
-            # still comes from a validated resume, never from the skin file.
-            lifecycle_allowed = {(host, 'Plugin'): 'RunCommand' for host in RESUME_HOSTS}
+            # Every lifecycle view owns the two inert hidden hosts, and Media.ini
+            # the TV's too. They are the only RunCommand named here without a
+            # command: the launch itself still comes from a validated resume,
+            # never from the skin file.
+            hosts = MEDIA_RESUME_HOSTS if name == 'Media.ini' else RESUME_HOSTS
+            lifecycle_allowed = {(host, 'Plugin'): 'RunCommand' for host in hosts}
             allowed = dict(settings_allowed) if name == 'Settings/Settings.ini' else dict(lifecycle_allowed)
             if name == 'Queue/Queue.ini':
                 allowed.update(queue_allowed)
@@ -1656,8 +1716,9 @@ class SkinContractTests(unittest.TestCase):
         # The Spectrum drawer row added 28 to both heights (554/498 before);
         # the shared Spectrum steppers then added 204 (582/526 before), and the
         # Title animation row another 28 (786/730 before), then Album colors,
-        # Album tint and the queue's Row size row 84 more (842/758 before).
-        self.assertEqual(numeric(expand('#SettingsPanelHeight#')),842)
+        # Album tint and the queue's Row size row 84 more (842/758 before), and
+        # the Cover row 28 more.
+        self.assertEqual(numeric(expand('#SettingsPanelHeight#')),870)
         self.assertEqual(sections['Variables']['VisualizerDrawer'],'1')
         # Entrypoint fallback for preserved files without the key.
         self.assertEqual(sections['Variables']['MediaTitleAnimation'],'20')
@@ -1722,8 +1783,8 @@ class SkinContractTests(unittest.TestCase):
         # Settings.lua rebuilds the same heights at runtime and owns the cycle.
         # Static text checks only; MediaSettingsSuite.luatest runs the script.
         controller=(RESOURCES/'Modules'/'Media'/'Settings.lua').read_text(encoding='ascii')
-        self.assertIn('local settingsHeight = 926 - collapsedHeight',controller)
-        self.assertIn("SKIN:Bang('!SetVariable', 'VisualizerSettingsTop', 312 - collapsedHeight)",controller)
+        self.assertIn('local settingsHeight = 954 - collapsedHeight',controller)
+        self.assertIn("SKIN:Bang('!SetVariable', 'VisualizerSettingsTop', 340 - collapsedHeight)",controller)
         self.assertIn("MediaTitleAnimation = { '0', '10', '20' }",controller)
         self.assertIn("animationNames = { ['0'] = 'Off', ['10'] = '10 fps', ['20'] = '20 fps' }",controller)
         self.assertIn("MediaTitleAnimation = '20'",controller)
@@ -1743,7 +1804,7 @@ class SkinContractTests(unittest.TestCase):
                             box=lambda name:meter_bounds(resolve_style(sections,name),val)
                             panel=Bounds(val('#Inset#'),val('#Inset#'),val('#WindowWidth#')-val('#Inset#'),val('#WindowHeight#')-val('#Inset#'))
                             shift=0 if expanded else 84
-                            self.assertEqual(val('#WindowHeight#'),math.floor((926-shift)*scale+0.5)+val('#Gap#'))
+                            self.assertEqual(val('#WindowHeight#'),math.floor((954-shift)*scale+0.5)+val('#Gap#'))
                             self.assertEqual(variables['Columns'],str(columns))
                             self.assertEqual(variables['PanelHeight'],'162')
                             for name,section in sections.items():
@@ -1754,16 +1815,17 @@ class SkinContractTests(unittest.TestCase):
                             # Album colors and Album tint (2026-11-19) then took
                             # the next two slots and Row size joined the queue rows.
                             for stem,y in [('Width',100),('VisualizerDrawer',128),('VisualizerPlacement',156),
-                                           ('TitleAnimation',184),('AlbumColors',212),('AlbumTint',240),('QueueExpanded',268),
-                                           ('QueueRows',296),('QueueDetails',324),('QueueRowSize',352),('QueuePoll',616)]:
+                                           ('TitleAnimation',184),('AlbumColors',212),('AlbumTint',240),('CoverZoom',268),
+                                           ('QueueExpanded',296),('QueueRows',324),('QueueDetails',352),('QueueRowSize',380),
+                                           ('QueuePoll',644)]:
                                 label,value='Meter'+stem+'Label','Meter'+stem+'Value'
                                 numeric_field=stem in ('Width','QueueRows','QueuePoll','AlbumTint')
                                 # Number fields and the categorical choices share the
                                 # previous/value/next group; the drawer's field is 76
                                 # wide (Collapsed/Expanded at max type), while Title
                                 # animation keeps the default 56 (Off / 10 fps / 20 fps).
-                                stepper=numeric_field or stem in ('VisualizerDrawer','VisualizerPlacement','TitleAnimation','AlbumColors','QueueRowSize')
-                                field=76 if stem in ('VisualizerDrawer','VisualizerPlacement','AlbumColors','QueueRowSize') else 56
+                                stepper=numeric_field or stem in ('VisualizerDrawer','VisualizerPlacement','TitleAnimation','AlbumColors','CoverZoom','QueueRowSize')
+                                field=76 if stem in ('VisualizerDrawer','VisualizerPlacement','AlbumColors','CoverZoom','QueueRowSize') else 56
                                 parts=[label,value]+(['Meter'+stem+p for p in ('Decrease','Frame','Increase')] if stepper else [])
                                 hidden=not expanded and stem in ('QueueRows','QueueDetails','QueueRowSize')
                                 if hidden:
@@ -1813,21 +1875,21 @@ class SkinContractTests(unittest.TestCase):
                                     self.assertEqual(resolve_style(sections,value)['FontColor'],'#TextColor#')
                                     self.assertEqual(resolve_style(sections,'Meter'+stem+'Decrease')['FontColor'],'#AccentColor#')
                                 else: self.assertEqual(resolve_style(sections,value)['SolidColor'],'#GraphBackgroundColor#')
-                            for name,y in [('MeterSamplingHeading',590),('MeterStatus',644),('MeterSourceLabel',674),
-                                           ('MeterQueueHeading',758),('MeterLinksHeading',870)]:
+                            for name,y in [('MeterSamplingHeading',618),('MeterStatus',672),('MeterSourceLabel',702),
+                                           ('MeterQueueHeading',786),('MeterLinksHeading',898)]:
                                 self.assertAlmostEqual(box(name).top,val('#Inset#')+(y-shift)*scale)
                             # Spectrum: Audio settings' steppers on its two-column
                             # grid, on Media's 28px pitch below the queue rows.
-                            # Headings at 358 (Animation 446), rules 21 below.
-                            for name,y in [('MeterVisualizerSettingsAppearance',386),('MeterVisualizerSettingsPerformance',386),
-                                           ('MeterVisualizerSettingsAnimation',474)]:
+                            # Headings at 414 (Animation 502), rules 21 below.
+                            for name,y in [('MeterVisualizerSettingsAppearance',414),('MeterVisualizerSettingsPerformance',414),
+                                           ('MeterVisualizerSettingsAnimation',502)]:
                                 self.assertAlmostEqual(val(resolve_style(sections,name)['Y']),val('#Inset#')+(y-shift)*scale,msg=name)
                                 self.assertAlmostEqual(val(resolve_style(sections,name+'Rule')['Y']),val('#Inset#')+(y+21-shift)*scale,msg=name)
                             self.assertEqual(expand(sections['MeterVisualizerSettingsAppearance']['Text']),'Spectrum')
                             left_x,right_x=val('#ContentX#'),val('#VisualizerSettingsRightX#')
-                            spectrum_rows=[('Height',left_x,412),('Spacing',left_x,440),('Color',left_x,468),('Radius',left_x,496),
-                                           ('Baseline',left_x,524),('Quality',right_x,412),('Cadence',right_x,440),
-                                           ('Sensitivity',right_x,500),('Attack',right_x,528),('Decay',right_x,556)]
+                            spectrum_rows=[('Height',left_x,440),('Spacing',left_x,468),('Color',left_x,496),('Radius',left_x,524),
+                                           ('Baseline',left_x,552),('Quality',right_x,440),('Cadence',right_x,468),
+                                           ('Sensitivity',right_x,528),('Attack',right_x,556),('Decay',right_x,584)]
                             self.assertNotIn('MeterVisualizerSettingsWidthRow',sections)
                             for stem,x,y in spectrum_rows:
                                 frame,label=box(f'MeterVisualizerSettings{stem}Row'),box(f'MeterVisualizerSettings{stem}Label')
@@ -1877,7 +1939,7 @@ class SkinContractTests(unittest.TestCase):
                     self.assertEqual(window.height,
                                      media_drawer_geometry(column_width,scale,columns,expanded,rows)[3])
                 else:
-                    expected_height = math.floor(((926 if expanded else 842) if name == 'Settings/Settings.ini' else 162)*scale+0.5)
+                    expected_height = math.floor(((954 if expanded else 870) if name == 'Settings/Settings.ini' else 162)*scale+0.5)
                     self.assertEqual(window.height, expected_height+val('#Gap#'))
                 self.assertEqual(val('#UnitWidth#'), math.floor(column_width * scale + 0.5))
                 self.assertEqual(val('#Gap#') % 2, 0)
@@ -2112,7 +2174,7 @@ class SkinContractTests(unittest.TestCase):
                                     self.assertEqual(sections['MeterCover']['Y'],'0')
                                     self.assertNotIn('MediaTrack',sections['MeterCoverMask'].get('Group',''))
                                     self.assertEqual(val(sections['MeterCoverMask'].get('Hidden','0')),0)
-                                    self.assertEqual(sections['MeterCover']['PreserveAspectRatio'],'2')
+                                    self.assertEqual(val(sections['MeterCover']['PreserveAspectRatio']),1)
                                 rounded=['MeterArtworkPlaceholder']
                                 if config=='Media.ini': rounded+=['MeterCoverPlaceholder','MeterCoverMask','MeterCoverFrame']
                                 for meter in rounded:
@@ -3179,7 +3241,7 @@ class SkinContractTests(unittest.TestCase):
                 self.assertEqual([name for name,section in sections.items() if section.get('Plugin')=='Win7AudioPlugin'],
                                  ['MeasureVisualizerVolume'])
                 # Plus the queue's click host (QueueControlHost.inc).
-                self.assertEqual([name for name,section in sections.items() if section.get('Plugin')=='RunCommand'],list(RESUME_HOSTS)+['MeasureQueueProviderControl'])
+                self.assertEqual([name for name,section in sections.items() if section.get('Plugin')=='RunCommand'],list(MEDIA_RESUME_HOSTS)+['MeasureQueueProviderControl'])
                 for name in capture+['MeasureVisualizerState','MeasureVisualizerColorApply']:
                     for key,value in sections[name].items():
                         if 'Action' in key:

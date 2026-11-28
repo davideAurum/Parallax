@@ -16,8 +16,9 @@ The item runs this script hidden with the clicked config and file. It mirrors th
 <Skins>\ParallaxDev (Sync-ParallaxDev.ps1, without the static validation passes), then loads that utility's dev
 config beside the release window, or refreshes it where it is if it is already loaded. Failures show a message box.
 
-Bangs sent from outside reach whichever Rainmeter answers, so it refuses to run while more than one is running
-(an isolated test instance, for example).
+Bangs go only to the Rainmeter running -RainmeterPath with the Rainmeter.ini in -SettingsPath (Parallax.Bang.psm1),
+so another instance (an isolated test, for example) may stay open. If that one cannot be identified it fails before
+changing anything.
 #>
 [CmdletBinding(DefaultParameterSetName = 'Load')]
 param(
@@ -74,10 +75,10 @@ try {
     if ($IniFile -notmatch '^[\w\-]+\.ini$') { throw "Unexpected skin file: $IniFile" }
     $module = $parts[1]
     $devConfig = "ParallaxDev\$module"
-    $running = @(Get-Process -Name Rainmeter -ErrorAction SilentlyContinue)
-    if ($running.Count -ne 1) {
-        throw "$($running.Count) Rainmeter processes are running. Close the extra (test) instance and try again; nothing was changed."
-    }
+    Import-Module (Join-Path $PSScriptRoot 'Parallax.Bang.psm1') -Force
+    $iniPath = Join-Path $SettingsPath 'Rainmeter.ini'
+    # Fails here, before anything is written, when the Rainmeter in use cannot be identified.
+    $null = Get-ParallaxRainmeterTarget -RainmeterPath $RainmeterPath -IniPath $iniPath
 
     $existed = Test-Path -LiteralPath $devRoot
     $sync = Join-Path $PSScriptRoot 'Sync-ParallaxDev.ps1'
@@ -105,7 +106,9 @@ try {
         }
         return $best
     }
-    function Send-Bang([string[]]$Arguments) { & $RainmeterPath @Arguments }
+    function Send-Bang([string[]]$Arguments) {
+        Send-ParallaxBang -Bang $Arguments[0] -Arguments @($Arguments | Select-Object -Skip 1) -RainmeterPath $RainmeterPath -IniPath $iniPath
+    }
     # Rainmeter refuses to activate a skin folder created since it last listed them.
     if (-not $existed) { Send-Bang '!RefreshApp'; Start-Sleep -Seconds 6 }
     if (-not (Test-Path -LiteralPath (Join-Path $devRoot "$module\$IniFile") -PathType Leaf)) { throw "The dev copy has no $module\$IniFile." }
@@ -119,9 +122,10 @@ try {
     } else {
         $place = $null
         try {
-            $live = @(Get-ParallaxDevLiveWindows)
-            # A Rainmeter window's title is its skin file's full path.
-            $anchor = $live | Where-Object { $_.Title -like "*\Parallax\$module\$IniFile" } | Select-Object -First 1
+            # A Rainmeter window's title is its skin file's full path; another instance's skins live elsewhere.
+            $skinsPrefix = $SkinsPath.TrimEnd('\') + '\'
+            $live = @(Get-ParallaxDevLiveWindows | Where-Object { $_.Title.StartsWith($skinsPrefix, [StringComparison]::OrdinalIgnoreCase) })
+            $anchor = $live | Where-Object { $_.Title -eq "$($skinsPrefix)Parallax\$module\$IniFile" } | Select-Object -First 1
             if ($anchor) {
                 $subject = [pscustomobject]@{ Name = $devConfig; Left = $anchor.Left; Top = $anchor.Top; Right = $anchor.Right; Bottom = $anchor.Bottom }
                 $areas = Get-ParallaxDevWorkAreas

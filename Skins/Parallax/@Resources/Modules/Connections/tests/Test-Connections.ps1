@@ -30,10 +30,15 @@ $launches = @([regex]::Matches($source, '(?im)^[^;\r\n]*(powershell|\.ps1)[^\r\n
 $allowed = @(
     'Program=%SystemRoot%\System32\WindowsPowerShell\v1.0\powershell.exe',
     'Parameter=-NoLogo -NoProfile -NonInteractive -WindowStyle Hidden -ExecutionPolicy Bypass -File "QueueProvider.ps1" -Command "Disconnect" -Quiet',
-    'LeftMouseUpAction=["powershell.exe" "-NoLogo" "-NoProfile" "-ExecutionPolicy" "Bypass" "-NoExit" "-File" "#@#Modules\Media\Queue\QueueProvider.ps1" "-Command" "Connect" "-PollSeconds" "#QueuePollSeconds#"][!CommandMeasure MeasureConnections "SignInOpened()"]')
+    'LeftMouseUpAction=["powershell.exe" "-NoLogo" "-NoProfile" "-ExecutionPolicy" "Bypass" "-NoExit" "-File" "#@#Modules\Media\Queue\QueueProvider.ps1" "-Command" "Connect" "-PollSeconds" "#QueuePollSeconds#"][!CommandMeasure MeasureConnections "SignInOpened()"]',
+    # The TV row: MeasureTvControl's Program and default Parameter, and Pair.
+    'Program=%SystemRoot%\System32\WindowsPowerShell\v1.0\powershell.exe',
+    'Parameter=-NoLogo -NoProfile -NonInteractive -WindowStyle Hidden -ExecutionPolicy Bypass -File "TvProvider.ps1" -Command "Stop" -Quiet',
+    'LeftMouseUpAction=["powershell.exe" "-NoLogo" "-NoProfile" "-ExecutionPolicy" "Bypass" "-NoExit" "-File" "#@#Modules\Media\TvQueue\TvProvider.ps1" "-Command" "Pair"][!CommandMeasure MeasureTvConnections "PairOpened()"]')
 if (Compare-Object $launches $allowed) { throw "The panel's launch actions changed:`n$($launches -join "`n")" }
-if ([regex]::Matches($source, '(?im)^Plugin=').Count -ne 1) { throw 'Only the Disconnect host is a plugin.' }
-Write-Output 'PASS: launches are the sign-in click and the confirmed Disconnect only.'
+$plugins = @([regex]::Matches($source, '(?im)^Plugin=[^\r\n]*') | ForEach-Object { $_.Value.Trim() })
+if ($plugins.Count -ne 2 -or @($plugins | Where-Object { $_ -cne 'Plugin=RunCommand' }).Count) { throw 'Only the Disconnect and TV control hosts are plugins.' }
+Write-Output 'PASS: launches are the sign-in and Pair clicks, the confirmed Disconnect and the TV control host only.'
 
 $harness = @'
 -- Test-only harness.
@@ -59,9 +64,23 @@ local slots = {
         'The Spotify app has used its quota. See Help.', 'Spotify is unavailable. The helper tries again.',
         'Queue unavailable. Try Restart in Media settings.', 'To allow playback control and playlists.',
         'Queue and playback control. Playlists not checked yet.', 'Queue and playback control. Playlists unavailable.' } },
-    { 'MeterStatus', { 'Only Sign in and Disconnect change anything here.', 'Sign-in console opened. Close it once it says it is done.',
+    { 'MeterStatus', { 'Only Sign in, Disconnect and TV buttons change things.', 'Sign-in console opened. Close it once it says it is done.',
         'Click again to remove the saved Spotify sign-in.', 'Disconnected. The saved sign-in was removed.', 'Disconnect did not finish. Try again.' } },
-    { 'MeterIntro', { 'What Parallax connects to. Nothing here starts by itself.' } }
+    { 'MeterIntro', { 'What Parallax connects to. Nothing here starts by itself.' } },
+    { 'MeterTvSection', { 'YouTube on the TV' } },
+    { 'MeterTvName', { 'TV app' } },
+    { 'MeterTvState', { 'Checking', 'Unknown', 'Not paired', 'Connected', 'TV app closed', 'Connecting', 'Offline',
+        'Unavailable', 'Pair again', 'Paired' } },
+    { 'MeterTvDetail', { 'The local app data folder was not found.', 'Pair opens a console for the code from the TV.',
+        'Up next shows in Media when nothing plays here.', 'The worker rejoins when the TV is back.', 'Joining the TV.',
+        'The worker tries again by itself.', 'YouTube did not answer. It tries again.', 'The TV refused the saved pairing.',
+        'The TV worker is not running. Start reads the TV.', 'The TV worker is off. Start reads the TV.',
+        'The last TV command is still running.', 'Click Forget again to remove the TV pairing.', 'Stopping the TV worker...',
+        'Starting the TV worker...', 'Removing the TV pairing...',
+        'Pair console open. Type the code under Link with TV code.' } },
+    { 'MeterTvPair', { 'Pair', 'Pair again' }, true },
+    { 'MeterTvSwitch', { 'Start', 'Stop' }, true },
+    { 'MeterTvForget', { 'Forget', 'Forget?' }, true }
 }
 local function width(meter, words, button)
     SKIN:Bang('!SetOption', 'MeterProbe', 'FontSize', SKIN:GetMeter(meter):GetOption('FontSize', ''))
@@ -142,12 +161,14 @@ foreach ($variant in @(
         if (-not [IO.Path]::GetFullPath($Path).StartsWith($runRoot + '\', [StringComparison]::OrdinalIgnoreCase)) { throw 'Write outside generated test directory.' }
         [IO.File]::WriteAllText($Path, $Text, $utf8)
     }
-    foreach ($name in 'Layouts', 'Plugins', 'Addons', 'Local', 'Local\Parallax\Media\Spotify', 'Local\Parallax\Media\Source') { $null = New-Item -ItemType Directory -Force -Path (Join-Path $runRoot $name) }
+    foreach ($name in 'Layouts', 'Plugins', 'Addons', 'Local', 'Local\Parallax\Media\Spotify', 'Local\Parallax\Media\Source', 'Local\Parallax\Media\YouTube') { $null = New-Item -ItemType Directory -Force -Path (Join-Path $runRoot $name) }
     Write-RunFile (Join-Path $runRoot 'TEST-ONLY.txt') "Isolated native Connections test with harness instrumentation. Do not distribute.`n"
     $localRoot = Join-Path $runRoot 'Local'
     # Stand-ins: the panel only checks that these exist.
     Write-RunFile (Join-Path $localRoot 'Parallax\Media\Spotify\tokens.dpapi') 'synthetic'
     Write-RunFile (Join-Path $localRoot 'Parallax\Media\Spotify\client.json') '{}'
+    # Shows the TV row's Start and Forget, so their text is measured too.
+    Write-RunFile (Join-Path $localRoot 'Parallax\Media\YouTube\pairing.dpapi') 'synthetic'
     $globalPath = Join-Path $parallaxRoot '@Resources\User\Settings.inc'
     $globalText = Get-Content -LiteralPath $globalPath -Raw
     foreach ($pair in @(@('Scale', $variant.Scale), @('ColumnWidth', $variant.Width), @('FontSize', $variant.Font))) {

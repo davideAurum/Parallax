@@ -224,6 +224,9 @@ SpectrumTab=#MediaSpectrumTab#
 ; 2 opens the drawer on Playlists, once (MediaOptions.ShowQueue).
 QueueView=#QueueDrawerTab#
 QueueInline=1
+; Also YouTube in the TV's own app (TvQueue\TvProvider.ps1), shown only while
+; nothing plays on this PC. Read only where the drawer follows a player.
+TvQueue=1
 UpdateDivider=#MediaLegacyDivider#
 
 [MediaUtilityIncludes]

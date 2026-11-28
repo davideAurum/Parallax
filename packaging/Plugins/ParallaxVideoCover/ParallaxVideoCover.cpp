@@ -1,14 +1,15 @@
 // Parallax's experimental video cover plugin (original code): draws another window on this skin's own window
 // as a DWM thumbnail, so it moves, layers and hides with the skin. The source is
-// the browser's picture-in-picture window, or else the video inside the YouTube
-// web app's window (its place followed through UI Automation). Built by
-// Build.ps1 with MSVC.
+// the browser's picture-in-picture window; else the video inside the YouTube web
+// app's window; else the video in an ordinary browser window while a YouTube
+// page is the tab in front. The video's place is followed through UI
+// Automation. Built by Build.ps1 with MSVC.
 //
 // Measure options (with DynamicVariables=1): Show; X, Y, Size and Radius of the
 // cover (skin pixels); Zoom (1 fills the square); AllowPlayer with Player (when
 // AllowPlayer is given, nothing is drawn unless Player equals it); SourceTitle
-// and SourceElement (tests only: a stand-in window, and the element in it to cut
-// out). The measure's value is 1 while something is drawn.
+// SourceElement and SourceMark (tests only: a stand-in window, the element in it
+// to cut out, and text its title must carry for anything to be drawn). The measure's value is 1 while something is drawn.
 //
 // The few Rainmeter functions it needs are looked up in the running Rainmeter.dll,
 // so the plugin SDK's header and library are not needed.
@@ -52,7 +53,9 @@ struct Measure {
     HTHUMBNAIL thumb = nullptr;
     bool show = false, zoom = false;
     int x = 0, y = 0, size = 0, radius = 0;
-    std::wstring sourceTitle, sourceElement;
+    std::wstring sourceTitle, sourceElement, sourceMark;
+    // What the source's title must carry, if its content can change under it.
+    std::wstring mark;
     RECT dest{}, crop{};
     // Set while the source is a window that only part of is wanted from.
     std::unique_ptr<Follower> follower;
@@ -97,7 +100,7 @@ bool IsYouTubeApp(HWND window) {
     return found;
 }
 
-enum class Kind { PictureInPicture, App };
+enum class Kind { PictureInPicture, App, Tab };
 
 struct Search { const std::wstring* wanted; Kind kind; HWND found; };
 
@@ -115,7 +118,10 @@ BOOL CALLBACK Match(HWND window, LPARAM parameter) {
         const bool little = _wcsicmp(title, L"picture in picture") == 0;
         if (search->kind == Kind::PictureInPicture) {
             if (!little || !IsBrowser(window)) return TRUE;
-        } else if (little || IsIconic(window) || !IsBrowser(window) || !IsYouTubeApp(window)) {
+        } else if (little || IsIconic(window) || !IsBrowser(window)) {
+            return TRUE;
+        } else if (search->kind == Kind::App ? !IsYouTubeApp(window)
+                                             : IsYouTubeApp(window) || !TitleAllows(window, kWatchPage)) {
             return TRUE;
         }
     }
@@ -151,37 +157,47 @@ void Choose(Measure* m) {
     m->looked = now;
     HWND window = nullptr;
     bool whole = true;
-    std::wstring element;
+    std::wstring element, mark;
     if (!m->sourceTitle.empty()) {
         window = Find(m->sourceTitle, Kind::PictureInPicture);
         element = m->sourceElement;
+        mark = m->sourceMark;
         whole = element.empty();
-    } else {
-        window = Find(m->sourceTitle, Kind::PictureInPicture);
-        if (!window) {
-            // Stay with the app window already followed rather than hop between two.
-            window = !m->wholeWindow && m->source && !IsIconic(m->source) ? m->source : Find(m->sourceTitle, Kind::App);
-            if (window) { whole = false; element = kVideoElement; }
+    } else if ((window = Find(m->sourceTitle, Kind::PictureInPicture)) == nullptr) {
+        // Stay with the window already followed rather than hop between two. An
+        // ordinary window whose tab changed is kept (and shows nothing) unless
+        // another has a YouTube page in front.
+        const bool following = !m->wholeWindow && m->source && !IsIconic(m->source);
+        if (following && TitleAllows(m->source, m->mark)) return;
+        window = Find(m->sourceTitle, Kind::App);
+        if (window) {
+            whole = false;
+            element = kVideoElement;
+        } else if ((window = Find(m->sourceTitle, Kind::Tab)) != nullptr) {
+            whole = false;
+            element = kVideoElement;
+            mark = kWatchPage;
+        } else if (following && !m->mark.empty()) {
+            return;
         }
     }
     if (window == m->source) return;
     Forget(m);
     m->source = window;
     m->wholeWindow = whole;
-    if (window && !whole) m->follower.reset(new Follower(window, element));
+    m->mark = mark;
+    if (window && !whole) m->follower.reset(new Follower(window, element, mark));
 }
 
 // The part of the source window to draw, in its client pixels.
 bool Wanted(Measure* m, const RECT& client, RECT* part) {
     if (m->wholeWindow) { *part = client; return true; }
-    RECT screen{};
-    POINT origin{0, 0};
-    if (!m->follower || IsIconic(m->source) || !m->follower->Read(&screen) || !ClientToScreen(m->source, &origin)) return false;
-    OffsetRect(&screen, -origin.x, -origin.y);
-    if (!IntersectRect(part, &screen, &client)) return false;
+    RECT video{};
+    if (!m->follower || IsIconic(m->source) || !m->follower->Read(&video)) return false;
+    if (!IntersectRect(part, &video, &client)) return false;
     // Mostly scrolled or pushed out of the window: better nothing than a sliver.
     const long long seen = static_cast<long long>(part->right - part->left) * (part->bottom - part->top);
-    const long long all = static_cast<long long>(screen.right - screen.left) * (screen.bottom - screen.top);
+    const long long all = static_cast<long long>(video.right - video.left) * (video.bottom - video.top);
     return seen * 2 >= all;
 }
 
@@ -193,6 +209,9 @@ bool Apply(Measure* m) {
 
     RECT client{}, part{};
     GetClientRect(m->source, &client);
+    // Checked on every update, so another tab is not shown while the follower
+    // thread has yet to notice.
+    if (!m->wholeWindow && !TitleAllows(m->source, m->mark)) { Drop(m); return false; }
     if (client.right <= 0 || client.bottom <= 0 || !Wanted(m, client, &part)) { Drop(m); return false; }
     const int cw = part.right - part.left, ch = part.bottom - part.top;
     if (!m->thumb && FAILED(DwmRegisterThumbnail(m->skin, m->source, &m->thumb))) { m->thumb = nullptr; return false; }
@@ -249,11 +268,13 @@ extern "C" __declspec(dllexport) void Reload(void* data, void* rm, double* maxVa
     m->size = static_cast<int>(ReadFormula(rm, L"Size", 0) + 0.5);
     const std::wstring title = ReadString(rm, L"SourceTitle", L"", TRUE);
     const std::wstring element = ReadString(rm, L"SourceElement", L"", TRUE);
-    if (title != m->sourceTitle || element != m->sourceElement) {
+    const std::wstring mark = ReadString(rm, L"SourceMark", L"", TRUE);
+    if (title != m->sourceTitle || element != m->sourceElement || mark != m->sourceMark) {
         Forget(m);
         m->looked = 0;
         m->sourceTitle = title;
         m->sourceElement = element;
+        m->sourceMark = mark;
     }
     if (maxValue) *maxValue = 1;
 }

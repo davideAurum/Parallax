@@ -79,7 +79,7 @@ user-selected Lucide metadata and playback icons are attributed below.
 | Casts followed on the TV — optional, opt-in, experimental (2026-11-28) | The TV queue's bundled files above (the Cast code is in `TvLounge.psm1`, the cast key in `TvStore.psm1`) and Connections' bundled `Modules/Connections/CastConnections.lua`; Windows PowerShell 5.1 and built-in .NET (TLS, DPAPI); a Google Cast device on the home network (tried: one smart TV) reachable from this PC on a private or link-local IPv4 address (mDNS on UDP 5353, the Cast channel on TCP 8009); network access to `www.youtube.com` for commands (the Lounge API with the cast key). No TV-code pairing needed, no account, plugin, download or third-party code. Data only in `%LOCALAPPDATA%\Parallax\Media\YouTube` (`cast.intent`, `cast.dpapi`, `cast.status`). | Off until **Connections > Casts > Turn on**. Then the same long-lived worker asks mDNS for Cast devices (once, then after 30 s, 60 s, 120 s, up to 5 min while none is found; again every 15 min when not following), keeps one read-only Cast channel per device (at most 4; PING every 5 s, receiver status every 20 s, media status every 5 s while following) and launches no process. It sends a device only CONNECT, GET_STATUS, PING, PONG and, to a YouTube app already running, `getMdxSessionStatus` (enforced in code). Cast devices use self-signed certificates: the worker accepts the device's certificate for that one TLS stream only (never process-wide), so the channel is encrypted but the device is not authenticated. Play, pause and next bind a Lounge session with the cast key, send once and leave; the token is asked of YouTube at the first command only. If no device is found the row says so and the card follows the normal rules; if the Cast channel or YouTube changes, the row shows `Unavailable` or `No cast key` and nothing is guessed. **Forget** (Casts row) removes the switch, the key and the state; the TV row's Forget also removes them. See [Casts followed on the TV](#casts-followed-on-the-tv-stage-3-2026-11-28). |
 | YouTube on the TV (TV queue) — optional, experimental (2026-11-27) | Bundled `TvQueue/TvProvider.ps1`, `TvLounge.psm1`, `TvStore.psm1` and the shared `ProviderOwner.psm1` owner lease; Windows PowerShell 5.1 and built-in .NET (DPAPI for the pairing); network access to `www.youtube.com` (YouTube's **unofficial, undocumented** Lounge remote API, and public oEmbed for titles); a TV whose YouTube app offers **Link with TV code**. No account sign-in, key, plugin, download or third-party code (written from protocol facts; nothing from GPL projects). Data only in `%LOCALAPPDATA%\Parallax\Media\YouTube` (current-user ACL). | Nothing runs until you pair (a visible console) or press Start. One long-lived opt-in worker holds one long poll to YouTube for the TV's events and sends commands on that same session; it steps every 250 ms locally (requests, Stop), launches no process to poll, backs off 5–300 s after failures and rejoins at least 10 s after the TV leaves. Titles: one oEmbed lookup per shown video, cached in memory only. The drawer reads `tv.snapshot` on its existing update; it shows the TV only while nothing plays on this PC. A row click writes `tv.request` (no process). If YouTube changes the API, the worker shows `error` and the drawer stays as it was. Since stage 3 the same oEmbed answer also gives the channel name, and the worker downloads the current video's thumbnail from YouTube's public thumbnail host (`i.ytimg.com`, `mqdefault.jpg`, one request per video, the video id only, no token; a JPEG of at most 256 KB) into one of two private slots, `tv.cover1.jpg` / `tv.cover2.jpg`, removed by Forget, Stop and a clean worker end; without it the card shows N/A. Loading the player (`Media.ini`) resumes a worker you started and did not stop, through one inert hidden host, `MeasureMediaTvResume`. Pair, Start, Stop and Forget are on the [Connections](../CONNECTIONS.md#youtube-on-the-tv) panel's TV row. See [YouTube on the TV](#youtube-on-the-tv-tv-queue-2026-11-27). |
 | Cover preview — optional, in development, off by default (`MediaCoverPreview=1`) | Network access to `i.ytimg.com` (YouTube's thumbnail host, undocumented frame addresses); the WebNowPlaying plugin's cover address; built-in `WebParser`. | Three small downloads per video, cycled once a second while it plays. Offline or without frames the normal cover stays. |
-| Live video cover — optional, in development, off by default (`MediaVideoCover=1`) | Our own `ParallaxVideoCover` plugin, an experimental 64-bit plugin, **not bundled**; [source](../../packaging/Plugins/ParallaxVideoCover/README.md), built with Visual Studio Build Tools (C++ workload); browser picture-in-picture, or Chrome's installed YouTube web app (read through Windows UI Automation, which switches Chrome's accessibility support on). | Without the plugin Rainmeter logs that it cannot load and the cover stays. |
+| Live video cover — optional, in development, off by default (`MediaVideoCover=1`) | Our own `ParallaxVideoCover` plugin, an experimental 64-bit plugin, **not bundled**; [source](../../packaging/Plugins/ParallaxVideoCover/README.md), built with Visual Studio Build Tools (C++ workload); browser picture-in-picture, Chrome's installed YouTube web app, or a browser window with a YouTube video page in front (the last two read through Windows UI Automation, which switches Chrome's accessibility support on). | Without the plugin Rainmeter logs that it cannot load and the cover stays. |
 
 Both provider helpers require an explicit initial Start (or successful queue sign-in).
 They save private enabled intent and can resume once when their Media view loads
@@ -1823,15 +1823,21 @@ available yet*. Findings from a throwaway Chrome extension and page readings on
 
 ## Video cover and cover preview (in development, 2026-11-27)
 
-Two experiments for a moving cover. Both are off by default (`Media.ini`), have no
-settings row and are not release features.
+Two experiments for a moving cover. Both are off by default (`Media.ini`) and are
+not release features. Live video has a **Live video** row (Off / On) in Media
+settings, which says so when the plugin is missing; the preview has no row.
 
 ### Live video cover (`MediaVideoCover=1`)
 
 `VideoCover/VideoCover1.inc` asks a `ParallaxVideoCover` plugin to draw a Windows
 (DWM) thumbnail on Media's own window, over the cover: the browser's
 picture-in-picture (PiP) window when open, otherwise the video element inside the
-YouTube web app's window (never an ordinary tab). Two columns, a YouTube player,
+YouTube web app's window, otherwise the video element in an ordinary browser window
+whose title says a named YouTube page is in front. The title is checked on every
+update and before the page is read, so another tab is not mirrored (one update may
+pass first; with Title animation off an update is 1 s), and the preview takes over.
+The video's place is kept relative to its window, so dragging that window does not
+shift the cut. Two columns, a YouTube player,
 not under Idle pause; `MediaCoverZoom` applies. **No release contains the
 plugin**: without a DLL built from [its source](../../packaging/Plugins/ParallaxVideoCover/README.md),
 the setting only makes Rainmeter log a load failure.
@@ -1843,15 +1849,20 @@ Known limits:
 - A minimized source window, or a video more than half scrolled out of view, shows
   nothing. A paused or still picture does not change.
 - PiP is found by its English window title.
+- Only Chrome-family browsers; Firefox is untried and probably will not work.
+- YouTube's playback controls appear in the mirror while they are on screen.
 - The thumbnail is drawn over the skin's content: rounded corners are not clipped,
   and skin transparency and fading do not apply to it.
 - Protected video reads as black to programs although it can show on screen, so
   program readings cannot verify it.
 - Watching involves no input, so Idle pause ends the video.
 
-Checked in a separate Rainmeter with a stand-in window and once against the real
-YouTube web app. Untried: the video in the real Media skin, Edge, other languages,
-scaled displays, 32-bit, battery and discrete-GPU effects.
+Checked with a stand-in window in a separate Rainmeter, and on one PC in the Media
+skin with a Chrome tab and the YouTube web app (a tab change, and dragging the
+window). Untried: Edge (its titles and app id differ), a non-English Chrome, scaled
+or mixed-DPI displays, fullscreen, theater, mini player, Shorts, home-page hover
+previews (same page element class), protected video, live streams, 32-bit, the cost
+of Chrome accessibility on large pages, battery and discrete-GPU effects.
 
 Ruled out: taking YouTube's video data (against its terms), and mirroring a whole
 browser window (it shows other pages after a tab change).
@@ -1867,6 +1878,32 @@ Untried: pause, a change of video, a video without frames, one column, and load.
 Smoother previews (YouTube's animated WebP and storyboard sheets) are only behind
 signed addresses in the page data, so they would need something inside the
 browser. Not built.
+
+### Shipping plan (decided 2026-11-28: two releases; nothing below is started)
+
+The whole thumbnail and the **Cover** choice go in the next release and need nothing
+new. Live video and the preview come later, marked experimental.
+
+Still open: whether to bundle the plugin (`AGENTS.md` needs an explicit approval; it
+would be the first binary of our own in the package, unsigned, and security software
+may object, untested); whether to keep the preview (the fallback when live video
+cannot draw, at the cost of downloads from undocumented addresses and a second
+switch); and Idle pause ending the video.
+
+Work: a version resource and 32- and 64-bit builds by a reproducible script;
+packaging under `packaging/Plugins/ParallaxVideoCover/` with hashes, a licence,
+`NOTICE.txt`, `release.json`, the `AGENTS.md` exception and packaging tests; a
+preview settings row if it is kept; a short-screen scroll for Media settings (982 px
+expanded); and README and `DEPENDENCIES.md` text saying that live video reads
+Chrome's page layout through Windows accessibility (which switches that support on)
+and shows part of another window, that the preview downloads from YouTube, and that
+both rely on undocumented details that can change.
+
+Checks before calling it ready: both architectures load; a missing plugin behaves
+cleanly; the untried cases above; a second computer; skin transparency, hover
+fading, click-through and hidden skins; repeated refresh, unload and Rainmeter exit
+without leftover threads or crashes; an upgrade keeps both settings; the Media
+native suites run as a set.
 
 ## Validation report
 
@@ -3544,8 +3581,12 @@ right-click menu now has **Cover: show the whole picture** (default) and **Cover
 zoom to fill the square**, which cuts the sides (`MediaCoverZoom` 0 or 1 in
 `User/Media.inc`; the cover's `PreserveAspectRatio` is 1 or 2). Media settings
 also has a **Cover** row (Whole / Zoomed), added at the user's request; it makes
-that panel 28 px taller (954 px expanded, 870 collapsed), already more than some
-small screens. The unfinished video cover follows the same choice. No new
+that panel 28 px taller, already more than some
+small screens.
+
+A **Live video** row (Off / On, `MediaVideoCover`) follows it, so trying the live
+cover needs no file edit; the panel is now 982 px expanded, 898 collapsed. It says
+so when the plugin is not installed. The unfinished video cover follows the same choice. No new
 dependency.
 
 Checked: `test_skin_contract.py`. **Not verified:** the menu and both looks in a

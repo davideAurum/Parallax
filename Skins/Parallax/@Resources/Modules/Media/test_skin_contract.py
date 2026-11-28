@@ -1718,7 +1718,7 @@ class SkinContractTests(unittest.TestCase):
         # Title animation row another 28 (786/730 before), then Album colors,
         # Album tint and the queue's Row size row 84 more (842/758 before), and
         # the Cover row 28 more.
-        self.assertEqual(numeric(expand('#SettingsPanelHeight#')),870)
+        self.assertEqual(numeric(expand('#SettingsPanelHeight#')),898)
         self.assertEqual(sections['Variables']['VisualizerDrawer'],'1')
         # Entrypoint fallback for preserved files without the key.
         self.assertEqual(sections['Variables']['MediaTitleAnimation'],'20')
@@ -1783,8 +1783,8 @@ class SkinContractTests(unittest.TestCase):
         # Settings.lua rebuilds the same heights at runtime and owns the cycle.
         # Static text checks only; MediaSettingsSuite.luatest runs the script.
         controller=(RESOURCES/'Modules'/'Media'/'Settings.lua').read_text(encoding='ascii')
-        self.assertIn('local settingsHeight = 954 - collapsedHeight',controller)
-        self.assertIn("SKIN:Bang('!SetVariable', 'VisualizerSettingsTop', 340 - collapsedHeight)",controller)
+        self.assertIn('local settingsHeight = 982 - collapsedHeight',controller)
+        self.assertIn("SKIN:Bang('!SetVariable', 'VisualizerSettingsTop', 368 - collapsedHeight)",controller)
         self.assertIn("MediaTitleAnimation = { '0', '10', '20' }",controller)
         self.assertIn("animationNames = { ['0'] = 'Off', ['10'] = '10 fps', ['20'] = '20 fps' }",controller)
         self.assertIn("MediaTitleAnimation = '20'",controller)
@@ -1804,7 +1804,7 @@ class SkinContractTests(unittest.TestCase):
                             box=lambda name:meter_bounds(resolve_style(sections,name),val)
                             panel=Bounds(val('#Inset#'),val('#Inset#'),val('#WindowWidth#')-val('#Inset#'),val('#WindowHeight#')-val('#Inset#'))
                             shift=0 if expanded else 84
-                            self.assertEqual(val('#WindowHeight#'),math.floor((954-shift)*scale+0.5)+val('#Gap#'))
+                            self.assertEqual(val('#WindowHeight#'),math.floor((982-shift)*scale+0.5)+val('#Gap#'))
                             self.assertEqual(variables['Columns'],str(columns))
                             self.assertEqual(variables['PanelHeight'],'162')
                             for name,section in sections.items():
@@ -1816,16 +1816,16 @@ class SkinContractTests(unittest.TestCase):
                             # the next two slots and Row size joined the queue rows.
                             for stem,y in [('Width',100),('VisualizerDrawer',128),('VisualizerPlacement',156),
                                            ('TitleAnimation',184),('AlbumColors',212),('AlbumTint',240),('CoverZoom',268),
-                                           ('QueueExpanded',296),('QueueRows',324),('QueueDetails',352),('QueueRowSize',380),
-                                           ('QueuePoll',644)]:
+                                           ('VideoCover',296),('QueueExpanded',324),('QueueRows',352),('QueueDetails',380),
+                                           ('QueueRowSize',408),('QueuePoll',672)]:
                                 label,value='Meter'+stem+'Label','Meter'+stem+'Value'
                                 numeric_field=stem in ('Width','QueueRows','QueuePoll','AlbumTint')
                                 # Number fields and the categorical choices share the
                                 # previous/value/next group; the drawer's field is 76
                                 # wide (Collapsed/Expanded at max type), while Title
                                 # animation keeps the default 56 (Off / 10 fps / 20 fps).
-                                stepper=numeric_field or stem in ('VisualizerDrawer','VisualizerPlacement','TitleAnimation','AlbumColors','CoverZoom','QueueRowSize')
-                                field=76 if stem in ('VisualizerDrawer','VisualizerPlacement','AlbumColors','CoverZoom','QueueRowSize') else 56
+                                stepper=numeric_field or stem in ('VisualizerDrawer','VisualizerPlacement','TitleAnimation','AlbumColors','CoverZoom','VideoCover','QueueRowSize')
+                                field=76 if stem in ('VisualizerDrawer','VisualizerPlacement','AlbumColors','CoverZoom','VideoCover','QueueRowSize') else 56
                                 parts=[label,value]+(['Meter'+stem+p for p in ('Decrease','Frame','Increase')] if stepper else [])
                                 hidden=not expanded and stem in ('QueueRows','QueueDetails','QueueRowSize')
                                 if hidden:
@@ -1875,21 +1875,21 @@ class SkinContractTests(unittest.TestCase):
                                     self.assertEqual(resolve_style(sections,value)['FontColor'],'#TextColor#')
                                     self.assertEqual(resolve_style(sections,'Meter'+stem+'Decrease')['FontColor'],'#AccentColor#')
                                 else: self.assertEqual(resolve_style(sections,value)['SolidColor'],'#GraphBackgroundColor#')
-                            for name,y in [('MeterSamplingHeading',618),('MeterStatus',672),('MeterSourceLabel',702),
-                                           ('MeterQueueHeading',786),('MeterLinksHeading',898)]:
+                            for name,y in [('MeterSamplingHeading',646),('MeterStatus',700),('MeterSourceLabel',730),
+                                           ('MeterQueueHeading',814),('MeterLinksHeading',926)]:
                                 self.assertAlmostEqual(box(name).top,val('#Inset#')+(y-shift)*scale)
                             # Spectrum: Audio settings' steppers on its two-column
                             # grid, on Media's 28px pitch below the queue rows.
-                            # Headings at 414 (Animation 502), rules 21 below.
-                            for name,y in [('MeterVisualizerSettingsAppearance',414),('MeterVisualizerSettingsPerformance',414),
-                                           ('MeterVisualizerSettingsAnimation',502)]:
+                            # Headings at 442 (Animation 530), rules 21 below.
+                            for name,y in [('MeterVisualizerSettingsAppearance',442),('MeterVisualizerSettingsPerformance',442),
+                                           ('MeterVisualizerSettingsAnimation',530)]:
                                 self.assertAlmostEqual(val(resolve_style(sections,name)['Y']),val('#Inset#')+(y-shift)*scale,msg=name)
                                 self.assertAlmostEqual(val(resolve_style(sections,name+'Rule')['Y']),val('#Inset#')+(y+21-shift)*scale,msg=name)
                             self.assertEqual(expand(sections['MeterVisualizerSettingsAppearance']['Text']),'Spectrum')
                             left_x,right_x=val('#ContentX#'),val('#VisualizerSettingsRightX#')
-                            spectrum_rows=[('Height',left_x,440),('Spacing',left_x,468),('Color',left_x,496),('Radius',left_x,524),
-                                           ('Baseline',left_x,552),('Quality',right_x,440),('Cadence',right_x,468),
-                                           ('Sensitivity',right_x,528),('Attack',right_x,556),('Decay',right_x,584)]
+                            spectrum_rows=[('Height',left_x,468),('Spacing',left_x,496),('Color',left_x,524),('Radius',left_x,552),
+                                           ('Baseline',left_x,580),('Quality',right_x,468),('Cadence',right_x,496),
+                                           ('Sensitivity',right_x,556),('Attack',right_x,584),('Decay',right_x,612)]
                             self.assertNotIn('MeterVisualizerSettingsWidthRow',sections)
                             for stem,x,y in spectrum_rows:
                                 frame,label=box(f'MeterVisualizerSettings{stem}Row'),box(f'MeterVisualizerSettings{stem}Label')
@@ -1939,7 +1939,7 @@ class SkinContractTests(unittest.TestCase):
                     self.assertEqual(window.height,
                                      media_drawer_geometry(column_width,scale,columns,expanded,rows)[3])
                 else:
-                    expected_height = math.floor(((954 if expanded else 870) if name == 'Settings/Settings.ini' else 162)*scale+0.5)
+                    expected_height = math.floor(((982 if expanded else 898) if name == 'Settings/Settings.ini' else 162)*scale+0.5)
                     self.assertEqual(window.height, expected_height+val('#Gap#'))
                 self.assertEqual(val('#UnitWidth#'), math.floor(column_width * scale + 0.5))
                 self.assertEqual(val('#Gap#') % 2, 0)

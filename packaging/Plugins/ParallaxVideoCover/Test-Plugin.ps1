@@ -127,6 +127,7 @@ Zoom=1
 Radius=10
 SourceTitle=$pageTitle
 SourceElement=id:videoBox
+SourceMark=plugin trial page
 "@
 Set-Content -LiteralPath (Join-Path $run 'Rainmeter.ini') -Encoding Unicode -Value "[Rainmeter]`r`nSkinPath=$skins\`r`nDisableVersionCheck=1`r`nDisableAutoUpdate=1`r`nLogging=1`r`nTrayIcon=0`r`n`r`n[PluginTrial]`r`nActive=1`r`nWindowX=80`r`nWindowY=80`r`nAlwaysOnTop=2`r`nSavePosition=0`r`n"
 
@@ -188,6 +189,16 @@ try {
     Pump 4000
     $a = Look-Part; Pump 400; $b = Look-Part
     Check ((Count-Video $a) -gt $a.Count * 0.9 -and (Count-Red $a) -eq 0 -and ($a -join ',') -ne ($b -join ',')) "draws only the element, moving: video $(Count-Video $a)/$($a.Count), page $(Count-Red $a)"
+    # Dragged: looked at straight after each of many moves, it must still be the
+    # element and nothing of the page around it.
+    $worst = 3249; $red = 0
+    for ($i = 1; $i -le 20; $i++) {
+        $page.Location = New-Object Drawing.Point((620 + ($i % 10) * 24), (380 + ($i % 7) * 20))
+        Pump 90
+        $px = Look-Part; $worst = [Math]::Min($worst, (Count-Video $px)); $red = [Math]::Max($red, (Count-Red $px))
+    }
+    Check ($worst -gt 3000 -and $red -eq 0) "stays on the element while the window is dragged: least video $worst/3249, most page $red"
+    $page.Location = New-Object Drawing.Point(620, 380); Pump 700
     $page.Video.Bounds = New-Object Drawing.Rectangle(150, 150, 240, 135); Pump 1500
     $c = Look-Part
     Check ((Count-Video $c) -gt $c.Count * 0.9 -and (Count-Red $c) -eq 0) "follows the element when it moves and resizes: video $(Count-Video $c)/$($c.Count), page $(Count-Red $c)"
@@ -197,6 +208,14 @@ try {
     $page.WindowState = 'Normal'; Pump 2500
     $e = Look-Part
     Check ((Count-Video $e) -gt $e.Count * 0.9) "comes back after restoring: video $(Count-Video $e)/$($e.Count)"
+    # As a browser tab changing: the title stops saying it is the wanted page.
+    $page.Text = $pageTitle; $page.Text = 'Parallax plugin trial page'
+    $page.Text = 'something else'; Pump 700
+    $g = Look-Part
+    Check ((Count-Video $g) -eq 0) "draws nothing once the title no longer allows it: video $(Count-Video $g)"
+    $page.Text = $pageTitle; Pump 3500
+    $h = Look-Part
+    Check ((Count-Video $h) -gt $h.Count * 0.9) "comes back when the title returns: video $(Count-Video $h)/$($h.Count)"
     $page.Close(); $page = $null; Pump 1500
     $f = Look-Part
     Check ((Count-Video $f) -eq 0) "goes when that window closes: video $(Count-Video $f)"

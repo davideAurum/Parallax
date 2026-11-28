@@ -5,6 +5,8 @@
 #pragma once
 #include <windows.h>
 #include <uiautomation.h>
+#include <climits>
+#include "PageTitle.h"
 #include <condition_variable>
 #include <mutex>
 #include <string>
@@ -12,9 +14,10 @@
 
 class Follower {
 public:
-    // element is "class:<class name>" or "id:<automation id>".
-    Follower(HWND window, const std::wstring& element)
-        : window_(window), element_(element), thread_(&Follower::Run, this) {}
+    // element is "class:<class name>" or "id:<automation id>". With a mark, the
+    // window is only looked into while its title carries it (PageTitle.h).
+    Follower(HWND window, const std::wstring& element, const std::wstring& mark)
+        : window_(window), element_(element), mark_(mark), thread_(&Follower::Run, this) {}
 
     ~Follower() {
         {
@@ -28,7 +31,9 @@ public:
     Follower(const Follower&) = delete;
     Follower& operator=(const Follower&) = delete;
 
-    // The element's rectangle in screen pixels, if it is on screen now.
+    // The element's rectangle in the window's own client pixels, if it is on
+    // screen now. Kept relative to the window, so that dragging the window does
+    // not move what is cut out.
     bool Read(RECT* out) {
         std::lock_guard<std::mutex> lock(mutex_);
         if (!known_) return false;
@@ -77,7 +82,15 @@ private:
         VariantClear(&value);
 
         IUIAutomationElement* found = nullptr;
+        int misses = 0;
         while (wanted) {
+            // Another tab is in front: that page is not ours to read.
+            if (!TitleAllows(window_, mark_)) {
+                if (found) { found->Release(); found = nullptr; }
+                Publish(false, RECT{});
+                if (!Pause(300)) break;
+                continue;
+            }
             if (!found) {
                 IUIAutomationElement* root = nullptr;
                 if (SUCCEEDED(automation->ElementFromHandle(window_, &root)) && root) {
@@ -87,19 +100,34 @@ private:
             }
             RECT rect{};
             bool known = false;
+            // Where the window is, before and after asking. Chrome reports screen
+            // positions, and they trail behind a window that is being moved.
+            POINT before{0, 0}, after{0, 0};
+            ClientToScreen(window_, &before);
             if (found) {
                 BOOL offscreen = TRUE;
                 if (SUCCEEDED(found->get_CurrentBoundingRectangle(&rect)) &&
                     SUCCEEDED(found->get_CurrentIsOffscreen(&offscreen)) && !IsRectEmpty(&rect)) {
                     known = !offscreen;
-                } else {
-                    // Gone (another page, a new player): look for it again.
+                }
+                // Hidden (another YouTube tab in front) or gone (another page, a
+                // new player): look for the one showing.
+                if (!known) {
                     found->Release();
                     found = nullptr;
                 }
             }
-            Publish(known, rect);
-            if (!Pause(found ? 200 : 1000)) break;
+            ClientToScreen(window_, &after);
+            const bool moving = before.x != after.x || before.y != after.y || before.x != last_.x || before.y != last_.y;
+            last_ = after;
+            // While it moves, what was last read at rest still holds.
+            if (!moving) {
+                OffsetRect(&rect, -before.x, -before.y);
+                Publish(known, rect);
+            }
+            // Walking a large page costs: look less often while there is no video.
+            misses = found ? 0 : misses + 1;
+            if (!Pause(found ? 200 : (misses > 5 ? 3000 : 1000))) break;
         }
         if (found) found->Release();
         if (wanted) wanted->Release();
@@ -107,10 +135,11 @@ private:
     }
 
     const HWND window_;
-    const std::wstring element_;
+    const std::wstring element_, mark_;
     std::mutex mutex_;
     std::condition_variable wake_;
     bool stop_ = false, known_ = false;
     RECT rect_{};
+    POINT last_{LONG_MIN, LONG_MIN};   // follower thread only
     std::thread thread_;   // last: it uses everything above
 };

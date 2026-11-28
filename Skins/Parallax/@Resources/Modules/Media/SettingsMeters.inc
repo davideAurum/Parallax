@@ -353,17 +353,60 @@ Y=(#Inset#+269*#Scale#)
 Text=>
 LeftMouseUpAction=[!CommandMeasure MeasureMediaSettings "StepChoice('MediaCoverZoom',1)"]
 
-[MeterQueueExpandedLabel]
+; Live video (2026-11-27): the browser's picture-in-picture window, or the
+; YouTube app's video, drawn on the cover. Needs the ParallaxVideoCover plugin.
+[MeterVideoCoverLabel]
 Meter=String
 MeterStyle=StyleUtilitySettingsLabel|MediaSettingsLabel|MediaSettingsData
 Y=(#Inset#+298*#Scale#)
+Text=Live video
+LeftMouseUpAction=[!CommandMeasure MeasureMediaSettings "StepChoice('MediaVideoCover',1)"]
+
+[MeterVideoCoverDecrease]
+Meter=String
+MeterStyle=StyleSettingsStepperButton|MediaSettingsData
+X=(#ContentX#+131*#Scale#)
+Y=(#Inset#+297*#Scale#)
+Text=<
+LeftMouseUpAction=[!CommandMeasure MeasureMediaSettings "StepChoice('MediaVideoCover',-1)"]
+
+[MeterVideoCoverFrame]
+Meter=Shape
+MeterStyle=StyleSettingsStepperFrame|MediaSettingsData
+X=(#ContentX#+142*#Scale#)
+Y=(#Inset#+296*#Scale#)
+W=(76*#Scale#)
+Shape=Rectangle (#Scale#/2),(#Scale#/2),(76*#Scale#-#Scale#),(19*#Scale#),(2*#Scale#) | Fill Color #GraphBackgroundColor# | Stroke Color #BorderColor# | StrokeWidth #Scale#
+LeftMouseUpAction=[!CommandMeasure MeasureMediaSettings "StepChoice('MediaVideoCover',1)"]
+
+[MeterVideoCoverValue]
+Meter=String
+MeterStyle=StyleSettingsStepperValue|MediaSettingsData
+X=(#ContentX#+180*#Scale#)
+Y=(#Inset#+297*#Scale#)
+W=(76*#Scale#)
+Text=Off
+LeftMouseUpAction=[!CommandMeasure MeasureMediaSettings "StepChoice('MediaVideoCover',1)"]
+
+[MeterVideoCoverIncrease]
+Meter=String
+MeterStyle=StyleSettingsStepperButton|MediaSettingsData
+X=(#ContentX#+229*#Scale#)
+Y=(#Inset#+297*#Scale#)
+Text=>
+LeftMouseUpAction=[!CommandMeasure MeasureMediaSettings "StepChoice('MediaVideoCover',1)"]
+
+[MeterQueueExpandedLabel]
+Meter=String
+MeterStyle=StyleUtilitySettingsLabel|MediaSettingsLabel|MediaSettingsData
+Y=(#Inset#+326*#Scale#)
 Text=Queue section
 LeftMouseUpAction=[!CommandMeasure MeasureMediaSettings "ToggleQueueExpanded()"]
 
 [MeterQueueExpandedValue]
 Meter=String
 MeterStyle=StyleUtilitySettingsValue|MediaSettingsValue|MediaSettingsData
-Y=(#Inset#+296*#Scale#)
+Y=(#Inset#+324*#Scale#)
 Text=Collapsed
 LeftMouseUpAction=[!CommandMeasure MeasureMediaSettings "ToggleQueueExpanded()"]
 
@@ -374,7 +417,7 @@ H=(18*#Scale#*#MediaSettingsQueueDetailsVisible#)
 Padding=0,0,0,0
 Meter=String
 MeterStyle=StyleUtilitySettingsLabel|MediaSettingsLabel|MediaSettingsData
-Y=(#Inset#+326*#Scale#*#MediaSettingsQueueDetailsVisible#)
+Y=(#Inset#+354*#Scale#*#MediaSettingsQueueDetailsVisible#)
 Text=Queue rows
 LeftMouseUpAction=[!CommandMeasure MeasureMediaSettings "BeginNumberInput('QueueRowLimit')"]
 
@@ -382,7 +425,7 @@ LeftMouseUpAction=[!CommandMeasure MeasureMediaSettings "BeginNumberInput('Queue
 Meter=String
 MeterStyle=StyleSettingsStepperButton|MediaSettingsData
 X=(#ContentX#+131*#Scale#)
-Y=(#Inset#+325*#Scale#*#MediaSettingsQueueDetailsVisible#)
+Y=(#Inset#+353*#Scale#*#MediaSettingsQueueDetailsVisible#)
 Hidden=(1-#MediaSettingsQueueDetailsVisible#)
 W=(18*#Scale#*#MediaSettingsQueueDetailsVisible#)
 H=(18*#Scale#*#MediaSettingsQueueDetailsVisible#)
@@ -394,7 +437,7 @@ LeftMouseUpAction=[!CommandMeasure MeasureMediaSettings "StepNumber('QueueRowLim
 Meter=Shape
 MeterStyle=StyleSettingsStepperFrame|MediaSettingsData
 X=(#ContentX#+142*#Scale#)
-Y=(#Inset#+324*#Scale#*#MediaSettingsQueueDetailsVisible#)
+Y=(#Inset#+352*#Scale#*#MediaSettingsQueueDetailsVisible#)
 Hidden=(1-#MediaSettingsQueueDetailsVisible#)
 W=(56*#Scale#*#MediaSettingsQueueDetailsVisible#)
 H=(20*#Scale#*#MediaSettingsQueueDetailsVisible#)
@@ -406,7 +449,7 @@ LeftMouseUpAction=[!CommandMeasure MeasureMediaSettings "BeginNumberInput('Queue
 Meter=String
 MeterStyle=StyleSettingsStepperValue|MediaSettingsData
 X=(#ContentX#+170*#Scale#)
-Y=(#Inset#+325*#Scale#*#MediaSettingsQueueDetailsVisible#)
+Y=(#Inset#+353*#Scale#*#MediaSettingsQueueDetailsVisible#)
 Hidden=(1-#MediaSettingsQueueDetailsVisible#)
 W=(56*#Scale#*#MediaSettingsQueueDetailsVisible#)
 H=(18*#Scale#*#MediaSettingsQueueDetailsVisible#)
@@ -418,7 +461,7 @@ LeftMouseUpAction=[!CommandMeasure MeasureMediaSettings "BeginNumberInput('Queue
 Meter=String
 MeterStyle=StyleSettingsStepperButton|MediaSettingsData
 X=(#ContentX#+209*#Scale#)
-Y=(#Inset#+325*#Scale#*#MediaSettingsQueueDetailsVisible#)
+Y=(#Inset#+353*#Scale#*#MediaSettingsQueueDetailsVisible#)
 Hidden=(1-#MediaSettingsQueueDetailsVisible#)
 W=(18*#Scale#*#MediaSettingsQueueDetailsVisible#)
 H=(18*#Scale#*#MediaSettingsQueueDetailsVisible#)
@@ -433,7 +476,7 @@ H=(18*#Scale#*#MediaSettingsQueueDetailsVisible#)
 Padding=0,0,0,0
 Meter=String
 MeterStyle=StyleUtilitySettingsLabel|MediaSettingsLabel|MediaSettingsData
-Y=(#Inset#+354*#Scale#*#MediaSettingsQueueDetailsVisible#)
+Y=(#Inset#+382*#Scale#*#MediaSettingsQueueDetailsVisible#)
 Text=Queue details
 LeftMouseUpAction=[!CommandMeasure MeasureMediaSettings "ToggleQueueDetails()"]
 
@@ -444,7 +487,7 @@ H=(18*#Scale#*#MediaSettingsQueueDetailsVisible#)
 Padding=(3*#Scale#*#MediaSettingsQueueDetailsVisible#),(#Scale#*#MediaSettingsQueueDetailsVisible#),(3*#Scale#*#MediaSettingsQueueDetailsVisible#),(#Scale#*#MediaSettingsQueueDetailsVisible#)
 Meter=String
 MeterStyle=StyleUtilitySettingsValue|MediaSettingsValue|MediaSettingsData
-Y=(#Inset#+352*#Scale#*#MediaSettingsQueueDetailsVisible#)
+Y=(#Inset#+380*#Scale#*#MediaSettingsQueueDetailsVisible#)
 Text=Shown
 LeftMouseUpAction=[!CommandMeasure MeasureMediaSettings "ToggleQueueDetails()"]
 
@@ -459,7 +502,7 @@ H=(18*#Scale#*#MediaSettingsQueueDetailsVisible#)
 Padding=0,0,0,0
 Meter=String
 MeterStyle=StyleUtilitySettingsLabel|MediaSettingsLabel|MediaSettingsData
-Y=(#Inset#+382*#Scale#*#MediaSettingsQueueDetailsVisible#)
+Y=(#Inset#+410*#Scale#*#MediaSettingsQueueDetailsVisible#)
 Text=Queue row size
 LeftMouseUpAction=[!CommandMeasure MeasureMediaSettings "StepChoice('QueueRowSize',1)"]
 
@@ -467,7 +510,7 @@ LeftMouseUpAction=[!CommandMeasure MeasureMediaSettings "StepChoice('QueueRowSiz
 Meter=String
 MeterStyle=StyleSettingsStepperButton|MediaSettingsData
 X=(#ContentX#+131*#Scale#)
-Y=(#Inset#+381*#Scale#*#MediaSettingsQueueDetailsVisible#)
+Y=(#Inset#+409*#Scale#*#MediaSettingsQueueDetailsVisible#)
 Hidden=(1-#MediaSettingsQueueDetailsVisible#)
 W=(18*#Scale#*#MediaSettingsQueueDetailsVisible#)
 H=(18*#Scale#*#MediaSettingsQueueDetailsVisible#)
@@ -479,7 +522,7 @@ LeftMouseUpAction=[!CommandMeasure MeasureMediaSettings "StepChoice('QueueRowSiz
 Meter=Shape
 MeterStyle=StyleSettingsStepperFrame|MediaSettingsData
 X=(#ContentX#+142*#Scale#)
-Y=(#Inset#+380*#Scale#*#MediaSettingsQueueDetailsVisible#)
+Y=(#Inset#+408*#Scale#*#MediaSettingsQueueDetailsVisible#)
 Hidden=(1-#MediaSettingsQueueDetailsVisible#)
 W=(76*#Scale#*#MediaSettingsQueueDetailsVisible#)
 H=(20*#Scale#*#MediaSettingsQueueDetailsVisible#)
@@ -491,7 +534,7 @@ LeftMouseUpAction=[!CommandMeasure MeasureMediaSettings "StepChoice('QueueRowSiz
 Meter=String
 MeterStyle=StyleSettingsStepperValue|MediaSettingsData
 X=(#ContentX#+180*#Scale#)
-Y=(#Inset#+381*#Scale#*#MediaSettingsQueueDetailsVisible#)
+Y=(#Inset#+409*#Scale#*#MediaSettingsQueueDetailsVisible#)
 Hidden=(1-#MediaSettingsQueueDetailsVisible#)
 W=(76*#Scale#*#MediaSettingsQueueDetailsVisible#)
 H=(18*#Scale#*#MediaSettingsQueueDetailsVisible#)
@@ -503,7 +546,7 @@ LeftMouseUpAction=[!CommandMeasure MeasureMediaSettings "StepChoice('QueueRowSiz
 Meter=String
 MeterStyle=StyleSettingsStepperButton|MediaSettingsData
 X=(#ContentX#+229*#Scale#)
-Y=(#Inset#+381*#Scale#*#MediaSettingsQueueDetailsVisible#)
+Y=(#Inset#+409*#Scale#*#MediaSettingsQueueDetailsVisible#)
 Hidden=(1-#MediaSettingsQueueDetailsVisible#)
 W=(18*#Scale#*#MediaSettingsQueueDetailsVisible#)
 H=(18*#Scale#*#MediaSettingsQueueDetailsVisible#)
@@ -525,18 +568,18 @@ DynamicVariables=1
 [MeterSamplingHeading]
 Meter=String
 MeterStyle=StyleUtilitySettingsSection|MediaSettingsData
-Y=(#Inset#+(618-#MediaSettingsQueueCollapsedHeight#)*#Scale#)
+Y=(#Inset#+(646-#MediaSettingsQueueCollapsedHeight#)*#Scale#)
 Text=Queue sampling
 
 [MeterSamplingRule]
 Meter=Shape
 MeterStyle=StyleRule|MediaSettingsData
-Y=(#Inset#+(639-#MediaSettingsQueueCollapsedHeight#)*#Scale#)
+Y=(#Inset#+(667-#MediaSettingsQueueCollapsedHeight#)*#Scale#)
 
 [MeterQueuePollLabel]
 Meter=String
 MeterStyle=StyleUtilitySettingsLabel|MediaSettingsLabel|MediaSettingsData
-Y=(#Inset#+(646-#MediaSettingsQueueCollapsedHeight#)*#Scale#)
+Y=(#Inset#+(674-#MediaSettingsQueueCollapsedHeight#)*#Scale#)
 Text=Queue refresh (s)
 LeftMouseUpAction=[!CommandMeasure MeasureMediaSettings "BeginNumberInput('QueuePollSeconds')"]
 
@@ -544,7 +587,7 @@ LeftMouseUpAction=[!CommandMeasure MeasureMediaSettings "BeginNumberInput('Queue
 Meter=String
 MeterStyle=StyleSettingsStepperButton|MediaSettingsData
 X=(#ContentX#+131*#Scale#)
-Y=(#Inset#+(645-#MediaSettingsQueueCollapsedHeight#)*#Scale#)
+Y=(#Inset#+(673-#MediaSettingsQueueCollapsedHeight#)*#Scale#)
 Text=<
 LeftMouseUpAction=[!CommandMeasure MeasureMediaSettings "StepNumber('QueuePollSeconds',-1)"]
 
@@ -552,14 +595,14 @@ LeftMouseUpAction=[!CommandMeasure MeasureMediaSettings "StepNumber('QueuePollSe
 Meter=Shape
 MeterStyle=StyleSettingsStepperFrame|MediaSettingsData
 X=(#ContentX#+142*#Scale#)
-Y=(#Inset#+(644-#MediaSettingsQueueCollapsedHeight#)*#Scale#)
+Y=(#Inset#+(672-#MediaSettingsQueueCollapsedHeight#)*#Scale#)
 LeftMouseUpAction=[!CommandMeasure MeasureMediaSettings "BeginNumberInput('QueuePollSeconds')"]
 
 [MeterQueuePollValue]
 Meter=String
 MeterStyle=StyleSettingsStepperValue|MediaSettingsData
 X=(#ContentX#+170*#Scale#)
-Y=(#Inset#+(645-#MediaSettingsQueueCollapsedHeight#)*#Scale#)
+Y=(#Inset#+(673-#MediaSettingsQueueCollapsedHeight#)*#Scale#)
 Text=30
 LeftMouseUpAction=[!CommandMeasure MeasureMediaSettings "BeginNumberInput('QueuePollSeconds')"]
 
@@ -567,32 +610,32 @@ LeftMouseUpAction=[!CommandMeasure MeasureMediaSettings "BeginNumberInput('Queue
 Meter=String
 MeterStyle=StyleSettingsStepperButton|MediaSettingsData
 X=(#ContentX#+209*#Scale#)
-Y=(#Inset#+(645-#MediaSettingsQueueCollapsedHeight#)*#Scale#)
+Y=(#Inset#+(673-#MediaSettingsQueueCollapsedHeight#)*#Scale#)
 Text=>
 LeftMouseUpAction=[!CommandMeasure MeasureMediaSettings "StepNumber('QueuePollSeconds',1)"]
 
 [MeterStatus]
 Meter=String
 MeterStyle=StyleLabel|MediaSettingsData|MediaSettingsGuidance
-Y=(#Inset#+(672-#MediaSettingsQueueCollapsedHeight#)*#Scale#)
+Y=(#Inset#+(700-#MediaSettingsQueueCollapsedHeight#)*#Scale#)
 Text=Changes save when clicked.
 
 [MeterSourceLabel]
 Meter=String
 MeterStyle=StyleUtilitySettingsSection|MediaSettingsData
-Y=(#Inset#+(702-#MediaSettingsQueueCollapsedHeight#)*#Scale#)
+Y=(#Inset#+(730-#MediaSettingsQueueCollapsedHeight#)*#Scale#)
 Text=Source detection
 
 [MeterSourceRule]
 Meter=Shape
 MeterStyle=StyleRule|MediaSettingsData
-Y=(#Inset#+(723-#MediaSettingsQueueCollapsedHeight#)*#Scale#)
+Y=(#Inset#+(751-#MediaSettingsQueueCollapsedHeight#)*#Scale#)
 
 [MeterSourceStart]
 Meter=String
 MeterStyle=StyleButton|MediaSettingsButton|MediaSettingsCentered|MediaSettingsData
 X=(#ContentX#+((#ContentWidth#-4*#Scale#)/2)/2+0*(((#ContentWidth#-4*#Scale#)/2)+4*#Scale#))
-Y=(#Inset#+(739-#MediaSettingsQueueCollapsedHeight#)*#Scale#)
+Y=(#Inset#+(767-#MediaSettingsQueueCollapsedHeight#)*#Scale#)
 W=((#ContentWidth#-4*#Scale#)/2)
 Text=Start
 LeftMouseUpAction=[!CommandMeasure MeasureMediaSettings "ProviderControl('Source','Start')"]
@@ -601,7 +644,7 @@ LeftMouseUpAction=[!CommandMeasure MeasureMediaSettings "ProviderControl('Source
 Meter=String
 MeterStyle=StyleButton|MediaSettingsButton|MediaSettingsCentered|StyleSecondaryButton|MediaSettingsData
 X=(#ContentX#+((#ContentWidth#-4*#Scale#)/2)/2+1*(((#ContentWidth#-4*#Scale#)/2)+4*#Scale#))
-Y=(#Inset#+(739-#MediaSettingsQueueCollapsedHeight#)*#Scale#)
+Y=(#Inset#+(767-#MediaSettingsQueueCollapsedHeight#)*#Scale#)
 W=((#ContentWidth#-4*#Scale#)/2)
 Text=Stop
 LeftMouseUpAction=[!CommandMeasure MeasureMediaSettings "ProviderControl('Source','Stop')"]
@@ -609,25 +652,25 @@ LeftMouseUpAction=[!CommandMeasure MeasureMediaSettings "ProviderControl('Source
 [MeterSourceGuidance]
 Meter=String
 MeterStyle=StyleLabel|MediaSettingsGuidance|MediaSettingsData
-Y=(#Inset#+(756-#MediaSettingsQueueCollapsedHeight#)*#Scale#)
+Y=(#Inset#+(784-#MediaSettingsQueueCollapsedHeight#)*#Scale#)
 Text=Identifies Spotify locally; no sign-in needed.
 
 [MeterQueueHeading]
 Meter=String
 MeterStyle=StyleUtilitySettingsSection|MediaSettingsData
-Y=(#Inset#+(786-#MediaSettingsQueueCollapsedHeight#)*#Scale#)
+Y=(#Inset#+(814-#MediaSettingsQueueCollapsedHeight#)*#Scale#)
 Text=Spotify queue (experimental)
 
 [MeterQueueRule]
 Meter=Shape
 MeterStyle=StyleRule|MediaSettingsData
-Y=(#Inset#+(807-#MediaSettingsQueueCollapsedHeight#)*#Scale#)
+Y=(#Inset#+(835-#MediaSettingsQueueCollapsedHeight#)*#Scale#)
 
 [MeterStart]
 Meter=String
 MeterStyle=StyleButton|MediaSettingsButton|MediaSettingsCentered|MediaSettingsData
 X=(#ContentX#+((#ContentWidth#-8*#Scale#)/3)/2+0*(((#ContentWidth#-8*#Scale#)/3)+4*#Scale#))
-Y=(#Inset#+(823-#MediaSettingsQueueCollapsedHeight#)*#Scale#)
+Y=(#Inset#+(851-#MediaSettingsQueueCollapsedHeight#)*#Scale#)
 W=((#ContentWidth#-8*#Scale#)/3)
 Text=Start
 LeftMouseUpAction=[!CommandMeasure MeasureMediaSettings "ProviderControl('Queue','Start')"]
@@ -637,7 +680,7 @@ DynamicVariables=1
 Meter=String
 MeterStyle=StyleButton|MediaSettingsButton|MediaSettingsCentered|StyleSecondaryButton|MediaSettingsData
 X=(#ContentX#+((#ContentWidth#-8*#Scale#)/3)/2+1*(((#ContentWidth#-8*#Scale#)/3)+4*#Scale#))
-Y=(#Inset#+(823-#MediaSettingsQueueCollapsedHeight#)*#Scale#)
+Y=(#Inset#+(851-#MediaSettingsQueueCollapsedHeight#)*#Scale#)
 W=((#ContentWidth#-8*#Scale#)/3)
 Text=Stop
 LeftMouseUpAction=[!CommandMeasure MeasureMediaSettings "ProviderControl('Queue','Stop')"]
@@ -646,7 +689,7 @@ LeftMouseUpAction=[!CommandMeasure MeasureMediaSettings "ProviderControl('Queue'
 Meter=String
 MeterStyle=StyleButton|MediaSettingsButton|MediaSettingsCentered|MediaSettingsData
 X=(#ContentX#+((#ContentWidth#-8*#Scale#)/3)/2+2*(((#ContentWidth#-8*#Scale#)/3)+4*#Scale#))
-Y=(#Inset#+(823-#MediaSettingsQueueCollapsedHeight#)*#Scale#)
+Y=(#Inset#+(851-#MediaSettingsQueueCollapsedHeight#)*#Scale#)
 W=((#ContentWidth#-8*#Scale#)/3)
 Text=Restart
 LeftMouseUpAction=[!CommandMeasure MeasureMediaSettings "ProviderControl('Queue','Restart')"]
@@ -657,7 +700,7 @@ DynamicVariables=1
 Meter=String
 MeterStyle=StyleButton|MediaSettingsButton|MediaSettingsCentered|StyleSecondaryButton|MediaSettingsData
 X=(#ContentX#+#ContentWidth#/2)
-Y=(#Inset#+(851-#MediaSettingsQueueCollapsedHeight#)*#Scale#)
+Y=(#Inset#+(879-#MediaSettingsQueueCollapsedHeight#)*#Scale#)
 W=#ContentWidth#
 Text=Spotify sign-in: Connections
 LeftMouseUpAction=[!ActivateConfig "Parallax\Connections" "Connections.ini"]
@@ -665,25 +708,25 @@ LeftMouseUpAction=[!ActivateConfig "Parallax\Connections" "Connections.ini"]
 [MeterQueueGuidance]
 Meter=String
 MeterStyle=StyleLabel|MediaSettingsGuidance|MediaSettingsData
-Y=(#Inset#+(868-#MediaSettingsQueueCollapsedHeight#)*#Scale#)
+Y=(#Inset#+(896-#MediaSettingsQueueCollapsedHeight#)*#Scale#)
 Text=Needs Spotify Premium. Signing in also starts it.
 
 [MeterLinksHeading]
 Meter=String
 MeterStyle=StyleUtilitySettingsSection|MediaSettingsData
-Y=(#Inset#+(898-#MediaSettingsQueueCollapsedHeight#)*#Scale#)
+Y=(#Inset#+(926-#MediaSettingsQueueCollapsedHeight#)*#Scale#)
 Text=Tools & help
 
 [MeterLinksRule]
 Meter=Shape
 MeterStyle=StyleRule|MediaSettingsData
-Y=(#Inset#+(919-#MediaSettingsQueueCollapsedHeight#)*#Scale#)
+Y=(#Inset#+(947-#MediaSettingsQueueCollapsedHeight#)*#Scale#)
 
 [MeterOpenQueue]
 Meter=String
 MeterStyle=StyleButton|MediaSettingsButton|MediaSettingsCentered|StyleSecondaryButton|MediaSettingsData
 X=(#ContentX#+((#ContentWidth#-8*#Scale#)/3)/2+0*(((#ContentWidth#-8*#Scale#)/3)+4*#Scale#))
-Y=(#Inset#+(935-#MediaSettingsQueueCollapsedHeight#)*#Scale#)
+Y=(#Inset#+(963-#MediaSettingsQueueCollapsedHeight#)*#Scale#)
 W=((#ContentWidth#-8*#Scale#)/3)
 Text=Open queue
 LeftMouseUpAction=[!ActivateConfig "Parallax\Media\Queue" "Queue.ini"]
@@ -692,7 +735,7 @@ LeftMouseUpAction=[!ActivateConfig "Parallax\Media\Queue" "Queue.ini"]
 Meter=String
 MeterStyle=StyleButton|MediaSettingsButton|MediaSettingsCentered|StyleSecondaryButton|MediaSettingsData
 X=(#ContentX#+((#ContentWidth#-8*#Scale#)/3)/2+1*(((#ContentWidth#-8*#Scale#)/3)+4*#Scale#))
-Y=(#Inset#+(935-#MediaSettingsQueueCollapsedHeight#)*#Scale#)
+Y=(#Inset#+(963-#MediaSettingsQueueCollapsedHeight#)*#Scale#)
 W=((#ContentWidth#-8*#Scale#)/3)
 Text=Player setup
 LeftMouseUpAction=[!ActivateConfig "Parallax\Media" "Setup.ini"]
@@ -701,7 +744,7 @@ LeftMouseUpAction=[!ActivateConfig "Parallax\Media" "Setup.ini"]
 Meter=String
 MeterStyle=StyleButton|MediaSettingsButton|MediaSettingsCentered|StyleSecondaryButton|MediaSettingsData
 X=(#ContentX#+((#ContentWidth#-8*#Scale#)/3)/2+2*(((#ContentWidth#-8*#Scale#)/3)+4*#Scale#))
-Y=(#Inset#+(935-#MediaSettingsQueueCollapsedHeight#)*#Scale#)
+Y=(#Inset#+(963-#MediaSettingsQueueCollapsedHeight#)*#Scale#)
 W=((#ContentWidth#-8*#Scale#)/3)
 Text=Help
 LeftMouseUpAction=["#@#Modules\Media\Queue\README.md"]

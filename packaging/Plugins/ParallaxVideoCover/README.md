@@ -6,7 +6,7 @@ Original Parallax code. No binary is in the repository and no release contains o
 
 | File | What it is |
 |---|---|
-| `ParallaxVideoCover.cpp`, `Follower.h` | The plugin: a DWM thumbnail on the skin's window; the video's place read through UI Automation. |
+| `ParallaxVideoCover.cpp`, `Follower.h`, `PageTitle.h` | The plugin: a DWM thumbnail on the skin's window; the video's place read through UI Automation. |
 | `Build.ps1` | Builds the 64-bit DLL into a folder under TEMP (`-OutDir` to change it). |
 | `Test-Plugin.ps1` | Draws a stand-in window in a separate Rainmeter with its own settings folder. Windows PowerShell 5.1; shows windows on screen while it runs. |
 

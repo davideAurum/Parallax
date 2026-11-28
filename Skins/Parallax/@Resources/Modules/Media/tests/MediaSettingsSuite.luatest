@@ -168,7 +168,7 @@ local function dimensions(expanded, rows)
     local columns=is_settings() and 2 or SELF:GetNumberOption('ExpectedColumns')
     local gap=2*math.floor(tonumber(SKIN:GetVariable('Gutter'))*scale/2+0.5)
     local expected_w=columns*(math.floor(width*scale+0.5)+gap)
-    local expected_h=is_settings() and math.floor((expanded and 954 or 870)*scale+0.5)+gap or media_geometry(expanded,rows).window
+    local expected_h=is_settings() and math.floor((expanded and 982 or 898)*scale+0.5)+gap or media_geometry(expanded,rows).window
     local detail=''
     if is_settings() and SKIN:GetH()~=expected_h then
         local bounds,panel=SKIN:GetMeter('MeterBounds'),SKIN:GetMeter('MeterPanel')
@@ -516,15 +516,15 @@ local function settings_bounds(expanded)
         'MeterSamplingRule','MeterSourceRule','MeterSourceGuidance','MeterQueueGuidance','MeterLinksHeading'}) do inside(name,width,height) end
     local scale=SELF:GetNumberOption('ExpectedScale')
     local inset=math.floor(tonumber(SKIN:GetVariable('Gutter'))*scale/2+0.5)
-    for _,stem in ipairs({'Width','VisualizerDrawer','VisualizerPlacement','TitleAnimation','AlbumColors','AlbumTint','CoverZoom','QueueExpanded','QueueRows',
+    for _,stem in ipairs({'Width','VisualizerDrawer','VisualizerPlacement','TitleAnimation','AlbumColors','AlbumTint','CoverZoom','VideoCover','QueueExpanded','QueueRows',
         'QueueDetails','QueueRowSize','QueuePoll'}) do
         local label,value=SKIN:GetMeter('Meter'..stem..'Label'),SKIN:GetMeter('Meter'..stem..'Value')
         local numeric=stem=='Width' or stem=='QueueRows' or stem=='QueuePoll' or stem=='AlbumTint'
         -- The three-way Spectrum drawer and Title animation choices use the
         -- same previous/value/next group as the numbers; the drawer's field is
         -- 76px so Collapsed/Expanded fit, Off / 10 fps / 20 fps keep 56.
-        local stepper=numeric or stem=='VisualizerDrawer' or stem=='VisualizerPlacement' or stem=='TitleAnimation' or stem=='AlbumColors' or stem=='CoverZoom' or stem=='QueueRowSize'
-        local field=(stem=='VisualizerDrawer' or stem=='VisualizerPlacement' or stem=='AlbumColors' or stem=='CoverZoom' or stem=='QueueRowSize') and 76 or 56
+        local stepper=numeric or stem=='VisualizerDrawer' or stem=='VisualizerPlacement' or stem=='TitleAnimation' or stem=='AlbumColors' or stem=='CoverZoom' or stem=='VideoCover' or stem=='QueueRowSize'
+        local field=(stem=='VisualizerDrawer' or stem=='VisualizerPlacement' or stem=='AlbumColors' or stem=='CoverZoom' or stem=='VideoCover' or stem=='QueueRowSize') and 76 or 56
         local hidden=not expanded and (stem=='QueueRows' or stem=='QueueDetails' or stem=='QueueRowSize')
         local meters={label,value}
         if stepper then for _,part in ipairs({'Decrease','Frame','Increase'}) do
@@ -565,7 +565,8 @@ local function settings_bounds(expanded)
         MeterTitleAnimationLabel=186,MeterTitleAnimationDecrease=185,
         MeterTitleAnimationFrame=184,MeterTitleAnimationValue=185,MeterTitleAnimationIncrease=185,
         MeterAlbumColorsLabel=214,MeterAlbumColorsFrame=212,MeterAlbumTintLabel=242,MeterAlbumTintFrame=240,
-        MeterCoverZoomLabel=270,MeterCoverZoomFrame=268,MeterQueueExpandedLabel=298,MeterQueueExpandedValue=296}) do
+        MeterCoverZoomLabel=270,MeterCoverZoomFrame=268,MeterVideoCoverLabel=298,MeterVideoCoverFrame=296,
+        MeterQueueExpandedLabel=326,MeterQueueExpandedValue=324}) do
         check(math.abs(SKIN:GetMeter(name):GetY(true)-(inset+y*scale))<=1,'Display row moved: '..name)
     end
     -- The wider drawer group shares the numeric groups' left column.
@@ -577,11 +578,11 @@ local function settings_bounds(expanded)
     -- The shared Spectrum steppers (Visualizer\SettingsShared.inc) follow the
     -- queue rows; every later section sits 204 lower than before them, and
     -- 84 more since Album colors, Album tint and Row size (2026-11-19).
-    for name,y in pairs({MeterVisualizerSettingsAppearance=414,MeterVisualizerSettingsHeightRow=440,
-        MeterVisualizerSettingsBaselineRow=552,MeterVisualizerSettingsQualityRow=440,MeterVisualizerSettingsAnimation=502,
-        MeterVisualizerSettingsDecayRow=584,
-        MeterSamplingHeading=618,MeterQueuePollValue=645,MeterStatus=672,
-        MeterSourceLabel=702,MeterSourceStart=739,MeterQueueHeading=786,MeterStart=823,MeterConnections=851,MeterLinksHeading=898}) do
+    for name,y in pairs({MeterVisualizerSettingsAppearance=442,MeterVisualizerSettingsHeightRow=468,
+        MeterVisualizerSettingsBaselineRow=580,MeterVisualizerSettingsQualityRow=468,MeterVisualizerSettingsAnimation=530,
+        MeterVisualizerSettingsDecayRow=612,
+        MeterSamplingHeading=646,MeterQueuePollValue=673,MeterStatus=700,
+        MeterSourceLabel=730,MeterSourceStart=767,MeterQueueHeading=814,MeterStart=851,MeterConnections=879,MeterLinksHeading=926}) do
         local meter=SKIN:GetMeter(name)
         check(meter:GetW()>0 and meter:GetH()>0,'Recovery/sampling control hidden: '..name)
         check(math.abs(meter:GetY(true)-(inset+(y-shift)*scale))<=1,'Dependent settings did not reflow: '..name)

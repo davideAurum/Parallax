@@ -40,3 +40,6 @@ MediaAlbumTint=10
 ; Cover: 0 shows the whole picture (a wide video has bars above and below); 1
 ; zooms to fill the square, cutting the sides. Also in Media's right-click menu.
 MediaCoverZoom=0
+; Live video on the cover (in development): 1 draws picture-in-picture or the
+; YouTube app's video there. Needs the ParallaxVideoCover plugin.
+MediaVideoCover=0

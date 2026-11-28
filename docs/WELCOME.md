@@ -62,7 +62,7 @@ The layout fills columns from the top right of the primary screen's work area. O
 | Left edge | Width | Panels, with their top edges |
 | --- | --- | --- |
 | 1692 | 1 column | CPU (0). It grows with the processor: 366 px plus 16 per thread. |
-| 1464 | 1 column | GPU (0), IO (470), Chronometer (630) |
+| 1464 | 1 column | GPU (0), IO (494), Chronometer (654) |
 | 1236 | 1 column | Network (0), RAM (312) |
 | 780 | 2 columns | Visualizer (0), Media (154), Welcome (340) |
 | 324 | 2 columns | Global Settings (0), 1005 px tall, or the work area's height where that is less |
@@ -71,20 +71,23 @@ Edges include the gutter, so the painted panels are 8 px apart and line up with 
 
 If the work area is too short for GPU, IO and Chronometer in one column, IO goes under Media instead.
 
+Since 0.1.0-alpha.18 the place under GPU Meter leaves 24 px for the second-GPU line it shows by default on a computer with two GPUs. No panel can know that count at first load, so with one GPU a 24 px gap (at scale 1) stays above Disk Meter. [Arrange](#arrange) closes it.
+
 ### What fits
 
 | Work area at the default size | Result |
 | --- | --- |
-| 1596 × 790 or larger | All ten panels apart. Under 1005 px tall Global Settings ends at the bottom of the work area and [scrolls](UTILITY-SETTINGS.md#tall-panels); until 2026-11-25 it ran past it. |
-| 1140 × 790 or larger | The eight utilities and Welcome apart. Under 1596 px wide Global Settings overlaps Visualizer, Media and Welcome (by 60 px at 1536, completely at 1140). |
-| 1140 × 651 or larger | The eight utilities apart. Welcome overlaps Media and IO, and Global Settings overlaps Visualizer, Media, IO and Welcome. |
+| 1596 × 814 or larger | All ten panels apart. Under 1005 px tall Global Settings ends at the bottom of the work area and [scrolls](UTILITY-SETTINGS.md#tall-panels); until 2026-11-25 it ran past it. |
+| 1140 × 814 or larger | The eight utilities and Welcome apart. Under 1596 px wide Global Settings overlaps Visualizer, Media and Welcome (by 60 px at 1536, completely at 1140). |
+| 1140 × 654 or larger | The eight utilities apart. Welcome overlaps Media and IO, and Global Settings overlaps Visualizer, Media, IO and Welcome. |
 | Smaller | Utilities overlap too |
 
-The numbers grow with the suite scale: 1140 × 651 is 1710 × 977 at 150%. The column width changes the widths. Rainmeter is not DPI aware, so Windows scaling divides the screen first: a 1920 × 1080 screen is a 1536 × 816 work area at 125% and 1280 × 672 at 150%. A processor with more threads than fit (41 in a 1032 px work area, 19 in 672) makes CPU run past the bottom.
+The numbers grow with the suite scale: 1140 × 654 is 1710 × 981 at 150%. The column width changes the widths. Rainmeter is not DPI aware, so Windows scaling divides the screen first: a 1920 × 1080 screen is a 1536 × 816 work area at 125% and 1280 × 672 at 150%. A processor with more threads than fit (41 in a 1032 px work area, 19 in 672) makes CPU run past the bottom.
 
 ### Limits
 
-- **Only the first load.** A panel with a section in Rainmeter.ini keeps its recorded position, and changing the scale, width or options later rearranges nothing.
+- **Only the first load.** A panel with a section in Rainmeter.ini keeps its recorded position, and changing the scale, width or options later rearranges nothing. An upgrade moves nothing either: on a computer with two GPUs, GPU Meter's second-GPU line (new in 0.1.0-alpha.18) reaches 24 px over a panel that sits directly under it until that panel is moved or Arrange is clicked.
+- **Second GPU: Rows** and **Rows + history** are 32 px taller than the room left, so on a new install they cover the top of Disk Meter by that much.
 - **0,0 left by an older version stays** until [Arrange](#arrange). Until now Rainmeter recorded 0,0 on a first load. That cannot be told apart from a panel someone dragged to exactly 0,0, so both stay where they are. A panel dragged to exactly 0,0 from now on also stays there.
 - **It does not look at the desktop.** A panel can open over one you placed there, another suite's skin, or Rainmeter's own starter skins (illustro), which sit where CPU opens. The [update prompt](UPDATES.md#the-update-prompt) opens over the top of the CPU panel's place.
 - **Shipped options.** A panel saved larger than it ships (two columns, more drives, timers, an open queue or spectrum drawer) can reach into its neighbor.
@@ -168,6 +171,10 @@ The ten panels that open from another one were loaded together in a fresh profil
 Rerun on 2026-11-25 after Global Settings began to end at the work area ([Tall panels](UTILITY-SETTINGS.md#tall-panels)); in a simulated run the test now replaces that panel's work area too. All ten apart at 1920 × 1032 (scale 1 and 1.13), on the real 1600 × 1019 and at 1596 × 790, where Global Settings is 790 px tall; at 1.13 it is 1032 instead of running past the bottom. At 1536 × 816 it is 816 px tall and overlaps the same three panels by 60 px; at 1280 × 672 it is 672 px tall, and it and Welcome overlap others as before. Saved positions and second loads held in all six runs, and so did the stacked profile's Arrange and Undo once the two changes were merged. At 1280 × 672 Arrange steps Global Settings down to 30,30 at its full 672 px, so its last 30 px are below the work area until the pointer enters it, when it ends there ([Tall panels](UTILITY-SETTINGS.md#tall-panels)).
 
 Not established: a real 1920 × 1080 screen at 100% (the 1080p numbers above are simulated), several screens and mixed scaling, a taskbar on another edge, a real Skin Installer run (its source at 4.5.28.3936 activates the panel the way the test does), Rainmeter 4.5.26 itself (its source reads the same options the same way) and 5.x, a processor with more than 8 threads, more than one drive, and how the arrangement looks to someone new to it.
+
+### Room for the second GPU, 2026-11-28
+
+With the second-GPU line on by default, a first placement on a computer with two GPUs put Disk Meter 24 px under the bottom of GPU Meter. `PlaceGPUHeight` now includes that line. `Run-PlacementSmoke.ps1` passes on the hybrid laptop (Rainmeter 4.5.28.3936) at 1920 × 1032, 1596 × 814, 1536 × 816, 1140 × 814, 1140 × 654, 3840 × 2112 at scale 2 and the real screen, and with Second GPU Off at 1920 × 1032 and 1140 × 814. The work areas in the table above moved from 790 and 651 px tall accordingly; all but the real screen are simulated. A computer with one GPU was stood in for by Second GPU Off only.
 
 ### Arrange, 2026-11-25
 

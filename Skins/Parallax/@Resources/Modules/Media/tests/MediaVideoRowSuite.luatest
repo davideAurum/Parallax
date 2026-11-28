@@ -1,0 +1,104 @@
+-- Media settings' Live video row with and without the ParallaxVideoCover plugin
+-- (not bundled). Runs the production Settings.lua against a mocked skin and
+-- file system; nothing real is read or written. Developer-only.
+local suite = {}
+local count = 0
+local function check(ok, message) count = count + 1; assert(ok, message) end
+local function equal(actual, expected, message)
+    check(actual == expected, message .. ': expected ' .. tostring(expected) .. ', got ' .. tostring(actual))
+end
+
+local PROFILE, PROGRAM = 'C:\\Synthetic\\Profile\\', 'C:\\Synthetic\\Program\\'
+local SETTINGS = 'C:\\Synthetic\\@Resources\\User\\Media.inc'
+local UNAVAILABLE = 'Live video needs a plugin that is not included.'
+
+local function view(source, saved, pluginPath)
+    local state = { saved = saved, options = {}, writes = {} }
+    local function contents()
+        local text = '[Variables]\nColumns=2\n'
+        if state.saved then text = text .. 'MediaVideoCover=' .. state.saved .. '\n' end
+        return text
+    end
+    local variables = { ['@'] = 'C:\\Synthetic\\@Resources\\', SETTINGSPATH = PROFILE, PROGRAMPATH = PROGRAM }
+    local skin = {
+        GetVariable = function(_, name, default) return variables[name] or default end,
+        ReplaceVariables = function(_, value) return value end,
+        ParseFormula = function() return 1 end,
+        GetMeasure = function() return nil end,
+        GetMeter = function() return nil end,
+        Bang = function(_, name, a, b, c, d)
+            if name == '!SetOption' then
+                state.options[a .. '/' .. b] = tostring(c)
+            elseif name == '!WriteKeyValue' then
+                equal(a, 'Variables', 'Only the variables section is written')
+                equal(d, SETTINGS, 'Only the Media settings file is written')
+                state.writes[#state.writes + 1] = b .. '=' .. c
+                if b == 'MediaVideoCover' then state.saved = c end
+            end
+        end
+    }
+    local fakeIo = { open = function(path, mode)
+        equal(mode, 'rb', 'Files are only read')
+        if path == SETTINGS then
+            return { read = function() return contents() end, close = function() end }
+        end
+        if pluginPath and path == pluginPath then return { close = function() end } end
+        return nil
+    end }
+    local env = setmetatable({ SKIN = skin, io = fakeIo }, { __index = _G })
+    local chunk = assert(loadfile(source))
+    setfenv(chunk, env)
+    chunk()
+    env.Initialize()
+    env.Update()
+    state.env = env
+    function state.text(meter) return state.options[meter .. '/Text'] end
+    return state
+end
+
+local ROW = { 'MeterVideoCoverLabel', 'MeterVideoCoverDecrease', 'MeterVideoCoverValue', 'MeterVideoCoverIncrease' }
+
+function suite.run(source)
+    count = 0
+    local cases = {}
+
+    -- Without the plugin: visible, marked, and a click turns nothing on.
+    local v = view(source, nil, nil)
+    equal(v.text('MeterVideoCoverValue'), 'No plugin', 'Missing plugin is named in the row')
+    for _, meter in ipairs(ROW) do
+        equal(v.options[meter .. '/Hidden'], nil, meter .. ' stays visible')
+    end
+    for _, delta in ipairs({ 1, -1 }) do
+        equal(v.env.StepChoice('MediaVideoCover', delta), false, 'Click does not turn it on')
+    end
+    equal(#v.writes, 0, 'Nothing is written')
+    equal(v.text('MeterStatus'), UNAVAILABLE, 'A click says why')
+    cases[#cases + 1] = 'missing plugin, off: marked, nothing written'
+
+    -- A saved On without the plugin: said at once, and a click turns it off once.
+    v = view(source, '1', nil)
+    equal(v.text('MeterVideoCoverValue'), 'No plugin', 'A saved On is not shown as working')
+    equal(v.text('MeterStatus'), UNAVAILABLE, 'The panel says why on open')
+    equal(v.env.StepChoice('MediaVideoCover', 1), true, 'A click turns the saved On off')
+    equal(table.concat(v.writes, ' '), 'MediaVideoCover=0', 'Off is written once')
+    equal(v.text('MeterStatus'), 'Live video turned off. ' .. UNAVAILABLE, 'The panel says what happened')
+    equal(v.env.StepChoice('MediaVideoCover', 1), false, 'It cannot be turned on again')
+    equal(#v.writes, 1, 'No further write')
+    cases[#cases + 1] = 'missing plugin, saved on: reported and can only be turned off'
+
+    -- With the plugin in either Plugins folder the row works as before.
+    for _, root in ipairs({ PROFILE, PROGRAM }) do
+        v = view(source, nil, root .. 'Plugins\\ParallaxVideoCover.dll')
+        equal(v.text('MeterVideoCoverValue'), 'Off', 'Off by default')
+        equal(v.env.StepChoice('MediaVideoCover', 1), true, 'Turns on')
+        equal(v.text('MeterVideoCoverValue'), 'On', 'Shows On')
+        equal(v.env.StepChoice('MediaVideoCover', 1), true, 'Turns off')
+        equal(v.text('MeterVideoCoverValue'), 'Off', 'Shows Off')
+        equal(table.concat(v.writes, ' '), 'MediaVideoCover=1 MediaVideoCover=0', 'One write per click')
+    end
+    cases[#cases + 1] = 'plugin present: off by default, on and off per click'
+
+    return count, cases
+end
+
+return suite

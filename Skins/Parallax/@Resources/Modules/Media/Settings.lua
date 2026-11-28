@@ -21,7 +21,7 @@ local allowed = {
     MediaAlbumColors = { '0', '1', '2' },
     -- The cover: the whole picture (0) or zoomed to fill the square (1).
     MediaCoverZoom = { '0', '1' },
-    -- Live video on the cover, drawn by our own plugin.
+    -- Live video on the cover, drawn by our own plugin, which is not bundled.
     MediaVideoCover = { '0', '1' }
 }
 local drawerNames = { ['0'] = 'Hidden', ['1'] = 'Collapsed', ['2'] = 'Expanded' }
@@ -31,6 +31,11 @@ local rowSizeNames = { ['1'] = 'Normal', ['0'] = 'Compact' }
 local albumNames = { ['0'] = 'Off', ['1'] = 'On', ['2'] = 'On + slide' }
 local zoomNames = { ['0'] = 'Whole', ['1'] = 'Zoomed' }
 local videoNames = { ['0'] = 'Off', ['1'] = 'On' }
+-- Live video needs the ParallaxVideoCover plugin, which Parallax does not
+-- include. Without it the row reads 'No plugin' and a click never turns it
+-- on; the status line says why.
+local videoPlugin
+local videoUnavailable = 'Live video needs a plugin that is not included.'
 -- Wrapping previous/value/next choices (UTILITY-SETTINGS.md).
 local choiceKeys = { VisualizerDrawer = true, VisualizerPlacement = true, MediaTitleAnimation = true, QueueRowSize = true, MediaAlbumColors = true,
     MediaCoverZoom = true, MediaVideoCover = true }
@@ -182,7 +187,7 @@ function Render()
     option('MeterAlbumColorsValue', albumNames[current('MediaAlbumColors')])
     option('MeterAlbumTintValue', current('MediaAlbumTint'))
     option('MeterCoverZoomValue', zoomNames[current('MediaCoverZoom')])
-    option('MeterVideoCoverValue', videoNames[current('MediaVideoCover')])
+    option('MeterVideoCoverValue', videoPlugin and videoNames[current('MediaVideoCover')] or 'No plugin')
     option('MeterQueueRowSizeValue', rowSizeNames[current('QueueRowSize')])
     option('MeterQueueExpandedValue', current('QueueExpanded') == '1' and 'Expanded' or 'Collapsed')
     option('MeterQueueRowsValue', current('QueueRowLimit'))
@@ -191,6 +196,15 @@ function Render()
     option('MeterStatus', status)
     SKIN:Bang('!UpdateMeterGroup', 'MediaSettingsData')
     SKIN:Bang('!Redraw')
+end
+
+-- A plugin Rainmeter could load: the settings folder's or the program's Plugins.
+local function pluginInstalled(name)
+    for _, root in ipairs({ SKIN:GetVariable('SETTINGSPATH', ''), SKIN:GetVariable('PROGRAMPATH', '') }) do
+        local file = root ~= '' and io.open(root .. 'Plugins\\' .. name, 'rb')
+        if file then file:close(); return true end
+    end
+    return false
 end
 
 function Initialize()
@@ -204,21 +218,12 @@ function Initialize()
     status = values and 'Changes save when clicked.' or 'Cannot read Media settings.'
     -- Album colors need the bundled Chameleon plugin (Skin Installer puts it in
     -- the settings folder's Plugins). Say so rather than leaving On inert.
-    if values and current('MediaAlbumColors') ~= '0' then
-        local found = false
-        for _, root in ipairs({ SKIN:GetVariable('SETTINGSPATH', ''), SKIN:GetVariable('PROGRAMPATH', '') }) do
-            local file = root ~= '' and io.open(root .. 'Plugins\\Chameleon.dll', 'rb')
-            if file then file:close(); found = true end
-        end
-        if not found then status = 'Album colors need the Chameleon plugin.' end
+    if values and current('MediaAlbumColors') ~= '0' and not pluginInstalled('Chameleon.dll') then
+        status = 'Album colors need the Chameleon plugin.'
     end
-    if values and current('MediaVideoCover') == '1' then
-        local found = false
-        for _, root in ipairs({ SKIN:GetVariable('SETTINGSPATH', ''), SKIN:GetVariable('PROGRAMPATH', '') }) do
-            local file = root ~= '' and io.open(root .. 'Plugins\\ParallaxVideoCover.dll', 'rb')
-            if file then file:close(); found = true end
-        end
-        if not found then status = 'Live video needs the ParallaxVideoCover plugin.' end
+    videoPlugin = pluginInstalled('ParallaxVideoCover.dll')
+    if values and current('MediaVideoCover') == '1' and not videoPlugin then
+        status = videoUnavailable
     end
     renderLayout()
 end
@@ -401,6 +406,13 @@ function StepChoice(key, delta)
     if not choices or (delta ~= -1 and delta ~= 1) or editingRequest then return false end
     values = readValues() or values
     if key == 'QueueRowSize' and current('QueueExpanded') ~= '1' then return false end
+    -- Without the plugin a click can only turn a saved On back off.
+    if key == 'MediaVideoCover' and not videoPlugin then
+        local saved = current(key) == '1' and save(key, '0')
+        status = saved and ('Live video turned off. ' .. videoUnavailable) or videoUnavailable
+        Render()
+        return saved
+    end
     local now, index = current(key), 1
     for position, choice in ipairs(choices) do
         if choice == now then index = position end

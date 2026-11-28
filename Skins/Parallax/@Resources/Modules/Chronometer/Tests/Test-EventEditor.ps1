@@ -14,6 +14,7 @@ try {
     $stdout = Join-Path $runRoot 'results.txt'
     $stderr = Join-Path $runRoot 'errors.txt'
     $process = Start-Process -FilePath $binary -ArgumentList ('-SelfTestRoot "{0}"' -f $fixtures) -WorkingDirectory $runRoot -WindowStyle Hidden -RedirectStandardOutput $stdout -RedirectStandardError $stderr -PassThru
+    $null = $process.Handle
     if (-not $process.WaitForExit(15000)) { Stop-Process -InputObject $process -Force; throw 'Event editor self-tests timed out.' }
     $report = Get-Content -LiteralPath $stdout -Raw
     Write-Output $report
@@ -22,6 +23,7 @@ try {
     $state = Join-Path $fixtures 'Parallax-Chronometer-event-v1.state'
     $before = [IO.File]::ReadAllText($state)
     $process = Start-Process -FilePath $binary -ArgumentList ('-StatePath "{0}" -ValidateOnly' -f $state) -WorkingDirectory $runRoot -WindowStyle Hidden -RedirectStandardOutput $stdout -RedirectStandardError $stderr -PassThru
+    $null = $process.Handle
     if (-not $process.WaitForExit(15000)) { Stop-Process -InputObject $process -Force; throw 'Event editor validation timed out.' }
     if ($process.ExitCode -ne 0 -or (Get-Content -LiteralPath $stdout -Raw).Trim() -ne 'VALID CLEARED' -or [IO.File]::ReadAllText($state) -cne $before) { throw 'ValidateOnly changed data or returned an invalid result.' }
     Write-Output 'PASS native ValidateOnly reads without opening UI or changing data'

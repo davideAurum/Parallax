@@ -46,8 +46,9 @@ function Test-UpdateArguments {
 # fails with "Unable to move to: ...\@Backup\Parallax" while any process keeps its
 # working directory or a handle inside it. Media's resident provider workers did,
 # and before 0.1.0-alpha.5 they also outlived the Rainmeter that started them. End
-# only workers running this installed skin's own provider scripts; their saved
-# resume intent is untouched, so the restarted Rainmeter's Media load resumes them.
+# only workers running this installed skin's own provider scripts (Source, Spotify
+# queue and TV queue); their saved resume intent is untouched, so the restarted
+# Rainmeter's Media load resumes them.
 # Returns $null when none remain, otherwise a description of what is still running.
 function Stop-ParallaxMediaWorkers {
     $skinRoot = [IO.Path]::GetFullPath((Join-Path $PSScriptRoot '..\..')).TrimEnd('\')
@@ -57,7 +58,7 @@ function Stop-ParallaxMediaWorkers {
             $line = [string]$_.CommandLine
             $_.ProcessId -ne $PID -and $line -match '(?i)-Command\s+"?Run\b' -and
                 $line.Replace('/', '\').ToLowerInvariant().Contains($prefix) -and
-                $line -match '(?i)\\(?:Source\\SourceProvider|Queue\\QueueProvider)\.ps1'
+                $line -match '(?i)\\(?:Source\\SourceProvider|Queue\\QueueProvider|TvQueue\\TvProvider)\.ps1'
         })
     foreach ($worker in $workers) { Stop-Process -Id $worker.ProcessId -Force -ErrorAction SilentlyContinue }
     $left = @()

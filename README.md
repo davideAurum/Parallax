@@ -23,7 +23,7 @@ Each panel works on its own, so use one or all of them.
 | **Chronometer** | Clock and date, time since Windows last restarted, a countdown to one event, and twelve countdown timers in three lists. The timers are hidden until you show them in the panel's settings. |
 | **CPU Meter** (CPU) | Total load, load per thread, clock speed, the busiest programs and a history graph. Temperatures, voltages and fan speeds need [HWiNFO](#cpu-temperatures-voltages-and-fans-hwinfo). |
 | **Memory Meter** (RAM) | Memory and page file in use, your memory modules, the programs using the most memory, and a history graph. |
-| **GPU Meter** (GPU) | With an NVIDIA card: load, temperature, power, clock, video memory and the busiest programs, read from the graphics driver. With integrated graphics only: load and memory, without temperature, power or clock. |
+| **GPU Meter** (GPU) | With an NVIDIA card: load, temperature, power, clock, video memory and the busiest programs, read from the graphics driver. With integrated graphics only: load and memory, without temperature, power or clock. With two graphics processors, the second gets a line of its own. |
 | **Disk Meter** (IO) | Free space, read and write speed and load for the drives you pick (C: at first), a history graph, and an eject button for removable drives. |
 | **Network Meter** (Network) | The adapter in use, its local address, Wi-Fi name, band and signal, download and upload speed, and a history graph. |
 | **Media Player** (Media) | The current song with its cover, progress and playback buttons, in colors taken from the cover. A fold-out spectrum and an optional [Spotify queue](#spotify-queue-experimental). |
@@ -54,7 +54,7 @@ The package also installs two small third-party Rainmeter plugins that Media Pla
 
 ### Removing it
 
-1. If you signed in to Spotify, open **Connections** in Global Settings and click **Disconnect** first.
+1. If you signed in to Spotify, open **Connections** in Global Settings and click **Disconnect** first. If you paired a TV or turned on casts, click **Forget** on those rows.
 2. Click **Unload all** in the Welcome panel, then close it.
 3. Delete the `Parallax` folder from Rainmeter's skins folder, usually `Documents\Rainmeter\Skins`.
 
@@ -83,6 +83,15 @@ CPU Meter takes these readings from [HWiNFO](https://www.hwinfo.com/) if you run
 3. Click **OK**, then click **Scan sensors** in CPU Meter's settings, which also list these steps.
 
 Keep HWiNFO running with its Sensors window open. Minimized is fine, but if the window is closed the readings stop, and CPU Meter says `HWiNFO: open Sensors`. Rainmeter's site has a [longer guide](https://docs.rainmeter.net/tips/hwinfo/).
+
+### YouTube on the TV (experimental)
+
+Media Player can show what YouTube plays on a TV while nothing plays on this PC. Everything here is off until you turn it on, and it uses a part of YouTube that is not public and can change at any time.
+
+- **The TV's own YouTube app.** On the TV, open YouTube's settings and **Link with TV code**, then click **Pair** on the Connections panel's TV row and type the code. The queue then lists what the TV plays next, and the player card shows and controls the TV. This was tried with one TV.
+- **Casting from Chrome** (**Turn on** in the **Casts** row). Parallax looks for the TV on your home network and follows the cast. **This has never been tried with a real TV.**
+
+**Forget** on the same rows removes what was saved.
 
 ### Spotify queue (experimental)
 
@@ -132,7 +141,7 @@ All checks so far ran on the maintainer's own two PCs.
 ### Known issues
 
 - On a smaller screen some new panels open on top of one another, so drag them apart. A 1920 × 1080 screen has room for all of them at 100% Windows scaling. At 125% **Global Settings** covers part of three others, and at 150% **Welcome** is covered too. A panel that an older version left in the top-left corner stays there until you move it; 0.1.0-alpha.17 added an **Arrange** button in Welcome for that.
-- In 0.1.0-alpha.16 and older, the last rows of **Global Settings** and of the CPU, Chronometer and GPU settings are below such a screen. Since 0.1.0-alpha.17 those panels stop at the screen's bottom edge and scroll: use the mouse wheel, or the two arrows beside the close button. **Media Player's settings** do not scroll. At 150% their controls from the Spotify queue's buttons down are below the screen; at 125% only the last row is, and only while the queue is expanded.
+- In 0.1.0-alpha.16 and older, the last rows of **Global Settings** and of the CPU, Chronometer and GPU settings are below such a screen. Since 0.1.0-alpha.17 those panels stop at the screen's bottom edge and scroll: use the mouse wheel, or the two arrows beside the close button. **Media Player's settings** do not scroll. On a 1080p screen at 125% or 150% Windows scaling their lower rows are below the screen.
 - In a copy first installed with 0.1.0-alpha.16 or older, on Intel processors whose name includes their base speed, CPU Meter can show `(4.60)` as the turbo speed whatever the real one is. It comes from a setting, not a reading, and updating keeps it. To fix it, right-click CPU Meter, choose **Edit CPU options**, change or clear `CPUTurboClock`, save, and refresh the panel.
 - On Windows before 11 24H2, or in a language other than English, Network Meter reads `Band unavailable`.
 - In Media Player's one-column layout, the right playback button covers part of the time.
@@ -140,10 +149,11 @@ All checks so far ran on the maintainer's own two PCs.
 
 ## Privacy
 
-Parallax has no telemetry and no server of its own, and needs no account. Its settings stay on your PC. It uses the internet for two things:
+Parallax has no telemetry and no server of its own, and needs no account. Its settings stay on your PC. It uses the internet for these:
 
 - **The update check** reads one small file from this project's GitHub releases, about once a day while a panel is loaded, and when you open Global Settings. It sends nothing about you or your PC beyond what any download does: GitHub sees your IP address, and it counts downloads, which is all this project can see. To turn it off, set **Global Settings > Updates > Auto check** to **Off**. After that, only **Check now** and **Update** contact GitHub.
 - **Spotify**, only after you sign in for the queue. Parallax then contacts Spotify's sign-in service, its Web API and its cover-image servers. The sign-in is kept on your PC, encrypted by Windows for your user account, and **Disconnect** deletes it. Parallax never sees your Spotify password, and it does not use a client secret.
+- **YouTube on the TV**, only after you pair a TV or turn on casts. Parallax then contacts YouTube (including its thumbnail server) about what the TV plays, and for casts it also talks to Cast devices on your home network. The pairing and the cast key are kept on your PC, encrypted by Windows for your user account, and **Forget** deletes them.
 
 Spotify detection, HWiNFO readings and Network Meter's addresses come from your own PC, and Parallax does not look up your public address. Rainmeter, WebNowPlaying and HWiNFO are separate programs with their own rules.
 

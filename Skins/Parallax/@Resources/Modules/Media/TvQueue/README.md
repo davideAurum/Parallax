@@ -129,6 +129,9 @@ and the list id when known, otherwise the id list itself. In the live gate (2026
 
 ## Casts (opt-in, stage 3, lane tv-cast-link)
 
+**Experimental and untried:** this direct connection has never been tried against
+a real TV.
+
 A cast from Chrome plays on the TV under a different screen from the one paired by
 code, and the casting tab goes stale (live try, 2026-11-27). With **Connections >
 Casts > Turn on** (`-Command CastOn`) the worker also follows a cast directly on

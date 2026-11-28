@@ -354,7 +354,8 @@ Text=>
 LeftMouseUpAction=[!CommandMeasure MeasureMediaSettings "StepChoice('MediaCoverZoom',1)"]
 
 ; Live video (2026-11-27): the browser's picture-in-picture window, or the
-; YouTube app's video, drawn on the cover. Needs the ParallaxVideoCover plugin.
+; YouTube app's video, drawn on the cover. Needs the ParallaxVideoCover plugin,
+; which is not included: without it Settings.lua shows 'No plugin'.
 [MeterVideoCoverLabel]
 Meter=String
 MeterStyle=StyleUtilitySettingsLabel|MediaSettingsLabel|MediaSettingsData

@@ -31,8 +31,10 @@ TitleRowHeight=(22*#Scale#)
 ; height stand above another one; CPU grows with the processor and stands alone.
 PlaceRight=(#PWORKAREAX#+#PWORKAREAWIDTH#)
 PlaceBottom=(#PWORKAREAY#+#PWORKAREAHEIGHT#)
-; Window heights, gutter included, with each panel's shipped options.
-PlaceGPUHeight=(Round((414+#GraphHeight#+Max(0,#DataBarThickness#-6))*#Scale#)+#Gap#)
+; Window heights, gutter included, with each panel's shipped options. GPU's
+; includes the 24 px line its shipped Second GPU=1 adds when Windows reports two
+; GPUs, which no panel can know at first load; with one GPU that stays empty.
+PlaceGPUHeight=(Round((438+#GraphHeight#+Max(0,#DataBarThickness#-6))*#Scale#)+#Gap#)
 PlaceIOHeight=(Round((152+Max(0,#DataBarThicknessPx#/#Scale#-6))*#Scale#)+#Gap#)
 PlaceChronometerHeight=(Round(152*#Scale#)+#Gap#)
 PlaceNetworkHeight=(Round(298*#Scale#)+#DataBarThicknessPx#+#Gap#)

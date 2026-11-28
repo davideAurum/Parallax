@@ -23,6 +23,7 @@ try {
     $stderr = Join-Path $runRoot 'errors.txt'
     $arguments = '-SelfTestRoot "{0}" -PreviewPath "{1}"' -f $fixtures, $previewPath
     $process = Start-Process -FilePath $binary -ArgumentList $arguments -WorkingDirectory $runRoot -WindowStyle Hidden -RedirectStandardOutput $stdout -RedirectStandardError $stderr -PassThru
+    $null = $process.Handle
     if (-not $process.WaitForExit(15000)) { Stop-Process -InputObject $process -Force; throw 'Event form tests timed out.' }
     $report = Get-Content -LiteralPath $stdout -Raw
     Write-Output $report

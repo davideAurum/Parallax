@@ -233,7 +233,7 @@ function suite.run(resourcesPath, workPath)
     state = mock(mediaVars, { MeterHeading = meter(20, 150, '%1'), MeterParallaxDevProbe = meter(0, 60) },
         { MeasureMediaHeader = { GetStringValue = function() return 'Media Player: stopped' end } })
     script = icon(state); script.Initialize(); script.Apply()
-    eq(state.bangs[1], '!SetOption|MeterParallaxDevProbe|Text|Media Player: stopped', 'a measure-fed title is read from its measure')
+    eq(state.bangs[2], '!SetOption|MeterParallaxDevProbe|Text|Media Player: stopped', 'a measure-fed title is read from its measure')
 
     -- States.
     local function stateOf(module, content)

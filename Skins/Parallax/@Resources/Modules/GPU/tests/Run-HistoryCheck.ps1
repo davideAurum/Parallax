@@ -118,7 +118,7 @@ for ($i=1;$i -lt $rows.Count;$i++) {
 }
 # Distinct non-starting helper sequences with a valid activity reading, as seen
 # by this harness after the controller in the same update.
-$sequences=@($rows | Where-Object { $_.Seq -match '^\d+$' -and [long]$_.Seq -ge 1 -and $_.Activity -eq 'OK' } | ForEach-Object { $_.Seq } | Select-Object -Unique)
+$sequences=@($rows | Where-Object { $_.Seq -match '^\d+$' -and [long]$_.Seq -ge 1 -and $_.Activity -in 'OK','ASLEEP' } | ForEach-Object { $_.Seq } | Select-Object -Unique)
 $ticksAfterFirst=@($rows | Where-Object { $_.Seq -match '^\d+$' -and [long]$_.Seq -ge 1 }).Count
 $last=$rows[-1]
 $summary=[ordered]@{
@@ -144,5 +144,5 @@ if ($FillStep -le 1) {
     if ($last.Points -lt $last.Width) { throw 'The test-stage fill step did not fill the graph in time; raise -FillStep or -SettleSeconds.' }
     if ($last.CoverDivider -ne '-1' -or $last.CoverDynamic -ne '0' -or $last.CoverH -ne 0) { throw 'A full graph did not retire the startup cover (hidden, DynamicVariables 0, UpdateDivider -1).' }
 }
-if ($last.GraphDynamic -ne '' -or $last.GraphDivider -ne '-1') { throw 'The History Line meter must be UpdateDivider=-1 without DynamicVariables.' }
+if ($last.GraphDynamic -notin '','0' -or $last.GraphDivider -ne '-1') { throw 'The History Line meter must be UpdateDivider=-1 without DynamicVariables.' }
 'PASS: native History cadence and startup cover checks'

@@ -73,7 +73,7 @@ fixed string.
 Lane `tv-cast-link`, stage 3 (2026-11-28). One row, **Casts**, under the TV row:
 follow a YouTube cast from Chrome on the TV, so Media's card shows what the TV
 plays and its play/pause and next reach the TV. Off by default; works with or
-without a TV paired by code.
+without a TV paired by code. **Experimental: never tried against a real TV.**
 
 - **Turn on** runs `TvProvider.ps1 -Command CastOn` hidden: the switch is saved and
   the TV worker starts (or, already running, picks it up within 2 s) and looks for

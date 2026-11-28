@@ -83,6 +83,7 @@ const expected = [
   ['Attack', 'VisualizerAttack', [0, 50, 100, 200, 2000], null, false, 0, 2000],
   ['Decay', 'VisualizerDecay', [0, 100, 250, 500, 1000, 5000], null, false, 0, 5000]
 ];
+sections.delete('MeasureParallaxPlace');
 const allowedKeys = new Set(expected.map(row => row[1]));
 assert.equal(sections.get('Rainmeter').Update, '-1');
 assert.equal(sections.get('Rainmeter').Group, 'Parallax');

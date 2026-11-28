@@ -101,6 +101,21 @@ Sync stages `Skins\Parallax` with `Stage-Parallax.ps1`, so the copy receives exa
 
 The refresh sends `!Refresh "ParallaxDev\<utility>"` for each loaded dev utility (or `!ActivateConfig` / `!DeactivateConfig` / `!CommandMeasure ... Reload()` for the other actions) to the Rainmeter in use, and to no other (next section).
 
+## Parallel streams (version of 2026-11-28)
+
+For work that runs as several streams at once. A single session needs none of this. The workflow is still changing; update this section when it does.
+
+- **Roles.** A coordinating session talks to the owner and keeps its own context small. Each stream has its own session, worktree and branch. An integrator, a separate session, merges, tests and updates the dev copy.
+- **One feed for `ParallaxDev`.** The combined branch `integration/dev`, in the worktree `.claude/worktrees/dev-integration`, is the only source of the dev copy. Only the integrator runs `tools\Sync-ParallaxDev.ps1`, from that folder, in PowerShell. Only the integrator touches the live Rainmeter, including bangs and plugin installs. Every stream's brief says so.
+- **Streams** commit on their own branch and report the commit hash and what is not verified.
+- **Before each integration** the integrator fetches and merges any commits on `main` or `origin/main` that `integration/dev` lacks, and reports them if something arrived or clashed.
+- **A clean merge is not a passing combination.** Run every suite of the modules involved, not only those a change seems to touch. `tools\Test-Parallax.ps1` checks the repository's structure; it does not run the module suites, several of which need Windows PowerShell 5.1.
+- **Overview branch.** The coordinator's checkout stays on `overview/combined`, never commits there, and fast-forwards it to `integration/dev` after each passing integration, so its diff shows all the combined work.
+- **Ending a stream.** It reports, the integrator merges and tests, and the change is proven in real use. Then the coordinator notes the session, branch and last commit, and archives the session. The branch stays until its work is on `main`. A stream with anything open or waiting on the owner stays.
+- **Publishing.** Stream and combined branches are never pushed: their history can hold working notes that do not belong in a public repository. Publish one commit on top of `origin/main`, after scanning its added lines and message for personal details, and push only when the owner says.
+- **Not isolated between streams:** `ParallaxDev`, the installed Rainmeter, data under `%LOCALAPPDATA%\Parallax`, a paired TV, and Rainmeter's `Plugins` folder.
+- **Unrelated ideas** go to [ROADMAP.md](ROADMAP.md) with a prompt for a standalone session, not into the running streams.
+
 ## Sending bangs from outside Rainmeter
 
 **When several changes are worked on in parallel, let only one place touch the live Rainmeter, including plugin installs.** All other work leaves the installed Rainmeter, its Skins folder (`ParallaxDev` included) and its Plugins folder alone: no bang, no `Sync-ParallaxDev.ps1` without `-NoRefresh`, no activate or deactivate, no plugin swap. It is tested in isolated instances. (Clicks in Rainmeter itself, such as the right-click item above, are not affected.)

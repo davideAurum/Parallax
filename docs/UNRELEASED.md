@@ -2,20 +2,7 @@
 
 Where things stand between releases: what is on `main` but not yet in a published package, and what is still open. Update this file when work lands. When a release ships, move its "On main" entries into that release's notes and clear them here. Stage goals live in [ROADMAP.md](ROADMAP.md); this file is the short list.
 
-**Latest release:** [0.1.0-alpha.17](https://github.com/davideAurum/Parallax/releases/tag/v0.1.0-alpha.17) (2026-11-26): Media's [Spectrum tab](modules/Media.md#spectrum-position), Welcome [Arrange and Undo](WELCOME.md#arrange), settings that [scroll on short screens](UTILITY-SETTINGS.md#tall-panels), the optional [sliding text gradient](modules/Media.md#sliding-text-gradient-2026-11-25), a [load-time fix](modules/Media.md#load-time-with-the-drawer-open-2026-11-25) for the new drawer, **Contributors** in place of Developer, an experimental label on the Spotify queue and no shipped turbo speed. Built and tagged at `acb7ea2`. Package SHA-256 `eb73c51a2d7c2f454e0eb09fcf70df70acce1cf4b24248139175a89213acf62c`, 1,417,430 bytes (294 entries). Checks on the Surface laptop (Rainmeter 4.5.28.3936):
-
-- **Static and tooling:** `Test-Parallax -RequireAllModules`, `Test-ParallaxVariants` (now with the Album colors variants), `test_settings_geometry.py`, `test_idle_freeze_contract.py`, `test_skin_contract.py`, `validate_cpu.py`, IO's `check_geometry.py`, `Test-RepaintRule`, `Test-PackagingTools` and `Test-DevMode`.
-- **Native:** Welcome and placement smokes, Media's adapter, header, lifecycle, transport, never-started and settings tests, `Test-IdleStandDown -Skin Media`, the four queue tests and `Test-Connections`.
-- **Package:** verified against its manifest. Extracted into an isolated profile, 14 configs loaded for 45 s and no helper was left running; the only log lines were the 18 plugin-load errors for WebNowPlaying, left out on purpose.
-- **Published:** the live feed served alpha.17 right after publishing, and the downloaded asset matched the SHA-256.
-- **Upgrade:** the owner installed it over alpha.16 on the laptop (reported 2026-11-26). All nine `User\*.inc` files kept every key of the alpha.16 copy in `@Backup` with its value; the only new keys are Media's `VisualizerPlacement=0` and `QueueDrawerTab=0`. Of the 288 shipped files 282 match the package, none is missing, and the rest are CPU's, GPU's, IO's, Media's and the global settings and the update check's `State.inc`. Only files and settings were compared, not how the panels look or behave; how the upgrade was started was not recorded.
-- **Not done:** a first install on a machine without Parallax, and the Media capture-lease test (it needs silent output).
-
-Still unverified: from alpha.17, the sliding gradient with a real cover, a track change or on the live desktop, its stop during a live Idle pause, Arrange by a hand click or on a second screen, and the scrolling settings on a real short screen. From earlier releases: from alpha.16, a real 1080p screen at 100%, several screens, a taskbar on another edge and Rainmeter 4.5.26 and 5.x; from alpha.15, the Connections links by a physical click, the mouse wheel by hand, a row click that falls back to skips, other devices, more than 50 playlists, a free Spotify account, a muted cover live, dragging the never-started panel by its title, and a real fresh install. From alpha.14: the spectrum drawer's cover colors, the hover highlight, the look at 150%, and CPU Meter reconnecting by itself when the HWiNFO export returns.
-
-## 0.1.0-alpha.18 candidate (2026-11-28, not published)
-
-Package built with `-NoReadme`: SHA-256 `cd0db29356ccdd4ee879f6f8f9664a674911a1e19254b06752b51dd1032e7f4f`, 1,506,847 bytes (311 entries). Rainmeter 4.5.28.3936, isolated instances only.
+**Latest release:** [0.1.0-alpha.18](https://github.com/davideAurum/Parallax/releases/tag/v0.1.0-alpha.18) (2026-11-28): GPU Meter's second GPU and sleeping-GPU handling, Media's YouTube TV link and player card, experimental casts, whole or zoomed cover, and room for the second-GPU line on first placement. Tagged at `0ed7e34`. Package SHA-256 `cd0db29356ccdd4ee879f6f8f9664a674911a1e19254b06752b51dd1032e7f4f`, 1,506,847 bytes (311 entries). Rainmeter 4.5.28.3936, isolated instances only:
 
 - **Package:** verified against its stage manifest. The four plugin DLLs and `EventEditor.exe` are byte for byte those of an alpha.17 package built from its tag; no other binary, no pairing, cast or runtime data.
 - **Clean install and upgrade, throwaway profiles:** 197 of 197 checks. 15 configs loaded for 45 s each time; the only log lines were the 18 for WebNowPlaying, left out on purpose. The upgrade from alpha.17 mirrored Skin Installer's settings merge with the same Windows calls; **Skin Installer itself was not run**. New keys: `MediaCoverZoom=0`, `MediaVideoCover=0`, `GPUMainGPU=0`, `GPUSecondGPU=1`.
@@ -26,19 +13,13 @@ Package built with `-NoReadme`: SHA-256 `cd0db29356ccdd4ee879f6f8f9664a674911a1e
   - **Also failing on alpha.17:** `Test-IOIdleRows`, `Run-UnifiedSmoke` and its two aliases, `Test-RAMNative`, `Test-RAMHistoryCover`, `Test-RAMHistoryRange`, Chronometer's `Smoke`, `EventEditorSmoke`, and `Test-SettingsRefresh` (known).
   - `Test-TvCastCore` failed once with a collection-changed error and passed the next three runs. `Run-SettingsSmoke` (Network) and Chronometer's `SettingsSmoke` fail only from a very deep folder.
 - **Not run:** `Test-ParallaxUpgrade` and `Test-InstallationRoot` (both work on the installed Rainmeter), GPU `-Live` checks, a real TV.
+- **Published:** the live feed served alpha.18 right after publishing, and the downloaded asset matched the SHA-256.
+
+Still unverified: from alpha.17, the sliding gradient with a real cover, a track change or on the live desktop, its stop during a live Idle pause, Arrange by a hand click or on a second screen, and the scrolling settings on a real short screen. From earlier releases: from alpha.16, a real 1080p screen at 100%, several screens, a taskbar on another edge and Rainmeter 4.5.26 and 5.x; from alpha.15, the Connections links by a physical click, the mouse wheel by hand, a row click that falls back to skips, other devices, more than 50 playlists, a free Spotify account, a muted cover live, dragging the never-started panel by its title, and a real fresh install. From alpha.14: the spectrum drawer's cover colors, the hover highlight, the look at 150%, and CPU Meter reconnecting by itself when the HWiNFO export returns.
 
 ## On main, not in any release
 
-- **GPU Meter shows a second GPU** when Windows reports two, on by default as one line; **Main GPU** and **Second GPU** are rows in GPU settings, and a non-NVIDIA discrete GPU now reads load and memory ([details](modules/GPU.md#two-gpus-2026-11-26)). Not tried on real AMD or Intel Arc hardware.
-- **GPU Meter lets a sleeping NVIDIA GPU sleep**: readings say `Asleep` instead of waking it ([details](modules/GPU.md#sleep-gate-2026-11-27)). The battery saving and the on-screen wording are not measured or seen.
-- **Media shows a tab casting to a TV as playing**, not stopped ([details](modules/Media.md#casting-to-a-tv-2026-11-27)).
-- Media shows the whole current cover: a wide video thumbnail is no longer cut off at the sides ([details](modules/Media.md#whole-cover-2026-11-27)). Not seen in a running Rainmeter yet.
-- Media settings (a new Cover row) and the right-click menu choose between the whole cover picture and zooming to fill the square ([details](modules/Media.md#cover-zoom-2026-11-27)).
-- **YouTube on the TV**: Media's queue drawer lists the up next of YouTube in the TV's own app while nothing plays on this PC, and a row click makes the TV jump there. Experimental, on YouTube's unofficial remote API ([Media](modules/Media.md#youtube-on-the-tv-tv-queue-2026-11-27)). Loading Media's player resumes a worker started earlier and not stopped. Pair, Start, Stop and Forget are on the Connections panel's new TV row ([Connections](CONNECTIONS.md#youtube-on-the-tv)). Checked: a live gate on one TV (pause, play, next, a row jump) and offline suites; the drawer rows and the player card were also seen working on that TV.
-- **YouTube TV player card**: while nothing plays on this PC, Media's player card shows what the TV plays, and its play/pause and next act on the TV ([details](modules/Media.md#player-card-on-the-tv-stage-3-2026-11-28)).
-- **Casts** (Connections, off by default): follow a YouTube cast from Chrome directly on the TV. **Experimental and never tried against a real TV** ([details](modules/Media.md#casts-followed-on-the-tv-stage-3-2026-11-28)).
-- **Video cover experiments**, off by default: a **Live video** row in Media settings that needs a plugin no package contains (without it the row reads `No plugin`), and a three-frame cover preview with no row ([details](modules/Media.md#video-cover-and-cover-preview-in-development-2026-11-27)).
-- **Updating** now also ends a running TV worker before Skin Installer opens ([UPDATES.md](UPDATES.md#upgrading-past-running-media-helpers)). No published version before this one runs a TV worker.
+Nothing yet.
 
 ## Open: before 0.2.0-beta.1
 
